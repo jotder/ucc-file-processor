@@ -9,7 +9,8 @@ dirs:
   errors:     ../errors/voucher
   quarantine: ../quarantine/voucher
   markers:    ../markers/voucher
-  status_file: status.csv
+  status_dir:  ../status/voucher
+  log_dir:     ../logs/voucher
 
 output:
   format: PARQUET
@@ -54,3 +55,4 @@ copy_tars:
 backup:
   base_dirs[2]: /mnt/rawdata/feed1, /mnt/rawdata/feed2
   log_available: available_files.csv
+

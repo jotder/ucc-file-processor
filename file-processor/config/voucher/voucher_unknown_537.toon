@@ -1,6 +1,6 @@
 partitionKey: ""
 raw:
-  name: voucher_cbs_raw
+  name: voucher
   format: CSV
   fields[537]{name,selector,type}:
     FILENAME,"0",VARCHAR

@@ -53,17 +53,16 @@ public class FileBackup {
      * @param toon   full pipeline toon map (must contain {@code backup} and {@code dirs} sections)
      * @param dryRun simulate without touching the filesystem
      */
-    @SuppressWarnings("unchecked")
     public FileBackup(Map<String, Object> toon, boolean dryRun) {
         this.dryRun = dryRun;
 
-        Map<String, Object> backupSec = requireSection(toon, "backup");
-        this.baseDirs         = FileOrganizer.parseBaseDirs(backupSec);
-        this.logAvailablePath = opt(backupSec, "log_available", "available_files.csv");
+        Map<String, Object> backupSec = ToonHelper.requireSection(toon, "backup");
+        this.baseDirs         = ToonHelper.parseBaseDirs(backupSec);
+        this.logAvailablePath = ToonHelper.opt(backupSec, "log_available", "available_files.csv");
 
-        Map<String, Object> dirs = requireSection(toon, "dirs");
-        this.backupDir = Paths.get(require(dirs, "backup", "dirs")).toAbsolutePath().normalize();
-        this.pollDir   = Paths.get(require(dirs, "poll",   "dirs")).toAbsolutePath().normalize();
+        Map<String, Object> dirs = ToonHelper.requireSection(toon, "dirs");
+        this.backupDir = Paths.get(ToonHelper.require(dirs, "backup", "dirs")).toAbsolutePath().normalize();
+        this.pollDir   = Paths.get(ToonHelper.require(dirs, "poll",   "dirs")).toAbsolutePath().normalize();
     }
 
     // ── public entry point ────────────────────────────────────────────────────
@@ -89,12 +88,7 @@ public class FileBackup {
                 if (status.startsWith("ERROR")) continue;
 
                 Path src = Paths.get(foundPath).toAbsolutePath().normalize();
-
-                ph.register();
-                exec.submit(() -> {
-                    try   { backupFile(src); }
-                    finally { ph.arriveAndDeregister(); }
-                });
+                VirtualThreadRunner.submit(exec, ph, () -> backupFile(src));
             }
         }
 
@@ -182,29 +176,5 @@ public class FileBackup {
         if (bestBase != null) return bestBase.relativize(src);
         System.err.printf("[WARN] %s is not under any base_dir; using filename only.%n", src);
         return src.getFileName();
-    }
-
-    // ── toon parsing helpers ──────────────────────────────────────────────────
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> requireSection(Map<String, Object> toon, String key) {
-        Object val = toon.get(key);
-        if (!(val instanceof Map))
-            throw new IllegalArgumentException(
-                    "Pipeline toon is missing required section '" + key + "'");
-        return (Map<String, Object>) val;
-    }
-
-    private static String require(Map<String, Object> section, String key, String sectionName) {
-        Object val = section.get(key);
-        if (val == null || val.toString().isBlank())
-            throw new IllegalArgumentException(
-                    "Missing required key '" + key + "' in toon section '" + sectionName + "'");
-        return val.toString();
-    }
-
-    private static String opt(Map<String, Object> section, String key, String defaultVal) {
-        Object val = section.get(key);
-        return (val != null && !val.toString().isBlank()) ? val.toString() : defaultVal;
     }
 }

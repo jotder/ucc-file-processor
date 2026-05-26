@@ -80,6 +80,45 @@ The **pre-ETL utilities** (`MainApp`) handle the movement and unpacking of raw d
 
 **SourceProcessor** is the runtime engine — it reads the generated configs, polls the inbox directory, and processes every file it finds.
 
+### Package Structure
+
+```
+com.gamma
+  inspector/
+    SourceProcessor          — thin ETL orchestrator (~170 lines); delegates all logic to etl.*
+  etl/
+    PipelineConfig           — immutable config object; static factory loads and validates .toon
+    SchemaSelector           — two-pass schema dispatch (file-pattern fast path + column-count probe)
+    CsvIngester              — streams CSV/CSV.GZ into a DuckDB raw_input staging table
+    DataTransformer          — applies typed SQL transformations; writes Parquet/CSV output (two-stage)
+    MarkerManager            — .processed sentinel files for idempotent ingest; retention-based cleanup
+    QuarantineManager        — moves zero-valid-row and unreadable files to quarantine/
+    DuckLakeRegistrar        — optional: registers written Parquet files into a DuckLake catalog
+    StatusWriter             — thread-safe append to the per-run timestamped status CSV
+    IngestResult             — record: parsedRows, errorRows, junkCandidateRows
+    TransformResult          — record: outputPaths, outputSizes
+  util/
+    ToonHelper               — load/validate .toon files; require/opt section helpers; parseBaseDirs
+    TarUtil                  — isTar/isCsv/isGzipped predicates; extractTar; peekTar; deleteTree
+    VirtualThreadRunner      — Phaser + VirtualThreadPerTaskExecutor fan-out helper
+    SqlBuilder               — typed DuckDB SELECT expressions (COALESCE/TRY_STRPTIME chains)
+    LogSetup                 — TeeOutputStream; per-run timestamped log file wired to stdout/stderr
+    DuckDbUtil               — JDBC URL builder; temp DB file lifecycle; datetime formatter
+    FileOrganizer            — search base_dirs for manifest files; optionally copy to poll dir
+    FileBackup               — move found_path originals to dirs.backup after a search/copy run
+    TarArranger              — copy-tars (collect archives) + extract (unpack + arrange by date)
+    TarInboxPreparer         — toon-native alias for the extract workflow
+    TarExtractor             — recursive walk for 'unknown/' tar archives; sentinel-based skip
+    IntegratedProcessor      — extract + move for CBS CDR adjustment archives
+    SchemaExtractor          — DuckDB-powered type inference; generates _schema.toon + _pipeline.toon
+    MainApp                  — CLI dispatcher for all pre-ETL utility commands
+    ParquetSummarizer        — count rows and bytes across a database/ Parquet tree
+    PartitionSummarizer      — partition-level statistics for one or more tables
+    FileMoverByDate          — date-partition files from a flat directory into year/month/day tree
+```
+
+**Design principle:** `SourceProcessor` is a pure orchestrator — it creates the thread pool and drives the per-file lifecycle, but contains zero business logic itself.  Every concern is owned by a focused single-responsibility class: parsing (`CsvIngester`), transformation (`DataTransformer`), deduplication (`MarkerManager`), quarantine (`QuarantineManager`), registration (`DuckLakeRegistrar`), and auditing (`StatusWriter`).  All shared low-level helpers live in `com.gamma.util` and are reused by both the ETL and the pre-ETL utilities.
+
 ---
 
 ## Features
@@ -151,7 +190,12 @@ sandbox-root/                ← working directory for local runs
   markers/
     adjustment/              ← .processed sentinel files (mirrors inbox tree; auto-pruned by retention_days)
     voucher/
-  status.csv                 ← ETL audit log
+  status/
+    adjustment/              ← per-run audit CSVs: adjustment_etl_status_<timestamp>.csv
+    voucher/
+  logs/
+    adjustment/              ← per-run log files: adjustment_etl_log_<timestamp>.log
+    voucher/
   warehouse_setup.sql        ← pg_duckdb warehouse schema, views, and RBAC (run once on server)
 ```
 
@@ -419,7 +463,8 @@ dirs:
   errors:     errors/adjustment
   quarantine: quarantine/adjustment
   markers:    markers/adjustment
-  status_file: status.csv
+  status_dir: status/adjustment
+  log_dir:    logs/adjustment
 
 output:
   format: PARQUET
@@ -465,9 +510,13 @@ backup:
 
 The `dirs`, `output`, and `processing` sections are used by `SourceProcessor` (the ETL runtime). The `search`, `copy_tars`, and `backup` sections are used exclusively by the pre-ETL utility commands in `MainApp`. All sections coexist in a single file — the one file configures everything for a source.
 
-All seven `dirs.*` entries are required for SourceProcessor (`poll`, `database`, `backup`, `temp`, `errors`, `quarantine`, `markers`). Startup validation confirms that all managed directories are not nested inside the `poll` directory.
+All seven core `dirs.*` entries are required for SourceProcessor (`poll`, `database`, `backup`, `temp`, `errors`, `quarantine`, `markers`). The optional `status_dir` and `log_dir` entries enable per-run audit and log files. Startup validation confirms that all managed directories are not nested inside the `poll` directory.
 
 **`dirs.markers`** — dedicated directory for `.processed` sentinel files. Mirrors the poll directory tree: a file at `inbox/adjustment/20200403/feed.csv.gz` produces a marker at `markers/adjustment/20200403/feed.csv.gz.processed`. Markers are pruned automatically at each poll start; any marker file older than `processing.duplicate_check.retention_days` days is deleted and empty subdirectories are removed. This keeps the markers directory bounded in size without manual intervention.
+
+**`dirs.status_dir`** — directory for per-run status CSVs. Each ETL run creates a new file named `<pipeline_name>_status_<yyyyMMdd_HHmmss>.csv` — runs never overwrite each other. Omit (or leave blank) to disable the status log.
+
+**`dirs.log_dir`** — directory for per-run log files. Each run creates `<pipeline_name>_log_<yyyyMMdd_HHmmss>.log`, capturing a tee of all stdout and stderr output. The timestamp matches the status file for easy correlation. Omit (or leave blank) to disable file logging.
 
 **`processing.duplicate_check.retention_days`** — how far back duplicate detection reaches (default: `90`). A file delivered more than 90 days after its first processing will be treated as a new file and processed again. Increase this value for sources that occasionally re-deliver old data.
 
@@ -559,7 +608,7 @@ quarantine/adjustment/
 
 ## Status Log & Auditing
 
-The status log is an append-only CSV written to the path in `dirs.status_file`. One row per processed file.
+Each ETL run creates a new, timestamped status CSV in `dirs.status_dir` named `<pipeline_name>_status_<yyyyMMdd_HHmmss>.csv`. Runs never overwrite each other — each run is isolated in its own file. One row per processed file.
 
 ```
 start_time,end_time,filename,status,parsed_rows,error_rows,output_paths,output_sizes_bytes,duration_ms,error

@@ -74,21 +74,20 @@ public class FileOrganizer {
      * @param dryRun     simulate without touching the filesystem
      * @param searchOnly search and log only; do not copy files
      */
-    @SuppressWarnings("unchecked")
     public FileOrganizer(Map<String, Object> toon, boolean dryRun, boolean searchOnly)
             throws IOException {
         this.dryRun     = dryRun;
         this.searchOnly = searchOnly;
 
-        Map<String, Object> searchSec = requireSection(toon, "search");
-        this.baseDirs         = parseBaseDirs(searchSec);
-        this.csvInput         = require(searchSec, "csv_input",     "search");
-        this.logAvailablePath = opt(searchSec, "log_available", "available_files.csv");
-        this.logMissingPath   = opt(searchSec, "log_missing",   "missing_files.csv");
-        this.logErrorPath     = opt(searchSec, "log_error",     "error_log.csv");
+        Map<String, Object> searchSec = ToonHelper.requireSection(toon, "search");
+        this.baseDirs         = ToonHelper.parseBaseDirs(searchSec);
+        this.csvInput         = ToonHelper.require(searchSec, "csv_input",     "search");
+        this.logAvailablePath = ToonHelper.opt(searchSec, "log_available", "available_files.csv");
+        this.logMissingPath   = ToonHelper.opt(searchSec, "log_missing",   "missing_files.csv");
+        this.logErrorPath     = ToonHelper.opt(searchSec, "log_error",     "error_log.csv");
 
-        Map<String, Object> dirs = requireSection(toon, "dirs");
-        this.targetDir = Paths.get(require(dirs, "poll", "dirs")).toAbsolutePath().normalize();
+        Map<String, Object> dirs = ToonHelper.requireSection(toon, "dirs");
+        this.targetDir = Paths.get(ToonHelper.require(dirs, "poll", "dirs")).toAbsolutePath().normalize();
 
         // Guard: poll dir must not be inside any base dir (would cause the walk to
         // recurse into its own output tree and produce infinite loops or stale copies).
@@ -161,19 +160,11 @@ public class FileOrganizer {
     private void walkAllBaseDirs() {
         for (Path dir : baseDirs) {
             if (Files.exists(dir)) {
-                submitTask(() -> walkParallel(dir));
+                VirtualThreadRunner.submit(executor, phaser, () -> walkParallel(dir));
             } else {
                 logError(dir.toString(), "Base directory does not exist.");
             }
         }
-    }
-
-    private void submitTask(Runnable task) {
-        phaser.register();
-        executor.submit(() -> {
-            try   { task.run(); }
-            finally { phaser.arriveAndDeregister(); }
-        });
     }
 
     private void walkParallel(Path dir) {
@@ -181,7 +172,7 @@ public class FileOrganizer {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path entry : stream) {
                 if (Files.isDirectory(entry)) {
-                    submitTask(() -> walkParallel(entry));
+                    VirtualThreadRunner.submit(executor, phaser, () -> walkParallel(entry));
                 } else {
                     checkAndProcessFile(entry);
                 }
@@ -206,7 +197,7 @@ public class FileOrganizer {
             }
         } else {
             for (String[] row : rows)
-                submitTask(() -> performCopy(row, file));
+                VirtualThreadRunner.submit(executor, phaser, () -> performCopy(row, file));
         }
     }
 
@@ -262,47 +253,5 @@ public class FileOrganizer {
         System.out.println("Total CSV Records      : " + totalTargets.get());
         System.out.println("Unique Files Found     : " + foundCount.get());
         System.out.println("Records Logged Missing : " + (totalTargets.get() - foundCount.get()));
-    }
-
-    // ── toon parsing helpers ──────────────────────────────────────────────────
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> requireSection(Map<String, Object> toon, String key) {
-        Object val = toon.get(key);
-        if (!(val instanceof Map))
-            throw new IllegalArgumentException(
-                    "Pipeline toon is missing required section '" + key + "'");
-        return (Map<String, Object>) val;
-    }
-
-    private static String require(Map<String, Object> section, String key, String sectionName) {
-        Object val = section.get(key);
-        if (val == null || val.toString().isBlank())
-            throw new IllegalArgumentException(
-                    "Missing required key '" + key + "' in toon section '" + sectionName + "'");
-        return val.toString();
-    }
-
-    private static String opt(Map<String, Object> section, String key, String defaultVal) {
-        Object val = section.get(key);
-        return (val != null && !val.toString().isBlank()) ? val.toString() : defaultVal;
-    }
-
-    @SuppressWarnings("unchecked")
-    static List<Path> parseBaseDirs(Map<String, Object> section) {
-        Object val = section.get("base_dirs");
-        if (val == null)
-            throw new IllegalArgumentException("Missing 'base_dirs' in toon section");
-        List<Path> result = new ArrayList<>();
-        Iterable<?> items = (val instanceof List) ? (List<?>) val
-                : Arrays.asList(val.toString().split(","));
-        for (Object item : items) {
-            String s = item.toString().trim();
-            if (!s.isEmpty())
-                result.add(Paths.get(s).toAbsolutePath().normalize());
-        }
-        if (result.isEmpty())
-            throw new IllegalArgumentException("'base_dirs' is empty");
-        return Collections.unmodifiableList(result);
     }
 }

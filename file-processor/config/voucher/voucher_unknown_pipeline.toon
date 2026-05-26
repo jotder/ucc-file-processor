@@ -9,7 +9,8 @@ dirs:
   errors:     C:/sandbox/URA/sandbox/errors/voucher_unknown
   quarantine: C:/sandbox/URA/sandbox/quarantine/voucher_unknown
   markers:    C:/sandbox/URA/sandbox/markers/voucher_unknown
-  status_file: C:/sandbox/URA/sandbox/file-processor/status_unknown.csv
+  status_dir:  C:/sandbox/URA/sandbox/file-processor/status/voucher_unknown
+  log_dir:     C:/sandbox/URA/sandbox/file-processor/logs/voucher_unknown
 
 output:
   format: PARQUET

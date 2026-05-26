@@ -1,23 +1,10 @@
 package com.gamma.util;
 
-import dev.toonformat.jtoon.JToon;
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Phaser;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -52,21 +39,6 @@ import java.util.stream.Stream;
  */
 public class TarInboxPreparer {
 
-    // ── constants ─────────────────────────────────────────────────────────────
-
-    /** Recognised archive suffixes (only .tar.gz / .tgz are gzip-compressed). */
-    private static final List<String> TAR_SUFFIXES = List.of(".tar.gz", ".tgz", ".tar");
-
-    /** CSV file suffixes to pick out of the extracted tree. */
-    private static final List<String> CSV_SUFFIXES = List.of(".csv.gz", ".csv");
-
-    /**
-     * Date pattern: first 8-digit sequence starting with 19xx or 20xx in a filename.
-     * Covers years 1900–2099 and avoids matching arbitrary 8-digit numbers.
-     * Example: "adj_export_20200403_v2.csv.gz" → "20200403"
-     */
-    private static final Pattern DATE_RE = Pattern.compile("((?:19|20)\\d{6})");
-
     // ── instance state ────────────────────────────────────────────────────────
 
     private final Path sourceDir;   // inbox root; CSVs land here after extraction
@@ -99,22 +71,12 @@ public class TarInboxPreparer {
      * @param dryRun         when {@code true}, log intended actions without modifying files
      */
     public TarInboxPreparer(String toonConfigPath, boolean dryRun) throws IOException {
-        File configFile = new File(toonConfigPath);
-        if (!configFile.exists())
-            throw new FileNotFoundException("Pipeline config not found: " + toonConfigPath);
+        Map<String, Object> config = ToonHelper.load(toonConfigPath);
+        Map<String, Object> dirs   = ToonHelper.requireSection(config, "dirs");
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> config = (Map<String, Object>)
-                JToon.decode(Files.readString(configFile.toPath(), StandardCharsets.UTF_8));
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> dirs = (Map<String, Object>) config.get("dirs");
-        if (dirs == null)
-            throw new IllegalArgumentException("Missing 'dirs' section in " + toonConfigPath);
-
-        this.sourceDir = requireDir(dirs, "poll",   toonConfigPath);
-        this.tempDir   = requireDir(dirs, "temp",   toonConfigPath);
-        this.backupDir = requireDir(dirs, "backup", toonConfigPath);
+        this.sourceDir = Paths.get(ToonHelper.require(dirs, "poll",   "dirs")).toAbsolutePath();
+        this.tempDir   = Paths.get(ToonHelper.require(dirs, "temp",   "dirs")).toAbsolutePath();
+        this.backupDir = Paths.get(ToonHelper.require(dirs, "backup", "dirs")).toAbsolutePath();
         this.dryRun    = dryRun;
 
         validateOutsideSource(toonConfigPath);
@@ -132,22 +94,15 @@ public class TarInboxPreparer {
      */
     private void validateOutsideSource(String configPath) {
         Path src = sourceDir.normalize();
-        Map<String, Path> check = Map.of("temp", tempDir.normalize(), "backup", backupDir.normalize());
+        Map<String, Path> check = Map.of(
+                "temp",   tempDir.normalize(),
+                "backup", backupDir.normalize());
         check.forEach((key, dir) -> {
             if (dir.startsWith(src))
                 throw new IllegalArgumentException(String.format(
                         "Config error in %s: dirs.%s (%s) must be outside the source/poll directory (%s)",
                         configPath, key, dir, src));
         });
-    }
-
-    /** Reads a required string key from the dirs map and converts it to an absolute Path. */
-    private static Path requireDir(Map<String, Object> dirs, String key, String configPath) {
-        Object val = dirs.get(key);
-        if (val == null || val.toString().isBlank())
-            throw new IllegalArgumentException(
-                    "Missing required dirs." + key + " in config: " + configPath);
-        return Paths.get(val.toString()).toAbsolutePath();
     }
 
     // ── public entry point ────────────────────────────────────────────────────
@@ -164,8 +119,8 @@ public class TarInboxPreparer {
         // Sub-directories (date buckets already placed by a previous run) are skipped.
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(sourceDir)) {
             for (Path entry : stream) {
-                if (Files.isRegularFile(entry) && isTarGz(entry))
-                    submitTask(() -> processArchive(entry));
+                if (Files.isRegularFile(entry) && TarUtil.isTar(entry))
+                    VirtualThreadRunner.submit(executor, phaser, () -> processArchive(entry));
             }
         }
 
@@ -175,16 +130,6 @@ public class TarInboxPreparer {
         printSummary();
     }
 
-    // ── task submission ───────────────────────────────────────────────────────
-
-    private void submitTask(Runnable task) {
-        phaser.register();
-        executor.submit(() -> {
-            try { task.run(); }
-            finally { phaser.arriveAndDeregister(); }
-        });
-    }
-
     // ── per-archive processing ─────────────────────────────────────────────────
 
     /**
@@ -192,7 +137,7 @@ public class TarInboxPreparer {
      */
     private void processArchive(Path archivePath) {
         String archiveName = archivePath.getFileName().toString();
-        Path extractDir = tempDir.resolve(stripTarSuffix(archiveName));
+        Path extractDir = tempDir.resolve(TarUtil.stripTarSuffix(archiveName));
 
         System.out.printf("[ARCHIVE] %s%n", archiveName);
 
@@ -203,7 +148,7 @@ public class TarInboxPreparer {
                 peekAndReport(archivePath);
             } else {
                 Files.createDirectories(extractDir);
-                int count = extractTar(archivePath, extractDir);
+                int count = TarUtil.extractTar(archivePath, extractDir);
                 archivesProcessed.incrementAndGet();
                 System.out.printf("[EXTRACT] %s → %s (%d file(s))%n", archiveName, extractDir, count);
 
@@ -214,7 +159,8 @@ public class TarInboxPreparer {
                 backupArchive(archivePath, archiveName);
 
                 // ── step 4: delete temp extraction directory ──────────────────
-                cleanupTemp(extractDir);
+                TarUtil.deleteTree(extractDir);
+                System.out.printf("[CLEANUP] %s%n", extractDir);
             }
 
         } catch (Exception e) {
@@ -231,55 +177,23 @@ public class TarInboxPreparer {
     private void peekAndReport(Path src) throws IOException {
         try (InputStream fi = Files.newInputStream(src);
              InputStream bi = new BufferedInputStream(fi);
-             InputStream ci = isGzipped(src) ? new GzipCompressorInputStream(bi) : bi;
-             TarArchiveInputStream ti = new TarArchiveInputStream(ci)) {
+             InputStream ci = TarUtil.isGzipped(src)
+                     ? new org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(bi) : bi;
+             org.apache.commons.compress.archivers.tar.TarArchiveInputStream ti =
+                     new org.apache.commons.compress.archivers.tar.TarArchiveInputStream(ci)) {
 
-            TarArchiveEntry entry;
+            org.apache.commons.compress.archivers.tar.TarArchiveEntry entry;
             while ((entry = ti.getNextEntry()) != null) {
-                if (!entry.isDirectory() && isCsv(entry.getName()))
-                    System.out.printf("[DRY-RUN] Would move CSV: %s → %s/%s%n",
-                            entry.getName(),
-                            sourceDir.resolve(extractDate(Paths.get(entry.getName()).getFileName().toString())),
-                            Paths.get(entry.getName()).getFileName());
-            }
-        }
-    }
-
-    /**
-     * Extracts all members of a {@code .tar.gz} (or plain {@code .tar}) to {@code target}.
-     * Path traversal attacks are blocked: any entry whose resolved path escapes {@code target}
-     * throws an {@link IOException}.
-     *
-     * @return number of regular files extracted
-     */
-    private int extractTar(Path src, Path target) throws IOException {
-        int count = 0;
-        try (InputStream fi = Files.newInputStream(src);
-             InputStream bi = new BufferedInputStream(fi);
-             InputStream ci = isGzipped(src) ? new GzipCompressorInputStream(bi) : bi;
-             TarArchiveInputStream ti = new TarArchiveInputStream(ci)) {
-
-            TarArchiveEntry entry;
-            while ((entry = ti.getNextEntry()) != null) {
-                if (!ti.canReadEntryData(entry)) continue;
-
-                // Resolve and validate against path-traversal
-                Path entryPath = target.resolve(entry.getName()).normalize();
-                if (!entryPath.startsWith(target))
-                    throw new IOException("Unsafe path in archive: " + entry.getName());
-
-                if (entry.isDirectory()) {
-                    Files.createDirectories(entryPath);
-                } else {
-                    Files.createDirectories(entryPath.getParent());
-                    try (OutputStream os = Files.newOutputStream(entryPath)) {
-                        ti.transferTo(os);
-                    }
-                    count++;
+                if (!entry.isDirectory()) {
+                    String fname = Paths.get(entry.getName()).getFileName().toString();
+                    if (TarUtil.isCsv(fname))
+                        System.out.printf("[DRY-RUN] Would move CSV: %s → %s/%s%n",
+                                fname,
+                                sourceDir.resolve(TarUtil.extractDate(fname)),
+                                fname);
                 }
             }
         }
-        return count;
     }
 
     // ── step 2 helper: arrange extracted CSVs by date ────────────────────────
@@ -290,16 +204,16 @@ public class TarInboxPreparer {
      */
     private void arrangeCsvs(Path extractDir) throws IOException {
         // Failures are collected rather than swallowed so that a partial move causes
-        // processArchive() to abort — preventing backupArchive() and cleanupTemp() from
+        // processArchive() to abort — preventing backupArchive() and cleanup from
         // running and leaving the archive and temp dir intact for a manual retry.
         List<IOException> failures = new ArrayList<>();
 
         try (Stream<Path> walk = Files.walk(extractDir)) {
             walk.filter(Files::isRegularFile)
-                .filter(p -> isCsv(p.getFileName().toString()))
+                .filter(p -> TarUtil.isCsv(p.getFileName().toString()))
                 .forEach(csvFile -> {
                     String filename = csvFile.getFileName().toString();
-                    String date = extractDate(filename);
+                    String date = TarUtil.extractDate(filename);
                     Path targetDir  = sourceDir.resolve(date);
                     Path targetFile = targetDir.resolve(filename);
 
@@ -323,7 +237,8 @@ public class TarInboxPreparer {
         if (!failures.isEmpty()) {
             IOException first = failures.get(0);
             if (failures.size() > 1)
-                first.addSuppressed(new IOException((failures.size() - 1) + " further move failure(s) suppressed"));
+                first.addSuppressed(new IOException(
+                        (failures.size() - 1) + " further move failure(s) suppressed"));
             throw first;
         }
     }
@@ -338,72 +253,6 @@ public class TarInboxPreparer {
         Files.move(archivePath, dst, StandardCopyOption.REPLACE_EXISTING);
         archivesBacked.incrementAndGet();
         System.out.printf("[BACKUP] %s → %s%n", archiveName, dst);
-    }
-
-    // ── step 4 helper: delete temp extraction directory ───────────────────────
-
-    /**
-     * Recursively deletes {@code dir} and all its contents.
-     * Called after all CSVs have been moved out, so only empty directories
-     * (and any non-CSV members the archive may have contained) remain.
-     */
-    private void cleanupTemp(Path dir) throws IOException {
-        try (Stream<Path> walk = Files.walk(dir)) {
-            walk.sorted(Comparator.reverseOrder())
-                .forEach(p -> {
-                    try {
-                        Files.deleteIfExists(p);
-                    } catch (IOException e) {
-                        // Log but don't abort — a locked file (e.g. AV scan on Windows) is
-                        // non-fatal; the temp directory will be cleaned up on the next run.
-                        System.err.printf("[WARN] Could not delete %s: %s%n", p, e.getMessage());
-                    }
-                });
-        }
-        System.out.printf("[CLEANUP] %s%n", dir);
-    }
-
-    // ── date extraction ───────────────────────────────────────────────────────
-
-    /**
-     * Extracts the first {@code YYYYMMDD}-style date token from a filename.
-     * Recognises years 1900–2099 ({@code (19|20)\d{6}}).
-     * Returns {@code "obscure"} when no date token is found.
-     *
-     * <p>Examples:
-     * <pre>
-     *   "adj_export_20200403_v2.csv.gz" → "20200403"
-     *   "feed_2019_11_15.csv"           → "20191115"  (only if written as 20191115)
-     *   "backup_snapshot.csv"           → "obscure"
-     * </pre>
-     */
-    static String extractDate(String filename) {
-        Matcher m = DATE_RE.matcher(filename);
-        return m.find() ? m.group(1) : "obscure";
-    }
-
-    // ── file-type helpers ─────────────────────────────────────────────────────
-
-    private static boolean isTarGz(Path file) {
-        String name = file.getFileName().toString().toLowerCase();
-        return TAR_SUFFIXES.stream().anyMatch(name::endsWith);
-    }
-
-    private static boolean isCsv(String name) {
-        String low = name.toLowerCase();
-        return CSV_SUFFIXES.stream().anyMatch(low::endsWith);
-    }
-
-    private static boolean isGzipped(Path src) {
-        String name = src.getFileName().toString().toLowerCase();
-        return name.endsWith(".tar.gz") || name.endsWith(".tgz");
-    }
-
-    private static String stripTarSuffix(String name) {
-        String low = name.toLowerCase();
-        for (String suf : TAR_SUFFIXES)
-            if (low.endsWith(suf)) return name.substring(0, name.length() - suf.length());
-        return name;
     }
 
     // ── summary ───────────────────────────────────────────────────────────────
@@ -425,7 +274,7 @@ public class TarInboxPreparer {
             if (a.equalsIgnoreCase("--dry-run")) dry = true;
             else rem.add(a);
 
-        if (rem.size() < 1) {
+        if (rem.isEmpty()) {
             System.err.println("Usage: TarInboxPreparer [--dry-run] <pipeline.toon>");
             System.exit(1);
         }

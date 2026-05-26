@@ -195,13 +195,15 @@ public class SchemaExtractor {
             // Full dirs block — all managed directories included so the pipeline
             // is ready to use with SourceProcessor without manual editing.
             Map<String, String> dirs = new LinkedHashMap<>();
-            dirs.put("poll",       "inbox/"     + sourceName);
-            dirs.put("database",   "database/"  + sourceName);
-            dirs.put("backup",     "backup/"    + sourceName);
-            dirs.put("temp",       "temp/"      + sourceName);
-            dirs.put("errors",     "errors/"    + sourceName);
+            dirs.put("poll",       "inbox/"      + sourceName);
+            dirs.put("database",   "database/"   + sourceName);
+            dirs.put("backup",     "backup/"     + sourceName);
+            dirs.put("temp",       "temp/"       + sourceName);
+            dirs.put("errors",     "errors/"     + sourceName);
             dirs.put("quarantine", "quarantine/" + sourceName);
-            dirs.put("status_file", "status.csv");
+            dirs.put("markers",    "markers/"    + sourceName);
+            dirs.put("status_dir", "status/"     + sourceName);
+            dirs.put("log_dir",    "logs/"       + sourceName);
             pipelineConfig.put("dirs", dirs);
 
             Map<String, String> output = new LinkedHashMap<>();

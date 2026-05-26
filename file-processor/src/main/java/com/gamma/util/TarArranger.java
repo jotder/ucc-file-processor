@@ -1,15 +1,9 @@
 package com.gamma.util;
 
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Pre-ETL utility that handles {@code .tar.gz} archives in two independent steps:
@@ -40,11 +34,6 @@ import java.util.regex.Pattern;
  */
 public class TarArranger {
 
-    private static final Pattern DATE_RE = Pattern.compile("((?:19|20)\\d{6})");
-
-    private static final List<String> TAR_SUFFIXES = List.of(".tar.gz", ".tgz", ".tar");
-    private static final List<String> CSV_SUFFIXES = List.of(".csv.gz", ".csv");
-
     // ── dirs from pipeline toon ───────────────────────────────────────────────
 
     private final Path pollDir;    // dirs.poll  — staging area + CSV date-folders
@@ -57,21 +46,21 @@ public class TarArranger {
     private final boolean dryRun;
 
     // ── construction ──────────────────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
     public TarArranger(Map<String, Object> toon, boolean dryRun) {
         this.dryRun = dryRun;
 
-        Map<String, Object> dirs = requireSection(toon, "dirs");
-        this.pollDir = Paths.get(require(dirs, "poll", "dirs")).toAbsolutePath().normalize();
-        this.tempDir = Paths.get(require(dirs, "temp", "dirs")).toAbsolutePath().normalize();
-        this.backupDir = Paths.get(require(dirs, "backup", "dirs")).toAbsolutePath().normalize();
+        Map<String, Object> dirs = ToonHelper.requireSection(toon, "dirs");
+        this.pollDir   = Paths.get(ToonHelper.require(dirs, "poll",   "dirs")).toAbsolutePath().normalize();
+        this.tempDir   = Paths.get(ToonHelper.require(dirs, "temp",   "dirs")).toAbsolutePath().normalize();
+        this.backupDir = Paths.get(ToonHelper.require(dirs, "backup", "dirs")).toAbsolutePath().normalize();
 
         // copy_tars section is optional — only needed for copyTars()
         Object copyTarsSec = toon.get("copy_tars");
-        if (copyTarsSec instanceof Map) {
-            this.copyTarsBaseDirs = FileOrganizer.parseBaseDirs((Map<String, Object>) copyTarsSec);
-        } else {
-            this.copyTarsBaseDirs = null;
-        }
+        this.copyTarsBaseDirs = (copyTarsSec instanceof Map)
+                ? ToonHelper.parseBaseDirs((Map<String, Object>) copyTarsSec)
+                : null;
     }
 
     // ── operation 1: copy-tars ────────────────────────────────────────────────
@@ -85,10 +74,11 @@ public class TarArranger {
      */
     public void copyTars() throws InterruptedException, IOException {
         if (copyTarsBaseDirs == null)
-            throw new IllegalStateException("Pipeline toon is missing 'copy_tars' section — required for copy-tars command.");
-        if (dryRun)
-            System.out.println("!!! DRY-RUN MODE — no files will be copied !!!");
-        System.out.println("[COPY-TARS] Scanning " + copyTarsBaseDirs.size() + " base dir(s) for *.tar.gz ...");
+            throw new IllegalStateException(
+                    "Pipeline toon is missing 'copy_tars' section — required for copy-tars command.");
+        if (dryRun) System.out.println("!!! DRY-RUN MODE — no files will be copied !!!");
+        System.out.println("[COPY-TARS] Scanning " + copyTarsBaseDirs.size()
+                + " base dir(s) for *.tar.gz ...");
 
         ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor();
         Phaser ph = new Phaser(1);
@@ -98,7 +88,7 @@ public class TarArranger {
                 System.err.println("[WARN] Base dir not found, skipping: " + base);
                 continue;
             }
-            submit(exec, ph, () -> walkForTars(exec, ph, base));
+            VirtualThreadRunner.submit(exec, ph, () -> walkForTars(exec, ph, base));
         }
 
         ph.arriveAndAwaitAdvance();
@@ -110,9 +100,9 @@ public class TarArranger {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path entry : stream) {
                 if (Files.isDirectory(entry))
-                    submit(exec, ph, () -> walkForTars(exec, ph, entry));
-                else if (isTar(entry))
-                    submit(exec, ph, () -> copyOneTar(entry));
+                    VirtualThreadRunner.submit(exec, ph, () -> walkForTars(exec, ph, entry));
+                else if (TarUtil.isTar(entry))
+                    VirtualThreadRunner.submit(exec, ph, () -> copyOneTar(entry));
             }
         } catch (IOException e) {
             System.err.println("[WARN] Cannot scan dir: " + dir + " — " + e.getMessage());
@@ -168,9 +158,9 @@ public class TarArranger {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pollDir)) {
             for (Path entry : stream) {
-                if (Files.isRegularFile(entry) && isTar(entry)) {
+                if (Files.isRegularFile(entry) && TarUtil.isTar(entry)) {
                     total[0]++;
-                    submit(exec, ph, () -> processArchive(entry));
+                    VirtualThreadRunner.submit(exec, ph, () -> processArchive(entry));
                 }
             }
         }
@@ -182,7 +172,7 @@ public class TarArranger {
 
     private void processArchive(Path archive) {
         String archiveName = archive.getFileName().toString();
-        Path scratchDir = tempDir.resolve(stripTarSuffix(archiveName));
+        Path scratchDir = tempDir.resolve(TarUtil.stripTarSuffix(archiveName));
 
         System.out.printf("[ARCHIVE] %s%n", archiveName);
         try {
@@ -193,19 +183,17 @@ public class TarArranger {
 
             // 1. Extract
             Files.createDirectories(scratchDir);
-            int count = extractTar(archive, scratchDir);
+            int count = TarUtil.extractTar(archive, scratchDir);
             System.out.printf("[EXTRACT] %s → %s (%d file(s))%n", archiveName, scratchDir, count);
 
             // 2. Arrange CSVs — collect failures so a partial move does not trigger backup/cleanup
             List<IOException> failures = new ArrayList<>();
             try (var walk = Files.walk(scratchDir)) {
-                walk.filter(p -> !Files.isDirectory(p) && isCsv(p)).forEach(csv -> {
-                    try {
-                        arrangeCsv(csv);
-                    } catch (IOException e) {
-                        failures.add(e);
-                    }
-                });
+                walk.filter(p -> !Files.isDirectory(p) && TarUtil.isCsv(p.getFileName().toString()))
+                    .forEach(csv -> {
+                        try { arrangeCsv(csv); }
+                        catch (IOException e) { failures.add(e); }
+                    });
             }
             if (!failures.isEmpty()) {
                 IOException first = failures.getFirst();
@@ -220,47 +208,19 @@ public class TarArranger {
             System.out.printf("[BACKUP] %s → %s%n", archiveName, backupDest);
 
             // 4. Cleanup scratch
-            cleanupTemp(scratchDir);
+            TarUtil.deleteTree(scratchDir);
+            System.out.printf("[CLEANUP] %s%n", scratchDir);
 
         } catch (IOException e) {
             System.err.printf("[ERROR] Failed processing %s: %s%n", archiveName, e.getMessage());
         }
     }
 
-    // ── extraction ─────────────────────────────────────────────────────────────
-
-    private int extractTar(Path archive, Path destDir) throws IOException {
-        int count = 0;
-        try (InputStream fi = Files.newInputStream(archive);
-             InputStream bi = new BufferedInputStream(fi);
-             InputStream ci = isGzipped(archive) ? new GzipCompressorInputStream(bi) : bi;
-             TarArchiveInputStream tar = new TarArchiveInputStream(ci)) {
-
-            TarArchiveEntry entry;
-            while ((entry = tar.getNextEntry()) != null) {
-                if (!tar.canReadEntryData(entry)) continue;
-                Path out = destDir.resolve(entry.getName()).normalize();
-                if (!out.startsWith(destDir))
-                    throw new IOException("Unsafe path in archive: " + entry.getName());
-                if (entry.isDirectory())
-                    Files.createDirectories(out);
-                else {
-                    Files.createDirectories(out.getParent());
-                    try (OutputStream os = Files.newOutputStream(out)) {
-                        tar.transferTo(os);
-                    }
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
-
     // ── CSV arrangement ────────────────────────────────────────────────────────
 
     private void arrangeCsv(Path csv) throws IOException {
         String name = csv.getFileName().toString();
-        String date = extractDate(name);
+        String date = TarUtil.extractDate(name);
         Path destDir = pollDir.resolve(date);
         Path dest = destDir.resolve(name);
         if (Files.exists(dest)) {
@@ -272,95 +232,25 @@ public class TarArranger {
         System.out.printf("[MOVE] %s → %s/%s%n", name, date, name);
     }
 
-    // ── temp cleanup ──────────────────────────────────────────────────────────
-
-    private void cleanupTemp(Path dir) {
-        try (var walk = Files.walk(dir)) {
-            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
-                try {
-                    Files.deleteIfExists(p);
-                } catch (IOException e) {
-                    System.err.printf("[WARN] Could not delete %s: %s%n", p, e.getMessage());
-                }
-            });
-        } catch (IOException e) {
-            System.err.printf("[WARN] Cleanup failed for %s: %s%n", dir, e.getMessage());
-        }
-        System.out.printf("[CLEANUP] %s%n", dir);
-    }
-
     // ── dry-run peek ──────────────────────────────────────────────────────────
 
     private void dryRunPeek(Path archive, Path scratchDir) throws IOException {
         System.out.printf("[DRY-RUN] Would extract: %s → %s%n", archive.getFileName(), scratchDir);
-        try (InputStream fi = Files.newInputStream(archive);
-             InputStream bi = new BufferedInputStream(fi);
-             InputStream ci = isGzipped(archive) ? new GzipCompressorInputStream(bi) : bi;
-             TarArchiveInputStream tar = new TarArchiveInputStream(ci)) {
-            TarArchiveEntry entry;
+        // Walk tar entries using commons-compress via TarUtil; replicate just enough for reporting
+        try (var fi = Files.newInputStream(archive);
+             var bi = new java.io.BufferedInputStream(fi);
+             var ci = TarUtil.isGzipped(archive)
+                     ? new org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream(bi) : bi;
+             var tar = new org.apache.commons.compress.archivers.tar.TarArchiveInputStream(ci)) {
+            org.apache.commons.compress.archivers.tar.TarArchiveEntry entry;
             while ((entry = tar.getNextEntry()) != null) {
-                if (!entry.isDirectory() && isCsv(Paths.get(entry.getName()))) {
+                if (!entry.isDirectory()) {
                     String fname = Paths.get(entry.getName()).getFileName().toString();
-                    System.out.printf("[DRY-RUN] Would move CSV: %s → %s/%s%n", fname, extractDate(fname), fname);
+                    if (TarUtil.isCsv(fname))
+                        System.out.printf("[DRY-RUN] Would move CSV: %s → %s/%s%n",
+                                fname, TarUtil.extractDate(fname), fname);
                 }
             }
         }
-    }
-
-    // ── helpers ───────────────────────────────────────────────────────────────
-
-    static String extractDate(String filename) {
-        Matcher m = DATE_RE.matcher(filename);
-        return m.find() ? m.group(1) : "obscure";
-    }
-
-    private static boolean isTar(Path p) {
-        String n = p.getFileName().toString().toLowerCase();
-        return TAR_SUFFIXES.stream().anyMatch(n::endsWith);
-    }
-
-    private static boolean isCsv(Path p) {
-        String n = p.getFileName().toString().toLowerCase();
-        return CSV_SUFFIXES.stream().anyMatch(n::endsWith);
-    }
-
-    private static boolean isGzipped(Path p) {
-        String n = p.getFileName().toString().toLowerCase();
-        return n.endsWith(".tar.gz") || n.endsWith(".tgz");
-    }
-
-    private static String stripTarSuffix(String name) {
-        String low = name.toLowerCase();
-        for (String suf : TAR_SUFFIXES)
-            if (low.endsWith(suf)) return name.substring(0, name.length() - suf.length());
-        return name;
-    }
-
-    private static void submit(ExecutorService exec, Phaser ph, Runnable task) {
-        ph.register();
-        exec.submit(() -> {
-            try {
-                task.run();
-            } finally {
-                ph.arriveAndDeregister();
-            }
-        });
-    }
-
-
-    private static Map<String, Object> requireSection(Map<String, Object> toon, String key) {
-        Object val = toon.get(key);
-        if (!(val instanceof Map))
-            throw new IllegalArgumentException(
-                    "Pipeline toon is missing required section '" + key + "'");
-        return (Map<String, Object>) val;
-    }
-
-    private static String require(Map<String, Object> section, String key, String sectionName) {
-        Object val = section.get(key);
-        if (val == null || val.toString().isBlank())
-            throw new IllegalArgumentException(
-                    "Missing required key '" + key + "' in toon section '" + sectionName + "'");
-        return val.toString();
     }
 }
