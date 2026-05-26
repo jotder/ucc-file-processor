@@ -1,0 +1,243 @@
+package com.gamma.etl;
+
+import com.univocity.parsers.csv.CsvParser;
+import com.univocity.parsers.csv.CsvParserSettings;
+import org.duckdb.DuckDBAppender;
+import org.duckdb.DuckDBConnection;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.util.*;
+import java.util.zip.GZIPInputStream;
+
+/**
+ * Streams a raw CSV (or CSV.GZ) file into a {@code raw_input} VARCHAR staging
+ * table in the caller's DuckDB connection.
+ *
+ * <p>Processing steps (in order):
+ * <ol>
+ *   <li>Skip fixed pre-header lines ({@code skip_header_lines}).</li>
+ *   <li>Optionally read the column-name row ({@code has_header}; default {@code true}).</li>
+ *   <li>Adaptively skip junk / echo lines ({@code skip_junk_lines}; {@code -1} = unlimited).</li>
+ *   <li>Buffer the last {@code skip_tail_lines} rows so footer lines are silently dropped.</li>
+ *   <li>Reject rows with too few columns → write to {@code errors/<basename>_errors.csv}.</li>
+ *   <li>Delete the error file if no errors occurred.</li>
+ * </ol>
+ *
+ * <p>Extracted from {@link com.gamma.inspector.SourceProcessor#ingestRawData}.
+ */
+public final class CsvIngester {
+
+    private CsvIngester() {}
+
+    /**
+     * Ingest {@code file} into {@code raw_input} in the supplied DuckDB connection.
+     *
+     * @param file        the CSV or CSV.GZ input file
+     * @param conn        worker-local DuckDB connection (must be open)
+     * @param schemaConfig the schema config map for this file (contains {@code raw.fields})
+     * @param cfg         pipeline configuration
+     * @return row counts for the caller to use in quarantine/status decisions
+     * @throws Exception on DuckDB errors; {@link IOException} when the file is unreadable
+     */
+    @SuppressWarnings("unchecked")
+    public static IngestResult ingest(File file, Connection conn,
+                                      Map<String, Object> schemaConfig,
+                                      PipelineConfig cfg) throws Exception {
+        // ── parse settings from config ────────────────────────────────────────
+        int maxJunkLines = cfg.skipJunkLines < 0 ? Integer.MAX_VALUE : cfg.skipJunkLines;
+        int skipTailCols = cfg.skipTailCols;
+
+        // ── derive maxSelector from schema ────────────────────────────────────
+        List<Map<String, Object>> fields =
+                (List<Map<String, Object>>) ((Map<String, Object>) schemaConfig.get("raw")).get("fields");
+        int maxSelector = fields.stream()
+                .mapToInt(f -> Integer.parseInt(String.valueOf(f.get("selector"))))
+                .max().orElse(0);
+
+        // ── prepare error CSV ─────────────────────────────────────────────────
+        String baseName = stripExtensions(file.getName());
+        Path errorDir  = Paths.get(cfg.errorsDir).toAbsolutePath();
+        Files.createDirectories(errorDir);
+        Path errorFilePath = errorDir.resolve(baseName + "_errors.csv");
+
+        CsvParser parser = buildParser(cfg.delimiter);
+
+        long parsedRows        = 0;
+        long errorRows         = 0;
+        long junkCandidateRows = 0;
+        long ingestStartMs     = System.currentTimeMillis();
+
+        try (InputStream rawIs = new FileInputStream(file);
+             // For .gz files: buffer 8 MB of compressed data before the GZIPInputStream
+             // so the decompressor reads in large chunks instead of 512-byte syscall bursts.
+             InputStream is    = file.getName().endsWith(".gz")
+                                 ? new GZIPInputStream(
+                                         new BufferedInputStream(rawIs, 8 * 1024 * 1024))
+                                 : rawIs;
+             // 2 MB char buffer: ~500 refill calls per GB vs ~125,000 with the default 8 KB.
+             BufferedReader br = new BufferedReader(
+                     new InputStreamReader(is, StandardCharsets.UTF_8), 2 * 1024 * 1024);
+             PrintWriter errOut = new PrintWriter(new FileWriter(errorFilePath.toFile()))) {
+
+            errOut.println("line_number,reason,raw_line");
+
+            // ── skip pre-header lines ─────────────────────────────────────────
+            for (int i = 0; i < cfg.skipHeaderLines; i++) br.readLine();
+
+            // ── optional column-name header row ───────────────────────────────
+            // When has_header=false the first data line is treated as a row;
+            // junk-scan is still active but the echo-line check is skipped.
+            String[] headerTokens = null;
+            if (cfg.hasHeader) {
+                String headerLine = br.readLine();
+                if (headerLine == null) throw new IOException("Empty file: " + file.getName());
+                headerTokens = parser.parseLine(headerLine);
+            }
+
+            // ── create raw_input staging table ────────────────────────────────
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE IF EXISTS raw_input");
+                StringBuilder ddl = new StringBuilder("CREATE TABLE raw_input (");
+                for (int i = 0; i < fields.size(); i++) {
+                    ddl.append('"').append(fields.get(i).get("name")).append("\" VARCHAR");
+                    if (i < fields.size() - 1) ddl.append(", ");
+                }
+                ddl.append(')');
+                stmt.execute(ddl.toString());
+            }
+
+            // ── adaptive junk / echo-line detection ───────────────────────────
+            String firstDataLine = null;
+            if (maxJunkLines > 0) {
+                int junkCount = 0;
+                String peekLine;
+                while (junkCount < maxJunkLines && (peekLine = br.readLine()) != null) {
+                    if (peekLine.trim().isEmpty()) continue;
+                    junkCandidateRows++;
+                    String[] probe = parser.parseLine(peekLine);
+                    if (probe != null && probe.length > maxSelector) {
+                        boolean isEchoLine = false;
+                        if (headerTokens != null && headerTokens.length > 0) {
+                            int checkLen   = Math.min(probe.length, headerTokens.length);
+                            int matchCount = 0;
+                            for (int i = 0; i < checkLen; i++) {
+                                String p = probe[i] == null ? "" : probe[i].trim();
+                                String h = headerTokens[i] == null ? "" : headerTokens[i].trim();
+                                if (p.equalsIgnoreCase(h)) matchCount++;
+                            }
+                            isEchoLine = checkLen > 0 && (double) matchCount / checkLen >= 0.5;
+                        }
+                        if (!isEchoLine) {
+                            firstDataLine = peekLine;
+                            junkCandidateRows--;  // it's data, not junk
+                            break;
+                        }
+                    }
+                    junkCount++;
+                }
+            }
+
+            // ── main appender loop ────────────────────────────────────────────
+            DuckDBConnection duckConn = (DuckDBConnection) conn;
+            try (DuckDBAppender appender = duckConn.createAppender("", "raw_input")) {
+                ArrayDeque<Map.Entry<Long, String>> tailBuffer = new ArrayDeque<>();
+                long lineNum = 0;
+                boolean hasPending = firstDataLine != null;
+
+                while (true) {
+                    String rawLine;
+                    if (hasPending) {
+                        rawLine   = firstDataLine;
+                        hasPending = false;
+                    } else {
+                        rawLine = br.readLine();
+                        if (rawLine == null) break;
+                    }
+                    lineNum++;
+                    if (rawLine.trim().isEmpty()) continue;
+
+                    // Tail-buffer gate
+                    String line;
+                    long   procLineNum;
+                    if (cfg.skipTailLines > 0) {
+                        tailBuffer.addLast(Map.entry(lineNum, rawLine));
+                        if (tailBuffer.size() <= cfg.skipTailLines) continue;
+                        var head = tailBuffer.removeFirst();
+                        line        = head.getValue();
+                        procLineNum = head.getKey();
+                    } else {
+                        line        = rawLine;
+                        procLineNum = lineNum;
+                    }
+
+                    String[] row = parser.parseLine(line);
+                    if (row == null) continue;
+
+                    // Strip phantom trailing columns
+                    if (skipTailCols > 0 && row.length > maxSelector + 1)
+                        row = Arrays.copyOf(row,
+                                Math.max(row.length - skipTailCols, maxSelector + 1));
+
+                    // Reject rows with insufficient columns
+                    if (row.length <= maxSelector) {
+                        String reason = String.format(
+                                "Insufficient columns (expected >%d, found %d)",
+                                maxSelector, row.length);
+                        errOut.printf("%d,\"%s\",\"%s\"%n",
+                                procLineNum, reason, line.replace("\"", "'"));
+                        errorRows++;
+                        continue;
+                    }
+
+                    // Append row using schema-defined selectors
+                    appender.beginRow();
+                    for (Map<String, Object> f : fields) {
+                        int idx = Integer.parseInt(String.valueOf(f.get("selector")));
+                        appender.append(idx < row.length ? row[idx] : "");
+                    }
+                    appender.endRow();
+                    parsedRows++;
+
+                    if (parsedRows % 10_000_000 == 0) {
+                        long elapsedMs  = System.currentTimeMillis() - ingestStartMs;
+                        long rowsPerSec = elapsedMs > 0 ? parsedRows * 1000L / elapsedMs : 0;
+                        System.out.printf("[INGEST] [%s] %,d rows | %.1f MB file | %,d rows/s | %ds elapsed%n",
+                                file.getName(), parsedRows,
+                                file.length() / 1_048_576.0,
+                                rowsPerSec,
+                                elapsedMs / 1000);
+                    }
+                }
+                // Lines remaining in tailBuffer at EOF are the file footer — silently discarded.
+            }
+        }
+
+        // Error files are retained regardless of row count — callers use them for manual investigation.
+
+        return new IngestResult(parsedRows, errorRows, junkCandidateRows);
+    }
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+
+    /** Build a lenient CsvParser for the given delimiter. */
+    public static CsvParser buildParser(String delimiter) {
+        CsvParserSettings s = new CsvParserSettings();
+        s.getFormat().setDelimiter(delimiter.charAt(0));
+        s.setMaxColumns(10_000);
+        s.setMaxCharsPerColumn(1_000_000);
+        s.setQuoteDetectionEnabled(false);
+        s.getFormat().setQuote('\0');
+        return new CsvParser(s);
+    }
+
+    /** Strips {@code .gz} then the remaining extension. */
+    static String stripExtensions(String fileName) {
+        return fileName.replaceAll("\\.gz$", "").replaceAll("\\.[^.]+$", "");
+    }
+}

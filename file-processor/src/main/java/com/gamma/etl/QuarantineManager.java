@@ -1,0 +1,70 @@
+package com.gamma.etl;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.*;
+
+/**
+ * Moves rejected input files into the quarantine directory tree.
+ *
+ * <p>The quarantine mirrors the poll directory structure:
+ * a file at {@code poll/providerA/20240101/feed.csv.gz} is moved to
+ * {@code quarantine/providerA/20240101/<subDir>/feed.csv.gz}.
+ * Files dropped directly in the poll root land at
+ * {@code quarantine/<subDir>/feed.csv.gz}.
+ *
+ * <p>Optionally, the companion error CSV (produced by {@link CsvIngester} and
+ * placed in {@code dirs.errors}) is relocated alongside the bad file so the
+ * rejection evidence stays co-located.
+ *
+ * <p>Extracted from {@link com.gamma.inspector.SourceProcessor}.
+ */
+public final class QuarantineManager {
+
+    private QuarantineManager() {}
+
+    /**
+     * Move {@code inputFile} into the quarantine tree.
+     *
+     * @param inputFile       the file to quarantine
+     * @param subDir          reason sub-directory: {@code "field_mismatch"} or {@code "unreadable"}
+     * @param includeErrorCsv when {@code true}, also move the companion error CSV
+     * @param cfg             pipeline configuration
+     * @throws IOException if the move fails or the file is outside the poll root
+     */
+    public static void quarantine(File inputFile, String subDir,
+                                  boolean includeErrorCsv, PipelineConfig cfg)
+            throws IOException {
+        Path pollPath  = Paths.get(cfg.pollDir).toAbsolutePath().normalize();
+        Path fileParent= inputFile.toPath().toAbsolutePath().normalize().getParent();
+        Path relParent = pollPath.relativize(fileParent);
+
+        // Guard against symlinks or misconfiguration that places the file outside poll
+        if (relParent.startsWith(".."))
+            throw new IOException(
+                    "Input file is not under poll root — cannot quarantine safely: " + inputFile);
+
+        // <quarantine_dir>/<relative_parent>/<reason>/filename
+        Path qDir = Paths.get(cfg.quarantineDir).toAbsolutePath()
+                         .resolve(relParent).resolve(subDir);
+        Files.createDirectories(qDir);
+
+        Path dst = qDir.resolve(inputFile.getName());
+        Files.move(inputFile.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
+        System.out.printf("Quarantined [%s]: %s → %s%n", subDir, inputFile.getName(), dst);
+
+        if (includeErrorCsv) {
+            String baseName = stripExtensions(inputFile.getName());
+            Path errorCsv = Paths.get(cfg.errorsDir).toAbsolutePath()
+                                 .resolve(baseName + "_errors.csv");
+            if (Files.exists(errorCsv))
+                Files.move(errorCsv, qDir.resolve(errorCsv.getFileName()),
+                        StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    /** Strips {@code .gz} then the remaining extension. */
+    private static String stripExtensions(String fileName) {
+        return fileName.replaceAll("\\.gz$", "").replaceAll("\\.[^.]+$", "");
+    }
+}

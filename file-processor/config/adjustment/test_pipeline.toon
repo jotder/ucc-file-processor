@@ -1,0 +1,28 @@
+name: ADJUSTMENT_TEST_ETL
+version: 1
+dirs:
+  poll: test-inbox
+  database: test-database
+  backup: test-backup
+  temp: test-temp
+  errors: test-errors
+  quarantine: test-quarantine
+  status_dir:  test-status
+  log_dir:     test-logs
+output:
+  format: CSV
+processing:
+  threads: 3
+  file_pattern: "glob:**/*.{csv,csv.gz}"
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+  schema_file: "file-processor/config/adjustment/adjustment_schema.toon"
+  csv_settings:
+    delimiter: ","
+    skip_header_lines: 0
+    skip_junk_lines: 13
+    skip_tail_lines: 2
+    skip_tail_columns: 0
+    date_formats[3]: %d-%b-%y, "%d-%b-%Y %H:%M:%S", "%d-%b-%Y"
+    timestamp_formats[3]: %d-%b-%y, "%d-%b-%Y %H:%M:%S", "%d-%b-%Y"
