@@ -1,0 +1,56 @@
+name: VOUCHER_ETL
+version: 1
+
+dirs:
+  poll:       ../inbox/vou
+  database:   ../database/voucher
+  backup:     ../backup/voucher
+  temp:       ../temp/voucher
+  errors:     ../errors/voucher
+  quarantine: ../quarantine/voucher
+  markers:    ../markers/voucher
+  status_file: status.csv
+
+output:
+  format: PARQUET
+  compression: snappy
+  ducklake:
+    enabled: false
+    catalog_url: "postgresql://user:password@localhost:5432/ducklake_db"
+    data_path: "/opt/vou-lake"
+    schema: voucher
+
+processing:
+  threads: 4
+  file_pattern: "glob:**/*.{csv,csv.gz}"
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+    retention_days: 90
+  schema_detection: column_count
+  schemas[3]{column_count,file_pattern,schema_file,table}:
+    537, "glob:**/cbs_cdr_vou_*",  "file-processor/config/voucher/voucher537.toon",  voucher_cdr
+    116, "glob:**/*VOU_MAIN*",     "file-processor/config/voucher/voucher116.toon",  voucher_main
+    76,  "glob:**/*VOU_OTHER*",    "file-processor/config/voucher/voucher76.toon", voucher_other
+  csv_settings:
+    delimiter: ","
+    skip_header_lines: 1
+    skip_junk_lines: -1
+    skip_tail_lines: 2
+    skip_tail_columns: 0
+    date_formats[2]: "%d-%b-%Y", "%d-%b-%Y %H:%M:%S"
+    timestamp_formats[2]: "%d-%b-%Y %H:%M:%S", "%d-%b-%Y"
+
+search:
+  base_dirs[2]: /mnt/rawdata/feed1, /mnt/rawdata/feed2
+  csv_input:     GSM_RESUBMISSION.csv
+  log_available: available_files.csv
+  log_missing:   missing_files.csv
+  log_error:     error_log.csv
+
+copy_tars:
+  base_dirs[2]: /mnt/rawdata/feed1, /mnt/rawdata/feed2
+
+backup:
+  base_dirs[2]: /mnt/rawdata/feed1, /mnt/rawdata/feed2
+  log_available: available_files.csv
