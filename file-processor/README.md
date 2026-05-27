@@ -1,8 +1,7 @@
-# File-Processor — Configuration-Driven CSV ETL Framework
+# UCC File Processor
+High-throughput, configuration-driven ETL pipeline that ingests CSV files, applies typed transformations via DuckDB, and writes Hive-partitioned Parquet or CSV output. Designed for any CSV-based source — onboard a new source by writing one config file.
 
-High-throughput, configuration-driven ETL pipeline that ingests Oracle SQL\*Plus CSV exports, applies typed transformations via DuckDB, and writes Hive-partitioned Parquet or CSV output. Designed for any CSV-based source — onboard a new source by writing one config file.
-
-Includes a full **pre-ETL utility suite** for sourcing, staging, and arranging raw deliveries before the pipeline picks them up.
+Includes a set of **Pre ETL utility suite** for sourcing, staging, and arranging raw deliveries before the pipeline picks them up.
 
 ---
 
@@ -13,8 +12,8 @@ Includes a full **pre-ETL utility suite** for sourcing, staging, and arranging r
 3. [Directory Layout](#directory-layout)
 4. [Two-Step Process](#two-step-process)
 5. [Quick Start](#quick-start)
-6. [Pre-ETL Utility Suite](#pre-etl-utility-suite)
-   - [Pipeline toon sections for utilities](#pipeline-toon-sections-for-utilities)
+6. [Utility Suite](#pre-etl-utility-suite)
+   - [Pipeline configurations sections for utilities](#pipeline-toon-sections-for-utilities)
    - [Commands](#commands)
    - [Typical workflow](#typical-pre-etl-workflow)
 7. [Configuration Reference](#configuration-reference)
@@ -25,7 +24,7 @@ Includes a full **pre-ETL utility suite** for sourcing, staging, and arranging r
 8. [Output Structure](#output-structure)
 9. [Status Log & Auditing](#status-log--auditing)
 10. [DuckLake Integration](#ducklake-integration)
-11. [Warehouse Query Layer — DBeaver via pg_duckdb](#warehouse-query-layer--dbeaver-via-pg_duckdb)
+11. [Warehouse Query Layer](#warehouse-query-layer--dbeaver-via-pg_duckdb)
 12. [Deployment — Remote Server](#deployment--remote-server)
 13. [Onboarding a New Source](#onboarding-a-new-source)
 14. [Type Mapping Reference](#type-mapping-reference)
@@ -42,7 +41,7 @@ Includes a full **pre-ETL utility suite** for sourcing, staging, and arranging r
 │  base.dirs/  ──copy──────►  dirs.poll/<date>/        (CSVs arranged by date)  │
 │  base.dirs/  ──copy-tars──► dirs.poll/               (tar.gz staged flat)     │
 │  dirs.poll/  ──extract───►  dirs.poll/<date>/        (tars unpacked, arranged)│
-│  available_files.csv ─backup──► dirs.backup/         (originals archived)     │
+│  available files(csv|csv.gz) ─backup──► dirs.backup  (originals archived)     │
 │                                                                               │
 └───────────────────────────────────────────────────────────────────────────────┘
 
@@ -57,7 +56,7 @@ Includes a full **pre-ETL utility suite** for sourcing, staging, and arranging r
 ┌──────────────── STEP 2: ETL Processing (continuous) ──────────────────────────┐
 │                                                                               │
 │   <source>_pipeline.toon ─┐                                                   │
-│   <source>_schema.toon ───┼──► SourceProcessor ├─►  Parquet / CSV             │
+│   <source>_schema.toon ───┼──► SourceProcessor ├──►  Parquet / CSV            │
 │   inbox/<date>/*.csv.gz ──┘                    └──►  DuckLake (optional)      │
 │                                                                               │
 └───────────────────────────────────────────────────────────────────────────────┘
@@ -74,7 +73,7 @@ Includes a full **pre-ETL utility suite** for sourcing, staging, and arranging r
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The **pre-ETL utilities** (`MainApp`) handle the movement and unpacking of raw deliveries into the inbox layout that `SourceProcessor` expects.
+The **Pre ETL utilities** (`MainApp`) handle the movement and unpacking of raw deliveries into the inbox layout that `SourceProcessor` expects.
 
 **SchemaExtractor** (`create-schema` command) is a one-time bootstrap tool — it reads a generation profile and a sample file and produces the schema and pipeline configs.
 
@@ -153,14 +152,11 @@ com.gamma
 sandbox-root/                ← working directory for local runs
   file-processor/
     config/
-      adjustment/
+      <data_source>/
         adj_gen.toon               ← generation profile (hand-authored)
-        adjustment_schema.toon     ← field definitions + mapping rules
-        adjustment_pipeline.toon   ← runtime settings (dirs, threads, format)
+        <data_source>_schema.toon     ← field definitions + mapping rules
+        <data_source>_pipeline.toon   ← runtime settings (dirs, threads, format)
         test_pipeline.toon         ← lightweight CSV test pipeline
-      voucher/
-        voucher_schema.toon
-        voucher_pipeline.toon
     src/                     ← Java source
     target/
       file-processor-1.0.jar     ← fat JAR (built by mvn package)
@@ -168,34 +164,23 @@ sandbox-root/                ← working directory for local runs
     package.ps1              ← builds + bundles a deployment zip
     README.md
   inbox/
-    adjustment/              ← drop input files here (date sub-folders created by utilities)
-      20200403/
-      20200404/
-    voucher/
+    <data_source>/              ← drop input files here (date sub-folders created by utilities)
   database/
-    adjustment/              ← partitioned Parquet output
-    voucher/
+    <data_source>/              ← partitioned Parquet output
   backup/
-    adjustment/              ← original source files archived after processing
-    voucher/
+    <data_source>/              ← original source files archived after processing
   temp/
-    adjustment/              ← scratch space for tar extraction (auto-cleaned)
-    voucher/
+    <data_source>/              ← scratch space for tar extraction (auto-cleaned)
   errors/
-    adjustment/              ← per-file error CSVs (rows rejected during ingest)
-    voucher/
+    <data_source>/              ← per-file error CSVs (rows rejected during ingest)
   quarantine/
-    adjustment/              ← files quarantined by SourceProcessor (wrong-schema / unreadable)
-    voucher/
+    <data_source>/              ← files quarantined by SourceProcessor (wrong-schema / unreadable)
   markers/
-    adjustment/              ← .processed sentinel files (mirrors inbox tree; auto-pruned by retention_days)
-    voucher/
+    <data_source>/              ← .processed sentinel files (mirrors inbox tree; auto-pruned by retention_days)
   status/
-    adjustment/              ← per-run audit CSVs: adjustment_etl_status_<timestamp>.csv
-    voucher/
+    <data_source>/              ← per-run audit CSVs: <data_source>_etl_status_<timestamp>.csv
   logs/
-    adjustment/              ← per-run log files: adjustment_etl_log_<timestamp>.log
-    voucher/
+    <data_source>/              ← per-run log files: <data_source>_etl_log_<timestamp>.log
   warehouse_setup.sql        ← pg_duckdb warehouse schema, views, and RBAC (run once on server)
 ```
 
@@ -246,24 +231,24 @@ mvn clean package
 
 ```powershell
 # From the file-processor/ directory (Windows)
-ura.bat create-schema adjustment path\to\sample.csv config\adjustment\adj_gen.toon
+ura.bat create-schema <data_source> path\to\sample.csv config\<data_source>\adj_gen.toon
 
 # Linux / Mac
-./ura.sh create-schema adjustment path/to/sample.csv config/adjustment/adj_gen.toon
+./ura.sh create-schema <data_source> path/to/sample.csv config/<data_source>/adj_gen.toon
 ```
 
 ### Run the ETL pipeline
 
 ```powershell
-# Adjustment — from file-processor/ directory (Windows)
-run.bat adjustment
+# <data_source> — from file-processor/ directory (Windows)
+run.bat <data_source>
 
-# Voucher (Windows)
-run.bat voucher
+# <data_source> (Windows)
+run.bat <data_source>
 
 # Linux / Mac
-bash run.sh adjustment
-bash run.sh voucher
+bash run.sh <data_source>
+bash run.sh <data_source>
 ```
 
 ### Drop files and run
@@ -342,7 +327,7 @@ The `copy`, `extract`, and `prepare-inbox` commands arrange files into date-name
 ### Typical pre-ETL workflow
 
 ```bash
-TOON="config/adjustment/adjustment_pipeline.toon"
+TOON="config/<data_source>/<data_source>_pipeline.toon"
 
 # 1. Audit: find which files from the manifest exist in the source dirs
 bash ura.sh search    $TOON
@@ -360,20 +345,20 @@ bash ura.sh extract   $TOON
 bash ura.sh backup    $TOON
 
 # 6. Run the ETL pipeline
-bash run.sh adjustment
+bash run.sh <data_source>
 ```
 
 Add `--dry-run` to any `ura.sh` step to preview actions without touching files.
 
 **Windows equivalent** (from the bundle root):
 ```bat
-set TOON=config\adjustment\adjustment_pipeline.toon
+set TOON=config\<data_source>\<data_source>_pipeline.toon
 ura.bat search    %TOON%
 ura.bat copy      %TOON%
 ura.bat copy-tars %TOON%
 ura.bat extract   %TOON%
 ura.bat backup    %TOON%
-run.bat adjustment
+run.bat <data_source>
 ```
 
 ---
@@ -403,7 +388,7 @@ type_patterns:
   timestamps[4]: PRE_APPLY_TIME, PRE_EXPIRE_TIME, CUR_EXPIRE_TIME, STARTTIMEOFBILLCYCLE
 ```
 
-**`skip_junk_lines`** is a *cap*, not a fixed count. SourceProcessor uses adaptive detection — it scans forward until it finds a line with enough columns that does not echo the header. Use `-1` to scan without limit (for sources like Oracle vouchers with variable-length preambles).
+**`skip_junk_lines`** is a *cap*, not a fixed count. SourceProcessor uses adaptive detection — it scans forward until it finds a line with enough columns that does not echo the header. Use `-1` to scan without limit (for sources like Oracle <data_source>s with variable-length preambles).
 
 **Date/timestamp format arrays** use JToon inline syntax: `key[n]: val1, val2, ..., valN`. All values must be on a single line.
 
@@ -443,7 +428,21 @@ mapping:
 
 **`selector`** is the zero-based column index in the raw source CSV — decoupled from position in the output schema, so source column order changes do not break the pipeline.
 
-**`transformType: DIRECT`** is the only implemented transform; the field is preserved for future computed/derived column support.
+**`transformType`** controls how the source expression is evaluated:
+
+| Value | `sourceExpression` format | Description |
+|---|---|---|
+| `DIRECT` | column name | Pass-through with type cast (DATE, TIMESTAMP, DOUBLE, VARCHAR) |
+| `CONCAT_DT` | `DATE_COL\|TIME_COL` | Concatenate two raw columns into a single TIMESTAMP: `COALESCE(TRY_STRPTIME(date \|\| ' ' \|\| time, ...))` |
+| `FILENAME_DATE` | `COL\|PREFIX` or `COL\|PREFIX\|FORMAT` | Extract an 8-digit date from a filename-style column using a fixed prefix. The default format is `%Y%m%d`. **Restricted to `EVENT_DATE` only** — an `IllegalArgumentException` is thrown at startup if used on any other target column. |
+
+**`FILENAME_DATE` example** — <data_source> CDR files carry the event date in the filename (`cbs_cdr_vou_20180409_601_101_057726.add`) rather than a data column:
+```yaml
+mapping:
+  rules[1]{targetColumn,sourceExpression,transformType}:
+    EVENT_DATE,FILENAME|cbs_cdr_vou_,FILENAME_DATE
+```
+The generated SQL is: `TRY_STRPTIME(regexp_extract(raw_input."FILENAME", 'cbs_cdr_vou_([0-9]{8})', 1), '%Y%m%d')::DATE`
 
 ---
 
@@ -452,19 +451,19 @@ mapping:
 **Machine-generated** by `create-schema`; edit to adjust runtime settings. Also serves as the single configuration file for all pre-ETL utility commands.
 
 ```yaml
-name: ADJUSTMENT_ETL
+name: <data_source>_ETL
 version: 1
 
 dirs:
-  poll:       inbox/adjustment
-  database:   database/adjustment
-  backup:     backup/adjustment
-  temp:       temp/adjustment
-  errors:     errors/adjustment
-  quarantine: quarantine/adjustment
-  markers:    markers/adjustment
-  status_dir: status/adjustment
-  log_dir:    logs/adjustment
+  poll:       inbox/<data_source>
+  database:   database/<data_source>
+  backup:     backup/<data_source>
+  temp:       temp/<data_source>
+  errors:     errors/<data_source>
+  quarantine: quarantine/<data_source>
+  markers:    markers/<data_source>
+  status_dir: status/<data_source>
+  log_dir:    logs/<data_source>
 
 output:
   format: PARQUET
@@ -473,8 +472,8 @@ output:
     enabled: false
     catalog_url: "postgresql://user:password@localhost:5432/ducklake_db"
     data_path: "/opt/adj-lake"
-    schema: adjustments
-    table: adjustment_data
+    schema: <data_source>s
+    table: <data_source>_data
 
 processing:
   threads: 4
@@ -483,7 +482,7 @@ processing:
     enabled: true
     marker_extension: .processed
     retention_days: 90
-  schema_file: "file-processor/config/adjustment/adjustment_schema.toon"
+  schema_file: "file-processor/config/<data_source>/<data_source>_schema.toon"
   csv_settings:
     delimiter: ","
     skip_header_lines: 0
@@ -512,7 +511,7 @@ The `dirs`, `output`, and `processing` sections are used by `SourceProcessor` (t
 
 All seven core `dirs.*` entries are required for SourceProcessor (`poll`, `database`, `backup`, `temp`, `errors`, `quarantine`, `markers`). The optional `status_dir` and `log_dir` entries enable per-run audit and log files. Startup validation confirms that all managed directories are not nested inside the `poll` directory.
 
-**`dirs.markers`** — dedicated directory for `.processed` sentinel files. Mirrors the poll directory tree: a file at `inbox/adjustment/20200403/feed.csv.gz` produces a marker at `markers/adjustment/20200403/feed.csv.gz.processed`. Markers are pruned automatically at each poll start; any marker file older than `processing.duplicate_check.retention_days` days is deleted and empty subdirectories are removed. This keeps the markers directory bounded in size without manual intervention.
+**`dirs.markers`** — dedicated directory for `.processed` sentinel files. Mirrors the poll directory tree: a file at `inbox/<data_source>/20200403/feed.csv.gz` produces a marker at `markers/<data_source>/20200403/feed.csv.gz.processed`. Markers are pruned automatically at each poll start; any marker file older than `processing.duplicate_check.retention_days` days is deleted and empty subdirectories are removed. This keeps the markers directory bounded in size without manual intervention.
 
 **`dirs.status_dir`** — directory for per-run status CSVs. Each ETL run creates a new file named `<pipeline_name>_status_<yyyyMMdd_HHmmss>.csv` — runs never overwrite each other. Omit (or leave blank) to disable the status log.
 
@@ -533,9 +532,9 @@ processing:
   threads: 4
   file_pattern: "glob:**/*.csv"
   schemas[3]{column_count,file_pattern,schema_file,table}:
-    76,  "glob:**/*other*", "config/voucher/voucher_76.toon",  voucher_other
-    116, "glob:**/*main*",  "config/voucher/voucher_116.toon", voucher_main
-    537, "",                "config/voucher/voucher_537.toon", voucher_cdr
+    76,  "glob:**/*other*", "config/<data_source>/<data_source>_76.toon",  <data_source>_other
+    116, "glob:**/*main*",  "config/<data_source>/<data_source>_116.toon", <data_source>_main
+    537, "",                "config/<data_source>/<data_source>_537.toon", <data_source>_cdr
   csv_settings:
     delimiter: ","
     has_header: false
@@ -579,7 +578,7 @@ processing:
 Each input file produces one output file per partition it touches. The output file is named after the input file — no UUID noise.
 
 ```
-database/adjustment/
+database/<data_source>/
   year=1900/
     month=01/
       day=01/
@@ -590,10 +589,10 @@ database/adjustment/
         adj_DATE_20200101_out.parquet
         adj_DATE_20200403_out.parquet
 
-errors/adjustment/
+errors/<data_source>/
   adj_DATE_20200403_errors.csv            ← only created when rows are rejected
 
-quarantine/adjustment/
+quarantine/<data_source>/
   field_mismatch/
     wrong_source.csv                      ← 0 valid rows parsed
   unreadable/
@@ -635,7 +634,7 @@ start_time,end_time,filename,status,parsed_rows,error_rows,output_paths,output_s
 
 ### Error CSV
 
-When rows are rejected during ingestion, a per-file error CSV is written to `errors/<source>/<basename>_errors.csv`. It is automatically deleted if no errors occur, keeping the directory clean.
+When rows are rejected during ingestion, a per-file error CSV is written to `errors/<source>/<basename>_errors.csv`. The file is **only created when at least one row is rejected** — no file is written for clean inputs, keeping the directory uncluttered.
 
 ```csv
 line_number,reason,raw_line
@@ -670,7 +669,7 @@ DuckLake is a lakehouse format that uses a SQL database (PostgreSQL) as the cata
    CREATE DATABASE ducklake_db;
    ```
 
-2. **Configure the pipeline** (`adjustment_pipeline.toon`):
+2. **Configure the pipeline** (`<data_source>_pipeline.toon`):
    ```yaml
    output:
      format: PARQUET
@@ -679,8 +678,8 @@ DuckLake is a lakehouse format that uses a SQL database (PostgreSQL) as the cata
        enabled: true
        catalog_url: "postgresql://etl_user:password@localhost:5432/ducklake_db"
        data_path: "/opt/adj-lake"
-       schema: adjustments
-       table: adjustment_data
+       schema: <data_source>s
+       table: <data_source>_data
    ```
 
 3. **Run the ETL.** After each file is written, SourceProcessor will:
@@ -702,7 +701,7 @@ LOAD ducklake;
 ATTACH 'ducklake:postgresql://user:password@server:5432/ducklake_db'
     AS lake (DATA_PATH '/mnt/adj-lake');
 
-SELECT * FROM lake.adjustments.adjustment_data
+SELECT * FROM lake.<data_source>s.<data_source>_data
 WHERE year = '2000' AND month = '01'
 LIMIT 100;
 ```
@@ -745,18 +744,18 @@ psql -U postgres -d yourdb -f warehouse_setup_final.sql
 
 ```sql
 CREATE USER alice WITH PASSWORD 'changeme' IN ROLE analyst;
-CREATE USER bob   WITH PASSWORD 'changeme' IN ROLE voucher_analyst;
+CREATE USER bob   WITH PASSWORD 'changeme' IN ROLE <data_source>_analyst;
 ```
 
 ### Views in the `warehouse` schema
 
 | View | Source path | Columns | Partition key |
 |---|---|---|---|
-| `voucher_cdr` | `database/voucher/voucher_cdr/**` | 537 | ENTRY_DATE |
-| `voucher_main` | `database/voucher/voucher_main/**` | 116 | ENTRY_DATE |
-| `voucher_other` | `database/voucher/voucher_other/**` | 76 | ENTRY_DATE |
-| `adjustment` | `database/adjustment/**` | 477 | REVERSAL_DATE |
-| `voucher_all` | union of all 3 voucher views | common cols | — |
+| `<data_source>_cdr` | `database/<data_source>/<data_source>_cdr/**` | 537 | EVENT_DATE (extracted from filename) |
+| `<data_source>_main` | `database/<data_source>/<data_source>_main/**` | 116 | TRANSACTION_START_DATE |
+| `<data_source>_other` | `database/<data_source>/<data_source>_other/**` | 76 | TRANSACTION_START_DATE |
+| `<data_source>` | `database/<data_source>/**` | 477 | REVERSAL_DATE |
+| `<data_source>_all` | union of all 3 <data_source> views | common cols | — |
 | `data_catalog` | partition summary across all tables | — | — |
 
 ### Roles
@@ -764,8 +763,8 @@ CREATE USER bob   WITH PASSWORD 'changeme' IN ROLE voucher_analyst;
 | Role | Access |
 |---|---|
 | `analyst` | all warehouse views |
-| `voucher_analyst` | voucher_cdr, voucher_main, voucher_other, voucher_all |
-| `adjustment_analyst` | adjustment only |
+| `<data_source>_analyst` | <data_source>_cdr, <data_source>_main, <data_source>_other, <data_source>_all |
+| `<data_source>_analyst` | <data_source> only |
 
 ### DBeaver connection
 
@@ -785,7 +784,7 @@ Partition pruning is automatic — DuckDB reads only the files that match the `W
 SELECT * FROM warehouse.data_catalog ORDER BY table_name, year, month, day;
 
 -- Query with partition pruning (reads only year=2020/month=01/day=01 files)
-SELECT * FROM warehouse.voucher_cdr
+SELECT * FROM warehouse.<data_source>_cdr
 WHERE year = 2020 AND month = 1 AND day = 1
 LIMIT 100;
 ```
@@ -819,34 +818,18 @@ This produces **`file-processor-deploy.zip`** in the sandbox root. The script:
 file-processor-deploy/
   file-processor.jar              ← fat JAR, all dependencies included (~94 MB)
   config/
-    adjustment/
-      adjustment_pipeline.toon
-      adjustment_schema.toon
-      adj_gen.toon
-    voucher/
-      voucher_pipeline.toon
-      voucher_schema.toon
-  inbox/
-    adjustment/               ← drop input files here (or run pre-ETL utilities)
-    voucher/
-  database/
-    adjustment/               ← partitioned Parquet output
-    voucher/
-  backup/
-    adjustment/               ← original source files archived after processing
-    voucher/
-  temp/
-    adjustment/               ← scratch space for tar extraction
-    voucher/
-  errors/
-    adjustment/               ← per-file error CSVs
-    voucher/
-  quarantine/
-    adjustment/               ← quarantined files
-    voucher/
-  markers/
-    adjustment/               ← .processed sentinel files (auto-pruned; mirrors inbox tree)
-    voucher/
+    <data_source>/<data_source>_pipeline.toon
+                  <data_source>_schema.toon
+                  adj_gen.toon
+    <data_source>/<data_source>_pipeline.toon
+                  <data_source>_schema.toon
+  inbox/<data_source>/               ← drop input files here (or run pre-ETL utilities)
+  database/<data_source>/               ← partitioned Parquet output
+  backup/<data_source>/               ← original source files archived after processing
+  temp/<data_source>/               ← scratch space for tar extraction
+  errors/<data_source>/               ← per-file error CSVs
+  quarantine/<data_source>/               ← quarantined files
+  markers/<data_source>/               ← .processed sentinel files (auto-pruned; mirrors inbox tree)
   run.sh                      ← Linux/Mac ETL launcher  (java -jar ... <adapter>_pipeline.toon)
   run.bat                     ← Windows ETL launcher
   ura.sh                      ← Linux/Mac utility CLI   (java -cp ... MainApp <command> ...)
@@ -863,24 +846,24 @@ unzip file-processor-deploy.zip
 cd file-processor-deploy
 
 # 2. Stage files (optional — use pre-ETL utilities if source is on a network share or in tarballs)
-bash ura.sh copy-tars config/adjustment/adjustment_pipeline.toon
-bash ura.sh extract   config/adjustment/adjustment_pipeline.toon
+bash ura.sh copy-tars config/<data_source>/<data_source>_pipeline.toon
+bash ura.sh extract   config/<data_source>/<data_source>_pipeline.toon
 
 # 3. Drop input files directly into the inbox (if no pre-ETL staging needed)
-cp /data/feeds/*.csv.gz inbox/adjustment/
+cp /data/feeds/*.csv.gz inbox/<data_source>/
 
 # 4. Run the ETL (Linux)
-bash run.sh adjustment          # or: bash run.sh voucher
+bash run.sh <data_source>          # or: bash run.sh <data_source>
 
 # 5. Run the ETL (Windows)
-run.bat adjustment
+run.bat <data_source>
 ```
 
 **Direct invocation** (without the run scripts):
 ```bash
 java --enable-native-access=ALL-UNNAMED \
      -jar file-processor.jar \
-     config/voucher/voucher_pipeline.toon
+     config/<data_source>/<data_source>_pipeline.toon
 ```
 
 **Java requirement:** Java 24 or later. No other runtime dependencies.
@@ -889,14 +872,14 @@ java --enable-native-access=ALL-UNNAMED \
 
 | Source | Files | Rows/file (avg) | Time/file | Total (30 days) |
 |---|---|---|---|---|
-| Voucher | 30 × `.csv.gz` | ~2.3 M | ~19 min | ~2.5 hr |
-| Adjustment | varies | ~420 K | ~3.4 min | — |
+| <data_source> | 30 × `.csv.gz` | ~2.3 M | ~19 min | ~2.5 hr |
+| <data_source> | varies | ~420 K | ~3.4 min | — |
 
-Note: the 20200117 voucher file is ~4.3 GB uncompressed (~2.97 M rows) due to ISIZE overflow in the gz header — the ETL handles it transparently via streaming.
+Note: the 20200117 <data_source> file is ~4.3 GB uncompressed (~2.97 M rows) due to ISIZE overflow in the gz header — the ETL handles it transparently via streaming.
 
-### Pre-production checklist (voucher)
+### Pre-production checklist (<data_source>)
 
-- [ ] Delete `inbox/voucher/20200101/vou_DATE_20200101.csv/` — this is an 8 GB uncompressed directory (duplicate of the `.gz`); the glob pattern would pick up the file inside it and double-process the day
+- [ ] Delete `inbox/<data_source>/20200101/vou_DATE_20200101.csv/` — this is an 8 GB uncompressed directory (duplicate of the `.gz`); the glob pattern would pick up the file inside it and double-process the day
 - [ ] Run from the bundle root (or sandbox root locally) so relative paths resolve correctly
 - [ ] Verify Java 24 is on `PATH`: `java -version`
 
@@ -904,7 +887,7 @@ Note: the 20200117 voucher file is ~4.3 GB uncompressed (~2.97 M rows) due to IS
 
 ## Onboarding a New Source
 
-1. **Write a generation config** — copy `config/adjustment/adj_gen.toon` and adapt:
+1. **Write a generation config** — copy `config/<data_source>/adj_gen.toon` and adapt:
    - Set the correct `delimiter`, skip counts, and date formats
    - List column names that should be forced to `DATE` or `TIMESTAMP` in `type_patterns`
 
@@ -954,12 +937,13 @@ Note: the 20200117 voucher file is ~4.3 GB uncompressed (~2.97 M rows) due to IS
 
 Transformations are applied by DuckDB during the `CREATE TABLE AS SELECT` step.
 
-| Schema type | DuckDB expression | NULL behaviour |
+| Schema type / transform | DuckDB expression | NULL behaviour |
 |---|---|---|
 | `DATE` | `COALESCE(TRY_STRPTIME(col, 'fmt1'), TRY_STRPTIME(col, 'fmt2'), ...)::DATE` | Unparseable value → `NULL` |
 | `TIMESTAMP` | `COALESCE(TRY_STRPTIME(col, 'fmt1'), TRY_STRPTIME(col, 'fmt2'), ...)::TIMESTAMP` | Unparseable value → `NULL` |
 | `DOUBLE` | `TRY_CAST(col AS DOUBLE)` | Non-numeric value → `NULL` |
 | `VARCHAR` | Direct column reference — no cast | Never NULL from cast |
+| `FILENAME_DATE` | `TRY_STRPTIME(regexp_extract(col, 'PREFIX([0-9]{8})', 1), '%Y%m%d')::DATE` | No regex match → `NULL` |
 
 Multiple date/timestamp formats are tried left-to-right via `COALESCE`. Common Oracle patterns:
 
@@ -980,7 +964,7 @@ Multiple date/timestamp formats are tried left-to-right via `COALESCE`. Common O
 **Fix:** Every column must be explicitly aliased in the view using the `r['colname']` syntax:
 
 ```sql
-CREATE OR REPLACE VIEW public.voucher AS
+CREATE OR REPLACE VIEW public.<data_source> AS
 SELECT
   r['year']::integer           AS "year",
   r['ENTRY_DATE']::date        AS "ENTRY_DATE",
@@ -988,7 +972,7 @@ SELECT
   r['RECHARGE_CODE']::text     AS "RECHARGE_CODE",
   r['RECHARGE_AMT']::double precision AS "RECHARGE_AMT"
   -- ... all remaining columns
-FROM read_parquet('/data/.../voucher/**/*.parquet', hive_partitioning := true) r;
+FROM read_parquet('/data/.../<data_source>/**/*.parquet', hive_partitioning := true) r;
 ```
 
 With 100–500 columns this is impractical to write by hand. Use the included generator script instead:
@@ -1037,10 +1021,10 @@ Check stderr output for `DuckLake registration failed`. Common causes:
 Marker files are stored in `markers/` (not in `inbox/`), mirroring the inbox tree. Delete them to force reprocessing:
 ```bash
 # Delete all markers for one adapter
-find markers/adjustment/ -name "*.processed" -delete
+find markers/<data_source>/ -name "*.processed" -delete
 
 # Delete a single marker (e.g. to reprocess one specific file)
-rm markers/adjustment/20200403/adj_DATE_20200403.csv.gz.processed
+rm markers/<data_source>/20200403/adj_DATE_20200403.csv.gz.processed
 ```
 
 Stale markers are pruned automatically at each poll start based on `processing.duplicate_check.retention_days`. You only need manual deletion to reprocess files within the retention window.

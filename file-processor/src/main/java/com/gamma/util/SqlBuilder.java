@@ -71,6 +71,20 @@ public final class SqlBuilder {
                 StringBuilder sb = new StringBuilder();
                 appendCoalesce(sb, dateCol + " || ' ' || " + timeCol, tsFormats, "TIMESTAMP");
                 return sb.toString();
+            } else if ("FILENAME_DATE".equals(transformType)) {
+                // Restricted to EVENT_DATE only — same guard as DataTransformer.
+                if (!"EVENT_DATE".equals(partitionKey)) {
+                    throw new IllegalArgumentException(
+                            "FILENAME_DATE transform is only supported for the EVENT_DATE column, got: "
+                            + partitionKey);
+                }
+                // source format: COLUMN_NAME|PREFIX  (optionally |FORMAT, default %Y%m%d)
+                String[] parts  = source.split("\\|", 3);
+                String   col    = "raw_input.\"" + parts[0] + '"';
+                String   prefix = parts.length > 1 ? parts[1] : "";
+                String   fmt    = parts.length > 2 ? parts[2] : "%Y%m%d";
+                return "TRY_STRPTIME(regexp_extract(" + col + ", '" + prefix
+                        + "([0-9]{8})', 1), '" + fmt + "')::DATE";
             } else {
                 String col  = "raw_input.\"" + source + '"';
                 String type = fieldTypes.getOrDefault(source, "VARCHAR");

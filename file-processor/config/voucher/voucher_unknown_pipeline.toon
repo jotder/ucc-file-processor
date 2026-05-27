@@ -2,31 +2,31 @@ name: VOUCHER_UNKNOWN_ETL
 version: 1
 
 dirs:
-  poll:       C:/sandbox/URA/sandbox/inbox/voucher/unknown
-  database:   C:/sandbox/URA/sandbox/database/voucher
-  backup:     C:/sandbox/URA/sandbox/backup/voucher_unknown
-  temp:       C:/sandbox/URA/sandbox/temp/voucher_unknown
-  errors:     C:/sandbox/URA/sandbox/errors/voucher_unknown
-  quarantine: C:/sandbox/URA/sandbox/quarantine/voucher_unknown
-  markers:    C:/sandbox/URA/sandbox/markers/voucher_unknown
-  status_dir:  C:/sandbox/URA/sandbox/file-processor/status/voucher_unknown
-  log_dir:     C:/sandbox/URA/sandbox/file-processor/logs/voucher_unknown
+  poll:       ../data/inbox/voucher/unknown
+  database:   ../data/voucher/database
+  backup:     ../data/voucher/backup
+  temp:       ../data/voucher/temp
+  errors:     ../data/voucher/errors
+  quarantine: ../data/voucher/quarantine
+  markers:    ../data/voucher/markers
+  status_dir: ../data/voucher/status
+  log_dir:    ../data/voucher/logs
 
 output:
-  format: PARQUET
+  format: CSV
   compression: snappy
 
 processing:
-  threads: 4
+  threads: 3
   file_pattern: "glob:**/*.csv"
   duplicate_check:
     enabled: true
     marker_extension: .processed
     retention_days: 90
   schemas[3]{column_count,file_pattern,schema_file,table}:
-    76,  "glob:**/*other*",    "C:/sandbox/URA/sandbox/file-processor/config/voucher/voucher_unknown_76.toon",  voucher_other
-    116, "glob:**/*main*",     "C:/sandbox/URA/sandbox/file-processor/config/voucher/voucher_unknown_116.toon", voucher_main
-    537, "",                   "C:/sandbox/URA/sandbox/file-processor/config/voucher/voucher_unknown_537.toon", voucher_cdr
+    76,  "glob:**/*other*",    "config/voucher/voucher_unknown_76.toon",  voucher_other
+    116, "glob:**/*main*",     "config/voucher/voucher_unknown_116.toon", voucher_main
+    537, "",                   "config/voucher/voucher_unknown_537.toon", voucher_cdr
   csv_settings:
     delimiter: ","
     skip_header_lines: 0

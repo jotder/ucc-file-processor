@@ -1,4 +1,4 @@
-partitionKey: TRANSACTION_START_DATE
+partitionKey: LOAD_DATE
 raw:
   name: voucher_other
   format: CSV

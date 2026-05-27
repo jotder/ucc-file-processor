@@ -81,6 +81,24 @@ public final class DataTransformer {
                 String timeCol  = "raw_input.\"" + parts[1] + '"';
                 SqlBuilder.appendCoalesce(select,
                         dateCol + " || ' ' || " + timeCol, cfg.tsFormats, "TIMESTAMP");
+            } else if ("FILENAME_DATE".equals(transformType)) {
+                // Restricted to EVENT_DATE only — this transform extracts a date from a
+                // filename-style column and is intentionally scoped to the voucher CDR
+                // (voucher_unknown_537) schema.  Using it on any other target column is a
+                // configuration error and will fail fast here.
+                if (!"EVENT_DATE".equals(target)) {
+                    throw new IllegalArgumentException(
+                            "FILENAME_DATE transform is only supported for the EVENT_DATE column, got: " + target);
+                }
+                // source format: COLUMN_NAME|PREFIX  (optionally |FORMAT, default %Y%m%d)
+                // Extracts an 8-digit date appearing after PREFIX in the named column.
+                String[] parts  = source.split("\\|", 3);
+                String   col    = "raw_input.\"" + parts[0] + '"';
+                String   prefix = parts.length > 1 ? parts[1] : "";
+                String   fmt    = parts.length > 2 ? parts[2] : "%Y%m%d";
+                select.append("TRY_STRPTIME(regexp_extract(")
+                      .append(col).append(", '").append(prefix)
+                      .append("([0-9]{8})', 1), '").append(fmt).append("')::DATE");
             } else {
                 String col  = "raw_input.\"" + source + '"';
                 String type = fieldTypes.getOrDefault(source, "VARCHAR");
@@ -134,16 +152,31 @@ public final class DataTransformer {
 
             stmt.execute(String.format("COPY transformed TO '%s' (%s)", stagingDir, copyOpts));
 
-            // Move staged files to final partition directories
+            // Move staged files to final partition directories.
+            //
+            // Two-step rename to keep partially-visible output away from downstream
+            // readers (e.g. pg_duckdb / DuckLake glob scans): the file first lands
+            // with a `.tmp` suffix that does not match the `*_out.<ext>` pattern any
+            // consumer would scan for, then is atomically renamed to the final name
+            // only once the move from the staging tree has completed.  Both renames
+            // are on the same filesystem (staging is a subdir of databaseDir), so
+            // each is a single rename(2) — the consumer never sees a half-written
+            // *_out.<ext> file.
             try (Stream<Path> staged = Files.walk(stagingPath)) {
                 staged.filter(Files::isRegularFile).forEach(src -> {
-                    Path rel = stagingPath.relativize(src);
-                    Path dst = Paths.get(databaseDir).resolve(rel).resolveSibling(outputFileName);
+                    Path rel       = stagingPath.relativize(src);
+                    Path dstFinal  = Paths.get(databaseDir).resolve(rel).resolveSibling(outputFileName);
+                    Path dstTemp   = dstFinal.resolveSibling(outputFileName + ".tmp");
                     try {
-                        Files.createDirectories(dst.getParent());
-                        Files.move(src, dst, StandardCopyOption.REPLACE_EXISTING);
-                        outputPaths.add(dst.toString());
-                        outputSizes.add(Files.size(dst));
+                        Files.createDirectories(dstFinal.getParent());
+                        // Step 1: land in the final partition dir under a non-matching name.
+                        Files.move(src, dstTemp, StandardCopyOption.REPLACE_EXISTING);
+                        // Step 2: atomically reveal it under the canonical *_out.<ext> name.
+                        Files.move(dstTemp, dstFinal,
+                                StandardCopyOption.REPLACE_EXISTING,
+                                StandardCopyOption.ATOMIC_MOVE);
+                        outputPaths.add(dstFinal.toString());
+                        outputSizes.add(Files.size(dstFinal));
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }

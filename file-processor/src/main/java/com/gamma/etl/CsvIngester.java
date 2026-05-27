@@ -60,10 +60,9 @@ public final class CsvIngester {
                 .mapToInt(f -> Integer.parseInt(String.valueOf(f.get("selector"))))
                 .max().orElse(0);
 
-        // ── prepare error CSV ─────────────────────────────────────────────────
-        String baseName = stripExtensions(file.getName());
-        Path errorDir  = Paths.get(cfg.errorsDir).toAbsolutePath();
-        Files.createDirectories(errorDir);
+        // ── prepare error CSV (created lazily — only if errors actually occur) ──
+        String baseName    = stripExtensions(file.getName());
+        Path errorDir      = Paths.get(cfg.errorsDir).toAbsolutePath();
         Path errorFilePath = errorDir.resolve(baseName + "_errors.csv");
 
         CsvParser parser = buildParser(cfg.delimiter);
@@ -72,6 +71,9 @@ public final class CsvIngester {
         long errorRows         = 0;
         long junkCandidateRows = 0;
         long ingestStartMs     = System.currentTimeMillis();
+
+        // Opened lazily on the first rejected row — no file is created when there are no errors.
+        PrintWriter errOut = null;
 
         try (InputStream rawIs = new FileInputStream(file);
              // For .gz files: buffer 8 MB of compressed data before the GZIPInputStream
@@ -82,10 +84,7 @@ public final class CsvIngester {
                                  : rawIs;
              // 2 MB char buffer: ~500 refill calls per GB vs ~125,000 with the default 8 KB.
              BufferedReader br = new BufferedReader(
-                     new InputStreamReader(is, StandardCharsets.UTF_8), 2 * 1024 * 1024);
-             PrintWriter errOut = new PrintWriter(new FileWriter(errorFilePath.toFile()))) {
-
-            errOut.println("line_number,reason,raw_line");
+                     new InputStreamReader(is, StandardCharsets.UTF_8), 2 * 1024 * 1024)) {
 
             // ── skip pre-header lines ─────────────────────────────────────────
             for (int i = 0; i < cfg.skipHeaderLines; i++) br.readLine();
@@ -186,6 +185,11 @@ public final class CsvIngester {
 
                     // Reject rows with insufficient columns
                     if (row.length <= maxSelector) {
+                        if (errOut == null) {
+                            Files.createDirectories(errorDir);
+                            errOut = new PrintWriter(new FileWriter(errorFilePath.toFile()));
+                            errOut.println("line_number,reason,raw_line");
+                        }
                         String reason = String.format(
                                 "Insufficient columns (expected >%d, found %d)",
                                 maxSelector, row.length);
@@ -216,9 +220,9 @@ public final class CsvIngester {
                 }
                 // Lines remaining in tailBuffer at EOF are the file footer — silently discarded.
             }
+        } finally {
+            if (errOut != null) errOut.close();
         }
-
-        // Error files are retained regardless of row count — callers use them for manual investigation.
 
         return new IngestResult(parsedRows, errorRows, junkCandidateRows);
     }
@@ -232,7 +236,8 @@ public final class CsvIngester {
         s.setMaxColumns(10_000);
         s.setMaxCharsPerColumn(1_000_000);
         s.setQuoteDetectionEnabled(false);
-        s.getFormat().setQuote('\0');
+        s.getFormat().setQuote('"');
+        s.getFormat().setQuoteEscape('"');
         return new CsvParser(s);
     }
 

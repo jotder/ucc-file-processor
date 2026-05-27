@@ -86,45 +86,68 @@ Copy-Item   "$adjParserDir\config\adjustment\adjustment_schema.toon"   `
 Copy-Item   "$adjParserDir\config\adjustment\adj_gen.toon"             `
             "$bundleDir\config\adjustment\adj_gen.toon"
 
-Copy-Config "$adjParserDir\config\voucher\voucher_pipeline.toon"       `
-            "$bundleDir\config\voucher\voucher_pipeline.toon"
-Copy-Item   "$adjParserDir\config\voucher\voucher.toon"                `
-            "$bundleDir\config\voucher\voucher.toon"
-Copy-Item   "$adjParserDir\config\voucher\voucher.toon"                `
-            "$bundleDir\config\voucher\voucher_schema.toon"
-Copy-Item   "$adjParserDir\config\voucher\voucher537.toon"             `
-            "$bundleDir\config\voucher\voucher537.toon"
-Copy-Item   "$adjParserDir\config\voucher\voucher116.toon"             `
-            "$bundleDir\config\voucher\voucher116.toon"
-Copy-Item   "$adjParserDir\config\voucher\voucher76.toon"              `
-            "$bundleDir\config\voucher\voucher76.toon"
+Copy-Config "$adjParserDir\config\voucher\voucher_unknown_pipeline.toon" `
+            "$bundleDir\config\voucher\voucher_unknown_pipeline.toon"
+Copy-Item   "$adjParserDir\config\voucher\voucher_unknown_76.toon"       `
+            "$bundleDir\config\voucher\voucher_unknown_76.toon"
+Copy-Item   "$adjParserDir\config\voucher\voucher_unknown_116.toon"      `
+            "$bundleDir\config\voucher\voucher_unknown_116.toon"
+Copy-Item   "$adjParserDir\config\voucher\voucher_unknown_537.toon"      `
+            "$bundleDir\config\voucher\voucher_unknown_537.toon"
 
 
 # ── step 5: bundle run scripts (Linux + Windows) ───────────────────────────────
 @'
 #!/usr/bin/env bash
-# Usage: ./run.sh [adjustment|voucher]
+# Usage: ./run.sh <adapter>
+# Looks up the pipeline file as config/<adapter>/*_pipeline.toon (first match wins),
+# so it transparently handles both "<adapter>_pipeline.toon" and variants like
+# "<adapter>_unknown_pipeline.toon".
 set -euo pipefail
 cd "$(dirname "$0")"
-ADAPTER="${1:?Usage: run.sh [adjustment|voucher]}"
+ADAPTER="${1:?Usage: run.sh <adapter>   (e.g. adjustment, voucher)}"
+PIPELINE=$(ls "config/${ADAPTER}"/*_pipeline.toon 2>/dev/null | head -1)
+if [ -z "$PIPELINE" ]; then
+    echo "ERROR: no pipeline file found at config/${ADAPTER}/*_pipeline.toon" >&2
+    exit 1
+fi
+echo "[run.sh] Using pipeline: $PIPELINE"
 exec java --enable-native-access=ALL-UNNAMED \
           -jar file-processor.jar \
-          "config/${ADAPTER}/${ADAPTER}_pipeline.toon"
+          "$PIPELINE"
 '@ | Set-Content -Path "$bundleDir\run.sh" -NoNewline
 
-@'
+$runBatContent = @'
 @echo off
-rem Usage: run.bat [adjustment|voucher]
+rem Usage: run.bat ADAPTER         (e.g. adjustment, voucher)
+rem Looks up the pipeline file as config\ADAPTER\*_pipeline.toon (first match wins),
+rem so it handles both "ADAPTER_pipeline.toon" and variants like
+rem "ADAPTER_unknown_pipeline.toon".
 setlocal
 cd /d "%~dp0"
 if "%1"=="" (
-    echo Usage: run.bat [adjustment^|voucher]
+    echo Usage: run.bat ADAPTER   [e.g. adjustment, voucher]
     exit /b 1
 )
+set "PIPELINE="
+for %%F in (config\%1\*_pipeline.toon) do (
+    if not defined PIPELINE set "PIPELINE=%%F"
+)
+if not defined PIPELINE (
+    echo ERROR: no pipeline file found at config\%1\*_pipeline.toon
+    exit /b 1
+)
+echo [run.bat] Using pipeline: %PIPELINE%
 java --enable-native-access=ALL-UNNAMED ^
      -jar file-processor.jar ^
-     config\%1\%1_pipeline.toon
-'@ | Set-Content -Path "$bundleDir\run.bat" -NoNewline
+     "%PIPELINE%"
+'@
+# Write with CRLF line endings + ASCII so Windows cmd.exe parses correctly.
+[System.IO.File]::WriteAllText(
+    "$bundleDir\run.bat",
+    $runBatContent.Replace("`n", "`r`n"),
+    [System.Text.Encoding]::ASCII
+)
 
 # ── step 6: bundle ura scripts (pre-ETL utility CLI, Linux + Windows) ─────────
 @'
