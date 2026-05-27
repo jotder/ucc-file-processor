@@ -8,10 +8,10 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class PipelineConfigBatchTest {
+public class PipelineConfigBatchTest {
 
     /** Minimal 3-column schema reused across batch tests. */
-    static String miniSchema() {
+    public static String miniSchema() {
         return """
             partitionKey: EVENT_DATE
             raw:
@@ -32,7 +32,7 @@ class PipelineConfigBatchTest {
     }
 
     /** Writes a minimal valid pipeline toon into dir; returns its path. batchSection may be "". */
-    static Path writePipeline(Path dir, String batchSection) throws Exception {
+    public static Path writePipeline(Path dir, String batchSection) throws Exception {
         Path schema = dir.resolve("mini_schema.toon");
         Files.writeString(schema, miniSchema());
         String toon = """
@@ -45,6 +45,7 @@ class PipelineConfigBatchTest {
               temp: %s/temp
               errors: %s/errors
               quarantine: %s/quarantine
+              markers: %s/markers
               status_dir: %s/status
               log_dir: %s/logs
             output:
@@ -64,7 +65,7 @@ class PipelineConfigBatchTest {
                 skip_tail_lines: 0
                 date_formats[1]: "%%Y-%%m-%%d"
                 timestamp_formats[1]: "%%Y-%%m-%%d"
-            """.formatted(dir, dir, dir, dir, dir, dir, dir, dir,
+            """.formatted(dir, dir, dir, dir, dir, dir, dir, dir, dir,
                           schema.toString().replace("\\", "/"), batchSection);
         Path p = dir.resolve("mini_pipeline.toon");
         Files.writeString(p, toon);
