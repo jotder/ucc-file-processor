@@ -254,7 +254,7 @@ public final class CsvIngester {
     }
 
     /** Strips {@code .gz} then the remaining extension. */
-    static String stripExtensions(String fileName) {
+    public static String stripExtensions(String fileName) {
         return fileName.replaceAll("\\.gz$", "").replaceAll("\\.[^.]+$", "");
     }
 }

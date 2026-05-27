@@ -162,7 +162,19 @@ public class SourceProcessor {
                         ts(), inputFile.getName(),
                         ingestResult.parsedRows(), inputFile.length() / 1_048_576.0);
                 long t1 = System.currentTimeMillis();
-                xformResult = DataTransformer.transform(inputFile, conn, schema, table, cfg);
+                // TEMP shim until a later task rewrites this class for batching.
+                DataTransformer.materialize(conn, schema, cfg);
+                xformResult = PartitionWriter.write(conn, "transformed",
+                        (table != null && !table.isBlank())
+                                ? java.nio.file.Paths.get(cfg.databaseDir, table).toString()
+                                : cfg.databaseDir,
+                        cfg.outputFormat, cfg.compression,
+                        CsvIngester.stripExtensions(inputFile.getName()))
+                        .stream()
+                        .collect(java.util.stream.Collectors.teeing(
+                                java.util.stream.Collectors.mapping(PartitionOutput::outputFile, java.util.stream.Collectors.toList()),
+                                java.util.stream.Collectors.mapping(PartitionOutput::bytes, java.util.stream.Collectors.toList()),
+                                TransformResult::new));
                 long totalBytes = xformResult.outputSizes().stream().mapToLong(Long::longValue).sum();
                 System.out.printf("[%s] [%s] Transform: done — %d file(s), %.1f MB (%,d ms)%n",
                         ts(), inputFile.getName(), xformResult.outputPaths().size(),
