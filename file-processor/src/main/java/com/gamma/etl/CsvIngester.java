@@ -45,10 +45,22 @@ public final class CsvIngester {
      * @return row counts for the caller to use in quarantine/status decisions
      * @throws Exception on DuckDB errors; {@link IOException} when the file is unreadable
      */
-    @SuppressWarnings("unchecked")
     public static IngestResult ingest(File file, Connection conn,
                                       Map<String, Object> schemaConfig,
                                       PipelineConfig cfg) throws Exception {
+        return ingest(file, conn, schemaConfig, cfg, "raw_input");
+    }
+
+    /**
+     * Ingest {@code file} into the table named {@code targetTable} in the supplied
+     * DuckDB connection. Identical to the 4-arg overload but lets a batch member
+     * stream into its own per-file staging table.
+     */
+    @SuppressWarnings("unchecked")
+    public static IngestResult ingest(File file, Connection conn,
+                                      Map<String, Object> schemaConfig,
+                                      PipelineConfig cfg,
+                                      String targetTable) throws Exception {
         // ── parse settings from config ────────────────────────────────────────
         int maxJunkLines = cfg.skipJunkLines < 0 ? Integer.MAX_VALUE : cfg.skipJunkLines;
         int skipTailCols = cfg.skipTailCols;
@@ -99,10 +111,10 @@ public final class CsvIngester {
                 headerTokens = parser.parseLine(headerLine);
             }
 
-            // ── create raw_input staging table ────────────────────────────────
+            // ── create staging table ──────────────────────────────────────────
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("DROP TABLE IF EXISTS raw_input");
-                StringBuilder ddl = new StringBuilder("CREATE TABLE raw_input (");
+                stmt.execute("DROP TABLE IF EXISTS \"" + targetTable + "\"");
+                StringBuilder ddl = new StringBuilder("CREATE TABLE \"" + targetTable + "\" (");
                 for (int i = 0; i < fields.size(); i++) {
                     ddl.append('"').append(fields.get(i).get("name")).append("\" VARCHAR");
                     if (i < fields.size() - 1) ddl.append(", ");
@@ -144,7 +156,7 @@ public final class CsvIngester {
 
             // ── main appender loop ────────────────────────────────────────────
             DuckDBConnection duckConn = (DuckDBConnection) conn;
-            try (DuckDBAppender appender = duckConn.createAppender("", "raw_input")) {
+            try (DuckDBAppender appender = duckConn.createAppender("", targetTable)) {
                 ArrayDeque<Map.Entry<Long, String>> tailBuffer = new ArrayDeque<>();
                 long lineNum = 0;
                 boolean hasPending = firstDataLine != null;
