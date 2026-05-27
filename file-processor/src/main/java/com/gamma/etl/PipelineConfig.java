@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
@@ -57,6 +58,19 @@ public final class PipelineConfig {
 
     public final int    threads;
     public final String filePattern;
+
+    // ── batch ─────────────────────────────────────────────────────────────────
+
+    /** Max member files per batch (default 1 → one file per batch, legacy behavior). */
+    public final int  batchMaxFiles;
+    /** Max summed input bytes per batch (default Long.MAX_VALUE). */
+    public final long batchMaxBytes;
+    /** Path to the run-scoped batches summary CSV; {@code null} when status is disabled. */
+    public final String batchesFilePath;
+    /** Path to the run-scoped lineage (count-matrix) CSV; {@code null} when status is disabled. */
+    public final String lineageFilePath;
+    /** Directory for per-batch JSON manifests; {@code null} when status is disabled. */
+    public final String manifestsDir;
 
     // ── duplicate check ───────────────────────────────────────────────────────
 
@@ -113,6 +127,11 @@ public final class PipelineConfig {
         this.statusFilePath       = b.statusFilePath;
         this.threads              = b.threads;
         this.filePattern          = b.filePattern;
+        this.batchMaxFiles        = b.batchMaxFiles;
+        this.batchMaxBytes        = b.batchMaxBytes;
+        this.batchesFilePath      = b.batchesFilePath;
+        this.lineageFilePath      = b.lineageFilePath;
+        this.manifestsDir         = b.manifestsDir;
         this.duplicateCheckEnabled= b.duplicateCheckEnabled;
         this.markerExtension      = b.markerExtension;
         this.retentionDays        = b.retentionDays;
@@ -176,12 +195,30 @@ public final class PipelineConfig {
             b.statusFilePath = (String) dirs.get("status_file");
         }
 
+        // ── batch audit + manifest paths (sibling to the status CSV) ──────────────
+        if (b.statusFilePath != null && !b.statusFilePath.isBlank()) {
+            Path statusParent = Paths.get(b.statusFilePath).toAbsolutePath().getParent();
+            b.batchesFilePath = statusParent.resolve(
+                    b.pipelineName + "_batches_" + b.runTimestamp + ".csv").toString();
+            b.lineageFilePath = statusParent.resolve(
+                    b.pipelineName + "_lineage_" + b.runTimestamp + ".csv").toString();
+            b.manifestsDir = statusParent.resolve("manifests").toString();
+        }
+
         validateDirs(configPath, b.pollDir, dirs);
 
         // ── processing ────────────────────────────────────────────────────────
         Map<String, Object> proc = ToonHelper.requireSection(raw, "processing");
         b.threads     = toInt(proc.getOrDefault("threads", 4));
         b.filePattern = opt(proc, "file_pattern", "glob:**/*.{csv,csv.gz}");
+
+        // ── batch caps ──────────────────────────────────────────────────────────
+        Map<String, Object> batch = (Map<String, Object>) proc.get("batch");
+        if (batch != null) {
+            b.batchMaxFiles = toInt(batch.getOrDefault("max_files", 1));
+            Object mb = batch.get("max_bytes");
+            b.batchMaxBytes = (mb == null) ? Long.MAX_VALUE : Long.parseLong(String.valueOf(mb));
+        }
 
         // ── duplicate check ───────────────────────────────────────────────────
         Map<String, Object> dup = (Map<String, Object>) proc.get("duplicate_check");
@@ -309,6 +346,11 @@ public final class PipelineConfig {
         String statusFilePath;
         int    threads       = 4;
         String filePattern   = "glob:**/*.{csv,csv.gz}";
+        int    batchMaxFiles   = 1;
+        long   batchMaxBytes   = Long.MAX_VALUE;
+        String batchesFilePath;
+        String lineageFilePath;
+        String manifestsDir;
         boolean duplicateCheckEnabled = false;
         String  markerExtension       = ".processed";
         int     retentionDays         = 90;
