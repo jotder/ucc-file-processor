@@ -150,7 +150,8 @@ public final class BatchProcessor {
             String rel    = poll.relativize(filePath).toString().replace('\\', '/');
             String backupPath = backup != null
                     ? backup.resolve(poll.relativize(filePath)).toString() : "";
-            markerPaths.add(MarkerManager.getMarkerPath(m.file(), cfg).toString());
+            if (cfg.markersDir != null)
+                markerPaths.add(MarkerManager.getMarkerPath(m.file(), cfg).toString());
             memberEntries.add(new BatchManifest.MemberEntry(
                     m.file().getName(), m.srcId(), rel, backupPath, "SUCCESS"));
         }
@@ -169,7 +170,8 @@ public final class BatchProcessor {
             ManifestStore.write(cfg.manifestsDir, manifest);
         }
 
-        for (Batch.Member m : survivors) MarkerManager.createMarkerFile(m.file(), cfg);
+        if (cfg.markersDir != null)
+            for (Batch.Member m : survivors) MarkerManager.createMarkerFile(m.file(), cfg);
         if (backup != null)
             for (Batch.Member m : survivors) backupFile(m.file(), cfg);
     }
