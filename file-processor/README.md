@@ -85,7 +85,9 @@ The **Pre ETL utilities** (`MainApp`) handle the movement and unpacking of raw d
 ```
 com.gamma
   inspector/
-    SourceProcessor          — thin ETL orchestrator (~170 lines); delegates all logic to etl.*
+    SourceProcessor          — thin ETL orchestrator; drives the batch lifecycle via the thread pool
+    BatchProcessor           — owns one temp DuckDB per batch; ingest loop → transform → lineage → commit
+    ReprocessCommand         — `ura reprocess <batch_id>`: delete outputs/markers, restore members, re-run
   etl/
     PipelineConfig           — immutable config object; static factory loads and validates .toon
     SchemaSelector           — two-pass schema dispatch (file-pattern fast path + column-count probe)
@@ -163,7 +165,7 @@ sandbox-root/                ← working directory for local runs
         test_pipeline.toon         ← lightweight CSV test pipeline
     src/                     ← Java source
     target/
-      file-processor-1.0.jar     ← fat JAR (built by mvn package)
+      file-processor-1.3.0.jar   ← fat JAR (built by mvn package)
     pom.xml
     package.ps1              ← builds + bundles a deployment zip
     README.md
@@ -228,7 +230,7 @@ Reads both generated config files, polls the inbox directory, and for each unpro
 ```powershell
 cd file-processor
 mvn clean package
-# Produces: target/file-processor-1.0.jar  (~94 MB, all deps bundled)
+# Produces: target/file-processor-1.3.0.jar  (~94 MB, all deps bundled)
 ```
 
 ### Generate schema for a new source
@@ -1000,7 +1002,7 @@ Note: the 20200117 <data_source> file is ~4.3 GB uncompressed (~2.97 M rows) due
    bash run.sh mysource      # after adding mysource to run.sh
    # or directly:
    java --enable-native-access=ALL-UNNAMED \
-        -jar target/file-processor-1.0.jar \
+        -jar target/file-processor-1.3.0.jar \
         config/mysource/mysource_pipeline.toon
    ```
 

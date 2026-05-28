@@ -27,9 +27,13 @@ public final class PartitionWriter {
 
     private PartitionWriter() {}
 
+    private static final List<String> DEFAULT_PARTITION_COLS = List.of("year", "month", "day");
+
     /**
+     * Backward-compatible overload — partitions by {@code (year, month, day)}.
+     *
      * @param conn         worker DuckDB connection containing {@code table}
-     * @param table        table to write (must contain {@code year,month,day,__src_id})
+     * @param table        table to write (must contain partition cols + {@code __src_id})
      * @param databaseDir  output root (already resolved to include any table sub-dir)
      * @param outputFormat {@code "CSV"} or {@code "PARQUET"}
      * @param compression  parquet compression (ignored for CSV; may be {@code null})
@@ -39,6 +43,22 @@ public final class PartitionWriter {
     public static List<PartitionOutput> write(Connection conn, String table,
                                               String databaseDir, String outputFormat,
                                               String compression, String baseName)
+            throws Exception {
+        return write(conn, table, databaseDir, outputFormat, compression, baseName,
+                DEFAULT_PARTITION_COLS);
+    }
+
+    /**
+     * Write {@code table} to Hive-partitioned output using the supplied partition columns.
+     *
+     * @param partitionColumns ordered list of column names to partition by (e.g.
+     *                         {@code ["event_type","year","month","day"]}); must be
+     *                         non-empty and present in {@code table}
+     */
+    public static List<PartitionOutput> write(Connection conn, String table,
+                                              String databaseDir, String outputFormat,
+                                              String compression, String baseName,
+                                              List<String> partitionColumns)
             throws Exception {
 
         boolean isParquet = "PARQUET".equals(outputFormat);
@@ -54,8 +74,9 @@ public final class PartitionWriter {
         List<PartitionOutput> outputs = new ArrayList<>();
 
         try (Statement stmt = conn.createStatement()) {
+            String partBy = String.join(", ", partitionColumns);
             StringBuilder copyOpts = new StringBuilder("FORMAT ").append(outputFormat)
-                    .append(", PARTITION_BY (year, month, day), OVERWRITE_OR_IGNORE 1");
+                    .append(", PARTITION_BY (").append(partBy).append("), OVERWRITE_OR_IGNORE 1");
             if (isParquet && compression != null && !compression.isBlank())
                 copyOpts.append(", COMPRESSION ").append(compression);
 

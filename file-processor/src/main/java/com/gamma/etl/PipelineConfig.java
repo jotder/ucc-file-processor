@@ -100,15 +100,33 @@ public final class PipelineConfig {
 
     /**
      * Multi-schema selector (non-null when {@code processing.schemas[]} is configured).
-     * Exactly one of {@code schemaSelector} / {@code singleSchema} is non-null.
+     * Exactly one of {@code schemaSelector} / {@code singleSchema} / {@code segmentSchemas}
+     * is non-null.
      */
     public final SchemaSelector schemaSelector;
 
     /**
      * Legacy single-schema config (non-null when {@code processing.schema_file} is used).
-     * Exactly one of {@code schemaSelector} / {@code singleSchema} is non-null.
+     * Exactly one of {@code schemaSelector} / {@code singleSchema} / {@code segmentSchemas}
+     * is non-null.
      */
     public final Map<String, Object> singleSchema;
+
+    // ── plugin ingester ───────────────────────────────────────────────────────
+
+    /**
+     * Fully-qualified class name of a {@link FileIngester} implementation.
+     * {@code null} when the built-in {@code CsvIngester} is used.
+     */
+    public final String ingesterClass;
+
+    /**
+     * Ordered map of segment key → loaded schema config, populated when
+     * {@code processing.ingester} is set.  Keys match the entries in
+     * {@code processing.segments:} in the pipeline toon.
+     * {@code null} when {@code ingesterClass} is {@code null}.
+     */
+    public final LinkedHashMap<String, Map<String, Object>> segmentSchemas;
 
     // ── private constructor — use load() ──────────────────────────────────────
 
@@ -148,6 +166,8 @@ public final class PipelineConfig {
         this.duckLakeCfg          = b.duckLakeCfg;
         this.schemaSelector       = b.schemaSelector;
         this.singleSchema         = b.singleSchema;
+        this.ingesterClass        = b.ingesterClass;
+        this.segmentSchemas       = b.segmentSchemas;
     }
 
     // ── static factory ────────────────────────────────────────────────────────
@@ -252,9 +272,33 @@ public final class PipelineConfig {
             b.duckLakeCfg  = (Map<String, Object>) out.get("ducklake");
         }
 
+        // ── plugin ingester + segments ────────────────────────────────────────
+        b.ingesterClass = (String) proc.get("ingester");
+        if (b.ingesterClass != null && !b.ingesterClass.isBlank()) {
+            Object segsRaw = proc.get("segments");
+            if (!(segsRaw instanceof Map<?,?> segsMap) || segsMap.isEmpty())
+                throw new IllegalArgumentException(
+                        "processing.segments must be a non-empty map when processing.ingester is set");
+            b.segmentSchemas = new LinkedHashMap<>();
+            for (var entry : ((Map<?,?>) segsRaw).entrySet()) {
+                String key        = (String) entry.getKey();
+                String schemaPath = (String) entry.getValue();
+                if (!Files.exists(Paths.get(schemaPath)))
+                    throw new FileNotFoundException("Segment schema not found for '" + key + "': " + schemaPath);
+                Map<String, Object> schema = (Map<String, Object>)
+                        JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
+                b.segmentSchemas.put(key, schema);
+            }
+            System.out.printf("[CONFIG] Plugin ingester: %s  segments: %s%n",
+                    b.ingesterClass, b.segmentSchemas.keySet());
+        }
+
         // ── schemas ───────────────────────────────────────────────────────────
+        // Plugin ingester path: schemas already loaded into segmentSchemas above; skip.
         List<Map<String, Object>> schemaDefs = (List<Map<String, Object>>) proc.get("schemas");
-        if (schemaDefs != null && !schemaDefs.isEmpty()) {
+        if (b.ingesterClass != null && !b.ingesterClass.isBlank()) {
+            // no-op — segment schemas were loaded above
+        } else if (schemaDefs != null && !schemaDefs.isEmpty()) {
             LinkedHashMap<Integer, Map<String, Object>> byCount   = new LinkedHashMap<>();
             LinkedHashMap<Integer, PathMatcher>         byPattern = new LinkedHashMap<>();
             LinkedHashMap<Integer, String>              byTable   = new LinkedHashMap<>();
@@ -367,5 +411,7 @@ public final class PipelineConfig {
         Map<String, Object> duckLakeCfg;
         SchemaSelector      schemaSelector;
         Map<String, Object> singleSchema;
+        String ingesterClass;
+        LinkedHashMap<String, Map<String, Object>> segmentSchemas;
     }
 }

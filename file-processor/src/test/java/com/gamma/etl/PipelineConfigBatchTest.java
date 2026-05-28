@@ -5,10 +5,27 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class PipelineConfigBatchTest {
+
+    /** Parsed schema map equivalent of {@link #miniSchema()} — for use without file I/O. */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> miniSchemaMap() {
+        return Map.of(
+                "partitionKey", "EVENT_DATE",
+                "raw", Map.of("fields", List.of(
+                        Map.of("name", "ID",         "selector", "0", "type", "VARCHAR"),
+                        Map.of("name", "AMT",        "selector", "1", "type", "DOUBLE"),
+                        Map.of("name", "EVENT_DATE", "selector", "2", "type", "DATE"))),
+                "mapping", Map.of("rules", List.of(
+                        Map.of("targetColumn", "ID",         "sourceExpression", "ID",         "transformType", "DIRECT"),
+                        Map.of("targetColumn", "AMT",        "sourceExpression", "AMT",        "transformType", "DIRECT"),
+                        Map.of("targetColumn", "EVENT_DATE", "sourceExpression", "EVENT_DATE", "transformType", "DIRECT"))));
+    }
 
     /** Minimal 3-column schema reused across batch tests. */
     public static String miniSchema() {
