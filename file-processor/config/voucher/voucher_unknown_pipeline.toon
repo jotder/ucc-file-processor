@@ -19,6 +19,9 @@ output:
 processing:
   threads: 3
   file_pattern: "glob:**/*.csv"
+  batch:
+    max_files: 500
+    max_bytes: 268435456
   duplicate_check:
     enabled: true
     marker_extension: .processed

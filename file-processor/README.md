@@ -23,12 +23,13 @@ Includes a set of **Pre ETL utility suite** for sourcing, staging, and arranging
      - [Multi-schema dispatch](#multi-schema-dispatch)
 8. [Output Structure](#output-structure)
 9. [Status Log & Auditing](#status-log--auditing)
-10. [DuckLake Integration](#ducklake-integration)
-11. [Warehouse Query Layer](#warehouse-query-layer--dbeaver-via-pg_duckdb)
-12. [Deployment — Remote Server](#deployment--remote-server)
-13. [Onboarding a New Source](#onboarding-a-new-source)
-14. [Type Mapping Reference](#type-mapping-reference)
-15. [Troubleshooting](#troubleshooting)
+10. [Batch Processing](#batch-processing)
+11. [DuckLake Integration](#ducklake-integration)
+12. [Warehouse Query Layer](#warehouse-query-layer--dbeaver-via-pg_duckdb)
+13. [Deployment — Remote Server](#deployment--remote-server)
+14. [Onboarding a New Source](#onboarding-a-new-source)
+15. [Type Mapping Reference](#type-mapping-reference)
+16. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -93,9 +94,12 @@ com.gamma
     MarkerManager            — .processed sentinel files for idempotent ingest; retention-based cleanup
     QuarantineManager        — moves zero-valid-row and unreadable files to quarantine/
     DuckLakeRegistrar        — optional: registers written Parquet files into a DuckLake catalog
-    StatusWriter             — thread-safe append to the per-run timestamped status CSV
+    BatchAuditWriter         — thread-safe append to the per-run status, batches, and lineage CSVs
+    BatchPlanner             — groups polled files into batches respecting max_files / max_bytes limits
+    ManifestStore            — writes and reads per-batch JSON manifests under status_dir/manifests/
+    LineageCollector         — tracks input-to-output row counts for the lineage CSV
     IngestResult             — record: parsedRows, errorRows, junkCandidateRows
-    TransformResult          — record: outputPaths, outputSizes
+    PartitionOutput          — record: output paths and sizes produced by one batch
   util/
     ToonHelper               — load/validate .toon files; require/opt section helpers; parseBaseDirs
     TarUtil                  — isTar/isCsv/isGzipped predicates; extractTar; peekTar; deleteTree
@@ -116,7 +120,7 @@ com.gamma
     FileMoverByDate          — date-partition files from a flat directory into year/month/day tree
 ```
 
-**Design principle:** `SourceProcessor` is a pure orchestrator — it creates the thread pool and drives the per-file lifecycle, but contains zero business logic itself.  Every concern is owned by a focused single-responsibility class: parsing (`CsvIngester`), transformation (`DataTransformer`), deduplication (`MarkerManager`), quarantine (`QuarantineManager`), registration (`DuckLakeRegistrar`), and auditing (`StatusWriter`).  All shared low-level helpers live in `com.gamma.util` and are reused by both the ETL and the pre-ETL utilities.
+**Design principle:** `SourceProcessor` is a pure orchestrator — it creates the thread pool and drives the per-batch lifecycle, but contains zero business logic itself.  Every concern is owned by a focused single-responsibility class: batch planning (`BatchPlanner`), parsing (`CsvIngester`), transformation (`DataTransformer`), deduplication (`MarkerManager`), quarantine (`QuarantineManager`), registration (`DuckLakeRegistrar`), and auditing (`BatchAuditWriter`, `ManifestStore`, `LineageCollector`).  All shared low-level helpers live in `com.gamma.util` and are reused by both the ETL and the pre-ETL utilities.
 
 ---
 
@@ -655,6 +659,75 @@ Files that cannot be processed at all are moved out of the inbox into `quarantin
 - **Junk-scan exhaustion** — all rows have fewer columns than the schema expects and never exit junk detection; the appender loop is never entered
 
 The `<source_path>` mirrors the file's subdirectory path relative to the poll root. For `QUARANTINED_MISMATCH`, the companion `_errors.csv` is moved alongside the quarantined file so the rejection evidence is co-located.
+
+---
+
+## Batch Processing
+
+By default the pipeline processes one file per batch (`max_files = 1`, `max_bytes = Long.MAX_VALUE`), which is identical to the previous single-file behaviour. Consolidation activates only when you explicitly set either limit.
+
+### Configuration
+
+Add a `batch:` sub-section inside the `processing:` block of the pipeline toon:
+
+```yaml
+processing:
+  threads: 4
+  file_pattern: "glob:**/*.{csv,csv.gz}"
+  batch:
+    max_files: 500
+    max_bytes: 268435456
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `processing.batch.max_files` | `1` | Maximum number of input files consolidated into one batch |
+| `processing.batch.max_bytes` | `Long.MAX_VALUE` | Maximum total uncompressed size of files in one batch (bytes) |
+
+Files are grouped greedily in poll order; a new batch starts whenever either limit would be exceeded by the next candidate.
+
+### Audit files written to `dirs.status_dir`
+
+Each ETL run produces three timestamped CSVs alongside the existing status file. All three use the same `<yyyyMMdd_HHmmss>` timestamp suffix so runs never overwrite each other.
+
+| File | Description |
+|---|---|
+| `<pipeline>_status_<ts>.csv` | One row per processed file — same as before, with a `batch_id` column appended at the end |
+| `<pipeline>_batches_<ts>.csv` | One row per batch: batch_id, member count, total input bytes, total output bytes, status, duration |
+| `<pipeline>_lineage_<ts>.csv` | Input-to-output row-count matrix — one row per (input file, output partition) pair |
+
+### Per-batch JSON manifest
+
+After each batch completes, a manifest is written to `<status_dir>/manifests/<batch_id>.json`. It records:
+
+- The list of member input files and their paths in `dirs.backup`
+- All output file paths and sizes produced by the batch
+- The marker paths written for each member
+- The batch status and completion timestamp
+
+Manifests are used by the reprocess command to reconstruct exactly what a batch did and reverse it.
+
+### Reprocessing a batch
+
+```bash
+ura.sh reprocess config/<source>/<source>_pipeline.toon <batch_id>
+ura.bat reprocess config\<source>\<source>_pipeline.toon <batch_id>
+```
+
+`reprocess` performs the following atomically:
+
+1. Reads the manifest for `<batch_id>`.
+2. Deletes all output files and partition directories the batch created.
+3. Deletes the `.processed` marker for each member.
+4. Restores each member file from `dirs.backup` back into its original inbox path.
+5. Supersedes the manifest with a `REPROCESSED` status entry so the audit trail is preserved.
+6. On the next poll cycle the files are picked up and processed fresh.
+
+`--dry-run` is honoured — prints the intended actions without modifying anything.
+
+### Backward compatibility
+
+When a batch contains exactly one member file, the output retains the legacy `<basename>_out.<ext>` naming convention (e.g. `adj_DATE_20200403_out.parquet`). Warehouse views built against single-file outputs are therefore unaffected when `max_files` remains at its default of `1`.
 
 ---
 

@@ -1,0 +1,57 @@
+name: ADJUSTMENT_ETL
+version: 1
+
+dirs:
+  poll:       inbox/adjustment
+  database:   database/adjustment
+  backup:     backup/adjustment
+  temp:       temp/adjustment
+  errors:     errors/adjustment
+  quarantine: quarantine/adjustment
+  markers:    markers/adjustment
+  status_dir:  status/adjustment
+  log_dir:     logs/adjustment
+
+output:
+  format: PARQUET
+  compression: snappy
+  ducklake:
+    enabled: false
+    catalog_url: "postgresql://user:password@localhost:5432/ducklake_db"
+    data_path: "/opt/adj-lake"
+    schema: adjustments
+    table: adjustment_data
+
+processing:
+  threads: 4
+  file_pattern: "glob:**/*.{csv,csv.gz}"
+  batch:
+    max_files: 500
+    max_bytes: 268435456
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+    retention_days: 90
+  schema_file: "file-processor/config/adjustment/adjustment_schema.toon"
+  csv_settings:
+    delimiter: ","
+    skip_header_lines: 0
+    skip_junk_lines: 13
+    skip_tail_lines: 2
+    skip_tail_columns: 0
+    date_formats[3]: %d-%b-%y, "%d-%b-%Y %H:%M:%S", "%d-%b-%Y"
+    timestamp_formats[3]: %d-%b-%y, "%d-%b-%Y %H:%M:%S", "%d-%b-%Y"
+
+search:
+  base_dirs[2]: /mnt/rawdata/feed1, /mnt/rawdata/feed2
+  csv_input:     GSM_RESUBMISSION_1.csv
+  log_available: available_files.csv
+  log_missing:   missing_files.csv
+  log_error:     error_log.csv
+
+copy_tars:
+  base_dirs[2]: /mnt/rawdata/feed1, /mnt/rawdata/feed2
+
+backup:
+  base_dirs[2]: /mnt/rawdata/feed1, /mnt/rawdata/feed2
+  log_available: available_files.csv
