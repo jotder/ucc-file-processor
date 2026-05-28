@@ -1,5 +1,5 @@
 # UCC File Processor
-High-throughput, configuration-driven ETL pipeline that ingests CSV files, applies typed transformations via DuckDB, and writes Hive-partitioned Parquet or CSV output. Designed for any CSV-based source — onboard a new source by writing one config file.
+High-throughput, configuration-driven ETL pipeline that ingests CSV and binary files, applies typed transformations via DuckDB, and writes Hive-partitioned Parquet or CSV output. Onboard a new CSV source with a single config file; plug in a custom Java parser for proprietary or binary formats that emit multiple event types.
 
 Includes a set of **Pre ETL utility suite** for sourcing, staging, and arranging raw deliveries before the pipeline picks them up.
 
@@ -24,12 +24,17 @@ Includes a set of **Pre ETL utility suite** for sourcing, staging, and arranging
 8. [Output Structure](#output-structure)
 9. [Status Log & Auditing](#status-log--auditing)
 10. [Batch Processing](#batch-processing)
-11. [DuckLake Integration](#ducklake-integration)
-12. [Warehouse Query Layer](#warehouse-query-layer--dbeaver-via-pg_duckdb)
-13. [Deployment — Remote Server](#deployment--remote-server)
-14. [Onboarding a New Source](#onboarding-a-new-source)
-15. [Type Mapping Reference](#type-mapping-reference)
-16. [Troubleshooting](#troubleshooting)
+11. [Plugin Ingester](#plugin-ingester)
+    - [FileIngester interface](#fileingester-interface)
+    - [Segment schema toon (partitions\[\])](#segment-schema-toon-partitions)
+    - [Pipeline config](#pipeline-config-plugin)
+    - [Output layout](#output-layout)
+12. [DuckLake Integration](#ducklake-integration)
+13. [Warehouse Query Layer](#warehouse-query-layer--dbeaver-via-pg_duckdb)
+14. [Deployment — Remote Server](#deployment--remote-server)
+15. [Onboarding a New Source](#onboarding-a-new-source)
+16. [Type Mapping Reference](#type-mapping-reference)
+17. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -99,9 +104,11 @@ com.gamma
     BatchAuditWriter         — thread-safe append to the per-run status, batches, and lineage CSVs
     BatchPlanner             — groups polled files into batches respecting max_files / max_bytes limits
     ManifestStore            — writes and reads per-batch JSON manifests under status_dir/manifests/
-    LineageCollector         — tracks input-to-output row counts for the lineage CSV
+    LineageCollector         — tracks input-to-output row counts for the lineage CSV; dynamic partition paths
     IngestResult             — record: parsedRows, errorRows, junkCandidateRows
     PartitionOutput          — record: output paths and sizes produced by one batch
+    FileIngester             — plugin interface for custom parsers; ingest() returns one Segment per event type
+    PartitionDef             — record + enum for explicit partitions[] declarations; backward-compat fromSchema()
   util/
     ToonHelper               — load/validate .toon files; require/opt section helpers; parseBaseDirs
     TarUtil                  — isTar/isCsv/isGzipped predicates; extractTar; peekTar; deleteTree
@@ -142,6 +149,7 @@ com.gamma
 | **Parallel processing** | Virtual-thread executor + Phaser coordination throughout — both ETL and utilities |
 | **Idempotency** | Marker files (`.processed`) in a dedicated `dirs.markers` directory prevent re-ingestion; stale markers are pruned automatically based on `retention_days`; existing-file skips in all utilities |
 | **Multi-schema dispatch** | `schemas[]` array routes files to different schemas by filename pattern (fast path, no I/O) or column-count probe (fallback) — one pipeline handles multiple CSV layouts simultaneously |
+| **Plugin ingester** | `processing.ingester:` loads a custom `FileIngester` from the fat JAR; one input file can emit multiple event-type segments that land in separate partitioned tables with independent schemas |
 | **Headerless CSV** | `has_header: false` in `csv_settings` — files without a column-name header row are processed using `selector` index only |
 | **Full audit log** | Per-file status CSV with start/end time, parsed rows, error rows, output paths and sizes |
 | **Error row capture** | Rejected rows written to `errors/<basename>_errors.csv` with line number and reason |
@@ -405,7 +413,23 @@ type_patterns:
 **Machine-generated** by `create-schema`; edit manually if needed. This is the source of truth for the ETL transformation.
 
 ```yaml
+# Option A — legacy single-key shorthand (CSV path)
 partitionKey: REVERSAL_DATE          # column used to derive year/month/day partitions
+
+# Option B — explicit partitions[] list (plugin ingester / multi-type events)
+# partitions:
+#   - column: event_type             # output partition column name
+#     source: EVENT_TYPE             # column in the raw DuckDB table (set by ingester)
+#     type: VARCHAR
+#   - column: year
+#     source: REVERSAL_DATE
+#     type: DATE_YEAR
+#   - column: month
+#     source: REVERSAL_DATE
+#     type: DATE_MONTH
+#   - column: day
+#     source: REVERSAL_DATE
+#     type: DATE_DAY
 
 raw:
   fields[3]:
@@ -730,6 +754,187 @@ ura.bat reprocess config\<source>\<source>_pipeline.toon <batch_id>
 ### Backward compatibility
 
 When a batch contains exactly one member file, the output retains the legacy `<basename>_out.<ext>` naming convention (e.g. `adj_DATE_20200403_out.parquet`). Warehouse views built against single-file outputs are therefore unaffected when `max_files` remains at its default of `1`.
+
+---
+
+## Plugin Ingester
+
+Use the plugin ingester when:
+
+- The source format is binary, proprietary, or otherwise not parseable by `CsvIngester`.
+- A single input file emits **multiple event types** (e.g. CALL + SMS interleaved in one CDR file) that must land in separate output tables with different schemas.
+- Partition columns such as `event_type` are **computed by the parser** — they do not exist as raw data columns but are derived from the record structure.
+
+The CSV path is unchanged for all existing sources. Plugin ingester is an opt-in mode activated by adding `processing.ingester:` to the pipeline toon.
+
+### FileIngester interface
+
+Implement `com.gamma.etl.FileIngester` in the same fat JAR and provide a public zero-arg constructor:
+
+```java
+package com.acme.etl;
+
+import com.gamma.etl.*;
+import java.io.File;
+import java.sql.*;
+import java.util.List;
+
+public class MyCdrIngester implements FileIngester {
+
+    @Override
+    public List<Segment> ingest(File file, Connection conn, int srcId, PipelineConfig cfg)
+            throws Exception {
+
+        // 1. Parse the binary/proprietary file in whatever way you need.
+        // 2. For each event type, create one DuckDB table named "raw_<KEY>_f<srcId>".
+        //    Include payload columns AND any derived partition columns (e.g. EVENT_TYPE).
+        //    Do NOT add a __src_id column — the framework adds it when building the union.
+        // 3. Return a Segment record for each created table.
+
+        int callCount = 0, smsCount = 0;
+        try (Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE \"raw_CALL_f" + srcId + "\" " +
+                       "(ID VARCHAR, EVENT_TYPE VARCHAR, EVENT_DATE DATE)");
+            st.execute("CREATE TABLE \"raw_SMS_f" + srcId + "\" " +
+                       "(ID VARCHAR, EVENT_TYPE VARCHAR, EVENT_DATE DATE)");
+            // ... parse file, insert rows into the appropriate tables ...
+        }
+        return List.of(
+            new Segment("CALL", "raw_CALL_f" + srcId, new IngestResult(callCount, 0, 0)),
+            new Segment("SMS",  "raw_SMS_f"  + srcId, new IngestResult(smsCount,  0, 0))
+        );
+    }
+}
+```
+
+**Contract:**
+
+| Rule | Detail |
+|---|---|
+| Table name | Must be `raw_<KEY>_f<srcId>` — the framework unions per-member tables by this convention |
+| Derived columns | Add computed partition columns (e.g. `EVENT_TYPE VARCHAR`) directly into the raw table as extra columns |
+| `__src_id` | Do **not** include — the framework appends it when creating the union table |
+| Quarantine | Throw `IOException` → `QUARANTINED_UNREADABLE`. Return `parsedRows = 0` for all segments → `QUARANTINED_MISMATCH` |
+| Segment keys | Must match the keys declared in `processing.segments:` in the pipeline toon |
+
+### Segment schema toon (`partitions[]`) {#segment-schema-toon-partitions}
+
+Each segment key has its own schema toon. Use the `partitions[]` list syntax instead of the legacy `partitionKey:` shorthand. Each entry maps an output partition column to a raw table source column and specifies how to derive the value.
+
+```yaml
+# file: config/events/call_schema.toon
+
+partitions:
+  - column: event_type   # output partition column name
+    source: EVENT_TYPE   # column in raw_CALL_f<srcId> added by the ingester
+    type: VARCHAR
+  - column: year
+    source: EVENT_DATE
+    type: DATE_YEAR
+  - column: month
+    source: EVENT_DATE
+    type: DATE_MONTH
+  - column: day
+    source: EVENT_DATE
+    type: DATE_DAY
+
+raw:
+  name: call
+  format: CSV
+  fields[3]{name,selector,type}:
+    ID,"0",VARCHAR
+    EVENT_TYPE,"1",VARCHAR
+    EVENT_DATE,"2",DATE
+
+mapping:
+  canonicalName: call
+  rawName: call
+  rules[3]{targetColumn,sourceExpression,transformType}:
+    ID,ID,DIRECT
+    EVENT_TYPE,EVENT_TYPE,DIRECT
+    EVENT_DATE,EVENT_DATE,DIRECT
+```
+
+**`PartitionDef.type` values:**
+
+| Type | SQL generated | Use for |
+|---|---|---|
+| `VARCHAR` | direct column reference | String columns the ingester computes (e.g. `EVENT_TYPE`) |
+| `DOUBLE` | `TRY_CAST(col AS DOUBLE)` | Numeric partition key |
+| `INTEGER` | `TRY_CAST(col AS INTEGER)` | Integer partition key |
+| `DATE_YEAR` | `YEAR(TRY_STRPTIME(CAST(col AS VARCHAR), fmt))::VARCHAR` | Year component of a date column |
+| `DATE_MONTH` | `LPAD(MONTH(…)::VARCHAR, 2, '0')` | Zero-padded month |
+| `DATE_DAY` | `LPAD(DAY(…)::VARCHAR, 2, '0')` | Zero-padded day |
+
+The `DATE_*` types cast the source column to `VARCHAR` before parsing, so the same schema toon works whether the raw DuckDB column is already typed `DATE` (plugin path) or is a VARCHAR string (CSV path).
+
+The legacy `partitionKey: COLUMN` shorthand synthesises three `DATE_YEAR` / `DATE_MONTH` / `DATE_DAY` entries automatically and remains fully supported for CSV sources.
+
+### Pipeline config (plugin) {#pipeline-config-plugin}
+
+Replace `schema_file:` with `ingester:` and `segments:`. The `duplicate_check:` block is optional (plugin path does not use `.processed` markers by default).
+
+```yaml
+name: EVENTS_ETL
+version: 1
+
+dirs:
+  poll:       inbox/events
+  database:   database/events
+  backup:     backup/events
+  temp:       temp/events
+  errors:     errors/events
+  quarantine: quarantine/events
+  status_dir: status/events
+  log_dir:    logs/events
+
+output:
+  format: CSV           # or PARQUET
+
+processing:
+  threads: 1
+  file_pattern: "glob:**/*.bin"
+  ingester: com.acme.etl.MyCdrIngester   # fully-qualified class in the fat JAR
+  segments:
+    CALL: config/events/call_schema.toon  # key must match Segment.key() from the ingester
+    SMS:  config/events/sms_schema.toon
+  csv_settings:
+    delimiter: ","
+    skip_header_lines: 0
+    skip_junk_lines: 0
+    skip_tail_lines: 0
+    date_formats[1]: "%Y-%m-%d"
+    timestamp_formats[1]: "%Y-%m-%d"
+```
+
+| Key | Required | Description |
+|---|---|---|
+| `processing.ingester` | yes | Fully-qualified class name of a `FileIngester` implementation in the fat JAR |
+| `processing.segments` | yes (when ingester is set) | Ordered map of segment key → schema toon path; validated at startup |
+
+> `segments:` must be a non-empty map when `ingester:` is set; a missing or empty map throws `IllegalArgumentException` at startup. Each schema file must exist; a missing file throws `FileNotFoundException`.
+
+### Output layout
+
+Output files are written under `database/<source>/<SEGMENT_KEY>/` and partitioned by the columns declared in that segment's `partitions[]` list. Multiple segments from the same input file land in independent sub-trees:
+
+```
+database/events/
+  CALL/
+    event_type=CALL/
+      year=2020/
+        month=04/
+          day=03/
+            events_20200403_out.csv
+  SMS/
+    event_type=SMS/
+      year=2020/
+        month=04/
+          day=03/
+            events_20200403_out.csv
+```
+
+All lineage (input → output row counts), audit files (`_batches_`, `_lineage_`, `_status_`), and per-batch JSON manifests are written identically to the CSV path — one consolidated `BatchRow` per batch, with the segment keys used as the `schemaLabel`.
 
 ---
 
