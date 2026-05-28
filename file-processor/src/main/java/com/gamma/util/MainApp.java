@@ -119,6 +119,17 @@ public class MainApp {
                     break;
                 }
 
+                // ── reprocess: delete-and-reprocess a whole batch by id ────────
+
+                case "reprocess": {
+                    if (subArgs.length < 2) {
+                        System.err.println("Usage: reprocess <pipeline.toon> <batch_id>");
+                        System.exit(1);
+                    }
+                    com.gamma.inspector.ReprocessCommand.run(subArgs[0], subArgs[1]);
+                    break;
+                }
+
                 // ── create-schema: generate schema + pipeline toon from sample CSV
 
                 case "create-schema": {
@@ -217,6 +228,9 @@ public class MainApp {
         System.out.println("                              Extract .tar.gz from poll dir, arrange CSVs by date,");
         System.out.println("                              backup archives (toon-native, single-step).");
         System.out.println("                              Toon section: dirs.poll, dirs.temp, dirs.backup");
+        System.out.println("  reprocess <pipeline.toon> <batch_id>");
+        System.out.println("                              Delete a batch's outputs + markers, restore its");
+        System.out.println("                              member files from backup, and reprocess the set.");
         System.out.println();
         System.out.println("Schema generation:");
         System.out.println("  create-schema <source_name> <sample_csv> <gen_config.toon>");
