@@ -29,6 +29,8 @@ Includes a set of **Pre ETL utility suite** for sourcing, staging, and arranging
     - [Segment schema toon (partitions\[\])](#segment-schema-toon-partitions)
     - [Pipeline config](#pipeline-config-plugin)
     - [Output layout](#output-layout)
+    - [Reference implementation: TypedRecordIngester](#reference-implementation-typedrecordingester)
+    - [Plugin author workflow](#plugin-author-workflow)
 12. [DuckLake Integration](#ducklake-integration)
 13. [Warehouse Query Layer](#warehouse-query-layer--dbeaver-via-pg_duckdb)
 14. [Deployment — Remote Server](#deployment--remote-server)
@@ -109,6 +111,8 @@ com.gamma
     PartitionOutput          — record: output paths and sizes produced by one batch
     FileIngester             — plugin interface for custom parsers; ingest() returns one Segment per event type
     PartitionDef             — record + enum for explicit partitions[] declarations; backward-compat fromSchema()
+  ingester/
+    TypedRecordIngester      — reference FileIngester for type-tagged text records; multi-segment dispatch
   util/
     ToonHelper               — load/validate .toon files; require/opt section helpers; parseBaseDirs
     TarUtil                  — isTar/isCsv/isGzipped predicates; extractTar; peekTar; deleteTree
@@ -819,24 +823,18 @@ public class MyCdrIngester implements FileIngester {
 
 ### Segment schema toon (`partitions[]`) {#segment-schema-toon-partitions}
 
-Each segment key has its own schema toon. Use the `partitions[]` list syntax instead of the legacy `partitionKey:` shorthand. Each entry maps an output partition column to a raw table source column and specifies how to derive the value.
+Each segment key has its own schema toon. Use the `partitions[N]{...}` tabular list syntax (JToon's array form) instead of the legacy `partitionKey:` shorthand. Each row maps an output partition column to a raw table source column and specifies how to derive the value.
+
+> **JToon list syntax matters.** JToon does **not** parse YAML-style `- key: value` list items. Use the `name[N]{col1,col2,col3}:` tabular form everywhere — the same form `raw.fields[N]{...}` and `mapping.rules[N]{...}` already use. A YAML-style list silently parses as `null`, and `PartitionDef.fromSchema` then falls through to the empty-list branch, so every row lands in the `year=1900/month=01/day=01` sentinel partition. Symptoms: single output file regardless of how many distinct dates you have.
 
 ```yaml
 # file: config/events/call_schema.toon
 
-partitions:
-  - column: event_type   # output partition column name
-    source: EVENT_TYPE   # column in raw_CALL_f<srcId> added by the ingester
-    type: VARCHAR
-  - column: year
-    source: EVENT_DATE
-    type: DATE_YEAR
-  - column: month
-    source: EVENT_DATE
-    type: DATE_MONTH
-  - column: day
-    source: EVENT_DATE
-    type: DATE_DAY
+partitions[4]{column,source,type}:
+  event_type,EVENT_TYPE,VARCHAR    # column in raw_CALL_f<srcId> added by the ingester
+  year,EVENT_DATE,DATE_YEAR
+  month,EVENT_DATE,DATE_MONTH
+  day,EVENT_DATE,DATE_DAY
 
 raw:
   name: call
@@ -935,6 +933,89 @@ database/events/
 ```
 
 All lineage (input → output row counts), audit files (`_batches_`, `_lineage_`, `_status_`), and per-batch JSON manifests are written identically to the CSV path — one consolidated `BatchRow` per batch, with the segment keys used as the `schemaLabel`.
+
+### Reference implementation: `TypedRecordIngester`
+
+The repo ships one production-ready ingester, `com.gamma.ingester.TypedRecordIngester`, which handles the common case of **type-tagged text records** — one record per line where the first field selects the segment:
+
+```
+CALL,C001,2020-04-03,42
+SMS,S001,2020-04-03,+15551234567
+CALL,C002,2020-04-04,17
+```
+
+For each line, field 0 is matched against the keys of `processing.segments:`. Fields 1..N are mapped positionally to that segment's `raw.fields` list — so the schema's field order must match the input column order. Lines whose prefix isn't in `segments:` are silently skipped (counted as junk candidates).
+
+Behaviour worth knowing:
+
+- All columns stored as `VARCHAR` in DuckDB. `DataTransformer` handles type coercion at transform time via `CAST(... AS VARCHAR)` + `TRY_STRPTIME` — pre-typing would force every plugin to re-implement the same parsing logic.
+- The ingester injects a derived `EVENT_TYPE VARCHAR` column into every raw table (populated with the segment key), so schemas can reference `EVENT_TYPE` as a partition source without redeclaring it in `raw.fields`.
+- Blank lines and lines starting with `#` are skipped without being counted as errors. Lines with the wrong field count for a known segment are counted into `errorRows` and dropped.
+- Field delimiter comes from `processing.csv_settings.delimiter` (default `,`).
+
+Wire it up exactly like a custom ingester:
+
+```yaml
+processing:
+  ingester: com.gamma.ingester.TypedRecordIngester
+  segments:
+    CALL: config/events/call_schema.toon
+    SMS:  config/events/sms_schema.toon
+  csv_settings:
+    delimiter: ","
+```
+
+See `TypedRecordIngester.java` for the full source — it's deliberately compact (~150 lines) and is the recommended starting point for forking your own typed-record variant.
+
+### Plugin author workflow
+
+End-to-end recipe for shipping a custom `FileIngester` to a deployed pipeline:
+
+**1. Set up your project.** Depend on the file-processor fat JAR. The minimal Maven snippet:
+
+```xml
+<dependency>
+    <groupId>com.gamma.inspector</groupId>
+    <artifactId>file-processor</artifactId>
+    <version>1.3.0</version>
+    <scope>provided</scope>
+</dependency>
+```
+
+Use `<scope>provided</scope>` because the deployment server already has the fat JAR — you don't want to repackage it into yours.
+
+**2. Implement `FileIngester`.** Two correctness rules above all else:
+
+| Rule | Why |
+|---|---|
+| Table name is exactly `raw_<KEY>_f<srcId>` | The framework unions members by string match on this convention |
+| Do **not** include a `__src_id` column | The framework adds it when building the union table; adding it yourself causes a `Binder Error: duplicate column` |
+
+Everything else is your call: pre-type columns or not, parse with a streaming reader or load fully into memory, use prepared statements or DuckDB's appender API. `TypedRecordIngester` is the conservative baseline — fork it when your format diverges.
+
+**3. Write the segment schema files.** One toon per segment key. Use the JToon `partitions[N]{column,source,type}:` tabular form (see the warning earlier — YAML-style lists silently break partitioning). `raw.fields` describes the data columns your ingester populates; ingester-derived columns (like `EVENT_TYPE`) go in `partitions[]` only.
+
+**4. Test locally before deploying.** Pattern after `TypedRecordIngesterTest`: construct a `PipelineConfig` from an in-test temp pipeline toon, build a `Batch`, and call `BatchProcessor.process(batch, cfg, audit)`. This exercises the full plugin path including `DataTransformer` + `PartitionWriter` against a real DuckDB instance. Smoke-test with rows on **at least two distinct dates** — single-date tests can mask the partition-fan-out bug class.
+
+**5. Package and deploy.**
+
+- `mvn package` produces `your-ingester-x.y.z.jar`
+- On the server, put your JAR on the classpath alongside the file-processor JAR. The `run.sh` / `run.bat` wrappers shipped by `package.ps1` use `-jar file-processor.jar`; switch them to `-cp "file-processor.jar:your-ingester-*.jar" com.gamma.inspector.SourceProcessor <pipeline.toon>` (use `;` instead of `:` on Windows).
+- Reference your class by FQCN in the pipeline toon: `processing.ingester: com.acme.events.MyIngester`. The framework loads it via `Class.forName(...).getDeclaredConstructor().newInstance()` — the class must be public with a no-arg constructor.
+
+**6. Production health checks.** The framework reports plugin loading at startup:
+
+```
+[CONFIG] Plugin ingester: com.acme.events.MyIngester  segments: [CALL, SMS]
+```
+
+If you see `Cannot instantiate ingester: ...` with a `ClassNotFoundException`, your JAR isn't on the classpath. If you see it with a `NoSuchMethodException`, you're missing the public no-arg constructor.
+
+Per-file outcomes appear in `<source>_status_<runTimestamp>.csv`:
+
+- `SUCCESS` — at least one segment produced rows; output written
+- `QUARANTINED_UNREADABLE` — ingester threw `IOException` (file moved to `dirs.quarantine/unreadable/`)
+- `QUARANTINED_MISMATCH` — every segment returned `parsedRows = 0` (file moved to `dirs.quarantine/field_mismatch/`)
 
 ---
 
