@@ -180,6 +180,45 @@ class EnrichmentEngineTest {
     }
 
     @Test
+    void runResultReportsTotalOutputRows(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        EnrichmentConfig cfg = load(dir, in, out, DAILY_COUNT, "");
+
+        EnrichmentEngine.Result res = EnrichmentEngine.runResult(cfg, null);
+        assertEquals(3, res.outputs().size(), "CALL/03, CALL/04, SMS/03");
+        assertEquals(3L, res.totalRows(), "three daily groups materialised");
+    }
+
+    @Test
+    void cliRunWritesAuditLineageAndCommitLog(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        Path toon = dir.resolve("enrich.toon");
+        Files.writeString(toon, configToon(in, out, DAILY_COUNT, ""));
+
+        EnrichmentProcessor.main(new String[]{ toon.toString() });   // full recompute via CLI
+
+        Path auditDir = Path.of(out + "_audit");
+        Path runs    = auditDir.resolve("events_daily_kpi_enrich_runs.csv");
+        Path lineage = auditDir.resolve("events_daily_kpi_enrich_lineage.csv");
+        Path commits = auditDir.resolve("events_daily_kpi_enrich_commits.log");
+        assertTrue(Files.exists(runs),    "run audit written");
+        assertTrue(Files.exists(lineage), "lineage written");
+        assertTrue(Files.exists(commits), "durable commit log written");
+
+        List<String> runLines = Files.readAllLines(runs);
+        assertEquals(2, runLines.size(), "header + one run row");
+        assertTrue(runLines.get(1).contains("EVENTS_DAILY_KPI"));
+        assertTrue(runLines.get(1).contains("cli"),     "CLI trigger recorded");
+        assertTrue(runLines.get(1).contains("SUCCESS"));
+        assertTrue(runLines.get(1).contains("full"),    "scope recorded");
+
+        assertEquals(4, Files.readAllLines(lineage).size(), "header + 3 output partitions");
+        assertEquals(2, Files.readAllLines(commits).size(), "commit-log header + one SUCCESS line");
+    }
+
+    @Test
     void cliPartitionParsing() {
         List<Map<String, String>> parsed = EnrichmentProcessor.parsePartitions(
                 "event_type=CALL/year=2020/month=04/day=03;event_type=SMS/year=2020/month=04/day=03");

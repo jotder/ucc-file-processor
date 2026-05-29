@@ -42,10 +42,34 @@ public final class EnrichmentProcessor {
             if ("--partitions".equals(args[i])) filter = parsePartitions(args[i + 1]);
         }
 
-        List<PartitionOutput> outputs = EnrichmentEngine.run(cfg, filter);
-        log.info("[ENRICH] {} complete: {} partition file(s) under {}",
-                cfg.name(), outputs.size(), cfg.output().database());
-        for (PartitionOutput o : outputs) log.info("  {} ({} bytes)", o.partition(), o.bytes());
+        boolean full = (filter == null || filter.isEmpty());
+        int inputParts = full ? 0 : filter.size();
+        String scope = full ? "full" : inputParts + " input partition(s)";
+        String runId = cfg.name().toLowerCase().replace(' ', '_') + "-cli-" + EnrichmentAuditWriter.runStamp();
+        String startTime = EnrichmentAuditWriter.now();
+        long startNanos = System.nanoTime();
+        EnrichmentAuditWriter audit = new EnrichmentAuditWriter(EnrichmentAuditWriter.auditDir(cfg), cfg.name());
+        try {
+            EnrichmentEngine.Result res = EnrichmentEngine.runResult(cfg, filter);
+            List<PartitionOutput> outputs = res.outputs();
+            long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
+            long bytes = outputs.stream().mapToLong(PartitionOutput::bytes).sum();
+            long partitions = outputs.stream().map(PartitionOutput::partition).distinct().count();
+            audit.record(new EnrichmentAuditWriter.RunRow(
+                    runId, cfg.name(), "cli", "cli", scope, inputParts,
+                    startTime, EnrichmentAuditWriter.now(), "SUCCESS",
+                    (int) partitions, outputs.size(), res.totalRows(), bytes, durationMs, ""), outputs);
+            log.info("[ENRICH] {} complete: {} partition file(s), {} row(s) under {}",
+                    cfg.name(), outputs.size(), res.totalRows(), cfg.output().database());
+            for (PartitionOutput o : outputs) log.info("  {} ({} bytes)", o.partition(), o.bytes());
+        } catch (Exception e) {
+            long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
+            audit.record(new EnrichmentAuditWriter.RunRow(
+                    runId, cfg.name(), "cli", "cli", scope, inputParts,
+                    startTime, EnrichmentAuditWriter.now(), "FAILED",
+                    0, 0, 0L, 0L, durationMs, String.valueOf(e.getMessage())), List.of());
+            throw e;
+        }
     }
 
     /** Parse {@code "col=val/col=val;col=val/..."} into a list of partition-value maps. */

@@ -284,6 +284,14 @@ triggers:
 
 Chains form naturally — set `on_pipeline` to an upstream enrichment's `name` and it fires on that enrichment's own commit. Recomputes for one job are serialised (a per-job lock), and idempotent writes make event + schedule overlap converge.
 
+**Run-level audit & lineage.** Every recompute — event, scheduled, or CLI — is recorded under a `_audit` sibling of the output root (`<output.database>_audit/`), so it never collides with the partitioned output tree. Three append-only artifacts per job, all keyed by a correlating `run_id` (which is also the chain `BatchEvent` id, linking the audit to `/metrics` and the `ucc.events` log):
+
+| File | Rows |
+|---|---|
+| `<job>_enrich_runs.csv` | one per recompute (SUCCESS **and** FAILED): trigger (`event`/`schedule`/`cli`), reason, input scope, output partition/file counts, total rows, bytes, duration, error |
+| `<job>_enrich_lineage.csv` | one per written output partition file (run_id, partition, file, bytes) |
+| `<job>_enrich_commits.log` | durable, fsync'd `CommitLog` of successful runs (the "did this recompute finish" ledger) |
+
 ### Control API — REST control plane (`ControlApi`)
 
 `ControlApi` runs the service **with** an embedded REST surface (JDK `HttpServer`, no extra deps), so every CLI operation is reachable over HTTP — for operators now, UI/agent later.

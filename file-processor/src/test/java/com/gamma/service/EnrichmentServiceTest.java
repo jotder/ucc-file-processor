@@ -221,6 +221,43 @@ class EnrichmentServiceTest {
         assertEquals(1L, counts.get("SMS|03"));
     }
 
+    // ── run-level audit/lineage persisted for an orchestrated recompute ──────────────
+
+    @Test
+    void recomputeWritesRunAuditLineageAndCommitLog(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        EnrichmentConfig job = dailyKpi("DAILY_AUDIT", in, out, new Triggers("EVENTS", 0));
+
+        BatchEventBus bus = new BatchEventBus();
+        List<BatchEvent> seen = Collections.synchronizedList(new ArrayList<>());
+        bus.subscribe(seen::add);
+        Scheduler sched = new Scheduler();
+        EnrichmentService es = new EnrichmentService(List.of(job), bus, sched);
+        try {
+            es.start();
+            bus.publish(new BatchEvent("EVENTS", "b1", "SUCCESS",
+                    List.of("event_type=CALL/year=2020/month=04/day=03"), 2, 100L, 0));
+            assertTrue(await(seen, "DAILY_AUDIT", 10_000), "recompute should complete");
+        } finally {
+            sched.close();
+            es.close();
+        }
+
+        Path auditDir = Path.of(out + "_audit");
+        List<String> runLines = Files.readAllLines(auditDir.resolve("daily_audit_enrich_runs.csv"));
+        assertEquals(2, runLines.size(), "header + one run row");
+        assertTrue(runLines.get(1).contains("DAILY_AUDIT"));
+        assertTrue(runLines.get(1).contains("event"),   "event trigger recorded");
+        assertTrue(runLines.get(1).contains("SUCCESS"));
+
+        List<String> linLines = Files.readAllLines(auditDir.resolve("daily_audit_enrich_lineage.csv"));
+        assertEquals(2, linLines.size(), "header + the one recomputed partition");
+        assertTrue(linLines.get(1).contains("event_type=CALL/year=2020/month=04/day=03"));
+
+        assertTrue(Files.exists(auditDir.resolve("daily_audit_enrich_commits.log")), "commit log written");
+    }
+
     // ── end-to-end: a real Stage-1 batch commit drives enrichment through SourceService ─
 
     @Test

@@ -1,6 +1,7 @@
 package com.gamma.service;
 
 import com.gamma.api.PublicApi;
+import com.gamma.enrich.EnrichmentAuditWriter;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.enrich.EnrichmentEngine;
 import com.gamma.etl.BatchEvent;
@@ -65,6 +66,7 @@ public final class EnrichmentService implements AutoCloseable {
     private final Scheduler scheduler;
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
+    private final Map<String, EnrichmentAuditWriter> auditWriters = new ConcurrentHashMap<>();
     private final AtomicLong seq = new AtomicLong();
 
     public EnrichmentService(List<EnrichmentConfig> jobs, BatchEventBus bus, Scheduler scheduler) {
@@ -112,28 +114,60 @@ public final class EnrichmentService implements AutoCloseable {
     private void recompute(EnrichmentConfig job, List<Map<String, String>> filter, String reason) {
         ReentrantLock lock = locks.computeIfAbsent(job.name(), k -> new ReentrantLock());
         lock.lock();
+        boolean full = (filter == null || filter.isEmpty());
+        int inputParts = full ? 0 : filter.size();
+        String scope   = full ? "full" : inputParts + " input partition(s)";
+        String trigger = reason.startsWith("event") ? "event"
+                : reason.startsWith("cli") ? "cli" : "schedule";
+        // run id correlates the audit rows, the durable commit log, and the chain event
+        String runId = job.name().toLowerCase().replace(' ', '_')
+                + "-" + EnrichmentAuditWriter.runStamp() + "-" + seq.incrementAndGet();
+        String startTime = EnrichmentAuditWriter.now();
         long startNanos = System.nanoTime();
         try {
-            List<PartitionOutput> outs = EnrichmentEngine.run(job, filter);
+            EnrichmentEngine.Result res = EnrichmentEngine.runResult(job, filter);
+            List<PartitionOutput> outs = res.outputs();
             List<String> parts = outs.stream().map(PartitionOutput::partition).distinct().toList();
-            log.info("[ENRICH] {} recomputed ({}) → {} partition file(s)", job.name(), reason, outs.size());
-            // metrics: one recompute, tagged by job + trigger kind (event|schedule)
-            String trigger = reason.startsWith("event") ? "event" : "schedule";
+            long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
+            long bytes = outs.stream().mapToLong(PartitionOutput::bytes).sum();
+            log.info("[ENRICH] {} recomputed ({}) → {} partition file(s), {} row(s)",
+                    job.name(), reason, outs.size(), res.totalRows());
+            // metrics: one recompute, tagged by job + trigger kind (event|schedule|cli)
             MetricRegistry.global().inc("ucc_enrichment_recomputes_total",
                     "Stage-2 enrichment recomputes", Map.of("job", job.name(), "trigger", trigger));
             MetricRegistry.global().observe("ucc_enrichment_duration_seconds",
                     "Enrichment recompute wall time", Map.of("job", job.name()),
                     (System.nanoTime() - startNanos) / 1e9);
+            // durable run-level audit + lineage
+            auditFor(job).record(new EnrichmentAuditWriter.RunRow(
+                    runId, job.name(), trigger, reason, scope, inputParts,
+                    startTime, EnrichmentAuditWriter.now(), "SUCCESS",
+                    parts.size(), outs.size(), res.totalRows(), bytes, durationMs, ""), outs);
             // chain: a successful enrichment is itself a commit downstream jobs can subscribe to
-            bus.publish(new BatchEvent(job.name(), job.name() + "-" + seq.incrementAndGet(),
-                    "SUCCESS", parts, 0L, 0L, 0));
+            bus.publish(new BatchEvent(job.name(), runId, "SUCCESS", parts,
+                    res.totalRows(), durationMs, 0));
         } catch (Exception e) {
+            long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
             log.error("[ENRICH] {} recompute failed ({})", job.name(), reason, e);
             MetricRegistry.global().inc("ucc_enrichment_failures_total",
                     "Stage-2 enrichment recompute failures", Map.of("job", job.name()));
+            try {
+                auditFor(job).record(new EnrichmentAuditWriter.RunRow(
+                        runId, job.name(), trigger, reason, scope, inputParts,
+                        startTime, EnrichmentAuditWriter.now(), "FAILED",
+                        0, 0, 0L, 0L, durationMs, String.valueOf(e.getMessage())), List.of());
+            } catch (Exception ae) {
+                log.warn("[ENRICH] could not write audit for failed run {}: {}", job.name(), ae.getMessage());
+            }
         } finally {
             lock.unlock();
         }
+    }
+
+    /** Lazily create (and cache) the audit ledger writer for a job. */
+    private EnrichmentAuditWriter auditFor(EnrichmentConfig job) {
+        return auditWriters.computeIfAbsent(job.name(),
+                k -> new EnrichmentAuditWriter(EnrichmentAuditWriter.auditDir(job), job.name()));
     }
 
     /**

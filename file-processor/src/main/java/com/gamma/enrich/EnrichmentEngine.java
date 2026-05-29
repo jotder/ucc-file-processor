@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
@@ -40,13 +42,21 @@ public final class EnrichmentEngine {
 
     private EnrichmentEngine() {}
 
+    /**
+     * The outcome of one recompute: the written partition files and the total number of
+     * output rows materialised (a cheap {@code COUNT(*)} on the transform result, for
+     * run-level audit/observability).
+     */
+    public record Result(List<PartitionOutput> outputs, long totalRows) {}
+
     /** Full recompute over all input partitions. */
     public static List<PartitionOutput> run(EnrichmentConfig cfg) throws Exception {
         return run(cfg, null);
     }
 
     /**
-     * Recompute enrichment output.
+     * Recompute enrichment output, returning the written partition files only. Equivalent
+     * to {@link #runResult(EnrichmentConfig, List)}{@code .outputs()}.
      *
      * @param partitionFilter when non-empty, restricts the {@code input} view to these
      *                        partitions (each map is partitionColumn → value, AND-ed
@@ -55,6 +65,18 @@ public final class EnrichmentEngine {
      */
     public static List<PartitionOutput> run(EnrichmentConfig cfg,
                                             List<Map<String, String>> partitionFilter) throws Exception {
+        return runResult(cfg, partitionFilter).outputs();
+    }
+
+    /**
+     * Recompute enrichment output and report the written partition files <em>and</em> the
+     * total output row count — the richer form the orchestrator uses to write run-level
+     * audit/lineage.
+     *
+     * @see #run(EnrichmentConfig, List)
+     */
+    public static Result runResult(EnrichmentConfig cfg,
+                                   List<Map<String, String>> partitionFilter) throws Exception {
         File db = DuckDbUtil.tempDbFile("enrich_");
         try (Connection conn = DuckDbUtil.openConnection(db); Statement st = conn.createStatement()) {
 
@@ -82,19 +104,27 @@ public final class EnrichmentEngine {
                     cfg.output().database(), cfg.output().format(), cfg.output().compression(),
                     baseName, cfg.output().partitions(), List.of());
 
-            log.info("[ENRICH] {}: {} → {} partition file(s){}",
+            long totalRows = countRows(st, "__enriched");
+            log.info("[ENRICH] {}: {} → {} partition file(s), {} row(s){}",
                     cfg.name(),
                     (partitionFilter == null || partitionFilter.isEmpty())
                             ? "full" : partitionFilter.size() + " input partition(s)",
-                    outputs.size(),
+                    outputs.size(), totalRows,
                     cfg.references().isEmpty() ? "" : "  refs=" + cfg.references().size());
-            return outputs;
+            return new Result(outputs, totalRows);
         } finally {
             DuckDbUtil.deleteTempDb(db);
         }
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────
+
+    /** {@code COUNT(*)} of the materialised transform result. */
+    private static long countRows(Statement st, String table) throws SQLException {
+        try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM " + table)) {
+            return rs.next() ? rs.getLong(1) : 0L;
+        }
+    }
 
     private static String ext(String format) {
         return "PARQUET".equals(format) ? "parquet" : "csv";

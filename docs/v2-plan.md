@@ -108,9 +108,8 @@ its bus + scheduler. 7 new tests (5 orchestration + 2 config), full suite 123 gr
 
 Scope notes for this cut: the scheduled completeness path does a **full** recompute
 (simplest correct, idempotent) rather than a windowed/watermarked scope; the `Scheduler`
-remains **interval-based** (calendar/cron deferred). Enrichment **run-level
-audit/lineage** (deferred from M0) is still open — enrichment recomputes log but don't
-yet write audit/lineage rows; fold into M4 (Observability) or a dedicated follow-up.
+remains **interval-based** (calendar/cron deferred). Enrichment **run-level audit/lineage**
+(deferred from M0) is **now done** — see the post-M5 follow-up below.
 
 ### M3 — Control API  → v2.4.0  ✅
 
@@ -163,8 +162,9 @@ filters SUCCESS. 6 new tests; full suite 136 green; verified via the fat-JAR scr
 
 Scope note: chose a **hand-rolled** registry over Micrometer (zero new deps, consistent
 with the M3 HTTP choice); swappable later if dimensional backends (OTLP/StatsD) are
-needed. The dedicated enrichment **run-level audit/lineage** deferred since M0 remains
-open — surfaced now via metrics + the event log, but not yet persisted as audit rows.
+needed. The dedicated enrichment **run-level audit/lineage** deferred since M0 is **now
+done** (see the post-M5 follow-up below) — recomputes persist audit/lineage rows in addition
+to the metrics + event log surfaced here.
 
 ### M5 — Status store in a database  → v2.6.0  ✅ (last — plan complete)
 
@@ -203,8 +203,30 @@ DB. The default engine is **DuckDB** (embedded, single-process), so tests and pr
 the same engine — no portability gap to validate. The DuckDB file's single-process write lock
 is acceptable for the current single-JVM service; **Postgres** (multi-writer) is a URL+driver
 swap reserved for the v3 distributed tier, and a live-Postgres integration test belongs with
-that work. The enrichment **run-level audit/lineage** deferred since M0 remains the one open
-follow-up across the v2.x plan.
+that work.
+
+### Post-M5 follow-up — enrichment run-level audit/lineage  ✅ (closes the last open item)
+
+**Done** (`2.7.0-SNAPSHOT`): the enrichment audit/lineage deferred since M0 is now persisted.
+`EnrichmentEngine` gained `runResult(...)` (returns written partitions **+** total output
+rows); a new `com.gamma.enrich.EnrichmentAuditWriter` writes three append-only artifacts per
+job under a `_audit` sibling of the output root (`<output.database>_audit/`), keyed by a
+correlating `run_id`:
+
+- `<job>_enrich_runs.csv` — one row per recompute (SUCCESS **and** FAILED): trigger
+  (event/schedule/cli), reason, input scope, output partition/file counts, total rows, bytes,
+  duration, error.
+- `<job>_enrich_lineage.csv` — one row per written output partition file (run_id, partition,
+  file, bytes).
+- `<job>_enrich_commits.log` — a durable, fsync'd `CommitLog` of successful runs (reuses the
+  Stage-1 commit-log type).
+
+Both orchestrated recomputes (`EnrichmentService`) and the CLI (`EnrichmentProcessor`) write
+audit; the `run_id` is also the chain `BatchEvent` id, so the audit rows correlate with
+`/metrics` and the `ucc.events` log. 3 new tests (engine `runResult` row count; CLI run →
+runs/lineage/commit-log; service event recompute → audit); full suite **145 green**. Surfacing
+these rows over the Control API / status DB (enrichment jobs aren't in the Stage-1 registry the
+API lists) is a small future enhancement, not required for persistence.
 
 ## Cross-cutting (applied each milestone)
 
