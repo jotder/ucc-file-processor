@@ -1,6 +1,6 @@
 # v2.x Roadmap
 
-Tracks the 2.x line of work. Branch: `2.x` (version `2.0.0-SNAPSHOT`). `master`
+Tracks the 2.x line of work. Branch: `2.x` (version `2.0.0`). `master`
 stays on the 1.6.x release line; 2.x merges back when 2.0.0 is ready.
 
 v2 is the place for **breaking changes** the 1.x line deliberately deferred —
