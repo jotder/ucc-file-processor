@@ -84,7 +84,8 @@ public class SourceProcessor {
 
         // ── process batches in parallel ────────────────────────────────────────
         BatchAuditWriter audit = new BatchAuditWriter(
-                cfg.dirs().statusFilePath(), cfg.dirs().batchesFilePath(), cfg.dirs().lineageFilePath());
+                cfg.dirs().statusFilePath(), cfg.dirs().batchesFilePath(), cfg.dirs().lineageFilePath(),
+                cfg.dirs().commitLogPath());
 
         // Virtual threads + a Semaphore: a batch blocked on file I/O or DuckDB parks
         // its carrier cheaply instead of pinning a platform thread, but the semaphore

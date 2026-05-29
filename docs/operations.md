@@ -259,6 +259,22 @@ Each ETL run produces three timestamped CSVs alongside the existing status file.
 | `<pipeline>_batches_<ts>.csv` | One row per batch: batch_id, member count, total input bytes, total output bytes, status, duration |
 | `<pipeline>_lineage_<ts>.csv` | Input-to-output row-count matrix — one row per (input file, output partition) pair |
 
+### Commit log — the durable "did this batch finish" ledger
+
+In addition to the three per-run CSVs, a single **persistent, append-only** commit log accumulates across every run of the pipeline:
+
+```
+<status_dir>/<pipeline>_commits.log
+```
+
+Each committed batch appends one line — `committed_at,batch_id,pipeline,status,member_count,output_count,output_rows,output_bytes` — and the write is **`fsync`'d to disk** before the batch is considered done. Unlike the per-run `_batches_<ts>.csv` (which is buffered and can lose its tail if the process is killed), a line in the commit log durably means the batch's outputs, manifest, backup, and markers are all on disk. It's the file to `grep` when you need to answer "did batch X finish?" definitively:
+
+```bash
+grep ',SUCCESS,' status/<adapter>/<pipeline>_commits.log   # every committed batch
+```
+
+Disabled (not written) when `dirs.status_dir` is unset. The path is available programmatically as `cfg.dirs().commitLogPath()`, and `CommitLog.committedBatchIds()` reads back the set of SUCCESS batch ids for recovery tooling.
+
 ### Per-batch JSON manifest
 
 After each batch completes, a manifest is written to `<status_dir>/manifests/<batch_id>.json`. It records:

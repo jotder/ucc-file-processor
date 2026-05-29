@@ -69,13 +69,20 @@ isolation. The three concurrency caps (`sources.max × threads × duckdb_threads
 multiply — documented in [Operations → Multiple sources in one process](operations.md#multiple-sources-in-one-process).
 This completes the M..N runtime model end to end.
 
-### D2 — Commit-log abstraction
+### D2 — Commit-log abstraction — ✅ DONE (2.0.0)
 
-**Current state.** Batch durability is signalled by the *combination* of (a) outputs present on disk under partition paths, (b) manifest written in `dirs.status_dir/manifests/`, (c) member files moved to `dirs.backup`, (d) marker files created in `dirs.markers`. The v1.3.2 commit ordering fix in `BatchProcessor.commit` makes a mid-step crash idempotent on rerun (markers go last) — but there's still no single "this batch finished" line operators can grep.
+`CommitLog` is a durable, append-only, **fsync'd** ledger — one persistent file per
+pipeline (`<status_dir>/<pipeline>_commits.log`, not run-timestamped) with one line
+per batch: `committed_at,batch_id,pipeline,status,member_count,output_count,output_rows,output_bytes`.
+It is the single grep-able source of truth for "did this batch finish".
 
-**Why deferred.** A proper commit log needs design choices: append-only or per-batch file? Synced to disk or buffered? Read on every poll to skip "in-progress" batches, or only on operator-triggered recovery? Each choice has different operational implications.
-
-**When to do this.** When the first real production incident makes "did batch X finish or not" a question worth answering definitively. Until then the current 4-signal redundancy is operationally sufficient.
+**Design choices taken:** append-only single file (not per-batch); `FileChannel.force(true)`
+after every record (the per-run `_batches_<ts>.csv` is buffered and can lose its tail
+on crash — the commit log cannot); written by `BatchAuditWriter.flush` *after* the
+three audit CSVs, so a commit-log line implies the audit rows exist. `CommitLog.committedBatchIds()`
+reads back SUCCESS ids for recovery/"what already finished" queries (not yet wired
+into the poll loop — recovery stays operator-triggered for now). Path exposed as
+`cfg.dirs().commitLogPath()`; disabled (null) when status is disabled.
 
 ### D4 — DuckDB type leak in `CsvIngester`
 

@@ -51,7 +51,7 @@ public final class PipelineConfig {
     public record Dirs(String poll, String database, String backup, String temp,
                        String errors, String quarantine, String markers, String logDir,
                        String statusFilePath, String batchesFilePath, String lineageFilePath,
-                       String manifestsDir) {}
+                       String manifestsDir, String commitLogPath) {}
 
     /**
      * Execution controls. {@code threads} caps concurrent batches (semaphore permits
@@ -108,7 +108,7 @@ public final class PipelineConfig {
         this.identity = new Identity(b.name, b.pipelineName, b.runTimestamp);
         this.dirs = new Dirs(b.pollDir, b.databaseDir, b.backupDir, b.tempDir, b.errorsDir,
                 b.quarantineDir, b.markersDir, b.logDir, b.statusFilePath,
-                b.batchesFilePath, b.lineageFilePath, b.manifestsDir);
+                b.batchesFilePath, b.lineageFilePath, b.manifestsDir, b.commitLogPath);
         this.processing = new Processing(b.threads, b.duckdbThreads, b.filePattern,
                 b.batchMaxFiles, b.batchMaxBytes, b.duplicateCheckEnabled,
                 b.markerExtension, b.retentionDays);
@@ -177,6 +177,10 @@ public final class PipelineConfig {
             b.lineageFilePath = statusParent.resolve(
                     b.pipelineName + "_lineage_" + b.runTimestamp + ".csv").toString();
             b.manifestsDir = statusParent.resolve("manifests").toString();
+            // Commit log is persistent (NOT run-timestamped): a single append-only
+            // ledger that accumulates committed batches across every run of this
+            // pipeline — the durable source of truth for "did this batch finish".
+            b.commitLogPath = statusParent.resolve(b.pipelineName + "_commits.log").toString();
         }
 
         validateDirs(configPath, b.pollDir, dirs);
@@ -362,6 +366,7 @@ public final class PipelineConfig {
         String batchesFilePath;
         String lineageFilePath;
         String manifestsDir;
+        String commitLogPath;
         boolean duplicateCheckEnabled = false;
         String  markerExtension       = ".processed";
         int     retentionDays         = 90;

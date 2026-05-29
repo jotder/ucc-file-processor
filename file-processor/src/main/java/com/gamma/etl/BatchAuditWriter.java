@@ -24,11 +24,24 @@ public final class BatchAuditWriter {
     private final String statusPath;
     private final String batchesPath;
     private final String lineagePath;
+    private final CommitLog commitLog;   // null when no commit-log path is configured
 
+    /** Back-compat: audit CSVs only, no durable commit log. */
     public BatchAuditWriter(String statusPath, String batchesPath, String lineagePath) {
+        this(statusPath, batchesPath, lineagePath, null);
+    }
+
+    /**
+     * @param commitLogPath path to the durable append-only commit log
+     *                      ({@code cfg.dirs().commitLogPath()}); {@code null} disables it
+     */
+    public BatchAuditWriter(String statusPath, String batchesPath, String lineagePath,
+                            String commitLogPath) {
         this.statusPath  = statusPath;
         this.batchesPath = batchesPath;
         this.lineagePath = lineagePath;
+        this.commitLog   = (commitLogPath != null && !commitLogPath.isBlank())
+                ? new CommitLog(commitLogPath) : null;
     }
 
     /** One member-file audit row. */
@@ -43,11 +56,20 @@ public final class BatchAuditWriter {
                            long totalOutputRows, int outputFileCount, long totalOutputBytes,
                            long durationMs, String error) {}
 
-    /** Append this batch's rows to all three CSVs. */
+    /**
+     * Append this batch's rows to the three audit CSVs, then record the batch in
+     * the durable commit log (fsync'd). The commit-log write is last so a line
+     * there means the audit rows are also written.
+     */
     public synchronized void flush(BatchRow batch, List<FileRow> files, List<LineageRow> lineage) {
         appendStatus(files);
         appendBatch(batch);
         appendLineage(lineage);
+        if (commitLog != null) {
+            commitLog.record(batch.endTime(), batch.batchId(), batch.pipeline(), batch.status(),
+                    batch.memberCount(), batch.outputFileCount(),
+                    batch.totalOutputRows(), batch.totalOutputBytes());
+        }
     }
 
     private void appendStatus(List<FileRow> files) {
