@@ -142,6 +142,30 @@ class ControlApiTest {
     }
 
     @Test
+    void metricsEndpointIsOpenAndReflectsARun(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            c.svc.start();   // wires MetricsService onto the bus + runs an immediate poll cycle
+            // wait for the scheduled cycle to commit at least one batch
+            long deadline = System.nanoTime() + 8_000_000_000L;
+            String body = "";
+            while (System.nanoTime() < deadline) {
+                HttpResponse<String> m = send(c.port, "GET", "/metrics", null, null);  // open, no token
+                assertEquals(200, m.statusCode());
+                assertTrue(m.headers().firstValue("Content-Type").orElse("").startsWith("text/plain"));
+                body = m.body();
+                if (body.contains("ucc_batches_total")) break;
+                Thread.sleep(150);
+            }
+            assertTrue(body.contains("# TYPE ucc_batches_total counter"), "Prometheus exposition present");
+            assertTrue(body.contains("ucc_batches_total{pipeline=\"test_etl\",status=\"SUCCESS\"}"),
+                    "a committed batch was counted:\n" + body);
+            assertTrue(body.contains("ucc_poll_cycles_total"), "poll cycle counted");
+            assertTrue(body.contains("ucc_committed_batches{pipeline=\"test_etl\"}"),
+                    "scrape-time gauge populated");
+        }
+    }
+
+    @Test
     void reprocessReplaysACommittedBatch(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             send(c.port, "POST", "/pipelines/" + c.name + "/trigger", TOKEN, null);

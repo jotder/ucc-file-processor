@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -61,6 +62,8 @@ public final class SourceService implements AutoCloseable {
     private final StatusStore status = new FileStatusStore();
     private final Scheduler scheduler = new Scheduler();
     private final EnrichmentService enrichment;
+    private final MetricsService metrics =
+            new MetricsService(this, com.gamma.metrics.MetricRegistry.global());
     /** Pipeline names an operator has paused; the poll cycle skips them (Control API, M3). */
     private final Set<String> paused = ConcurrentHashMap.newKeySet();
 
@@ -98,8 +101,10 @@ public final class SourceService implements AutoCloseable {
                 log.warn("Could not load config {} at startup: {}", p, e.getMessage());
             }
         }
-        // Enrichment subscribes to the bus and schedules its completeness jobs before the
-        // first poll cycle, so it never misses a commit event from that cycle.
+        // Metrics subscribes to the bus and registers scrape collectors; enrichment
+        // subscribes + schedules its completeness jobs. Both wire up before the first
+        // poll cycle so no commit event from that cycle is missed.
+        metrics.start();
         if (enrichment != null) enrichment.start();
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
         log.info("SourceService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
@@ -116,11 +121,20 @@ public final class SourceService implements AutoCloseable {
     public MultiSourceProcessor.RunResult runAllOnce() {
         List<Path> active = paused.isEmpty() ? registry : activeRegistry();
         if (active.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
-        MultiSourceProcessor.RunResult r =
-                MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
-        if (r.failed() > 0)
-            log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
-        return r;
+        com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
+        reg.inc("ucc_poll_cycles_total", "Poll cycles run", Map.of());
+        reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), active.size());
+        try {
+            MultiSourceProcessor.RunResult r =
+                    MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
+            if (r.failed() > 0) {
+                log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
+                reg.inc("ucc_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
+            }
+            return r;
+        } finally {
+            reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), 0);
+        }
     }
 
     // ── Control API surface (M3) ─────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.enrich.EnrichmentEngine;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.PartitionOutput;
+import com.gamma.metrics.MetricRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,6 +93,7 @@ public final class EnrichmentService implements AutoCloseable {
 
     /** Dispatch a committed-batch event to any job listening on its pipeline. */
     private void onBatchEvent(BatchEvent event) {
+        if (!"SUCCESS".equals(event.status())) return;   // enrichment acts only on successful commits
         for (EnrichmentConfig job : jobs) {
             EnrichmentConfig.Triggers t = job.triggers();
             if (!t.hasEvent()) continue;
@@ -110,15 +112,25 @@ public final class EnrichmentService implements AutoCloseable {
     private void recompute(EnrichmentConfig job, List<Map<String, String>> filter, String reason) {
         ReentrantLock lock = locks.computeIfAbsent(job.name(), k -> new ReentrantLock());
         lock.lock();
+        long startNanos = System.nanoTime();
         try {
             List<PartitionOutput> outs = EnrichmentEngine.run(job, filter);
             List<String> parts = outs.stream().map(PartitionOutput::partition).distinct().toList();
             log.info("[ENRICH] {} recomputed ({}) → {} partition file(s)", job.name(), reason, outs.size());
+            // metrics: one recompute, tagged by job + trigger kind (event|schedule)
+            String trigger = reason.startsWith("event") ? "event" : "schedule";
+            MetricRegistry.global().inc("ucc_enrichment_recomputes_total",
+                    "Stage-2 enrichment recomputes", Map.of("job", job.name(), "trigger", trigger));
+            MetricRegistry.global().observe("ucc_enrichment_duration_seconds",
+                    "Enrichment recompute wall time", Map.of("job", job.name()),
+                    (System.nanoTime() - startNanos) / 1e9);
             // chain: a successful enrichment is itself a commit downstream jobs can subscribe to
             bus.publish(new BatchEvent(job.name(), job.name() + "-" + seq.incrementAndGet(),
-                    "SUCCESS", parts, 0L));
+                    "SUCCESS", parts, 0L, 0L, 0));
         } catch (Exception e) {
             log.error("[ENRICH] {} recompute failed ({})", job.name(), reason, e);
+            MetricRegistry.global().inc("ucc_enrichment_failures_total",
+                    "Stage-2 enrichment recompute failures", Map.of("job", job.name()));
         } finally {
             lock.unlock();
         }

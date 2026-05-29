@@ -82,14 +82,15 @@ public final class BatchAuditWriter {
                     batch.memberCount(), batch.outputFileCount(),
                     batch.totalOutputRows(), batch.totalOutputBytes());
         }
-        // Emit a batch-commit event for SUCCESS batches (they have output partitions).
-        // Fired last, so a delivered event implies the audit + commit log are written.
-        if (commitListener != null && "SUCCESS".equals(batch.status())) {
+        // Emit a batch event for every terminal batch (SUCCESS + FAILED) so observability
+        // sees error rates and latency; enrichment consumers filter on status. Fired last,
+        // so a delivered event implies the audit + commit log are written.
+        if (commitListener != null) {
             List<String> partitions = lineage.stream()
                     .map(LineageRow::partition).distinct().collect(Collectors.toList());
             commitListener.accept(new BatchEvent(
                     batch.pipeline(), batch.batchId(), batch.status(),
-                    partitions, batch.totalOutputRows()));
+                    partitions, batch.totalOutputRows(), batch.durationMs(), batch.rejectedCount()));
         }
     }
 

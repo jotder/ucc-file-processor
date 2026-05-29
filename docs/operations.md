@@ -314,6 +314,39 @@ curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines
 curl -s -X POST -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/trigger
 ```
 
+### Observability — metrics & structured events
+
+The Control API host also exposes `GET /metrics` (open — scrapers don't carry tokens) in **Prometheus text format**, served from a zero-dependency in-process registry. No extra agent or sidecar.
+
+```bash
+curl -s localhost:8080/metrics
+```
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `ucc_batches_total` | counter | `pipeline`, `status` | terminal batches (SUCCESS + FAILED) |
+| `ucc_output_rows_total` | counter | `pipeline` | rows written by committed batches |
+| `ucc_rejected_files_total` | counter | `pipeline` | quarantined member files |
+| `ucc_partitions_written_total` | counter | `pipeline` | output partitions written |
+| `ucc_batch_duration_seconds` | histogram | `pipeline` | batch wall-clock latency |
+| `ucc_enrichment_recomputes_total` | counter | `job`, `trigger` | Stage-2 recomputes (event vs schedule) |
+| `ucc_enrichment_duration_seconds` | histogram | `job` | enrichment recompute latency |
+| `ucc_poll_cycles_total` · `ucc_source_run_failures_total` | counter | — | poll cycles run / source-run failures |
+| `ucc_active_runs` | gauge | — | source runs currently executing |
+| `ucc_committed_batches` · `ucc_quarantine_files` | gauge | `pipeline` | durable commit count / quarantine depth |
+| `ucc_inbox_oldest_seconds` | gauge | `pipeline` | **lag** — age of the oldest unprocessed inbox file |
+| `ucc_paused` | gauge | `pipeline` | 1 if paused |
+
+Eager metrics are recorded off the batch-commit event; the point-in-time gauges (lag, quarantine depth, commit count) are computed lazily when `/metrics` is scraped, so they reflect current state without a polling loop.
+
+**Structured event log.** Alongside the human logs, the `ucc.events` logger emits one JSON line per batch — correlatable by `batch_id`:
+
+```json
+{"event":"batch","pipeline":"adjustment_etl","batch_id":"20260530_000652_default_0001","status":"SUCCESS","rows":3,"partitions":2,"rejected":0,"duration_ms":650}
+```
+
+Route that logger to a file or shipper to stream batch events into a log pipeline.
+
 ### Audit files written to `dirs.status_dir`
 
 Each ETL run produces three timestamped CSVs alongside the existing status file. All three use the same `<yyyyMMdd_HHmmss>` timestamp suffix so runs never overwrite each other.

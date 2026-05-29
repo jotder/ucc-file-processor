@@ -138,13 +138,33 @@ together.
 - **DoD:** ✅ every CLI operation is reachable over REST; authenticated; green.
   Verified end-to-end via the fat-JAR (`-Dcontrol.port`/`-Dcontrol.token`).
 
-### M4 — Observability  → v2.5.0
+### M4 — Observability  → v2.5.0  ✅
 
-- **T4.1** Metrics (Micrometer): throughput, batch-latency histograms, quarantine/error
-  rates, lag (oldest unprocessed age), in-flight batches, enrichment recompute counts.
-- **T4.2** Prometheus endpoint on the API host; structured JSON logs correlated by
-  `run_id`/`batch_id`.
-- **DoD:** metrics scrapeable; logs correlatable; key SLOs visible; green.
+**Done** (`2.5.0-SNAPSHOT`): zero-dep metrics (revises T4.1's Micrometer — same lean-JAR
+rationale as D-d). New `com.gamma.metrics.MetricRegistry` (process-wide `global()`,
+counters/gauges/histograms, Prometheus text exposition) + `com.gamma.service.MetricsService`
+(bus subscriber for eager metrics, scrape-time gauge collectors, structured JSON event
+log). `ControlApi` serves `GET /metrics` (open). `BatchEvent` gained `durationMs` +
+`rejectedCount` and is now emitted for every terminal batch (SUCCESS + FAILED); enrichment
+filters SUCCESS. 6 new tests; full suite 136 green; verified via the fat-JAR scrape.
+
+- **T4.1** ✅ Metrics (zero-dep): `ucc_batches_total{pipeline,status}`,
+  `ucc_output_rows_total`, `ucc_rejected_files_total`, `ucc_partitions_written_total`,
+  `ucc_batch_duration_seconds` (histogram), `ucc_enrichment_recomputes_total{job,trigger}`
+  + `ucc_enrichment_duration_seconds`, `ucc_poll_cycles_total`,
+  `ucc_source_run_failures_total`, and scrape-time gauges `ucc_active_runs`,
+  `ucc_committed_batches`, `ucc_quarantine_files`, `ucc_inbox_oldest_seconds` (lag),
+  `ucc_paused`. "In-flight" is captured at run granularity (`ucc_active_runs`).
+- **T4.2** ✅ `GET /metrics` on the API host (Prometheus text format, open — scrapers
+  don't carry tokens); structured JSON event log via the `ucc.events` logger, one line
+  per batch carrying `pipeline`/`batch_id`/`status`/`rows`/`partitions`/`rejected`/`duration_ms`.
+- **DoD:** ✅ metrics scrapeable; batch events correlatable by id; key SLOs (throughput,
+  latency, error/quarantine rate, lag, recomputes) visible; green.
+
+Scope note: chose a **hand-rolled** registry over Micrometer (zero new deps, consistent
+with the M3 HTTP choice); swappable later if dimensional backends (OTLP/StatsD) are
+needed. The dedicated enrichment **run-level audit/lineage** deferred since M0 remains
+open — surfaced now via metrics + the event log, but not yet persisted as audit rows.
 
 ### M5 — Status store in a database  → v2.6.0  (last)
 

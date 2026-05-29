@@ -112,7 +112,7 @@ class EnrichmentServiceTest {
             es.start();
             // A Stage-1 batch committed just the CALL/2020/04/03 partition.
             bus.publish(new BatchEvent("EVENTS", "b1", "SUCCESS",
-                    List.of("event_type=CALL/year=2020/month=04/day=03"), 2));
+                    List.of("event_type=CALL/year=2020/month=04/day=03"), 2, 100L, 0));
 
             assertTrue(await(seen, "DAILY", 10_000), "enrichment should announce its own commit");
             Map<String, Long> counts = readCounts(out, "event_count");
@@ -176,7 +176,7 @@ class EnrichmentServiceTest {
         try {
             es.start();
             bus.publish(new BatchEvent("EVENTS", "b1", "SUCCESS",
-                    List.of("event_type=CALL/year=2020/month=04/day=03"), 2));
+                    List.of("event_type=CALL/year=2020/month=04/day=03"), 2, 100L, 0));
 
             assertTrue(await(seen, "STAGE2_B", 10_000), "downstream B should fire on A's commit");
             assertEquals(Map.of("CALL|03", 2L), readCounts(outB, "event_count"),
@@ -207,7 +207,7 @@ class EnrichmentServiceTest {
                 bus.publish(new BatchEvent("EVENTS", "b" + i, "SUCCESS", List.of(
                         "event_type=CALL/year=2020/month=04/day=03",
                         "event_type=CALL/year=2020/month=04/day=04",
-                        "event_type=SMS/year=2020/month=04/day=03"), 4));
+                        "event_type=SMS/year=2020/month=04/day=03"), 4, 100L, 0));
             }
             Thread.sleep(2500);   // let several event + scheduled recomputes overlap
         } finally {

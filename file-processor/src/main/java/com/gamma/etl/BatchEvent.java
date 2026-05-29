@@ -11,13 +11,21 @@ import java.util.List;
  * {@code service} layer owns the pub/sub bus; this record lives in {@code etl} so the
  * low layer can emit without depending on the higher one.
  *
- * @param pipeline    pipeline name
- * @param batchId     committed batch id
- * @param status      batch status (always {@code SUCCESS} for emitted events)
- * @param partitions  distinct output partition paths this batch wrote (from lineage),
- *                    e.g. {@code event_type=CALL/year=2020/month=04/day=03} — exactly
- *                    the set a Stage-2 enrichment recompute should be scoped to
- * @param outputRows  total rows written by the batch
+ * <p>Emitted for every <em>terminal</em> batch (both {@code SUCCESS} and {@code FAILED})
+ * so observability sees error rates and latency; consumers that act only on success
+ * (Stage-2 enrichment) filter on {@link #status()}.
+ *
+ * @param pipeline      pipeline name
+ * @param batchId       committed batch id
+ * @param status        batch status ({@code SUCCESS} or {@code FAILED})
+ * @param partitions    distinct output partition paths this batch wrote (from lineage),
+ *                      e.g. {@code event_type=CALL/year=2020/month=04/day=03} — exactly
+ *                      the set a Stage-2 enrichment recompute should be scoped to
+ *                      (empty for a failed batch)
+ * @param outputRows    total rows written by the batch
+ * @param durationMs    batch wall-clock duration in milliseconds
+ * @param rejectedCount rejected (quarantined) member files in the batch
  */
 public record BatchEvent(String pipeline, String batchId, String status,
-                         List<String> partitions, long outputRows) {}
+                         List<String> partitions, long outputRows,
+                         long durationMs, int rejectedCount) {}

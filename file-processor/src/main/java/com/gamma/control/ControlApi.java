@@ -60,6 +60,8 @@ import java.util.regex.Pattern;
 public final class ControlApi implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(ControlApi.class);
+    /** Returned by a handler that has already written its own (non-JSON) response. */
+    private static final Object HANDLED = new Object();
 
     private final HttpServer http;
     private final SourceService service;
@@ -133,6 +135,9 @@ public final class ControlApi implements AutoCloseable {
     private void registerRoutes() {
         get ("/health", false, (e, m) -> Map.of("status", "UP"));
         get ("/ready",  false, (e, m) -> Map.of("status", "READY", "pipelines", service.pipelines().size()));
+        // Prometheus scrape endpoint — text exposition, open (scrapers don't carry tokens)
+        get("/metrics", false, (e, m) ->
+                respondText(e, com.gamma.metrics.MetricRegistry.global().scrape()));
 
         get ("/pipelines", true, (e, m) -> service.pipelines());
         post("/pipelines/([^/]+)/trigger", true, (e, m) ->
@@ -189,7 +194,7 @@ public final class ControlApi implements AutoCloseable {
                 if (!r.method.equals(method)) continue;
                 if (r.auth) requireAuth(ex);
                 Object result = r.handler.handle(ex, m);
-                respond(ex, 200, result);
+                if (result != HANDLED) respond(ex, 200, result);
                 return;
             }
             respond(ex, pathMatched ? 405 : 404,
@@ -218,6 +223,15 @@ public final class ControlApi implements AutoCloseable {
         ex.getResponseHeaders().set("Content-Type", "application/json");
         ex.sendResponseHeaders(status, bytes.length);
         ex.getResponseBody().write(bytes);
+    }
+
+    /** Write a {@code text/plain} body (Prometheus exposition) and signal it's handled. */
+    private Object respondText(HttpExchange ex, String text) throws IOException {
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        ex.sendResponseHeaders(200, bytes.length);
+        ex.getResponseBody().write(bytes);
+        return HANDLED;
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────

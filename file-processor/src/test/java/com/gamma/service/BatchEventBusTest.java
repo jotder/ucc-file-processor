@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class BatchEventBusTest {
 
     private static BatchEvent evt(String batchId) {
-        return new BatchEvent("p", batchId, "SUCCESS", List.of("year=2020/month=04/day=03"), 10);
+        return new BatchEvent("p", batchId, "SUCCESS", List.of("year=2020/month=04/day=03"), 10, 5L, 0);
     }
 
     @Test
