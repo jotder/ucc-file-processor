@@ -42,12 +42,27 @@ import java.util.Map;
  * <p>The {@code transform} SQL reads from a view named {@code input} (the selected
  * partitions of the Stage-1 output) and from any {@code references} by name, and
  * must project the {@code output.partitions} columns plus the report columns.
+ *
+ * <h3>Triggers (optional)</h3>
+ * <pre>
+ * triggers:
+ *   on_pipeline: EVENTS          # recompute affected partitions when this Stage-1
+ *                                # pipeline (or upstream enrichment) commits a batch
+ *   schedule_seconds: 3600       # also recompute fully on this interval (completeness)
+ * </pre>
+ * When orchestrated by {@code com.gamma.service.EnrichmentService}, {@code on_pipeline}
+ * wires the <em>freshness</em> path (incremental, scoped to the committed partitions)
+ * and {@code schedule_seconds} the <em>completeness</em> path (full window recompute,
+ * reconciling late data). Chains form naturally: set {@code on_pipeline} to an upstream
+ * enrichment's {@code name} and it fires on that enrichment's own commit. Absent
+ * triggers, the job is CLI-only ({@link EnrichmentProcessor}).
  */
 public record EnrichmentConfig(String name,
                                Input input,
                                List<Reference> references,
                                Output output,
-                               String transformSql) {
+                               String transformSql,
+                               Triggers triggers) {
 
     /** Stage-1 output to read. */
     public record Input(String database, String format, List<String> partitions) {}
@@ -57,6 +72,26 @@ public record EnrichmentConfig(String name,
 
     /** Where and how enriched output is written, and at what partition grain. */
     public record Output(String database, String format, String compression, List<String> partitions) {}
+
+    /**
+     * How this enrichment is scheduled by the service.
+     *
+     * @param onPipeline      name of the upstream pipeline/enrichment whose batch-commit
+     *                        events trigger an incremental recompute; {@code null}/blank
+     *                        disables the event trigger
+     * @param scheduleSeconds interval for a full completeness recompute; {@code <= 0} disables
+     */
+    public record Triggers(String onPipeline, long scheduleSeconds) {
+        public boolean hasEvent()    { return onPipeline != null && !onPipeline.isBlank(); }
+        public boolean hasSchedule() { return scheduleSeconds > 0; }
+        public static Triggers none() { return new Triggers(null, 0L); }
+    }
+
+    /** Backwards-compatible constructor (no triggers) — CLI / programmatic use. */
+    public EnrichmentConfig(String name, Input input, List<Reference> references,
+                            Output output, String transformSql) {
+        this(name, input, references, output, transformSql, Triggers.none());
+    }
 
     // ── factory ────────────────────────────────────────────────────────────────
 
@@ -107,7 +142,23 @@ public record EnrichmentConfig(String name,
         if (transform == null || transform.isBlank())
             throw new IllegalArgumentException("Enrichment config needs 'transform' or 'transform_file'");
 
-        return new EnrichmentConfig(name, input, refs, output, transform.trim());
+        // optional triggers section — drives the service's event + scheduled recompute
+        Triggers triggers = Triggers.none();
+        if (raw.get("triggers") instanceof Map<?, ?> tr) {
+            Object onPipeline = tr.get("on_pipeline");
+            Object sched = tr.get("schedule_seconds");
+            long scheduleSeconds = 0L;
+            if (sched != null && !sched.toString().isBlank()) {
+                try {
+                    scheduleSeconds = Long.parseLong(sched.toString().trim());
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("triggers.schedule_seconds must be an integer, got: " + sched);
+                }
+            }
+            triggers = new Triggers(onPipeline == null ? null : onPipeline.toString().trim(), scheduleSeconds);
+        }
+
+        return new EnrichmentConfig(name, input, refs, output, transform.trim(), triggers);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

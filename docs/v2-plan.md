@@ -78,20 +78,38 @@ spec text is retained below.
 - **DoD:** `ura serve <config-dir>` polls + schedules continuously, emits batch-commit
   events, recovers cleanly after a kill; green.
 
-### M2 — Enrichment orchestration  → v2.3.0  (flagship complete)
+### M2 — Enrichment orchestration  → v2.3.0  ✅ (flagship complete)
 
-Wire the M0 core to the two triggers on the M1 service.
+Wired the M0 core to the two triggers on the M1 service. **Done** (`2.3.0-SNAPSHOT`):
+new `com.gamma.service.EnrichmentService` is the composition point binding the pure
+`com.gamma.enrich` engine to the bus (freshness) and scheduler (completeness).
+`EnrichmentConfig` gained an optional `triggers` section (`on_pipeline`,
+`schedule_seconds`); `SourceService` hosts a registry of `*_enrich.toon` jobs sharing
+its bus + scheduler. 7 new tests (5 orchestration + 2 config), full suite 123 green.
 
-- **T2.1** Event subscriber: on batch-commit event → read lineage → recompute only the
-  affected enrichment outputs (freshness).
-- **T2.2** Scheduled enrichment job: recompute closed windows (completeness) per config
-  cron + **watermark/completeness rule**; reconcile late data.
-- **T2.3** Register enrichment pipelines in the service; support **chains** (enrich
-  fires on its upstream's commit event).
-- **T2.4** Tests: event recomputes only affected reports; schedule recomputes a window;
-  idempotency under event+schedule overlap; late-data reconciliation.
-- **DoD:** end-to-end — a Stage-1 batch commit triggers incremental enrichment; the
-  schedule finalizes windows; numbers converge; green.
+- **T2.1** ✅ Event subscriber: on a batch-commit event, the committed partitions
+  (`BatchEvent.partitions()`) become the engine's input filter — only the affected
+  output is recomputed (freshness). Heavy DuckDB work is handed to a virtual-thread
+  executor so it never blocks the ingest (publishing) thread.
+- **T2.2** ✅ Scheduled job: `schedule_seconds` registers an interval recompute of the
+  **full** window (completeness), whose idempotent overwrite reconciles late data. (The
+  completeness rule here is "recompute the whole window"; finer watermark/closed-window
+  scoping is a future refinement — calendar/cron scheduling tracked with M4.)
+- **T2.3** ✅ Chains: a successful recompute publishes its own `BatchEvent` (pipeline =
+  the job's `name`), so a downstream job with `on_pipeline: <that name>` fires
+  automatically. A self-loop guard prevents a job triggering on its own output.
+- **T2.4** ✅ Tests: event recomputes only the committed partition; schedule recomputes
+  the full window; a chain fires B from A's commit; idempotency holds under an
+  event-burst + schedule overlap (per-job lock + `OVERWRITE_OR_IGNORE`); end-to-end a
+  real Stage-1 commit through `SourceService` drives enrichment to completion.
+- **DoD:** ✅ end-to-end — a Stage-1 batch commit triggers incremental enrichment; the
+  schedule finalizes windows; numbers converge; suite green.
+
+Scope notes for this cut: the scheduled completeness path does a **full** recompute
+(simplest correct, idempotent) rather than a windowed/watermarked scope; the `Scheduler`
+remains **interval-based** (calendar/cron deferred). Enrichment **run-level
+audit/lineage** (deferred from M0) is still open — enrichment recomputes log but don't
+yet write audit/lineage rows; fold into M4 (Observability) or a dedicated follow-up.
 
 ### M3 — Control API  → v2.4.0
 

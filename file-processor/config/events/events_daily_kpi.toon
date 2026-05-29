@@ -25,6 +25,15 @@ output:
   compression: snappy
   partitions[4]: event_type, year, month, day
 
+# Optional triggers — used when hosted by SourceService (com.gamma.service). Without
+# them the job is CLI-only (EnrichmentProcessor). on_pipeline wires the freshness path:
+# when that Stage-1 pipeline (or an upstream enrichment, by its name) commits a batch,
+# only the committed partitions are recomputed. schedule_seconds wires the completeness
+# path: a full window recompute on that interval, reconciling any late-arriving data.
+triggers:
+  on_pipeline: events
+  schedule_seconds: 3600
+
 # The columnar transform. Reads the `input` view (selected partitions) and any
 # reference views by name; must project the output.partitions columns + the
 # report columns. Use transform_file: <path>.sql for longer SQL.

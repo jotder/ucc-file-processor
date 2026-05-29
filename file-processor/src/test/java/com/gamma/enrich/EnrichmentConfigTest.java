@@ -59,6 +59,53 @@ class EnrichmentConfigTest {
     }
 
     @Test
+    void triggersAreParsedWhenPresent(@TempDir Path dir) throws Exception {
+        Path toon = dir.resolve("trig.toon");
+        Files.writeString(toon, """
+                name: T
+                version: 1
+                input:
+                  database: in
+                  format: PARQUET
+                  partitions[1]: day
+                output:
+                  database: out
+                  format: PARQUET
+                  partitions[1]: day
+                triggers:
+                  on_pipeline: EVENTS
+                  schedule_seconds: 3600
+                transform: "SELECT day, COUNT(*) AS n FROM input GROUP BY day"
+                """);
+        EnrichmentConfig cfg = EnrichmentConfig.load(toon.toString());
+        assertTrue(cfg.triggers().hasEvent());
+        assertEquals("EVENTS", cfg.triggers().onPipeline());
+        assertTrue(cfg.triggers().hasSchedule());
+        assertEquals(3600L, cfg.triggers().scheduleSeconds());
+    }
+
+    @Test
+    void triggersDefaultToNoneWhenAbsent(@TempDir Path dir) throws Exception {
+        Path toon = dir.resolve("notrig.toon");
+        Files.writeString(toon, """
+                name: T
+                version: 1
+                input:
+                  database: in
+                  format: PARQUET
+                  partitions[1]: day
+                output:
+                  database: out
+                  format: PARQUET
+                  partitions[1]: day
+                transform: "SELECT day, COUNT(*) AS n FROM input GROUP BY day"
+                """);
+        EnrichmentConfig cfg = EnrichmentConfig.load(toon.toString());
+        assertFalse(cfg.triggers().hasEvent());
+        assertFalse(cfg.triggers().hasSchedule());
+    }
+
+    @Test
     void referencesAreOptional(@TempDir Path dir) throws Exception {
         Path toon = dir.resolve("noref.toon");
         Files.writeString(toon, """
