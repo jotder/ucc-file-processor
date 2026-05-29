@@ -170,7 +170,8 @@ The **Pre ETL utilities** (`MainApp`) handle the movement and unpacking of raw d
 ```
 com.gamma
   inspector/
-    SourceProcessor          — thin ETL orchestrator; drives the batch lifecycle via the thread pool
+    SourceProcessor          — single-source ETL runner; virtual-thread + semaphore batch fan-out
+    MultiSourceProcessor     — runs many sources concurrently in one JVM (outer M..N orchestrator)
     BatchProcessor           — owns one temp DuckDB per batch; ingest loop → transform → lineage → commit
     ReprocessCommand         — `ura reprocess <batch_id>`: delete outputs/markers, restore members, re-run
   etl/
@@ -845,7 +846,23 @@ Two knobs control CPU/I/O pressure, and they multiply:
 
 Each concurrent batch opens its own DuckDB connection, so the effective worker count is roughly `threads × duckdb_threads`. With `duckdb_threads=0` and `threads=4` on a 16-core box you can momentarily run 4 × 16 = 64 DuckDB workers and oversubscribe the CPU. Set `duckdb_threads` so the product ≈ core count (e.g. `threads=4, duckdb_threads=4` on 16 cores). The config validator warns when `threads × duckdb_threads` exceeds the available cores.
 
-> **Multiple sources** currently run as separate JVM invocations (one `pipeline.toon` each) — there is no in-process multi-source orchestrator yet. The per-source model above is the unit such an orchestrator would compose.
+### Multiple sources in one process
+
+`MultiSourceProcessor` runs several sources (each its own `pipeline.toon`) concurrently in a single JVM — the outer layer of the M..N model, composing the per-source batch runner above.
+
+```bash
+# one or more pipeline toons and/or directories (searched for *_pipeline.toon)
+java -cp file-processor.jar com.gamma.inspector.MultiSourceProcessor \
+     -Dsources.max=4 \
+     config/adjustment/adjustment_pipeline.toon \
+     config/voucher/voucher_unknown_pipeline.toon
+# or point it at a directory tree of configs:
+java -cp file-processor.jar com.gamma.inspector.MultiSourceProcessor config/
+```
+
+Sources run on a virtual-thread executor bounded by `-Dsources.max` (default: all resolved sources in parallel). Each source is isolated — one source failing (bad config or batch failures) is logged and counted but never aborts the others; the process exits non-zero if any source failed. A failed source does not stop the rest.
+
+**Three multiplying caps.** Total worker pressure ≈ `sources.max × processing.threads × processing.duckdb_threads`. Size them together for the host — e.g. on 16 cores: `sources.max=4`, `threads=2`, `duckdb_threads=2`.
 
 ### Audit files written to `dirs.status_dir`
 

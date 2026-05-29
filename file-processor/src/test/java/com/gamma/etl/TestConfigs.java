@@ -52,7 +52,14 @@ public final class TestConfigs {
     public TestConfigs tsFormats(String csv)   { this.tsFormats = csv; return this; }
     public TestConfigs duplicateCheck(boolean b) { this.duplicateCheck = b; return this; }
 
+    /** Load the built config. */
     public PipelineConfig load() throws Exception {
+        return PipelineConfig.load(write().toString());
+    }
+
+    /** Write the schema + pipeline toons and return the pipeline toon path (without loading). */
+    public Path write() throws Exception {
+        Files.createDirectories(dir);
         Path schema = dir.resolve("schema_" + Integer.toHexString(System.identityHashCode(this)) + ".toon");
         Files.writeString(schema, schemaToon);
 
@@ -100,6 +107,6 @@ public final class TestConfigs {
 
         Path p = dir.resolve("pipeline_" + Integer.toHexString(System.identityHashCode(this)) + ".toon");
         Files.writeString(p, toon);
-        return PipelineConfig.load(p.toString());
+        return p;
     }
 }

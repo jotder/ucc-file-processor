@@ -62,11 +62,12 @@ the core count (oversubscription). Default `duckdb_threads=0` leaves DuckDB's de
 The pre-ETL utilities still use `VirtualThreadRunner` + `Phaser` (uncapped); that's
 fine — they're operator-supervised staging tools, not the high-throughput path.
 
-**Still deferred (multi-source orchestrator).** There is no top-level runner that
-processes several *pipeline configs* (sources) concurrently — each source is still
-one JVM invocation / `SourceProcessor.run(cfg)` call. The batch-level model above is
-the per-source unit it would compose. Build when multi-source-in-one-process is
-actually needed.
+**Multi-source orchestrator — ✅ DONE (v1.6.0).** `MultiSourceProcessor` runs
+several sources concurrently in one JVM on a virtual-thread executor bounded by
+`-Dsources.max`, composing `SourceProcessor.run(cfg)` per source with full failure
+isolation. The three concurrency caps (`sources.max × threads × duckdb_threads`)
+multiply — documented in the README's Batch Processing → "Multiple sources in one
+process". This completes the M..N runtime model end to end.
 
 ### D2 — Commit-log abstraction
 

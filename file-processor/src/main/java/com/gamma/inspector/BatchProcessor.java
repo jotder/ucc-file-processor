@@ -2,6 +2,8 @@ package com.gamma.inspector;
 
 import com.gamma.etl.*;
 import com.gamma.util.DuckDbUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +33,8 @@ import java.util.*;
  * {@code BatchRow} audit entry.
  */
 public final class BatchProcessor {
+
+    private static final Logger log = LoggerFactory.getLogger(BatchProcessor.class);
 
     private BatchProcessor() {}
 
@@ -140,7 +144,7 @@ public final class BatchProcessor {
         } catch (Exception e) {
             batchStatus = "FAILED";
             batchError  = msg(e);
-            e.printStackTrace();
+            log.error("Batch {} failed during CSV processing", batch.batchId(), e);
         } finally {
             if (tempDb != null) DuckDbUtil.deleteTempDb(tempDb);
         }
@@ -151,7 +155,7 @@ public final class BatchProcessor {
             writeAudit(batch, cfg, audit, batchStart, batchStatus, batchError,
                     memberAudits, survivors, outputs, lineage, totalInputRows);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Batch {} failed during commit/audit", batch.batchId(), e);
         }
     }
 
@@ -302,7 +306,7 @@ public final class BatchProcessor {
         } catch (Exception e) {
             batchStatus = "FAILED";
             batchError  = msg(e);
-            e.printStackTrace();
+            log.error("Batch {} failed during plugin processing", batch.batchId(), e);
         } finally {
             if (tempDb != null) DuckDbUtil.deleteTempDb(tempDb);
         }
@@ -315,7 +319,7 @@ public final class BatchProcessor {
             writeAuditPlugin(batch, cfg, audit, batchStart, batchStatus, batchError,
                     memberAudits, survivors, allOutputs, allLineage, totalInputRows, schemaNames);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Batch {} failed during commit/audit", batch.batchId(), e);
         }
     }
 
