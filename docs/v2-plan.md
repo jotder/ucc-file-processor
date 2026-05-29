@@ -207,7 +207,7 @@ that work.
 
 ### Post-M5 follow-up — enrichment run-level audit/lineage  ✅ (closes the last open item)
 
-**Done** (`2.7.0-SNAPSHOT`): the enrichment audit/lineage deferred since M0 is now persisted.
+**Done** (`v2.7.0`): the enrichment audit/lineage deferred since M0 is now persisted.
 `EnrichmentEngine` gained `runResult(...)` (returns written partitions **+** total output
 rows); a new `com.gamma.enrich.EnrichmentAuditWriter` writes three append-only artifacts per
 job under a `_audit` sibling of the output root (`<output.database>_audit/`), keyed by a
