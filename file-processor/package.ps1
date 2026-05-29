@@ -24,7 +24,7 @@ $scriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $adjParserDir = if ((Split-Path -Leaf $scriptDir) -eq 'file-processor') { $scriptDir }
                else { Join-Path $scriptDir 'file-processor' }
 $sandboxRoot  = Split-Path -Parent $adjParserDir
-$jarSrc       = Join-Path $adjParserDir 'target\file-processor-1.0.jar'
+$targetDir    = Join-Path $adjParserDir 'target'
 $outZip       = Join-Path $sandboxRoot  'file-processor-deploy.zip'
 $bundleDir    = Join-Path $sandboxRoot  'file-processor-deploy'
 
@@ -38,8 +38,11 @@ if (-not $NoBuild) {
     Write-Host "Build complete." -ForegroundColor Green
 }
 
-if (-not (Test-Path $jarSrc)) {
-    throw "JAR not found at $jarSrc.  Run without -NoBuild or build manually first."
+# Discover the shaded JAR by pattern so we don't pin to a specific version number.
+$jarSrc = Get-ChildItem -Path $targetDir -Filter 'file-processor-*.jar' -ErrorAction SilentlyContinue |
+          Select-Object -First 1 -ExpandProperty FullName
+if (-not $jarSrc -or -not (Test-Path $jarSrc)) {
+    throw "JAR not found matching $targetDir\file-processor-*.jar.  Run without -NoBuild or build manually first."
 }
 
 # ── step 2: create bundle directory ───────────────────────────────────────────

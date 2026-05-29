@@ -17,9 +17,10 @@ rem For deployed servers use ura.bat bundled alongside file-processor.jar.
 setlocal
 cd /d "%~dp0"
 
-set JAR=target\file-processor-1.0.jar
-if not exist "%JAR%" (
-    echo ERROR: JAR not found at %JAR%
+set "JAR="
+for %%F in (target\file-processor-*.jar) do set "JAR=%%F"
+if not defined JAR (
+    echo ERROR: no JAR found matching target\file-processor-*.jar
     echo        Run 'mvn clean package' first.
     exit /b 1
 )

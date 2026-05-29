@@ -17,9 +17,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-JAR="target/file-processor-1.0.jar"
-if [[ ! -f "$JAR" ]]; then
-    echo "ERROR: JAR not found at $JAR" >&2
+JAR=$(ls target/file-processor-*.jar 2>/dev/null | head -1)
+if [[ -z "$JAR" || ! -f "$JAR" ]]; then
+    echo "ERROR: no JAR found matching target/file-processor-*.jar" >&2
     echo "       Run 'mvn clean package' first." >&2
     exit 1
 fi
