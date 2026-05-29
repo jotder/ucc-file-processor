@@ -69,12 +69,21 @@ public final class CsvIngester {
         int maxJunkLines = cfg.skipJunkLines < 0 ? Integer.MAX_VALUE : cfg.skipJunkLines;
         int skipTailCols = cfg.skipTailCols;
 
-        // ── derive maxSelector from schema ────────────────────────────────────
+        // ── derive selector indices from schema (hoisted out of the row loop) ──
+        // Parse each field's selector to an int ONCE here. The previous code did
+        // Integer.parseInt(String.valueOf(f.get("selector"))) inside the per-row
+        // append loop — O(rows × cols) string parses (24M calls on a 2M×12 file),
+        // which measurably dominated ingest. selectorIdx[i] is the raw-column index
+        // for output column i.
         List<Map<String, Object>> fields =
                 (List<Map<String, Object>>) ((Map<String, Object>) schemaConfig.get("raw")).get("fields");
-        int maxSelector = fields.stream()
-                .mapToInt(f -> Integer.parseInt(String.valueOf(f.get("selector"))))
-                .max().orElse(0);
+        int[] selectorIdx = new int[fields.size()];
+        int maxSelector = 0;
+        for (int i = 0; i < fields.size(); i++) {
+            int sel = Integer.parseInt(String.valueOf(fields.get(i).get("selector")));
+            selectorIdx[i] = sel;
+            if (sel > maxSelector) maxSelector = sel;
+        }
 
         // ── prepare error CSV (created lazily — only if errors actually occur) ──
         String baseName    = stripExtensions(file.getName());
@@ -215,10 +224,9 @@ public final class CsvIngester {
                         continue;
                     }
 
-                    // Append row using schema-defined selectors
+                    // Append row using the pre-computed selector indices.
                     appender.beginRow();
-                    for (Map<String, Object> f : fields) {
-                        int idx = Integer.parseInt(String.valueOf(f.get("selector")));
+                    for (int idx : selectorIdx) {
                         appender.append(idx < row.length ? row[idx] : "");
                     }
                     appender.endRow();

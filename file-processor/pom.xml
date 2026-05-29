@@ -6,12 +6,15 @@
 
     <groupId>com.gamma.inspector</groupId>
     <artifactId>file-processor</artifactId>
-    <version>1.3.2</version>
+    <version>1.3.3</version>
 
     <properties>
         <maven.compiler.source>24</maven.compiler.source>
         <maven.compiler.target>24</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Default empty so surefire's @{argLine} resolves cleanly when JaCoCo is inactive
+             (normal 'mvn test'). The 'coverage' profile's prepare-agent goal overrides this. -->
+        <argLine></argLine>
     </properties>
 
     <dependencies>
@@ -133,15 +136,47 @@
                 </executions>
             </plugin>
 
-            <!-- Surefire — JUnit 5 runner; native-access flag silences DuckDB JNI warnings on Java 24 -->
+            <!-- Surefire — JUnit 5 runner; native-access flag silences DuckDB JNI warnings on Java 24.
+                 @{argLine} is the late-bound property JaCoCo's prepare-agent goal sets; keeping it
+                 here lets the coverage agent attach without clobbering the native-access flag.
+                 When JaCoCo is inactive @{argLine} resolves to empty. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
-                    <argLine>--enable-native-access=ALL-UNNAMED</argLine>
+                    <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
                 </configuration>
             </plugin>
+
+            <!-- JaCoCo — line/branch coverage. Activated by the 'coverage' profile so a normal
+                 'mvn test' is unaffected; run 'mvn -Pcoverage test' to instrument and report. -->
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>coverage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.13</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-agent</id>
+                                <goals><goal>prepare-agent</goal></goals>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <phase>test</phase>
+                                <goals><goal>report</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

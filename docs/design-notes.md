@@ -2,6 +2,8 @@
 
 Architectural decisions, deferred work, and the reasoning behind them. Not user-facing — read this before you make a structural change to the framework.
 
+**Companion docs:** [`performance.md`](performance.md) (benchmark results, bottleneck analysis) · [`test-coverage.md`](test-coverage.md) (JaCoCo coverage breakdown and gaps).
+
 ---
 
 ## Stability tiers (informal SemVer policy)
