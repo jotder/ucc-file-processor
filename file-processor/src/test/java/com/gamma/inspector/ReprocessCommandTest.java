@@ -19,7 +19,7 @@ class ReprocessCommandTest {
                 max_files: 100
             """);
         PipelineConfig cfg = PipelineConfig.load(toon.toString());
-        Path inbox = Path.of(cfg.pollDir);
+        Path inbox = Path.of(cfg.dirs().poll());
         Files.createDirectories(inbox);
         Files.writeString(inbox.resolve("a.csv"), "ID,AMT,EVENT_DATE\na,1.0,2020-04-03\n");
         Files.writeString(inbox.resolve("b.csv"), "ID,AMT,EVENT_DATE\nb,2.0,2020-04-03\n");
@@ -28,23 +28,23 @@ class ReprocessCommandTest {
 
         // Find the batch id from the single manifest written.
         String batchId;
-        try (Stream<Path> w = Files.walk(Path.of(cfg.manifestsDir))) {
+        try (Stream<Path> w = Files.walk(Path.of(cfg.dirs().manifestsDir()))) {
             Path mf = w.filter(p -> p.toString().endsWith(".json")).findFirst().orElseThrow();
             batchId = mf.getFileName().toString().replace(".json", "");
         }
 
         // Sanity: outputs + markers + backup present before reprocess.
-        assertTrue(Files.exists(Path.of(cfg.backupDir, "a.csv")));
-        assertTrue(Files.exists(Path.of(cfg.markersDir, "a.csv.processed")));
+        assertTrue(Files.exists(Path.of(cfg.dirs().backup(), "a.csv")));
+        assertTrue(Files.exists(Path.of(cfg.dirs().markers(), "a.csv.processed")));
 
         // Reprocess: must restore files, delete old outputs/markers, supersede manifest, re-run.
         ReprocessCommand.run(toon.toString(), batchId);
 
         // Old manifest superseded.
-        assertTrue(Files.exists(Path.of(cfg.manifestsDir, batchId + ".json.superseded")));
+        assertTrue(Files.exists(Path.of(cfg.dirs().manifestsDir(), batchId + ".json.superseded")));
         // Markers exist again (re-run re-created them) and outputs exist.
-        assertTrue(Files.exists(Path.of(cfg.markersDir, "a.csv.processed")));
-        try (Stream<Path> w = Files.walk(Path.of(cfg.databaseDir))) {
+        assertTrue(Files.exists(Path.of(cfg.dirs().markers(), "a.csv.processed")));
+        try (Stream<Path> w = Files.walk(Path.of(cfg.dirs().database()))) {
             assertTrue(w.anyMatch(p -> p.getFileName().toString().endsWith("_out.csv")));
         }
     }

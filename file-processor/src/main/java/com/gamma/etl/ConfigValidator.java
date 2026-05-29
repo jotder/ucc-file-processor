@@ -41,12 +41,12 @@ public final class ConfigValidator {
         List<String> warnings = new ArrayList<>();
 
         // Partitioning declared? Each schema should produce a non-empty partition list.
-        if (cfg.singleSchema != null && PartitionDef.fromSchema(cfg.singleSchema).isEmpty())
+        if (cfg.schemas().single() != null && PartitionDef.fromSchema(cfg.schemas().single()).isEmpty())
             warn(warnings, "No partitions[] or partitionKey on the single schema — " +
                     "all rows will land in the year=1900/month=01/day=01 sentinel partition.");
 
-        if (cfg.segmentSchemas != null) {
-            for (var e : cfg.segmentSchemas.entrySet()) {
+        if (cfg.schemas().segments() != null) {
+            for (var e : cfg.schemas().segments().entrySet()) {
                 if (PartitionDef.fromSchema(e.getValue()).isEmpty())
                     warn(warnings, "Segment '" + e.getKey() + "' has no partitions[] / partitionKey — " +
                             "rows for this segment will collapse to the sentinel partition.");
@@ -54,37 +54,37 @@ public final class ConfigValidator {
         }
 
         // Delimiter: blank explicitly is suspicious (silently falls back to ",")
-        if (cfg.delimiter == null || cfg.delimiter.isEmpty())
+        if (cfg.csv().delimiter() == null || cfg.csv().delimiter().isEmpty())
             warn(warnings, "csv_settings.delimiter is blank — using fallback ','. " +
                     "Set an explicit value to silence this warning.");
 
         // Date formats: empty list means TRY_STRPTIME will always return NULL → DATE casts fail.
-        if (cfg.dateFormats == null || cfg.dateFormats.isEmpty())
+        if (cfg.csv().dateFormats() == null || cfg.csv().dateFormats().isEmpty())
             warn(warnings, "csv_settings.date_formats is empty — TRY_STRPTIME will return NULL for any DATE column.");
-        if (cfg.tsFormats == null || cfg.tsFormats.isEmpty())
+        if (cfg.csv().tsFormats() == null || cfg.csv().tsFormats().isEmpty())
             warn(warnings, "csv_settings.timestamp_formats is empty — TRY_STRPTIME will return NULL for any TIMESTAMP column.");
 
         // Marker retention: 0 or negative makes the cleanup delete every marker on first run.
-        if (cfg.duplicateCheckEnabled && cfg.retentionDays <= 0)
-            warn(warnings, "duplicate_check.enabled=true but retention_days=" + cfg.retentionDays +
+        if (cfg.processing().duplicateCheckEnabled() && cfg.processing().retentionDays() <= 0)
+            warn(warnings, "duplicate_check.enabled=true but retention_days=" + cfg.processing().retentionDays() +
                     " — every marker will be deleted on the next cleanup. Set retention_days >= 1.");
 
         // Threads vs batch caps: threads > 1 on a pipeline whose batch caps force one batch
         // per file is silently single-threaded (no parallelism on the batch level).
-        if (cfg.threads > 1 && cfg.batchMaxFiles == 1)
-            warn(warnings, "processing.threads=" + cfg.threads + " but batch.max_files=1 — " +
-                    "each batch is a single file, so only " + cfg.threads + "-way file-level parallelism. " +
+        if (cfg.processing().threads() > 1 && cfg.processing().batchMaxFiles() == 1)
+            warn(warnings, "processing.threads=" + cfg.processing().threads() + " but batch.max_files=1 — " +
+                    "each batch is a single file, so only " + cfg.processing().threads() + "-way file-level parallelism. " +
                     "Raise batch.max_files for intra-batch packing.");
 
         // CPU oversubscription: concurrent batches (threads) each open a DuckDB connection
         // that, capped by duckdb_threads, fans out to that many threads. Their product
         // exceeding the core count oversubscribes the CPU and adds I/O contention.
-        if (cfg.duckdbThreads > 0) {
+        if (cfg.processing().duckdbThreads() > 0) {
             int cores = Runtime.getRuntime().availableProcessors();
-            int total = cfg.threads * cfg.duckdbThreads;
+            int total = cfg.processing().threads() * cfg.processing().duckdbThreads();
             if (total > cores)
-                warn(warnings, "processing.threads(" + cfg.threads + ") × duckdb_threads(" +
-                        cfg.duckdbThreads + ") = " + total + " exceeds available cores (" + cores +
+                warn(warnings, "processing.threads(" + cfg.processing().threads() + ") × duckdb_threads(" +
+                        cfg.processing().duckdbThreads() + ") = " + total + " exceeds available cores (" + cores +
                         ") — concurrent batches may oversubscribe the CPU. Lower one so the product " +
                         "is ≈ cores.");
         }
@@ -92,8 +92,8 @@ public final class ConfigValidator {
         // Native DuckDB CSV engine forced on a config that strips phantom trailing
         // columns: DuckDB rejects too-many-column rows instead of trimming them,
         // so the row counts will differ from the Java path.
-        if ("duckdb".equalsIgnoreCase(cfg.csvEngine) && cfg.skipTailCols > 0)
-            warn(warnings, "csv_settings.engine=duckdb with skip_tail_columns=" + cfg.skipTailCols +
+        if ("duckdb".equalsIgnoreCase(cfg.csv().engine()) && cfg.csv().skipTailCols() > 0)
+            warn(warnings, "csv_settings.engine=duckdb with skip_tail_columns=" + cfg.csv().skipTailCols() +
                     " — the native reader rejects rows that have more columns than declared rather " +
                     "than trimming them; row counts may differ from the Java parser. Use engine=java " +
                     "or engine=auto if those rows must be retained.");

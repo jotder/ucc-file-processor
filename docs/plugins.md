@@ -150,7 +150,7 @@ processing:
 |---|---|---|
 | `processing.ingester` | yes | Fully-qualified class name of a `FileIngester` implementation in the fat JAR |
 | `processing.segments` | yes (when ingester is set) | Ordered map of segment key → schema toon path; validated at startup |
-| `processing.ingester_config` | no | Free-form map for plugin-specific settings (e.g. `record_length`, `byte_order`). Plugins read it via `cfg.ingesterConfig.get("key")`. Defaults to empty map. |
+| `processing.ingester_config` | no | Free-form map for plugin-specific settings (e.g. `record_length`, `byte_order`). Plugins read it via `cfg.schemas().ingesterConfig().get("key")`. Defaults to empty map. |
 
 > `segments:` must be a non-empty map when `ingester:` is set; a missing or empty map throws `IllegalArgumentException` at startup. Each schema file must exist; a missing file throws `FileNotFoundException`.
 >

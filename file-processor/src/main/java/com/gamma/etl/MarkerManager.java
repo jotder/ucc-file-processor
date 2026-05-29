@@ -38,7 +38,7 @@ public final class MarkerManager {
      * {@code false} in the pipeline config.
      */
     public static boolean isAlreadyProcessed(java.io.File file, PipelineConfig cfg) {
-        if (!cfg.duplicateCheckEnabled) return false;
+        if (!cfg.processing().duplicateCheckEnabled()) return false;
         return Files.exists(getMarkerPath(file, cfg));
     }
 
@@ -52,7 +52,7 @@ public final class MarkerManager {
      */
     public static void createMarkerFile(java.io.File file, PipelineConfig cfg)
             throws IOException {
-        if (!cfg.duplicateCheckEnabled) return;
+        if (!cfg.processing().duplicateCheckEnabled()) return;
         Path marker = getMarkerPath(file, cfg);
         Files.createDirectories(marker.getParent());
         Files.createFile(marker);
@@ -67,13 +67,13 @@ public final class MarkerManager {
      * {@code poll/20200403/feed.csv.gz} → {@code markers/20200403/feed.csv.gz.processed}.
      */
     public static Path getMarkerPath(java.io.File file, PipelineConfig cfg) {
-        Path poll     = Paths.get(cfg.pollDir).toAbsolutePath().normalize();
+        Path poll     = Paths.get(cfg.dirs().poll()).toAbsolutePath().normalize();
         Path filePath = file.toPath().toAbsolutePath().normalize();
         Path rel      = poll.relativize(filePath);                // e.g. 20200403/feed.csv.gz
 
-        Path base = Paths.get(cfg.markersDir).toAbsolutePath();
+        Path base = Paths.get(cfg.dirs().markers()).toAbsolutePath();
         if (rel.getParent() != null) base = base.resolve(rel.getParent());
-        return base.resolve(rel.getFileName().toString() + cfg.markerExtension);
+        return base.resolve(rel.getFileName().toString() + cfg.processing().markerExtension());
     }
 
     // ── stale marker cleanup ──────────────────────────────────────────────────
@@ -96,10 +96,10 @@ public final class MarkerManager {
     private static final String CLEANUP_SENTINEL = ".last_cleanup";
 
     public static void cleanupStaleMarkers(PipelineConfig cfg) {
-        if (cfg.markersDir == null || cfg.markersDir.isBlank()) return;
-        if (!cfg.duplicateCheckEnabled) return;
+        if (cfg.dirs().markers() == null || cfg.dirs().markers().isBlank()) return;
+        if (!cfg.processing().duplicateCheckEnabled()) return;
 
-        Path markerRoot = Paths.get(cfg.markersDir).toAbsolutePath();
+        Path markerRoot = Paths.get(cfg.dirs().markers()).toAbsolutePath();
         if (!Files.exists(markerRoot)) return;
 
         // Throttle: skip if we ran within CLEANUP_INTERVAL.
@@ -115,9 +115,9 @@ public final class MarkerManager {
             }
         }
 
-        Instant cutoff = Instant.now().minusSeconds((long) cfg.retentionDays * 86_400L);
+        Instant cutoff = Instant.now().minusSeconds((long) cfg.processing().retentionDays() * 86_400L);
         log.info("[MARKER] Cleaning up markers older than {} days in {}",
-                cfg.retentionDays, markerRoot);
+                cfg.processing().retentionDays(), markerRoot);
 
         int[] counts = {0, 0};   // [deleted, errors]
         try (Stream<Path> walk = Files.walk(markerRoot)) {

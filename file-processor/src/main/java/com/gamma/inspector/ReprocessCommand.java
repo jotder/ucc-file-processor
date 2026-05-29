@@ -23,10 +23,10 @@ public final class ReprocessCommand {
 
     public static void run(String toonPath, String batchId) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(toonPath);
-        if (cfg.manifestsDir == null)
+        if (cfg.dirs().manifestsDir() == null)
             throw new IllegalStateException("No manifests dir configured (set dirs.status_dir).");
 
-        BatchManifest m = ManifestStore.read(cfg.manifestsDir, batchId);
+        BatchManifest m = ManifestStore.read(cfg.dirs().manifestsDir(), batchId);
         log.info("[REPROCESS] {} — {} member(s), {} output(s)",
                 batchId, m.members.size(), m.outputs.size());
 
@@ -39,7 +39,7 @@ public final class ReprocessCommand {
             Files.deleteIfExists(Paths.get(marker));
         }
         // 3. restore members from backup into the inbox (original relative path)
-        Path poll = Paths.get(cfg.pollDir).toAbsolutePath();
+        Path poll = Paths.get(cfg.dirs().poll()).toAbsolutePath();
         for (BatchManifest.MemberEntry me : m.members) {
             if (me.backupPath() == null || me.backupPath().isBlank()) continue;
             Path src = Paths.get(me.backupPath());
@@ -53,7 +53,7 @@ public final class ReprocessCommand {
             Files.move(src, dst, StandardCopyOption.REPLACE_EXISTING);
         }
         // 4. supersede the manifest
-        ManifestStore.supersede(cfg.manifestsDir, batchId);
+        ManifestStore.supersede(cfg.dirs().manifestsDir(), batchId);
 
         // 5. re-run a normal poll on the restored set (fresh batch id)
         SourceProcessor.run(cfg);

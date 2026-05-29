@@ -80,7 +80,7 @@ public final class DataTransformer {
                 String dateCol  = "\"" + sourceTable + "\".\"" + parts[0] + '"';
                 String timeCol  = "\"" + sourceTable + "\".\"" + parts[1] + '"';
                 SqlBuilder.appendCoalesce(select,
-                        dateCol + " || ' ' || " + timeCol, cfg.tsFormats, "TIMESTAMP");
+                        dateCol + " || ' ' || " + timeCol, cfg.csv().tsFormats(), "TIMESTAMP");
             } else if ("FILENAME_DATE".equals(transformType)) {
                 if (!"EVENT_DATE".equals(target)) {
                     throw new IllegalArgumentException(
@@ -101,9 +101,9 @@ public final class DataTransformer {
                     // converts already-typed DATE/TIMESTAMP (plugin path) to ISO string
                     // so TRY_STRPTIME always receives a string argument.
                     case "TIMESTAMP" -> SqlBuilder.appendCoalesce(select,
-                            "CAST(" + col + " AS VARCHAR)", cfg.tsFormats, "TIMESTAMP");
+                            "CAST(" + col + " AS VARCHAR)", cfg.csv().tsFormats(), "TIMESTAMP");
                     case "DATE"      -> SqlBuilder.appendCoalesce(select,
-                            "CAST(" + col + " AS VARCHAR)", cfg.dateFormats, "DATE");
+                            "CAST(" + col + " AS VARCHAR)", cfg.csv().dateFormats(), "DATE");
                     case "DOUBLE"    -> select.append("TRY_CAST(").append(col).append(" AS DOUBLE)");
                     default          -> select.append(col);
                 }
@@ -158,7 +158,7 @@ public final class DataTransformer {
                 // so TRY_STRPTIME always receives a string argument.
                 String varcharExpr = "CAST(" + col + " AS VARCHAR)";
                 String dateExpr = SqlBuilder.buildCastExpr(varcharExpr, "DATE",
-                        cfg.dateFormats, cfg.tsFormats);
+                        cfg.csv().dateFormats(), cfg.csv().tsFormats());
                 switch (pd.type()) {
                     case DATE_YEAR  -> sb.append("YEAR(").append(dateExpr).append(")::VARCHAR");
                     case DATE_MONTH -> sb.append("LPAD(MONTH(").append(dateExpr)

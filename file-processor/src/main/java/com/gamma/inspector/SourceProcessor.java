@@ -33,7 +33,7 @@ public class SourceProcessor {
             System.exit(1);
         }
         PipelineConfig cfg = PipelineConfig.load(args[0]);
-        LogSetup.configure(cfg.logDir, cfg.pipelineName, cfg.runTimestamp);
+        LogSetup.configure(cfg.dirs().logDir(), cfg.identity().pipelineName(), cfg.identity().runTimestamp());
         try {
             run(cfg);
         } catch (BatchProcessingException e) {
@@ -47,10 +47,10 @@ public class SourceProcessor {
 
     /** Run one poll cycle for {@code cfg}: plan batches and process them in parallel. */
     public static void run(PipelineConfig cfg) throws Exception {
-        PathMatcher matcher = FileSystems.getDefault().getPathMatcher(cfg.filePattern);
-        Path root           = Paths.get(cfg.pollDir).toAbsolutePath();
-        Path errorsDir      = Paths.get(cfg.errorsDir).toAbsolutePath();
-        Path quarantineDir  = Paths.get(cfg.quarantineDir).toAbsolutePath();
+        PathMatcher matcher = FileSystems.getDefault().getPathMatcher(cfg.processing().filePattern());
+        Path root           = Paths.get(cfg.dirs().poll()).toAbsolutePath();
+        Path errorsDir      = Paths.get(cfg.dirs().errors()).toAbsolutePath();
+        Path quarantineDir  = Paths.get(cfg.dirs().quarantine()).toAbsolutePath();
         if (!Files.exists(root)) Files.createDirectories(root);
 
         MarkerManager.cleanupStaleMarkers(cfg);
@@ -73,26 +73,26 @@ public class SourceProcessor {
         }
 
         // ── plan batches ─────────────────────────────────────────────────────────
-        BatchPlanner.SchemaResolver resolver = (cfg.schemaSelector != null)
-                ? cfg.schemaSelector::select
-                : f -> new SchemaSelector.Selection(cfg.singleSchema, null);
+        BatchPlanner.SchemaResolver resolver = (cfg.schemas().selector() != null)
+                ? cfg.schemas().selector()::select
+                : f -> new SchemaSelector.Selection(cfg.schemas().single(), null);
 
         List<Batch> batches = BatchPlanner.plan(
-                candidates, resolver, cfg.batchMaxFiles, cfg.batchMaxBytes, cfg.runTimestamp);
+                candidates, resolver, cfg.processing().batchMaxFiles(), cfg.processing().batchMaxBytes(), cfg.identity().runTimestamp());
         log.info("Planned {} batch(es) from {} file(s) using {} thread(s)...",
-                batches.size(), candidates.size(), cfg.threads);
+                batches.size(), candidates.size(), cfg.processing().threads());
 
         // ── process batches in parallel ────────────────────────────────────────
         BatchAuditWriter audit = new BatchAuditWriter(
-                cfg.statusFilePath, cfg.batchesFilePath, cfg.lineageFilePath);
+                cfg.dirs().statusFilePath(), cfg.dirs().batchesFilePath(), cfg.dirs().lineageFilePath());
 
         // Virtual threads + a Semaphore: a batch blocked on file I/O or DuckDB parks
         // its carrier cheaply instead of pinning a platform thread, but the semaphore
-        // bounds how many batches do heavy work at once to cfg.threads. That gives us
+        // bounds how many batches do heavy work at once to cfg.processing().threads(). That gives us
         // the preferred model — virtual-thread concurrency with a controllable cap that
         // protects against I/O pressure and CPU oversubscription. Every batch is
         // submitted up front; all but `permits` of them simply park on acquire().
-        int maxConcurrent  = Math.max(1, cfg.threads);
+        int maxConcurrent  = Math.max(1, cfg.processing().threads());
         Semaphore permits  = new Semaphore(maxConcurrent);
         int failedBatches  = 0;
 

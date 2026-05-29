@@ -26,7 +26,7 @@ class CsvIngesterSkipLogicTest {
     private IngestResult ingest(PipelineConfig cfg, File csv) throws Exception {
         File db = DuckDbUtil.tempDbFile("ci_");
         try (Connection conn = DuckDbUtil.openConnection(db)) {
-            return CsvIngester.ingest(csv, conn, cfg.singleSchema, cfg, "raw_f0");
+            return CsvIngester.ingest(csv, conn, cfg.schemas().single(), cfg, "raw_f0");
         } finally {
             DuckDbUtil.deleteTempDb(db);
         }
@@ -63,7 +63,7 @@ class CsvIngesterSkipLogicTest {
 
         File db = DuckDbUtil.tempDbFile("ci2_");
         try (Connection conn = DuckDbUtil.openConnection(db)) {
-            IngestResult r = CsvIngester.ingest(csv, conn, cfg.singleSchema, cfg, "raw_f0");
+            IngestResult r = CsvIngester.ingest(csv, conn, cfg.schemas().single(), cfg, "raw_f0");
             assertEquals(2, r.parsedRows());
             try (Statement st = conn.createStatement();
                  ResultSet rs = st.executeQuery("SELECT EVENT_DATE FROM raw_f0 ORDER BY ID")) {

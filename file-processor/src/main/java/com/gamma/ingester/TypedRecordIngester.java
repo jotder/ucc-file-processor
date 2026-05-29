@@ -93,12 +93,12 @@ public final class TypedRecordIngester implements FileIngester {
         // commits to one segment while another segment is still being parsed.
         Map<String, List<String[]>> rowsByKey = new LinkedHashMap<>();
         Map<String, Long>           errorsByKey = new LinkedHashMap<>();
-        for (String key : cfg.segmentSchemas.keySet()) {
+        for (String key : cfg.schemas().segments().keySet()) {
             rowsByKey.put(key, new ArrayList<>());
             errorsByKey.put(key, 0L);
         }
 
-        String  delimiter   = cfg.delimiter != null && !cfg.delimiter.isBlank() ? cfg.delimiter : ",";
+        String  delimiter   = cfg.csv().delimiter() != null && !cfg.csv().delimiter().isBlank() ? cfg.csv().delimiter() : ",";
         long    junkRows    = 0;
 
         try (BufferedReader rd = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
@@ -117,7 +117,7 @@ public final class TypedRecordIngester implements FileIngester {
                 }
 
                 int declared = ((List<Map<String, Object>>)
-                        ((Map<String, Object>) cfg.segmentSchemas.get(key).get("raw")).get("fields")).size();
+                        ((Map<String, Object>) cfg.schemas().segments().get(key).get("raw")).get("fields")).size();
 
                 // all.length includes the type prefix, so data-column count is all.length - 1
                 if (all.length - 1 != declared) {
@@ -137,7 +137,7 @@ public final class TypedRecordIngester implements FileIngester {
             String              key       = entry.getKey();
             List<String[]>      rows      = entry.getValue();
             long                errors    = errorsByKey.get(key);
-            Map<String, Object> segSchema = cfg.segmentSchemas.get(key);
+            Map<String, Object> segSchema = cfg.schemas().segments().get(key);
 
             List<Map<String, Object>> fields = (List<Map<String, Object>>)
                     ((Map<String, Object>) segSchema.get("raw")).get("fields");

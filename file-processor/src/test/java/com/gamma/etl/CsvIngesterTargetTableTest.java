@@ -25,7 +25,7 @@ class CsvIngesterTargetTableTest {
 
         File db = DuckDbUtil.tempDbFile("test_");
         try (Connection conn = DuckDbUtil.openConnection(db)) {
-            IngestResult r = CsvIngester.ingest(csv.toFile(), conn, cfg.singleSchema, cfg, "raw_f0");
+            IngestResult r = CsvIngester.ingest(csv.toFile(), conn, cfg.schemas().single(), cfg, "raw_f0");
             assertEquals(2, r.parsedRows());
             try (Statement st = conn.createStatement();
                  ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM raw_f0")) {

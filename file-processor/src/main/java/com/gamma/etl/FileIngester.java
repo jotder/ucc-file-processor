@@ -12,7 +12,7 @@ import java.util.List;
  * <ul>
  *   <li>Parse the file and populate one DuckDB table per logical event type.</li>
  *   <li>Table names <em>must</em> follow the convention {@code raw_<KEY>_f<srcId>},
- *       where {@code KEY} matches an entry in {@code cfg.segmentSchemas} and
+ *       where {@code KEY} matches an entry in {@code cfg.schemas().segments()} and
  *       {@code srcId} is the member's position within the batch.</li>
  *   <li>Each table's columns must include all fields declared in the segment's
  *       {@code raw.fields} list, plus any ingester-computed columns referenced by
@@ -62,7 +62,7 @@ public interface FileIngester {
     /**
      * Describes one event-type table the ingester created.
      *
-     * @param key       segment key matching a key in {@code cfg.segmentSchemas},
+     * @param key       segment key matching a key in {@code cfg.schemas().segments()},
      *                  e.g. {@code "CALL"}
      * @param rawTable  exact DuckDB table name created, e.g. {@code "raw_CALL_f0"}
      * @param stats     row counts for this table ({@link IngestResult#parsedRows()} etc.)

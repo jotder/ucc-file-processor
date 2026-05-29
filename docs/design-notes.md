@@ -48,9 +48,9 @@ The following came out of the v1.3.2 review pass. They are real improvements but
 
 **Resolved (v1.5.0).** `SourceProcessor` now uses a virtual-thread-per-task
 executor (`Executors.newVirtualThreadPerTaskExecutor()`) bounded by a
-`Semaphore(cfg.threads)`. This took **path 2** from the options below: `cfg.threads`
-is repurposed as a permit count — a batch blocked on I/O parks its carrier cheaply,
-but at most `cfg.threads` batches do heavy work at once. A blocked batch no longer
+`Semaphore(cfg.processing().threads())`. This took **path 2** from the options below:
+`processing.threads` is repurposed as a permit count — a batch blocked on I/O parks
+its carrier cheaply, but at most that many batches do heavy work at once. A blocked batch no longer
 pins a platform thread, and the cap still protects a shared box from I/O pressure.
 
 Companion knob: `processing.duckdb_threads` applies `PRAGMA threads=N` per worker
@@ -81,11 +81,15 @@ This completes the M..N runtime model end to end.
 
 `CsvIngester` casts `(DuckDBConnection) conn` at one site to reach the appender API (much faster than `INSERT ... VALUES`). This is a deliberate engine-coupling for performance — without the appender, ingesting a 5 GB CSV is 10× slower. If the project ever wants to swap engines, hide the appender behind an `RawTableWriter` interface; for now, accept the coupling.
 
-### D6 — `PipelineConfig` nested-record refactor
+### D6 — `PipelineConfig` nested-record refactor — ✅ DONE (2.0.0)
 
-**Current state.** `PipelineConfig` exposes 30+ flat public final fields. Logical groupings (`Identity`, `Dirs`, `CsvSettings`, etc.) would be more readable, but every existing plugin and CLI command reads `cfg.delimiter`, `cfg.databaseDir`, etc., directly. Splitting into nested records is a breaking change.
-
-**When to do this.** v2.0. Pair it with the `@PublicApi` annotation rollout so the surface area we commit to is explicit.
+`PipelineConfig`'s ~30 flat fields are now six nested records reached via accessors:
+`identity()`, `dirs()`, `processing()`, `csv()`, `output()`, `schemas()`. Consumers
+moved from `cfg.databaseDir` to `cfg.dirs().database()`, etc. The migration was
+mechanical (compiler-guided — every old field access became a compile error) and
+landed in one green step. This is the one breaking API change of 2.0; pipeline
+`.toon` configs and on-disk output are unchanged. M3 (`@PublicApi`) marks this
+final surface.
 
 ### M3 — Formal SemVer policy + `@PublicApi`
 
@@ -108,7 +112,7 @@ Content was moved byte-for-byte; cross-links were repointed.
 
 - **SLF4J everywhere in the framework.** ETL code (`com.gamma.etl.*`, `com.gamma.inspector.*`) uses SLF4J at INFO/WARN/ERROR. Pre-ETL utility commands (`com.gamma.util.*` CLI tools) keep `System.out.println` because their output is for the human invoker, not log scrapers. `LogSetup` still tees stdout to a per-run file for diagnostics.
 
-- **DuckDB connection per batch.** Each `BatchProcessor.process` opens its own temp DuckDB file via `DuckDbUtil.tempDbFile` and closes it in `finally`. No pooling, no sharing. Worth it for crash isolation. Each connection's internal parallelism is capped by `DuckDbUtil.applyWorkerThreads(conn, cfg.duckdbThreads)` immediately after open — set `processing.duckdb_threads` so `threads × duckdb_threads ≈ cores`, else concurrent batches oversubscribe (the outer `Semaphore(cfg.threads)` only bounds batch count, not DuckDB's per-connection threads).
+- **DuckDB connection per batch.** Each `BatchProcessor.process` opens its own temp DuckDB file via `DuckDbUtil.tempDbFile` and closes it in `finally`. No pooling, no sharing. Worth it for crash isolation. Each connection's internal parallelism is capped by `DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads())` immediately after open — set `processing.duckdb_threads` so `threads × duckdb_threads ≈ cores`, else concurrent batches oversubscribe (the outer `Semaphore(cfg.processing().threads())` only bounds batch count, not DuckDB's per-connection threads).
 
 - **Two CSV ingest engines.** `DuckDbCsvIngester` (native `read_csv`, vectorized, 4–5× faster) and `CsvIngester` (Java line-by-line, lenient with ragged rows) are interchangeable behind the same `ingest(...)` signature. `BatchProcessor.processCsv` picks via `DuckDbCsvIngester.usesDuckDb(cfg)`. The Java path is the fallback for messy configs (`skip_tail_columns` etc.) the native reader can't faithfully reproduce — see `docs/performance.md` for the semantic-difference analysis. Don't delete the Java path; it's load-bearing for the messy-file sources.
 

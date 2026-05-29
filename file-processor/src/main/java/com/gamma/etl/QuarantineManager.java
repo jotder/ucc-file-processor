@@ -40,7 +40,7 @@ public final class QuarantineManager {
     public static void quarantine(File inputFile, String subDir,
                                   boolean includeErrorCsv, PipelineConfig cfg)
             throws IOException {
-        Path pollPath  = Paths.get(cfg.pollDir).toAbsolutePath().normalize();
+        Path pollPath  = Paths.get(cfg.dirs().poll()).toAbsolutePath().normalize();
         Path fileParent= inputFile.toPath().toAbsolutePath().normalize().getParent();
         Path relParent = pollPath.relativize(fileParent);
 
@@ -50,7 +50,7 @@ public final class QuarantineManager {
                     "Input file is not under poll root — cannot quarantine safely: " + inputFile);
 
         // <quarantine_dir>/<relative_parent>/<reason>/filename
-        Path qDir = Paths.get(cfg.quarantineDir).toAbsolutePath()
+        Path qDir = Paths.get(cfg.dirs().quarantine()).toAbsolutePath()
                          .resolve(relParent).resolve(subDir);
         Files.createDirectories(qDir);
 
@@ -60,7 +60,7 @@ public final class QuarantineManager {
 
         if (includeErrorCsv) {
             String baseName = CsvIngester.stripExtensions(inputFile.getName());
-            Path errorCsv = Paths.get(cfg.errorsDir).toAbsolutePath()
+            Path errorCsv = Paths.get(cfg.dirs().errors()).toAbsolutePath()
                                  .resolve(baseName + "_errors.csv");
             if (Files.exists(errorCsv))
                 Files.move(errorCsv, qDir.resolve(errorCsv.getFileName()),

@@ -76,12 +76,12 @@ public final class DuckDbCsvIngester {
      * </ul>
      */
     public static boolean usesDuckDb(PipelineConfig cfg) {
-        return switch (cfg.csvEngine == null ? "auto" : cfg.csvEngine.toLowerCase()) {
+        return switch (cfg.csv().engine() == null ? "auto" : cfg.csv().engine().toLowerCase()) {
             case "duckdb" -> true;
             case "java"   -> false;
-            default       -> cfg.skipJunkLines == 0
-                          && cfg.skipTailLines == 0
-                          && cfg.skipTailCols  == 0;
+            default       -> cfg.csv().skipJunkLines() == 0
+                          && cfg.csv().skipTailLines() == 0
+                          && cfg.csv().skipTailCols()  == 0;
         };
     }
 
@@ -110,8 +110,8 @@ public final class DuckDbCsvIngester {
         }
         int physicalCols = maxSelector + 1;
 
-        String delim     = (cfg.delimiter != null && !cfg.delimiter.isEmpty()) ? cfg.delimiter : ",";
-        int    skipLines = cfg.skipHeaderLines + (cfg.hasHeader ? 1 : 0);
+        String delim     = (cfg.csv().delimiter() != null && !cfg.csv().delimiter().isEmpty()) ? cfg.csv().delimiter() : ",";
+        int    skipLines = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
         String filePath  = file.getAbsolutePath().replace("\\", "/");
 
         // columns={'c0':'VARCHAR', 'c1':'VARCHAR', ...}
@@ -181,7 +181,7 @@ public final class DuckDbCsvIngester {
                 "FROM reject_errors e JOIN reject_scans s USING (scan_id) " +
                 "WHERE s.file_path = '" + escapeSql(filePath) + "' ORDER BY e.line";
 
-        Path errorDir      = Paths.get(cfg.errorsDir).toAbsolutePath();
+        Path errorDir      = Paths.get(cfg.dirs().errors()).toAbsolutePath();
         String baseName    = CsvIngester.stripExtensions(file.getName());
         Path errorFilePath = errorDir.resolve(baseName + "_errors.csv");
 

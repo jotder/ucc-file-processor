@@ -81,7 +81,7 @@ class BatchProcessorPluginTest {
         PipelineConfig cfg = PipelineConfig.load(pipeline);
 
         // Input file with CALL and SMS events
-        Path inbox = Path.of(cfg.pollDir);
+        Path inbox = Path.of(cfg.dirs().poll());
         Files.createDirectories(inbox);
         Path inputFile = inbox.resolve("events_20200403.bin");
         Files.writeString(inputFile,
@@ -91,14 +91,14 @@ class BatchProcessorPluginTest {
 
         Batch batch = buildBatch(cfg, inputFile.toFile());
         BatchAuditWriter audit = new BatchAuditWriter(
-                cfg.statusFilePath, cfg.batchesFilePath, cfg.lineageFilePath);
+                cfg.dirs().statusFilePath(), cfg.dirs().batchesFilePath(), cfg.dirs().lineageFilePath());
 
         BatchProcessor.process(batch, cfg, audit);
 
         // CALL output: database/CALL/year=2020/month=04/day=03/...
-        Path callOut = Path.of(cfg.databaseDir, "CALL");
+        Path callOut = Path.of(cfg.dirs().database(), "CALL");
         assertTrue(Files.exists(callOut),
-                "CALL output directory should exist under " + cfg.databaseDir);
+                "CALL output directory should exist under " + cfg.dirs().database());
         long callFiles;
         try (Stream<Path> s = Files.walk(callOut)) {
             callFiles = s.filter(Files::isRegularFile).count();
@@ -106,9 +106,9 @@ class BatchProcessorPluginTest {
         assertTrue(callFiles > 0, "CALL should have at least one output file");
 
         // SMS output
-        Path smsOut = Path.of(cfg.databaseDir, "SMS");
+        Path smsOut = Path.of(cfg.dirs().database(), "SMS");
         assertTrue(Files.exists(smsOut),
-                "SMS output directory should exist under " + cfg.databaseDir);
+                "SMS output directory should exist under " + cfg.dirs().database());
         long smsFiles;
         try (Stream<Path> s = Files.walk(smsOut)) {
             smsFiles = s.filter(Files::isRegularFile).count();
@@ -193,6 +193,6 @@ class BatchProcessorPluginTest {
         // For the plugin path, selection schema is unused by BatchProcessor (segmentSchemas used instead)
         SchemaSelector.Selection sel = new SchemaSelector.Selection(Map.of(), null);
         Batch.Member m = new Batch.Member(file, 0, file.length(), sel);
-        return new Batch(cfg.runTimestamp + "_events_0001", "events", null, List.of(m));
+        return new Batch(cfg.identity().runTimestamp() + "_events_0001", "events", null, List.of(m));
     }
 }

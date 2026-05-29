@@ -112,7 +112,7 @@ class BatchProcessorPluginDeepTest {
     @Test
     void multiMemberBatchSplitsPerDateAndWritesLineage(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir, StubEventIngester.class.getName());
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
 
         // f1: 2 CALL + 1 SMS on 2020-04-03
         Path f1 = inbox.resolve("events_day1.bin");
@@ -130,12 +130,12 @@ class BatchProcessorPluginDeepTest {
         assertOutputFileCount(cfg, "SMS",  2);
 
         // Lineage CSV must reference both input files
-        String lineage = Files.readString(Path.of(cfg.lineageFilePath));
+        String lineage = Files.readString(Path.of(cfg.dirs().lineageFilePath()));
         assertTrue(lineage.contains("events_day1.bin"), "lineage missing events_day1.bin");
         assertTrue(lineage.contains("events_day2.bin"), "lineage missing events_day2.bin");
 
         // Batch audit: SUCCESS
-        assertTrue(Files.readString(Path.of(cfg.batchesFilePath)).contains(",SUCCESS,"));
+        assertTrue(Files.readString(Path.of(cfg.dirs().batchesFilePath())).contains(",SUCCESS,"));
     }
 
     /**
@@ -145,16 +145,16 @@ class BatchProcessorPluginDeepTest {
     @Test
     void memberThrowingIOExceptionIsQuarantinedUnreadable(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir, ThrowingIngester.class.getName());
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
         Path bad = inbox.resolve("corrupt.bin");
         Files.writeString(bad, "binary garbage");
 
         run(cfg, bad.toFile());
 
-        assertFileExistsInTree(cfg.quarantineDir, "corrupt.bin");
-        assertTrue(Files.readString(Path.of(cfg.statusFilePath))
+        assertFileExistsInTree(cfg.dirs().quarantine(), "corrupt.bin");
+        assertTrue(Files.readString(Path.of(cfg.dirs().statusFilePath()))
                 .contains("QUARANTINED_UNREADABLE"), "status should be QUARANTINED_UNREADABLE");
-        assertTrue(Files.readString(Path.of(cfg.batchesFilePath))
+        assertTrue(Files.readString(Path.of(cfg.dirs().batchesFilePath()))
                 .contains(",EMPTY,"), "batches.csv should be EMPTY when all members fail");
     }
 
@@ -165,14 +165,14 @@ class BatchProcessorPluginDeepTest {
     @Test
     void memberWithZeroRowsIsQuarantinedMismatch(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir, ZeroRowIngester.class.getName());
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
         Path empty = inbox.resolve("noevents.bin");
         Files.writeString(empty, "nothing to parse");
 
         run(cfg, empty.toFile());
 
-        assertFileExistsInTree(cfg.quarantineDir, "noevents.bin");
-        assertTrue(Files.readString(Path.of(cfg.statusFilePath))
+        assertFileExistsInTree(cfg.dirs().quarantine(), "noevents.bin");
+        assertTrue(Files.readString(Path.of(cfg.dirs().statusFilePath()))
                 .contains("QUARANTINED_MISMATCH"), "status should be QUARANTINED_MISMATCH");
     }
 
@@ -183,14 +183,14 @@ class BatchProcessorPluginDeepTest {
     @Test
     void emptySegmentIsOmittedFromOutput(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir, StubEventIngester.class.getName());
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
         Path callOnly = inbox.resolve("callonly.bin");
         Files.writeString(callOnly, "CALL,C001,2020-04-03\nCALL,C002,2020-04-03\n");
 
         run(cfg, callOnly.toFile());
 
         assertOutputFileCount(cfg, "CALL", 1);
-        assertFalse(Files.exists(Path.of(cfg.databaseDir, "SMS")),
+        assertFalse(Files.exists(Path.of(cfg.dirs().database(), "SMS")),
                 "SMS output dir must not exist when the ingester produced 0 SMS rows");
     }
 
@@ -203,7 +203,7 @@ class BatchProcessorPluginDeepTest {
     @Test
     void mixedBatchQuarantinesBadMemberProducesOutputForGood(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir, SelectiveThrowIngester.class.getName());
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
 
         // "bad_" prefix triggers SelectiveThrowIngester
         Path good = inbox.resolve("good_events.bin");
@@ -218,14 +218,14 @@ class BatchProcessorPluginDeepTest {
         assertOutputFileCount(cfg, "SMS",  1);
 
         // Bad member quarantined
-        assertFileExistsInTree(cfg.quarantineDir, "bad_corrupt.bin");
+        assertFileExistsInTree(cfg.dirs().quarantine(), "bad_corrupt.bin");
 
         // Batch-level SUCCESS (one survivor present)
-        assertTrue(Files.readString(Path.of(cfg.batchesFilePath)).contains(",SUCCESS,"),
+        assertTrue(Files.readString(Path.of(cfg.dirs().batchesFilePath())).contains(",SUCCESS,"),
                 "batches.csv should be SUCCESS with at least one surviving member");
 
         // Per-file: one SUCCESS row and one QUARANTINED_UNREADABLE row
-        String status = Files.readString(Path.of(cfg.statusFilePath));
+        String status = Files.readString(Path.of(cfg.dirs().statusFilePath()));
         assertTrue(status.contains("QUARANTINED_UNREADABLE"), "bad file should be QUARANTINED_UNREADABLE");
         assertTrue(status.contains(",SUCCESS,"),              "good file should be SUCCESS");
     }
@@ -239,7 +239,7 @@ class BatchProcessorPluginDeepTest {
     @Test
     void outputCsvRowCountsMatchInputRows(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir, StubEventIngester.class.getName());
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
         Path f = inbox.resolve("counted.bin");
         Files.writeString(f,
                 "CALL,C1,2020-04-03\nCALL,C2,2020-04-03\nCALL,C3,2020-04-03\n"
@@ -252,7 +252,7 @@ class BatchProcessorPluginDeepTest {
         assertEquals(2, countDataRowsInOutput(cfg, "SMS"),  "SMS output should have 2 data rows");
 
         // Lineage CSV should reference the source file
-        assertTrue(Files.readString(Path.of(cfg.lineageFilePath)).contains("counted.bin"),
+        assertTrue(Files.readString(Path.of(cfg.dirs().lineageFilePath())).contains("counted.bin"),
                 "lineage.csv should reference counted.bin");
     }
 
@@ -263,7 +263,7 @@ class BatchProcessorPluginDeepTest {
     @Test
     void partitionDirectoriesReflectEventDates(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir, StubEventIngester.class.getName());
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
         Path f = inbox.resolve("mixed_dates.bin");
         Files.writeString(f,
                 "CALL,C1,2020-04-03\n"
@@ -273,7 +273,7 @@ class BatchProcessorPluginDeepTest {
         run(cfg, f.toFile());
 
         // CALL: two date partitions
-        Path callDir = Path.of(cfg.databaseDir, "CALL");
+        Path callDir = Path.of(cfg.dirs().database(), "CALL");
         assertTrue(Files.exists(callDir));
         try (Stream<Path> s = Files.walk(callDir)) {
             List<String> partPaths = s
@@ -289,7 +289,7 @@ class BatchProcessorPluginDeepTest {
 
         // SMS: one date partition (only 2020-04-03)
         assertOutputFileCount(cfg, "SMS", 1);
-        try (Stream<Path> s = Files.walk(Path.of(cfg.databaseDir, "SMS"))) {
+        try (Stream<Path> s = Files.walk(Path.of(cfg.dirs().database(), "SMS"))) {
             assertTrue(s.filter(Files::isDirectory)
                          .map(p -> p.toString().replace("\\", "/"))
                          .anyMatch(p -> p.contains("day=03")),
@@ -314,7 +314,7 @@ class BatchProcessorPluginDeepTest {
     private static void run(PipelineConfig cfg, File... files) {
         Batch batch = buildBatch(cfg, files);
         BatchAuditWriter audit = new BatchAuditWriter(
-                cfg.statusFilePath, cfg.batchesFilePath, cfg.lineageFilePath);
+                cfg.dirs().statusFilePath(), cfg.dirs().batchesFilePath(), cfg.dirs().lineageFilePath());
         BatchProcessor.process(batch, cfg, audit);
     }
 
@@ -324,13 +324,13 @@ class BatchProcessorPluginDeepTest {
             SchemaSelector.Selection sel = new SchemaSelector.Selection(Map.of(), null);
             members.add(new Batch.Member(files[i], i, files[i].length(), sel));
         }
-        return new Batch(cfg.runTimestamp + "_events_0001", "events", null, members);
+        return new Batch(cfg.identity().runTimestamp() + "_events_0001", "events", null, members);
     }
 
     /** Asserts that the segment output directory exists and contains exactly {@code expected} files. */
     private static void assertOutputFileCount(PipelineConfig cfg, String segKey,
                                               long expected) throws IOException {
-        Path segDir = Path.of(cfg.databaseDir, segKey);
+        Path segDir = Path.of(cfg.dirs().database(), segKey);
         assertTrue(Files.exists(segDir), segKey + " output directory should exist");
         long actual;
         try (Stream<Path> s = Files.walk(segDir)) {
@@ -356,7 +356,7 @@ class BatchProcessorPluginDeepTest {
      */
     private static long countDataRowsInOutput(PipelineConfig cfg, String segKey)
             throws IOException {
-        Path segDir = Path.of(cfg.databaseDir, segKey);
+        Path segDir = Path.of(cfg.dirs().database(), segKey);
         Path csvFile;
         try (Stream<Path> s = Files.walk(segDir)) {
             csvFile = s.filter(Files::isRegularFile).findFirst()

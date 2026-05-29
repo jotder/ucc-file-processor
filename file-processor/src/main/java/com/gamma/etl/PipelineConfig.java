@@ -20,194 +20,108 @@ import java.util.*;
 /**
  * Immutable configuration object for one ETL pipeline run.
  *
- * <p>Replaces the static fields that were scattered across
- * {@link com.gamma.inspector.SourceProcessor}.  All ETL utility classes
- * ({@link CsvIngester}, {@link DataTransformer}, {@link MarkerManager}, etc.)
- * receive a single {@code PipelineConfig} and access what they need through
- * its public final fields.
+ * <p>Configuration is grouped into six nested records by concern, reached through
+ * accessor methods: {@link #identity()}, {@link #dirs()}, {@link #processing()},
+ * {@link #csv()}, {@link #output()}, {@link #schemas()}. For example the output
+ * database directory is {@code cfg.dirs().database()} and the batch-concurrency cap
+ * is {@code cfg.processing().threads()}.
+ *
+ * <p>(Prior to 2.0 these were ~30 flat {@code public final} fields, e.g.
+ * {@code cfg.databaseDir}. The nested grouping is the one breaking API change of
+ * 2.0; pipeline {@code .toon} configs and on-disk output are unchanged.)
  *
  * <p>Instances are created via the {@link #load(String)} static factory, which
- * validates the config, resolves schemas, and computes the run timestamp.
- *
- * <p>The object is safe for concurrent read access by all worker threads once
+ * validates the config, resolves schemas, and computes the run timestamp. The
+ * object is safe for concurrent read access by all worker threads once
  * {@code load()} returns.
  */
 public final class PipelineConfig {
 
     private static final Logger log = LoggerFactory.getLogger(PipelineConfig.class);
 
-    // ── pipeline identity ─────────────────────────────────────────────────────
+    // ── nested config groups ───────────────────────────────────────────────────
 
-    /** Original {@code name:} value from the toon (e.g. {@code "VOUCHER_UNKNOWN_ETL"}). */
-    public final String name;
-    /** Lowercase, space-to-underscore normalised name, used as filename prefix. */
-    public final String pipelineName;
-    /** Run-scoped timestamp — {@code yyyyMMdd_HHmmss} — shared by status and log filenames. */
-    public final String runTimestamp;
-
-    // ── dirs ──────────────────────────────────────────────────────────────────
-
-    public final String pollDir;
-    public final String databaseDir;
-    public final String backupDir;
-    public final String tempDir;
-    public final String errorsDir;
-    public final String quarantineDir;
-    public final String markersDir;
-    public final String logDir;
-    /** Absolute path to the status CSV for this run; {@code null} = status disabled. */
-    public final String statusFilePath;
-
-    // ── processing ────────────────────────────────────────────────────────────
+    /** Pipeline identity: original name, normalised name, and the run timestamp. */
+    public record Identity(String name, String pipelineName, String runTimestamp) {}
 
     /**
-     * Max batches processed concurrently within one source run (semaphore permits
-     * over a virtual-thread executor). Read from {@code processing.threads}, default 4.
+     * All filesystem paths for the run. {@code statusFilePath}/{@code batchesFilePath}/
+     * {@code lineageFilePath}/{@code manifestsDir} are {@code null} when status is disabled.
      */
-    public final int    threads;
-    /**
-     * Per-worker DuckDB thread cap applied as {@code PRAGMA threads=N} on each batch
-     * connection. Read from {@code processing.duckdb_threads}; {@code 0} (default)
-     * leaves DuckDB's own default (all cores). Since {@link #threads} batches run
-     * concurrently and each opens its own connection, set this so
-     * {@code threads × duckdb_threads ≈ cores} to avoid CPU oversubscription.
-     */
-    public final int    duckdbThreads;
-    public final String filePattern;
-
-    // ── batch ─────────────────────────────────────────────────────────────────
-
-    /** Max member files per batch (default 1 → one file per batch, legacy behavior). */
-    public final int  batchMaxFiles;
-    /** Max summed input bytes per batch (default Long.MAX_VALUE). */
-    public final long batchMaxBytes;
-    /** Path to the run-scoped batches summary CSV; {@code null} when status is disabled. */
-    public final String batchesFilePath;
-    /** Path to the run-scoped lineage (count-matrix) CSV; {@code null} when status is disabled. */
-    public final String lineageFilePath;
-    /** Directory for per-batch JSON manifests; {@code null} when status is disabled. */
-    public final String manifestsDir;
-
-    // ── duplicate check ───────────────────────────────────────────────────────
-
-    public final boolean duplicateCheckEnabled;
-    public final String  markerExtension;
-    public final int     retentionDays;
-
-    // ── csv settings ──────────────────────────────────────────────────────────
-
-    public final String       delimiter;
-    public final int          skipHeaderLines;
-    public final int          skipJunkLines;
-    public final int          skipTailLines;
-    public final int          skipTailCols;
-    public final boolean      hasHeader;
-    public final List<String> dateFormats;
-    public final List<String> tsFormats;
-    /**
-     * CSV parse engine: {@code "auto"} (default), {@code "duckdb"}, or {@code "java"}.
-     * Read from {@code csv_settings.engine}. {@code auto} uses DuckDB's native
-     * vectorized reader for clean configs (no skip_junk/tail/tail_columns) and the
-     * Java parser otherwise. See {@link DuckDbCsvIngester#usesDuckDb}.
-     */
-    public final String       csvEngine;
-
-    // ── output ────────────────────────────────────────────────────────────────
-
-    public final String outputFormat;
-    public final String compression;
-    /** The {@code output.ducklake} map, or {@code null} when DuckLake is not configured. */
-    public final Map<String, Object> duckLakeCfg;
-
-    // ── schemas ───────────────────────────────────────────────────────────────
+    public record Dirs(String poll, String database, String backup, String temp,
+                       String errors, String quarantine, String markers, String logDir,
+                       String statusFilePath, String batchesFilePath, String lineageFilePath,
+                       String manifestsDir) {}
 
     /**
-     * Multi-schema selector (non-null when {@code processing.schemas[]} is configured).
-     * Exactly one of {@code schemaSelector} / {@code singleSchema} / {@code segmentSchemas}
-     * is non-null.
+     * Execution controls. {@code threads} caps concurrent batches (semaphore permits
+     * over a virtual-thread executor; default 4); {@code duckdbThreads} caps each batch
+     * connection's DuckDB parallelism via {@code PRAGMA threads} ({@code 0} = DuckDB
+     * default). Set so {@code threads × duckdbThreads ≈ cores} to avoid oversubscription.
      */
-    public final SchemaSelector schemaSelector;
+    public record Processing(int threads, int duckdbThreads, String filePattern,
+                             int batchMaxFiles, long batchMaxBytes,
+                             boolean duplicateCheckEnabled, String markerExtension,
+                             int retentionDays) {}
 
     /**
-     * Legacy single-schema config (non-null when {@code processing.schema_file} is used).
-     * Exactly one of {@code schemaSelector} / {@code singleSchema} / {@code segmentSchemas}
-     * is non-null.
+     * Delimited-text parse settings. {@code engine} is {@code "auto"}/{@code "duckdb"}/
+     * {@code "java"} — {@code auto} uses DuckDB's native reader for clean configs and the
+     * Java parser otherwise (see {@link DuckDbCsvIngester#usesDuckDb}).
      */
-    public final Map<String, Object> singleSchema;
+    public record CsvSettings(String delimiter, int skipHeaderLines, int skipJunkLines,
+                              int skipTailLines, int skipTailCols, boolean hasHeader,
+                              String engine, List<String> dateFormats, List<String> tsFormats) {}
 
-    // ── plugin ingester ───────────────────────────────────────────────────────
-
-    /**
-     * Fully-qualified class name of a {@link FileIngester} implementation.
-     * {@code null} when the built-in {@code CsvIngester} is used.
-     */
-    public final String ingesterClass;
+    /** Output format/compression and the optional {@code output.ducklake} map ({@code null} if absent). */
+    public record Output(String format, String compression, Map<String, Object> duckLake) {}
 
     /**
-     * Ordered map of segment key → loaded schema config, populated when
-     * {@code processing.ingester} is set.  Keys match the entries in
-     * {@code processing.segments:} in the pipeline toon.
-     * {@code null} when {@code ingesterClass} is {@code null}.
+     * Schema resolution — exactly one of {@code selector} (multi-schema {@code schemas[]}),
+     * {@code single} (legacy {@code schema_file}), or {@code segments} (plugin path) is
+     * non-null. {@code ingesterClass} is the plugin FQCN ({@code null} for built-in CSV);
+     * {@code ingesterConfig} is the plugin's free-form settings map (empty, never null).
      */
-    public final LinkedHashMap<String, Map<String, Object>> segmentSchemas;
+    public record Schemas(SchemaSelector selector, Map<String, Object> single,
+                          LinkedHashMap<String, Map<String, Object>> segments,
+                          String ingesterClass, Map<String, Object> ingesterConfig) {}
 
-    /**
-     * Free-form configuration map for the plugin ingester, read from the
-     * {@code processing.ingester_config:} block in the pipeline toon.  Empty
-     * (never {@code null}) when no such block is present.
-     *
-     * <p>This is where binary / fixed-width / proprietary plugins put format-specific
-     * settings — {@code record_length}, {@code byte_order}, {@code encoding}, etc. —
-     * instead of overloading {@code csv_settings}.  Plugins read it via
-     * {@code cfg.ingesterConfig.get("my_key")}.
-     */
-    public final Map<String, Object> ingesterConfig;
+    // ── grouped state + accessors ──────────────────────────────────────────────
+
+    private final Identity   identity;
+    private final Dirs       dirs;
+    private final Processing processing;
+    private final CsvSettings csv;
+    private final Output     output;
+    private final Schemas    schemas;
+
+    public Identity   identity()   { return identity; }
+    public Dirs       dirs()       { return dirs; }
+    public Processing processing() { return processing; }
+    public CsvSettings csv()       { return csv; }
+    public Output     output()     { return output; }
+    public Schemas    schemas()    { return schemas; }
 
     // ── private constructor — use load() ──────────────────────────────────────
 
     private PipelineConfig(Builder b) {
-        this.name                 = b.name;
-        this.pipelineName         = b.pipelineName;
-        this.runTimestamp         = b.runTimestamp;
-        this.pollDir              = b.pollDir;
-        this.databaseDir          = b.databaseDir;
-        this.backupDir            = b.backupDir;
-        this.tempDir              = b.tempDir;
-        this.errorsDir            = b.errorsDir;
-        this.quarantineDir        = b.quarantineDir;
-        this.markersDir           = b.markersDir;
-        this.logDir               = b.logDir;
-        this.statusFilePath       = b.statusFilePath;
-        this.threads              = b.threads;
-        this.duckdbThreads        = b.duckdbThreads;
-        this.filePattern          = b.filePattern;
-        this.batchMaxFiles        = b.batchMaxFiles;
-        this.batchMaxBytes        = b.batchMaxBytes;
-        this.batchesFilePath      = b.batchesFilePath;
-        this.lineageFilePath      = b.lineageFilePath;
-        this.manifestsDir         = b.manifestsDir;
-        this.duplicateCheckEnabled= b.duplicateCheckEnabled;
-        this.markerExtension      = b.markerExtension;
-        this.retentionDays        = b.retentionDays;
-        this.delimiter            = b.delimiter;
-        this.skipHeaderLines      = b.skipHeaderLines;
-        this.skipJunkLines        = b.skipJunkLines;
-        this.skipTailLines        = b.skipTailLines;
-        this.skipTailCols         = b.skipTailCols;
-        this.hasHeader            = b.hasHeader;
-        this.csvEngine            = b.csvEngine;
-        this.dateFormats          = Collections.unmodifiableList(b.dateFormats);
-        this.tsFormats            = Collections.unmodifiableList(b.tsFormats);
-        this.outputFormat         = b.outputFormat;
-        this.compression          = b.compression;
-        this.duckLakeCfg          = b.duckLakeCfg;
-        this.schemaSelector       = b.schemaSelector;
-        this.singleSchema         = b.singleSchema;
-        this.ingesterClass        = b.ingesterClass;
-        this.segmentSchemas       = b.segmentSchemas;
-        this.ingesterConfig       = b.ingesterConfig != null
-                ? Collections.unmodifiableMap(b.ingesterConfig)
-                : Collections.emptyMap();
+        this.identity = new Identity(b.name, b.pipelineName, b.runTimestamp);
+        this.dirs = new Dirs(b.pollDir, b.databaseDir, b.backupDir, b.tempDir, b.errorsDir,
+                b.quarantineDir, b.markersDir, b.logDir, b.statusFilePath,
+                b.batchesFilePath, b.lineageFilePath, b.manifestsDir);
+        this.processing = new Processing(b.threads, b.duckdbThreads, b.filePattern,
+                b.batchMaxFiles, b.batchMaxBytes, b.duplicateCheckEnabled,
+                b.markerExtension, b.retentionDays);
+        this.csv = new CsvSettings(b.delimiter, b.skipHeaderLines, b.skipJunkLines,
+                b.skipTailLines, b.skipTailCols, b.hasHeader, b.csvEngine,
+                Collections.unmodifiableList(b.dateFormats),
+                Collections.unmodifiableList(b.tsFormats));
+        this.output = new Output(b.outputFormat, b.compression, b.duckLakeCfg);
+        this.schemas = new Schemas(b.schemaSelector, b.singleSchema, b.segmentSchemas,
+                b.ingesterClass,
+                b.ingesterConfig != null
+                        ? Collections.unmodifiableMap(b.ingesterConfig)
+                        : Collections.emptyMap());
     }
 
     // ── static factory ────────────────────────────────────────────────────────

@@ -99,7 +99,7 @@ public final class MultiSourceProcessor {
                     try {
                         PipelineConfig cfg = PipelineConfig.load(cfgPath.toString());
                         SourceProcessor.run(cfg);
-                        log.info("Source '{}' completed", cfg.pipelineName);
+                        log.info("Source '{}' completed", cfg.identity().pipelineName());
                     } catch (SourceProcessor.BatchProcessingException e) {
                         failed.incrementAndGet();
                         log.error("Source {} had batch failures: {}", cfgPath, e.getMessage());

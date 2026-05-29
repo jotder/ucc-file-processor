@@ -92,8 +92,8 @@ public class PipelineConfigBatchTest {
     @Test
     void defaultsToSingleFileBatchesWhenSectionAbsent(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, "").toString());
-        assertEquals(1, cfg.batchMaxFiles);
-        assertEquals(Long.MAX_VALUE, cfg.batchMaxBytes);
+        assertEquals(1, cfg.processing().batchMaxFiles());
+        assertEquals(Long.MAX_VALUE, cfg.processing().batchMaxBytes());
     }
 
     @Test
@@ -104,18 +104,18 @@ public class PipelineConfigBatchTest {
                 max_bytes: 268435456
             """;
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, batch).toString());
-        assertEquals(500, cfg.batchMaxFiles);
-        assertEquals(268435456L, cfg.batchMaxBytes);
+        assertEquals(500, cfg.processing().batchMaxFiles());
+        assertEquals(268435456L, cfg.processing().batchMaxBytes());
     }
 
     @Test
     void derivesBatchAuditPaths(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, "").toString());
-        assertNotNull(cfg.batchesFilePath);
-        assertNotNull(cfg.lineageFilePath);
-        assertNotNull(cfg.manifestsDir);
-        assertTrue(cfg.batchesFilePath.contains("_batches_"));
-        assertTrue(cfg.lineageFilePath.contains("_lineage_"));
-        assertTrue(cfg.manifestsDir.replace("\\", "/").endsWith("manifests"));
+        assertNotNull(cfg.dirs().batchesFilePath());
+        assertNotNull(cfg.dirs().lineageFilePath());
+        assertNotNull(cfg.dirs().manifestsDir());
+        assertTrue(cfg.dirs().batchesFilePath().contains("_batches_"));
+        assertTrue(cfg.dirs().lineageFilePath().contains("_lineage_"));
+        assertTrue(cfg.dirs().manifestsDir().replace("\\", "/").endsWith("manifests"));
     }
 }

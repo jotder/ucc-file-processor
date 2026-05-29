@@ -23,9 +23,9 @@ class MarkerManagerTest {
         return TestConfigs.csv(dir, PipelineConfigBatchTest.miniSchema()).load();
     }
 
-    /** A poll-relative input file under cfg.pollDir. */
+    /** A poll-relative input file under cfg.dirs().poll(). */
     private static File pollFile(PipelineConfig cfg, String rel) throws Exception {
-        Path f = Path.of(cfg.pollDir, rel);
+        Path f = Path.of(cfg.dirs().poll(), rel);
         Files.createDirectories(f.getParent());
         Files.writeString(f, "data");
         return f.toFile();
@@ -67,7 +67,7 @@ class MarkerManagerTest {
         assertFalse(Files.exists(oldMarker), "stale marker should be deleted");
         assertTrue(Files.exists(MarkerManager.getMarkerPath(newInput, cfg)), "fresh marker kept");
         // The now-empty 20200101 subdir should be pruned.
-        assertFalse(Files.exists(Path.of(cfg.markersDir, "20200101")),
+        assertFalse(Files.exists(Path.of(cfg.dirs().markers(), "20200101")),
                 "empty marker subdir should be pruned");
     }
 
@@ -79,7 +79,7 @@ class MarkerManagerTest {
 
         // First cleanup: runs and writes the .last_cleanup sentinel.
         MarkerManager.cleanupStaleMarkers(cfg);
-        assertTrue(Files.exists(Path.of(cfg.markersDir, ".last_cleanup")), "sentinel written");
+        assertTrue(Files.exists(Path.of(cfg.dirs().markers(), ".last_cleanup")), "sentinel written");
 
         // Create a stale marker AFTER the sentinel exists.
         File oldInput = pollFile(cfg, "20190101/ancient.csv");

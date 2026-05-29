@@ -39,7 +39,7 @@ public final class DuckLakeRegistrar {
     @SuppressWarnings("unchecked")
     public static void register(List<String> outputPaths, String tableName, PipelineConfig cfg) {
         if (outputPaths.isEmpty()) return;
-        Map<String, Object> dl = cfg.duckLakeCfg;
+        Map<String, Object> dl = cfg.output().duckLake();
         if (dl == null) return;
         if (!Boolean.parseBoolean(String.valueOf(dl.getOrDefault("enabled", false)))) return;
 

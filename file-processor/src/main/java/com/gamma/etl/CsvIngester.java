@@ -66,8 +66,8 @@ public final class CsvIngester {
                                       PipelineConfig cfg,
                                       String targetTable) throws Exception {
         // ── parse settings from config ────────────────────────────────────────
-        int maxJunkLines = cfg.skipJunkLines < 0 ? Integer.MAX_VALUE : cfg.skipJunkLines;
-        int skipTailCols = cfg.skipTailCols;
+        int maxJunkLines = cfg.csv().skipJunkLines() < 0 ? Integer.MAX_VALUE : cfg.csv().skipJunkLines();
+        int skipTailCols = cfg.csv().skipTailCols();
 
         // ── derive selector indices from schema (hoisted out of the row loop) ──
         // Parse each field's selector to an int ONCE here. The previous code did
@@ -87,10 +87,10 @@ public final class CsvIngester {
 
         // ── prepare error CSV (created lazily — only if errors actually occur) ──
         String baseName    = stripExtensions(file.getName());
-        Path errorDir      = Paths.get(cfg.errorsDir).toAbsolutePath();
+        Path errorDir      = Paths.get(cfg.dirs().errors()).toAbsolutePath();
         Path errorFilePath = errorDir.resolve(baseName + "_errors.csv");
 
-        CsvParser parser = buildParser(cfg.delimiter);
+        CsvParser parser = buildParser(cfg.csv().delimiter());
 
         long parsedRows        = 0;
         long errorRows         = 0;
@@ -112,13 +112,13 @@ public final class CsvIngester {
                      new InputStreamReader(is, StandardCharsets.UTF_8), 2 * 1024 * 1024)) {
 
             // ── skip pre-header lines ─────────────────────────────────────────
-            for (int i = 0; i < cfg.skipHeaderLines; i++) br.readLine();
+            for (int i = 0; i < cfg.csv().skipHeaderLines(); i++) br.readLine();
 
             // ── optional column-name header row ───────────────────────────────
             // When has_header=false the first data line is treated as a row;
             // junk-scan is still active but the echo-line check is skipped.
             String[] headerTokens = null;
-            if (cfg.hasHeader) {
+            if (cfg.csv().hasHeader()) {
                 String headerLine = br.readLine();
                 if (headerLine == null) throw new IOException("Empty file: " + file.getName());
                 headerTokens = parser.parseLine(headerLine);
@@ -189,9 +189,9 @@ public final class CsvIngester {
                     // Tail-buffer gate
                     String line;
                     long   procLineNum;
-                    if (cfg.skipTailLines > 0) {
+                    if (cfg.csv().skipTailLines() > 0) {
                         tailBuffer.addLast(Map.entry(lineNum, rawLine));
-                        if (tailBuffer.size() <= cfg.skipTailLines) continue;
+                        if (tailBuffer.size() <= cfg.csv().skipTailLines()) continue;
                         var head = tailBuffer.removeFirst();
                         line        = head.getValue();
                         procLineNum = head.getKey();

@@ -41,7 +41,7 @@ public final class BatchProcessor {
     // ── entry point ───────────────────────────────────────────────────────────
 
     public static void process(Batch batch, PipelineConfig cfg, BatchAuditWriter audit) {
-        if (cfg.ingesterClass != null) {
+        if (cfg.schemas().ingesterClass() != null) {
             processPlugin(batch, cfg, audit);
         } else {
             processCsv(batch, cfg, audit);
@@ -66,7 +66,7 @@ public final class BatchProcessor {
         try {
             tempDb = DuckDbUtil.tempDbFile("duckdb_batch_");
             try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
-                DuckDbUtil.applyWorkerThreads(conn, cfg.duckdbThreads);
+                DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads());
                 boolean rawCreated = false;
                 for (Batch.Member m : batch.members()) {
                     LocalDateTime mStart = LocalDateTime.now();
@@ -130,13 +130,13 @@ public final class BatchProcessor {
                             : PartitionDef.columnNames(partDefs);
 
                     String dbDir = (batch.table() != null && !batch.table().isBlank())
-                            ? Paths.get(cfg.databaseDir, batch.table()).toString()
-                            : cfg.databaseDir;
+                            ? Paths.get(cfg.dirs().database(), batch.table()).toString()
+                            : cfg.dirs().database();
                     String baseName = survivors.size() == 1
                             ? CsvIngester.stripExtensions(survivors.get(0).file().getName())
                             : batch.batchId();
                     outputs = PartitionWriter.write(conn, "transformed", dbDir,
-                            cfg.outputFormat, cfg.compression, baseName, partCols);
+                            cfg.output().format(), cfg.output().compression(), baseName, partCols);
                     lineage = LineageCollector.collect(conn, "transformed",
                             batch.batchId(), srcIdToFile, outputs, partCols);
                 }
@@ -169,10 +169,10 @@ public final class BatchProcessor {
 
         FileIngester ingester;
         try {
-            ingester = (FileIngester) Class.forName(cfg.ingesterClass)
+            ingester = (FileIngester) Class.forName(cfg.schemas().ingesterClass())
                     .getDeclaredConstructor().newInstance();
         } catch (Exception e) {
-            throw new RuntimeException("Cannot instantiate ingester: " + cfg.ingesterClass, e);
+            throw new RuntimeException("Cannot instantiate ingester: " + cfg.schemas().ingesterClass(), e);
         }
 
         // Per-member audit and survivor tracking
@@ -184,7 +184,7 @@ public final class BatchProcessor {
         // Per-segment: track which members contributed rows
         // key → { srcId → List<FileIngester.Segment> }
         Map<String, Map<Integer, FileIngester.Segment>> segmentsBySrcId = new LinkedHashMap<>();
-        for (String key : cfg.segmentSchemas.keySet()) segmentsBySrcId.put(key, new LinkedHashMap<>());
+        for (String key : cfg.schemas().segments().keySet()) segmentsBySrcId.put(key, new LinkedHashMap<>());
 
         List<PartitionOutput> allOutputs = new ArrayList<>();
         List<LineageRow>      allLineage = new ArrayList<>();
@@ -193,7 +193,7 @@ public final class BatchProcessor {
         try {
             tempDb = DuckDbUtil.tempDbFile("duckdb_plugin_");
             try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
-                DuckDbUtil.applyWorkerThreads(conn, cfg.duckdbThreads);
+                DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads());
 
                 // ── ingest all members ────────────────────────────────────────
                 for (Batch.Member m : batch.members()) {
@@ -241,7 +241,7 @@ public final class BatchProcessor {
                     batchStatus = "EMPTY";
                 } else {
                     // ── transform + write per segment ─────────────────────────
-                    for (Map.Entry<String, Map<String, Object>> entry : cfg.segmentSchemas.entrySet()) {
+                    for (Map.Entry<String, Map<String, Object>> entry : cfg.schemas().segments().entrySet()) {
                         String              segKey    = entry.getKey();
                         Map<String, Object> segSchema = entry.getValue();
                         Map<Integer, FileIngester.Segment> contribs = segmentsBySrcId.get(segKey);
@@ -284,14 +284,14 @@ public final class BatchProcessor {
                                 ? List.of("year", "month", "day")
                                 : PartitionDef.columnNames(partDefs);
 
-                        String dbDir = Paths.get(cfg.databaseDir, segKey).toString();
+                        String dbDir = Paths.get(cfg.dirs().database(), segKey).toString();
                         String baseName = survivors.size() == 1
                                 ? CsvIngester.stripExtensions(survivors.get(0).file().getName())
                                 : batch.batchId();
 
                         List<PartitionOutput> segOutputs = PartitionWriter.write(
-                                conn, destTable, dbDir, cfg.outputFormat,
-                                cfg.compression, baseName, partCols);
+                                conn, destTable, dbDir, cfg.output().format(),
+                                cfg.output().compression(), baseName, partCols);
                         List<LineageRow> segLineage = LineageCollector.collect(
                                 conn, destTable, batch.batchId(), segSrcToFile, segOutputs, partCols);
 
@@ -315,7 +315,7 @@ public final class BatchProcessor {
             if ("SUCCESS".equals(batchStatus))
                 commit(batch, cfg, survivors, allOutputs, allLineage);
             // Use first segment key as schemaName for audit; all keys as outputTable
-            String schemaNames = String.join(",", cfg.segmentSchemas.keySet());
+            String schemaNames = String.join(",", cfg.schemas().segments().keySet());
             writeAuditPlugin(batch, cfg, audit, batchStart, batchStatus, batchError,
                     memberAudits, survivors, allOutputs, allLineage, totalInputRows, schemaNames);
         } catch (Exception e) {
@@ -345,9 +345,9 @@ public final class BatchProcessor {
         DuckLakeRegistrar.register(outputs.stream().map(PartitionOutput::outputFile).toList(),
                 batch.table(), cfg);
 
-        Path poll   = Paths.get(cfg.pollDir).toAbsolutePath().normalize();
-        Path backup = (cfg.backupDir != null && !cfg.backupDir.isBlank())
-                ? Paths.get(cfg.backupDir).toAbsolutePath() : null;
+        Path poll   = Paths.get(cfg.dirs().poll()).toAbsolutePath().normalize();
+        Path backup = (cfg.dirs().backup() != null && !cfg.dirs().backup().isBlank())
+                ? Paths.get(cfg.dirs().backup()).toAbsolutePath() : null;
 
         List<BatchManifest.MemberEntry> memberEntries = new ArrayList<>();
         List<String> markerPaths = new ArrayList<>();
@@ -356,16 +356,16 @@ public final class BatchProcessor {
             String rel    = poll.relativize(filePath).toString().replace('\\', '/');
             String backupPath = backup != null
                     ? backup.resolve(poll.relativize(filePath)).toString() : "";
-            if (cfg.markersDir != null)
+            if (cfg.dirs().markers() != null)
                 markerPaths.add(MarkerManager.getMarkerPath(m.file(), cfg).toString());
             memberEntries.add(new BatchManifest.MemberEntry(
                     m.file().getName(), m.srcId(), rel, backupPath, "SUCCESS"));
         }
 
-        if (cfg.manifestsDir != null) {
+        if (cfg.dirs().manifestsDir() != null) {
             BatchManifest manifest = new BatchManifest();
             manifest.batchId     = batch.batchId();
-            manifest.pipeline    = cfg.pipelineName;
+            manifest.pipeline    = cfg.identity().pipelineName();
             manifest.schemaName  = batch.schemaName();
             manifest.outputTable = batch.table();
             manifest.createdAt   = LocalDateTime.now().format(DuckDbUtil.DT_FMT);
@@ -373,7 +373,7 @@ public final class BatchProcessor {
             manifest.outputs     = outputs.stream()
                     .map(o -> new BatchManifest.OutputEntry(o.partition(), o.outputFile())).toList();
             manifest.markers     = markerPaths;
-            ManifestStore.write(cfg.manifestsDir, manifest);
+            ManifestStore.write(cfg.dirs().manifestsDir(), manifest);
         }
 
         // Backup BEFORE markers — see ordering rationale at top of method.
@@ -381,14 +381,14 @@ public final class BatchProcessor {
             for (Batch.Member m : survivors) backupFile(m.file(), cfg);
 
         // Markers LAST — created only after every other side-effect is durable.
-        if (cfg.markersDir != null)
+        if (cfg.dirs().markers() != null)
             for (Batch.Member m : survivors) MarkerManager.createMarkerFile(m.file(), cfg);
     }
 
     private static void backupFile(File inputFile, PipelineConfig cfg) throws IOException {
-        Path poll = Paths.get(cfg.pollDir).toAbsolutePath().normalize();
+        Path poll = Paths.get(cfg.dirs().poll()).toAbsolutePath().normalize();
         Path file = inputFile.toPath().toAbsolutePath().normalize();
-        Path dst  = Paths.get(cfg.backupDir).resolve(poll.relativize(file));
+        Path dst  = Paths.get(cfg.dirs().backup()).resolve(poll.relativize(file));
         Files.createDirectories(dst.getParent());
         Files.move(file, dst, StandardCopyOption.REPLACE_EXISTING);
     }
@@ -433,7 +433,7 @@ public final class BatchProcessor {
         long totalOutputBytes = outputs.stream().mapToLong(PartitionOutput::bytes).sum();
 
         BatchAuditWriter.BatchRow batchRow = new BatchAuditWriter.BatchRow(
-                batch.batchId(), cfg.pipelineName, schemaLabel, batch.table(),
+                batch.batchId(), cfg.identity().pipelineName(), schemaLabel, batch.table(),
                 batchStart.format(DuckDbUtil.DT_FMT), end.format(DuckDbUtil.DT_FMT), batchStatus,
                 batch.members().size(), rejected, totalInputRows, totalOutputRows,
                 outputs.size(), totalOutputBytes,

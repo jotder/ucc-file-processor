@@ -31,7 +31,7 @@ class TypedRecordIngesterTest {
     @Test
     void multiSegmentMultiDateProducesPartitionedOutput(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir);
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
         Path f = inbox.resolve("events.dat");
         Files.writeString(f, """
                 # comment lines are skipped
@@ -49,7 +49,7 @@ class TypedRecordIngesterTest {
         assertOutputFileCount(cfg, "SMS",  2);
 
         // Lineage references the source file
-        assertTrue(Files.readString(Path.of(cfg.lineageFilePath)).contains("events.dat"));
+        assertTrue(Files.readString(Path.of(cfg.dirs().lineageFilePath())).contains("events.dat"));
 
         // Hive directory structure
         assertHivePartitionExists(cfg, "CALL", "day=03");
@@ -67,7 +67,7 @@ class TypedRecordIngesterTest {
     @Test
     void unknownTypesAreSkippedSilently(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir);
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
         Path f = inbox.resolve("mixed.dat");
         Files.writeString(f, """
                 CALL,C1,2020-04-03,10
@@ -82,7 +82,7 @@ class TypedRecordIngesterTest {
         assertOutputFileCount(cfg, "CALL", 1);
         assertOutputFileCount(cfg, "SMS",  1);
         // Batch is SUCCESS — junk lines don't fail the batch when at least one segment has rows
-        assertTrue(Files.readString(Path.of(cfg.batchesFilePath)).contains(",SUCCESS,"));
+        assertTrue(Files.readString(Path.of(cfg.dirs().batchesFilePath())).contains(",SUCCESS,"));
     }
 
     /**
@@ -93,7 +93,7 @@ class TypedRecordIngesterTest {
     @Test
     void wrongColumnCountIncrementsErrorsWithoutLosingOtherSegments(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = loadConfig(dir);
-        Path inbox = Files.createDirectories(Path.of(cfg.pollDir));
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
         Path f = inbox.resolve("bad_columns.dat");
         // CALL declares 3 columns (ID, EVENT_DATE, DURATION_SEC); the second
         // CALL line below has only 2 → counts as error, dropped.
@@ -110,7 +110,7 @@ class TypedRecordIngesterTest {
         assertOutputFileCount(cfg, "SMS",  1);
 
         // Per-file audit lists 1 error row (CALL_BAD)
-        String status = Files.readString(Path.of(cfg.statusFilePath));
+        String status = Files.readString(Path.of(cfg.dirs().statusFilePath()));
         assertTrue(status.contains("bad_columns.dat"));
     }
 
@@ -134,15 +134,15 @@ class TypedRecordIngesterTest {
             SchemaSelector.Selection sel = new SchemaSelector.Selection(Map.of(), null);
             members.add(new Batch.Member(files[i], i, files[i].length(), sel));
         }
-        Batch batch = new Batch(cfg.runTimestamp + "_events_0001", "events", null, members);
+        Batch batch = new Batch(cfg.identity().runTimestamp() + "_events_0001", "events", null, members);
         BatchAuditWriter audit = new BatchAuditWriter(
-                cfg.statusFilePath, cfg.batchesFilePath, cfg.lineageFilePath);
+                cfg.dirs().statusFilePath(), cfg.dirs().batchesFilePath(), cfg.dirs().lineageFilePath());
         BatchProcessor.process(batch, cfg, audit);
     }
 
     private static void assertOutputFileCount(PipelineConfig cfg, String segKey,
                                               long expected) throws java.io.IOException {
-        Path segDir = Path.of(cfg.databaseDir, segKey);
+        Path segDir = Path.of(cfg.dirs().database(), segKey);
         assertTrue(Files.exists(segDir), segKey + " output dir should exist");
         long actual;
         try (Stream<Path> s = Files.walk(segDir)) {
@@ -154,7 +154,7 @@ class TypedRecordIngesterTest {
 
     private static void assertHivePartitionExists(PipelineConfig cfg, String segKey,
                                                   String partFragment) throws java.io.IOException {
-        Path segDir = Path.of(cfg.databaseDir, segKey);
+        Path segDir = Path.of(cfg.dirs().database(), segKey);
         try (Stream<Path> s = Files.walk(segDir)) {
             assertTrue(s.filter(Files::isDirectory)
                             .map(p -> p.toString().replace("\\", "/"))

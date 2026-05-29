@@ -21,7 +21,7 @@ class SourceProcessorPollTest {
         Path toon = PipelineConfigBatchTestRef.writePipeline(dir, batch);
         PipelineConfig cfg = PipelineConfig.load(toon.toString());
 
-        Path inbox = Path.of(cfg.pollDir);
+        Path inbox = Path.of(cfg.dirs().poll());
         Files.createDirectories(inbox);
         for (int i = 0; i < 6; i++)
             Files.writeString(inbox.resolve("f" + i + ".csv"),
@@ -30,15 +30,15 @@ class SourceProcessorPollTest {
         SourceProcessor.run(cfg);
 
         // All 6 tiny files consolidate into ONE partition's single output file.
-        try (Stream<Path> w = Files.walk(Path.of(cfg.databaseDir))) {
+        try (Stream<Path> w = Files.walk(Path.of(cfg.dirs().database()))) {
             assertEquals(1, w.filter(p -> p.getFileName().toString().endsWith("_out.csv")).count());
         }
         // One batch row recorded.
-        String batches = Files.readString(Path.of(cfg.batchesFilePath));
+        String batches = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
         assertEquals(2, batches.split("\n").length, "header + 1 batch row");
         // Re-running is a no-op: markers skip all files (still exactly one output file).
         SourceProcessor.run(cfg);
-        try (Stream<Path> w = Files.walk(Path.of(cfg.databaseDir))) {
+        try (Stream<Path> w = Files.walk(Path.of(cfg.dirs().database()))) {
             assertEquals(1, w.filter(p -> p.getFileName().toString().endsWith("_out.csv")).count());
         }
     }

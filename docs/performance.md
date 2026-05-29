@@ -82,7 +82,7 @@ Three costs in `CsvIngester`'s per-row loop, in rough order of impact:
 Ingest is single-threaded *within* a file (sequential read; cannot be
 parallelized for one input). Aggregate throughput comes from batch-level
 parallelism: `SourceProcessor` submits every batch to a virtual-thread executor
-bounded by `Semaphore(cfg.threads)`, so up to `cfg.threads` batches ingest
+bounded by `Semaphore(cfg.processing().threads())`, so up to `processing.threads` batches ingest
 simultaneously while blocked batches park cheaply instead of pinning platform
 threads. Per-file latency is still fixed by single-threaded ingest (now ~4–5×
 lower thanks to the native engine below).
