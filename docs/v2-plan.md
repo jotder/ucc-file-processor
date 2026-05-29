@@ -80,7 +80,8 @@ spec text is retained below.
 
 ### M2 — Enrichment orchestration  → v2.3.0  ✅ (flagship complete)
 
-Wired the M0 core to the two triggers on the M1 service. **Done** (`2.3.0-SNAPSHOT`):
+Wired the M0 core to the two triggers on the M1 service. **Done** (released as
+`v2.3.0`, the cumulative M0+M1+M2 Stage-2 cut):
 new `com.gamma.service.EnrichmentService` is the composition point binding the pure
 `com.gamma.enrich` engine to the bus (freshness) and scheduler (completeness).
 `EnrichmentConfig` gained an optional `triggers` section (`on_pipeline`,
