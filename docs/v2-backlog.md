@@ -26,16 +26,44 @@ never inside the multiplexer. That separation is the organizing principle of v2.
 - **Deferred to next major (v3.0+):** embedded AI agent, **Web UI**, object storage
   (S3/GCS/Azure), distributed/multi-node execution.
 - **Already delivered (1.5–1.6):** parallel execution (E0 below).
-- **Flagship:** the separate enrichment / join engine — runs as an independent track.
+- **Flagship:** the separate enrichment engine — **sequenced after ingest**, triggered
+  by batch-commit events (freshness) + a schedule (completeness). Its *core* is
+  buildable standalone; its *orchestration* depends on Service mode.
 - **Last in v2:** status store in a database (behind a `StatusStore` seam).
+
+## Enrichment execution model (decided)
+
+Enrichment is downstream of ingest and runs **incrementally on changed partitions**,
+via two triggers:
+
+- **Event-driven (on successful batch commit):** low-latency freshness. The committed
+  batch's **lineage already lists exactly which partitions it wrote**, so enrichment
+  recomputes *only* the affected reports — precise incrementality, no full re-scan.
+- **Scheduled (hourly/daily/…):** completeness. Recomputes closed windows so KPIs are
+  authoritative and late-arriving data is reconciled.
+
+Both write the same output **idempotently** — `PartitionWriter`'s
+`OVERWRITE_OR_IGNORE` makes re-runs and late data safe by construction; the schedule
+re-corrects whatever events left partial. `CommitLog` is the natural event source.
+
+Because both triggers need an always-on listener + a scheduler, the **enrichment
+feature depends on Service mode** (which gains a batch-commit event hook + scheduler).
+The enrichment *core* (changed-partitions → columnar aggregate/join → idempotent
+write) is pure and can be spiked CLI-first to de-risk it.
+
+Open design point: the enrichment **output grain** (e.g. hourly/daily KPI, by
+dimension) usually differs from the ingest partition grain, so the config maps
+"input partitions changed → output reports to recompute" and defines a
+completeness/watermark rule for when a scheduled window is final.
 
 ## v2 epics
 
 | Epic | Priority | Status | Depends on |
 |---|---|---|---|
 | **E0** Parallel execution (multi-source + multi-batch) | P0 | ✅ **done** (v1.5.0 / v1.6.0) | — |
-| **Enrichment / join engine** (Stage 2) | **P0 — flagship** | 🔲 | Stage 1 output (exists); independent track |
-| **Service / server mode** | **P0** | 🔲 | E0 primitives |
+| **Enrichment engine — core** (Stage 2 transform) | **P0 — flagship** | 🔲 | Stage 1 output (exists); spike-able CLI-first |
+| **Service / server mode** (+ batch-commit event bus + scheduler) | **P0** | 🔲 | E0 primitives |
+| **Enrichment — orchestration** (event + scheduled triggers) | **P0 — flagship** | 🔲 | Enrichment core, Service mode |
 | **Control API** (interaction) | **P0** | 🔲 | Service mode |
 | **Observability** | P1 | 🔲 | Service mode |
 | **Status store in a database** | P2 — last | 🔲 | API/service (swaps their backing store) |
@@ -56,28 +84,38 @@ parallel" — **already implemented**:
 an always-on managed concern — a *global* concurrency budget across all running
 sources, fair scheduling, and backpressure when the host is saturated.
 
-### Enrichment / join engine  🔲 P0 (flagship — independent track)
+### Enrichment engine — core  🔲 P0 (flagship)
 
-A **separate** engine that does what the multiplexer deliberately won't: joins,
-lookups, aggregation. Reads Stage 1's partitioned Parquet/CSV (or the DuckLake
-catalog), enriches against reference/dimension data, writes enriched output.
+The columnar transform that does what the multiplexer deliberately won't: joins,
+lookups, aggregation — to produce reports/KPIs. Pure and CLI-spike-able.
 
-- **DuckDB-powered:** `read_parquet` over the Hive partition tree, join against
-  reference tables, compute derived/aggregated columns, write via the existing
-  partitioned-output machinery.
-- **Config-driven** in the same `.toon` style: inputs (partition globs / DuckLake
-  tables), reference sources (dim tables from files / Postgres / DuckLake), join
-  keys & types, projections/derivations, output partitioning.
+- **Input:** a set of *changed* partitions (from a batch's lineage) or an explicit
+  window; reads Stage 1's partitioned Parquet/CSV (or the DuckLake catalog).
+- **DuckDB-powered:** `read_parquet` over the relevant partitions, join against
+  reference tables, aggregate/derive, write via the existing partitioned-output
+  machinery — **idempotent** (`OVERWRITE_OR_IGNORE`) so re-runs and late data are safe.
+- **Config-driven** (`.toon`): inputs, reference sources (dim tables from files /
+  Postgres / DuckLake), join keys & types, projections/derivations, **output grain &
+  partitioning** (may differ from ingest grain), and the input→output recompute map.
 - **Partition-parallel & crash-isolated** — reuses the virtual-thread + semaphore
   model and per-batch DuckDB connection.
 - **Reuses:** `DuckDbUtil`, `PartitionWriter`, `PartitionDef`, config loading,
-  `ConfigValidator`, audit/lineage.
-- **v1 boundaries:** batch (not streaming); reference data bounded to the
-  per-partition working set; incremental (new partitions only) as a fast-follow.
-- **Why an independent track:** it only consumes Stage-1 output, so it needs none of
-  the platform work — ship it CLI-first (like Stage 1 matured) in parallel with the
-  service/API epics, rather than gating the flagship behind the whole platform.
-- **Size:** L.
+  `ConfigValidator`, audit/lineage (lineage drives precise incremental scoping).
+- **De-risk first:** a thin CLI spike (changed partitions → aggregate → idempotent
+  write) validates the columnar approach before the orchestration is wired.
+- **Size:** M–L (core); orchestration is a separate epic below.
+
+### Enrichment engine — orchestration  🔲 P0 (flagship)
+
+Wires the core to the two triggers (see "Enrichment execution model" above):
+
+- **Event subscriber:** on batch commit, read the batch's lineage → recompute only
+  the affected reports (freshness).
+- **Scheduled job:** recompute closed windows (hourly/daily) for completeness +
+  late-data reconciliation.
+- **Depends on Service mode** (the event bus + scheduler). The core can exist before
+  this; the *feature* lands here.
+- **Size:** M.
 
 ### Service / server mode  🔲 P0 (first platform epic)
 
@@ -86,9 +124,15 @@ engines — and the host for the API and metrics endpoints, so it precedes them.
 
 - Watch loop / scheduler per pipeline; graceful shutdown; **recovery on startup via
   `CommitLog.committedBatchIds()`** (ledger exists; nothing reads it yet).
+- **Batch-commit event bus** — fire an event on each committed batch (from
+  `CommitLog` append / `BatchProcessor.commit`) carrying `pipeline, batchId,
+  partitions[]`. Enrichment orchestration subscribes to it; the lineage gives the
+  changed partitions. This is the linchpin for the event-driven enrichment model.
+- **Scheduler** — cron-like windows for scheduled enrichment (hourly/daily) and any
+  periodic maintenance.
 - Absorbs the E0 residual: a global concurrency budget across sources + backpressure.
 - A pipeline may be a Stage-1 ingest, a Stage-2 enrichment, or a chain (enrich fires
-  when upstream partitions land).
+  on the upstream's batch-commit event).
 - **Build on:** `MultiSourceProcessor` becomes the core loop.
 - **Status backing:** **file-backed** to start (existing `_status_`/`_batches_`/
   `_lineage_` CSVs + commit log) behind a `StatusStore` seam, so the DB epic isn't a
@@ -127,16 +171,22 @@ behind the seam, not a prerequisite.
 
 ## Recommended sequence
 
-- **Platform track:** Service mode → Control API → Observability → Status DB (last).
-  *Each is hosted by the service; the API/metrics need it first; the DB swap is a
-  late, low-risk change behind the `StatusStore` seam.*
-- **Flagship track (parallel):** Enrichment engine, CLI-first, independent of the
-  platform — then surfaced through the API/service once both exist.
+1. **Enrichment core spike** (small, CLI) — changed-partitions → columnar
+   aggregate/join → idempotent write. De-risks the flagship transform cheaply, before
+   any platform work.
+2. **Service / server mode** — process + **scheduler** + **batch-commit event bus** +
+   recovery + the E0 global concurrency budget. The linchpin for event-driven
+   enrichment.
+3. **Enrichment orchestration** — wire the core to the event subscriber (freshness) +
+   scheduled job (completeness). Flagship feature lands here.
+4. **Control API** → **Observability** → **Status DB** (last, behind the
+   `StatusStore` seam).
 
-> This adjusts the proposed E1→E2→E3 order in two ways: **Service mode before Control
-> API** (the API is hosted by the server) and observability after the host exists;
-> and **Enrichment as a parallel track** so the flagship value isn't gated behind the
-> whole platform. E0 is recognized as already done.
+> Enrichment is **sequenced after ingest at runtime** (event + schedule), not run
+> independently. Build-wise its *core* is spiked first to de-risk, but the *feature*
+> depends on Service mode (the event bus + scheduler) — so Service mode is the
+> prerequisite, not a parallel concern. Service mode also precedes the Control API and
+> Observability (it hosts them). E0 is already done.
 
 ## Next major (v3.0+) — deferred by design
 
