@@ -193,8 +193,17 @@ java --enable-native-access=ALL-UNNAMED ^
     [System.Text.Encoding]::ASCII
 )
 
-# ── step 7: copy README ────────────────────────────────────────────────────────
-Copy-Item "$adjParserDir\README.md" "$bundleDir\README.md"
+# ── step 7: copy README + docs tree ─────────────────────────────────────────────
+# In the repo the README lives in file-processor/ and links to ../docs/. In the
+# bundle the README sits at the root, so rewrite ../docs/ → docs/ and ship the
+# docs tree alongside it so the links resolve.
+$readme = Get-Content "$adjParserDir\README.md" -Raw
+$readme = $readme -replace '\.\./docs/', 'docs/'
+Set-Content -Path "$bundleDir\README.md" -Value $readme -NoNewline
+$docsSrc = Join-Path $sandboxRoot 'docs'
+if (Test-Path $docsSrc) {
+    Copy-Item $docsSrc "$bundleDir\docs" -Recurse -Force
+}
 
 # ── step 8: zip ───────────────────────────────────────────────────────────────
 if (Test-Path $outZip) { Remove-Item $outZip -Force }

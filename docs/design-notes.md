@@ -11,8 +11,8 @@ Architectural decisions, deferred work, and the reasoning behind them. Not user-
 The engine is an **M..N multiplexer**: M input files demultiplexed and routed
 into N partitioned outputs, with stateless per-record transformations only. This
 is a deliberate scope boundary, not a missing-features list. Full rationale is in
-the README's [Design Philosophy & Scope](../file-processor/README.md#design-philosophy--scope)
-section; the short version for contributors:
+[Architecture → Design Philosophy & Scope](architecture.md#design-philosophy--scope);
+the short version for contributors:
 
 **In scope:** type coercion, column selection/rename, partition-key derivation,
 `CONCAT_DT` / `FILENAME_DATE` composition. All per-record, all vectorizable.
@@ -66,8 +66,8 @@ fine — they're operator-supervised staging tools, not the high-throughput path
 several sources concurrently in one JVM on a virtual-thread executor bounded by
 `-Dsources.max`, composing `SourceProcessor.run(cfg)` per source with full failure
 isolation. The three concurrency caps (`sources.max × threads × duckdb_threads`)
-multiply — documented in the README's Batch Processing → "Multiple sources in one
-process". This completes the M..N runtime model end to end.
+multiply — documented in [Operations → Multiple sources in one process](operations.md#multiple-sources-in-one-process).
+This completes the M..N runtime model end to end.
 
 ### D2 — Commit-log abstraction
 
@@ -91,18 +91,16 @@ process". This completes the M..N runtime model end to end.
 
 See "Stability tiers" above for the interim informal policy. A formal `@PublicApi` annotation plus a `module-info.java` that exports only the public packages would let consumers know what they can depend on. Defer until D6 lands (so the surface to mark is the cleaned-up nested-record version).
 
-### M4 — Split the README into a `docs/` tree
+### M4 — Split the README into a `docs/` tree — ✅ DONE (v1.6.1)
 
-**Current state.** `README.md` is ~1100 lines. New readers don't know where to start.
-
-**When to do this.** Probably next time the README is touched substantively. Suggested split:
-
-- `README.md` — overview, quickstart, link tree (target: 200 lines)
-- `docs/architecture.md` — module structure, batch lifecycle, DuckDB usage
-- `docs/configuration.md` — full toon reference
-- `docs/plugins.md` — `FileIngester` interface + author workflow
-- `docs/deployment.md` — packaging, run scripts, classpath
-- `docs/troubleshooting.md` — symptoms → causes
+The ~1,570-line README was split into a lean overview + quickstart + doc index,
+with topic docs under `docs/`: `architecture.md` (design philosophy, architecture,
+directory layout, two-step process), `configuration.md` (three-tier config, config
+by source format, multi-schema, type mapping), `plugins.md` (FileIngester +
+TypedRecordIngester + author workflow), `operations.md` (utility suite, batch
+processing & concurrency, multi-source, output, audit, deployment, onboarding),
+`integrations.md` (DuckLake + warehouse query layer), `troubleshooting.md`.
+Content was moved byte-for-byte; cross-links were repointed.
 
 ---
 
