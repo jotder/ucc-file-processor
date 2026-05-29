@@ -28,10 +28,13 @@ import java.util.Set;
  *
  * <h3>Engine portability</h3>
  * The implementation is plain JDBC over portable ANSI SQL (no UPSERT, no engine-specific
- * types), so a single code path runs on <b>PostgreSQL</b> in production (the
- * {@link com.gamma.service.SourceService#fromArgs CLI} default for {@code status.backend=db})
- * and on <b>DuckDB</b> in-process for tests. Pick the engine by JDBC URL via
- * {@link #open(String, String, String)} ({@code jdbc:postgresql://…} or {@code jdbc:duckdb:…}).
+ * types), so a single code path runs on whatever JDBC engine the URL names. The <b>primary,
+ * default engine is DuckDB</b> — already bundled for ingest/enrichment, so the DB backend
+ * adds <em>no</em> new dependency and the same engine serves tests and production (a local
+ * file, embedded, single-process). <b>PostgreSQL</b> remains supported by the same code for a
+ * future distributed / multi-writer deployment: pass a {@code jdbc:postgresql://…} URL and put
+ * the PG JDBC driver on the classpath (bring-your-own — it is not bundled). Pick the engine by
+ * JDBC URL via {@link #open(String, String, String)}.
  *
  * <h3>Model — a projection of the on-disk audit</h3>
  * Stage-1 ingest still writes its file audit artifacts unchanged (they remain the
@@ -79,18 +82,20 @@ public final class DbStatusStore implements StatusStore, AutoCloseable {
     }
 
     /**
-     * Open a status DB by JDBC URL, registering the matching driver. Recognises
-     * {@code jdbc:postgresql:} and {@code jdbc:duckdb:}; any other URL is passed through
-     * to {@link DriverManager} as-is (assumes the driver self-registers).
+     * Open a status DB by JDBC URL, registering the matching driver. {@code jdbc:duckdb:}
+     * (the bundled primary engine) and {@code jdbc:postgresql:} (driver supplied by the
+     * deployment) are registered explicitly; any other URL is passed through to
+     * {@link DriverManager} as-is (assumes the driver self-registers). A Postgres URL with
+     * no PG driver on the classpath fails with a clear message — it is not bundled.
      *
-     * @param url  JDBC URL (e.g. {@code jdbc:postgresql://host:5432/ucc})
+     * @param url  JDBC URL (e.g. {@code jdbc:duckdb:ucc-status.db})
      * @param user username, or {@code null} for URL-embedded / no credentials
      * @param pass password, or {@code null}
      */
     public static DbStatusStore open(String url, String user, String pass) throws SQLException {
         try {
-            if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
-            else if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
+            if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
+            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
         } catch (ClassNotFoundException e) {
             throw new SQLException("No JDBC driver on the classpath for " + url, e);
         }

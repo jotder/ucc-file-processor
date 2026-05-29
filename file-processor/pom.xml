@@ -79,16 +79,6 @@
             <version>5.9</version>
         </dependency>
 
-        <!-- PostgreSQL JDBC driver — production engine for the M5 database-backed StatusStore
-             (DbStatusStore). The store itself is engine-neutral JDBC: production uses Postgres,
-             tests use the already-bundled DuckDB driver in-memory. The only new runtime dep of
-             the 2.x service line, and the named choice (D-e) for the status DB milestone. -->
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>42.7.4</version>
-        </dependency>
-
         <!-- JUnit 5 — unit/integration tests -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

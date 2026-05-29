@@ -323,24 +323,32 @@ service project that audit into a database and serve queries from it instead —
 SQL-queryable, while ingest keeps writing the file audit unchanged (it stays the write-time
 source of truth and survives a DB outage).
 
+The DB engine is **DuckDB by default** — already bundled for ingest/enrichment, so the DB
+backend adds **no new dependency** and the same engine serves tests and production. With no
+URL given it opens a local file `ucc-status.db`:
+
 ```bash
-# PostgreSQL (production)
+# DuckDB (default DB backend — embedded, single-process, zero extra deps)
 java -cp file-processor.jar com.gamma.control.ControlApi \
      -Dcontrol.token=secret \
      -Dstatus.backend=db \
-     -Dstatus.db.url="jdbc:postgresql://db-host:5432/ucc" \
-     -Dstatus.db.user=ucc -Dstatus.db.password=*** \
+     -Dstatus.db.url="jdbc:duckdb:/var/lib/ucc/status.db" \
      config/
 ```
 
-The store is engine-neutral JDBC over portable SQL: the same code path runs on Postgres
-(the bundled JDBC driver) or, for a zero-infra local/file option, DuckDB
-(`-Dstatus.db.url="jdbc:duckdb:/var/lib/ucc/status.db"`). It creates its schema on first
-connect (`ucc_status_{commits,batches,files,lineage,quarantine}`) and **syncs at startup and
-after every poll cycle**, so the DB reflects the latest committed state (up to one cycle of
+The store is engine-neutral JDBC over portable SQL. It creates its schema on first connect
+(`ucc_status_{commits,batches,files,lineage,quarantine}`) and **syncs at startup and after
+every poll cycle**, so the DB reflects the latest committed state (up to one cycle of
 staleness) and the API/observability transparently read from it — no endpoint changes. A sync
 is a transactional DELETE-then-INSERT per pipeline, so it is idempotent and doubles as the
 migrate/backfill of existing file audit into the database.
+
+> **Future / distributed:** the same code path runs on **PostgreSQL** for a multi-writer or
+> multi-node deployment — point the URL at `jdbc:postgresql://host:5432/ucc` (with
+> `-Dstatus.db.user`/`.password`) and put the PostgreSQL JDBC driver on the classpath. The
+> driver is *not* bundled (bring-your-own) to keep the default fat-JAR lean; DuckDB's
+> single-process file lock is fine for the current single-JVM service, and Postgres is what
+> you switch to when you split into separate processes/nodes.
 
 ### Observability — metrics & structured events
 

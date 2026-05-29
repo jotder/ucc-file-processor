@@ -134,6 +134,28 @@ class DbStatusStoreTest {
     }
 
     @Test
+    void duckDbFilePersistsAcrossReconnect(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = runOnePipeline(dir);
+        FileStatusStore file = new FileStatusStore();
+        String url = "jdbc:duckdb:" + dir.resolve("status.db").toString().replace('\\', '/');
+
+        // first connection: open the primary DuckDB file backend, sync, close it
+        Set<String> committed;
+        try (DbStatusStore first = DbStatusStore.open(url, null, null)) {
+            first.sync(file, List.of(cfg));
+            committed = first.committedBatches(cfg);
+            assertFalse(committed.isEmpty());
+        }
+
+        // reopen the same file: the projected status survived (durable, not in-memory)
+        try (DbStatusStore reopened = DbStatusStore.open(url, null, null)) {
+            assertEquals(committed, reopened.committedBatches(cfg), "commits survived reconnect");
+            assertEquals(file.batches(cfg).size(), reopened.batches(cfg).size(),
+                    "batch audit survived reconnect");
+        }
+    }
+
+    @Test
     void freshStoreReadsEmptyBeforeAnySync(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = runOnePipeline(dir);
         // schema initialised, but no sync yet → all reads empty, never throwing

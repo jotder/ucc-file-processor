@@ -12,7 +12,7 @@ independently releasable as a minor version on the `2.x` branch.
 | D-b | Reference-data source (v1) | **DuckDB-readable files (Parquet/CSV) + DuckLake** | Zero new deps; Postgres dims via DuckDB scanner later |
 | D-c | Enrichment v1 scope | **Lineage-driven incremental (event) + scheduled window recompute**, idempotent, Parquet out | Matches the agreed execution model; full re-enrich is just "all partitions" |
 | D-d | Embedded HTTP server | **JDK `HttpServer`** (revised from Javalin at M3) | Zero new deps — no Jetty/Kotlin in the fat-JAR; the plan-sanctioned fallback proved more than enough for a ~12-route JSON control plane. Jackson (already a dep) handles JSON. |
-| D-e | Status DB engine (last milestone) | **Postgres** | Already in the stack via DuckLake; clean multi-writer; real SQL for API |
+| D-e | Status DB engine (last milestone) | **DuckDB now** (revised at M5; Postgres later) | DuckDB is already bundled → the DB backend adds **zero new deps** and one engine serves tests + prod (embedded, single-process — fine for the single-JVM service). The store is engine-neutral JDBC, so **Postgres** stays a drop-in (bring-your-own driver) for the future distributed / multi-writer tier, which is when its clean multi-writer actually pays off. |
 | D-f | Release cadence | **One minor release per milestone** on `2.x` (tag + GH release) | Ships value incrementally; each milestone is green & usable |
 
 ## Milestones & tasks
@@ -170,13 +170,15 @@ open — surfaced now via metrics + the event log, but not yet persisted as audi
 
 **Done** (`2.6.0-SNAPSHOT`): new `com.gamma.service.DbStatusStore` — an engine-neutral
 JDBC `StatusStore` behind the existing seam. A single portable-ANSI-SQL code path runs on
-**PostgreSQL** in production (D-e; the PG JDBC driver is the only new runtime dep of the 2.x
-service line) and on **DuckDB** in-process for tests (the already-bundled driver, no server).
-`SourceService` selects the backend via `-Dstatus.backend=file|db` (+ `-Dstatus.db.url`/
-`user`/`password`) and projects the on-disk audit into the DB at startup and after each poll
-cycle, so the Control API + observability — which read through `statusStore()` unchanged —
-query the DB. 5 new tests; full suite **141 green**; verified end-to-end via the fat-JAR
-(`/commits`, `/batches`, `/lineage`, `/metrics` all served from the DB).
+**DuckDB** — the primary, default engine (revised D-e): already bundled, so the DB backend
+adds **zero new dependencies** and the same engine serves tests and production. `SourceService`
+selects the backend via `-Dstatus.backend=file|db`; the DB engine is chosen by
+`-Dstatus.db.url` and defaults to a local DuckDB file (`jdbc:duckdb:ucc-status.db`). It
+projects the on-disk audit into the DB at startup and after each poll cycle, so the Control
+API + observability — which read through `statusStore()` unchanged — query the DB.
+**Postgres** is supported by the same code (bring-your-own driver; not bundled) for the future
+distributed / multi-writer tier. 6 new tests; full suite **142 green**; verified end-to-end via
+the fat-JAR (`/commits`, `/batches`, `/lineage`, `/metrics` all served from the DB).
 
 - **T5.1** ✅ DB-backed `StatusStore` behind the seam. Schema: five tables
   (`ucc_status_{commits,batches,files,lineage,quarantine}`). Audit rows are dynamic
@@ -197,10 +199,12 @@ query the DB. 5 new tests; full suite **141 green**; verified end-to-end via the
 Scope notes for this cut: the DB is a **projection** of the on-disk audit (synced at
 startup + per cycle) rather than a live write target — this keeps the proven ingest path
 untouched and the file audit authoritative, at the cost of up-to-one-cycle staleness in the
-DB. Tests run against **DuckDB in-memory** (zero infra); the SQL is plain ANSI so it runs
-unchanged on Postgres, but a live-Postgres integration test (Testcontainers/CI) is left as an
-ops step to avoid a Docker dependency in the unit suite. The enrichment **run-level
-audit/lineage** deferred since M0 remains the one open follow-up across the v2.x plan.
+DB. The default engine is **DuckDB** (embedded, single-process), so tests and production run
+the same engine — no portability gap to validate. The DuckDB file's single-process write lock
+is acceptable for the current single-JVM service; **Postgres** (multi-writer) is a URL+driver
+swap reserved for the v3 distributed tier, and a live-Postgres integration test belongs with
+that work. The enrichment **run-level audit/lineage** deferred since M0 remains the one open
+follow-up across the v2.x plan.
 
 ## Cross-cutting (applied each milestone)
 

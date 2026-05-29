@@ -307,19 +307,22 @@ public final class SourceService implements AutoCloseable {
         return new SourceService(registry, enrichJobs, pollSeconds, maxRuns, buildStatusStore());
     }
 
+    /** Default DuckDB status database file when {@code status.backend=db} and no URL is given. */
+    private static final String DEFAULT_DB_URL = "jdbc:duckdb:ucc-status.db";
+
     /**
      * Select the status backend from system properties (M5):
      * {@code -Dstatus.backend=file} (default) reads the on-disk audit directly;
-     * {@code -Dstatus.backend=db} projects it into a database — requires
-     * {@code -Dstatus.db.url} (e.g. {@code jdbc:postgresql://host:5432/ucc}) and accepts
-     * optional {@code -Dstatus.db.user} / {@code -Dstatus.db.password}.
+     * {@code -Dstatus.backend=db} projects it into a database. The DB engine is chosen by
+     * {@code -Dstatus.db.url} and defaults to a local <b>DuckDB</b> file
+     * ({@value #DEFAULT_DB_URL}) — the bundled, zero-extra-dependency primary engine. Point
+     * the URL at {@code jdbc:postgresql://…} (with the PG driver on the classpath) for a
+     * future distributed deployment; {@code -Dstatus.db.user}/{@code .password} are optional.
      */
     private static StatusStore buildStatusStore() {
         String backend = System.getProperty("status.backend", "file");
         if (!"db".equalsIgnoreCase(backend)) return new FileStatusStore();
-        String url = System.getProperty("status.db.url");
-        if (url == null || url.isBlank())
-            throw new IllegalArgumentException("status.backend=db requires -Dstatus.db.url");
+        String url = System.getProperty("status.db.url", DEFAULT_DB_URL);
         try {
             StatusStore db = DbStatusStore.open(url,
                     System.getProperty("status.db.user"), System.getProperty("status.db.password"));
