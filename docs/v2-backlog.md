@@ -1,5 +1,8 @@
 # v2.x Product Backlog — a two-stage data platform
 
+> **Execution plan:** the finalized, sequenced task list with milestones and locked
+> decisions is in [v2-plan.md](v2-plan.md). This doc is the strategic "what/why".
+
 The 1.x → 2.0 work made the engine clean and stable. The 2.x arc grows it from a
 single ETL tool into a **two-stage, service-operated data platform**:
 
