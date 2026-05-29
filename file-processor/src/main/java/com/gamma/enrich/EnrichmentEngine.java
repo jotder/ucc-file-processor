@@ -1,0 +1,135 @@
+package com.gamma.enrich;
+
+import com.gamma.etl.PartitionOutput;
+import com.gamma.etl.PartitionWriter;
+import com.gamma.util.DuckDbUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Stage-2 enrichment engine: reads the Stage-1 multiplexer's partitioned output with
+ * DuckDB, applies a configured columnar transform (joins against reference views +
+ * aggregation/derivation), and writes the result as a new Hive-partitioned dataset —
+ * <b>idempotently</b>, so event-driven and scheduled recomputes safely overwrite.
+ *
+ * <h3>Execution</h3>
+ * <ol>
+ *   <li>Register each {@code references[]} source as a DuckDB view (by name).</li>
+ *   <li>Create the {@code input} view over the selected Stage-1 partitions
+ *       ({@code read_parquet}/{@code read_csv} with {@code hive_partitioning}). When a
+ *       partition filter is supplied, only those partitions are read — precise
+ *       incremental recompute driven by a committed batch's lineage.</li>
+ *   <li>Run the config's {@code transform} SQL into a temp table.</li>
+ *   <li>Write it partitioned by {@code output.partitions} via {@link PartitionWriter}
+ *       (no {@code __src_id} to exclude; {@code OVERWRITE_OR_IGNORE} makes re-runs safe).</li>
+ * </ol>
+ *
+ * <p>Incremental scoping assumes each output partition derives from a bounded set of
+ * input partitions (e.g. a daily KPI from a day's partition) — the common case. The
+ * {@code transform} reads the view {@code input} and any reference views by name.
+ */
+public final class EnrichmentEngine {
+
+    private static final Logger log = LoggerFactory.getLogger(EnrichmentEngine.class);
+
+    private EnrichmentEngine() {}
+
+    /** Full recompute over all input partitions. */
+    public static List<PartitionOutput> run(EnrichmentConfig cfg) throws Exception {
+        return run(cfg, null);
+    }
+
+    /**
+     * Recompute enrichment output.
+     *
+     * @param partitionFilter when non-empty, restricts the {@code input} view to these
+     *                        partitions (each map is partitionColumn → value, AND-ed
+     *                        within a map, OR-ed across maps). {@code null}/empty = full.
+     * @return one {@link PartitionOutput} per written partition file
+     */
+    public static List<PartitionOutput> run(EnrichmentConfig cfg,
+                                            List<Map<String, String>> partitionFilter) throws Exception {
+        File db = DuckDbUtil.tempDbFile("enrich_");
+        try (Connection conn = DuckDbUtil.openConnection(db); Statement st = conn.createStatement()) {
+
+            // 1. reference views
+            for (EnrichmentConfig.Reference r : cfg.references()) {
+                st.execute("CREATE VIEW \"" + r.name() + "\" AS SELECT * FROM "
+                        + reader(r.format(), r.path(), false));
+            }
+
+            // 2. input view over the selected Stage-1 partitions
+            String inputGlob = cfg.input().database().replace("\\", "/")
+                    + "/**/*." + ext(cfg.input().format());
+            String inputSql = "SELECT * FROM " + reader(cfg.input().format(), inputGlob, true);
+            String where = buildFilter(partitionFilter);
+            if (!where.isEmpty()) inputSql += " WHERE " + where;
+            st.execute("CREATE VIEW input AS " + inputSql);
+
+            // 3. transform → temp table
+            st.execute("CREATE TABLE __enriched AS " + cfg.transformSql());
+
+            // 4. idempotent partitioned write (no __src_id to exclude)
+            String baseName = cfg.name().toLowerCase().replace(' ', '_');
+            List<PartitionOutput> outputs = PartitionWriter.write(
+                    conn, "__enriched",
+                    cfg.output().database(), cfg.output().format(), cfg.output().compression(),
+                    baseName, cfg.output().partitions(), List.of());
+
+            log.info("[ENRICH] {}: {} → {} partition file(s){}",
+                    cfg.name(),
+                    (partitionFilter == null || partitionFilter.isEmpty())
+                            ? "full" : partitionFilter.size() + " input partition(s)",
+                    outputs.size(),
+                    cfg.references().isEmpty() ? "" : "  refs=" + cfg.references().size());
+            return outputs;
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
+    // ── helpers ────────────────────────────────────────────────────────────────
+
+    private static String ext(String format) {
+        return "PARQUET".equals(format) ? "parquet" : "csv";
+    }
+
+    /** A DuckDB table-function reading {@code pathOrGlob}. hive_types_autocast=0 keeps
+     *  partition values as VARCHAR so zero-padded month/day (e.g. "04") survive. */
+    private static String reader(String format, String pathOrGlob, boolean hive) {
+        String p = pathOrGlob.replace("\\", "/");
+        return switch (format) {
+            case "PARQUET" -> "read_parquet('" + p + "'"
+                    + (hive ? ", hive_partitioning=true, hive_types_autocast=0" : "") + ")";
+            case "CSV" -> "read_csv('" + p + "', header=true, all_varchar=true, union_by_name=true"
+                    + (hive ? ", hive_partitioning=true, hive_types_autocast=0" : "") + ")";
+            default -> throw new IllegalArgumentException("Unsupported format: " + format);
+        };
+    }
+
+    /** Build {@code (c1='v1' AND c2='v2') OR (...)} from the partition filter. */
+    private static String buildFilter(List<Map<String, String>> filter) {
+        if (filter == null || filter.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < filter.size(); i++) {
+            Map<String, String> m = filter.get(i);
+            if (m.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(" OR ");
+            sb.append('(');
+            int j = 0;
+            for (Map.Entry<String, String> e : m.entrySet()) {
+                if (j++ > 0) sb.append(" AND ");
+                sb.append('"').append(e.getKey()).append("\"='")
+                  .append(e.getValue().replace("'", "''")).append('\'');
+            }
+            sb.append(')');
+        }
+        return sb.toString();
+    }
+}

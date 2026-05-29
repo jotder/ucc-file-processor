@@ -60,6 +60,24 @@ public final class PartitionWriter {
                                               String compression, String baseName,
                                               List<String> partitionColumns)
             throws Exception {
+        // CSV/plugin ingest path: the materialized table carries the internal
+        // __src_id lineage tag, which must be excluded from written output.
+        return write(conn, table, databaseDir, outputFormat, compression, baseName,
+                partitionColumns, List.of("__src_id"));
+    }
+
+    /**
+     * Full overload: write {@code table} partitioned by {@code partitionColumns},
+     * excluding {@code excludeColumns} from the written rows. Pass an empty list to
+     * write every column — e.g. the enrichment engine, whose output has no
+     * {@code __src_id} to strip.
+     */
+    public static List<PartitionOutput> write(Connection conn, String table,
+                                              String databaseDir, String outputFormat,
+                                              String compression, String baseName,
+                                              List<String> partitionColumns,
+                                              List<String> excludeColumns)
+            throws Exception {
 
         boolean isParquet = "PARQUET".equals(outputFormat);
         String  ext       = isParquet ? ".parquet" : ".csv";
@@ -80,9 +98,10 @@ public final class PartitionWriter {
             if (isParquet && compression != null && !compression.isBlank())
                 copyOpts.append(", COMPRESSION ").append(compression);
 
-            stmt.execute(String.format(
-                    "COPY (SELECT * EXCLUDE (__src_id) FROM %s) TO '%s' (%s)",
-                    table, stagingDir, copyOpts));
+            String projection = (excludeColumns == null || excludeColumns.isEmpty())
+                    ? "SELECT * FROM " + table
+                    : "SELECT * EXCLUDE (" + String.join(", ", excludeColumns) + ") FROM " + table;
+            stmt.execute(String.format("COPY (%s) TO '%s' (%s)", projection, stagingDir, copyOpts));
 
             try (Stream<Path> staged = Files.walk(stagingPath)) {
                 staged.filter(Files::isRegularFile).forEach(src -> {

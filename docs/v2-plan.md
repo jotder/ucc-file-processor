@@ -19,9 +19,17 @@ independently releasable as a minor version on the `2.x` branch.
 
 Build order is top-to-bottom. Versions are nominal targets.
 
-### M0 — Enrichment core spike  → v2.1.0  (flagship, de-risk first)
+### M0 — Enrichment core spike  → v2.1.0  ✅ (flagship, de-risked)
 
-Prove the columnar-incremental transform on real Stage-1 output, CLI-first.
+Prove the columnar-incremental transform on real Stage-1 output, CLI-first. **Done**
+(`2.1.0-SNAPSHOT`): `com.gamma.enrich` — `EnrichmentConfig` (toon loader),
+`EnrichmentEngine` (read_parquet/read_csv over partitions → transform → idempotent
+`PartitionWriter` write), `EnrichmentProcessor` (CLI, full + `--partitions`
+incremental). 9 tests: full/incremental/idempotent recompute, reference join, config
+parsing. `PartitionWriter` gained an exclude-columns overload so non-`__src_id` tables
+(enrichment output) write cleanly. References use a *map* form (`name → {path,
+format}`) so colon-bearing paths parse. **Run-level audit/lineage for enrichment is
+deferred to M2** (it becomes a managed concern once orchestrated).
 
 - **T0.1** Design the enrichment `.toon` schema: inputs (partition glob / DuckLake
   table), reference sources, join/aggregate/derive spec, **output grain &

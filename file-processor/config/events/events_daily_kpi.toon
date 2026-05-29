@@ -1,0 +1,31 @@
+# Stage-2 enrichment example: a daily KPI per event type from the multiplexer's
+# partitioned output. Run with:
+#   java -cp target/file-processor-<version>.jar com.gamma.enrich.EnrichmentProcessor \
+#        config/events/events_daily_kpi.toon [--partitions event_type=CALL/year=2020/month=04/day=03]
+name: EVENTS_DAILY_KPI
+version: 1
+
+# Stage-1 output to read (the Hive-partitioned tree the multiplexer wrote).
+input:
+  database: database/events
+  format: PARQUET
+  partitions[4]: event_type, year, month, day
+
+# Optional join/lookup tables, registered as DuckDB views by name and usable in
+# the transform SQL. A map (not a tabular array) so paths with ':' are fine.
+references:
+  region_dim:
+    path: ref/region_dim.parquet
+    format: PARQUET
+
+# Where the enriched report is written, and at what grain (may differ from input).
+output:
+  database: reports/events_daily
+  format: PARQUET
+  compression: snappy
+  partitions[4]: event_type, year, month, day
+
+# The columnar transform. Reads the `input` view (selected partitions) and any
+# reference views by name; must project the output.partitions columns + the
+# report columns. Use transform_file: <path>.sql for longer SQL.
+transform: "SELECT i.event_type, i.year, i.month, i.day, COUNT(*) AS event_count, ANY_VALUE(r.region) AS region FROM input i LEFT JOIN region_dim r ON i.event_type = r.event_type GROUP BY i.event_type, i.year, i.month, i.day"
