@@ -59,7 +59,10 @@ public final class SourceService implements AutoCloseable {
     private final long pollSeconds;
     private final int  maxConcurrentRuns;
     private final BatchEventBus bus = new BatchEventBus();
-    private final StatusStore status = new FileStatusStore();
+    /** Authoritative on-disk audit reader; also the sync source when a DB backend is used. */
+    private final FileStatusStore fileStatus = new FileStatusStore();
+    /** The read surface the Control API + observability query — file- or DB-backed (M5). */
+    private final StatusStore status;
     private final Scheduler scheduler = new Scheduler();
     private final EnrichmentService enrichment;
     private final MetricsService metrics =
@@ -76,9 +79,21 @@ public final class SourceService implements AutoCloseable {
 
     public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          long pollSeconds, int maxConcurrentRuns) {
+        this(registry, enrichJobs, pollSeconds, maxConcurrentRuns, null);
+    }
+
+    /**
+     * @param statusStore the read surface for the Control API + observability. When this
+     *                    is a {@link DbStatusStore}, the service projects the on-disk audit
+     *                    into it at startup and after each poll cycle; {@code null} falls
+     *                    back to the file-backed store (the on-disk audit read directly).
+     */
+    public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+                         long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
         this.registry          = List.copyOf(registry);
         this.pollSeconds       = Math.max(1, pollSeconds);
         this.maxConcurrentRuns = Math.max(1, maxConcurrentRuns);
+        this.status            = statusStore != null ? statusStore : fileStatus;
         this.enrichment        = enrichJobs.isEmpty()
                 ? null
                 : new EnrichmentService(enrichJobs, bus, scheduler);
@@ -94,13 +109,16 @@ public final class SourceService implements AutoCloseable {
         for (Path p : registry) {
             try {
                 PipelineConfig cfg = PipelineConfig.load(p.toString());
-                int committed = status.committedBatches(cfg).size();
+                int committed = fileStatus.committedBatches(cfg).size();   // on-disk truth
                 log.info("Registered '{}' ({}) — {} previously committed batch(es)",
                         cfg.identity().pipelineName(), p, committed);
             } catch (Exception e) {
                 log.warn("Could not load config {} at startup: {}", p, e.getMessage());
             }
         }
+        // Project the on-disk audit into the status DB (if DB-backed) before serving any
+        // query, so the API/observability see current state from the first scrape onward.
+        syncStatus();
         // Metrics subscribes to the bus and registers scrape collectors; enrichment
         // subscribes + schedules its completeness jobs. Both wire up before the first
         // poll cycle so no commit event from that cycle is missed.
@@ -124,17 +142,44 @@ public final class SourceService implements AutoCloseable {
         com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
         reg.inc("ucc_poll_cycles_total", "Poll cycles run", Map.of());
         reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), active.size());
+        MultiSourceProcessor.RunResult r;
         try {
-            MultiSourceProcessor.RunResult r =
-                    MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
+            r = MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
             if (r.failed() > 0) {
                 log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
                 reg.inc("ucc_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
             }
-            return r;
         } finally {
             reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), 0);
         }
+        // Refresh the status DB (if DB-backed) so this cycle's commits are queryable.
+        syncStatus();
+        return r;
+    }
+
+    /**
+     * If the status store is DB-backed, project the latest on-disk audit into it. No-op
+     * for the file backend. Failures are logged, never fatal — the on-disk audit (and the
+     * file store) remain the durable source of truth, so a transient DB hiccup only makes
+     * the DB momentarily stale, it never loses or blocks ingest.
+     */
+    private void syncStatus() {
+        if (!(status instanceof DbStatusStore db)) return;
+        try {
+            db.sync(fileStatus, loadConfigs());
+        } catch (Exception e) {
+            log.warn("Status DB sync failed (DB may be momentarily stale): {}", e.getMessage());
+        }
+    }
+
+    /** Load every registered config, skipping (with a warning) any that won't parse. */
+    private List<PipelineConfig> loadConfigs() {
+        List<PipelineConfig> out = new ArrayList<>();
+        for (Path p : registry) {
+            try { out.add(PipelineConfig.load(p.toString())); }
+            catch (Exception e) { log.warn("Could not load config {} for status sync: {}", p, e.getMessage()); }
+        }
+        return out;
     }
 
     // ── Control API surface (M3) ─────────────────────────────────────────────────
@@ -219,6 +264,9 @@ public final class SourceService implements AutoCloseable {
     public void close() {
         if (enrichment != null) enrichment.close();   // drain in-flight recomputes first
         scheduler.close();
+        if (status instanceof AutoCloseable c) {       // close a DB-backed store's connection
+            try { c.close(); } catch (Exception e) { log.warn("Error closing status store: {}", e.getMessage()); }
+        }
         log.info("SourceService stopped");
     }
 
@@ -256,7 +304,30 @@ public final class SourceService implements AutoCloseable {
         List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(args, "_enrich.toon"));
         long pollSeconds = Long.getLong("service.poll.seconds", 60L);
         int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
-        return new SourceService(registry, enrichJobs, pollSeconds, maxRuns);
+        return new SourceService(registry, enrichJobs, pollSeconds, maxRuns, buildStatusStore());
+    }
+
+    /**
+     * Select the status backend from system properties (M5):
+     * {@code -Dstatus.backend=file} (default) reads the on-disk audit directly;
+     * {@code -Dstatus.backend=db} projects it into a database — requires
+     * {@code -Dstatus.db.url} (e.g. {@code jdbc:postgresql://host:5432/ucc}) and accepts
+     * optional {@code -Dstatus.db.user} / {@code -Dstatus.db.password}.
+     */
+    private static StatusStore buildStatusStore() {
+        String backend = System.getProperty("status.backend", "file");
+        if (!"db".equalsIgnoreCase(backend)) return new FileStatusStore();
+        String url = System.getProperty("status.db.url");
+        if (url == null || url.isBlank())
+            throw new IllegalArgumentException("status.backend=db requires -Dstatus.db.url");
+        try {
+            StatusStore db = DbStatusStore.open(url,
+                    System.getProperty("status.db.user"), System.getProperty("status.db.password"));
+            log.info("Status backend: database ({})", url);
+            return db;
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not open status DB at " + url, e);
+        }
     }
 
     /** Walk CLI paths for files ending in {@code suffix} (file args matched directly). */

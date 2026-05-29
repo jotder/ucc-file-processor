@@ -314,6 +314,34 @@ curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines
 curl -s -X POST -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/trigger
 ```
 
+### Status backend — file (default) or database (`DbStatusStore`)
+
+The audit queries above (`commits`/`batches`/`files`/`lineage`/`quarantine`) and the
+observability gauges read through a pluggable **`StatusStore`**. By default it reads the
+on-disk audit artifacts directly (`FileStatusStore`). Set `-Dstatus.backend=db` to make the
+service project that audit into a database and serve queries from it instead — durable and
+SQL-queryable, while ingest keeps writing the file audit unchanged (it stays the write-time
+source of truth and survives a DB outage).
+
+```bash
+# PostgreSQL (production)
+java -cp file-processor.jar com.gamma.control.ControlApi \
+     -Dcontrol.token=secret \
+     -Dstatus.backend=db \
+     -Dstatus.db.url="jdbc:postgresql://db-host:5432/ucc" \
+     -Dstatus.db.user=ucc -Dstatus.db.password=*** \
+     config/
+```
+
+The store is engine-neutral JDBC over portable SQL: the same code path runs on Postgres
+(the bundled JDBC driver) or, for a zero-infra local/file option, DuckDB
+(`-Dstatus.db.url="jdbc:duckdb:/var/lib/ucc/status.db"`). It creates its schema on first
+connect (`ucc_status_{commits,batches,files,lineage,quarantine}`) and **syncs at startup and
+after every poll cycle**, so the DB reflects the latest committed state (up to one cycle of
+staleness) and the API/observability transparently read from it — no endpoint changes. A sync
+is a transactional DELETE-then-INSERT per pipeline, so it is idempotent and doubles as the
+migrate/backfill of existing file audit into the database.
+
 ### Observability — metrics & structured events
 
 The Control API host also exposes `GET /metrics` (open — scrapers don't carry tokens) in **Prometheus text format**, served from a zero-dependency in-process registry. No extra agent or sidecar.

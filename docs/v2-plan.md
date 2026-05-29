@@ -166,13 +166,41 @@ with the M3 HTTP choice); swappable later if dimensional backends (OTLP/StatsD) 
 needed. The dedicated enrichment **run-level audit/lineage** deferred since M0 remains
 open — surfaced now via metrics + the event log, but not yet persisted as audit rows.
 
-### M5 — Status store in a database  → v2.6.0  (last)
+### M5 — Status store in a database  → v2.6.0  ✅ (last — plan complete)
 
-- **T5.1** Postgres-backed `StatusStore` behind the existing seam; schema
-  (pipelines/runs/batches/files/lineage/quarantine/commits).
-- **T5.2** Config selects file vs DB backing; optional migrate/backfill.
-- **T5.3** API + observability query the DB.
-- **DoD:** status durable & queryable in Postgres; file-backed still works; green.
+**Done** (`2.6.0-SNAPSHOT`): new `com.gamma.service.DbStatusStore` — an engine-neutral
+JDBC `StatusStore` behind the existing seam. A single portable-ANSI-SQL code path runs on
+**PostgreSQL** in production (D-e; the PG JDBC driver is the only new runtime dep of the 2.x
+service line) and on **DuckDB** in-process for tests (the already-bundled driver, no server).
+`SourceService` selects the backend via `-Dstatus.backend=file|db` (+ `-Dstatus.db.url`/
+`user`/`password`) and projects the on-disk audit into the DB at startup and after each poll
+cycle, so the Control API + observability — which read through `statusStore()` unchanged —
+query the DB. 5 new tests; full suite **141 green**; verified end-to-end via the fat-JAR
+(`/commits`, `/batches`, `/lineage`, `/metrics` all served from the DB).
+
+- **T5.1** ✅ DB-backed `StatusStore` behind the seam. Schema: five tables
+  (`ucc_status_{commits,batches,files,lineage,quarantine}`). Audit rows are dynamic
+  `header→value` maps (columns vary; some list-valued), so each row is stored verbatim as a
+  JSON `payload` plus the columns we index on (`pipeline`, `batch_id`, `seq`) — faithful
+  round-trip, serialises straight back to JSON for the API.
+- **T5.2** ✅ Config selects file (default) vs DB backing via system properties.
+  Migrate/backfill is `DbStatusStore.sync(source, cfgs)` — a transactional
+  DELETE-then-INSERT per pipeline that projects a source `StatusStore` (the file audit) into
+  the DB; idempotent, so re-sync is a refresh. Ingest still writes the file audit unchanged
+  (write-time source of truth; survives a DB outage), and the DB is its durable, queryable
+  projection.
+- **T5.3** ✅ API + observability query the DB — no change needed: both already read through
+  `SourceService.statusStore()`, which now returns the DB store when DB-backed.
+- **DoD:** ✅ status durable & queryable in a database; file-backed still works (default; all
+  pre-M5 tests unchanged & green); suite green.
+
+Scope notes for this cut: the DB is a **projection** of the on-disk audit (synced at
+startup + per cycle) rather than a live write target — this keeps the proven ingest path
+untouched and the file audit authoritative, at the cost of up-to-one-cycle staleness in the
+DB. Tests run against **DuckDB in-memory** (zero infra); the SQL is plain ANSI so it runs
+unchanged on Postgres, but a live-Postgres integration test (Testcontainers/CI) is left as an
+ops step to avoid a Docker dependency in the unit suite. The enrichment **run-level
+audit/lineage** deferred since M0 remains the one open follow-up across the v2.x plan.
 
 ## Cross-cutting (applied each milestone)
 

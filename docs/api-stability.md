@@ -47,6 +47,7 @@ Two audiences depend on the framework from outside:
 | `com.gamma.service.SourceService` | 2.2.0 | Always-on host: registry, poll schedule, event bus, control surface (`fromArgs`, `runAllOnce`, `runPipeline`, `pause`/`resume`, `pipelines`, `statusStore`) |
 | `com.gamma.service.EnrichmentService` | 2.3.0 | Orchestrates Stage-2 enrichment against batch-commit events + schedules |
 | `com.gamma.control.ControlApi` | 2.4.0 | Embedded REST control plane over a running `SourceService` |
+| `com.gamma.service.DbStatusStore` | 2.6.0 | Database-backed `StatusStore` (engine-neutral JDBC; Postgres in prod, DuckDB in tests) — selected via `-Dstatus.backend=db` |
 
 ## Explicitly internal (do not depend on)
 
