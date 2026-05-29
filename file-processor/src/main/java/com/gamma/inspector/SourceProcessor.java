@@ -49,6 +49,16 @@ public class SourceProcessor {
 
     /** Run one poll cycle for {@code cfg}: plan batches and process them in parallel. */
     public static void run(PipelineConfig cfg) throws Exception {
+        run(cfg, null);
+    }
+
+    /**
+     * Run one poll cycle, emitting a {@link BatchEvent} to {@code onCommit} after each
+     * SUCCESS batch commits (the service layer passes a bus sink here so downstream
+     * stages can react). {@code onCommit} may be {@code null}.
+     */
+    public static void run(PipelineConfig cfg, java.util.function.Consumer<BatchEvent> onCommit)
+            throws Exception {
         PathMatcher matcher = FileSystems.getDefault().getPathMatcher(cfg.processing().filePattern());
         Path root           = Paths.get(cfg.dirs().poll()).toAbsolutePath();
         Path errorsDir      = Paths.get(cfg.dirs().errors()).toAbsolutePath();
@@ -88,6 +98,7 @@ public class SourceProcessor {
         BatchAuditWriter audit = new BatchAuditWriter(
                 cfg.dirs().statusFilePath(), cfg.dirs().batchesFilePath(), cfg.dirs().lineageFilePath(),
                 cfg.dirs().commitLogPath());
+        if (onCommit != null) audit.setCommitListener(onCommit);
 
         // Virtual threads + a Semaphore: a batch blocked on file I/O or DuckDB parks
         // its carrier cheaply instead of pinning a platform thread, but the semaphore

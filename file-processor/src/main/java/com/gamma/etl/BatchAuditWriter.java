@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -25,6 +26,7 @@ public final class BatchAuditWriter {
     private final String batchesPath;
     private final String lineagePath;
     private final CommitLog commitLog;   // null when no commit-log path is configured
+    private Consumer<BatchEvent> commitListener;   // null = no event emission
 
     /** Back-compat: audit CSVs only, no durable commit log. */
     public BatchAuditWriter(String statusPath, String batchesPath, String lineagePath) {
@@ -42,6 +44,16 @@ public final class BatchAuditWriter {
         this.lineagePath = lineagePath;
         this.commitLog   = (commitLogPath != null && !commitLogPath.isBlank())
                 ? new CommitLog(commitLogPath) : null;
+    }
+
+    /**
+     * Register a listener notified after each {@code SUCCESS} batch is durably
+     * committed (audit rows + commit-log line written). The {@code service} layer
+     * passes a bus sink here so downstream stages (enrichment) can react. Set once
+     * during setup; {@link #flush} reads it under the same lock.
+     */
+    public void setCommitListener(Consumer<BatchEvent> listener) {
+        this.commitListener = listener;
     }
 
     /** One member-file audit row. */
@@ -69,6 +81,15 @@ public final class BatchAuditWriter {
             commitLog.record(batch.endTime(), batch.batchId(), batch.pipeline(), batch.status(),
                     batch.memberCount(), batch.outputFileCount(),
                     batch.totalOutputRows(), batch.totalOutputBytes());
+        }
+        // Emit a batch-commit event for SUCCESS batches (they have output partitions).
+        // Fired last, so a delivered event implies the audit + commit log are written.
+        if (commitListener != null && "SUCCESS".equals(batch.status())) {
+            List<String> partitions = lineage.stream()
+                    .map(LineageRow::partition).distinct().collect(Collectors.toList());
+            commitListener.accept(new BatchEvent(
+                    batch.pipeline(), batch.batchId(), batch.status(),
+                    partitions, batch.totalOutputRows()));
         }
     }
 

@@ -90,6 +90,17 @@ public final class MultiSourceProcessor {
      * @return a {@link RunResult} with total and failed source counts
      */
     public static RunResult runAll(List<Path> configs, int maxConcurrent) {
+        return runAll(configs, maxConcurrent, null);
+    }
+
+    /**
+     * As {@link #runAll(List, int)}, but emits a {@link com.gamma.etl.BatchEvent} to
+     * {@code onCommit} after each SUCCESS batch (used by the service layer to feed its
+     * event bus). {@code onCommit} may be {@code null}. Each config is loaded fresh
+     * per call, so every cycle is a new run with its own run timestamp.
+     */
+    public static RunResult runAll(List<Path> configs, int maxConcurrent,
+                                   java.util.function.Consumer<com.gamma.etl.BatchEvent> onCommit) {
         Semaphore permits   = new Semaphore(Math.max(1, maxConcurrent));
         AtomicInteger failed = new AtomicInteger();
 
@@ -100,7 +111,7 @@ public final class MultiSourceProcessor {
                     permits.acquire();
                     try {
                         PipelineConfig cfg = PipelineConfig.load(cfgPath.toString());
-                        SourceProcessor.run(cfg);
+                        SourceProcessor.run(cfg, onCommit);
                         log.info("Source '{}' completed", cfg.identity().pipelineName());
                     } catch (SourceProcessor.BatchProcessingException e) {
                         failed.incrementAndGet();

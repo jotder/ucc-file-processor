@@ -46,9 +46,22 @@ deferred to M2** (it becomes a managed concern once orchestrated).
 - **DoD:** `ura enrich <enrich.toon> [--partitions … | --window …]` produces correct
   reports/KPIs from partitioned output; re-runs are idempotent; full suite green.
 
-### M1 — Service / server mode  → v2.2.0  (platform linchpin)
+### M1 — Service / server mode  → v2.2.0  ✅ (platform linchpin)
 
-Always-on host; the event bus + scheduler the enrichment feature needs.
+Always-on host; the event bus + scheduler the enrichment feature needs. **Done** —
+new `com.gamma.service`: `SourceService` (registry of config paths, scheduled poll
+cycle, recovery report, graceful shutdown, CLI), `BatchEventBus` (in-process pub/sub),
+`Scheduler` (interval, non-overlapping), `StatusStore` + `FileStatusStore` (commit-log
+backed seam). The ingest layer emits `BatchEvent`s via a `Consumer` handed to
+`SourceProcessor.run(cfg, onCommit)` → `MultiSourceProcessor.runAll(.., onCommit)` →
+`BatchAuditWriter` publishes on SUCCESS flush (partitions from lineage). 9 tests.
+
+Scope notes for this cut: scheduler is **interval-based** (calendar/cron for windowed
+KPIs lands in M2); **recovery** = startup commit-log visibility (batch atomicity +
+marker dedup already make interrupted batches safe to reprocess); **global budget** is
+run-level (concurrent sources bounded by the existing `MultiSourceProcessor` semaphore;
+each source still bounds its own batches via `processing.threads`). The original
+spec text is retained below.
 
 - **T1.1** `StatusStore` abstraction + **file-backed** impl wrapping today's audit
   CSVs / manifests / commit log (read APIs: runs, batches, files, lineage, commits).
