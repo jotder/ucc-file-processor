@@ -1,5 +1,6 @@
 package com.gamma.inspector;
 
+import com.gamma.api.PublicApi;
 import com.gamma.etl.*;
 import com.gamma.util.LogSetup;
 import org.slf4j.Logger;
@@ -23,6 +24,7 @@ import java.util.stream.Stream;
  *
  * <p>Run via: {@code java -jar file-processor.jar <pipeline.toon>}
  */
+@PublicApi(since = "1.0.0")
 public class SourceProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(SourceProcessor.class);

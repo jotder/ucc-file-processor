@@ -6,6 +6,17 @@ stays on the 1.6.x release line; 2.x merges back when 2.0.0 is ready.
 v2 is the place for **breaking changes** the 1.x line deliberately deferred —
 see [design-notes.md](design-notes.md) for the original deferral rationale.
 
+## Status: 2.0.0 ready
+
+All three planned items are **done** on the `2.x` branch (98/98 tests green):
+
+- ✅ **D6** — `PipelineConfig` split into six nested records (the one breaking change).
+- ✅ **D2** — durable fsync'd `CommitLog` batch ledger.
+- ✅ **M3** — `@PublicApi` markers + [api-stability.md](api-stability.md) policy.
+
+Remaining to cut the release: bump `2.0.0-SNAPSHOT` → `2.0.0`, merge `2.x` → `master`,
+tag `v2.0.0`. (Details below kept for the record.)
+
 ## Planned work
 
 ### D6 — `PipelineConfig` record split (foundational, breaking)

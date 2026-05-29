@@ -1,5 +1,6 @@
 package com.gamma.inspector;
 
+import com.gamma.api.PublicApi;
 import com.gamma.etl.PipelineConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +48,7 @@ import java.util.stream.Stream;
  * operational output flows through SLF4J, where each line carries its logger and
  * the relevant batch/source id.
  */
+@PublicApi(since = "1.6.0")
 public final class MultiSourceProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(MultiSourceProcessor.class);

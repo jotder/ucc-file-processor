@@ -98,9 +98,19 @@ landed in one green step. This is the one breaking API change of 2.0; pipeline
 `.toon` configs and on-disk output are unchanged. M3 (`@PublicApi`) marks this
 final surface.
 
-### M3 — Formal SemVer policy + `@PublicApi`
+### M3 — Formal SemVer policy + `@PublicApi` — ✅ DONE (2.0.0)
 
-See "Stability tiers" above for the interim informal policy. A formal `@PublicApi` annotation plus a `module-info.java` that exports only the public packages would let consumers know what they can depend on. Defer until D6 lands (so the surface to mark is the cleaned-up nested-record version).
+`com.gamma.api.PublicApi` (CLASS-retained marker) now annotates the stable public
+surface: `FileIngester` + `Segment`, `IngestResult`, `PipelineConfig` + its six
+nested records, and the `SourceProcessor` / `MultiSourceProcessor` embedding entry
+points. Everything unmarked is internal. The full policy, marked surface, and the
+config/output contracts that carry forward are in
+[api-stability.md](api-stability.md).
+
+**`module-info.java` deliberately skipped.** JPMS over a fat shaded JAR with many
+automatic-module deps (DuckDB, univocity, JToon, Jackson, …) is high-risk for
+little gain; the annotation + policy doc is the sufficient, lower-risk mechanism.
+Rationale recorded in api-stability.md ("Why no module-info").
 
 ### M4 — Split the README into a `docs/` tree — ✅ DONE (v1.6.1)
 

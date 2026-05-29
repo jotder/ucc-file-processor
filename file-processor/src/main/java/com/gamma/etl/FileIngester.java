@@ -1,5 +1,7 @@
 package com.gamma.etl;
 
+import com.gamma.api.PublicApi;
+
 import java.io.File;
 import java.sql.Connection;
 import java.util.List;
@@ -44,6 +46,7 @@ import java.util.List;
  * </pre>
  * The class must have a public no-arg constructor and be on the fat-JAR classpath.
  */
+@PublicApi(since = "1.3.0")
 public interface FileIngester {
 
     /**
@@ -67,5 +70,6 @@ public interface FileIngester {
      * @param rawTable  exact DuckDB table name created, e.g. {@code "raw_CALL_f0"}
      * @param stats     row counts for this table ({@link IngestResult#parsedRows()} etc.)
      */
+    @PublicApi(since = "1.3.0")
     record Segment(String key, String rawTable, IngestResult stats) {}
 }

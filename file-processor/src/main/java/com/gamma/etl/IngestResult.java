@@ -1,5 +1,7 @@
 package com.gamma.etl;
 
+import com.gamma.api.PublicApi;
+
 /**
  * Counts returned from a single-file raw-ingestion pass into DuckDB.
  *
@@ -10,4 +12,5 @@ package com.gamma.etl;
  *                          where every row fails the column-count check before the
  *                          appender is even reached
  */
+@PublicApi(since = "1.0.0")
 public record IngestResult(long parsedRows, long errorRows, long junkCandidateRows) {}

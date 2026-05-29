@@ -1,5 +1,6 @@
 package com.gamma.etl;
 
+import com.gamma.api.PublicApi;
 import com.gamma.util.ToonHelper;
 import dev.toonformat.jtoon.JToon;
 import org.slf4j.Logger;
@@ -35,6 +36,7 @@ import java.util.*;
  * object is safe for concurrent read access by all worker threads once
  * {@code load()} returns.
  */
+@PublicApi(since = "1.0.0")
 public final class PipelineConfig {
 
     private static final Logger log = LoggerFactory.getLogger(PipelineConfig.class);
@@ -42,12 +44,14 @@ public final class PipelineConfig {
     // ── nested config groups ───────────────────────────────────────────────────
 
     /** Pipeline identity: original name, normalised name, and the run timestamp. */
+    @PublicApi(since = "2.0.0")
     public record Identity(String name, String pipelineName, String runTimestamp) {}
 
     /**
      * All filesystem paths for the run. {@code statusFilePath}/{@code batchesFilePath}/
      * {@code lineageFilePath}/{@code manifestsDir} are {@code null} when status is disabled.
      */
+    @PublicApi(since = "2.0.0")
     public record Dirs(String poll, String database, String backup, String temp,
                        String errors, String quarantine, String markers, String logDir,
                        String statusFilePath, String batchesFilePath, String lineageFilePath,
@@ -59,6 +63,7 @@ public final class PipelineConfig {
      * connection's DuckDB parallelism via {@code PRAGMA threads} ({@code 0} = DuckDB
      * default). Set so {@code threads × duckdbThreads ≈ cores} to avoid oversubscription.
      */
+    @PublicApi(since = "2.0.0")
     public record Processing(int threads, int duckdbThreads, String filePattern,
                              int batchMaxFiles, long batchMaxBytes,
                              boolean duplicateCheckEnabled, String markerExtension,
@@ -69,11 +74,13 @@ public final class PipelineConfig {
      * {@code "java"} — {@code auto} uses DuckDB's native reader for clean configs and the
      * Java parser otherwise (see {@link DuckDbCsvIngester#usesDuckDb}).
      */
+    @PublicApi(since = "2.0.0")
     public record CsvSettings(String delimiter, int skipHeaderLines, int skipJunkLines,
                               int skipTailLines, int skipTailCols, boolean hasHeader,
                               String engine, List<String> dateFormats, List<String> tsFormats) {}
 
     /** Output format/compression and the optional {@code output.ducklake} map ({@code null} if absent). */
+    @PublicApi(since = "2.0.0")
     public record Output(String format, String compression, Map<String, Object> duckLake) {}
 
     /**
@@ -82,6 +89,7 @@ public final class PipelineConfig {
      * non-null. {@code ingesterClass} is the plugin FQCN ({@code null} for built-in CSV);
      * {@code ingesterConfig} is the plugin's free-form settings map (empty, never null).
      */
+    @PublicApi(since = "2.0.0")
     public record Schemas(SchemaSelector selector, Map<String, Object> single,
                           LinkedHashMap<String, Map<String, Object>> segments,
                           String ingesterClass, Map<String, Object> ingesterConfig) {}
