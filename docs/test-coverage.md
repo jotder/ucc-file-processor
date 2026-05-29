@@ -13,14 +13,22 @@ mvn -Pcoverage test
 
 | Scope | Line coverage | Branch coverage |
 |---|---|---|
-| **Core ETL** (`etl` + `inspector` + `ingester`) | **79.0%** (981/1242) | **62.3%** (353/567) |
-| **Pre-ETL utilities** (`util` CLI tools) | **2.0%** (29/1456) | 1.5% (9/603) |
-| Whole project | 37.4% | 30.9% |
+| **Core ETL** (`etl` + `inspector` + `ingester`) | **87.7%** (1174/1338) | **75.6%** (472/624) |
+| **Pre-ETL utilities** (`util` CLI tools) | ~2% | ~2% |
+| Whole project | ~42% | ~37% |
 
 The whole-project number is misleading: it's dragged down by the pre-ETL
 utility CLI tools, which have essentially no automated tests. The number that
-matters — the ETL pipeline that runs in production — is **79% line / 62%
-branch**, which is solid for an I/O-and-SQL-heavy codebase.
+matters — the ETL pipeline that runs in production — is **88% line / 76%
+branch**.
+
+> **v1.5.x coverage pass** raised core ETL from 79%/62% to 88%/76% by closing
+> the gaps below. The previously-weak classes now sit at: SchemaSelector
+> 96%/75% (was 0%), CsvIngester 92%/74% (was 67%/37%), DataTransformer 97%/85%
+> (was 72%/58%), PartitionWriter 94%/88% (was 91%/25%), MarkerManager 78%/77%
+> (was 64%/50%). New tests: `SchemaSelectorTest`, `CsvIngesterSkipLogicTest`,
+> `DataTransformerTransformTypesTest`, `PartitionWriterFormatTest`,
+> `MarkerManagerTest`, plus the shared `TestConfigs` builder (closes gap M5).
 
 ## Core ETL — well covered
 
@@ -43,6 +51,9 @@ Fully or near-fully exercised (the data-path classes):
 | PipelineConfig | 83% | 60% |
 
 ## Core ETL — coverage gaps worth closing
+
+> ✅ Items 1–5 below were **closed in the v1.5.x coverage pass** (see note at top).
+> They are kept here as the record of what was added and why.
 
 Ranked by risk × exposure:
 
