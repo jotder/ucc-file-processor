@@ -40,6 +40,14 @@ Two audiences depend on the framework from outside:
 | `com.gamma.inspector.MultiSourceProcessor` | 1.6.0 | Run many sources concurrently (`runAll` / `main`) |
 | `com.gamma.etl.PipelineConfig.load(String)` | 1.0.0 | Parse a pipeline `.toon` into a config |
 
+**Service & control line** (long-running host, Stage-2 enrichment, REST control plane):
+
+| Type | Since | Role |
+|---|---|---|
+| `com.gamma.service.SourceService` | 2.2.0 | Always-on host: registry, poll schedule, event bus, control surface (`fromArgs`, `runAllOnce`, `runPipeline`, `pause`/`resume`, `pipelines`, `statusStore`) |
+| `com.gamma.service.EnrichmentService` | 2.3.0 | Orchestrates Stage-2 enrichment against batch-commit events + schedules |
+| `com.gamma.control.ControlApi` | 2.4.0 | Embedded REST control plane over a running `SourceService` |
+
 ## Explicitly internal (do not depend on)
 
 `CsvIngester`, `DuckDbCsvIngester`, `DataTransformer`, `PartitionWriter`,

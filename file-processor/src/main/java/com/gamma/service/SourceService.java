@@ -12,6 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
 
@@ -58,6 +61,11 @@ public final class SourceService implements AutoCloseable {
     private final StatusStore status = new FileStatusStore();
     private final Scheduler scheduler = new Scheduler();
     private final EnrichmentService enrichment;
+    /** Pipeline names an operator has paused; the poll cycle skips them (Control API, M3). */
+    private final Set<String> paused = ConcurrentHashMap.newKeySet();
+
+    /** A pipeline's identity + current state, for the Control API's listing. */
+    public record PipelineView(String name, String configPath, boolean paused, int committedBatches) {}
 
     public SourceService(List<Path> registry, long pollSeconds, int maxConcurrentRuns) {
         this(registry, List.of(), pollSeconds, maxConcurrentRuns);
@@ -106,11 +114,91 @@ public final class SourceService implements AutoCloseable {
      * @return the run outcome (total / failed source counts)
      */
     public MultiSourceProcessor.RunResult runAllOnce() {
+        List<Path> active = paused.isEmpty() ? registry : activeRegistry();
+        if (active.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
         MultiSourceProcessor.RunResult r =
-                MultiSourceProcessor.runAll(registry, maxConcurrentRuns, bus.sink());
+                MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
         if (r.failed() > 0)
             log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
         return r;
+    }
+
+    // ── Control API surface (M3) ─────────────────────────────────────────────────
+
+    /** The status store backing query endpoints (file-backed today, DB-backed in M5). */
+    public StatusStore statusStore() {
+        return status;
+    }
+
+    /** List each registered pipeline with its current paused state and commit count. */
+    public List<PipelineView> pipelines() {
+        List<PipelineView> out = new ArrayList<>();
+        for (Path p : registry) {
+            try {
+                PipelineConfig cfg = PipelineConfig.load(p.toString());
+                String name = cfg.identity().pipelineName();
+                out.add(new PipelineView(name, p.toString(),
+                        paused.contains(name), status.committedBatches(cfg).size()));
+            } catch (Exception e) {
+                log.warn("Could not load config {} for listing: {}", p, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    /** Load the {@link PipelineConfig} for a registered pipeline by its (normalised) name. */
+    public Optional<PipelineConfig> configFor(String pipelineName) {
+        return pathFor(pipelineName).map(p -> {
+            try { return PipelineConfig.load(p.toString()); }
+            catch (Exception e) { throw new RuntimeException("Cannot load config for " + pipelineName, e); }
+        });
+    }
+
+    /** The registry path of a pipeline by name, if registered. */
+    public Optional<Path> pathFor(String pipelineName) {
+        for (Path p : registry) {
+            try {
+                if (PipelineConfig.load(p.toString()).identity().pipelineName().equals(pipelineName))
+                    return Optional.of(p);
+            } catch (Exception ignore) { /* skip unloadable */ }
+        }
+        return Optional.empty();
+    }
+
+    /** Run a single registered pipeline once. Empty if no pipeline by that name. */
+    public Optional<MultiSourceProcessor.RunResult> runPipeline(String pipelineName) {
+        return pathFor(pipelineName).map(p ->
+                MultiSourceProcessor.runAll(List.of(p), 1, bus.sink()));
+    }
+
+    /** Pause a pipeline (the poll cycle skips it). Returns false if not registered. */
+    public boolean pause(String pipelineName) {
+        if (pathFor(pipelineName).isEmpty()) return false;
+        paused.add(pipelineName);
+        log.info("Pipeline '{}' paused", pipelineName);
+        return true;
+    }
+
+    /** Resume a paused pipeline. Returns false if not registered. */
+    public boolean resume(String pipelineName) {
+        if (pathFor(pipelineName).isEmpty()) return false;
+        paused.remove(pipelineName);
+        log.info("Pipeline '{}' resumed", pipelineName);
+        return true;
+    }
+
+    /** Registry paths whose pipeline is not currently paused. */
+    private List<Path> activeRegistry() {
+        List<Path> active = new ArrayList<>();
+        for (Path p : registry) {
+            try {
+                if (!paused.contains(PipelineConfig.load(p.toString()).identity().pipelineName()))
+                    active.add(p);
+            } catch (Exception e) {
+                active.add(p);   // can't classify → don't silently drop it
+            }
+        }
+        return active;
     }
 
     @Override
@@ -128,17 +216,7 @@ public final class SourceService implements AutoCloseable {
                     + "[-Dservice.max.runs=M] <pipeline.toon | dir> [more ...]");
             System.exit(1);
         }
-        List<Path> registry = MultiSourceProcessor.resolveConfigs(args);
-        if (registry.isEmpty()) {
-            System.err.println("No *_pipeline.toon files found in: " + String.join(", ", args));
-            System.exit(1);
-        }
-        List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(args, "_enrich.toon"));
-
-        long pollSeconds = Long.getLong("service.poll.seconds", 60L);
-        int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
-
-        SourceService svc = new SourceService(registry, enrichJobs, pollSeconds, maxRuns);
+        SourceService svc = fromArgs(args);
         CountDownLatch latch = new CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             svc.close();
@@ -146,6 +224,25 @@ public final class SourceService implements AutoCloseable {
         }, "ucc-shutdown"));
         svc.start();
         latch.await();   // block until SIGTERM/SIGINT triggers the shutdown hook
+    }
+
+    /**
+     * Build a fully-wired service from CLI-style args: each path (file or dir) is
+     * scanned for {@code *_pipeline.toon} (Stage-1 sources) and {@code *_enrich.toon}
+     * (Stage-2 jobs). Reads {@code -Dservice.poll.seconds} (default 60) and
+     * {@code -Dservice.max.runs} (default = source count). Shared by the service and
+     * Control API entry points. Exits the JVM with a message if no sources are found.
+     */
+    public static SourceService fromArgs(String[] args) throws IOException {
+        List<Path> registry = MultiSourceProcessor.resolveConfigs(args);
+        if (registry.isEmpty()) {
+            System.err.println("No *_pipeline.toon files found in: " + String.join(", ", args));
+            System.exit(1);
+        }
+        List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(args, "_enrich.toon"));
+        long pollSeconds = Long.getLong("service.poll.seconds", 60L);
+        int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
+        return new SourceService(registry, enrichJobs, pollSeconds, maxRuns);
     }
 
     /** Walk CLI paths for files ending in {@code suffix} (file args matched directly). */

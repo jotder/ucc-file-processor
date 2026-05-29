@@ -11,7 +11,7 @@ independently releasable as a minor version on the `2.x` branch.
 | D-a | Enrichment engine home | **Same repo**, new package `com.gamma.enrich` + new entry point | Reuses `DuckDbUtil`, `PartitionWriter`, `PartitionDef`, config loading, audit/lineage |
 | D-b | Reference-data source (v1) | **DuckDB-readable files (Parquet/CSV) + DuckLake** | Zero new deps; Postgres dims via DuckDB scanner later |
 | D-c | Enrichment v1 scope | **Lineage-driven incremental (event) + scheduled window recompute**, idempotent, Parquet out | Matches the agreed execution model; full re-enrich is just "all partitions" |
-| D-d | Embedded HTTP server | **Javalin** (lightweight, embedded Jetty) | Small, JSON-friendly; keeps the fat-JAR ethos. Fallback: JDK `HttpServer` |
+| D-d | Embedded HTTP server | **JDK `HttpServer`** (revised from Javalin at M3) | Zero new deps — no Jetty/Kotlin in the fat-JAR; the plan-sanctioned fallback proved more than enough for a ~12-route JSON control plane. Jackson (already a dep) handles JSON. |
 | D-e | Status DB engine (last milestone) | **Postgres** | Already in the stack via DuckLake; clean multi-writer; real SQL for API |
 | D-f | Release cadence | **One minor release per milestone** on `2.x` (tag + GH release) | Ships value incrementally; each milestone is green & usable |
 
@@ -112,16 +112,31 @@ remains **interval-based** (calendar/cron deferred). Enrichment **run-level
 audit/lineage** (deferred from M0) is still open — enrichment recomputes log but don't
 yet write audit/lineage rows; fold into M4 (Observability) or a dedicated follow-up.
 
-### M3 — Control API  → v2.4.0
+### M3 — Control API  → v2.4.0  ✅
 
-One REST surface (humans now; UI/agent in v3).
+One REST surface (humans now; UI/agent in v3). **Done** (`2.4.0-SNAPSHOT`): new
+`com.gamma.control.ControlApi` on the JDK `HttpServer` (zero new deps) + Jackson JSON,
+bearer-token auth (open `/health` + `/ready`), virtual-thread executor, tiny regex
+router. `StatusStore` grew read methods (`batches`/`files`/`lineage`/`quarantine`)
+backed by the run-timestamped audit CSVs + quarantine tree; `SourceService` gained the
+control surface (`pipelines()`, `pause`/`resume`, `runPipeline`, `configFor`/`pathFor`,
+paused-skip in the poll cycle) and a shared `fromArgs(...)` factory. 7 HTTP integration
+tests; full suite 130 green. CLI: `com.gamma.control.ControlApi` runs the service + API
+together.
 
-- **T3.1** Embedded Javalin server; health/readiness; AuthN/Z (API token).
-- **T3.2** Endpoints: pipelines list/CRUD; trigger/pause/resume; query
-  runs/batches/files/lineage/quarantine (via `StatusStore`); reprocess (wrap
-  `ReprocessCommand`); validate config (wrap `ConfigValidator`).
-- **T3.3** Tests: endpoint integration over a running service.
-- **DoD:** every CLI operation is reachable over REST; authenticated; green.
+- **T3.1** ✅ Embedded server (JDK `HttpServer`); `/health` + `/ready`; bearer-token
+  auth on every other route (`Authorization: Bearer` or `X-Api-Token`; open with a
+  warning if no token configured).
+- **T3.2** ✅ Endpoints: `GET /pipelines` (list + state); `POST
+  /pipelines/{name}/{trigger,pause,resume}`; `GET /pipelines/{name}/{commits,batches,
+  files,lineage,quarantine}` (via `StatusStore`); `POST /pipelines/{name}/reprocess`
+  (wraps `ReprocessCommand`); `POST /trigger` (run all); `POST /validate` (wraps
+  `ConfigValidator`). (Pipeline *CRUD* — create/edit configs over HTTP — deferred; the
+  service reads configs from disk and edits are picked up each poll cycle.)
+- **T3.3** ✅ Tests: real-HTTP integration over a started API — auth enforcement,
+  trigger→audit-query round-trip, pause/resume state, validate, reprocess, 404/405.
+- **DoD:** ✅ every CLI operation is reachable over REST; authenticated; green.
+  Verified end-to-end via the fat-JAR (`-Dcontrol.port`/`-Dcontrol.token`).
 
 ### M4 — Observability  → v2.5.0
 

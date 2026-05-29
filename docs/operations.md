@@ -249,6 +249,71 @@ Sources run on a virtual-thread executor bounded by `-Dsources.max` (default: al
 
 **Three multiplying caps.** Total worker pressure ≈ `sources.max × processing.threads × processing.duckdb_threads`. Size them together for the host — e.g. on 16 cores: `sources.max=4`, `threads=2`, `duckdb_threads=2`.
 
+### Service mode — always-on host (`SourceService`)
+
+For continuous operation, `SourceService` keeps the JVM up and runs the registry on a poll schedule instead of one-shot. It also emits a **batch-commit event** on every `SUCCESS` flush (carrying the partitions that batch wrote, from lineage) — the trigger backbone the Stage-2 enrichment and Control API build on.
+
+```bash
+# Scan paths for *_pipeline.toon (sources) and *_enrich.toon (Stage-2 jobs)
+java -cp file-processor.jar com.gamma.service.SourceService \
+     -Dservice.poll.seconds=60 -Dservice.max.runs=4 config/
+```
+
+Each poll cycle reloads configs (so edits are picked up without a restart) and runs the registry via the same bounded virtual-thread executor as `MultiSourceProcessor`. On startup it reports each pipeline's previously committed batches (from the commit log) for recovery visibility; batch atomicity + marker dedup already make an interrupted batch safe to reprocess next cycle.
+
+### Stage-2 enrichment (`EnrichmentProcessor`)
+
+The multiplexer (Stage 1) deliberately does no joins/aggregation. The separate **enrichment engine** turns its partitioned output into reports/KPIs, reading the Hive-partitioned tree with DuckDB, applying a configured columnar transform (reference joins + aggregation), and writing a new partitioned dataset **idempotently** (`OVERWRITE_OR_IGNORE`). Config is an `*_enrich.toon` (see `config/events/events_daily_kpi.toon`).
+
+```bash
+# Full recompute over all input partitions
+java -cp file-processor.jar com.gamma.enrich.EnrichmentProcessor config/events/events_daily_kpi.toon
+# Incremental — recompute only the given partitions (semicolon-separated)
+java -cp file-processor.jar com.gamma.enrich.EnrichmentProcessor config/events/events_daily_kpi.toon \
+     --partitions "event_type=CALL/year=2020/month=04/day=03"
+```
+
+When hosted by `SourceService`, an enrichment's optional `triggers` section drives it automatically:
+
+```
+triggers:
+  on_pipeline: events        # freshness: recompute the committed partitions when that
+                             # Stage-1 pipeline (or an upstream enrichment, by name) commits
+  schedule_seconds: 3600     # completeness: full recompute on this interval (reconciles late data)
+```
+
+Chains form naturally — set `on_pipeline` to an upstream enrichment's `name` and it fires on that enrichment's own commit. Recomputes for one job are serialised (a per-job lock), and idempotent writes make event + schedule overlap converge.
+
+### Control API — REST control plane (`ControlApi`)
+
+`ControlApi` runs the service **with** an embedded REST surface (JDK `HttpServer`, no extra deps), so every CLI operation is reachable over HTTP — for operators now, UI/agent later.
+
+```bash
+java -cp file-processor.jar com.gamma.control.ControlApi \
+     -Dcontrol.port=8080 -Dcontrol.token=secret \
+     -Dservice.poll.seconds=60 config/
+```
+
+A bearer token guards every route except `/health` and `/ready` (present it as `Authorization: Bearer <token>` or `X-Api-Token`). If no token is set the API runs open, with a warning (dev only).
+
+| Method & path | Purpose |
+|---|---|
+| `GET /health`, `GET /ready` | liveness / readiness (open) |
+| `GET /pipelines` | list pipelines + paused state + commit count |
+| `POST /pipelines/{name}/trigger` | run one pipeline once |
+| `POST /pipelines/{name}/pause` · `/resume` | pause (poll cycle skips it) / resume |
+| `GET /pipelines/{name}/commits` | committed batch ids |
+| `GET /pipelines/{name}/batches` · `/files` · `/lineage[?batchId=]` | audit queries (via `StatusStore`) |
+| `GET /pipelines/{name}/quarantine` | quarantined inputs + reason |
+| `POST /pipelines/{name}/reprocess` | body `{"batchId":"…"}` — replay a batch |
+| `POST /trigger` | run all pipelines once |
+| `POST /validate` | body `{"configPath":"…"}` — config warnings |
+
+```bash
+curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines
+curl -s -X POST -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/trigger
+```
+
 ### Audit files written to `dirs.status_dir`
 
 Each ETL run produces three timestamped CSVs alongside the existing status file. All three use the same `<yyyyMMdd_HHmmss>` timestamp suffix so runs never overwrite each other.
