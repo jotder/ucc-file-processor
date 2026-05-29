@@ -6,6 +6,25 @@ Architectural decisions, deferred work, and the reasoning behind them. Not user-
 
 ---
 
+## Scope: M..N multiplexer (read this before adding features)
+
+The engine is an **M..N multiplexer**: M input files demultiplexed and routed
+into N partitioned outputs, with stateless per-record transformations only. This
+is a deliberate scope boundary, not a missing-features list. Full rationale is in
+the README's [Design Philosophy & Scope](../file-processor/README.md#design-philosophy--scope)
+section; the short version for contributors:
+
+**In scope:** type coercion, column selection/rename, partition-key derivation,
+`CONCAT_DT` / `FILENAME_DATE` composition. All per-record, all vectorizable.
+
+**Out of scope — do not add to the engine:** joins against reference/external
+data, cross-record aggregation (`GROUP BY` rollups, windowing, dedup), any state
+held across records or batches. These would force shared state, serialize the
+embarrassingly-parallel batch model, and break the clean routing. If a use case
+needs them, the answer is the **downstream** query layer (DuckLake / pg_duckdb
+over the Parquet output), not the multiplexer. When someone proposes a "quick
+lookup" or "just join this one table" feature, point them here first.
+
 ## Stability tiers (informal SemVer policy)
 
 Until we adopt a formal `@PublicApi` annotation + JPMS module-info, treat symbols by package as:

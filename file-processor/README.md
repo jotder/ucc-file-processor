@@ -1,5 +1,5 @@
 # UCC File Processor
-High-throughput, configuration-driven ETL pipeline that ingests CSV and binary files, applies typed transformations via DuckDB, and writes Hive-partitioned Parquet or CSV output. Onboard a new CSV source with a single config file; plug in a custom Java parser for proprietary or binary formats that emit multiple event types.
+A small, high-throughput, configuration-driven ETL engine with an **M..N multiplexer** architecture: it ingests **M** CSV or binary input files, applies light per-record transformations via DuckDB, and demultiplexes them into **N** Hive-partitioned Parquet or CSV output files (not one-to-one). Onboard a new CSV source with a single config file; plug in a custom Java parser for proprietary or binary formats that emit multiple event types. It deliberately does **not** do heavy joins, lookups, or cross-record aggregation — see [Design Philosophy & Scope](#design-philosophy--scope).
 
 Includes a set of **Pre ETL utility suite** for sourcing, staging, and arranging raw deliveries before the pipeline picks them up.
 
@@ -7,36 +7,114 @@ Includes a set of **Pre ETL utility suite** for sourcing, staging, and arranging
 
 ## Table of Contents
 
-1. [Architecture](#architecture)
-2. [Features](#features)
-3. [Directory Layout](#directory-layout)
-4. [Two-Step Process](#two-step-process)
-5. [Quick Start](#quick-start)
-6. [Utility Suite](#pre-etl-utility-suite)
+1. [Design Philosophy & Scope](#design-philosophy--scope)
+2. [Architecture](#architecture)
+3. [Features](#features)
+4. [Directory Layout](#directory-layout)
+5. [Two-Step Process](#two-step-process)
+6. [Quick Start](#quick-start)
+7. [Utility Suite](#pre-etl-utility-suite)
    - [Pipeline configurations sections for utilities](#pipeline-toon-sections-for-utilities)
    - [Commands](#commands)
    - [Typical workflow](#typical-pre-etl-workflow)
-7. [Configuration Reference](#configuration-reference)
+8. [Configuration Reference](#configuration-reference)
+   - [Configuration by source format](#configuration-by-source-format)
    - [Generation Config](#1-generation-config-source_gentoon)
    - [Schema Config](#2-schema-config-source_schematoon)
    - [Pipeline Config](#3-pipeline-config-source_pipelinetoon)
      - [Multi-schema dispatch](#multi-schema-dispatch)
-8. [Output Structure](#output-structure)
-9. [Status Log & Auditing](#status-log--auditing)
-10. [Batch Processing](#batch-processing)
-11. [Plugin Ingester](#plugin-ingester)
+9. [Output Structure](#output-structure)
+10. [Status Log & Auditing](#status-log--auditing)
+11. [Batch Processing](#batch-processing)
+12. [Plugin Ingester](#plugin-ingester)
     - [FileIngester interface](#fileingester-interface)
     - [Segment schema toon (partitions\[\])](#segment-schema-toon-partitions)
     - [Pipeline config](#pipeline-config-plugin)
     - [Output layout](#output-layout)
     - [Reference implementation: TypedRecordIngester](#reference-implementation-typedrecordingester)
     - [Plugin author workflow](#plugin-author-workflow)
-12. [DuckLake Integration](#ducklake-integration)
-13. [Warehouse Query Layer](#warehouse-query-layer--dbeaver-via-pg_duckdb)
-14. [Deployment — Remote Server](#deployment--remote-server)
-15. [Onboarding a New Source](#onboarding-a-new-source)
-16. [Type Mapping Reference](#type-mapping-reference)
-17. [Troubleshooting](#troubleshooting)
+13. [DuckLake Integration](#ducklake-integration)
+14. [Warehouse Query Layer](#warehouse-query-layer--dbeaver-via-pg_duckdb)
+15. [Deployment — Remote Server](#deployment--remote-server)
+16. [Onboarding a New Source](#onboarding-a-new-source)
+17. [Type Mapping Reference](#type-mapping-reference)
+18. [Troubleshooting](#troubleshooting)
+
+---
+
+## Design Philosophy & Scope
+
+This is a deliberately small ETL engine built around one idea: an **M..N
+multiplexer**. A batch of **M** input files is demultiplexed and routed into
+**N** partitioned output files — explicitly *not* one-to-one. Understanding this
+framing explains every design choice that follows, and the non-goals are as
+important as the goals.
+
+### The M..N multiplexer
+
+Records flow from many inputs to many outputs; the input file count and the
+output file count are decoupled. Two complementary mechanisms do the routing:
+
+- **Partition fan-out (the "N").** Every surviving record is routed to an output
+  file by its partition key — typically `year/month/day` derived from a date
+  column, optionally prefixed by other columns (e.g. `event_type`). A batch of
+  M files spanning 30 days produces ~30 partition files per segment, regardless
+  of how the input was split across files.
+- **Segment demultiplexing (plugin path).** A single input file can carry
+  multiple record types (e.g. CALL + SMS interleaved in one CDR file). The
+  [plugin ingester](#plugin-ingester) splits these into independent typed
+  streams, each with its own schema and its own partitioned output tree. One
+  input → many typed outputs.
+
+Combined: **M input files → unioned per record type → N partitioned outputs.**
+The batch is the unit of work; partition key and segment type are the routing
+keys.
+
+### Minor, per-record transformations only
+
+Transformations are **stateless and applied to each record independently** —
+the kind of work that maps cleanly onto DuckDB's vectorized SQL:
+
+- Type coercion — VARCHAR → `DATE` / `TIMESTAMP` / `DOUBLE` / `INTEGER`
+- Column selection and renaming (raw `selector` index → target column)
+- Partition-key derivation (`YEAR()` / `MONTH()` / `DAY()` from a date)
+- Lightweight composition — `CONCAT_DT` (date + time → timestamp),
+  `FILENAME_DATE` (extract a date embedded in the filename)
+
+That's the whole transformation vocabulary. It's intentionally narrow.
+
+### Deliberate non-goals
+
+The engine **does not** — by design, not by omission:
+
+- **Join against external / reference data.** No dimension lookups, no
+  enrichment from a second source, no foreign-key resolution.
+- **Aggregate across records.** No `GROUP BY` rollups, no windowing, no dedup
+  across rows. (The only cross-record operation is the lineage count matrix,
+  which is audit metadata, not output data.)
+- **Hold state across records or batches.** Each record is transformed in
+  isolation; each batch is independent.
+
+### Why the non-goals matter
+
+These constraints are what make the engine fast, parallel, and crash-isolated.
+Because no batch needs shared reference state, every batch is an embarrassingly
+parallel, single-pass unit with its own DuckDB connection (see
+[Batch Processing](#batch-processing)). Adding joins or lookups would force
+shared state, serialize the batch model, and break the clean M..N routing. If
+you need heavy joins or enrichment, do it **downstream** — query the
+Hive-partitioned Parquet output through the
+[warehouse query layer](#warehouse-query-layer--dbeaver-via-pg_duckdb) or a
+DuckLake catalog, where a real SQL engine can join across the whole dataset. The
+multiplexer's job ends at partition-and-write.
+
+### Format-specific configuration
+
+Because different source formats need different handling, configuration is
+organized **per format** rather than forced into one shape — and that
+divergence is intended. Delimited text uses `csv_settings`; binary/proprietary
+formats use a plugin `ingester` plus `ingester_config`. See
+[Configuration by source format](#configuration-by-source-format) for the map.
 
 ---
 
@@ -387,6 +465,25 @@ run.bat <data_source>
 The framework uses three config files in `.toon` format (JToon). Only the generation config is hand-authored; the other two are machine-generated and then maintained.
 
 Config files live under `file-processor/config/<adapter>/`.  All `dirs.*` and `schema_file` paths are relative to the **sandbox root** (the JVM working directory).
+
+### Configuration by source format
+
+Configuration is organized **per source format** — each format has its own
+block and its own knobs, by design (see
+[Design Philosophy](#design-philosophy--scope)). Pick the row that matches your
+input; the rest of this section details each block.
+
+| Source format | Ingest path | Key config block(s) | Notable knobs |
+|---|---|---|---|
+| **Delimited text** (CSV, CSV.GZ, TSV, pipe-delimited) | built-in | `processing.csv_settings` + a `schema_file` (or `schemas[]` for multi-schema) | `delimiter`, `engine` (`auto`/`duckdb`/`java`), `skip_header_lines`, `skip_junk_lines`, `skip_tail_lines`, `skip_tail_columns`, `has_header`, `date_formats`, `timestamp_formats` |
+| **Messy text dumps** (SQL\*Plus exports with banners/footers, ragged columns) | built-in (Java engine) | same as above, with the messy-file knobs set | `skip_junk_lines`, `skip_tail_lines`, `skip_tail_columns` → forces `engine: java` under `auto` |
+| **Binary / proprietary / multi-event-type** (CDR blobs, fixed-width, anything one parser splits into several record types) | [plugin](#plugin-ingester) | `processing.ingester` + `processing.segments` + optional `processing.ingester_config` | `ingester` (FQCN), per-segment schema files, free-form `ingester_config` map for format-specific settings (`record_length`, `byte_order`, …) |
+
+Common to **all** formats: `dirs.*`, `output.format` (`CSV`/`PARQUET`),
+`processing.batch.*`, `processing.threads`, the `partitions[]` declaration in
+each schema, and the audit/manifest machinery. Format-specific blocks only
+cover *how the bytes become rows* — once rows exist, the M..N partition-and-write
+path is identical regardless of source format.
 
 ### 1. Generation Config (`<source>_gen.toon`)
 
