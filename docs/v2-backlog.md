@@ -1,153 +1,164 @@
-# v2.x Product Backlog — toward a self-operating ETL service
+# v2.x Product Backlog — a two-stage data platform
 
-The 1.x → 2.0 work made the engine clean and stable. The 2.x product arc turns the
-**tool you run** into a **service that runs itself**: always-on, observable,
-UI-driven, and ultimately operated by an embedded agent that generates config and
-drives the application from inside.
+The 1.x → 2.0 work made the engine clean and stable. The 2.x arc grows it from a
+single ETL tool into a **two-stage, service-operated data platform**:
 
-> This is a proposal — priorities and sequence are mine to start the conversation;
-> reorder freely. Status legend: 🔲 not started · 🟡 in progress · ✅ done.
+```
+   raw files ──► [ Stage 1: M..N multiplexer ] ──► partitioned Parquet/CSV
+                  (ingest, type, partition;          │
+                   NO joins — by design)             ▼
+                                          [ Stage 2: enrichment engine ] ──► enriched output
+                                           (joins, lookups, aggregation —
+                                            a SEPARATE engine, by design)
+                          ▲                         ▲
+                          └──── shared control plane ────┘
+                       (service mode · API · UI · observability)
+```
 
-## The vision in one line
+The multiplexer's deliberate non-goals (no joins/lookups/aggregation) are
+**preserved** — enrichment lives in its own engine that consumes Stage 1's output,
+never inside the multiplexer. That separation is the organizing principle of v2.
 
-A long-running service exposing a control API over a database-backed status store,
-surfaced through a UI and a metrics stack, with an embedded operator agent that
-onboards sources (sample → config), runs pipelines, and diagnoses failures —
-through the same API a human uses.
+> Proposal to start the conversation — reorder freely. Legend: 🔲 not started ·
+> 🟡 in progress · ✅ done.
 
-## Epics
+## Scope changes from the first draft (per your direction)
 
-Six epics map to your six plans. Priority is **value × leverage**; the **Depends on**
-column is what makes the build order differ from the priority order.
+- **Moved OUT to the next major (v3.0+):** embedded AI agent, object storage
+  (S3/GCS/Azure), distributed/multi-node execution.
+- **NEW, high priority:** a separate **enrichment / join engine** (E7) over the
+  partitioned output.
+- **Demoted to last in v2:** status store in a database (E1).
 
-| # | Epic | Your plan | Priority | Depends on |
-|---|---|---|---|---|
-| **E1** | Status store in a database | "status data in database" | **P0 — foundation** | — |
-| **E2** | Service / server mode | "service/server mode" | **P0 — foundation** | E1 |
-| **E3** | Control API (interaction surface) | "user interaction" | **P0** | E2, E1 |
-| **E4** | Observability | "observability" | P1 | E1, E2 |
-| **E5** | Web UI | "user interface" | P1 | E3, E1 |
-| **E6** | Embedded operator agent | "embed agent… operate from inside" | **P1 — strategic centerpiece** | E3 (full power: +E1, E4) |
+## v2 epics
 
-### E1 — Status store in a database  🔲 P0
+| # | Epic | Priority | Depends on |
+|---|---|---|---|
+| **E7** | Enrichment / join engine (Stage 2) | **P0 — flagship** | Stage 1 output (exists) |
+| **E2** | Service / server mode | **P0** | — (file-backed status to start) |
+| **E3** | Control API (user interaction) | **P0** | E2 |
+| **E4** | Observability | P1 | E2 |
+| **E5** | Web UI | P1 | E3 |
+| **E1** | Status store in a database | **P2 — last in v2** | E2/E3 (swaps their backing store) |
 
-Move run state out of per-run CSVs/JSON into a queryable DB. This is the backbone:
-the API, UI, observability, and agent all read it.
+### E7 — Enrichment / join engine  🔲 P0 (flagship)
 
-- **Tables:** `pipelines` (config registry), `runs`, `batches`, `files`, `lineage`,
-  `quarantine`, `commits` — mirroring today's `_status_`/`_batches_`/`_lineage_` CSVs,
-  manifests, and the commit log.
-- **Build on:** `BatchAuditWriter`, `ManifestStore`, `CommitLog`, `LineageCollector`
-  already produce exactly this data — E1 is largely "write to a DB table instead of
-  (or in addition to) a CSV." Keep CSV/commit-log as a fallback sink.
-- **Decision needed:** engine. **Recommend Postgres** — already in the stack for
-  DuckLake, handles concurrent multi-writer (multi-source) cleanly, and the UI/agent
-  want real SQL. Alternatives: DuckDB (in-process, but single-writer awkward for a
-  live service) or SQLite (simple, embedded).
-- **Size:** M. **Why first:** nothing else is durable/queryable without it.
+A **separate** engine that does what the multiplexer deliberately won't: joins,
+lookups, and aggregation. It reads Stage 1's partitioned Parquet/CSV (or the
+DuckLake catalog) as input, enriches against reference/dimension data, and writes
+enriched output.
+
+- **DuckDB-powered** (already in the stack): `read_parquet` over the Hive partition
+  tree, join against reference tables, compute derived/aggregated columns, write via
+  the same partitioned-output machinery.
+- **Config-driven** in the same `.toon` style: declare inputs (partition globs /
+  DuckLake tables), reference sources (dim tables from files / Postgres / DuckLake),
+  join keys & types, projections/derivations, and output partitioning.
+- **Partition-parallel & crash-isolated** — reuse the virtual-thread + semaphore
+  model and per-batch DuckDB connection so it scales and recovers like Stage 1.
+- **Reuses:** `DuckDbUtil`, `PartitionWriter`, `PartitionDef`, config loading,
+  `ConfigValidator`, audit/lineage — most plumbing already exists.
+- **Initial boundaries (keep it sane):** batch (not streaming); reference data
+  bounded enough to fit the per-partition working set; incremental mode (enrich only
+  new partitions) as a fast-follow.
+- **Decisions needed:** same-repo module vs separate artifact; reference-data source
+  (files / Postgres / DuckLake); full re-enrich vs incremental; output target
+  (Parquet / DuckLake / warehouse).
+- **Size:** L. **Why flagship:** delivers the joined/enriched datasets that are the
+  actual analytical product, and it's independent enough to ship CLI-first (exactly
+  how Stage 1 matured) before the control plane wraps it.
 
 ### E2 — Service / server mode  🔲 P0
 
-Turn poll-once-per-invocation into a resilient long-running service.
+Turn poll-once-per-invocation into a resilient long-running service that hosts
+**both** engines.
 
 - Watch loop / scheduler per pipeline; graceful shutdown; **recovery on startup via
-  `CommitLog.committedBatchIds()`** (the ledger exists but nothing reads it yet —
-  this finally wires it in).
-- Lifecycle: load pipeline registry from E1, start/stop/pause per source, health.
-- **Build on:** `MultiSourceProcessor` (the concurrent multi-source runner) becomes
-  the service's core loop instead of a one-shot CLI.
-- **Decision needed:** embedded HTTP server choice (see E3); process model (single
-  service hosting all pipelines vs one per pipeline).
+  `CommitLog.committedBatchIds()`** (the ledger exists; nothing reads it yet).
+- A pipeline can be a Stage-1 ingest, a Stage-2 enrichment, or a chain (enrich runs
+  when its upstream partitions land).
+- **Build on:** `MultiSourceProcessor` becomes the service's core loop.
+- **Status backing:** starts **file-backed** (the existing `_status_`/`_batches_`/
+  `_lineage_` CSVs + commit log) so E1 isn't a blocker; E1 swaps in a DB later behind
+  a `StatusStore` abstraction.
 - **Size:** M.
 
 ### E3 — Control API  🔲 P0
 
-The REST surface for *all* interaction — humans (CLI/UI) and the agent use the same
-endpoints. No backdoors.
+One REST surface for all interaction — CLI and UI use the same endpoints.
 
-- Endpoints: list/CRUD pipelines & configs; trigger/pause/resume runs; query
-  runs/batches/files/lineage/quarantine; stream logs; reprocess a batch
-  (wraps `ReprocessCommand`); validate a config (wraps `ConfigValidator`).
-- **Decision needed:** framework. **Recommend a lightweight embedded server**
-  (Javalin / Helidon SE / even the JDK `com.sun.net.httpserver`) over Spring, to
-  preserve the "small, few-deps, fat-JAR" ethos. AuthN/Z becomes required here.
+- list/CRUD pipelines & configs (both engines); trigger/pause/resume; query
+  runs/batches/files/lineage/quarantine; stream logs; reprocess (wraps
+  `ReprocessCommand`); validate config (wraps `ConfigValidator`).
+- Reads/writes through the `StatusStore` abstraction (file-backed now, DB after E1).
+- **Decision:** lightweight embedded server (Javalin / JDK built-in) over Spring, to
+  keep the small-footprint fat-JAR ethos. AuthN/Z required here.
 - **Size:** M–L.
 
 ### E4 — Observability  🔲 P1
 
-- Metrics (Prometheus/Micrometer or JMX): throughput, batch-latency histograms,
-  quarantine/error rates, oldest-unprocessed-file age (lag), in-flight batches.
-- Structured logs (finish the SLF4J→JSON story) correlated by `run_id`/`batch_id`;
-  optional OpenTelemetry traces across the batch lifecycle.
-- **Build on:** the per-batch timings already captured in audit rows.
-- **Size:** S–M. Can land incrementally alongside E2/E3.
+Metrics (throughput, batch-latency histograms, quarantine/error rates, lag),
+structured logs correlated by `run_id`/`batch_id`, optional traces. Covers both
+engines. Build on the per-batch timings already in audit rows. **Size:** S–M.
 
 ### E5 — Web UI  🔲 P1
 
-Dashboard over E3 + E1: pipeline list & health, run history, lineage explorer,
-quarantine browser (with "why did this fail?"), config editor with live validation,
-trigger/reprocess controls.
+Dashboard over E3: pipeline/DAG view (Stage 1 → Stage 2), run history, lineage
+explorer, quarantine browser with "why did this fail?", config editor with live
+validation, trigger/reprocess controls. **Decision:** SPA vs server-rendered.
+**Size:** L; pure consumer of E3, so it can lag.
 
-- **Decision needed:** stack (SPA served by the API — React/Svelte — vs server-rendered).
-- **Size:** L. Highest effort; pure consumer of E1/E3, so it can lag.
+### E1 — Status store in a database  🔲 P2 (last in v2)
 
-### E6 — Embedded operator agent  🔲 P1 (strategic centerpiece)
+Swap the file-backed `StatusStore` for a DB (`pipelines`, `runs`, `batches`,
+`files`, `lineage`, `quarantine`, `commits`). Done **last** in v2: the API/UI/metrics
+run on the file-backed store first, and E1 is a backing-store swap behind the
+abstraction rather than a prerequisite.
 
-An agent that *uses the tool* — generates config and operates the application from
-inside, through the Control API (E3) so it has no special privileges and is testable.
+- **Build on:** `BatchAuditWriter`/`ManifestStore`/`CommitLog` already emit exactly
+  this data.
+- **Decision:** Postgres (recommended — already in the stack via DuckLake, clean
+  multi-writer) vs DuckDB vs SQLite.
+- **Size:** M.
 
-- **Capabilities:**
-  - **Onboard a source:** sample file → schema + pipeline `.toon`, conversationally —
-    infer types, partition key, delimiter, engine; validate before saving.
-  - **Operate:** trigger runs, summarize results, reprocess on request.
-  - **Diagnose:** read quarantine/error/audit, explain *why* files failed, and
-    propose concrete config fixes (e.g. raise `skip_junk_lines`, add a `date_format`),
-    with dry-run + human approval before applying.
-  - **NL control:** "onboard this feed", "why did last night's voucher run quarantine
-    12 files?", "reprocess batch X".
-- **Build on:** `SchemaExtractor` (`create-schema`) already does sample → schema +
-  pipeline toon — the agent wraps and improves it conversationally rather than
-  starting from zero.
-- **Decisions needed:** model/provider; in-process vs sidecar; **guardrails**
-  (read-only by default, approval gate for config writes & run triggers); an **eval
-  harness** for config-generation quality (this is a measurable, testable surface).
-- **Early thin slice (high value, low risk):** agent-assisted **config generation**
-  from a sample can ship *before* the full server stack — it only needs SchemaExtractor
-  + the agent loop, not E2–E5. Good candidate for a parallel spike.
-- **Size:** L, but sliceable.
+## Suggested sequence
 
-## Suggested sequence (milestones)
+- **Phase A — Flagship:** E7 enrichment engine (CLI-first). *Outcome: joined/enriched
+  datasets, the analytical product.*
+- **Phase B — Platform:** E2 service mode + E3 control API (file-backed status),
+  hosting both engines. *Outcome: an always-on, controllable 2-stage platform.*
+- **Phase C — Surfaces:** E4 observability + E5 UI.
+- **Phase D — Hardening:** E1 status DB (swap the backing store).
 
-- **Phase A — Foundation:** E1 (status DB) → E2 (service mode + recovery).
-  *Outcome: an always-on service with durable, queryable state.*
-- **Phase B — Surface & signals:** E3 (control API) + E4 (observability).
-  *Outcome: everything is controllable and watchable via API/metrics.*
-- **Phase C — Operators:** E5 (UI) and E6 (agent), both consumers of A+B.
-  *Outcome: humans and the agent operate the service through the same surface.*
-- **Parallel spike (anytime):** E6 config-generation slice on top of `SchemaExtractor`.
+Rationale: E7 is independent and delivers value immediately (like Stage 1 did
+CLI-first); the control plane then wraps both engines; the DB migration is a
+late, low-risk swap behind an abstraction.
 
-Rationale: each phase makes the next more valuable. The agent (E6) is the goal, but
-it's *most* powerful once it has a control API to act through (E3) and a status DB +
-metrics to reason over (E1, E4) — so the foundation isn't a detour, it's what makes
-the agent more than a config wizard.
+## Next major (v3.0+) — deferred by design
 
-## Cross-cutting (threaded through, not separate epics)
+- **Embedded AI operator agent** — onboard sources (sample→config via
+  `SchemaExtractor`), operate, and diagnose through the control API. Lands *after*
+  the API + status DB exist, so it has a real surface to act on and signals to reason
+  over. The single biggest bet — worth its own major.
+- **Object storage (S3/GCS/Azure)** for inbox/output — DuckDB speaks it natively;
+  high real-world value once deployment target firms up.
+- **Distributed / multi-node execution** — still against the single-JVM,
+  crash-isolated ethos; prefer N instances over disjoint inputs until proven
+  necessary.
 
-- **AuthN/Z** — required once E3/E5 exist (API tokens / roles).
-- **Packaging** — the fat JAR stays; add a service launcher + container image.
-- **Config migration** — file-based `.toon` configs ↔ the E1 registry (import/export).
+## Cross-cutting (threaded through v2)
 
-## Decisions needed before Phase A starts
+- **`StatusStore` abstraction** — introduced in E2/E3 (file-backed), swapped to DB in
+  E1. The seam that lets E1 be last.
+- **AuthN/Z** — required once E3/E5 exist.
+- **Packaging** — fat JAR stays; add a service launcher + container image; the
+  enrichment engine is a second entry point (or a sub-command).
 
-1. **Status DB engine** — Postgres (recommended) / DuckDB / SQLite?
-2. **Embedded HTTP server** — Javalin / Helidon / JDK built-in / Spring?
-3. **Agent provider & boundary** — which model, in-process vs sidecar, and the
-   approval-gate policy for write actions?
+## Decisions needed before Phase A (E7)
 
-## Parking lot (my earlier suggestions, deprioritized per your direction)
-
-- Object storage (S3/GCS) for inbox/output — high real-world value, but not on your
-  current path; revisit when deployment target firms up.
-- Additional input formats / output sinks via the plugin seam.
-- Distributed multi-node execution — still **against** the single-JVM ethos; prefer
-  N instances over disjoint inputs.
+1. **Enrichment engine home** — same repo as a new module/entry point (reuses all the
+   DuckDB plumbing) vs a separate artifact?
+2. **Reference-data source** — dimension/lookup tables from files, Postgres, or
+   DuckLake?
+3. **Enrichment scope v1** — full re-enrich vs incremental (new partitions only); and
+   the output target (Parquet / DuckLake / warehouse load)?
