@@ -92,6 +92,13 @@ public final class PipelineConfig {
     public final boolean      hasHeader;
     public final List<String> dateFormats;
     public final List<String> tsFormats;
+    /**
+     * CSV parse engine: {@code "auto"} (default), {@code "duckdb"}, or {@code "java"}.
+     * Read from {@code csv_settings.engine}. {@code auto} uses DuckDB's native
+     * vectorized reader for clean configs (no skip_junk/tail/tail_columns) and the
+     * Java parser otherwise. See {@link DuckDbCsvIngester#usesDuckDb}.
+     */
+    public final String       csvEngine;
 
     // ── output ────────────────────────────────────────────────────────────────
 
@@ -175,6 +182,7 @@ public final class PipelineConfig {
         this.skipTailLines        = b.skipTailLines;
         this.skipTailCols         = b.skipTailCols;
         this.hasHeader            = b.hasHeader;
+        this.csvEngine            = b.csvEngine;
         this.dateFormats          = Collections.unmodifiableList(b.dateFormats);
         this.tsFormats            = Collections.unmodifiableList(b.tsFormats);
         this.outputFormat         = b.outputFormat;
@@ -277,6 +285,7 @@ public final class PipelineConfig {
             b.skipTailCols    = toInt(csv.getOrDefault("skip_tail_columns", 0));
             b.hasHeader       = Boolean.parseBoolean(
                                     String.valueOf(csv.getOrDefault("has_header", "true")));
+            b.csvEngine       = String.valueOf(csv.getOrDefault("engine", "auto")).toLowerCase();
             if (csv.get("date_formats")      instanceof List<?> df)
                 b.dateFormats = (List<String>) df;
             if (csv.get("timestamp_formats") instanceof List<?> tf)
@@ -433,6 +442,7 @@ public final class PipelineConfig {
         int          skipTailLines   = 0;
         int          skipTailCols    = 0;
         boolean      hasHeader       = true;
+        String       csvEngine       = "auto";
         List<String> dateFormats     = new ArrayList<>();
         List<String> tsFormats       = new ArrayList<>();
         String outputFormat  = "CSV";

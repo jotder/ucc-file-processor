@@ -76,6 +76,15 @@ public final class ConfigValidator {
                     "each batch is a single file, so only " + cfg.threads + "-way file-level parallelism. " +
                     "Raise batch.max_files for intra-batch packing.");
 
+        // Native DuckDB CSV engine forced on a config that strips phantom trailing
+        // columns: DuckDB rejects too-many-column rows instead of trimming them,
+        // so the row counts will differ from the Java path.
+        if ("duckdb".equalsIgnoreCase(cfg.csvEngine) && cfg.skipTailCols > 0)
+            warn(warnings, "csv_settings.engine=duckdb with skip_tail_columns=" + cfg.skipTailCols +
+                    " — the native reader rejects rows that have more columns than declared rather " +
+                    "than trimming them; row counts may differ from the Java parser. Use engine=java " +
+                    "or engine=auto if those rows must be retained.");
+
         return warnings;
     }
 

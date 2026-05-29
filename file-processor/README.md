@@ -98,7 +98,8 @@ com.gamma
   etl/
     PipelineConfig           — immutable config object; static factory loads and validates .toon
     SchemaSelector           — two-pass schema dispatch (file-pattern fast path + column-count probe)
-    CsvIngester              — streams CSV/CSV.GZ into a DuckDB raw_input staging table
+    CsvIngester              — Java line-by-line CSV/CSV.GZ parser → DuckDB staging table (fallback engine)
+    DuckDbCsvIngester        — native vectorized read_csv ingest (4-5× faster; default for clean configs)
     DataTransformer          — applies typed SQL transformations; writes Parquet/CSV output (two-stage)
     MarkerManager            — .processed sentinel files for idempotent ingest; retention-based cleanup
     QuarantineManager        — moves zero-valid-row and unreadable files to quarantine/
@@ -394,6 +395,7 @@ Config files live under `file-processor/config/<adapter>/`.  All `dirs.*` and `s
 ```yaml
 csv_settings:
   delimiter: ","
+  engine: auto              # auto | duckdb | java  (CSV parse engine — see below)
   skip_header_lines: 0      # blank lines before the column-name header row
   skip_junk_lines: 13       # max lines to scan past header looking for first data row
   skip_tail_lines: 2        # footer lines to discard at EOF (SQL*Plus row-count etc.)
@@ -407,6 +409,22 @@ type_patterns:
 ```
 
 **`skip_junk_lines`** is a *cap*, not a fixed count. SourceProcessor uses adaptive detection — it scans forward until it finds a line with enough columns that does not echo the header. Use `-1` to scan without limit (for sources like Oracle <data_source>s with variable-length preambles).
+
+**`engine`** (default `auto`) selects the CSV parse engine. This is a pure
+performance lever — output is identical for clean files (proven by parity test).
+
+| Value | Behaviour |
+|---|---|
+| `auto` | Native DuckDB `read_csv` when `skip_junk_lines`, `skip_tail_lines`, and `skip_tail_columns` are all `0`; the Java parser otherwise. Safe default — no existing source's parse semantics change. |
+| `duckdb` | Always use DuckDB's vectorized, multi-threaded `read_csv`. **4–5× faster ingest** (more on wide schemas — see `docs/performance.md`). Force this on messy-but-validated sources after confirming output parity. |
+| `java` | Always use the original line-by-line Java parser. |
+
+> The native reader rejects rows with *more* columns than the schema declares,
+> whereas the Java parser keeps them and ignores the extras. That is precisely
+> what `skip_tail_columns` handles, so `auto` routes any config using it to the
+> Java path, and `ConfigValidator` warns if you force `engine: duckdb` alongside
+> `skip_tail_columns > 0`. Everything else (leading banners, footers, short rows,
+> blank lines) is rejected identically by both engines.
 
 **Date/timestamp format arrays** use JToon inline syntax: `key[n]: val1, val2, ..., valN`. All values must be on a single line.
 

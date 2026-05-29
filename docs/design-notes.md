@@ -81,6 +81,8 @@ See "Stability tiers" above for the interim informal policy. A formal `@PublicAp
 
 - **DuckDB connection per batch.** Each `BatchProcessor.process` opens its own temp DuckDB file via `DuckDbUtil.tempDbFile` and closes it in `finally`. No pooling, no sharing. Worth it for crash isolation.
 
+- **Two CSV ingest engines.** `DuckDbCsvIngester` (native `read_csv`, vectorized, 4–5× faster) and `CsvIngester` (Java line-by-line, lenient with ragged rows) are interchangeable behind the same `ingest(...)` signature. `BatchProcessor.processCsv` picks via `DuckDbCsvIngester.usesDuckDb(cfg)`. The Java path is the fallback for messy configs (`skip_tail_columns` etc.) the native reader can't faithfully reproduce — see `docs/performance.md` for the semantic-difference analysis. Don't delete the Java path; it's load-bearing for the messy-file sources.
+
 - **`raw_<KEY>_f<srcId>` table naming.** Hard-coded convention used by `BatchProcessor.processPlugin` to union member tables. Plugin authors must obey it; documented in `FileIngester` Javadoc.
 
 - **Markers go last in `commit()`.** See `BatchProcessor.commit` for the ordering rationale comment. Any future commit-step change must preserve "markers signal durability" — if you create a marker for a file whose backup hasn't moved, that file is stranded.

@@ -68,7 +68,9 @@ public final class BatchProcessor {
                     String tempTable = "raw_f" + m.srcId();
                     IngestResult ing;
                     try {
-                        ing = CsvIngester.ingest(m.file(), conn, m.selection().schema(), cfg, tempTable);
+                        ing = DuckDbCsvIngester.usesDuckDb(cfg)
+                                ? DuckDbCsvIngester.ingest(m.file(), conn, m.selection().schema(), cfg, tempTable)
+                                : CsvIngester.ingest(m.file(), conn, m.selection().schema(), cfg, tempTable);
                     } catch (IOException e) {
                         QuarantineManager.quarantine(m.file(), "unreadable", false, cfg);
                         memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_UNREADABLE", msg(e), mStart));

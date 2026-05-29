@@ -5,8 +5,14 @@ benchmark in the test tree). Reproduce with:
 
 ```
 mvn -Dtest=PipelineBenchmark -DfailIfNoTests=false -Dbench.run=true \
-    -Dbench.rows=2000000 -Dbench.cols=12 -Dbench.format=PARQUET test
+    -Dbench.rows=2000000 -Dbench.cols=12 -Dbench.engine=java -Dbench.format=PARQUET test
+# swap -Dbench.engine=duckdb for the native reader
 ```
+
+> **RESOLVED in v1.4.0** — the ingest bottleneck identified below is fixed by
+> the native `DuckDbCsvIngester` (see "Resolution" at the bottom). The analysis
+> is kept for the record and because the Java path remains the fallback for
+> messy-file configs.
 
 ## Headline: ingest is the bottleneck
 
@@ -86,28 +92,52 @@ transform/write SQL. With `threads=4` on a 16-core box you can momentarily have
 this rarely matters in practice — but it's worth a `PRAGMA threads` cap if you
 push `cfg.threads` high.
 
-## Recommended next steps (ranked by leverage)
+## Resolution — native DuckDB CSV engine (v1.4.0)
 
-1. **Native DuckDB CSV read for the simple-schema path.** When a schema needs
-   no junk/tail/echo handling (`skip_junk_lines = 0`, `skip_tail_lines = 0`,
-   `skip_tail_columns = 0`), bypass the Java parse+appender entirely and let
-   DuckDB ingest the file with its vectorized, parallel reader:
-   `CREATE TABLE raw AS SELECT * FROM read_csv('file', …)`. DuckDB's CSV reader
-   is multi-threaded and avoids the JNI-per-cell cost — expected 5–10× on wide
-   files. Keep the current Java path as the fallback for schemas that need the
-   custom line handling. **Highest leverage; biggest change.**
+`DuckDbCsvIngester` replaces the Java parse+appender loop with DuckDB's native
+`read_csv` for well-formed files. Selectable via `csv_settings.engine`:
 
-2. **univocity streaming (`parseNext()`) for the Java path.** Rework the
-   skip/junk/tail logic to sit on top of univocity's row iterator instead of
-   `readLine()` + `parseLine()`. Moderate gain on the Java path, lower risk than
-   (1) but touches the trickiest correctness logic in the codebase — add
-   characterization tests for the junk/tail/echo edge cases first.
+| `engine` | Behaviour |
+|---|---|
+| `auto` (default) | Native reader when `skip_junk_lines`/`skip_tail_lines`/`skip_tail_columns` are all `0`; Java parser otherwise. No semantic change for any messy-configured source. |
+| `duckdb` | Always native (operator accepts the too-many-columns rejection difference). |
+| `java` | Always the original Java parser. |
 
-3. **Raise `batch.max_files` and `threads` for wide-schema pipelines.** Pure
-   config, no code. Since per-file ingest latency is fixed, the only way to move
-   aggregate throughput today is more files in flight. The `ConfigValidator`
-   already warns when `threads > 1` but `batch.max_files = 1` (no intra-batch
-   packing).
+**Measured speedup** (2M rows → PARQUET, JDK 26 / DuckDB 1.5.2):
+
+| Cols | Java ingest | DuckDB ingest | Speedup |
+|---|---|---|---|
+| 12 | 15.7 s (127K r/s) | 3.8 s (523K r/s) | **4.1×** |
+| 40 | 80.2 s (25K r/s) | 16.0 s (125K r/s) | **5.0×** |
+
+The speedup grows with column count — exactly where the Java path was worst.
+Projected onto the wide schemas: the 537-col CDR file drops from ~14 min to
+~3 min of ingest per 2M-row file.
+
+**Correctness.** `DuckDbCsvIngesterTest.parityWithJavaEngineOnCleanFile` asserts
+byte-identical table contents between the two engines on clean input. Short
+rows, footers, and blank lines are rejected identically via
+`ignore_errors=true, null_padding=false`; rejected rows are captured from
+DuckDB's `reject_errors` table into the same `errors/<base>_errors.csv` the Java
+path writes. The existing `BatchProcessorTest` / `SourceProcessorPollTest`
+configs are clean, so `auto` already runs them through the native engine and
+they pass unchanged.
+
+**The one semantic difference** (documented, handled by routing): DuckDB rejects
+rows with *more* columns than declared (`TOO MANY COLUMNS`); the Java path keeps
+them and ignores the extras. That's what `skip_tail_columns` is for, so `auto`
+routes any config using it to the Java path. `ConfigValidator` warns if `duckdb`
+is forced alongside `skip_tail_columns > 0`.
+
+## Remaining options (not pursued — native engine made them unnecessary)
+
+- **univocity streaming (`parseNext()`)** would speed up the Java *fallback*
+  path, but the fallback now only runs for genuinely messy files where
+  throughput matters less. Revisit only if a high-volume source genuinely needs
+  `skip_tail_columns`.
+- **Raise `batch.max_files` / `threads`** still helps aggregate throughput
+  regardless of engine (more files in flight). `ConfigValidator` warns when
+  `threads > 1` but `batch.max_files = 1`.
 
 ## What's already fast — leave it alone
 

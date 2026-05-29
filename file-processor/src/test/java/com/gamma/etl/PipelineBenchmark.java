@@ -76,12 +76,15 @@ class PipelineBenchmark {
             // stage comparison stable. Comment out to see full-parallel numbers.
             // try (Statement s = conn.createStatement()) { s.execute("PRAGMA threads=4"); }
 
-            // ── stage 1: ingest ────────────────────────────────────────────────
+            // ── stage 1: ingest (engine selectable via -Dbench.engine=java|duckdb) ──
+            String engine = System.getProperty("bench.engine", "java");
             long t = System.nanoTime();
-            IngestResult ing = CsvIngester.ingest(csv, conn, schema, cfg, "raw_f0");
+            IngestResult ing = "duckdb".equals(engine)
+                    ? DuckDbCsvIngester.ingest(csv, conn, schema, cfg, "raw_f0")
+                    : CsvIngester.ingest(csv, conn, schema, cfg, "raw_f0");
             double ingSec = secs(t);
-            System.out.printf("ingest:    %6.2fs  (%,.0f rows/s)  parsed=%,d%n",
-                    ingSec, ing.parsedRows() / ingSec, ing.parsedRows());
+            System.out.printf("ingest(%s): %6.2fs  (%,.0f rows/s)  parsed=%,d%n",
+                    engine, ingSec, ing.parsedRows() / ingSec, ing.parsedRows());
 
             // ── stage 2: tag (union/__src_id) ──────────────────────────────────
             t = System.nanoTime();
