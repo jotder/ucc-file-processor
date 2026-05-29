@@ -2,6 +2,8 @@ package com.gamma.inspector;
 
 import com.gamma.etl.*;
 import com.gamma.util.LogSetup;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.*;
@@ -23,6 +25,8 @@ import java.util.stream.Stream;
  */
 public class SourceProcessor {
 
+    private static final Logger log = LoggerFactory.getLogger(SourceProcessor.class);
+
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
             System.err.println("Usage: SourceProcessor <pipeline_config_path>");
@@ -30,7 +34,15 @@ public class SourceProcessor {
         }
         PipelineConfig cfg = PipelineConfig.load(args[0]);
         LogSetup.configure(cfg.logDir, cfg.pipelineName, cfg.runTimestamp);
-        run(cfg);
+        try {
+            run(cfg);
+        } catch (BatchProcessingException e) {
+            // Partial-failure run: at least one batch threw. We've already logged
+            // the per-batch stack traces; exit non-zero so the wrapper script
+            // (run.sh / run.bat / cron job) detects the failure without log scraping.
+            System.err.println("[FAIL] " + e.getMessage());
+            System.exit(2);
+        }
     }
 
     /** Run one poll cycle for {@code cfg}: plan batches and process them in parallel. */
@@ -56,7 +68,7 @@ public class SourceProcessor {
         }
 
         if (candidates.isEmpty()) {
-            System.out.println("No new files to process in " + root);
+            log.info("No new files to process in {}", root);
             return;
         }
 
@@ -67,7 +79,7 @@ public class SourceProcessor {
 
         List<Batch> batches = BatchPlanner.plan(
                 candidates, resolver, cfg.batchMaxFiles, cfg.batchMaxBytes, cfg.runTimestamp);
-        System.out.printf("Planned %d batch(es) from %d file(s) using %d thread(s)...%n",
+        log.info("Planned {} batch(es) from {} file(s) using {} thread(s)...",
                 batches.size(), candidates.size(), cfg.threads);
 
         // ── process batches in parallel ────────────────────────────────────────
@@ -79,11 +91,35 @@ public class SourceProcessor {
         for (Batch b : batches)
             futures.add(executor.submit(() -> BatchProcessor.process(b, cfg, audit)));
 
+        // f.get() blocks until each future completes; no additional awaitTermination needed.
+        // Track failures so main() can surface a non-zero exit code on partial-failure runs.
+        int failedBatches = 0;
         for (Future<?> f : futures) {
-            try   { f.get(); }
-            catch (Exception e) { e.printStackTrace(); }
+            try {
+                f.get();
+            } catch (Exception e) {
+                failedBatches++;
+                log.error("Batch processing failed", e);
+            }
         }
         executor.shutdown();
-        executor.awaitTermination(1, TimeUnit.HOURS);
+        if (failedBatches > 0) {
+            throw new BatchProcessingException(failedBatches, batches.size());
+        }
+    }
+
+    /**
+     * Thrown by {@link #run(PipelineConfig)} when one or more batches failed.
+     * {@link #main(String[])} catches this and exits with a non-zero status so
+     * wrapper scripts can detect partial-failure runs without scraping logs.
+     */
+    public static final class BatchProcessingException extends RuntimeException {
+        public final int failedBatches;
+        public final int totalBatches;
+        BatchProcessingException(int failed, int total) {
+            super(failed + " of " + total + " batch(es) failed; see logs for details");
+            this.failedBatches = failed;
+            this.totalBatches  = total;
+        }
     }
 }

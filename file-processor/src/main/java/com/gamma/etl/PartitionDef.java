@@ -69,6 +69,18 @@ public record PartitionDef(String column, String source, Type type) {
     @SuppressWarnings("unchecked")
     public static List<PartitionDef> fromSchema(Map<String, Object> schemaConfig) {
         Object raw = schemaConfig.get("partitions");
+        if (raw != null && !(raw instanceof List<?>)) {
+            // Catches a common JToon mis-syntax error: writing partitions as a
+            // YAML-style "- key: value" block, which JToon parses as something
+            // non-null but non-List (typically a Map).  Without this guard, the
+            // method silently falls through to the empty-list branch and every
+            // row lands in the year=1900/month=01/day=01 sentinel partition.
+            throw new IllegalArgumentException(
+                    "Schema 'partitions' must be a JToon tabular list of the form " +
+                    "'partitions[N]{column,source,type}:'; got " +
+                    raw.getClass().getSimpleName() +
+                    ". YAML-style '- key: value' is not parsed by JToon.");
+        }
         if (raw instanceof List<?> list && !list.isEmpty()) {
             return list.stream()
                     .map(e -> (Map<String, Object>) e)

@@ -3,6 +3,8 @@ package com.gamma.inspector;
 import com.gamma.etl.BatchManifest;
 import com.gamma.etl.ManifestStore;
 import com.gamma.etl.PipelineConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.*;
 
@@ -15,6 +17,8 @@ import java.nio.file.*;
  */
 public final class ReprocessCommand {
 
+    private static final Logger log = LoggerFactory.getLogger(ReprocessCommand.class);
+
     private ReprocessCommand() {}
 
     public static void run(String toonPath, String batchId) throws Exception {
@@ -23,7 +27,7 @@ public final class ReprocessCommand {
             throw new IllegalStateException("No manifests dir configured (set dirs.status_dir).");
 
         BatchManifest m = ManifestStore.read(cfg.manifestsDir, batchId);
-        System.out.printf("[REPROCESS] %s — %d member(s), %d output(s)%n",
+        log.info("[REPROCESS] {} — {} member(s), {} output(s)",
                 batchId, m.members.size(), m.outputs.size());
 
         // 1. delete outputs
@@ -40,7 +44,7 @@ public final class ReprocessCommand {
             if (me.backupPath() == null || me.backupPath().isBlank()) continue;
             Path src = Paths.get(me.backupPath());
             if (!Files.exists(src)) {
-                System.err.printf("[REPROCESS] WARN: backup missing, cannot restore %s (%s)%n",
+                log.warn("[REPROCESS] backup missing, cannot restore {} ({})",
                         me.filename(), src);
                 continue;
             }
@@ -53,6 +57,6 @@ public final class ReprocessCommand {
 
         // 5. re-run a normal poll on the restored set (fresh batch id)
         SourceProcessor.run(cfg);
-        System.out.printf("[REPROCESS] %s complete.%n", batchId);
+        log.info("[REPROCESS] {} complete.", batchId);
     }
 }

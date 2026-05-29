@@ -4,6 +4,8 @@ import com.univocity.parsers.csv.CsvParser;
 import com.univocity.parsers.csv.CsvParserSettings;
 import org.duckdb.DuckDBAppender;
 import org.duckdb.DuckDBConnection;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +34,8 @@ import java.util.zip.GZIPInputStream;
  * <p>Extracted from {@link com.gamma.inspector.SourceProcessor#ingestRawData}.
  */
 public final class CsvIngester {
+
+    private static final Logger log = LoggerFactory.getLogger(CsvIngester.class);
 
     private CsvIngester() {}
 
@@ -223,10 +227,11 @@ public final class CsvIngester {
                     if (parsedRows % 10_000_000 == 0) {
                         long elapsedMs  = System.currentTimeMillis() - ingestStartMs;
                         long rowsPerSec = elapsedMs > 0 ? parsedRows * 1000L / elapsedMs : 0;
-                        System.out.printf("[INGEST] [%s] %,d rows | %.1f MB file | %,d rows/s | %ds elapsed%n",
-                                file.getName(), parsedRows,
-                                file.length() / 1_048_576.0,
-                                rowsPerSec,
+                        log.info("[INGEST] [{}] {} rows | {} MB file | {} rows/s | {}s elapsed",
+                                file.getName(),
+                                String.format("%,d", parsedRows),
+                                String.format("%.1f", file.length() / 1_048_576.0),
+                                String.format("%,d", rowsPerSec),
                                 elapsedMs / 1000);
                     }
                 }

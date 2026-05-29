@@ -321,6 +321,19 @@ public final class BatchProcessor {
                                List<PartitionOutput> outputs, List<LineageRow> lineage)
             throws IOException {
 
+        // ── ordering rationale ────────────────────────────────────────────────
+        // Markers signal "already processed; skip on next poll." If a crash leaves
+        // markers without a corresponding backup, the input file is stranded in the
+        // inbox forever (skipped by poll, never moved). So markers go LAST, after
+        // every other side effect is durable. Sequence:
+        //   1. DuckLake register (optional, non-fatal — log & continue)
+        //   2. Manifest write   (required: reprocess reads from here)
+        //   3. Backup originals (moves files out of the inbox)
+        //   4. Marker files     (last — only created when 1-3 all succeeded)
+        // A crash at any point before step 4 is idempotent on rerun: outputs use
+        // OVERWRITE_OR_IGNORE, the manifest is rewritten, and absent markers mean
+        // the (still-present-in-inbox) files are picked up again.
+
         DuckLakeRegistrar.register(outputs.stream().map(PartitionOutput::outputFile).toList(),
                 batch.table(), cfg);
 
@@ -355,10 +368,13 @@ public final class BatchProcessor {
             ManifestStore.write(cfg.manifestsDir, manifest);
         }
 
-        if (cfg.markersDir != null)
-            for (Batch.Member m : survivors) MarkerManager.createMarkerFile(m.file(), cfg);
+        // Backup BEFORE markers — see ordering rationale at top of method.
         if (backup != null)
             for (Batch.Member m : survivors) backupFile(m.file(), cfg);
+
+        // Markers LAST — created only after every other side-effect is durable.
+        if (cfg.markersDir != null)
+            for (Batch.Member m : survivors) MarkerManager.createMarkerFile(m.file(), cfg);
     }
 
     private static void backupFile(File inputFile, PipelineConfig cfg) throws IOException {

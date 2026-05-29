@@ -120,19 +120,11 @@ class BatchProcessorPluginTest {
 
     private static String callSchemaToon() {
         return """
-                partitions:
-                  - column: event_type
-                    source: EVENT_TYPE
-                    type: VARCHAR
-                  - column: year
-                    source: EVENT_DATE
-                    type: DATE_YEAR
-                  - column: month
-                    source: EVENT_DATE
-                    type: DATE_MONTH
-                  - column: day
-                    source: EVENT_DATE
-                    type: DATE_DAY
+                partitions[4]{column,source,type}:
+                  event_type,EVENT_TYPE,VARCHAR
+                  year,EVENT_DATE,DATE_YEAR
+                  month,EVENT_DATE,DATE_MONTH
+                  day,EVENT_DATE,DATE_DAY
                 raw:
                   name: call
                   format: CSV

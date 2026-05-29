@@ -759,6 +759,29 @@ ura.bat reprocess config\<source>\<source>_pipeline.toon <batch_id>
 
 When a batch contains exactly one member file, the output retains the legacy `<basename>_out.<ext>` naming convention (e.g. `adj_DATE_20200403_out.parquet`). Warehouse views built against single-file outputs are therefore unaffected when `max_files` remains at its default of `1`.
 
+### Crash semantics — batch commit ordering
+
+`BatchProcessor.commit` writes durable state in a specific order so a process crash mid-commit is idempotent on rerun:
+
+1. **DuckLake register** (optional, non-fatal — log and continue if catalog is unreachable).
+2. **Manifest write** — required for reprocess; this is what `ura reprocess` reads.
+3. **Backup originals** — moves files out of the inbox into `dirs.backup`.
+4. **Marker files** — last. A marker means "this file is fully durable, skip on next poll."
+
+A crash at any point before step 4 leaves the input file in the inbox without a marker, so the next poll cycle re-processes it. Output writes use `OVERWRITE_OR_IGNORE`, so re-running the same data is safe. The only way a file is "stranded" (in backup, never marked) is if backup completes and the marker write fails — `MarkerManager` logs to SLF4J in that case, and a rerun will not re-process the file (no markers) but the file is also no longer in the inbox.
+
+### Exit codes
+
+`SourceProcessor.main` returns:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | All planned batches succeeded; no files quarantined. |
+| `1` | Invalid invocation (missing `pipeline.toon` argument). |
+| `2` | At least one batch threw an exception. Per-batch stack traces are in the log; aggregate `BatchProcessingException` message is on stderr. |
+
+Wrapper scripts (`run.sh`, `run.bat`, cron jobs) should treat non-zero as failure and alert.
+
 ---
 
 ## Plugin Ingester
@@ -909,8 +932,13 @@ processing:
 |---|---|---|
 | `processing.ingester` | yes | Fully-qualified class name of a `FileIngester` implementation in the fat JAR |
 | `processing.segments` | yes (when ingester is set) | Ordered map of segment key → schema toon path; validated at startup |
+| `processing.ingester_config` | no | Free-form map for plugin-specific settings (e.g. `record_length`, `byte_order`). Plugins read it via `cfg.ingesterConfig.get("key")`. Defaults to empty map. |
 
 > `segments:` must be a non-empty map when `ingester:` is set; a missing or empty map throws `IllegalArgumentException` at startup. Each schema file must exist; a missing file throws `FileNotFoundException`.
+>
+> **Identifier validation.** At config load, every name that will be interpolated into SQL DDL — `raw.fields[].name`, `mapping.rules[].targetColumn`, `partitions[].column / source`, `partitionKey`, the `schemas[].table` value — is validated against `^[A-Za-z_][A-Za-z0-9_]*$`. Names containing spaces, dots, quotes, hyphens, or SQL operators fail the load with a precise location (e.g. `segment[CALL].raw.fields[].name`). This is a hard fail, not a warning.
+>
+> **Config sanity warnings.** A separate post-load pass logs SLF4J warnings for suspicious-but-legal patterns: no partitions declared (rows would collapse to the `1900/01/01` sentinel), empty `date_formats`, `retention_days <= 0`, `threads > 1` with `batch.max_files = 1`. Warnings appear at startup; they don't block the run.
 
 ### Output layout
 

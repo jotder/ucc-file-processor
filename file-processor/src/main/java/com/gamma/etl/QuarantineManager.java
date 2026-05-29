@@ -1,5 +1,8 @@
 package com.gamma.etl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
@@ -20,6 +23,8 @@ import java.nio.file.*;
  * <p>Extracted from {@link com.gamma.inspector.SourceProcessor}.
  */
 public final class QuarantineManager {
+
+    private static final Logger log = LoggerFactory.getLogger(QuarantineManager.class);
 
     private QuarantineManager() {}
 
@@ -51,20 +56,15 @@ public final class QuarantineManager {
 
         Path dst = qDir.resolve(inputFile.getName());
         Files.move(inputFile.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
-        System.out.printf("Quarantined [%s]: %s → %s%n", subDir, inputFile.getName(), dst);
+        log.info("Quarantined [{}]: {} → {}", subDir, inputFile.getName(), dst);
 
         if (includeErrorCsv) {
-            String baseName = stripExtensions(inputFile.getName());
+            String baseName = CsvIngester.stripExtensions(inputFile.getName());
             Path errorCsv = Paths.get(cfg.errorsDir).toAbsolutePath()
                                  .resolve(baseName + "_errors.csv");
             if (Files.exists(errorCsv))
                 Files.move(errorCsv, qDir.resolve(errorCsv.getFileName()),
                         StandardCopyOption.REPLACE_EXISTING);
         }
-    }
-
-    /** Strips {@code .gz} then the remaining extension. */
-    private static String stripExtensions(String fileName) {
-        return fileName.replaceAll("\\.gz$", "").replaceAll("\\.[^.]+$", "");
     }
 }

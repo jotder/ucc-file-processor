@@ -1,6 +1,8 @@
 package com.gamma.etl;
 
 import com.gamma.util.DuckDbUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -21,6 +23,8 @@ import java.util.stream.Collectors;
  * <p>Extracted from {@link com.gamma.inspector.SourceProcessor#registerInDuckLake}.
  */
 public final class DuckLakeRegistrar {
+
+    private static final Logger log = LoggerFactory.getLogger(DuckLakeRegistrar.class);
 
     private DuckLakeRegistrar() {}
 
@@ -44,7 +48,7 @@ public final class DuckLakeRegistrar {
         String schema     = (String) dl.getOrDefault("schema", "main");
         String table      = (tableName != null) ? tableName : (String) dl.get("table");
 
-        System.out.printf("DuckLake: registering %d file(s) into %s.%s ...%n",
+        log.info("DuckLake: registering {} file(s) into {}.{} ...",
                 outputPaths.size(), schema, table);
         try {
             java.io.File lakeDb = DuckDbUtil.tempDbFile("duckdb_lake_");
@@ -71,13 +75,13 @@ public final class DuckLakeRegistrar {
                         "INSERT INTO lake.\"%s\".\"%s\" SELECT * FROM read_parquet(%s)",
                         schema, table, pathList));
 
-                System.out.printf("DuckLake: OK — %d file(s) registered in %s.%s%n",
+                log.info("DuckLake: OK — {} file(s) registered in {}.{}",
                         outputPaths.size(), schema, table);
             } finally {
                 DuckDbUtil.deleteTempDb(lakeDb);
             }
         } catch (Exception e) {
-            System.err.println("DuckLake registration failed (non-fatal): " + e.getMessage());
+            log.warn("DuckLake registration failed (non-fatal): {}", e.getMessage());
         }
     }
 }

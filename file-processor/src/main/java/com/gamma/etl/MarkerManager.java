@@ -1,5 +1,8 @@
 package com.gamma.etl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
@@ -20,6 +23,8 @@ import java.util.stream.Stream;
  * across four private static methods.
  */
 public final class MarkerManager {
+
+    private static final Logger log = LoggerFactory.getLogger(MarkerManager.class);
 
     private MarkerManager() {}
 
@@ -77,10 +82,19 @@ public final class MarkerManager {
      * Delete marker files older than {@code duplicate_check.retention_days} from
      * {@code dirs.markers}, then prune empty subdirectories left behind.
      *
-     * <p>Runs once at the start of each poll cycle so the markers directory does
-     * not grow unbounded.  Silently no-ops when markers are disabled or the
-     * markers directory does not exist.
+     * <p>Throttled to run at most once per 24 hours per markers directory.  A
+     * sentinel file {@code .last_cleanup} in the markers root records the time of
+     * the last run; subsequent polls within the throttle window are no-ops.  This
+     * matters at scale — a markers tree with millions of files takes a meaningful
+     * time to walk, and there's no reason to do it every poll.  Silently no-ops
+     * when markers are disabled or the markers directory does not exist.
+     *
+     * <p>For an explicit on-demand cleanup (e.g. after deleting retention_days),
+     * delete the sentinel and call this method.
      */
+    private static final java.time.Duration CLEANUP_INTERVAL = java.time.Duration.ofHours(24);
+    private static final String CLEANUP_SENTINEL = ".last_cleanup";
+
     public static void cleanupStaleMarkers(PipelineConfig cfg) {
         if (cfg.markersDir == null || cfg.markersDir.isBlank()) return;
         if (!cfg.duplicateCheckEnabled) return;
@@ -88,27 +102,40 @@ public final class MarkerManager {
         Path markerRoot = Paths.get(cfg.markersDir).toAbsolutePath();
         if (!Files.exists(markerRoot)) return;
 
+        // Throttle: skip if we ran within CLEANUP_INTERVAL.
+        Path sentinel = markerRoot.resolve(CLEANUP_SENTINEL);
+        if (Files.exists(sentinel)) {
+            try {
+                Instant lastRun = Files.getLastModifiedTime(sentinel).toInstant();
+                if (lastRun.isAfter(Instant.now().minus(CLEANUP_INTERVAL))) {
+                    return;  // throttled; nothing to log
+                }
+            } catch (IOException ignored) {
+                // Couldn't read sentinel — fall through and run cleanup.
+            }
+        }
+
         Instant cutoff = Instant.now().minusSeconds((long) cfg.retentionDays * 86_400L);
-        System.out.printf("[MARKER] Cleaning up markers older than %d days in %s%n",
+        log.info("[MARKER] Cleaning up markers older than {} days in {}",
                 cfg.retentionDays, markerRoot);
 
         int[] counts = {0, 0};   // [deleted, errors]
         try (Stream<Path> walk = Files.walk(markerRoot)) {
-            walk.filter(Files::isRegularFile).forEach(marker -> {
+            walk.filter(Files::isRegularFile)
+                .filter(p -> !p.getFileName().toString().equals(CLEANUP_SENTINEL))
+                .forEach(marker -> {
                 try {
                     if (Files.getLastModifiedTime(marker).toInstant().isBefore(cutoff)) {
                         Files.delete(marker);
                         counts[0]++;
                     }
                 } catch (IOException e) {
-                    System.err.printf("[WARN] Could not check/delete marker %s: %s%n",
-                            marker, e.getMessage());
+                    log.warn("[MARKER] Could not check/delete marker {}: {}", marker, e.getMessage());
                     counts[1]++;
                 }
             });
         } catch (IOException e) {
-            System.err.printf("[WARN] Could not walk markers dir %s: %s%n",
-                    markerRoot, e.getMessage());
+            log.warn("[MARKER] Could not walk markers dir {}: {}", markerRoot, e.getMessage());
             return;
         }
 
@@ -121,15 +148,21 @@ public final class MarkerManager {
                     try { Files.delete(dir); }
                     catch (DirectoryNotEmptyException ignored) {}
                     catch (IOException e) {
-                        System.err.printf("[WARN] Could not remove marker subdir %s: %s%n",
-                                dir, e.getMessage());
+                        log.warn("[MARKER] Could not remove marker subdir {}: {}", dir, e.getMessage());
                     }
                 });
         } catch (IOException e) {
-            System.err.printf("[WARN] Could not prune empty marker subdirs: %s%n", e.getMessage());
+            log.warn("[MARKER] Could not prune empty marker subdirs: {}", e.getMessage());
         }
 
-        System.out.printf("[MARKER] Cleanup complete — deleted: %d  errors: %d%n",
-                counts[0], counts[1]);
+        log.info("[MARKER] Cleanup complete — deleted: {}  errors: {}", counts[0], counts[1]);
+
+        // Touch the sentinel so subsequent polls within CLEANUP_INTERVAL skip the walk.
+        try {
+            if (!Files.exists(sentinel)) Files.createFile(sentinel);
+            else Files.setLastModifiedTime(sentinel, java.nio.file.attribute.FileTime.from(Instant.now()));
+        } catch (IOException e) {
+            log.warn("[MARKER] Could not touch cleanup sentinel {}: {}", sentinel, e.getMessage());
+        }
     }
 }

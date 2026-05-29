@@ -2,6 +2,8 @@ package com.gamma.etl;
 
 import com.gamma.util.ToonHelper;
 import dev.toonformat.jtoon.JToon;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -31,6 +33,8 @@ import java.util.*;
  * {@code load()} returns.
  */
 public final class PipelineConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(PipelineConfig.class);
 
     // ── pipeline identity ─────────────────────────────────────────────────────
 
@@ -128,6 +132,18 @@ public final class PipelineConfig {
      */
     public final LinkedHashMap<String, Map<String, Object>> segmentSchemas;
 
+    /**
+     * Free-form configuration map for the plugin ingester, read from the
+     * {@code processing.ingester_config:} block in the pipeline toon.  Empty
+     * (never {@code null}) when no such block is present.
+     *
+     * <p>This is where binary / fixed-width / proprietary plugins put format-specific
+     * settings — {@code record_length}, {@code byte_order}, {@code encoding}, etc. —
+     * instead of overloading {@code csv_settings}.  Plugins read it via
+     * {@code cfg.ingesterConfig.get("my_key")}.
+     */
+    public final Map<String, Object> ingesterConfig;
+
     // ── private constructor — use load() ──────────────────────────────────────
 
     private PipelineConfig(Builder b) {
@@ -168,6 +184,9 @@ public final class PipelineConfig {
         this.singleSchema         = b.singleSchema;
         this.ingesterClass        = b.ingesterClass;
         this.segmentSchemas       = b.segmentSchemas;
+        this.ingesterConfig       = b.ingesterConfig != null
+                ? Collections.unmodifiableMap(b.ingesterConfig)
+                : Collections.emptyMap();
     }
 
     // ── static factory ────────────────────────────────────────────────────────
@@ -274,6 +293,9 @@ public final class PipelineConfig {
 
         // ── plugin ingester + segments ────────────────────────────────────────
         b.ingesterClass = (String) proc.get("ingester");
+        Object icfg = proc.get("ingester_config");
+        if (icfg instanceof Map<?, ?> icfgMap)
+            b.ingesterConfig = (Map<String, Object>) icfgMap;
         if (b.ingesterClass != null && !b.ingesterClass.isBlank()) {
             Object segsRaw = proc.get("segments");
             if (!(segsRaw instanceof Map<?,?> segsMap) || segsMap.isEmpty())
@@ -287,9 +309,10 @@ public final class PipelineConfig {
                     throw new FileNotFoundException("Segment schema not found for '" + key + "': " + schemaPath);
                 Map<String, Object> schema = (Map<String, Object>)
                         JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
+                Identifiers.validateSchema(schema, "segment[" + key + "]");
                 b.segmentSchemas.put(key, schema);
             }
-            System.out.printf("[CONFIG] Plugin ingester: %s  segments: %s%n",
+            log.info("[CONFIG] Plugin ingester: {}  segments: {}",
                     b.ingesterClass, b.segmentSchemas.keySet());
         }
 
@@ -313,6 +336,9 @@ public final class PipelineConfig {
                     throw new FileNotFoundException("Schema file not found: " + schemaPath);
                 Map<String, Object> schemaCfg = (Map<String, Object>)
                         JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
+                Identifiers.validateSchema(schemaCfg, "schemas[col=" + colCount + "]");
+                if (table != null && !table.isBlank())
+                    Identifiers.validate(table, "schemas[col=" + colCount + "].table");
 
                 SchemaSelector.register(byCount, byPattern, byTable,
                         colCount, filePattern, schemaCfg, table);
@@ -322,7 +348,7 @@ public final class PipelineConfig {
                     byCount, byPattern, byTable,
                     b.delimiter, b.skipHeaderLines);
 
-            System.out.printf("[CONFIG] Loaded %d schema(s): col counts %s%n",
+            log.info("[CONFIG] Loaded {} schema(s): col counts {}",
                     schemaDefs.size(),
                     byCount.keySet().stream().map(String::valueOf)
                             .collect(java.util.stream.Collectors.joining(", ")));
@@ -333,10 +359,13 @@ public final class PipelineConfig {
                 throw new FileNotFoundException("Schema file not found: " + schemaPath);
             b.singleSchema = (Map<String, Object>)
                     JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
+            Identifiers.validateSchema(b.singleSchema, "schema_file");
         }
 
-        System.out.printf("[CONFIG] Status file : %s%n", b.statusFilePath);
-        return new PipelineConfig(b);
+        log.info("[CONFIG] Status file : {}", b.statusFilePath);
+        PipelineConfig cfg = new PipelineConfig(b);
+        ConfigValidator.validate(cfg);  // non-fatal: logs warnings for suspicious-but-legal patterns
+        return cfg;
     }
 
     // ── dir validation ────────────────────────────────────────────────────────
@@ -413,5 +442,6 @@ public final class PipelineConfig {
         Map<String, Object> singleSchema;
         String ingesterClass;
         LinkedHashMap<String, Map<String, Object>> segmentSchemas;
+        Map<String, Object> ingesterConfig;
     }
 }
