@@ -44,18 +44,29 @@ If you depend on a framework-internal symbol from outside the project, pin to an
 
 The following came out of the v1.3.2 review pass. They are real improvements but require either a breaking change or a focused design exercise; the team should approach each one deliberately rather than slipping it into a maintenance patch.
 
-### D1 — Unified concurrency primitive
+### D1 — Unified concurrency primitive — ✅ DONE (v1.5.0), batch level
 
-**Current state.** `SourceProcessor` uses `Executors.newFixedThreadPool(cfg.threads)` for batch fan-out. The pre-ETL utilities (`FileOrganizer`, `TarArranger`, etc.) use `VirtualThreadRunner` + `Phaser`. Both work; the inconsistency is friction for new contributors.
+**Resolved (v1.5.0).** `SourceProcessor` now uses a virtual-thread-per-task
+executor (`Executors.newVirtualThreadPerTaskExecutor()`) bounded by a
+`Semaphore(cfg.threads)`. This took **path 2** from the options below: `cfg.threads`
+is repurposed as a permit count — a batch blocked on I/O parks its carrier cheaply,
+but at most `cfg.threads` batches do heavy work at once. A blocked batch no longer
+pins a platform thread, and the cap still protects a shared box from I/O pressure.
 
-**Why deferred.** Switching `SourceProcessor` to virtual threads is mostly mechanical, but `cfg.threads` is exposed in every pipeline config and currently controls the batch-level parallelism. Virtual threads make `cfg.threads` semantically meaningless (every task gets its own carrier). Two clean paths forward:
+Companion knob: `processing.duckdb_threads` applies `PRAGMA threads=N` per worker
+connection via `DuckDbUtil.applyWorkerThreads`, so the *inner* DuckDB parallelism is
+also controllable. `ConfigValidator` warns when `threads × duckdb_threads` exceeds
+the core count (oversubscription). Default `duckdb_threads=0` leaves DuckDB's default
+(no behaviour change unless set).
 
-1. **Drop `cfg.threads`** entirely; document that DuckDB's internal parallelism handles CPU usage.
-2. **Repurpose** `cfg.threads` as a permit semaphore so operators can cap total concurrency on a shared box.
+The pre-ETL utilities still use `VirtualThreadRunner` + `Phaser` (uncapped); that's
+fine — they're operator-supervised staging tools, not the high-throughput path.
 
-Either way is a config-format consideration that wants explicit operator buy-in before shipping.
-
-**When to do this.** Next minor release. Aim for a single PR that swaps both `SourceProcessor` and any remaining `newFixedThreadPool` usages, plus a config-validator warning for legacy `cfg.threads > 1` settings.
+**Still deferred (multi-source orchestrator).** There is no top-level runner that
+processes several *pipeline configs* (sources) concurrently — each source is still
+one JVM invocation / `SourceProcessor.run(cfg)` call. The batch-level model above is
+the per-source unit it would compose. Build when multi-source-in-one-process is
+actually needed.
 
 ### D2 — Commit-log abstraction
 
@@ -98,7 +109,7 @@ See "Stability tiers" above for the interim informal policy. A formal `@PublicAp
 
 - **SLF4J everywhere in the framework.** ETL code (`com.gamma.etl.*`, `com.gamma.inspector.*`) uses SLF4J at INFO/WARN/ERROR. Pre-ETL utility commands (`com.gamma.util.*` CLI tools) keep `System.out.println` because their output is for the human invoker, not log scrapers. `LogSetup` still tees stdout to a per-run file for diagnostics.
 
-- **DuckDB connection per batch.** Each `BatchProcessor.process` opens its own temp DuckDB file via `DuckDbUtil.tempDbFile` and closes it in `finally`. No pooling, no sharing. Worth it for crash isolation.
+- **DuckDB connection per batch.** Each `BatchProcessor.process` opens its own temp DuckDB file via `DuckDbUtil.tempDbFile` and closes it in `finally`. No pooling, no sharing. Worth it for crash isolation. Each connection's internal parallelism is capped by `DuckDbUtil.applyWorkerThreads(conn, cfg.duckdbThreads)` immediately after open — set `processing.duckdb_threads` so `threads × duckdb_threads ≈ cores`, else concurrent batches oversubscribe (the outer `Semaphore(cfg.threads)` only bounds batch count, not DuckDB's per-connection threads).
 
 - **Two CSV ingest engines.** `DuckDbCsvIngester` (native `read_csv`, vectorized, 4–5× faster) and `CsvIngester` (Java line-by-line, lenient with ragged rows) are interchangeable behind the same `ingest(...)` signature. `BatchProcessor.processCsv` picks via `DuckDbCsvIngester.usesDuckDb(cfg)`. The Java path is the fallback for messy configs (`skip_tail_columns` etc.) the native reader can't faithfully reproduce — see `docs/performance.md` for the semantic-difference analysis. Don't delete the Java path; it's load-bearing for the messy-file sources.
 

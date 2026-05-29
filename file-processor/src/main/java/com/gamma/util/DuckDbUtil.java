@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -77,6 +78,26 @@ public final class DuckDbUtil {
      */
     public static Connection openConnection(File dbFile) throws SQLException {
         return DriverManager.getConnection(jdbcUrl(dbFile));
+    }
+
+    /**
+     * Cap a worker connection's internal DuckDB parallelism via {@code PRAGMA threads=N}.
+     *
+     * <p>DuckDB defaults to one thread per core. When several batches run concurrently
+     * (each with its own connection), the product of batch-concurrency × per-connection
+     * threads can oversubscribe the CPU and add I/O contention. Setting this makes the
+     * pipeline's controllable thread count honest.
+     *
+     * <p>No-op when {@code threads <= 0} (leave DuckDB's default).
+     *
+     * @param conn    an open DuckDB connection
+     * @param threads desired per-connection thread count; {@code <= 0} leaves the default
+     */
+    public static void applyWorkerThreads(Connection conn, int threads) throws SQLException {
+        if (threads <= 0) return;
+        try (Statement st = conn.createStatement()) {
+            st.execute("PRAGMA threads=" + threads);
+        }
     }
 
     /**

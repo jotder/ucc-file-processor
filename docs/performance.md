@@ -77,20 +77,28 @@ Three costs in `CsvIngester`'s per-row loop, in rough order of impact:
    an `int[]` once before the loop gave a measured **~13% ingest speedup**
    (17.84 s → 15.49 s at 12 cols). Shipped.
 
-## Concurrency model — current mitigation
+## Concurrency model (v1.5.0)
 
 Ingest is single-threaded *within* a file (sequential read; cannot be
-parallelized for one input). The existing mitigation is batch-level
-parallelism: `SourceProcessor` runs `cfg.threads` batches concurrently, so N
-files ingest simultaneously. Aggregate throughput scales with `threads`, but
-per-file latency is fixed by single-threaded ingest.
+parallelized for one input). Aggregate throughput comes from batch-level
+parallelism: `SourceProcessor` submits every batch to a virtual-thread executor
+bounded by `Semaphore(cfg.threads)`, so up to `cfg.threads` batches ingest
+simultaneously while blocked batches park cheaply instead of pinning platform
+threads. Per-file latency is still fixed by single-threaded ingest (now ~4–5×
+lower thanks to the native engine below).
 
-Note the inner/outer parallelism interaction: each batch opens its own DuckDB
-connection, which uses its own thread pool (`= CPU cores` by default) for the
-transform/write SQL. With `threads=4` on a 16-core box you can momentarily have
-4 × 16 = 64 DuckDB workers. Since transform/write are a small fraction of time,
-this rarely matters in practice — but it's worth a `PRAGMA threads` cap if you
-push `cfg.threads` high.
+**Two controllable axes** (set both to keep the CPU honest):
+
+| Knob | Controls | Default |
+|---|---|---|
+| `processing.threads` | how many batches run concurrently (semaphore permits) | 4 |
+| `processing.duckdb_threads` | `PRAGMA threads=N` per batch's DuckDB connection | 0 = DuckDB default (all cores) |
+
+The inner/outer interaction: each concurrent batch opens its own DuckDB
+connection. With `threads=4` and `duckdb_threads=0` on a 16-core box you can
+momentarily have 4 × 16 = 64 DuckDB workers. Set `duckdb_threads` so
+`threads × duckdb_threads ≈ cores` (e.g. `threads=4, duckdb_threads=4` on a
+16-core box). `ConfigValidator` warns when the product exceeds the core count.
 
 ## Resolution — native DuckDB CSV engine (v1.4.0)
 

@@ -62,6 +62,7 @@ public final class BatchProcessor {
         try {
             tempDb = DuckDbUtil.tempDbFile("duckdb_batch_");
             try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
+                DuckDbUtil.applyWorkerThreads(conn, cfg.duckdbThreads);
                 boolean rawCreated = false;
                 for (Batch.Member m : batch.members()) {
                     LocalDateTime mStart = LocalDateTime.now();
@@ -188,6 +189,7 @@ public final class BatchProcessor {
         try {
             tempDb = DuckDbUtil.tempDbFile("duckdb_plugin_");
             try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
+                DuckDbUtil.applyWorkerThreads(conn, cfg.duckdbThreads);
 
                 // ── ingest all members ────────────────────────────────────────
                 for (Batch.Member m : batch.members()) {

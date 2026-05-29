@@ -817,7 +817,8 @@ Add a `batch:` sub-section inside the `processing:` block of the pipeline toon:
 
 ```yaml
 processing:
-  threads: 4
+  threads: 4              # max batches processed concurrently (see Concurrency below)
+  duckdb_threads: 4       # PRAGMA threads per batch connection (0 = DuckDB default)
   file_pattern: "glob:**/*.{csv,csv.gz}"
   batch:
     max_files: 500
@@ -830,6 +831,21 @@ processing:
 | `processing.batch.max_bytes` | `Long.MAX_VALUE` | Maximum total uncompressed size of files in one batch (bytes) |
 
 Files are grouped greedily in poll order; a new batch starts whenever either limit would be exceeded by the next candidate.
+
+### Concurrency (M..N parallelism)
+
+Within a single source run, batches execute on a **virtual-thread executor bounded by a semaphore**. Every batch is submitted up front; at most `processing.threads` of them do heavy work at once, and a batch blocked on file I/O or DuckDB parks its (virtual) carrier cheaply instead of pinning a platform thread. So `threads` is a *concurrency cap*, not a fixed pool size — raise it to overlap more I/O-bound batches without paying for idle platform threads.
+
+Two knobs control CPU/I/O pressure, and they multiply:
+
+| Key | Default | Controls |
+|---|---|---|
+| `processing.threads` | `4` | How many batches run concurrently (semaphore permits). |
+| `processing.duckdb_threads` | `0` | `PRAGMA threads=N` on each batch's DuckDB connection. `0` leaves DuckDB's default (one thread per core). |
+
+Each concurrent batch opens its own DuckDB connection, so the effective worker count is roughly `threads × duckdb_threads`. With `duckdb_threads=0` and `threads=4` on a 16-core box you can momentarily run 4 × 16 = 64 DuckDB workers and oversubscribe the CPU. Set `duckdb_threads` so the product ≈ core count (e.g. `threads=4, duckdb_threads=4` on 16 cores). The config validator warns when `threads × duckdb_threads` exceeds the available cores.
+
+> **Multiple sources** currently run as separate JVM invocations (one `pipeline.toon` each) — there is no in-process multi-source orchestrator yet. The per-source model above is the unit such an orchestrator would compose.
 
 ### Audit files written to `dirs.status_dir`
 

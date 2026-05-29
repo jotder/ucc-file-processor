@@ -60,7 +60,19 @@ public final class PipelineConfig {
 
     // ── processing ────────────────────────────────────────────────────────────
 
+    /**
+     * Max batches processed concurrently within one source run (semaphore permits
+     * over a virtual-thread executor). Read from {@code processing.threads}, default 4.
+     */
     public final int    threads;
+    /**
+     * Per-worker DuckDB thread cap applied as {@code PRAGMA threads=N} on each batch
+     * connection. Read from {@code processing.duckdb_threads}; {@code 0} (default)
+     * leaves DuckDB's own default (all cores). Since {@link #threads} batches run
+     * concurrently and each opens its own connection, set this so
+     * {@code threads × duckdb_threads ≈ cores} to avoid CPU oversubscription.
+     */
+    public final int    duckdbThreads;
     public final String filePattern;
 
     // ── batch ─────────────────────────────────────────────────────────────────
@@ -167,6 +179,7 @@ public final class PipelineConfig {
         this.logDir               = b.logDir;
         this.statusFilePath       = b.statusFilePath;
         this.threads              = b.threads;
+        this.duckdbThreads        = b.duckdbThreads;
         this.filePattern          = b.filePattern;
         this.batchMaxFiles        = b.batchMaxFiles;
         this.batchMaxBytes        = b.batchMaxBytes;
@@ -256,8 +269,9 @@ public final class PipelineConfig {
 
         // ── processing ────────────────────────────────────────────────────────
         Map<String, Object> proc = ToonHelper.requireSection(raw, "processing");
-        b.threads     = toInt(proc.getOrDefault("threads", 4));
-        b.filePattern = opt(proc, "file_pattern", "glob:**/*.{csv,csv.gz}");
+        b.threads       = toInt(proc.getOrDefault("threads", 4));
+        b.duckdbThreads = toInt(proc.getOrDefault("duckdb_threads", 0));
+        b.filePattern   = opt(proc, "file_pattern", "glob:**/*.{csv,csv.gz}");
 
         // ── batch caps ──────────────────────────────────────────────────────────
         Map<String, Object> batch = (Map<String, Object>) proc.get("batch");
@@ -427,6 +441,7 @@ public final class PipelineConfig {
         String logDir;
         String statusFilePath;
         int    threads       = 4;
+        int    duckdbThreads = 0;
         String filePattern   = "glob:**/*.{csv,csv.gz}";
         int    batchMaxFiles   = 1;
         long   batchMaxBytes   = Long.MAX_VALUE;

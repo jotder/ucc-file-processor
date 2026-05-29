@@ -86,23 +86,40 @@ public class SourceProcessor {
         BatchAuditWriter audit = new BatchAuditWriter(
                 cfg.statusFilePath, cfg.batchesFilePath, cfg.lineageFilePath);
 
-        ExecutorService executor = Executors.newFixedThreadPool(cfg.threads);
-        List<Future<?>> futures  = new ArrayList<>();
-        for (Batch b : batches)
-            futures.add(executor.submit(() -> BatchProcessor.process(b, cfg, audit)));
+        // Virtual threads + a Semaphore: a batch blocked on file I/O or DuckDB parks
+        // its carrier cheaply instead of pinning a platform thread, but the semaphore
+        // bounds how many batches do heavy work at once to cfg.threads. That gives us
+        // the preferred model — virtual-thread concurrency with a controllable cap that
+        // protects against I/O pressure and CPU oversubscription. Every batch is
+        // submitted up front; all but `permits` of them simply park on acquire().
+        int maxConcurrent  = Math.max(1, cfg.threads);
+        Semaphore permits  = new Semaphore(maxConcurrent);
+        int failedBatches  = 0;
 
-        // f.get() blocks until each future completes; no additional awaitTermination needed.
-        // Track failures so main() can surface a non-zero exit code on partial-failure runs.
-        int failedBatches = 0;
-        for (Future<?> f : futures) {
-            try {
-                f.get();
-            } catch (Exception e) {
-                failedBatches++;
-                log.error("Batch processing failed", e);
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<?>> futures = new ArrayList<>();
+            for (Batch b : batches) {
+                futures.add(executor.submit(() -> {
+                    permits.acquire();
+                    try {
+                        BatchProcessor.process(b, cfg, audit);
+                    } finally {
+                        permits.release();
+                    }
+                    return null;
+                }));
             }
-        }
-        executor.shutdown();
+            // f.get() blocks until each batch completes; track failures so main()
+            // can surface a non-zero exit code on partial-failure runs.
+            for (Future<?> f : futures) {
+                try {
+                    f.get();
+                } catch (Exception e) {
+                    failedBatches++;
+                    log.error("Batch processing failed", e);
+                }
+            }
+        }   // try-with-resources close() shuts the executor down and awaits all virtual threads
         if (failedBatches > 0) {
             throw new BatchProcessingException(failedBatches, batches.size());
         }

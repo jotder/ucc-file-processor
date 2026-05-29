@@ -76,6 +76,19 @@ public final class ConfigValidator {
                     "each batch is a single file, so only " + cfg.threads + "-way file-level parallelism. " +
                     "Raise batch.max_files for intra-batch packing.");
 
+        // CPU oversubscription: concurrent batches (threads) each open a DuckDB connection
+        // that, capped by duckdb_threads, fans out to that many threads. Their product
+        // exceeding the core count oversubscribes the CPU and adds I/O contention.
+        if (cfg.duckdbThreads > 0) {
+            int cores = Runtime.getRuntime().availableProcessors();
+            int total = cfg.threads * cfg.duckdbThreads;
+            if (total > cores)
+                warn(warnings, "processing.threads(" + cfg.threads + ") × duckdb_threads(" +
+                        cfg.duckdbThreads + ") = " + total + " exceeds available cores (" + cores +
+                        ") — concurrent batches may oversubscribe the CPU. Lower one so the product " +
+                        "is ≈ cores.");
+        }
+
         // Native DuckDB CSV engine forced on a config that strips phantom trailing
         // columns: DuckDB rejects too-many-column rows instead of trimming them,
         // so the row counts will differ from the Java path.
