@@ -99,7 +99,7 @@ against the real engine before the user ever sees it.
 | V-1 | Deployment topology | **Embedded in-JVM** (agent loaded in-process by `SourceService` via an SPI) | Typed access to `reports()`, `enrichmentService()`, `jobService()`, `statusStore()`, `eventBus()` (all already exposed on `SourceService`); deps stay isolated in the optional module |
 | V-2 | Model provider | **Per-environment pluggable; air-gapped = local-only, enforced by packaging** | Connected sites may use hosted; on-prem/offline runs all-local Ollama; every skill must work on local models |
 | V-3 | First vertical slice | **`explain-entity`** (read-only) | Zero write risk, exercises RAG + Control API reads end-to-end |
-| V-4 | P5 semantic layer location | **New `*_meta.toon` next to enrichment configs** | Mirrors the existing `*_enrich.toon` co-location + suffix-scan loading; net-new file (no description field exists in the schema model today) |
+| V-4 | Semantic layer | **Promoted to the M2 data keystone:** schema-`.toon` column `description` + `*_meta.toon` (KPI catalog + domain notes) + an assembled **Data Catalog** (see [v3-plan.md](v3-plan.md)) | `*_meta.toon` mirrors `*_enrich.toon` co-location + suffix-scan; the schema `description` column is additive (header-driven `.toon`); the catalog enumerates emitted event tables — net-new, none exists today |
 | V-5 | Default 7B driver model | **Qwen2.5-7B-Instruct**; **promote to Qwen2.5-14B for `kpi-to-sql`** where hardware allows | Stronger code/SQL + JSON adherence than Llama-3.1-8B; 14B materially better on joins/windows |
 | V-6 | Hosted provider choice (connected mode) | **Pluggable: Gemini / Claude / ChatGPT** behind one provider seam | Per-deployment selection; SDK absent from air-gapped artifact (V-2/principle 5) |
 | V-7 | Assist API auth | **Separate scoped token tier** (`assist.read` / `assist.write`), distinct from the Control write token; **no open/unauthenticated mode** | Today the Control API has one shared token and runs open-with-a-warning if unset — too coarse and too permissive for an LLM-driven surface |
@@ -159,6 +159,13 @@ the *plan*, it does **not** neutralize `COPY … TO`, `read_csv('/etc/…')`, `A
 and memory/threads/timeout caps.
 
 ### P5 — Metadata / semantic descriptor: a new `*_meta.toon` (locked, V-4)
+> **Promoted & expanded (see [v3-plan.md](v3-plan.md) M2).** P5 is no longer a single late
+> file at M4 — it is now the **Data Catalog + Semantic Schema** data keystone (new **M2**,
+> right after Smart Config, before any skill), in three layers: a column **`description`** in
+> the schema `.toon`, this **`*_meta.toon`** (KPI catalog + domain notes), and an assembled,
+> queryable **Data Catalog** of available event tables. The content below describes the
+> `*_meta.toon` layer.
+
 A lightweight, additive descriptor co-located with the enrichment config (loaded by the
 same suffix-scan), grounding generation for the SQL skills:
 - **table/column metadata** — names, types, and a one-line *business description* per
