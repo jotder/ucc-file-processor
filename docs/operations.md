@@ -303,7 +303,7 @@ java -cp file-processor.jar com.gamma.control.ControlApi \
      -Dservice.poll.seconds=60 config/
 ```
 
-A bearer token guards every route except `/health` and `/ready` (present it as `Authorization: Bearer <token>` or `X-Api-Token`). If no token is set the API runs open, with a warning (dev only).
+A bearer token guards every route except the public `/health`, `/ready`, and `/metrics` (present it as `Authorization: Bearer <token>` or `X-Api-Token`). **As of v3.0 the API is fail-closed and scoped** — there is no open-by-default mode. Routes carry a scope; current control routes require the `CONTROL` scope (`-Dcontrol.token`). If a scope has no token configured, its routes return `401` (locked) rather than running open. Scopes are hierarchical — `CONTROL` satisfies everything; the `assist.read`/`assist.write` scopes (`-Dassist.read.token` / `-Dassist.write.token`) back the `/assist/*` routes arriving in v3 milestone M2. Token comparison is constant-time.
 
 | Method & path | Purpose |
 |---|---|

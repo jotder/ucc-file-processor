@@ -93,6 +93,27 @@ class ControlApiTest {
         return new Ctx(svc, api, api.port(), "test_etl");
     }
 
+    @Test
+    void failClosedWhenNoControlTokenConfigured() throws Exception {
+        // v3.0: no open-by-default. With no control token, public probes still work but
+        // CONTROL routes are LOCKED (401) — presenting any token does not unlock an
+        // unconfigured scope.
+        SourceService svc = new SourceService(List.of(), 3600, 1);
+        ControlApi api = new ControlApi(svc, 0, (String) null);
+        api.start();
+        try {
+            int port = api.port();
+            assertEquals(200, send(port, "GET", "/health", null, null).statusCode(), "health stays public");
+            assertEquals(401, send(port, "GET", "/pipelines", null, null).statusCode(),
+                    "control route locked when no control token is set");
+            assertEquals(401, send(port, "GET", "/pipelines", "anything", null).statusCode(),
+                    "presenting a token cannot unlock an unconfigured scope");
+        } finally {
+            api.close();
+            svc.close();
+        }
+    }
+
     private HttpResponse<String> send(int port, String method, String path, String token, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (token != null) b.header("Authorization", "Bearer " + token);

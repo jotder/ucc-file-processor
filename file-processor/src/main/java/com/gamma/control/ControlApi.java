@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,11 +33,19 @@ import java.util.regex.Pattern;
  * resume pipelines, query runs/batches/files/lineage/quarantine via the
  * {@link com.gamma.service.StatusStore}, reprocess a batch, and validate a config.
  *
- * <h3>Auth</h3>
- * A bearer token guards every route except {@code /health} and {@code /ready}. Supply
- * it via the constructor (CLI: {@code -Dcontrol.token=...}). Present it as
- * {@code Authorization: Bearer <token>} or {@code X-Api-Token: <token>}. If no token is
- * configured the API runs <b>open</b> (dev only) and logs a warning.
+ * <h3>Auth (v3.0: scoped + fail-closed)</h3>
+ * Routes carry a {@link Scope}. {@code /health}, {@code /ready} and {@code /metrics} are
+ * {@code PUBLIC} (no token). Every other current route requires the {@code CONTROL} scope.
+ * Tokens are supplied per scope via {@link Tokens} (CLI: {@code -Dcontrol.token},
+ * {@code -Dassist.read.token}, {@code -Dassist.write.token}); present one as
+ * {@code Authorization: Bearer <token>} or {@code X-Api-Token: <token>}. Scopes are
+ * hierarchical — {@code CONTROL} satisfies any scope; {@code assist.write} satisfies
+ * {@code assist.read}. Comparison is constant-time ({@link MessageDigest#isEqual}).
+ *
+ * <p><b>Fail-closed:</b> unlike 2.x there is no open-by-default mode. If a scope has no
+ * token configured, its routes return {@code 401} (locked) rather than running open. Set
+ * {@code -Dcontrol.token} to use the control plane. The {@code assist.*} scopes back the
+ * {@code /assist/*} routes that arrive in M2.
  *
  * <h3>Routes</h3>
  * <pre>
@@ -79,18 +88,55 @@ public final class ControlApi implements AutoCloseable {
 
     private final HttpServer http;
     private final SourceService service;
-    private final String token;
+    private final Tokens tokens;
     private final ObjectMapper json = new ObjectMapper();
     private final List<Route> routes = new ArrayList<>();
+
+    /** Authorization scope for a route (v3.0). {@link #PUBLIC} routes need no token. */
+    @PublicApi(since = "3.0.0")
+    public enum Scope {
+        PUBLIC("public"), CONTROL("control"), ASSIST_READ("assist.read"), ASSIST_WRITE("assist.write");
+        final String label;
+        Scope(String label) { this.label = label; }
+    }
+
+    /**
+     * Per-scope bearer tokens (v3.0). A {@code null}/blank token <b>locks</b> that scope
+     * (fail-closed — its routes return 401). The control token is the superuser: it
+     * satisfies every scope. {@code assistWrite} also satisfies {@code assist.read}.
+     */
+    @PublicApi(since = "3.0.0")
+    public record Tokens(String control, String assistRead, String assistWrite) {
+        /** Only the control plane is enabled; assist scopes are locked. */
+        public static Tokens controlOnly(String control) { return new Tokens(control, null, null); }
+        /** Read {@code -Dcontrol.token} / {@code -Dassist.read.token} / {@code -Dassist.write.token}. */
+        public static Tokens fromSystemProperties() {
+            return new Tokens(System.getProperty("control.token"),
+                              System.getProperty("assist.read.token"),
+                              System.getProperty("assist.write.token"));
+        }
+    }
+
+    /**
+     * Convenience constructor: a single control token (assist scopes locked). Equivalent to
+     * {@code new ControlApi(service, port, Tokens.controlOnly(token))}.
+     *
+     * @param service the running service to control
+     * @param port    TCP port (0 = ephemeral; read back via {@link #port()})
+     * @param token   the {@code CONTROL}-scope bearer token; {@code null}/blank locks control routes
+     */
+    public ControlApi(SourceService service, int port, String token) throws IOException {
+        this(service, port, Tokens.controlOnly(token));
+    }
 
     /**
      * @param service the running service to control
      * @param port    TCP port (0 = ephemeral; read back via {@link #port()})
-     * @param token   bearer token; {@code null}/blank runs open (dev only)
+     * @param tokens  per-scope bearer tokens; a locked scope (null token) fails closed (401)
      */
-    public ControlApi(SourceService service, int port, String token) throws IOException {
+    public ControlApi(SourceService service, int port, Tokens tokens) throws IOException {
         this.service = service;
-        this.token   = (token == null || token.isBlank()) ? null : token;
+        this.tokens  = tokens != null ? tokens : new Tokens(null, null, null);
         this.http    = HttpServer.create(new InetSocketAddress(port), 0);
         this.http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         registerRoutes();
@@ -101,11 +147,17 @@ public final class ControlApi implements AutoCloseable {
 
     public void start() {
         http.start();
-        if (token == null)
-            log.warn("ControlApi started OPEN (no token) on port {} — set -Dcontrol.token for auth", port());
+        String control = tokens.control();
+        if (control == null || control.isBlank())
+            log.warn("ControlApi on port {}: no control token — CONTROL routes are LOCKED (401). "
+                    + "Set -Dcontrol.token to enable them. Public: /health, /ready, /metrics", port());
         else
-            log.info("ControlApi started on port {} (token auth enabled)", port());
+            log.info("ControlApi started on port {} (scoped bearer auth: control{}{})", port(),
+                    blank(tokens.assistRead())  ? "" : " +assist.read",
+                    blank(tokens.assistWrite()) ? "" : " +assist.write");
     }
+
+    private static boolean blank(String s) { return s == null || s.isBlank(); }
 
     @Override
     public void close() {
@@ -131,7 +183,7 @@ public final class ControlApi implements AutoCloseable {
         }
         SourceService svc = SourceService.fromArgs(args);
         int port = Integer.getInteger("control.port", 8080);
-        ControlApi api = new ControlApi(svc, port, System.getProperty("control.token"));
+        ControlApi api = new ControlApi(svc, port, Tokens.fromSystemProperties());
 
         java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -232,7 +284,7 @@ public final class ControlApi implements AutoCloseable {
                 if (!m.matches()) continue;
                 pathMatched = true;
                 if (!r.method.equals(method)) continue;
-                if (r.auth) requireAuth(ex);
+                if (r.scope != Scope.PUBLIC) requireAuth(r.scope, ex);
                 Object result = r.handler.handle(ex, m);
                 if (result != HANDLED) respond(ex, 200, result);
                 return;
@@ -249,13 +301,47 @@ public final class ControlApi implements AutoCloseable {
         }
     }
 
-    private void requireAuth(HttpExchange ex) {
-        if (token == null) return;
+    /**
+     * Enforce the route's {@link Scope}. Fail-closed: a scope with no configured token is
+     * locked (401), never open. The presented token is matched constant-time
+     * ({@link MessageDigest#isEqual}) against every token that satisfies the scope under the
+     * hierarchy (control ⊇ assist.write ⊇ assist.read).
+     */
+    private void requireAuth(Scope scope, HttpExchange ex) {
+        List<String> acceptable = acceptableTokens(scope);
+        if (acceptable.isEmpty())
+            throw new ApiException(401, "unauthorized: no " + scope.label + " token configured");
+        String presented = presentedToken(ex);
+        if (presented == null) throw new ApiException(401, "unauthorized");
+        byte[] p = presented.getBytes(StandardCharsets.UTF_8);
+        for (String t : acceptable)
+            if (MessageDigest.isEqual(t.getBytes(StandardCharsets.UTF_8), p)) return;
+        throw new ApiException(401, "unauthorized");
+    }
+
+    /** Tokens that satisfy a scope, widest-privilege first; empty ⇒ scope is locked. */
+    private List<String> acceptableTokens(Scope scope) {
+        List<String> out = new ArrayList<>();
+        switch (scope) {
+            case CONTROL      -> addToken(out, tokens.control());
+            case ASSIST_WRITE -> { addToken(out, tokens.assistWrite()); addToken(out, tokens.control()); }
+            case ASSIST_READ  -> { addToken(out, tokens.assistRead()); addToken(out, tokens.assistWrite());
+                                   addToken(out, tokens.control()); }
+            case PUBLIC       -> { /* no token required */ }
+        }
+        return out;
+    }
+
+    private static void addToken(List<String> list, String t) {
+        if (t != null && !t.isBlank()) list.add(t);
+    }
+
+    /** The bearer token presented on the request ({@code Authorization: Bearer} or {@code X-Api-Token}). */
+    private static String presentedToken(HttpExchange ex) {
         String auth = ex.getRequestHeaders().getFirst("Authorization");
-        String presented = (auth != null && auth.startsWith("Bearer "))
+        return (auth != null && auth.startsWith("Bearer "))
                 ? auth.substring("Bearer ".length()).trim()
                 : ex.getRequestHeaders().getFirst("X-Api-Token");
-        if (!token.equals(presented)) throw new ApiException(401, "unauthorized");
     }
 
     private void respond(HttpExchange ex, int status, Object body) throws IOException {
@@ -336,13 +422,17 @@ public final class ControlApi implements AutoCloseable {
         return null;
     }
 
-    private void get(String pattern, boolean auth, Handler h)  { routes.add(new Route("GET",  Pattern.compile("^" + pattern + "$"), auth, h)); }
-    private void post(String pattern, boolean auth, Handler h) { routes.add(new Route("POST", Pattern.compile("^" + pattern + "$"), auth, h)); }
+    // Scope-typed registration (used by M2 assist routes). The boolean overloads below
+    // keep every existing route registration unchanged: false → PUBLIC, true → CONTROL.
+    private void get (String pattern, Scope scope, Handler h) { routes.add(new Route("GET",  Pattern.compile("^" + pattern + "$"), scope, h)); }
+    private void post(String pattern, Scope scope, Handler h) { routes.add(new Route("POST", Pattern.compile("^" + pattern + "$"), scope, h)); }
+    private void get (String pattern, boolean auth, Handler h)  { get (pattern, auth ? Scope.CONTROL : Scope.PUBLIC, h); }
+    private void post(String pattern, boolean auth, Handler h)  { post(pattern, auth ? Scope.CONTROL : Scope.PUBLIC, h); }
 
     @FunctionalInterface
     private interface Handler { Object handle(HttpExchange ex, Matcher m) throws Exception; }
 
-    private record Route(String method, Pattern pattern, boolean auth, Handler handler) {}
+    private record Route(String method, Pattern pattern, Scope scope, Handler handler) {}
 
     /** Maps to an HTTP status + JSON {@code {"error": …}} body. */
     private static final class ApiException extends RuntimeException {
