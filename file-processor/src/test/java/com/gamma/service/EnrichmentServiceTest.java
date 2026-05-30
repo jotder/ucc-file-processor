@@ -258,6 +258,60 @@ class EnrichmentServiceTest {
         assertTrue(Files.exists(auditDir.resolve("daily_audit_enrich_commits.log")), "commit log written");
     }
 
+    // ── read surface: views / runs / lineage reflect an orchestrated recompute ───────
+
+    @Test
+    void readSurfaceReflectsAnOrchestratedRecompute(@TempDir Path dir) throws Exception {
+        Path in = dir.resolve("in"), out = dir.resolve("out");
+        seedInput(in);
+        EnrichmentConfig job = dailyKpi("DAILY_READ", in, out, new Triggers("EVENTS", 0));
+
+        BatchEventBus bus = new BatchEventBus();
+        List<BatchEvent> seen = Collections.synchronizedList(new ArrayList<>());
+        bus.subscribe(seen::add);
+        Scheduler sched = new Scheduler();
+        EnrichmentService es = new EnrichmentService(List.of(job), bus, sched);
+        try {
+            es.start();
+            // before any run: job is listed but reports zero runs
+            assertEquals(1, es.views().size());
+            assertEquals("DAILY_READ", es.views().get(0).name());
+            assertEquals(0, es.views().get(0).runCount());
+            assertTrue(es.runs("DAILY_READ").isEmpty());
+
+            bus.publish(new BatchEvent("EVENTS", "b1", "SUCCESS",
+                    List.of("event_type=CALL/year=2020/month=04/day=03"), 2, 100L, 0));
+            assertTrue(await(seen, "DAILY_READ", 10_000), "recompute should complete");
+        } finally {
+            sched.close();
+            es.close();
+        }
+
+        // run audit now readable through the service's read surface
+        List<Map<String, String>> runs = es.runs("DAILY_READ");
+        assertEquals(1, runs.size(), "one run recorded");
+        assertEquals("SUCCESS", runs.get(0).get("status"));
+        assertEquals("event", runs.get(0).get("trigger"));
+        String runId = runs.get(0).get("run_id");
+        assertNotNull(runId);
+
+        EnrichmentService.JobView v = es.views().get(0);
+        assertEquals(1, v.runCount());
+        assertTrue(v.eventTriggered());
+        assertEquals("EVENTS", v.onPipeline());
+        assertEquals("SUCCESS", v.lastStatus());
+
+        // lineage carries the one recomputed partition; filtering by runId is exact
+        List<Map<String, String>> lineage = es.lineage("DAILY_READ", null);
+        assertEquals(1, lineage.size());
+        assertEquals("event_type=CALL/year=2020/month=04/day=03", lineage.get(0).get("partition"));
+        assertEquals(lineage, es.lineage("DAILY_READ", runId), "runId filter matches the only run");
+        assertTrue(es.lineage("DAILY_READ", "no-such-run").isEmpty());
+
+        // unknown job is rejected
+        assertThrows(IllegalArgumentException.class, () -> es.runs("GHOST"));
+    }
+
     // ── end-to-end: a real Stage-1 batch commit drives enrichment through SourceService ─
 
     @Test

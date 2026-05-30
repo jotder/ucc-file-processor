@@ -60,6 +60,10 @@ import java.util.regex.Pattern;
  *   GET  /jobs                                list config-driven jobs + last/next run      [v2.8.0]
  *   GET  /jobs/{name}/runs                    recent run history for a job                 [v2.8.0]
  *   POST /jobs/{name}/trigger                 run a job once now                           [v2.8.0]
+ *   GET  /enrichment                          list Stage-2 enrichment jobs + last run      [v2.9.0]
+ *   GET  /enrichment/{job}/runs               enrichment run-audit rows                    [v2.9.0]
+ *   GET  /enrichment/{job}/lineage[?runId=]   enrichment output lineage rows               [v2.9.0]
+ *   GET  /enrichment/{job}/report             run-audit rollup for one enrichment job      [v2.9.0]
  * </pre>
  */
 @PublicApi(since = "2.4.0")
@@ -190,6 +194,14 @@ public final class ControlApi implements AutoCloseable {
             return Map.of("job", name(m), "status", "triggered");
         });
 
+        // ── v2.9.0: Stage-2 enrichment run audit + lineage + rollup ──
+        get("/enrichment", true, (e, m) -> enrichment().views());
+        get("/enrichment/([^/]+)/runs", true, (e, m) -> enrichment().runs(enrichJob(m)));
+        get("/enrichment/([^/]+)/lineage", true, (e, m) ->
+                enrichment().lineage(enrichJob(m), query(e, "runId")));
+        get("/enrichment/([^/]+)/report", true, (e, m) ->
+                service.reports().enrichmentReport(enrichJob(m)));
+
         post("/validate", true, (e, m) -> {
             String configPath = str(body(e), "configPath");
             if (configPath == null) throw new ApiException(400, "body must include 'configPath'");
@@ -266,6 +278,20 @@ public final class ControlApi implements AutoCloseable {
     /** The job registry, or a 404 when no jobs are registered on this service. */
     private com.gamma.job.JobService jobs() {
         return service.jobService().orElseThrow(() -> new ApiException(404, "no jobs registered"));
+    }
+
+    /** The enrichment service, or a 404 when no enrichment jobs are registered. */
+    private com.gamma.service.EnrichmentService enrichment() {
+        return service.enrichmentService()
+                .orElseThrow(() -> new ApiException(404, "no enrichment jobs registered"));
+    }
+
+    /** Resolve a path-named enrichment job to its name, 404 when it is not registered. */
+    private String enrichJob(Matcher m) {
+        String n = name(m);
+        if (enrichment().config(n).isEmpty())
+            throw new ApiException(404, "no enrichment job named '" + n + "'");
+        return n;
     }
 
     private static String name(Matcher m) {

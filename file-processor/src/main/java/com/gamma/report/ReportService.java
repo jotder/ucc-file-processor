@@ -2,6 +2,7 @@ package com.gamma.report;
 
 import com.gamma.api.PublicApi;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.service.EnrichmentService;
 import com.gamma.service.SourceService;
 import com.gamma.service.StatusStore;
 
@@ -64,6 +65,12 @@ public final class ReportService {
                                 double errorRate, long totalOutputRows,
                                 List<BatchAuditReport> pipelines) {}
 
+    /** Historical run-audit rollup for one Stage-2 enrichment job (mirrors the batch report). */
+    public record EnrichmentRunReport(String job, long totalRuns, long success, long failed,
+                                      double errorRate, long totalOutputRows, long totalOutputFiles,
+                                      long totalOutputBytes, long avgDurationMs, long maxDurationMs,
+                                      String firstRunTime, String lastRunTime) {}
+
     // ── live status snapshot ─────────────────────────────────────────────────────
 
     /** Build the live status snapshot across all registered pipelines. */
@@ -120,6 +127,46 @@ public final class ReportService {
         }
         double errorRate = batches == 0 ? 0.0 : round(failed / (double) batches);
         return new ServiceReport(now(), batches, success, failed, errorRate, outRows, perPipeline);
+    }
+
+    // ── enrichment run-audit report (v2.9.0) ─────────────────────────────────────
+
+    /**
+     * Roll up the Stage-2 run audit for one enrichment job by name — the same shape as the
+     * Stage-1 batch report, computed over the {@code <job>_enrich_runs.csv} ledger the
+     * orchestrator persists.
+     *
+     * @throws IllegalArgumentException if no enrichment is registered, or no job by that name
+     */
+    public EnrichmentRunReport enrichmentReport(String jobName) {
+        EnrichmentService es = service.enrichmentService().orElseThrow(
+                () -> new IllegalArgumentException("no enrichment jobs registered"));
+        return rollUpEnrichment(jobName, es.runs(jobName));   // runs(...) throws on unknown job
+    }
+
+    private static EnrichmentRunReport rollUpEnrichment(String job, List<Map<String, String>> rows) {
+        long total = rows.size(), success = 0, failed = 0;
+        long outRows = 0, outFiles = 0, outBytes = 0, durSum = 0, durMax = 0;
+        String first = "", last = "";
+        for (Map<String, String> r : rows) {
+            String status = r.getOrDefault("status", "");
+            if ("SUCCESS".equals(status)) success++;
+            else if (!status.isBlank()) failed++;
+            outRows  += asLong(r.get("total_output_rows"));
+            outFiles += asLong(r.get("output_file_count"));
+            outBytes += asLong(r.get("total_output_bytes"));
+            long dur = asLong(r.get("duration_ms"));
+            durSum += dur;
+            if (dur > durMax) durMax = dur;
+            String start = r.getOrDefault("start_time", "");
+            String end   = r.getOrDefault("end_time", "");
+            if (first.isEmpty() && !start.isEmpty()) first = start;
+            if (!end.isEmpty()) last = end;
+        }
+        long avgDur = total == 0 ? 0 : durSum / total;
+        double errorRate = total == 0 ? 0.0 : round(failed / (double) total);
+        return new EnrichmentRunReport(job, total, success, failed, errorRate,
+                outRows, outFiles, outBytes, avgDur, durMax, first, last);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────

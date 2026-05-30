@@ -1,6 +1,7 @@
 package com.gamma.service;
 
 import com.gamma.api.PublicApi;
+import com.gamma.enrich.EnrichmentAuditReader;
 import com.gamma.enrich.EnrichmentAuditWriter;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.enrich.EnrichmentEngine;
@@ -15,6 +16,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -162,6 +164,56 @@ public final class EnrichmentService implements AutoCloseable {
         } finally {
             lock.unlock();
         }
+    }
+
+    // ── audit read surface (Control API, v2.9.0) ────────────────────────────────
+
+    /** One enrichment job's identity + trigger config + last-run summary, for listings. */
+    public record JobView(String name, String onPipeline, long scheduleSeconds,
+                          boolean eventTriggered, boolean scheduled, int runCount,
+                          String lastStatus, String lastRunTime) {}
+
+    /** The enrichment jobs hosted here (read-only). */
+    public List<EnrichmentConfig> configs() {
+        return jobs;
+    }
+
+    /** Look up a hosted enrichment job by its (case-sensitive) name. */
+    public Optional<EnrichmentConfig> config(String name) {
+        return jobs.stream().filter(j -> j.name().equals(name)).findFirst();
+    }
+
+    /** List every hosted job with its trigger config and last-run summary from the audit. */
+    public List<JobView> views() {
+        List<JobView> out = new ArrayList<>();
+        for (EnrichmentConfig j : jobs) {
+            List<Map<String, String>> runs = EnrichmentAuditReader.forConfig(j).runs();
+            String lastStatus = "", lastTime = "";
+            if (!runs.isEmpty()) {
+                Map<String, String> last = runs.get(runs.size() - 1);   // newest run last
+                lastStatus = last.getOrDefault("status", "");
+                lastTime   = last.getOrDefault("end_time", last.getOrDefault("start_time", ""));
+            }
+            EnrichmentConfig.Triggers t = j.triggers();
+            out.add(new JobView(j.name(), t.onPipeline(), t.scheduleSeconds(),
+                    t.hasEvent(), t.hasSchedule(), runs.size(), lastStatus, lastTime));
+        }
+        return out;
+    }
+
+    /** Raw run-audit rows for a job, oldest first. Throws if the job is not hosted here. */
+    public List<Map<String, String>> runs(String name) {
+        return EnrichmentAuditReader.forConfig(require(name)).runs();
+    }
+
+    /** Lineage rows for a job (optionally a single {@code runId}). Throws if not hosted. */
+    public List<Map<String, String>> lineage(String name, String runId) {
+        return EnrichmentAuditReader.forConfig(require(name)).lineage(runId);
+    }
+
+    private EnrichmentConfig require(String name) {
+        return config(name).orElseThrow(
+                () -> new IllegalArgumentException("no enrichment job named '" + name + "'"));
     }
 
     /** Lazily create (and cache) the audit ledger writer for a job. */

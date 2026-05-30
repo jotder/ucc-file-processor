@@ -225,8 +225,8 @@ Both orchestrated recomputes (`EnrichmentService`) and the CLI (`EnrichmentProce
 audit; the `run_id` is also the chain `BatchEvent` id, so the audit rows correlate with
 `/metrics` and the `ucc.events` log. 3 new tests (engine `runResult` row count; CLI run →
 runs/lineage/commit-log; service event recompute → audit); full suite **145 green**. Surfacing
-these rows over the Control API / status DB (enrichment jobs aren't in the Stage-1 registry the
-API lists) is a small future enhancement, not required for persistence.
+these rows over the Control API (enrichment jobs aren't in the Stage-1 registry the API lists)
+was the remaining enhancement — **now delivered in M7 / v2.9.0** (see below).
 
 ### M6 — status reporting, batch audit report & config-driven jobs  → v2.8.0  ✅
 
@@ -257,9 +257,25 @@ Control API JSON; jobs as a first-class generic type (not just cron on existing 
 `ReportServiceTest`, Control API report/job endpoints) → full suite **174 green**; fat-JAR
 smoke confirmed cron firing, job trigger/history and report JSON from the shaded jar.
 
-**Scope note (future):** event-triggering and report delivery are in place; surfacing
-enrichment run audit over the API and richer report windows (date ranges, percentiles) are
-small follow-ons, not required here.
+**Scope note (future):** event-triggering and report delivery are in place; richer report
+windows (date ranges, percentiles) remain a small follow-on.
+
+### M7 — enrichment run audit over the Control API  → v2.9.0  ✅
+
+**Done** (`v2.9.0`): closes the M5 follow-up scope note — the Stage-2 run audit persisted
+since v2.7.0 is now readable over the Control API, **zero new dependencies**. A new read-only
+`com.gamma.enrich.EnrichmentAuditReader` reads back the `<job>_enrich_runs.csv` /
+`_enrich_lineage.csv` ledgers `EnrichmentAuditWriter` already writes, as JSON-ready
+header→value rows (missing ledger → empty, not an error). `EnrichmentService` gained the read
+surface (`configs`, `config`, `views`, `runs`, `lineage`); `SourceService.enrichmentService()`
+exposes it; `ReportService.enrichmentReport(job)` rolls the runs up (mirrors the Stage-1 batch
+report). New endpoints — the Stage-2 counterpart to the pipeline audit surface:
+`GET /enrichment`, `GET /enrichment/{job}/runs`, `GET /enrichment/{job}/lineage[?runId=]`,
+`GET /enrichment/{job}/report` (auth-guarded; 404 when no enrichment / unknown job).
+
+**Tests:** +8 (`EnrichmentAuditReaderTest` round-trip + empty-ledger + `forConfig` convention;
+`EnrichmentServiceTest` read surface; `ReportServiceTest` enrichment rollup + unregistered
+throw; Control API enrichment endpoints over real HTTP) → full suite **182 green**.
 
 ## Cross-cutting (applied each milestone)
 

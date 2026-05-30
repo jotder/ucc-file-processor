@@ -224,6 +224,11 @@ public final class SourceService implements AutoCloseable {
         return Optional.ofNullable(jobs);
     }
 
+    /** The Stage-2 enrichment service, or empty when no enrichment jobs are registered (v2.9.0). */
+    public Optional<EnrichmentService> enrichmentService() {
+        return Optional.ofNullable(enrichment);
+    }
+
     /** List each registered pipeline with its current paused state and commit count. */
     public List<PipelineView> pipelines() {
         List<PipelineView> out = new ArrayList<>();

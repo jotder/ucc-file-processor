@@ -323,6 +323,10 @@ A bearer token guards every route except `/health` and `/ready` (present it as `
 | `GET /jobs` | list config-driven jobs + last outcome + next fire (v2.8.0) |
 | `GET /jobs/{name}/runs` | recent run history for a job (v2.8.0) |
 | `POST /jobs/{name}/trigger` | run a job once now (v2.8.0) |
+| `GET /enrichment` | list Stage-2 enrichment jobs + trigger config + last run (v2.9.0) |
+| `GET /enrichment/{job}/runs` | enrichment run-audit rows (v2.9.0) |
+| `GET /enrichment/{job}/lineage[?runId=]` | enrichment output lineage rows (v2.9.0) |
+| `GET /enrichment/{job}/report` | run-audit rollup for one enrichment job (v2.9.0) |
 
 ```bash
 curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines
@@ -344,6 +348,34 @@ view operators and dashboards actually want — computed on demand through the s
 ```bash
 curl -s -H "Authorization: Bearer secret" localhost:8080/status
 curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/report
+```
+
+### Enrichment run audit over the API (`EnrichmentAuditReader`)
+
+Stage-2 recomputes persist a durable run-level ledger (`<output>_audit/<job>_enrich_runs.csv`
++ `_enrich_lineage.csv`, written by `EnrichmentAuditWriter`). From v2.9.0 that ledger is
+readable over the Control API — the Stage-2 counterpart to the `/pipelines/{name}/batches`
++ `/lineage` + `/report` surface — so you can answer "did the nightly KPI run, and what did
+it write?" without shelling onto the box.
+
+- `GET /enrichment` — list each hosted enrichment job with its trigger config
+  (`onPipeline`, `scheduleSeconds`, `eventTriggered`, `scheduled`) and last-run summary
+  (`runCount`, `lastStatus`, `lastRunTime`).
+- `GET /enrichment/{job}/runs` — the raw run-audit rows (one per recompute, SUCCESS and
+  FAILED): trigger, reason, scope, input/output partition & file counts, rows, bytes,
+  duration, error.
+- `GET /enrichment/{job}/lineage[?runId=]` — one row per written output partition file;
+  `?runId=` narrows to a single recompute.
+- `GET /enrichment/{job}/report` — the aggregated rollup (mirrors the Stage-1 batch report):
+  total/success/failed run counts, **error rate**, output rows/files/bytes, avg/max duration,
+  first/last run time.
+
+All four require auth and return `404` when no enrichment is registered, or the named job
+is unknown.
+
+```bash
+curl -s -H "Authorization: Bearer secret" localhost:8080/enrichment
+curl -s -H "Authorization: Bearer secret" localhost:8080/enrichment/EVENTS_DAILY_KPI/report
 ```
 
 ### Config-driven jobs — cron / event / manual (`JobService`)

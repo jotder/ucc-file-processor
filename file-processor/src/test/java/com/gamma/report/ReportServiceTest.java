@@ -1,5 +1,9 @@
 package com.gamma.report;
 
+import com.gamma.enrich.EnrichmentConfig;
+import com.gamma.enrich.EnrichmentConfig.Input;
+import com.gamma.enrich.EnrichmentConfig.Output;
+import com.gamma.enrich.EnrichmentConfig.Triggers;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
 import com.gamma.service.SourceService;
@@ -78,6 +82,43 @@ class ReportServiceTest {
             ReportService.BatchAuditReport br = svc.reports().batchReport("test_etl");
             assertEquals(0, br.totalBatches());
             assertEquals(0.0, br.errorRate());
+        }
+    }
+
+    @Test
+    void enrichmentReportRollsUpRunAudit(@TempDir Path dir) throws Exception {
+        Path toon = seed(dir);
+        Path reports = dir.resolve("reports");
+        EnrichmentConfig enrich = new EnrichmentConfig("DAILY_KPI",
+                new Input(dir.resolve("db").toString().replace("\\", "/"), "CSV", List.of("year", "month", "day")),
+                List.of(),
+                new Output(reports.toString().replace("\\", "/"), "CSV", null, List.of("year", "month", "day")),
+                "SELECT year, month, day, COUNT(*) AS n FROM input GROUP BY year, month, day",
+                new Triggers("test_etl", 0));
+        try (SourceService svc = new SourceService(List.of(toon), List.of(enrich), 3600, 1)) {
+            svc.start();   // immediate poll → Stage-1 commit → enrichment recompute
+            // recompute runs asynchronously off the poll cycle — poll the rollup until it lands
+            long deadline = System.nanoTime() + 15_000_000_000L;
+            ReportService.EnrichmentRunReport r = svc.reports().enrichmentReport("DAILY_KPI");
+            while (r.totalRuns() == 0 && System.nanoTime() < deadline) {
+                Thread.sleep(150);
+                r = svc.reports().enrichmentReport("DAILY_KPI");
+            }
+            assertTrue(r.totalRuns() >= 1, "an enrichment run rolled up");
+            assertEquals(r.totalRuns(), r.success(), "all runs succeeded");
+            assertEquals(0, r.failed());
+            assertEquals(0.0, r.errorRate());
+            assertTrue(r.totalOutputRows() >= 1, "rows materialised");
+            assertTrue(r.totalOutputFiles() >= 1, "output files written");
+        }
+    }
+
+    @Test
+    void enrichmentReportThrowsWhenNoEnrichmentOrUnknownJob(@TempDir Path dir) throws Exception {
+        Path toon = seed(dir);
+        try (SourceService svc = new SourceService(List.of(toon), 3600, 1)) {
+            // no enrichment registered at all
+            assertThrows(IllegalArgumentException.class, () -> svc.reports().enrichmentReport("DAILY_KPI"));
         }
     }
 }

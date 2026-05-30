@@ -2,6 +2,10 @@ package com.gamma.control;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.enrich.EnrichmentConfig;
+import com.gamma.enrich.EnrichmentConfig.Input;
+import com.gamma.enrich.EnrichmentConfig.Output;
+import com.gamma.enrich.EnrichmentConfig.Triggers;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
 import com.gamma.job.JobConfig;
@@ -63,6 +67,29 @@ class ControlApiTest {
         SourceService svc = new SourceService(List.of(toon), List.of(), List.of(hb), 3600, 1, null);
         ControlApi api = new ControlApi(svc, 0, TOKEN);
         api.start();
+        return new Ctx(svc, api, api.port(), "test_etl");
+    }
+
+    /** Like {@link #open} but also hosts a Stage-2 enrichment job that fires on the pipeline. */
+    private Ctx openWithEnrichment(Path dir) throws Exception {
+        Path toon = TestConfigs.csv(dir, PipelineConfigBatchTest.miniSchema()).write();
+        Path inbox = dir.resolve("inbox");
+        Files.createDirectories(inbox);
+        Files.writeString(inbox.resolve("data.csv"),
+                "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n2,20,2020-01-01\n3,30,2020-02-05\n");
+        // enrichment reads the Stage-1 CSV output under <dir>/db, rolls up a daily count,
+        // and is triggered by the pipeline's (lower-cased) name; audit lands in reports_audit.
+        Path reports = dir.resolve("reports");
+        EnrichmentConfig enrich = new EnrichmentConfig("DAILY_KPI",
+                new Input(dir.resolve("db").toString().replace("\\", "/"), "CSV", List.of("year", "month", "day")),
+                List.of(),
+                new Output(reports.toString().replace("\\", "/"), "CSV", null, List.of("year", "month", "day")),
+                "SELECT year, month, day, COUNT(*) AS n FROM input GROUP BY year, month, day",
+                new Triggers("test_etl", 0));
+        SourceService svc = new SourceService(List.of(toon), List.of(enrich), 3600, 1);
+        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        api.start();
+        svc.start();   // immediate poll cycle: Stage-1 commit → event → enrichment recompute
         return new Ctx(svc, api, api.port(), "test_etl");
     }
 
@@ -231,6 +258,57 @@ class ControlApiTest {
             assertEquals("SUCCESS", runs.get(0).get("status").asText());
 
             assertEquals(404, send(c.port, "POST", "/jobs/nope/trigger", TOKEN, null).statusCode());
+        }
+    }
+
+    @Test
+    void enrichmentEndpointsListRunsLineageAndReport(@TempDir Path dir) throws Exception {
+        try (Ctx c = openWithEnrichment(dir)) {
+            // the recompute runs asynchronously off the poll cycle — poll until its run audit lands
+            long deadline = System.nanoTime() + 15_000_000_000L;
+            JsonNode runs = json(send(c.port, "GET", "/enrichment/DAILY_KPI/runs", TOKEN, null));
+            while (runs.size() == 0 && System.nanoTime() < deadline) {
+                Thread.sleep(150);
+                runs = json(send(c.port, "GET", "/enrichment/DAILY_KPI/runs", TOKEN, null));
+            }
+            assertTrue(runs.size() >= 1, "an enrichment run audit row is surfaced");
+            assertEquals("SUCCESS", runs.get(0).get("status").asText());
+            String runId = runs.get(0).get("run_id").asText();
+
+            // listing reflects the job + its last run
+            JsonNode list = json(send(c.port, "GET", "/enrichment", TOKEN, null));
+            assertTrue(list.isArray() && list.size() == 1);
+            assertEquals("DAILY_KPI", list.get(0).get("name").asText());
+            assertEquals("test_etl", list.get(0).get("onPipeline").asText());
+            assertTrue(list.get(0).get("eventTriggered").asBoolean());
+            assertTrue(list.get(0).get("runCount").asInt() >= 1);
+
+            // lineage rows, and the exact runId filter
+            assertTrue(json(send(c.port, "GET", "/enrichment/DAILY_KPI/lineage", TOKEN, null)).size() >= 1);
+            JsonNode scoped = json(send(c.port, "GET",
+                    "/enrichment/DAILY_KPI/lineage?runId=" + runId, TOKEN, null));
+            assertTrue(scoped.size() >= 1, "lineage filtered to the run");
+            assertEquals(runId, scoped.get(0).get("run_id").asText());
+
+            // aggregated run-audit rollup
+            JsonNode report = json(send(c.port, "GET", "/enrichment/DAILY_KPI/report", TOKEN, null));
+            assertEquals("DAILY_KPI", report.get("job").asText());
+            assertTrue(report.get("totalRuns").asLong() >= 1);
+            assertEquals(report.get("totalRuns").asLong(), report.get("success").asLong());
+            assertEquals(0.0, report.get("errorRate").asDouble());
+
+            // auth + 404s
+            assertEquals(401, send(c.port, "GET", "/enrichment", null, null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/enrichment/ghost/runs", TOKEN, null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/enrichment/ghost/report", TOKEN, null).statusCode());
+        }
+    }
+
+    @Test
+    void enrichmentEndpointsAre404WhenNoEnrichmentRegistered(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            assertEquals(404, send(c.port, "GET", "/enrichment", TOKEN, null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/enrichment/any/runs", TOKEN, null).statusCode());
         }
     }
 
