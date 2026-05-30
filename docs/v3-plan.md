@@ -11,14 +11,13 @@ commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH releas
 Branch is at **`3.1.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; the foundation was hardened
 post-release — concurrency/audit fixes, cruft removal, CI reactor coverage).
 
-> **Status update (this revision):** the **Metadata Graph (M2)** is now **implemented** on the
-> branch — the `com.gamma.catalog` package (typed node/edge model, `MetadataGraphService` with a
+> **Status update (this revision):** the **Metadata Graph** is **implemented and shipping as
+> v3.1.0** — the `com.gamma.catalog` package (typed node/edge model, `MetadataGraphService` with a
 > cached structural graph + lazy operational overlay, `SchemaProjection`, `SemanticModel`, the
 > `DescriptionProvider` SPI), `SchemaExtractor` merge/preserve, the `*_meta.toon` loader, and the
-> `/catalog*` API. It was built **ahead of M1 (Smart Config)** at the user's direction (the data
-> keystone was the immediate need); M1 remains the next config-authoring prerequisite. Version
-> number for the metadata release is TBD (it may take **v3.1.0** since it lands first, with Smart
-> Config following) — see the note under M2.
+> `/catalog*` API. Built **ahead of the Smart Config keystone** at the user's direction, so the
+> keystones are **renumbered to follow ship order**: the Metadata Graph is now **M1 (v3.1.0)** and
+> Smart Config is **M2 (v3.2.0)**. The assist skills (M3+) are unchanged — both keystones precede them.
 
 ## What changed in this revision (the "data keystone")
 
@@ -30,10 +29,10 @@ year=…/…` — and Stage-2 reads them via an `input` view). The previous plan
 "P5 `*_meta.toon`" at M4 and consumed it only at M5 — the foundation landed *after* the skills
 that stand on it.
 
-**This revision promotes a Data Catalog + Semantic Schema layer to a new foundational milestone
-(M2), immediately after the Smart Config keystone (M1) and before any assist skill.** It is the
-*data keystone*, twin to M1's *config keystone*: zero-AI-dependency, UI-ready, and consumed by
-every skill. The assist skills (explain-entity → … → kpi-to-sql) renumber down by one.
+**This revision builds a Metadata Graph (the *data keystone*) as a foundational milestone before any
+assist skill, and — because it shipped first — numbers it M1 (v3.1.0), with the Smart Config
+*config keystone* following as M2 (v3.2.0).** Both are zero-AI-dependency, UI-ready, and consumed by
+every skill. The assist skills (explain-entity → … → kpi-to-sql) sit at M3+.
 
 ## Decisions locked (carried from the MVP + architecture review)
 
@@ -42,16 +41,16 @@ every skill. The assist skills (explain-entity → … → kpi-to-sql) renumber 
 | V-1 | Agent topology | Embedded in-JVM via an `AssistAgent` SPI loaded by `SourceService` |
 | V-2 | Model provider | Per-env pluggable; **air-gapped = local-only, enforced by packaging** |
 | V-3 | First skill slice | `explain-entity` (read-only) |
-| V-4 | Semantic layer | **Three layers:** column **`description`** in the schema `.toon` + a **`*_meta.toon`** (KPI catalog + domain notes) + an assembled, queryable **Data Catalog** (see A-3/A-4) |
+| V-4 | Semantic layer | **Shipped as the M1 Metadata Graph:** `description`/`unit`/`classification` columns in the schema `.toon` + a **`*_meta.toon`** (KPI catalog + domain notes), assembled by `MetadataGraphService` into a typed, traversable graph with a lazy operational overlay (`/catalog*`); descriptions ranked manual > AI > deduced via a `DescriptionProvider` SPI (AI at M3) |
 | V-5 | Default 7B driver | Qwen2.5-7B-Instruct; 14B for `kpi-to-sql` in prod |
 | V-6 | Hosted choice | Pluggable Gemini / Claude / ChatGPT (absent in air-gapped build) |
 | V-7 | Assist auth | Separate scoped token tier; no open default |
 | V-8 | Hardware profiles | dev-laptop (4GB GPU) · CPU-only (test/CI) · prod (16GB+ GPU) |
 | V-9 | Config skills | Draft-only for MVP; CRUD endpoints a fast-follow |
 | V-10 | Alerts | Subscribe to existing FAILED events + enrich `BatchEvent`; async hand-off |
-| **A-1** | **Config keystone** | **Smart Config (`ConfigSpec`) lands before the config-authoring skills (M1)** |
+| **A-1** | **Config keystone** | **Smart Config (`ConfigSpec`) lands before the config-authoring skills (M2, v3.2.0)** |
 | **A-2** | Compatibility | Additive only; `.toon` stays canonical; suite green each step; lean core zero-new-dep |
-| **A-3** | **Data keystone** | **Data Catalog + Semantic Schema is a foundational milestone (new M2), after M1 and before any assist skill** |
+| **A-3** | **Data keystone** | **Metadata Graph is a foundational milestone before any assist skill — built first, shipped as M1 (v3.1.0)** |
 | **A-4** | Catalog source | **Config-derived** (assembled from schema + enrichment configs) + a **light DuckDB `DESCRIBE` verify** against a `read_parquet` view; not a filesystem scan |
 
 ## Milestones & tasks
@@ -71,35 +70,13 @@ tagged + GH-released.
 - **Post-release hardening** (3.1.0-SNAPSHOT): serialize ingest (re-entrancy guard), always-audit
   on commit failure, `registerAgent` race, parent `<pluginManagement>`, CI builds the full reactor.
 
-### M1 — Smart Config layer (the config keystone) → v3.1.0
-*Solves G1–G5/G10; everything AI/UI leans on it. Concrete class shapes in
-[design_analysis.md §4.A](design_analysis.md).*
-- **T1.1** `com.gamma.config.spec`: `ConfigSpec`, `FieldSpec` (type/required/default/enum/
-  constraints/uiHint/visibleWhen/**description**), `CrossFieldRule`. Author specs for pipeline /
-  enrichment / job / schema / **`*_meta`**, encoding today's implicit rules (exactly-one-of,
-  engine×skip_tail, threads×duckdb_threads, partitions-tabular).
-- **T1.2** `com.gamma.config.io`: pluggable `ResourceLoader` (filesystem default; a
-  `MapResourceLoader` for tests/REST bodies), `decode→Map` (no side effects), `parse(spec,raw)→
-  Config` (pure), `validate(spec,raw|Config)→List<Finding{severity,fieldPath,message}>` (pure).
-  Split disk side effects out of `PipelineConfig.load` into an explicit `prepare(Config)`; add a
-  public `fromMap`/builder. Same parse/validate split for `EnrichmentConfig`/`JobConfig`.
-- **T1.3** Schema-aware `.toon` serializer (always-quote colons, never `#`, correct inline-vs-
-  tabular) + JSON wire form. `.toon` stays canonical + backward-compatible.
-- **T1.4** `ConfigRegistry` keyed by stable id (watch/reload) → O(1) memory lookup; replace the
-  O(n) re-parse scans in `SourceService.pathFor/configFor/activeRegistry`. Fix the
-  discovery-suffix vs in-file-identity mismatch.
-- **T1.5** API: `GET /config/spec/{type}` (UI/AI read the spec) + `/validate` **body** form
-  (validate a draft, no file needed) returning structured findings.
-- *Exit:* existing `load(path)` delegates to the new pipeline; all 2.x config tests green; the
-  spec round-trips and validates the shipped sample configs.
-
-### M2 — Metadata Graph (the data keystone) → v3.x ✅ *implemented*
+### M1 — Metadata Graph (the data keystone) → v3.1.0 ✅ *shipped*
 *Makes the platform's emitted data self-describing **and connected**: a typed, traversable graph
 linking sources → raw schemas → columns → partitioned event tables → Stage-2 transforms →
 KPIs/reports, with operational state (status/lineage/completeness/error) overlaid on every node and
 descriptions sourced three ways (**manual > AI > deduced**). Core, zero-new-dependency, API-first,
 consumed by every assist skill; the substrate `kpi-to-sql` and `explain-entity` stand on. Addresses
-architecture gap G8.*
+architecture gap G8. Built ahead of the config keystone at the user's direction.*
 
 **Build decisions (confirmed):** **graph-API-only** this milestone (rendering deferred to the Web
 UI); **AI descriptions arrive at M3** via the `DescriptionProvider` SPI (this milestone is fully
@@ -107,42 +84,62 @@ core / zero-AI — the seam ships with a no-op provider); the graph is **derived
 structural graph cached & rebuilt on reload, operational overlay fetched lazily per node by reusing
 the existing audit reads. New package: `com.gamma.catalog`.
 
-- **T2.1 — Schema description enrichment (in the `.toon`).** ✅ Extended the schema tabular header
+- **T1.1 — Schema description enrichment (in the `.toon`).** ✅ Extended the schema tabular header
   `fields[N]{name,selector,type}` → `…{name,selector,type,description}` (+ optional `unit`,
   `classification`). **Backward-compatible:** JToon parses each row positionally against its own
   header, and the ETL data path reads only `name`/`type` — so 3-column files still parse and the
   extra columns are invisible to ingest (regression-guarded by the unchanged data-path tests).
   Only `SchemaProjection` reads them. **`SchemaExtractor` now merges/preserves** authored prose on
   regeneration (matched by column name, never clobbered; header stays uniform).
-- **T2.2 — `*_meta.toon` semantic descriptor** (`SemanticModel`). ✅ Co-located with enrichment
+- **T1.2 — `*_meta.toon` semantic descriptor** (`SemanticModel`). ✅ Co-located with enrichment
   configs, loaded by the same suffix-scan (`*_meta.toon`). Holds the **cross-table** layer: a
   **KPI catalog** (named KPI → NL definition, grain, inputs, join keys), **domain notes** (units,
   currency, time-zone, "revenue excludes tax"), and table-level descriptions. Refs may be plain or
   fully-prefixed node ids (quoted in inline arrays).
-- **T2.3 — `MetadataGraphService`** (core, zero new deps). ✅ Assembles a typed **node/edge graph**
+- **T1.3 — `MetadataGraphService`** (core, zero new deps). ✅ Assembles a typed **node/edge graph**
   from a `ConfigSource` seam (pipelines + enrichments + semantic models): node kinds SOURCE,
   RAW_SCHEMA, COLUMN, EVENT_TABLE, TRANSFORMED_TABLE, REFERENCE_TABLE, KPI, REPORT; edges EMITS,
   DECLARES, DESCRIBES, MATERIALIZES, FEEDS, JOINS_INTO, COMPUTED_FROM, USES. Structural graph cached
-  & invalidated on each poll cycle (swaps to the M1 `ConfigRegistry` watch later). Operational
+  & invalidated on each poll cycle (swaps to the M2 `ConfigRegistry` watch later). Operational
   overlay (`CatalogOverlay`) fetched **lazily per node**, reusing `StatusStore`/`EnrichmentService`
   reads (status, cumulative rows/bytes, parsed/error rows, lineage; `NO_DATA` when nothing
   committed). BFS traversal with direction / node-kind / edge-kind filters. Light DuckDB `DESCRIBE`
   verify (A-4) remains an optional follow-up.
-- **T2.4 — Catalog API.** ✅ `GET /catalog` (table list), `GET /catalog/tables/{id}` (node +
+- **T1.4 — Catalog API.** ✅ `GET /catalog` (table list), `GET /catalog/tables/{id}` (node +
   overlay + neighbours), `GET /catalog/kpis` (KPI catalog + domain notes), and a traversable
   `GET /catalog/graph?from=&depth=&direction=&kinds=&edgeKinds=&overlay=`. Scoped `assist.read`
   (satisfied by `CONTROL`); feeds both the UI and the agent.
-- **T2.5 — `DescriptionProvider` SPI** (`com.gamma.catalog.spi`). ✅ ServiceLoader-discovered seam;
+- **T1.5 — `DescriptionProvider` SPI** (`com.gamma.catalog.spi`). ✅ ServiceLoader-discovered seam;
   fills only `NONE`-provenance columns, never overwrites authored prose. Core ships a no-op; the
   `file-processor-agent` module registers an AI-backed provider at M3 with zero core change.
 - *Exit:* ✅ every emitted event table is enumerable with domain-described columns; the KPI catalog
   + domain notes load and round-trip; the catalog + graph API serve a sample source end-to-end
   (HTTP-tested); shipped sample schema (`config/events/call_schema.toon`) carries real descriptions;
-  full reactor green (237 core + 2 agent), lean core unchanged.
+  full reactor green (239 core + 2 agent), lean core unchanged.
 
-> **Version note.** Planned as v3.2.0 *after* M1, but built first. The metadata release can take
-> **v3.1.0** (it lands first; Smart Config follows as v3.2.0) or keep **v3.2.0** (leaving 3.1.0 for
-> Smart Config, shipped out of order). Decision pending; the branch stays `3.1.0-SNAPSHOT` until then.
+### M2 — Smart Config layer (the config keystone) → v3.2.0
+*Solves G1–G5/G10; everything AI/UI leans on it. Concrete class shapes in
+[design_analysis.md §4.A](design_analysis.md). The M1 catalog's `ConfigSource` seam was designed to
+slot onto this milestone's `ConfigRegistry`.*
+- **T2.1** `com.gamma.config.spec`: `ConfigSpec`, `FieldSpec` (type/required/default/enum/
+  constraints/uiHint/visibleWhen/**description**), `CrossFieldRule`. Author specs for pipeline /
+  enrichment / job / schema / **`*_meta`**, encoding today's implicit rules (exactly-one-of,
+  engine×skip_tail, threads×duckdb_threads, partitions-tabular).
+- **T2.2** `com.gamma.config.io`: pluggable `ResourceLoader` (filesystem default; a
+  `MapResourceLoader` for tests/REST bodies), `decode→Map` (no side effects), `parse(spec,raw)→
+  Config` (pure), `validate(spec,raw|Config)→List<Finding{severity,fieldPath,message}>` (pure).
+  Split disk side effects out of `PipelineConfig.load` into an explicit `prepare(Config)`; add a
+  public `fromMap`/builder. Same parse/validate split for `EnrichmentConfig`/`JobConfig`.
+- **T2.3** Schema-aware `.toon` serializer (always-quote colons, never `#`, correct inline-vs-
+  tabular) + JSON wire form. `.toon` stays canonical + backward-compatible.
+- **T2.4** `ConfigRegistry` keyed by stable id (watch/reload) → O(1) memory lookup; replace the
+  O(n) re-parse scans in `SourceService.pathFor/configFor/activeRegistry`. Fix the
+  discovery-suffix vs in-file-identity mismatch. **Swap the M1 catalog's per-cycle `invalidate()`
+  to this registry's watch callback.**
+- **T2.5** API: `GET /config/spec/{type}` (UI/AI read the spec) + `/validate` **body** form
+  (validate a draft, no file needed) returning structured findings.
+- *Exit:* existing `load(path)` delegates to the new pipeline; all 2.x config tests green; the
+  spec round-trips and validates the shipped sample configs.
 
 ### M3 — Assist platform + first slice `explain-entity` (read-only) → v3.3.0
 - **T3.1** `file-processor-agent`: LangChain4j + Ollama client; `AssistAgent` SPI impl; model
@@ -213,17 +210,17 @@ draft-only (V-9) to one-click-apply: `POST/PUT /configs` validate-and-persist vi
 
 ## Cross-cutting guardrails (every milestone)
 - **Suite green CPU-only** before release (CI has no GPU, V-8); CI builds the **full reactor**.
-- **Lean core gains zero new deps** (CI-enforced); all AI/hosted deps in `-agent`. (The catalog +
-  semantic layer in M2 are core, zero-dep.)
+- **Lean core gains zero new deps** (CI-enforced); all AI/hosted deps in `-agent`. (The Metadata
+  Graph + semantic layer in M1 are core, zero-dep.)
 - **Confirm-first, no autonomous apply**; agent holds no write token.
 - **Air-gapped = local-only by packaging**; sample rows never sent to a hosted model.
 - The non-negotiable security guardrails in [v3-agent-mvp.md](v3-agent-mvp.md#non-negotiable-security-guardrails).
 
 ---
 
-**Net sequence:** M0 foundation ✅ → **M2 Metadata Graph (data keystone)** ✅ *(built first, at the
-user's direction)* → **M1 Smart Config (config keystone)** → M3 assist platform + `explain-entity`
-(consumes the catalog; adds the AI `DescriptionProvider`) → M4 `nl-to-schedule` → M5 `suggest-config`
-→ **M6 `kpi-to-sql` + SQL sandbox** (grounds on the catalog/KPI catalog) → M7 `diagnose-and-alert`
+**Net sequence:** M0 foundation ✅ (v3.0.0) → **M1 Metadata Graph (data keystone)** ✅ (v3.1.0) →
+**M2 Smart Config (config keystone)** (v3.2.0) → M3 assist platform + `explain-entity` (consumes the
+catalog; adds the AI `DescriptionProvider`) → M4 `nl-to-schedule` → M5 `suggest-config` →
+**M6 `kpi-to-sql` + SQL sandbox** (grounds on the catalog/KPI catalog) → M7 `diagnose-and-alert`
 → (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor release per milestone on
 `3.x`, additive, suite-green, lean core preserved.

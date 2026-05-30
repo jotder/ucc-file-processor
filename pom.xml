@@ -6,7 +6,7 @@
 
     <groupId>com.gamma.inspector</groupId>
     <artifactId>file-processor-parent</artifactId>
-    <version>3.1.0-SNAPSHOT</version>
+    <version>3.1.0</version>
     <packaging>pom</packaging>
 
     <name>UCC File Processor (parent)</name>
