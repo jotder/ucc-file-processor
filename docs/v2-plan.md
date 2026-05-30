@@ -277,6 +277,21 @@ report). New endpoints — the Stage-2 counterpart to the pipeline audit surface
 `EnrichmentServiceTest` read surface; `ReportServiceTest` enrichment rollup + unregistered
 throw; Control API enrichment endpoints over real HTTP) → full suite **182 green**.
 
+### M8 — richer report windows (date ranges + percentiles)  → v2.10.0  ✅ (closes the v2.x backlog)
+
+**Done** (`v2.10.0`): the last open 2.x follow-on (the M6 scope note), **zero new dependencies**.
+`ReportService` gained a `Window` (inclusive `[from, to]` filter on a row's `start_time`; a
+date-only upper bound widens to end-of-day; lexicographic compare on the `yyyy-MM-dd HH:mm:ss`
+audit timestamp, so it's backend-agnostic) and **duration percentiles** (p50/p95/p99, nearest-rank)
+alongside avg/max. `batchReport`, `serviceReport` and `enrichmentReport` gained windowed overloads
+(the no-arg forms delegate to `Window.ALL`, so all existing callers are unchanged). The Control API
+report routes accept `?from=&to=` and echo the applied bounds as `windowFrom`/`windowTo`:
+`GET /report`, `GET /pipelines/{name}/report`, `GET /enrichment/{job}/report`.
+
+**Tests:** +3 (`ReportServiceTest` crafted-rows date-range scoping + nearest-rank percentile math +
+`Window` boundary inclusivity; Control API `?from=&to=` plumbing over real HTTP) → full suite
+**185 green**. **This is the last planned 2.x feature — the v2.x backlog is fully delivered.**
+
 ## Cross-cutting (applied each milestone)
 
 - Keep the **full suite green** and add tests per task; bump the minor version, tag,

@@ -236,6 +236,36 @@ class ControlApiTest {
     }
 
     @Test
+    void reportDateRangeAndPercentiles(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            send(c.port, "POST", "/pipelines/" + c.name + "/trigger", TOKEN, null);
+
+            // unbounded report carries the new percentile + window fields
+            JsonNode all = json(send(c.port, "GET", "/pipelines/" + c.name + "/report", TOKEN, null));
+            assertTrue(all.get("totalBatches").asLong() >= 1);
+            assertTrue(all.has("p50DurationMs") && all.has("p95DurationMs") && all.has("p99DurationMs"));
+            assertEquals("", all.get("windowFrom").asText(), "unbounded → blank window echo");
+
+            // a far-past window scopes the batch (run is 'today') out → zeroed, window echoed
+            JsonNode past = json(send(c.port, "GET",
+                    "/pipelines/" + c.name + "/report?from=2000-01-01&to=2000-12-31", TOKEN, null));
+            assertEquals(0, past.get("totalBatches").asLong(), "today's batch is outside a 2000 window");
+            assertEquals("2000-01-01", past.get("windowFrom").asText());
+            assertEquals("2000-12-31 23:59:59", past.get("windowTo").asText(), "date-only to widened");
+
+            // a wide window includes it again
+            JsonNode wide = json(send(c.port, "GET",
+                    "/pipelines/" + c.name + "/report?from=2020-01-01&to=2030-12-31", TOKEN, null));
+            assertEquals(all.get("totalBatches").asLong(), wide.get("totalBatches").asLong());
+
+            // service-wide report honours the range too
+            JsonNode svcPast = json(send(c.port, "GET", "/report?from=2000-01-01&to=2000-12-31", TOKEN, null));
+            assertEquals(0, svcPast.get("totalBatches").asLong());
+            assertTrue(svcPast.has("p50DurationMs"));
+        }
+    }
+
+    @Test
     void jobsEndpointsListTriggerAndHistory(@TempDir Path dir) throws Exception {
         try (Ctx c = openWithJob(dir)) {
             JsonNode list = json(send(c.port, "GET", "/jobs", TOKEN, null));

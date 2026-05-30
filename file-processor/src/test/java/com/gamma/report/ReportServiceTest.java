@@ -4,15 +4,20 @@ import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.enrich.EnrichmentConfig.Input;
 import com.gamma.enrich.EnrichmentConfig.Output;
 import com.gamma.enrich.EnrichmentConfig.Triggers;
+import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
 import com.gamma.service.SourceService;
+import com.gamma.service.StatusStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -120,5 +125,93 @@ class ReportServiceTest {
             // no enrichment registered at all
             assertThrows(IllegalArgumentException.class, () -> svc.reports().enrichmentReport("DAILY_KPI"));
         }
+    }
+
+    // ── windowing + percentiles (v2.10.0) ─────────────────────────────────────────
+
+    private static Map<String, String> batch(String start, long dur) {
+        Map<String, String> m = new LinkedHashMap<>();
+        m.put("batch_id", start);
+        m.put("status", "SUCCESS");
+        m.put("start_time", start);
+        m.put("end_time", start);
+        m.put("duration_ms", Long.toString(dur));
+        m.put("total_input_rows", "10");
+        m.put("total_output_rows", "10");
+        return m;
+    }
+
+    /** A StatusStore that returns a fixed set of crafted batch rows for any pipeline. */
+    private record FakeStore(List<Map<String, String>> batches) implements StatusStore {
+        public Set<String> committedBatches(PipelineConfig cfg) { return Set.of(); }
+        public List<Map<String, String>> batches(PipelineConfig cfg) { return batches; }
+        public List<Map<String, String>> files(PipelineConfig cfg) { return List.of(); }
+        public List<Map<String, String>> lineage(PipelineConfig cfg, String batchId) { return List.of(); }
+        public List<Map<String, String>> quarantine(PipelineConfig cfg) { return List.of(); }
+    }
+
+    @Test
+    void dateRangeScopesTheRollupAndPercentilesAreNearestRank(@TempDir Path dir) throws Exception {
+        Path toon = seed(dir);
+        // 5 May batches (100..500 ms) + 2 June batches (1000, 2000 ms)
+        List<Map<String, String>> rows = List.of(
+                batch("2026-05-10 09:00:00", 100), batch("2026-05-11 09:00:00", 200),
+                batch("2026-05-12 09:00:00", 300), batch("2026-05-13 09:00:00", 400),
+                batch("2026-05-14 09:00:00", 500),
+                batch("2026-06-01 09:00:00", 1000), batch("2026-06-02 09:00:00", 2000));
+        StatusStore store = new FakeStore(rows);
+        try (SourceService svc = new SourceService(List.of(toon), List.of(), 3600, 1, store)) {
+            // unbounded: all 7, nearest-rank percentiles over [100..500,1000,2000]
+            ReportService.BatchAuditReport all = svc.reports().batchReport("test_etl");
+            assertEquals(7, all.totalBatches());
+            assertEquals(400, all.p50DurationMs());
+            assertEquals(2000, all.p95DurationMs());
+            assertEquals(2000, all.p99DurationMs());
+            assertEquals(2000, all.maxDurationMs());
+            assertEquals("", all.windowFrom(), "unbounded echoes blank bounds");
+            assertEquals("", all.windowTo());
+
+            // May only: 5 batches; a date-only `to` covers the whole day
+            ReportService.BatchAuditReport may = svc.reports().batchReport(
+                    "test_etl", ReportService.Window.of("2026-05-01", "2026-05-31"));
+            assertEquals(5, may.totalBatches());
+            assertEquals(500, may.maxDurationMs());
+            assertEquals(300, may.p50DurationMs());   // ceil(.5*5)=3 → 300
+            assertEquals(500, may.p95DurationMs());   // ceil(.95*5)=5 → 500
+            assertEquals("2026-05-01", may.windowFrom());
+            assertEquals("2026-05-31 23:59:59", may.windowTo(), "date-only upper bound widened to end-of-day");
+
+            // open-ended lower bound: June onward
+            ReportService.BatchAuditReport june = svc.reports().batchReport(
+                    "test_etl", ReportService.Window.of("2026-06-01", null));
+            assertEquals(2, june.totalBatches());
+
+            // window with no rows → zeroed, never throws
+            ReportService.BatchAuditReport none = svc.reports().batchReport(
+                    "test_etl", ReportService.Window.of("2000-01-01", "2000-12-31"));
+            assertEquals(0, none.totalBatches());
+            assertEquals(0, none.p95DurationMs());
+
+            // service-wide rollup carries the window echo + service-wide percentiles
+            ReportService.ServiceReport svcMay = svc.reports().serviceReport(
+                    ReportService.Window.of("2026-05-01", "2026-05-31"));
+            assertEquals(5, svcMay.totalBatches());
+            assertEquals(300, svcMay.p50DurationMs());
+            assertEquals("2026-05-01", svcMay.windowFrom());
+        }
+    }
+
+    @Test
+    void windowContainsBoundariesAreInclusive() {
+        ReportService.Window w = ReportService.Window.of("2026-05-01", "2026-05-31");
+        assertTrue(w.bounded());
+        assertTrue(w.contains("2026-05-01 00:00:00"), "lower bound inclusive");
+        assertTrue(w.contains("2026-05-31 23:59:59"), "upper bound widened to end-of-day");
+        assertFalse(w.contains("2026-04-30 23:59:59"), "before range");
+        assertFalse(w.contains("2026-06-01 00:00:00"), "after range");
+        assertFalse(w.contains(""), "undated row excluded when bounded");
+
+        assertTrue(ReportService.Window.ALL.contains(""), "undated row included when unbounded");
+        assertFalse(ReportService.Window.ALL.bounded());
     }
 }

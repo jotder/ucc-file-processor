@@ -55,16 +55,20 @@ import java.util.regex.Pattern;
  *   POST /trigger                             run all pipelines once
  *   POST /validate                            body {"configPath":"…"} — config warnings
  *   GET  /status                              live status snapshot (all pipelines)        [v2.8.0]
- *   GET  /report                              service-wide batch-audit report             [v2.8.0]
- *   GET  /pipelines/{name}/report             batch-audit report for one pipeline         [v2.8.0]
+ *   GET  /report[?from=&to=]                  service-wide batch-audit report             [v2.8.0]
+ *   GET  /pipelines/{name}/report[?from=&to=] batch-audit report for one pipeline         [v2.8.0]
  *   GET  /jobs                                list config-driven jobs + last/next run      [v2.8.0]
  *   GET  /jobs/{name}/runs                    recent run history for a job                 [v2.8.0]
  *   POST /jobs/{name}/trigger                 run a job once now                           [v2.8.0]
  *   GET  /enrichment                          list Stage-2 enrichment jobs + last run      [v2.9.0]
  *   GET  /enrichment/{job}/runs               enrichment run-audit rows                    [v2.9.0]
  *   GET  /enrichment/{job}/lineage[?runId=]   enrichment output lineage rows               [v2.9.0]
- *   GET  /enrichment/{job}/report             run-audit rollup for one enrichment job      [v2.9.0]
+ *   GET  /enrichment/{job}/report[?from=&to=] run-audit rollup for one enrichment job      [v2.9.0]
  * </pre>
+ *
+ * <p>Report routes accept an optional inclusive date range {@code ?from=&to=} (v2.10.0) —
+ * a date ({@code 2026-05-01}) or datetime ({@code 2026-05-01 09:00:00}); a date-only
+ * {@code to} covers the whole day. Reports also carry duration percentiles (p50/p95/p99).
  */
 @PublicApi(since = "2.4.0")
 public final class ControlApi implements AutoCloseable {
@@ -178,11 +182,12 @@ public final class ControlApi implements AutoCloseable {
         post("/trigger", true, (e, m) -> service.runAllOnce());
 
         // ── v2.8.0: aggregated reports (status snapshot + batch-audit rollup) ──
+        // v2.10.0: ?from=&to= scope the rollup to a date range (inclusive; date or datetime).
         get("/status", true, (e, m) -> service.reports().statusReport());
-        get("/report", true, (e, m) -> service.reports().serviceReport());
+        get("/report", true, (e, m) -> service.reports().serviceReport(window(e)));
         get("/pipelines/([^/]+)/report", true, (e, m) -> {
             cfg(m);   // 404 if no such pipeline
-            return service.reports().batchReport(name(m));
+            return service.reports().batchReport(name(m), window(e));
         });
 
         // ── v2.8.0: config-driven jobs (cron / event / manual) ──
@@ -200,7 +205,7 @@ public final class ControlApi implements AutoCloseable {
         get("/enrichment/([^/]+)/lineage", true, (e, m) ->
                 enrichment().lineage(enrichJob(m), query(e, "runId")));
         get("/enrichment/([^/]+)/report", true, (e, m) ->
-                service.reports().enrichmentReport(enrichJob(m)));
+                service.reports().enrichmentReport(enrichJob(m), window(e)));
 
         post("/validate", true, (e, m) -> {
             String configPath = str(body(e), "configPath");
@@ -296,6 +301,11 @@ public final class ControlApi implements AutoCloseable {
 
     private static String name(Matcher m) {
         return URLDecoder.decode(m.group(1), StandardCharsets.UTF_8);
+    }
+
+    /** Build a report {@link com.gamma.report.ReportService.Window} from {@code ?from=&to=}. */
+    private static com.gamma.report.ReportService.Window window(HttpExchange ex) {
+        return com.gamma.report.ReportService.Window.of(query(ex, "from"), query(ex, "to"));
     }
 
     private static ApiException notFound(String name) {

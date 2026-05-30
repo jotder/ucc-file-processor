@@ -318,15 +318,15 @@ A bearer token guards every route except `/health` and `/ready` (present it as `
 | `POST /trigger` | run all pipelines once |
 | `POST /validate` | body `{"configPath":"…"}` — config warnings |
 | `GET /status` | live status snapshot — all pipelines + rollup (v2.8.0) |
-| `GET /report` | service-wide batch-audit report (v2.8.0) |
-| `GET /pipelines/{name}/report` | batch-audit report for one pipeline (v2.8.0) |
+| `GET /report[?from=&to=]` | service-wide batch-audit report; optional date range (v2.8.0; range v2.10.0) |
+| `GET /pipelines/{name}/report[?from=&to=]` | batch-audit report for one pipeline; optional date range (v2.8.0; range v2.10.0) |
 | `GET /jobs` | list config-driven jobs + last outcome + next fire (v2.8.0) |
 | `GET /jobs/{name}/runs` | recent run history for a job (v2.8.0) |
 | `POST /jobs/{name}/trigger` | run a job once now (v2.8.0) |
 | `GET /enrichment` | list Stage-2 enrichment jobs + trigger config + last run (v2.9.0) |
 | `GET /enrichment/{job}/runs` | enrichment run-audit rows (v2.9.0) |
 | `GET /enrichment/{job}/lineage[?runId=]` | enrichment output lineage rows (v2.9.0) |
-| `GET /enrichment/{job}/report` | run-audit rollup for one enrichment job (v2.9.0) |
+| `GET /enrichment/{job}/report[?from=&to=]` | run-audit rollup for one enrichment job; optional date range (v2.9.0; range v2.10.0) |
 
 ```bash
 curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines
@@ -343,11 +343,23 @@ view operators and dashboards actually want — computed on demand through the s
   quarantined-file count, and last-batch id/status/time, plus a service rollup.
 - `GET /report` (service-wide) and `GET /pipelines/{name}/report` (one pipeline) — a
   historical batch-audit rollup: total/success/failed batch counts, **error rate**, input
-  & output rows, rejected files, output file count and bytes, and average / max duration.
+  & output rows, rejected files, output file count and bytes, average / max duration, and
+  duration **percentiles** (`p50`/`p95`/`p99`) so a tail-latency spike isn't hidden by the mean.
+
+**Date ranges (v2.10.0).** The `/report`, `/pipelines/{name}/report` and
+`/enrichment/{job}/report` endpoints accept an optional inclusive `?from=&to=` window — a
+date (`2026-05-01`) or datetime (`2026-05-01 09:00:00`). A date-only `to` covers the whole
+day. The rollup (counts, percentiles, first/last time) is computed over just the rows whose
+`start_time` falls in the range; the applied bounds are echoed back as `windowFrom`/`windowTo`
+(blank = unbounded). Filtering is a lexicographic compare on the audit timestamp, so it works
+identically over the file and DB backends.
 
 ```bash
 curl -s -H "Authorization: Bearer secret" localhost:8080/status
 curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/report
+# just last month, with p50/p95/p99 over that window:
+curl -s -H "Authorization: Bearer secret" \
+  "localhost:8080/pipelines/adjustment_etl/report?from=2026-04-01&to=2026-04-30"
 ```
 
 ### Enrichment run audit over the API (`EnrichmentAuditReader`)

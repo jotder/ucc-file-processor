@@ -61,15 +61,25 @@ completeness/watermark rule for when a scheduled window is final.
 
 ## v2 epics
 
+> **Status: the v2.x backlog is fully delivered (v2.1.0 → v2.10.0).** Every epic below
+> shipped; the sequenced milestone-by-milestone record (M0–M8) is in
+> [v2-plan.md](v2-plan.md). What remains is **deferred to v3.0+ by design** (see the bottom
+> section). This doc is kept as the strategic record of what was built and why.
+
 | Epic | Priority | Status | Depends on |
 |---|---|---|---|
 | **E0** Parallel execution (multi-source + multi-batch) | P0 | ✅ **done** (v1.5.0 / v1.6.0) | — |
-| **Enrichment engine — core** (Stage 2 transform) | **P0 — flagship** | 🔲 | Stage 1 output (exists); spike-able CLI-first |
-| **Service / server mode** (+ batch-commit event bus + scheduler) | **P0** | 🔲 | E0 primitives |
-| **Enrichment — orchestration** (event + scheduled triggers) | **P0 — flagship** | 🔲 | Enrichment core, Service mode |
-| **Control API** (interaction) | **P0** | 🔲 | Service mode |
-| **Observability** | P1 | 🔲 | Service mode |
-| **Status store in a database** | P2 — last | 🔲 | API/service (swaps their backing store) |
+| **Enrichment engine — core** (Stage 2 transform) | **P0 — flagship** | ✅ **done** (M0 → v2.1.0) | Stage 1 output (exists); spike-able CLI-first |
+| **Service / server mode** (+ batch-commit event bus + scheduler) | **P0** | ✅ **done** (M1 → v2.2.0) | E0 primitives |
+| **Enrichment — orchestration** (event + scheduled triggers) | **P0 — flagship** | ✅ **done** (M2 → v2.3.0) | Enrichment core, Service mode |
+| **Control API** (interaction) | **P0** | ✅ **done** (M3 → v2.4.0; reports v2.8.0; enrichment audit v2.9.0; report windows v2.10.0) | Service mode |
+| **Observability** | P1 | ✅ **done** (M4 → v2.5.0) | Service mode |
+| **Status store in a database** | P2 — last | ✅ **done** (M5 → v2.6.0; DuckDB default, Postgres BYO-driver) | API/service (swaps their backing store) |
+
+Beyond the original epics, the 2.x line also delivered: enrichment **run-level audit/lineage**
+(v2.7.0), a dependency-free **cron engine + generic config-driven jobs** + **status/batch-audit
+reports** (v2.8.0), **enrichment run audit over the API** (v2.9.0), and **date-range + percentile
+report windows** (v2.10.0).
 
 ### E0 — Parallel execution  ✅ done
 
@@ -87,7 +97,7 @@ parallel" — **already implemented**:
 an always-on managed concern — a *global* concurrency budget across all running
 sources, fair scheduling, and backpressure when the host is saturated.
 
-### Enrichment engine — core  🔲 P0 (flagship)
+### Enrichment engine — core  ✅ done (M0 → v2.1.0)
 
 The columnar transform that does what the multiplexer deliberately won't: joins,
 lookups, aggregation — to produce reports/KPIs. Pure and CLI-spike-able.
@@ -108,7 +118,7 @@ lookups, aggregation — to produce reports/KPIs. Pure and CLI-spike-able.
   write) validates the columnar approach before the orchestration is wired.
 - **Size:** M–L (core); orchestration is a separate epic below.
 
-### Enrichment engine — orchestration  🔲 P0 (flagship)
+### Enrichment engine — orchestration  ✅ done (M2 → v2.3.0)
 
 Wires the core to the two triggers (see "Enrichment execution model" above):
 
@@ -120,7 +130,7 @@ Wires the core to the two triggers (see "Enrichment execution model" above):
   this; the *feature* lands here.
 - **Size:** M.
 
-### Service / server mode  🔲 P0 (first platform epic)
+### Service / server mode  ✅ done (M1 → v2.2.0)
 
 Turn poll-once-per-invocation into a resilient long-running service hosting **both**
 engines — and the host for the API and metrics endpoints, so it precedes them.
@@ -142,7 +152,7 @@ engines — and the host for the API and metrics endpoints, so it precedes them.
   blocker.
 - **Size:** M.
 
-### Control API  🔲 P0 (on the service host)
+### Control API  ✅ done (M3 → v2.4.0; extended through v2.10.0)
 
 One REST surface for all interaction — CLI and (later) UI/agent use the same
 endpoints.
@@ -155,14 +165,14 @@ endpoints.
   AuthN/Z required here.
 - **Size:** M–L.
 
-### Observability  🔲 P1
+### Observability  ✅ done (M4 → v2.5.0)
 
 Metrics (throughput, batch-latency histograms, quarantine/error rates, lag,
 in-flight batches), structured logs correlated by `run_id`/`batch_id`, optional
 traces — covering both engines, exposed on the service host. Builds on per-batch
 timings already in audit rows. **Size:** S–M.
 
-### Status store in a database  🔲 P2 (last in v2)
+### Status store in a database  ✅ done (M5 → v2.6.0)
 
 Swap the file-backed `StatusStore` for a DB (`pipelines`, `runs`, `batches`,
 `files`, `lineage`, `quarantine`, `commits`). Done **last**: a backing-store swap
@@ -212,13 +222,21 @@ behind the seam, not a prerequisite.
 - **Packaging** — fat JAR stays; add a service launcher + container image; the
   enrichment engine is a second entry point (or sub-command).
 
-## Decisions needed
+## Decisions made (resolved during delivery)
+
+All five open questions were decided and locked in [v2-plan.md](v2-plan.md#decisions-locked);
+recorded here for the strategic record:
 
 **Flagship track (enrichment):**
-1. Home — same repo as a new module/entry point (reuses DuckDB plumbing) vs separate artifact?
-2. Reference-data source — files / Postgres / DuckLake?
-3. v1 scope — full re-enrich vs incremental; output target (Parquet / DuckLake / warehouse)?
+1. **Home** — ✅ same repo, new package `com.gamma.enrich` + entry point (reuses `DuckDbUtil`,
+   `PartitionWriter`, config loading, audit/lineage).
+2. **Reference-data source** — ✅ DuckDB-readable files (Parquet/CSV) + DuckLake; Postgres dims
+   via the DuckDB scanner later. Zero new deps.
+3. **v1 scope** — ✅ lineage-driven incremental (event) + scheduled full-window recompute,
+   idempotent (`OVERWRITE_OR_IGNORE`), Parquet out.
 
 **Platform track (service/API):**
-4. Embedded HTTP server — Javalin / Helidon / JDK built-in / Spring?
-5. Status DB engine (for the last epic) — Postgres / DuckDB / SQLite?
+4. **Embedded HTTP server** — ✅ JDK `HttpServer` (revised from Javalin) — zero new deps; Jackson
+   (already a dep) handles JSON. Ample for the JSON control plane.
+5. **Status DB engine** — ✅ DuckDB now (already bundled → zero new deps; one engine serves tests
+   + prod); engine-neutral JDBC keeps Postgres a drop-in for the future distributed tier.

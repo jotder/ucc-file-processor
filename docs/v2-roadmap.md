@@ -1,21 +1,33 @@
 # v2.x Roadmap
 
-Tracks the 2.x line of work. Branch: `2.x` (version `2.0.0`). `master`
-stays on the 1.6.x release line; 2.x merges back when 2.0.0 is ready.
+Tracks the 2.x line of work. Branch: `2.x` (current version `2.10.0`).
 
-v2 is the place for **breaking changes** the 1.x line deliberately deferred —
-see [design-notes.md](design-notes.md) for the original deferral rationale.
+v2 began as the place for **breaking changes** the 1.x line deliberately deferred —
+see [design-notes.md](design-notes.md) for the original deferral rationale — and grew into
+the **two-stage data-platform** arc (Stage-1 multiplexer + Stage-2 enrichment under a shared
+service/API/observability control plane). The strategic "what/why" is in
+[v2-backlog.md](v2-backlog.md); the sequenced milestone record is in [v2-plan.md](v2-plan.md).
 
-## Status: 2.0.0 ready
+## Status: v2.x backlog fully delivered (v2.0.0 → v2.10.0)
 
-All three planned items are **done** on the `2.x` branch (98/98 tests green):
+The 2.0.0 foundation shipped, then milestones M0–M8 delivered the platform (185 tests green):
 
+**2.0.0 foundation:**
 - ✅ **D6** — `PipelineConfig` split into six nested records (the one breaking change).
 - ✅ **D2** — durable fsync'd `CommitLog` batch ledger.
 - ✅ **M3** — `@PublicApi` markers + [api-stability.md](api-stability.md) policy.
 
-Remaining to cut the release: bump `2.0.0-SNAPSHOT` → `2.0.0`, merge `2.x` → `master`,
-tag `v2.0.0`. (Details below kept for the record.)
+**Platform arc (one minor release per milestone, each tagged on `2.x`):**
+- ✅ **v2.1.0** enrichment core · **v2.2.0** service mode · **v2.3.0** enrichment orchestration
+- ✅ **v2.4.0** Control API · **v2.5.0** observability · **v2.6.0** status DB (DuckDB)
+- ✅ **v2.7.0** enrichment run audit · **v2.8.0** cron engine + config-driven jobs + reports
+- ✅ **v2.9.0** enrichment audit over the API · **v2.10.0** date-range + percentile report windows
+
+Nothing is open in 2.x. The remaining bets — embedded AI operator agent, Web UI, object
+storage, distributed execution — are **deferred to v3.0+ by design** (see
+[v2-backlog.md](v2-backlog.md#next-major-v30--deferred-by-design)).
+
+(The original 2.0.0 planning detail is kept below for the record.)
 
 ## Planned work
 
