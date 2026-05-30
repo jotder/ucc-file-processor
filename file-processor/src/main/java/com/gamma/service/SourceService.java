@@ -4,6 +4,9 @@ import com.gamma.api.PublicApi;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.MultiSourceProcessor;
+import com.gamma.job.JobConfig;
+import com.gamma.job.JobService;
+import com.gamma.report.ReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,6 +68,10 @@ public final class SourceService implements AutoCloseable {
     private final StatusStore status;
     private final Scheduler scheduler = new Scheduler();
     private final EnrichmentService enrichment;
+    /** Aggregates audit into status / batch-audit reports for the Control API (v2.8.0). */
+    private final ReportService reports = new ReportService(this);
+    /** Config-driven cron/event jobs (v2.8.0); null when none are registered. */
+    private final JobService jobs;
     private final MetricsService metrics =
             new MetricsService(this, com.gamma.metrics.MetricRegistry.global());
     /** Pipeline names an operator has paused; the poll cycle skips them (Control API, M3). */
@@ -90,6 +97,19 @@ public final class SourceService implements AutoCloseable {
      */
     public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
+        this(registry, enrichJobs, List.of(), pollSeconds, maxConcurrentRuns, statusStore);
+    }
+
+    /**
+     * Full constructor (v2.8.0). Adds a registry of config-driven {@link JobConfig}s —
+     * cron/event/manual jobs (ingest, enrich, report, maintenance) hosted by a
+     * {@link JobService} on this service's bus and scheduler.
+     *
+     * @param jobConfigs config-driven jobs; empty disables the job layer
+     */
+    public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+                         List<JobConfig> jobConfigs, long pollSeconds, int maxConcurrentRuns,
+                         StatusStore statusStore) {
         this.registry          = List.copyOf(registry);
         this.pollSeconds       = Math.max(1, pollSeconds);
         this.maxConcurrentRuns = Math.max(1, maxConcurrentRuns);
@@ -97,6 +117,10 @@ public final class SourceService implements AutoCloseable {
         this.enrichment        = enrichJobs.isEmpty()
                 ? null
                 : new EnrichmentService(enrichJobs, bus, scheduler);
+        this.jobs              = jobConfigs.isEmpty()
+                ? null
+                : new JobService(jobConfigs, bus, scheduler, reports,
+                        System.getProperty("jobs.audit.dir", "jobs_audit"));
     }
 
     /** The bus carrying committed-batch events; subscribe before {@link #start()}. */
@@ -124,6 +148,7 @@ public final class SourceService implements AutoCloseable {
         // poll cycle so no commit event from that cycle is missed.
         metrics.start();
         if (enrichment != null) enrichment.start();
+        if (jobs != null) jobs.start();
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
         log.info("SourceService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
                 registry.size(), pollSeconds, maxConcurrentRuns);
@@ -187,6 +212,16 @@ public final class SourceService implements AutoCloseable {
     /** The status store backing query endpoints (file-backed today, DB-backed in M5). */
     public StatusStore statusStore() {
         return status;
+    }
+
+    /** The report aggregator backing the Control API's status / batch-audit report endpoints. */
+    public ReportService reports() {
+        return reports;
+    }
+
+    /** The config-driven job registry, or empty when no jobs are registered (v2.8.0). */
+    public Optional<JobService> jobService() {
+        return Optional.ofNullable(jobs);
     }
 
     /** List each registered pipeline with its current paused state and commit count. */
@@ -262,6 +297,7 @@ public final class SourceService implements AutoCloseable {
 
     @Override
     public void close() {
+        if (jobs != null) jobs.close();               // drain in-flight job runs first
         if (enrichment != null) enrichment.close();   // drain in-flight recomputes first
         scheduler.close();
         if (status instanceof AutoCloseable c) {       // close a DB-backed store's connection
@@ -297,14 +333,16 @@ public final class SourceService implements AutoCloseable {
      */
     public static SourceService fromArgs(String[] args) throws IOException {
         List<Path> registry = MultiSourceProcessor.resolveConfigs(args);
-        if (registry.isEmpty()) {
-            System.err.println("No *_pipeline.toon files found in: " + String.join(", ", args));
+        List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(args, "_enrich.toon"));
+        List<JobConfig> jobConfigs = loadJobs(resolveBySuffix(args, "_job.toon"));
+        if (registry.isEmpty() && enrichJobs.isEmpty() && jobConfigs.isEmpty()) {
+            System.err.println("No *_pipeline.toon / *_enrich.toon / *_job.toon files found in: "
+                    + String.join(", ", args));
             System.exit(1);
         }
-        List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(args, "_enrich.toon"));
         long pollSeconds = Long.getLong("service.poll.seconds", 60L);
         int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
-        return new SourceService(registry, enrichJobs, pollSeconds, maxRuns, buildStatusStore());
+        return new SourceService(registry, enrichJobs, jobConfigs, pollSeconds, maxRuns, buildStatusStore());
     }
 
     /** Default DuckDB status database file when {@code status.backend=db} and no URL is given. */
@@ -360,6 +398,21 @@ public final class SourceService implements AutoCloseable {
                 log.info("Registered enrichment job from {}", p);
             } catch (Exception e) {
                 log.warn("Could not load enrichment config {}: {}", p, e.getMessage());
+            }
+        }
+        return jobs;
+    }
+
+    /** Load each {@code *_job.toon}; a bad one is warned and skipped (others still host). */
+    private static List<JobConfig> loadJobs(List<Path> paths) {
+        List<JobConfig> jobs = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                JobConfig c = JobConfig.load(p.toString());
+                jobs.add(c);
+                log.info("Registered {} job '{}' from {}", c.type(), c.name(), p);
+            } catch (Exception e) {
+                log.warn("Could not load job config {}: {}", p, e.getMessage());
             }
         }
         return jobs;

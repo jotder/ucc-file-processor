@@ -3,7 +3,11 @@ package com.gamma.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -12,10 +16,20 @@ import java.util.concurrent.TimeUnit;
  * the end of one execution and the start of the next ({@code scheduleWithFixedDelay}),
  * so polls never overlap. A task that throws is logged and the schedule continues.
  *
- * <p>This M1 cut is interval-based (e.g. "poll every 60s"), which covers continuous
- * polling. Calendar/cron scheduling (specific hour/day for Stage-2 windowed KPIs) is
- * a fast-follow in M2; the small daemon-threaded executor here is the trigger, while
- * the actual work runs on virtual threads inside the pipeline runners.
+ * <p>Two trigger styles are offered:
+ * <ul>
+ *   <li>{@link #everySeconds} — fixed-delay interval (e.g. "poll every 60s"), for
+ *       continuous polling. Runs never overlap.</li>
+ *   <li>{@link #cron} — calendar scheduling via a {@link CronExpression} (e.g. "daily
+ *       at 02:00", "every weekday at 09:00"), for config-driven jobs and windowed
+ *       Stage-2 KPIs. Implemented as a self-re-arming one-shot: after each fire it
+ *       computes the next fire time and reschedules.</li>
+ * </ul>
+ *
+ * <p>The executor here is only the <em>trigger</em> — handlers are expected to be
+ * short (submit work to a virtual-thread executor and return), so the small daemon
+ * pool never becomes a bottleneck. A task that throws is logged and the schedule
+ * continues.
  */
 public final class Scheduler implements AutoCloseable {
 
@@ -24,10 +38,15 @@ public final class Scheduler implements AutoCloseable {
     private final ScheduledExecutorService exec;
 
     public Scheduler() {
-        this.exec = Executors.newScheduledThreadPool(1, r -> {
-            Thread t = new Thread(r, "ucc-scheduler");
-            t.setDaemon(true);
-            return t;
+        // A couple of trigger threads so a cron fire isn't head-of-line blocked behind a
+        // long fixed-delay poll. The real work runs off these threads (virtual-thread pools).
+        this.exec = Executors.newScheduledThreadPool(2, new java.util.concurrent.ThreadFactory() {
+            private int n = 0;
+            @Override public synchronized Thread newThread(Runnable r) {
+                Thread t = new Thread(r, "ucc-scheduler-" + (++n));
+                t.setDaemon(true);
+                return t;
+            }
         });
     }
 
@@ -43,6 +62,36 @@ public final class Scheduler implements AutoCloseable {
                 log.error("Scheduled task '{}' failed", name, e);
             }
         }, initialDelaySeconds, intervalSeconds, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Run {@code task} on the calendar schedule described by {@code cron}, evaluated in
+     * {@code zone}. The first fire is the next match strictly after "now"; after each run
+     * the next fire is recomputed and rescheduled, so drift never accumulates. Exceptions
+     * are caught so the schedule survives, and re-arming is skipped once the scheduler is
+     * shutting down.
+     */
+    public void cron(String name, CronExpression cron, ZoneId zone, Runnable task) {
+        scheduleNextCron(name, cron, zone, task);
+    }
+
+    private void scheduleNextCron(String name, CronExpression cron, ZoneId zone, Runnable task) {
+        ZonedDateTime now = ZonedDateTime.now(zone);
+        ZonedDateTime next = cron.next(now);
+        long delayMs = Math.max(0, Duration.between(now, next).toMillis());
+        try {
+            exec.schedule(() -> {
+                try {
+                    task.run();
+                } catch (Exception e) {
+                    log.error("Cron task '{}' failed", name, e);
+                } finally {
+                    if (!exec.isShutdown()) scheduleNextCron(name, cron, zone, task);
+                }
+            }, delayMs, TimeUnit.MILLISECONDS);
+        } catch (RejectedExecutionException ignore) {
+            // scheduler is shutting down — stop re-arming
+        }
     }
 
     @Override

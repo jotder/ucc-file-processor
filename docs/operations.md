@@ -254,7 +254,8 @@ Sources run on a virtual-thread executor bounded by `-Dsources.max` (default: al
 For continuous operation, `SourceService` keeps the JVM up and runs the registry on a poll schedule instead of one-shot. It also emits a **batch-commit event** on every `SUCCESS` flush (carrying the partitions that batch wrote, from lineage) — the trigger backbone the Stage-2 enrichment and Control API build on.
 
 ```bash
-# Scan paths for *_pipeline.toon (sources) and *_enrich.toon (Stage-2 jobs)
+# Scan paths for *_pipeline.toon (sources), *_enrich.toon (Stage-2 jobs)
+# and *_job.toon (config-driven cron/event jobs, v2.8.0)
 java -cp file-processor.jar com.gamma.service.SourceService \
      -Dservice.poll.seconds=60 -Dservice.max.runs=4 config/
 ```
@@ -316,10 +317,75 @@ A bearer token guards every route except `/health` and `/ready` (present it as `
 | `POST /pipelines/{name}/reprocess` | body `{"batchId":"…"}` — replay a batch |
 | `POST /trigger` | run all pipelines once |
 | `POST /validate` | body `{"configPath":"…"}` — config warnings |
+| `GET /status` | live status snapshot — all pipelines + rollup (v2.8.0) |
+| `GET /report` | service-wide batch-audit report (v2.8.0) |
+| `GET /pipelines/{name}/report` | batch-audit report for one pipeline (v2.8.0) |
+| `GET /jobs` | list config-driven jobs + last outcome + next fire (v2.8.0) |
+| `GET /jobs/{name}/runs` | recent run history for a job (v2.8.0) |
+| `POST /jobs/{name}/trigger` | run a job once now (v2.8.0) |
 
 ```bash
 curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines
 curl -s -X POST -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/trigger
+```
+
+### Reports — status snapshot & batch-audit rollup (`ReportService`)
+
+The audit queries above return raw rows; the **report** endpoints return the aggregated
+view operators and dashboards actually want — computed on demand through the same
+`StatusStore`, so they work identically over the file or DB backend.
+
+- `GET /status` — a live snapshot: per-pipeline paused state, committed-batch count,
+  quarantined-file count, and last-batch id/status/time, plus a service rollup.
+- `GET /report` (service-wide) and `GET /pipelines/{name}/report` (one pipeline) — a
+  historical batch-audit rollup: total/success/failed batch counts, **error rate**, input
+  & output rows, rejected files, output file count and bytes, and average / max duration.
+
+```bash
+curl -s -H "Authorization: Bearer secret" localhost:8080/status
+curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/report
+```
+
+### Config-driven jobs — cron / event / manual (`JobService`)
+
+Beyond the fixed poll cycle, define arbitrary **jobs** in `*_job.toon` files (scanned from
+the same paths as pipelines). One uniform scheduler runs four kinds of work — `ingest`
+(a Stage-1 pipeline), `enrich` (a Stage-2 job), `report` (emit a report snapshot to the
+`ucc.events` log), and `maintenance` (built-in housekeeping) — each triggered by a cron
+expression, an upstream batch-commit event, and/or a manual `POST`.
+
+```toon
+# nightly_clean_job.toon  — prune audit CSVs older than 30 days at 02:00 daily
+job:
+  name: nightly-clean
+  type: maintenance
+  cron: "0 2 * * *"          # 5 fields (min hour dom mon dow) or 6 (with leading seconds)
+  task: cleanup
+  dir: /var/lib/ucc/test-status
+  retention_days: 30
+  glob: "*.csv"
+```
+
+```toon
+# kpi_refresh_job.toon  — recompute a KPI hourly AND whenever EVENTS commits a batch
+job:
+  name: kpi-refresh
+  type: enrich
+  cron: "0 0 * * * *"        # top of every hour
+  on_pipeline: EVENTS         # also fire on the upstream's batch-commit event
+  config: config/events/events_daily_kpi_enrich.toon
+```
+
+The cron parser is a small, dependency-free quartz-like engine: `*`, ranges (`9-17`),
+steps (`*/15`, `9-17/2`), lists (`MON,WED,FRI`) and month/day names. When both
+day-of-month and day-of-week are restricted, a time matches if **either** does (Vixie-cron
+semantics). Every run is recorded to `jobs_audit/jobs_runs.csv` (override with
+`-Djobs.audit.dir`) and a short in-memory history the API serves.
+
+```bash
+curl -s -H "Authorization: Bearer secret" localhost:8080/jobs
+curl -s -X POST -H "Authorization: Bearer secret" localhost:8080/jobs/nightly-clean/trigger
+curl -s -H "Authorization: Bearer secret" localhost:8080/jobs/nightly-clean/runs
 ```
 
 ### Status backend — file (default) or database (`DbStatusStore`)

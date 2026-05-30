@@ -228,6 +228,39 @@ runs/lineage/commit-log; service event recompute → audit); full suite **145 gr
 these rows over the Control API / status DB (enrichment jobs aren't in the Stage-1 registry the
 API lists) is a small future enhancement, not required for persistence.
 
+### M6 — status reporting, batch audit report & config-driven jobs  → v2.8.0  ✅
+
+**Done** (`v2.8.0`): three additive features, **zero new dependencies**.
+
+1. **Cron engine** — `com.gamma.service.CronExpression`, a small dependency-free quartz-like
+   parser (5/6 fields; `* , - /`; month/day names; Vixie-cron dom/dow OR), plus
+   `Scheduler.cron(name, expr, zone, task)` — a self-re-arming one-shot so calendar schedules
+   never drift. (Quartz was considered and rejected to keep the fat-JAR lean — decided with
+   the user.)
+2. **Generic config-driven jobs** — new `com.gamma.job` package. A `*_job.toon` `JobConfig`
+   (name, `type`, `cron`, `on_pipeline`, `enabled`, params) becomes a `Job` of one of four
+   kinds — `ingest`, `enrich`, `report`, `maintenance` (ships a `cleanup` retention task) —
+   all hosted by `JobService` under one scheduler/registry. Triggers: cron, upstream
+   batch-commit event, and manual. A per-job lock guarantees non-overlap (a fire while a run
+   is in flight records `SKIPPED`); runs are audited to `jobs_audit/jobs_runs.csv` + a short
+   in-memory history. Wired into `SourceService` (new 6-arg constructor; `fromArgs` scans
+   `*_job.toon` and now starts jobs-only services too).
+3. **Reports over the Control API** — `com.gamma.report.ReportService` rolls the `StatusStore`
+   audit into a live **status snapshot** and a historical **batch-audit report** (counts,
+   error rate, rows in/out, rejects, bytes, durations). New endpoints: `GET /status`,
+   `GET /report`, `GET /pipelines/{name}/report`, `GET /jobs`, `GET /jobs/{name}/runs`,
+   `POST /jobs/{name}/trigger`. A `report` job emits a snapshot to `ucc.events` on a cron.
+
+**Decisions (with the user):** hand-rolled cron over a Quartz dependency; reports delivered as
+Control API JSON; jobs as a first-class generic type (not just cron on existing engines).
+**Tests:** +29 (`CronExpressionTest`, `Scheduler` cron, `JobConfigTest`, `JobServiceTest`,
+`ReportServiceTest`, Control API report/job endpoints) → full suite **174 green**; fat-JAR
+smoke confirmed cron firing, job trigger/history and report JSON from the shaded jar.
+
+**Scope note (future):** event-triggering and report delivery are in place; surfacing
+enrichment run audit over the API and richer report windows (date ranges, percentiles) are
+small follow-ons, not required here.
+
 ## Cross-cutting (applied each milestone)
 
 - Keep the **full suite green** and add tests per task; bump the minor version, tag,

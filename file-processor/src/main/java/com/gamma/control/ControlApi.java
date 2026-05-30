@@ -54,6 +54,12 @@ import java.util.regex.Pattern;
  *   POST /pipelines/{name}/reprocess          body {"batchId":"…"} — replay a batch
  *   POST /trigger                             run all pipelines once
  *   POST /validate                            body {"configPath":"…"} — config warnings
+ *   GET  /status                              live status snapshot (all pipelines)        [v2.8.0]
+ *   GET  /report                              service-wide batch-audit report             [v2.8.0]
+ *   GET  /pipelines/{name}/report             batch-audit report for one pipeline         [v2.8.0]
+ *   GET  /jobs                                list config-driven jobs + last/next run      [v2.8.0]
+ *   GET  /jobs/{name}/runs                    recent run history for a job                 [v2.8.0]
+ *   POST /jobs/{name}/trigger                 run a job once now                           [v2.8.0]
  * </pre>
  */
 @PublicApi(since = "2.4.0")
@@ -167,6 +173,23 @@ public final class ControlApi implements AutoCloseable {
 
         post("/trigger", true, (e, m) -> service.runAllOnce());
 
+        // ── v2.8.0: aggregated reports (status snapshot + batch-audit rollup) ──
+        get("/status", true, (e, m) -> service.reports().statusReport());
+        get("/report", true, (e, m) -> service.reports().serviceReport());
+        get("/pipelines/([^/]+)/report", true, (e, m) -> {
+            cfg(m);   // 404 if no such pipeline
+            return service.reports().batchReport(name(m));
+        });
+
+        // ── v2.8.0: config-driven jobs (cron / event / manual) ──
+        get("/jobs", true, (e, m) -> jobs().jobs());
+        get("/jobs/([^/]+)/runs", true, (e, m) -> jobs().runsFor(name(m)));
+        post("/jobs/([^/]+)/trigger", true, (e, m) -> {
+            if (!jobs().trigger(name(m)))
+                throw new ApiException(404, "no job named '" + name(m) + "'");
+            return Map.of("job", name(m), "status", "triggered");
+        });
+
         post("/validate", true, (e, m) -> {
             String configPath = str(body(e), "configPath");
             if (configPath == null) throw new ApiException(400, "body must include 'configPath'");
@@ -238,6 +261,11 @@ public final class ControlApi implements AutoCloseable {
 
     private PipelineConfig cfg(Matcher m) {
         return service.configFor(name(m)).orElseThrow(() -> notFound(name(m)));
+    }
+
+    /** The job registry, or a 404 when no jobs are registered on this service. */
+    private com.gamma.job.JobService jobs() {
+        return service.jobService().orElseThrow(() -> new ApiException(404, "no jobs registered"));
     }
 
     private static String name(Matcher m) {

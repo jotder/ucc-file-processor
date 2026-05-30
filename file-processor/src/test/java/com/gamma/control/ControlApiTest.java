@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
+import com.gamma.job.JobConfig;
+import com.gamma.job.JobType;
 import com.gamma.service.SourceService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -17,6 +19,7 @@ import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -43,6 +46,21 @@ class ControlApiTest {
         Files.writeString(inbox.resolve("data.csv"),
                 "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n2,20,2020-01-01\n3,30,2020-02-05\n");
         SourceService svc = new SourceService(List.of(toon), 3600, 1);
+        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        api.start();
+        return new Ctx(svc, api, api.port(), "test_etl");
+    }
+
+    /** Like {@link #open} but also registers a config-driven maintenance job. */
+    private Ctx openWithJob(Path dir) throws Exception {
+        Path toon = TestConfigs.csv(dir, PipelineConfigBatchTest.miniSchema()).write();
+        Path inbox = dir.resolve("inbox");
+        Files.createDirectories(inbox);
+        Files.writeString(inbox.resolve("data.csv"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n");
+        JobConfig hb = new JobConfig("hb", JobType.MAINTENANCE, null, null, true, Map.of("task", "heartbeat"));
+        // keep the job audit under the test's temp dir, not the working directory
+        System.setProperty("jobs.audit.dir", dir.resolve("jobs_audit").toString());
+        SourceService svc = new SourceService(List.of(toon), List.of(), List.of(hb), 3600, 1, null);
         ControlApi api = new ControlApi(svc, 0, TOKEN);
         api.start();
         return new Ctx(svc, api, api.port(), "test_etl");
@@ -162,6 +180,57 @@ class ControlApiTest {
             assertTrue(body.contains("ucc_poll_cycles_total"), "poll cycle counted");
             assertTrue(body.contains("ucc_committed_batches{pipeline=\"test_etl\"}"),
                     "scrape-time gauge populated");
+        }
+    }
+
+    @Test
+    void statusAndBatchReportEndpoints(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            send(c.port, "POST", "/pipelines/" + c.name + "/trigger", TOKEN, null);
+
+            JsonNode status = json(send(c.port, "GET", "/status", TOKEN, null));
+            assertEquals(1, status.get("pipelineCount").asInt());
+            assertTrue(status.get("totalCommittedBatches").asLong() >= 1);
+            assertEquals(c.name, status.get("pipelines").get(0).get("pipeline").asText());
+
+            JsonNode report = json(send(c.port, "GET", "/report", TOKEN, null));
+            assertTrue(report.get("totalBatches").asLong() >= 1);
+            assertEquals(report.get("totalBatches").asLong(), report.get("success").asLong());
+
+            JsonNode one = json(send(c.port, "GET", "/pipelines/" + c.name + "/report", TOKEN, null));
+            assertEquals(c.name, one.get("pipeline").asText());
+            assertTrue(one.get("totalBatches").asLong() >= 1);
+
+            // reports require auth; unknown pipeline report → 404; no jobs registered → 404
+            assertEquals(401, send(c.port, "GET", "/status", null, null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/pipelines/ghost/report", TOKEN, null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/jobs", TOKEN, null).statusCode(), "no jobs registered");
+        }
+    }
+
+    @Test
+    void jobsEndpointsListTriggerAndHistory(@TempDir Path dir) throws Exception {
+        try (Ctx c = openWithJob(dir)) {
+            JsonNode list = json(send(c.port, "GET", "/jobs", TOKEN, null));
+            assertTrue(list.isArray() && list.size() == 1);
+            assertEquals("hb", list.get(0).get("name").asText());
+            assertEquals("MAINTENANCE", list.get(0).get("type").asText());
+
+            HttpResponse<String> trig = send(c.port, "POST", "/jobs/hb/trigger", TOKEN, null);
+            assertEquals(200, trig.statusCode());
+            assertEquals("triggered", json(trig).get("status").asText());
+
+            // history populates asynchronously — poll briefly
+            long deadline = System.nanoTime() + 5_000_000_000L;
+            JsonNode runs = json(send(c.port, "GET", "/jobs/hb/runs", TOKEN, null));
+            while (runs.size() == 0 && System.nanoTime() < deadline) {
+                Thread.sleep(100);
+                runs = json(send(c.port, "GET", "/jobs/hb/runs", TOKEN, null));
+            }
+            assertTrue(runs.size() >= 1, "a run is recorded in history");
+            assertEquals("SUCCESS", runs.get(0).get("status").asText());
+
+            assertEquals(404, send(c.port, "POST", "/jobs/nope/trigger", TOKEN, null).statusCode());
         }
     }
 
