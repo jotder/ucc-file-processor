@@ -29,10 +29,13 @@ class JobServiceTest {
 
     /** Poll until a run for {@code name} appears (or fail after 6s). */
     private static JobRun await(Supplier<JobRun> s) throws Exception {
-        long deadline = System.nanoTime() + 6_000_000_000L;
+        // 20s, not a tight window: these assert a scheduler/event eventually fires. On a loaded
+        // CI runner the daemon scheduler threads can be starved for several seconds (the heavy
+        // DuckDB suite runs alongside), so a small timeout flakes without indicating a real fault.
+        long deadline = System.nanoTime() + 20_000_000_000L;
         JobRun r;
         while ((r = s.get()) == null && System.nanoTime() < deadline) Thread.sleep(50);
-        assertNotNull(r, "expected a job run within 6s");
+        assertNotNull(r, "expected a job run within 20s");
         return r;
     }
 
