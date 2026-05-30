@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
 /**
@@ -78,6 +79,13 @@ public final class SourceService implements AutoCloseable {
             new MetricsService(this, com.gamma.metrics.MetricRegistry.global());
     /** Pipeline names an operator has paused; the poll cycle skips them (Control API, M3). */
     private final Set<String> paused = ConcurrentHashMap.newKeySet();
+    /** Serializes ingest cycles so an operator-triggered run (Control API {@code /trigger},
+     *  {@code /pipelines/{name}/trigger}) can never overlap the scheduled poll cycle or another
+     *  trigger. The scheduler is already non-overlapping (fixed-delay); this guards the
+     *  cross-entrypoint case. A waiting caller re-evaluates the inbox after acquiring the lock,
+     *  by which time the prior cycle has written its {@code .processed} markers — so
+     *  already-ingested files are skipped rather than double-processed. */
+    private final ReentrantLock ingestLock = new ReentrantLock();
     /** Optional embedded assist agent (v3.0, M0): discovered via {@link ServiceLoader} at
      *  {@link #start()} or registered explicitly with {@link #registerAgent(AssistAgent)};
      *  {@code null} when the {@code file-processor-agent} module is absent. */
@@ -144,14 +152,14 @@ public final class SourceService implements AutoCloseable {
      *
      * @param a the agent provider; {@code null} is a no-op
      */
-    public void registerAgent(AssistAgent a) {
+    public synchronized void registerAgent(AssistAgent a) {
         if (a == null) return;
         if (agent != null) {
             log.warn("Assist agent '{}' already registered; ignoring '{}'", agent.name(), a.name());
             return;
         }
+        a.init(this);     // init before publishing the reference, so assistAgent() never sees a half-wired agent
         agent = a;
-        a.init(this);
         log.info("Assist agent registered: {}", a.name());
     }
 
@@ -204,24 +212,29 @@ public final class SourceService implements AutoCloseable {
      * @return the run outcome (total / failed source counts)
      */
     public MultiSourceProcessor.RunResult runAllOnce() {
-        List<Path> active = paused.isEmpty() ? registry : activeRegistry();
-        if (active.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
-        com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
-        reg.inc("ucc_poll_cycles_total", "Poll cycles run", Map.of());
-        reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), active.size());
-        MultiSourceProcessor.RunResult r;
+        ingestLock.lock();   // never overlap with another cycle / operator trigger (see field doc)
         try {
-            r = MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
-            if (r.failed() > 0) {
-                log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
-                reg.inc("ucc_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
+            List<Path> active = paused.isEmpty() ? registry : activeRegistry();
+            if (active.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
+            com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
+            reg.inc("ucc_poll_cycles_total", "Poll cycles run", Map.of());
+            reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), active.size());
+            MultiSourceProcessor.RunResult r;
+            try {
+                r = MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
+                if (r.failed() > 0) {
+                    log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
+                    reg.inc("ucc_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
+                }
+            } finally {
+                reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), 0);
             }
+            // Refresh the status DB (if DB-backed) so this cycle's commits are queryable.
+            syncStatus();
+            return r;
         } finally {
-            reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), 0);
+            ingestLock.unlock();
         }
-        // Refresh the status DB (if DB-backed) so this cycle's commits are queryable.
-        syncStatus();
-        return r;
     }
 
     /**
@@ -308,8 +321,14 @@ public final class SourceService implements AutoCloseable {
 
     /** Run a single registered pipeline once. Empty if no pipeline by that name. */
     public Optional<MultiSourceProcessor.RunResult> runPipeline(String pipelineName) {
-        return pathFor(pipelineName).map(p ->
-                MultiSourceProcessor.runAll(List.of(p), 1, bus.sink()));
+        return pathFor(pipelineName).map(p -> {
+            ingestLock.lock();   // serialize with the poll cycle / other triggers (see field doc)
+            try {
+                return MultiSourceProcessor.runAll(List.of(p), 1, bus.sink());
+            } finally {
+                ingestLock.unlock();
+            }
+        });
     }
 
     /** Pause a pipeline (the poll cycle skips it). Returns false if not registered. */

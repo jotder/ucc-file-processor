@@ -1,5 +1,9 @@
 # v2.x Product Backlog — a two-stage data platform
 
+> **Historical (archived).** Records the completed 2.x line. Active development is on the **3.x**
+> branch — see [v3-architecture.md](v3-architecture.md), [v3-agent-mvp.md](v3-agent-mvp.md), and
+> [v3-plan.md](v3-plan.md).
+
 > **Execution plan:** the finalized, sequenced task list with milestones and locked
 > decisions is in [v2-plan.md](v2-plan.md). This doc is the strategic "what/why".
 

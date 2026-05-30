@@ -1,15 +1,15 @@
 name: CI
 
 # Runs the test suite on every push and pull request so regressions land at
-# review time instead of in production. Keep this workflow lean — there's one
-# Maven module and the full suite finishes in ~10 seconds.
+# review time instead of in production. The build is a two-module Maven reactor
+# (core engine + optional assist agent); the full suite finishes in ~30 seconds.
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, 3.x]
     tags: ['v*']
   pull_request:
-    branches: [master, main]
+    branches: [master, main, 3.x]
 
 jobs:
   test:
@@ -24,8 +24,9 @@ jobs:
           java-version: '24'
           cache: maven
 
+      # Build the whole reactor from the root POM so the optional agent module and
+      # the cross-module AssistAgent SPI wiring are exercised, not just the core.
       - name: Run tests
-        working-directory: file-processor
         run: mvn --batch-mode --no-transfer-progress test
 
       - name: Upload test reports on failure
@@ -33,11 +34,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: surefire-reports
-          path: file-processor/target/surefire-reports/
+          path: '**/target/surefire-reports/'
 
   package:
-    # Build the fat JAR on every push to a tag so v1.x.x tags get a downloadable
-    # artifact attached to the release. PRs and branch pushes skip this step.
+    # Build the fat JAR on every push to a tag so v*.x.x tags get a downloadable
+    # artifact attached to the release. PRs and branch pushes skip this step. Only
+    # the lean core module is packaged — the agent module ships no fat-JAR.
     if: startsWith(github.ref, 'refs/tags/v')
     needs: test
     runs-on: ubuntu-latest

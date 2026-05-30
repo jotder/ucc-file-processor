@@ -81,13 +81,20 @@ function Copy-Config([string]$src, [string]$dst) {
     $content = $content -replace 'file-processor/config/', 'config/'
     Set-Content -Path $dst -Value $content -NoNewline
 }
+# adjustment_schema.toon / adj_gen.toon are generated per-source (`ura create-schema`) and may be
+# absent on a clean checkout. Copy them when present rather than aborting the whole bundle under
+# $ErrorActionPreference='Stop'.
+function Copy-IfPresent([string]$src, [string]$dst) {
+    if (Test-Path $src) { Copy-Item $src $dst }
+    else { Write-Host "  (skipping missing optional config: $src)" -ForegroundColor Yellow }
+}
 
-Copy-Config "$adjParserDir\config\adjustment\adjustment_pipeline.toon" `
-            "$bundleDir\config\adjustment\adjustment_pipeline.toon"
-Copy-Item   "$adjParserDir\config\adjustment\adjustment_schema.toon"   `
-            "$bundleDir\config\adjustment\adjustment_schema.toon"
-Copy-Item   "$adjParserDir\config\adjustment\adj_gen.toon"             `
-            "$bundleDir\config\adjustment\adj_gen.toon"
+Copy-Config    "$adjParserDir\config\adjustment\adjustment_pipeline.toon" `
+               "$bundleDir\config\adjustment\adjustment_pipeline.toon"
+Copy-IfPresent "$adjParserDir\config\adjustment\adjustment_schema.toon"   `
+               "$bundleDir\config\adjustment\adjustment_schema.toon"
+Copy-IfPresent "$adjParserDir\config\adjustment\adj_gen.toon"             `
+               "$bundleDir\config\adjustment\adj_gen.toon"
 
 Copy-Config "$adjParserDir\config\voucher\voucher_unknown_pipeline.toon" `
             "$bundleDir\config\voucher\voucher_unknown_pipeline.toon"
@@ -162,7 +169,7 @@ java --enable-native-access=ALL-UNNAMED ^
 # Examples:
 #   ./ura.sh help
 #   ./ura.sh search           config/adjustment/adjustment_pipeline.toon
-#   ./ura.sh copy             config/voucher/voucher_pipeline.toon
+#   ./ura.sh copy             config/voucher/voucher_unknown_pipeline.toon
 #   ./ura.sh --dry-run backup config/adjustment/adjustment_pipeline.toon
 #   ./ura.sh prepare-inbox    config/adjustment/adjustment_pipeline.toon
 #   ./ura.sh create-schema    adjustment  samples/adj_sample.csv  config/adjustment/adj_gen.toon
@@ -225,6 +232,6 @@ Write-Host "  5. Pre-ETL utilities:"
 Write-Host "       ura.bat help            (Windows)"
 Write-Host "       bash ura.sh help        (Linux)"
 Write-Host "       bash ura.sh search  config/adjustment/adjustment_pipeline.toon"
-Write-Host "       bash ura.sh backup  config/voucher/voucher_pipeline.toon"
+Write-Host "       bash ura.sh backup  config/voucher/voucher_unknown_pipeline.toon"
 Write-Host ""
 Write-Host "Java 24+ required on the target server.  No other dependencies needed."

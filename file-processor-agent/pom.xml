@@ -29,11 +29,6 @@
         kpi-to-sql, diagnose-and-alert) arrive from M2 onward (see docs/v3-plan.md).
     </description>
 
-    <properties>
-        <!-- Mirror the core module: keep @{argLine} resolvable when JaCoCo is inactive. -->
-        <argLine></argLine>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>com.gamma.inspector</groupId>
@@ -49,17 +44,6 @@
         </dependency>
     </dependencies>
 
-    <build>
-        <plugins>
-            <!-- Native-access flag silences DuckDB JNI warnings pulled in transitively via core. -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.5</version>
-                <configuration>
-                    <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+    <!-- Build config (compiler + surefire native-access flag) is inherited from the parent
+         POM's <pluginManagement>. No module-specific plugins here. -->
 </project>

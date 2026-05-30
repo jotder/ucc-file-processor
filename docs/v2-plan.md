@@ -1,5 +1,8 @@
 # v2.x Implementation Plan — finalized task sequence
 
+> **Historical (archived).** Records the completed 2.x line. Active development is on the **3.x**
+> branch — see [v3-plan.md](v3-plan.md).
+
 The strategic "what/why" lives in [v2-backlog.md](v2-backlog.md). This is the
 "how/in-what-order" — a finalized, sequenced task list. Each milestone is
 independently releasable as a minor version on the `2.x` branch.

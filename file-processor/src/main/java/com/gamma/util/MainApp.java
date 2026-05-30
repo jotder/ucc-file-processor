@@ -237,9 +237,10 @@ public class MainApp {
         System.out.println("                              Infer <source>_schema.toon + <source>_pipeline.toon");
         System.out.println("                              from a representative sample CSV.");
         System.out.println();
-        System.out.println("ETL pipeline (runs via run.sh / run.bat, not via ura):");
-        System.out.println("  run.sh  [adjustment|voucher]   Linux  — polls inbox, processes CSVs to Parquet.");
-        System.out.println("  run.bat [adjustment|voucher]   Windows");
+        System.out.println("ETL pipeline (runs the SourceProcessor on a pipeline config, not via ura):");
+        System.out.println("  run-adjustment.sh | run-adjustment.bat   Polls inbox, processes adjustment CSVs to Parquet.");
+        System.out.println("  run-voucher.sh    | run-voucher.bat      Polls inbox, processes voucher CSVs to Parquet.");
+        System.out.println("  java -jar file-processor-<version>.jar <pipeline.toon>   (direct form)");
         System.out.println();
         System.out.println("Legacy / low-level commands:");
         System.out.println("  move-by-date                    Move files matching pattern into YYYYMMDD sub-folders.");

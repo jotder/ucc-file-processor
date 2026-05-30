@@ -149,13 +149,23 @@ public final class BatchProcessor {
             if (tempDb != null) DuckDbUtil.deleteTempDb(tempDb);
         }
 
-        try {
-            if ("SUCCESS".equals(batchStatus))
+        if ("SUCCESS".equals(batchStatus)) {
+            try {
                 commit(batch, cfg, survivors, outputs, lineage);
+            } catch (Exception e) {
+                // Output was written, but a side effect (backup/manifest/markers) failed. Demote
+                // to FAILED so the batch stays visible to audit/lineage/recovery instead of
+                // vanishing — a silently un-audited batch is the worst outcome for reprocessing.
+                batchStatus = "FAILED";
+                batchError  = "commit failed: " + msg(e);
+                log.error("Batch {} failed during commit", batch.batchId(), e);
+            }
+        }
+        try {   // audit is always written — even when commit failed above
             writeAudit(batch, cfg, audit, batchStart, batchStatus, batchError,
                     memberAudits, survivors, outputs, lineage, totalInputRows);
         } catch (Exception e) {
-            log.error("Batch {} failed during commit/audit", batch.batchId(), e);
+            log.error("Batch {} failed during audit", batch.batchId(), e);
         }
     }
 
@@ -311,15 +321,23 @@ public final class BatchProcessor {
             if (tempDb != null) DuckDbUtil.deleteTempDb(tempDb);
         }
 
-        try {
-            if ("SUCCESS".equals(batchStatus))
+        if ("SUCCESS".equals(batchStatus)) {
+            try {
                 commit(batch, cfg, survivors, allOutputs, allLineage);
-            // Use first segment key as schemaName for audit; all keys as outputTable
+            } catch (Exception e) {
+                // See processCsv: a post-write side-effect failure must still be audited as FAILED.
+                batchStatus = "FAILED";
+                batchError  = "commit failed: " + msg(e);
+                log.error("Batch {} failed during commit", batch.batchId(), e);
+            }
+        }
+        try {   // audit is always written — even when commit failed above
+            // Use all segment keys as the audit schema label.
             String schemaNames = String.join(",", cfg.schemas().segments().keySet());
             writeAuditPlugin(batch, cfg, audit, batchStart, batchStatus, batchError,
                     memberAudits, survivors, allOutputs, allLineage, totalInputRows, schemaNames);
         } catch (Exception e) {
-            log.error("Batch {} failed during commit/audit", batch.batchId(), e);
+            log.error("Batch {} failed during audit", batch.batchId(), e);
         }
     }
 

@@ -35,5 +35,36 @@
         <maven.compiler.target>24</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.10.2</junit.version>
+        <!-- Default empty so surefire's @{argLine} resolves cleanly when JaCoCo is inactive
+             (normal 'mvn test'). The core module's 'coverage' profile's prepare-agent goal
+             overrides this. Both modules inherit it. -->
+        <argLine></argLine>
     </properties>
+
+    <!-- Shared plugin versions + config for both modules. Children activate plugins by
+         reference (surefire/compiler run in the default lifecycle); the managed version and
+         configuration below apply without each child re-declaring them. Module-specific
+         plugins (the core's shade + jacoco) stay in the child POM. -->
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                </plugin>
+                <!-- Native-access flag silences DuckDB JNI warnings on Java 24. @{argLine} is the
+                     late-bound property JaCoCo's prepare-agent sets; keeping it here lets the
+                     coverage agent attach without clobbering the native-access flag. -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.2.5</version>
+                    <configuration>
+                        <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
 </project>

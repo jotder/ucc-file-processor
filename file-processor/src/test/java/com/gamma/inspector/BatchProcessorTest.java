@@ -81,6 +81,45 @@ class BatchProcessorTest {
         assertTrue(status.contains("QUARANTINED_MISMATCH"));
     }
 
+    /**
+     * Regression for the "ghost batch" defect: if {@code commit()} throws <em>after</em> the
+     * output is written and inputs are backed up (e.g. a marker step fails), the batch must
+     * still be audited — as FAILED — rather than vanishing from the audit/lineage/recovery
+     * surface. We induce a deterministic commit failure by pre-creating a survivor's
+     * {@code .processed} marker, so {@code Files.createFile} (markers are the last commit step)
+     * throws {@code FileAlreadyExistsException}.
+     */
+    @Test
+    void commitFailureStillWritesAuditAsFailed(@TempDir Path dir) throws Exception {
+        Path toon = PipelineConfigBatchTestRef.writePipeline(dir, "");
+        PipelineConfig cfg = PipelineConfig.load(toon.toString());
+        Path inbox = Path.of(cfg.dirs().poll());
+        Files.createDirectories(inbox);
+        Path solo = inbox.resolve("solo.csv");
+        Files.writeString(solo, "ID,AMT,EVENT_DATE\nx,9.0,2020-04-03\n");
+
+        // Pre-create the marker so the LAST commit step (markers) fails after output+backup.
+        Path marker = MarkerManager.getMarkerPath(solo.toFile(), cfg);
+        Files.createDirectories(marker.getParent());
+        Files.createFile(marker);
+
+        Batch batch = new Batch(cfg.identity().runTimestamp() + "_mini_0001", "mini", null,
+                List.of(member(cfg, solo.toFile(), 0)));
+        BatchProcessor.process(batch, cfg, new BatchAuditWriter(
+                cfg.dirs().statusFilePath(), cfg.dirs().batchesFilePath(), cfg.dirs().lineageFilePath()));
+
+        // Output was produced and the input was backed up (side effects happened before the failure)...
+        try (Stream<Path> w = Files.walk(Path.of(cfg.dirs().database()))) {
+            assertTrue(w.anyMatch(p -> p.getFileName().toString().equals("solo_out.csv")));
+        }
+        assertTrue(Files.exists(Path.of(cfg.dirs().backup(), "solo.csv")));
+
+        // ...and crucially, the batch is still recorded — as FAILED, not silently dropped.
+        String batches = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
+        assertTrue(batches.contains(batch.batchId()), "batch must be audited even when commit fails");
+        assertTrue(batches.contains(",FAILED,"), "commit failure must be recorded as FAILED");
+    }
+
     @Test
     void singleMemberKeepsLegacyName(@TempDir Path dir) throws Exception {
         Path toon = PipelineConfigBatchTestRef.writePipeline(dir, "");

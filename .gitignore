@@ -4,7 +4,19 @@
 /backup/
 /database/
 /errors/
+/target/
 /file-processor/target/
 /file-processor-agent/target/
 /inbox/
 /markers/
+
+# Build / run artifacts that must never be committed
+*.class
+*.log
+*.dryrun
+
+# Dry-run and audit outputs produced by ad-hoc local runs in the module root
+/file-processor/available_files.csv*
+/file-processor/missing_files.csv*
+/file-processor/error_log.csv*
+/file-processor/status_unknown.csv*

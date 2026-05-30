@@ -1,6 +1,11 @@
 # v2.x Roadmap
 
-Tracks the 2.x line of work. Branch: `2.x` (current version `2.10.0`).
+> **Historical (archived).** This trio (`v2-roadmap.md` / `v2-backlog.md` / `v2-plan.md`) records the
+> completed 2.x line. Active development is on the **3.x** branch — see
+> [v3-architecture.md](v3-architecture.md), [v3-agent-mvp.md](v3-agent-mvp.md), and
+> [v3-plan.md](v3-plan.md).
+
+Tracks the 2.x line of work. Branch: `2.x` (final version `2.10.0`).
 
 v2 began as the place for **breaking changes** the 1.x line deliberately deferred —
 see [design-notes.md](design-notes.md) for the original deferral rationale — and grew into

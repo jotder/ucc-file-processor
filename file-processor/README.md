@@ -20,6 +20,24 @@ This README is the overview and quick start. Detailed topics live under [`../doc
 
 Engineering notes (not user-facing): [design decisions & deferred work](../docs/design-notes.md) · [performance & bottleneck analysis](../docs/performance.md) · [test coverage](../docs/test-coverage.md).
 
+**v3.x line** (current): the 3.x roadmap introduces an optional embedded AI assist agent and a
+machine-readable "Smart Config" model. See [v3 architecture & redesign](../docs/v3-architecture.md),
+the [assist-agent MVP](../docs/v3-agent-mvp.md), and the [v3 plan](../docs/v3-plan.md).
+
+---
+
+## Repository layout (v3.x)
+
+A two-module Maven reactor (parent POM at the repo root):
+
+| Module | Role |
+|---|---|
+| `file-processor/` | The lean, deployable ETL engine + control plane (this README). The fat-JAR; **stays zero-new-dependency**. |
+| `file-processor-agent/` | **Optional** embedded assist agent (v3.0 SPI scaffold). All AI/LLM dependencies live here only, so the core JAR stays lean. Loaded in-process by `SourceService` via `ServiceLoader` when present. |
+
+`cd file-processor && mvn clean package` builds just the core (the parent is resolved by relative
+path); `mvn clean package` at the repo root builds the whole reactor.
+
 ---
 
 ## Design philosophy in one paragraph
@@ -77,10 +95,23 @@ See [Configuration Reference](../docs/configuration.md) for what the generated f
 
 ### Run one source
 
+From the **repository root**, the bundled sample scripts run a pipeline end-to-end:
+
 ```powershell
-run.bat <data_source>          # Windows — resolves config/<data_source>/*_pipeline.toon
-bash run.sh <data_source>       # Linux / Mac
+run-adjustment.bat       # Windows — runs config/adjustment/adjustment_pipeline.toon
+run-voucher.bat          # Windows — runs config/voucher/voucher_unknown_pipeline.toon
+bash run-adjustment.sh   # Linux / Mac
+bash run-voucher.sh
 ```
+
+Or run any pipeline config directly (the scripts just wrap this):
+
+```powershell
+java -jar file-processor/target/file-processor-<version>.jar config/<source>/<source>_pipeline.toon
+```
+
+> The deploy bundle produced by `package.ps1` ships a generic `run.sh <adapter>` / `run.bat <adapter>`
+> that resolves `config/<adapter>/*_pipeline.toon` automatically.
 
 ### Run many sources concurrently
 

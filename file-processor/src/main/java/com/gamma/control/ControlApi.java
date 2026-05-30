@@ -1,5 +1,6 @@
 package com.gamma.control;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
 import com.gamma.etl.ConfigValidator;
@@ -402,7 +403,7 @@ public final class ControlApi implements AutoCloseable {
         try (InputStream in = ex.getRequestBody()) {
             byte[] raw = in.readAllBytes();
             if (raw.length == 0) return Map.of();
-            return json.readValue(raw, Map.class);
+            return json.readValue(raw, new TypeReference<Map<String, Object>>() {});
         }
     }
 

@@ -17,14 +17,9 @@
          module (file-processor-agent). -->
     <artifactId>file-processor</artifactId>
 
-    <properties>
-        <maven.compiler.source>24</maven.compiler.source>
-        <maven.compiler.target>24</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Default empty so surefire's @{argLine} resolves cleanly when JaCoCo is inactive
-             (normal 'mvn test'). The 'coverage' profile's prepare-agent goal overrides this. -->
-        <argLine></argLine>
-    </properties>
+    <!-- Compiler/encoding/argLine properties and the compiler + surefire plugin config are
+         inherited from the parent POM. Only the core-specific shade (fat-JAR) and the optional
+         jacoco 'coverage' profile live here. -->
 
     <dependencies>
         <!-- CSV Parsing -->
@@ -99,17 +94,11 @@
 
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
-            </plugin>
-
             <!--
                 Fat JAR — bundles all runtime dependencies into a single deployable JAR.
                 Build with:  mvn clean package
-                Run ETL:     java -cp file-processor-1.0.jar com.gamma.inspector.SourceProcessor  <pipeline.toon>
-                Gen schema:  java -cp file-processor-1.0.jar com.gamma.inspector.SchemaExtractor <args>
+                Run ETL:     java -cp file-processor-<version>.jar com.gamma.inspector.SourceProcessor  <pipeline.toon>
+                Gen schema:  java -cp file-processor-<version>.jar com.gamma.inspector.SchemaExtractor <args>
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -145,21 +134,10 @@
                 </executions>
             </plugin>
 
-            <!-- Surefire — JUnit 5 runner; native-access flag silences DuckDB JNI warnings on Java 24.
-                 @{argLine} is the late-bound property JaCoCo's prepare-agent goal sets; keeping it
-                 here lets the coverage agent attach without clobbering the native-access flag.
-                 When JaCoCo is inactive @{argLine} resolves to empty. -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.5</version>
-                <configuration>
-                    <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
-                </configuration>
-            </plugin>
-
-            <!-- JaCoCo — line/branch coverage. Activated by the 'coverage' profile so a normal
-                 'mvn test' is unaffected; run 'mvn -Pcoverage test' to instrument and report. -->
+            <!-- Surefire (JUnit 5 runner + native-access flag) is configured in the parent POM's
+                 <pluginManagement> and applies to this module's default-lifecycle test run.
+                 JaCoCo (line/branch coverage) is activated by the 'coverage' profile below so a
+                 normal 'mvn test' is unaffected; run 'mvn -Pcoverage test' to instrument. -->
         </plugins>
     </build>
 

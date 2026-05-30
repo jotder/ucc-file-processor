@@ -3,6 +3,12 @@
 # Working directory must be the sandbox root (the directory containing this script).
 set -euo pipefail
 cd "$(dirname "$0")"
+jar=$(ls -1 file-processor/target/file-processor-*.jar 2>/dev/null | head -n1)
+if [[ -z "${jar:-}" ]]; then
+  echo "ERROR: no JAR found matching file-processor/target/file-processor-*.jar" >&2
+  echo "       Run 'mvn clean package' first." >&2
+  exit 1
+fi
 java --enable-native-access=ALL-UNNAMED \
-     -jar file-processor/target/file-processor-1.0.jar \
+     -jar "$jar" \
      file-processor/config/adjustment/adjustment_pipeline.toon
