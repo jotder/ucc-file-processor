@@ -28,14 +28,13 @@ class JobServiceTest {
     }
 
     /** Poll until a run for {@code name} appears (or fail after 6s). */
+    /** Poll until the supplier yields a non-null run (or 10s elapse). Generous timeout so the
+     *  "eventually fires" assertions don't race a loaded CI runner; not the tight critical path. */
     private static JobRun await(Supplier<JobRun> s) throws Exception {
-        // 20s, not a tight window: these assert a scheduler/event eventually fires. On a loaded
-        // CI runner the daemon scheduler threads can be starved for several seconds (the heavy
-        // DuckDB suite runs alongside), so a small timeout flakes without indicating a real fault.
-        long deadline = System.nanoTime() + 20_000_000_000L;
+        long deadline = System.nanoTime() + 10_000_000_000L;
         JobRun r;
         while ((r = s.get()) == null && System.nanoTime() < deadline) Thread.sleep(50);
-        assertNotNull(r, "expected a job run within 20s");
+        assertNotNull(r, "expected a job run within 10s");
         return r;
     }
 
@@ -89,7 +88,11 @@ class JobServiceTest {
              JobService js = new JobService(List.of(tick), new BatchEventBus(), s, null,
                      dir.resolve("audit").toString())) {
             js.start();
-            JobRun run = await(() -> js.lastRunOf("tick").orElse(null));
+            // An every-second cron can re-fire while the first run is still in flight; that
+            // overlap is (correctly) recorded as SKIPPED. Assert on the first SUCCESSful fire,
+            // not merely the latest run — lastRunOf() may return a SKIPPED re-fire on a slow runner.
+            JobRun run = await(() -> js.runsFor("tick").stream()
+                    .filter(r -> "SUCCESS".equals(r.status())).findFirst().orElse(null));
             assertEquals("schedule", run.trigger(), "cron fire records the schedule trigger");
             assertEquals("SUCCESS", run.status());
         }
