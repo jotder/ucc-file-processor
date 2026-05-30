@@ -8,22 +8,29 @@ Architectural decisions, deferred work, and the reasoning behind them. Not user-
 
 ## Scope: M..N multiplexer (read this before adding features)
 
-The engine is an **M..N multiplexer**: M input files demultiplexed and routed
+> **v3.0 scope note.** This boundary governs **Stage-1** (the `com.gamma.etl` /
+> `com.gamma.inspector` multiplexer). The platform's **Stage-2 enrichment engine**
+> (`com.gamma.enrich`, 2.x) is the sanctioned home for joins/aggregation — so the rule below
+> is "don't add these *to the Stage-1 engine*," not "the platform never does them." When a
+> cross-record need arises, the answer is now **Stage-2**, not a foreign query tool. See
+> [v3-architecture.md](v3-architecture.md).
+
+The Stage-1 engine is an **M..N multiplexer**: M input files demultiplexed and routed
 into N partitioned outputs, with stateless per-record transformations only. This
 is a deliberate scope boundary, not a missing-features list. Full rationale is in
 [Architecture → Design Philosophy & Scope](architecture.md#design-philosophy--scope);
 the short version for contributors:
 
-**In scope:** type coercion, column selection/rename, partition-key derivation,
+**In scope (Stage-1):** type coercion, column selection/rename, partition-key derivation,
 `CONCAT_DT` / `FILENAME_DATE` composition. All per-record, all vectorizable.
 
-**Out of scope — do not add to the engine:** joins against reference/external
-data, cross-record aggregation (`GROUP BY` rollups, windowing, dedup), any state
-held across records or batches. These would force shared state, serialize the
-embarrassingly-parallel batch model, and break the clean routing. If a use case
-needs them, the answer is the **downstream** query layer (DuckLake / pg_duckdb
-over the Parquet output), not the multiplexer. When someone proposes a "quick
-lookup" or "just join this one table" feature, point them here first.
+**Out of scope for Stage-1 — do not add to the multiplexer engine:** joins against
+reference/external data, cross-record aggregation (`GROUP BY` rollups, windowing, dedup),
+any state held across records or batches. These would force shared state, serialize the
+embarrassingly-parallel batch model, and break the clean routing. The home for them is
+**Stage-2 enrichment** (`com.gamma.enrich`) — or, outside the platform, the **downstream**
+query layer (DuckLake / pg_duckdb over the Parquet output). When someone proposes a "quick
+lookup" or "just join this one table" feature *in Stage-1*, point them here first.
 
 ## Stability tiers (informal SemVer policy)
 

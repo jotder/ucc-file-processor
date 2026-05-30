@@ -4,6 +4,16 @@
 
 ## Design Philosophy & Scope
 
+> **Scope note (v3.0).** This page describes **Stage-1**: the M..N multiplexer ingest
+> engine (`com.gamma.etl` + `com.gamma.inspector`). The platform has since grown a
+> **Stage-2 enrichment engine** (`com.gamma.enrich`, shipped across the 2.x line) that
+> deliberately *does* the joins and aggregation listed below as Stage-1 non-goals — on the
+> Hive-partitioned Parquet output, orchestrated by the service/control plane. The non-goals
+> below are **still correct for Stage-1** (they are what keep each batch embarrassingly
+> parallel and crash-isolated); they are no longer platform-wide. The two-stage shape is
+> mapped in [v3-architecture.md](v3-architecture.md); Stage-2's design is in
+> [v2-plan.md](v2-plan.md). "Do it downstream" now has a first-class, in-platform answer.
+
 This is a deliberately small ETL engine built around one idea: an **M..N
 multiplexer**. A batch of **M** input files is demultiplexed and routed into
 **N** partitioned output files — explicitly *not* one-to-one. Understanding this
@@ -43,9 +53,10 @@ the kind of work that maps cleanly onto DuckDB's vectorized SQL:
 
 That's the whole transformation vocabulary. It's intentionally narrow.
 
-### Deliberate non-goals
+### Deliberate non-goals (Stage-1)
 
-The engine **does not** — by design, not by omission:
+The **Stage-1 ingest engine does not** — by design, not by omission (Stage-2 enrichment
+does these; see the scope note above):
 
 - **Join against external / reference data.** No dimension lookups, no
   enrichment from a second source, no foreign-key resolution.
@@ -67,6 +78,14 @@ Hive-partitioned Parquet output through the
 [warehouse query layer](integrations.md#warehouse-query-layer--dbeaver-via-pg_duckdb) or a
 DuckLake catalog, where a real SQL engine can join across the whole dataset. The
 multiplexer's job ends at partition-and-write.
+
+Since the 2.x line, that downstream answer is **first-class and in-platform**: the
+**Stage-2 enrichment engine** (`com.gamma.enrich`) reads the Hive-partitioned output as
+views and runs exactly these joins/aggregations as its own `transform` SQL, idempotently and
+incrementally (event- or schedule-driven), under the same service/control plane. So "do it
+downstream" no longer means "leave the platform" — Stage-1 stays a clean multiplexer, and
+Stage-2 owns the cross-record work. See [v3-architecture.md](v3-architecture.md) for the
+two-stage map.
 
 ### Format-specific configuration
 

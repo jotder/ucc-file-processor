@@ -1,6 +1,7 @@
 package com.gamma.service;
 
 import com.gamma.api.PublicApi;
+import com.gamma.assist.spi.AssistAgent;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.MultiSourceProcessor;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Stream;
@@ -76,6 +78,10 @@ public final class SourceService implements AutoCloseable {
             new MetricsService(this, com.gamma.metrics.MetricRegistry.global());
     /** Pipeline names an operator has paused; the poll cycle skips them (Control API, M3). */
     private final Set<String> paused = ConcurrentHashMap.newKeySet();
+    /** Optional embedded assist agent (v3.0, M0): discovered via {@link ServiceLoader} at
+     *  {@link #start()} or registered explicitly with {@link #registerAgent(AssistAgent)};
+     *  {@code null} when the {@code file-processor-agent} module is absent. */
+    private volatile AssistAgent agent;
 
     /** A pipeline's identity + current state, for the Control API's listing. */
     public record PipelineView(String name, String configPath, boolean paused, int committedBatches) {}
@@ -128,8 +134,40 @@ public final class SourceService implements AutoCloseable {
         return bus;
     }
 
+    /**
+     * Wire an embedded {@link AssistAgent} (v3.0, M0). Calls {@link AssistAgent#init(SourceService)}
+     * immediately so the agent can subscribe to the bus and capture typed handles <em>before</em>
+     * {@link #start()} schedules the first poll. Idempotent-ish: a second registration is ignored
+     * with a warning (one agent per service). Normally invoked automatically by {@link #start()}
+     * via {@link ServiceLoader}; exposed publicly so tests (and embedders) can supply a provider
+     * directly.
+     *
+     * @param a the agent provider; {@code null} is a no-op
+     */
+    public void registerAgent(AssistAgent a) {
+        if (a == null) return;
+        if (agent != null) {
+            log.warn("Assist agent '{}' already registered; ignoring '{}'", agent.name(), a.name());
+            return;
+        }
+        agent = a;
+        a.init(this);
+        log.info("Assist agent registered: {}", a.name());
+    }
+
+    /** The embedded assist agent, or empty when none is registered/discovered (v3.0). */
+    public Optional<AssistAgent> assistAgent() {
+        return Optional.ofNullable(agent);
+    }
+
     /** Report recovery state, wire enrichment, then schedule the recurring poll cycle. */
     public void start() {
+        // v3.0 (M0): discover an optional embedded assist agent on the classpath and wire it
+        // in before the bus gets its first event. No-op when the agent module is absent (no
+        // ServiceLoader provider) or one was already registered explicitly.
+        if (agent == null) {
+            ServiceLoader.load(AssistAgent.class).findFirst().ifPresent(this::registerAgent);
+        }
         for (Path p : registry) {
             try {
                 PipelineConfig cfg = PipelineConfig.load(p.toString());
@@ -149,6 +187,10 @@ public final class SourceService implements AutoCloseable {
         metrics.start();
         if (enrichment != null) enrichment.start();
         if (jobs != null) jobs.start();
+        if (agent != null) {
+            try { agent.start(); }
+            catch (Exception e) { log.warn("Assist agent '{}' start failed: {}", agent.name(), e.getMessage()); }
+        }
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
         log.info("SourceService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
                 registry.size(), pollSeconds, maxConcurrentRuns);
@@ -302,6 +344,10 @@ public final class SourceService implements AutoCloseable {
 
     @Override
     public void close() {
+        if (agent != null) {                           // release agent resources first
+            try { agent.close(); }
+            catch (Exception e) { log.warn("Error closing assist agent '{}': {}", agent.name(), e.getMessage()); }
+        }
         if (jobs != null) jobs.close();               // drain in-flight job runs first
         if (enrichment != null) enrichment.close();   // drain in-flight recomputes first
         scheduler.close();

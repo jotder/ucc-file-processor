@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.gamma.inspector</groupId>
+    <artifactId>file-processor-parent</artifactId>
+    <version>3.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>UCC File Processor (parent)</name>
+    <description>
+        Aggregator for the v3.x line. Two modules:
+        - file-processor       : the lean ETL engine + control plane (the deployable fat-JAR;
+                                 stays zero-new-dependency). Plays the "core" role in the v3
+                                 redesign; the directory/artifactId are kept as "file-processor"
+                                 so CI, package.ps1, and the release flow remain unchanged.
+        - file-processor-agent : OPTIONAL embedded assist agent. All AI/LLM dependencies live
+                                 here only; loaded in-process by SourceService when present.
+    </description>
+
+    <!--
+        Build the whole reactor from here:  mvn test   (root)
+        CI and package.ps1 still build the core alone from file-processor/ via the
+        <parent> relativePath below, so neither needed to change for the v3 module split.
+    -->
+    <modules>
+        <module>file-processor</module>
+        <module>file-processor-agent</module>
+    </modules>
+
+    <properties>
+        <maven.compiler.source>24</maven.compiler.source>
+        <maven.compiler.target>24</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <junit.version>5.10.2</junit.version>
+    </properties>
+</project>

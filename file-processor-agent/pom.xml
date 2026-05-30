@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>file-processor-agent</artifactId>
+    <packaging>jar</packaging>
+
+    <name>UCC File Processor — Assist Agent (optional)</name>
+    <description>
+        Optional embedded AI assist agent (v3.0). Implements the AssistAgent SPI from the
+        core module and is loaded in-process by SourceService when present on the classpath.
+
+        ALL AI/LLM dependencies (LangChain4j, the Ollama client, and — in connected builds —
+        hosted-model SDKs for Gemini/Claude/ChatGPT) belong ONLY in this module, so the core
+        fat-JAR stays lean. The air-gapped build omits hosted SDKs, making "local-only" a
+        packaging guarantee rather than a config flag.
+
+        M0 status: skeleton only — the SPI wiring plus a no-op provider that proves the
+        cross-module integration. Real skills (explain-entity, nl-to-schedule, suggest-config,
+        kpi-to-sql, diagnose-and-alert) arrive from M2 onward (see docs/v3-plan.md).
+    </description>
+
+    <properties>
+        <!-- Mirror the core module: keep @{argLine} resolvable when JaCoCo is inactive. -->
+        <argLine></argLine>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Native-access flag silences DuckDB JNI warnings pulled in transitively via core. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

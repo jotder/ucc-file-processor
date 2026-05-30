@@ -4,9 +4,18 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.gamma.inspector</groupId>
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>3.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <!-- The lean, deployable ETL engine + control plane (the "core" of the v3 split).
+         artifactId kept as "file-processor" so the fat-JAR name, CI, and release flow
+         are unchanged. Stays zero-new-dependency; the optional agent lives in a sibling
+         module (file-processor-agent). -->
     <artifactId>file-processor</artifactId>
-    <version>3.0.0-SNAPSHOT</version>
 
     <properties>
         <maven.compiler.source>24</maven.compiler.source>
