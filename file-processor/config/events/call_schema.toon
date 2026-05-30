@@ -1,0 +1,23 @@
+partitionKey: EVENT_TIMESTAMP
+raw:
+  name: CALL
+  format: CSV
+  fields[7]{name,selector,type,description,unit,classification}:
+    CALL_ID,"0",VARCHAR,"Unique identifier of the call detail record","","INTERNAL"
+    MSISDN,"1",VARCHAR,"Subscriber phone number that placed the call","","PII"
+    EVENT_TIMESTAMP,"2",TIMESTAMP,"UTC time the call started","","INTERNAL"
+    DURATION_SEC,"3",DOUBLE,"Billed call duration","seconds","INTERNAL"
+    BYTES,"4",DOUBLE,"Data volume transferred during the call","bytes","INTERNAL"
+    EVENT_TYPE,"5",VARCHAR,"Event class used for partitioning (CALL / SMS / DATA)","","INTERNAL"
+    REGION_CODE,"6",VARCHAR,"Network region where the call originated","","INTERNAL"
+mapping:
+  canonicalName: call
+  rawName: CALL
+  rules[7]{targetColumn,sourceExpression,transformType}:
+    CALL_ID,CALL_ID,DIRECT
+    MSISDN,MSISDN,DIRECT
+    EVENT_TIMESTAMP,EVENT_TIMESTAMP,DIRECT
+    DURATION_SEC,DURATION_SEC,DIRECT
+    BYTES,BYTES,DIRECT
+    EVENT_TYPE,EVENT_TYPE,DIRECT
+    REGION_CODE,REGION_CODE,DIRECT

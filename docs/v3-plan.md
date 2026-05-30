@@ -11,6 +11,15 @@ commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH releas
 Branch is at **`3.1.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; the foundation was hardened
 post-release — concurrency/audit fixes, cruft removal, CI reactor coverage).
 
+> **Status update (this revision):** the **Metadata Graph (M2)** is now **implemented** on the
+> branch — the `com.gamma.catalog` package (typed node/edge model, `MetadataGraphService` with a
+> cached structural graph + lazy operational overlay, `SchemaProjection`, `SemanticModel`, the
+> `DescriptionProvider` SPI), `SchemaExtractor` merge/preserve, the `*_meta.toon` loader, and the
+> `/catalog*` API. It was built **ahead of M1 (Smart Config)** at the user's direction (the data
+> keystone was the immediate need); M1 remains the next config-authoring prerequisite. Version
+> number for the metadata release is TBD (it may take **v3.1.0** since it lands first, with Smart
+> Config following) — see the note under M2.
+
 ## What changed in this revision (the "data keystone")
 
 The hero (`kpi-to-sql`) and even `explain-entity` need to know **what event tables a source
@@ -84,35 +93,56 @@ tagged + GH-released.
 - *Exit:* existing `load(path)` delegates to the new pipeline; all 2.x config tests green; the
   spec round-trips and validates the shipped sample configs.
 
-### M2 — Data Catalog + Semantic Schema (the data keystone) → v3.2.0
-*NEW. Makes the platform's emitted data self-describing: **what event tables exist** + **what
-their columns mean**. Zero-AI, UI-ready, consumed by every assist skill; the substrate
-`kpi-to-sql` and `explain-entity` stand on. Addresses architecture gap G8.*
-- **T2.1 — Schema description enrichment (in the `.toon`).** Extend the schema field model and
-  TOON tabular header from `fields[N]{name,selector,type}` → `fields[N]{name,selector,type,
-  description}` (and optional `unit` / `classification`). **Backward-compatible:** JToon is
-  header-driven, so existing 3-column files still parse (description ⇒ empty). Carry the field
-  through `PipelineConfig`/`SchemaSelector` and the M1 schema `ConfigSpec`. **`SchemaExtractor`
-  must merge/preserve** authored descriptions on regeneration (never clobber) — seed new columns
-  from heuristics, keep existing prose.
-- **T2.2 — `*_meta.toon` semantic descriptor** (a `ConfigSpec`-described type from M1; co-located
-  with enrichment configs, loaded by the same suffix-scan; `ConfigRegistry` entry). Holds the
-  **cross-table** layer the schema file can't: a **KPI catalog** (named KPI → NL definition,
-  grain, inputs, join keys), **domain notes** (units, currency, time-zone, "revenue excludes
-  tax"), and table-level descriptions. Draft validation via the M1 loader.
-- **T2.3 — `CatalogService`** (core, zero new deps): assemble the **catalog of available event
-  tables** across all sources from the `ConfigRegistry` — for each source/schema/segment and each
-  Stage-2 enrichment output: `{ tableId, source, eventType, stage(1|2), grain/partitionKeys[],
-  columns[{name,type,description,classification?}], producedBy, outputGlob }`, joined with the
-  `*_meta.toon` KPI/domain layer. **Config-derived + light verify (A-4):** optionally run a DuckDB
-  `DESCRIBE` over a `read_parquet` view to confirm column names/types against produced Parquet
-  (skipped when no data yet). Rebuilt on registry reload.
-- **T2.4 — Catalog API:** `GET /catalog` (tables: id, source, eventType, grain, stage),
-  `GET /catalog/tables/{id}` (columns + descriptions + grain + lineage), `GET /catalog/kpis`
-  (KPI catalog + domain notes). Scoped (`assist.read` / `CONTROL`). Feeds both the UI and the agent.
-- *Exit:* every emitted event table is enumerable with domain-described columns; the KPI catalog +
-  domain notes load, validate, and round-trip; the catalog API serves a sample source end-to-end;
-  the shipped sample schemas gain real descriptions.
+### M2 — Metadata Graph (the data keystone) → v3.x ✅ *implemented*
+*Makes the platform's emitted data self-describing **and connected**: a typed, traversable graph
+linking sources → raw schemas → columns → partitioned event tables → Stage-2 transforms →
+KPIs/reports, with operational state (status/lineage/completeness/error) overlaid on every node and
+descriptions sourced three ways (**manual > AI > deduced**). Core, zero-new-dependency, API-first,
+consumed by every assist skill; the substrate `kpi-to-sql` and `explain-entity` stand on. Addresses
+architecture gap G8.*
+
+**Build decisions (confirmed):** **graph-API-only** this milestone (rendering deferred to the Web
+UI); **AI descriptions arrive at M3** via the `DescriptionProvider` SPI (this milestone is fully
+core / zero-AI — the seam ships with a no-op provider); the graph is **derived + cached (live)** —
+structural graph cached & rebuilt on reload, operational overlay fetched lazily per node by reusing
+the existing audit reads. New package: `com.gamma.catalog`.
+
+- **T2.1 — Schema description enrichment (in the `.toon`).** ✅ Extended the schema tabular header
+  `fields[N]{name,selector,type}` → `…{name,selector,type,description}` (+ optional `unit`,
+  `classification`). **Backward-compatible:** JToon parses each row positionally against its own
+  header, and the ETL data path reads only `name`/`type` — so 3-column files still parse and the
+  extra columns are invisible to ingest (regression-guarded by the unchanged data-path tests).
+  Only `SchemaProjection` reads them. **`SchemaExtractor` now merges/preserves** authored prose on
+  regeneration (matched by column name, never clobbered; header stays uniform).
+- **T2.2 — `*_meta.toon` semantic descriptor** (`SemanticModel`). ✅ Co-located with enrichment
+  configs, loaded by the same suffix-scan (`*_meta.toon`). Holds the **cross-table** layer: a
+  **KPI catalog** (named KPI → NL definition, grain, inputs, join keys), **domain notes** (units,
+  currency, time-zone, "revenue excludes tax"), and table-level descriptions. Refs may be plain or
+  fully-prefixed node ids (quoted in inline arrays).
+- **T2.3 — `MetadataGraphService`** (core, zero new deps). ✅ Assembles a typed **node/edge graph**
+  from a `ConfigSource` seam (pipelines + enrichments + semantic models): node kinds SOURCE,
+  RAW_SCHEMA, COLUMN, EVENT_TABLE, TRANSFORMED_TABLE, REFERENCE_TABLE, KPI, REPORT; edges EMITS,
+  DECLARES, DESCRIBES, MATERIALIZES, FEEDS, JOINS_INTO, COMPUTED_FROM, USES. Structural graph cached
+  & invalidated on each poll cycle (swaps to the M1 `ConfigRegistry` watch later). Operational
+  overlay (`CatalogOverlay`) fetched **lazily per node**, reusing `StatusStore`/`EnrichmentService`
+  reads (status, cumulative rows/bytes, parsed/error rows, lineage; `NO_DATA` when nothing
+  committed). BFS traversal with direction / node-kind / edge-kind filters. Light DuckDB `DESCRIBE`
+  verify (A-4) remains an optional follow-up.
+- **T2.4 — Catalog API.** ✅ `GET /catalog` (table list), `GET /catalog/tables/{id}` (node +
+  overlay + neighbours), `GET /catalog/kpis` (KPI catalog + domain notes), and a traversable
+  `GET /catalog/graph?from=&depth=&direction=&kinds=&edgeKinds=&overlay=`. Scoped `assist.read`
+  (satisfied by `CONTROL`); feeds both the UI and the agent.
+- **T2.5 — `DescriptionProvider` SPI** (`com.gamma.catalog.spi`). ✅ ServiceLoader-discovered seam;
+  fills only `NONE`-provenance columns, never overwrites authored prose. Core ships a no-op; the
+  `file-processor-agent` module registers an AI-backed provider at M3 with zero core change.
+- *Exit:* ✅ every emitted event table is enumerable with domain-described columns; the KPI catalog
+  + domain notes load and round-trip; the catalog + graph API serve a sample source end-to-end
+  (HTTP-tested); shipped sample schema (`config/events/call_schema.toon`) carries real descriptions;
+  full reactor green (237 core + 2 agent), lean core unchanged.
+
+> **Version note.** Planned as v3.2.0 *after* M1, but built first. The metadata release can take
+> **v3.1.0** (it lands first; Smart Config follows as v3.2.0) or keep **v3.2.0** (leaving 3.1.0 for
+> Smart Config, shipped out of order). Decision pending; the branch stays `3.1.0-SNAPSHOT` until then.
 
 ### M3 — Assist platform + first slice `explain-entity` (read-only) → v3.3.0
 - **T3.1** `file-processor-agent`: LangChain4j + Ollama client; `AssistAgent` SPI impl; model
@@ -191,8 +221,9 @@ draft-only (V-9) to one-click-apply: `POST/PUT /configs` validate-and-persist vi
 
 ---
 
-**Net sequence:** M0 foundation ✅ → **M1 Smart Config (config keystone)** → **M2 Data Catalog +
-Semantic Schema (data keystone)** → M3 assist platform + `explain-entity` → M4 `nl-to-schedule`
-→ M5 `suggest-config` → **M6 `kpi-to-sql` + SQL sandbox** → M7 `diagnose-and-alert` → (M8 reports)
-→ CRUD fast-follow → UI/distributed deferred. One minor release per milestone on `3.x`, additive,
-suite-green, lean core preserved.
+**Net sequence:** M0 foundation ✅ → **M2 Metadata Graph (data keystone)** ✅ *(built first, at the
+user's direction)* → **M1 Smart Config (config keystone)** → M3 assist platform + `explain-entity`
+(consumes the catalog; adds the AI `DescriptionProvider`) → M4 `nl-to-schedule` → M5 `suggest-config`
+→ **M6 `kpi-to-sql` + SQL sandbox** (grounds on the catalog/KPI catalog) → M7 `diagnose-and-alert`
+→ (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor release per milestone on
+`3.x`, additive, suite-green, lean core preserved.

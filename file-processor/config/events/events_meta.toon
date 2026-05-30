@@ -1,0 +1,28 @@
+name: events_semantics
+version: 1
+tables:
+  events/CALL:
+    description: "One row per voice call detail record (Stage-1 partitioned output)"
+    grain: "event_type, year, month, day"
+  EVENTS_DAILY_KPI:
+    description: "Daily event volume per type and region (Stage-2 rollup)"
+    grain: "event_type, year, month, day"
+kpis:
+  event_count:
+    definition: "Number of events of a given type per day"
+    grain: "event_type, day"
+    inputs[1]: "EVENTS_DAILY_KPI"
+    join_keys[1]: event_type
+  arpu:
+    definition: "Average revenue per user over the billing month (revenue excludes tax)"
+    grain: "msisdn, month"
+    inputs[2]: "events/CALL", "EVENTS_DAILY_KPI"
+    join_keys[1]: msisdn
+reports:
+  events_daily:
+    description: "Operator-facing daily event volume report"
+    uses[2]: "event_count", "EVENTS_DAILY_KPI"
+domain:
+  currency: "USD"
+  timezone: "UTC"
+  notes[2]: "Revenue figures exclude tax", "Timestamps are UTC; local time is region-dependent"

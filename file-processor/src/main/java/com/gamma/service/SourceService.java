@@ -2,6 +2,10 @@ package com.gamma.service;
 
 import com.gamma.api.PublicApi;
 import com.gamma.assist.spi.AssistAgent;
+import com.gamma.catalog.CatalogOverlay;
+import com.gamma.catalog.ConfigSource;
+import com.gamma.catalog.MetadataGraphService;
+import com.gamma.catalog.SemanticModel;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.MultiSourceProcessor;
@@ -90,6 +94,10 @@ public final class SourceService implements AutoCloseable {
      *  {@link #start()} or registered explicitly with {@link #registerAgent(AssistAgent)};
      *  {@code null} when the {@code file-processor-agent} module is absent. */
     private volatile AssistAgent agent;
+    /** Loaded {@code *_meta.toon} semantic models (KPI catalog + domain notes) feeding the catalog. */
+    private final List<SemanticModel> semanticModels;
+    /** The metadata graph / data catalog (M2): config-derived structure + lazy operational overlay. */
+    private final MetadataGraphService catalog;
 
     /** A pipeline's identity + current state, for the Control API's listing. */
     public record PipelineView(String name, String configPath, boolean paused, int committedBatches) {}
@@ -124,6 +132,20 @@ public final class SourceService implements AutoCloseable {
     public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          List<JobConfig> jobConfigs, long pollSeconds, int maxConcurrentRuns,
                          StatusStore statusStore) {
+        this(registry, enrichJobs, jobConfigs, List.of(), pollSeconds, maxConcurrentRuns, statusStore);
+    }
+
+    /**
+     * Full constructor (v3.2.0). Adds the {@code *_meta.toon} semantic models that feed the
+     * metadata graph / data catalog ({@link #catalog()}). The catalog projects the configured
+     * pipelines, schemas, event tables, Stage-2 transforms, and this semantic layer into a typed,
+     * traversable graph, with operational state overlaid lazily from the existing audit reads.
+     *
+     * @param semanticModels loaded {@code *_meta.toon} models (KPI catalog + domain notes); empty is fine
+     */
+    public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+                         List<JobConfig> jobConfigs, List<SemanticModel> semanticModels,
+                         long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
         this.registry          = List.copyOf(registry);
         this.pollSeconds       = Math.max(1, pollSeconds);
         this.maxConcurrentRuns = Math.max(1, maxConcurrentRuns);
@@ -135,6 +157,26 @@ public final class SourceService implements AutoCloseable {
                 ? null
                 : new JobService(jobConfigs, bus, scheduler, reports,
                         System.getProperty("jobs.audit.dir", "jobs_audit"));
+        this.semanticModels    = List.copyOf(semanticModels);
+
+        // The catalog reads configs through a ConfigSource seam (reloading paths today; the M1
+        // ConfigRegistry will implement the same seam later) and overlays operational state by
+        // reusing the existing StatusStore / EnrichmentService audit reads.
+        ConfigSource configSource = new ConfigSource() {
+            public List<PipelineConfig> pipelines() { return loadConfigs(); }
+            public List<EnrichmentConfig> enrichments() {
+                return enrichment != null ? enrichment.configs() : List.of();
+            }
+            public List<SemanticModel> semantics() { return SourceService.this.semanticModels; }
+        };
+        CatalogOverlay.Stage2Reads stage2 = enrichment == null ? null : new CatalogOverlay.Stage2Reads() {
+            public boolean hosts(String job) { return enrichment.config(job).isPresent(); }
+            public List<Map<String, String>> runs(String job) { return enrichment.runs(job); }
+            public List<Map<String, String>> lineage(String job, String runId) {
+                return enrichment.lineage(job, runId);
+            }
+        };
+        this.catalog = new MetadataGraphService(configSource, new CatalogOverlay(this::configFor, status, stage2));
     }
 
     /** The bus carrying committed-batch events; subscribe before {@link #start()}. */
@@ -233,6 +275,10 @@ public final class SourceService implements AutoCloseable {
             syncStatus();
             return r;
         } finally {
+            // Configs are reloaded each cycle, so drop the cached structural graph; the next
+            // catalog access rebuilds it (cheap, config-only). Swaps to a ConfigRegistry watch
+            // callback when M1 lands.
+            catalog.invalidate();
             ingestLock.unlock();
         }
     }
@@ -282,6 +328,11 @@ public final class SourceService implements AutoCloseable {
     /** The Stage-2 enrichment service, or empty when no enrichment jobs are registered (v2.9.0). */
     public Optional<EnrichmentService> enrichmentService() {
         return Optional.ofNullable(enrichment);
+    }
+
+    /** The metadata graph / data catalog (M2, v3.2.0): always present (core, zero-AI by default). */
+    public MetadataGraphService catalog() {
+        return catalog;
     }
 
     /** List each registered pipeline with its current paused state and commit count. */
@@ -405,6 +456,7 @@ public final class SourceService implements AutoCloseable {
         List<Path> registry = MultiSourceProcessor.resolveConfigs(args);
         List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(args, "_enrich.toon"));
         List<JobConfig> jobConfigs = loadJobs(resolveBySuffix(args, "_job.toon"));
+        List<SemanticModel> semantics = loadSemantics(resolveBySuffix(args, "_meta.toon"));
         if (registry.isEmpty() && enrichJobs.isEmpty() && jobConfigs.isEmpty()) {
             System.err.println("No *_pipeline.toon / *_enrich.toon / *_job.toon files found in: "
                     + String.join(", ", args));
@@ -412,7 +464,7 @@ public final class SourceService implements AutoCloseable {
         }
         long pollSeconds = Long.getLong("service.poll.seconds", 60L);
         int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
-        return new SourceService(registry, enrichJobs, jobConfigs, pollSeconds, maxRuns, buildStatusStore());
+        return new SourceService(registry, enrichJobs, jobConfigs, semantics, pollSeconds, maxRuns, buildStatusStore());
     }
 
     /** Default DuckDB status database file when {@code status.backend=db} and no URL is given. */
@@ -471,6 +523,20 @@ public final class SourceService implements AutoCloseable {
             }
         }
         return jobs;
+    }
+
+    /** Load each {@code *_meta.toon} semantic model; a bad one is warned and skipped. */
+    private static List<SemanticModel> loadSemantics(List<Path> paths) {
+        List<SemanticModel> models = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                models.add(SemanticModel.load(p.toString()));
+                log.info("Registered semantic model from {}", p);
+            } catch (Exception e) {
+                log.warn("Could not load semantic model {}: {}", p, e.getMessage());
+            }
+        }
+        return models;
     }
 
     /** Load each {@code *_job.toon}; a bad one is warned and skipped (others still host). */

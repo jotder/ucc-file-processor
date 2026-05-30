@@ -1,0 +1,3 @@
+# Lean-core default: abstains from all descriptions. The file-processor-agent module
+# registers an AI-backed provider at M3 via its own service file (no core change).
+com.gamma.catalog.spi.NoopDescriptionProvider

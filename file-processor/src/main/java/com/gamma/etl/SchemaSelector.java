@@ -4,7 +4,9 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.PathMatcher;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
@@ -77,6 +79,19 @@ public final class SchemaSelector {
     /** Returns {@code true} when this selector has at least one schema registered. */
     public boolean hasSchemas() {
         return !schemaByColCount.isEmpty();
+    }
+
+    /**
+     * A read-only view of every registered schema paired with its target table, in priority
+     * (insertion) order. Used by the metadata catalog to enumerate the event tables a
+     * multi-schema source emits without re-parsing config; not used on the ingest hot path.
+     */
+    public List<Selection> entries() {
+        List<Selection> out = new ArrayList<>();
+        for (Map.Entry<Integer, Map<String, Object>> e : schemaByColCount.entrySet()) {
+            out.add(new Selection(e.getValue(), tableByColCount.get(e.getKey())));
+        }
+        return out;
     }
 
     // ── selection ─────────────────────────────────────────────────────────────

@@ -158,6 +158,11 @@ public class SchemaExtractor {
             File genConfigFile = new File(genConfigPath);
             String outputDir = genConfigFile.getParent() != null ? genConfigFile.getParent() : ".";
 
+            String schemaPath = outputDir + "/" + sourceName + "_schema.toon";
+            // Preserve any operator-authored prose (description/unit/classification) from a prior
+            // generation: match by column name and never clobber authored text with re-derivation.
+            mergeDescriptions(fields, readExistingDescriptions(schemaPath));
+
             // ── 1. Generate Schema Config ──────────────────────────────────────
             Map<String, Object> schemaConfig = new LinkedHashMap<>();
             schemaConfig.put("partitionKey", potentialPartitionKey);
@@ -183,7 +188,6 @@ public class SchemaExtractor {
             mapping.put("rules", rules);
             schemaConfig.put("mapping", mapping);
 
-            String schemaPath = outputDir + "/" + sourceName + "_schema.toon";
             Files.writeString(Paths.get(schemaPath), JToon.encode(schemaConfig), StandardCharsets.UTF_8);
             System.out.println("Generated schema : " + schemaPath);
 
@@ -270,6 +274,78 @@ public class SchemaExtractor {
 
     private static int toInt(Object val) {
         return Integer.parseInt(String.valueOf(val));
+    }
+
+    // ── description merge / preserve ────────────────────────────────────────────
+
+    /**
+     * Free-text, operator-authored keys carried over from an existing schema when a column of
+     * the same name reappears in a regenerated schema. These never come from type inference, so
+     * regeneration must preserve them rather than overwrite with blanks.
+     */
+    static final List<String> PRESERVED_KEYS = List.of("description", "unit", "classification");
+
+    /**
+     * Read the authored metadata ({@link #PRESERVED_KEYS}) from an existing {@code _schema.toon},
+     * keyed by column name. Only non-blank values are returned. Absent or unreadable files yield
+     * an empty map — regeneration must never fail because of a malformed prior file.
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Map<String, String>> readExistingDescriptions(String schemaPath) {
+        Map<String, Map<String, String>> byName = new LinkedHashMap<>();
+        try {
+            File f = new File(schemaPath);
+            if (!f.exists()) return byName;
+            Object decoded = JToon.decode(Files.readString(f.toPath(), StandardCharsets.UTF_8));
+            if (!(decoded instanceof Map<?, ?> cfg) || !(cfg.get("raw") instanceof Map<?, ?> raw)
+                    || !(raw.get("fields") instanceof List<?> list)) {
+                return byName;
+            }
+            for (Object o : list) {
+                if (!(o instanceof Map<?, ?> fld) || fld.get("name") == null) continue;
+                Map<String, String> carried = new LinkedHashMap<>();
+                for (String k : PRESERVED_KEYS) {
+                    Object v = fld.get(k);
+                    if (v != null && !String.valueOf(v).isBlank()) carried.put(k, String.valueOf(v));
+                }
+                if (!carried.isEmpty()) byName.put(String.valueOf(fld.get("name")), carried);
+            }
+        } catch (Exception e) {
+            System.err.println("Could not read existing schema for description merge ("
+                    + schemaPath + "): " + e.getMessage());
+        }
+        return byName;
+    }
+
+    /**
+     * Merge authored metadata from a prior schema into freshly-extracted fields, matching by
+     * column <em>name</em> (column order may shift between samples).
+     *
+     * <p>If no column carries any authored value the fields are left untouched at three columns
+     * ({@code name/selector/type}) — first-time generation and description-free schemas keep their
+     * exact prior shape. If any column carries a key, that key is added to <em>every</em> field
+     * (empty when absent) so the TOON tabular array stays header-uniform.
+     */
+    static void mergeDescriptions(List<Map<String, String>> freshFields,
+                                  Map<String, Map<String, String>> existingByName) {
+        if (existingByName.isEmpty()) return;
+
+        Set<String> activeKeys = new LinkedHashSet<>();
+        for (Map<String, String> fld : freshFields) {
+            Map<String, String> carried = existingByName.get(fld.get("name"));
+            if (carried == null) continue;
+            for (Map.Entry<String, String> e : carried.entrySet()) {
+                fld.put(e.getKey(), e.getValue());
+                activeKeys.add(e.getKey());
+            }
+        }
+        if (activeKeys.isEmpty()) return;
+
+        // Header-uniform fill, in stable PRESERVED_KEYS order.
+        for (String k : PRESERVED_KEYS) {
+            if (!activeKeys.contains(k)) continue;
+            for (Map<String, String> fld : freshFields) fld.putIfAbsent(k, "");
+        }
     }
 
     // ── DuckDB → toon type mapping ─────────────────────────────────────────────

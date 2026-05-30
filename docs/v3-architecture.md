@@ -66,7 +66,7 @@ Distilled from the code review; these set the redesign agenda.
 | G5 | **TOON footguns** must be "known": quote any value containing `:` (Windows paths/JDBC URLs), **no `#` comments** (a shipped sample violates this), map-vs-tabular array choice is load-bearing. | An AI/UI emitting raw `.toon` will trip these; needs a schema-aware serializer. |
 | G6 | **SQL runs on an unsandboxed DuckDB connection** with full filesystem/extension access; no resident schema-loaded connection to reuse. | Agent-generated SQL needs a separate locked-down oracle (see v3-agent-mvp security). |
 | G7 | **Coarse security:** one shared bearer token, **open-by-default with a warning**, non-constant-time compare. | An LLM-driven surface needs scoped tokens + fail-closed. |
-| G8 | **No semantic/business metadata** (schema model is `{name,selector,type}` only) **and no catalog of emitted event tables**. | NL→SQL has nothing to ground on. *(Addressed by the M2 data keystone: schema `description` column + `*_meta.toon` + `CatalogService`.)* |
+| G8 | **No semantic/business metadata** (schema model is `{name,selector,type}` only) **and no catalog of emitted event tables**. | NL→SQL has nothing to ground on. *(**Resolved** by the M2 Metadata Graph: schema `description`/`unit`/`classification` columns + `*_meta.toon` KPI catalog + `MetadataGraphService` — a typed, traversable graph of sources → schemas → columns → event tables → transforms → KPIs/reports with a lazy operational overlay, served at `/catalog*`.)* |
 | G9 | **`SourceService` is a god-object** (registry + status sync + pause state + store selection + recovery) and `MetricRegistry.global()` is a process-wide singleton. | Harder to embed, test in isolation, or serve multi-tenant from a BFF. |
 | G10 | **No config write path.** All configs are disk-loaded at startup/poll; `ControlApi` has read + lifecycle routes but no create/update-config. | Agent config skills are draft-only until write endpoints exist. |
 
@@ -147,11 +147,13 @@ the `_enrich.toon` suffix is a concrete symptom).
 - **`SqlOracle`** extracted from `EnrichmentEngine`'s view-registration logic, run on a
   **locked-down** DuckDB connection (no external access, statement allow-list) — the validator
   for `kpi-to-sql`/`report-sql`.
-- **Data Catalog + Semantic layer** (the **data keystone**, promoted to M2 — see
-  [v3-plan.md](v3-plan.md)) = a column **`description`** in the schema `.toon` + a new
-  **`*_meta.toon`** (KPI catalog + domain notes), both `ConfigSpec`-described, assembled by a
-  **`CatalogService`** into a queryable catalog of the **available event tables** each source
-  emits (grain, partition keys, domain-described columns). This is what `kpi-to-sql` and
+- **Metadata Graph** (the **data keystone**, M2 — **implemented**, see [v3-plan.md](v3-plan.md)) =
+  schema-`.toon` `description`/`unit`/`classification` columns + a new **`*_meta.toon`** (KPI
+  catalog + domain notes), assembled by **`MetadataGraphService`** into a typed, traversable graph
+  (sources → raw schemas → columns → emitted event tables → Stage-2 transforms → KPIs/reports) with
+  a **lazy operational overlay** (status/lineage/completeness/error reused from the audit reads) and
+  a **`DescriptionProvider` SPI** (manual > AI > deduced; AI lands at M3). Served at `/catalog`,
+  `/catalog/tables/{id}`, `/catalog/kpis`, `/catalog/graph`. This is what `kpi-to-sql` and
   `explain-entity` ground on.
 - **Failure-diagnoser** subscribes to the (enriched) FAILED `BatchEvent`s, hands off async.
 
@@ -182,7 +184,7 @@ renderer of specs + a caller of assist intents, not a hand-built form for every 
 | **`SqlOracle` + locked-down DuckDB connection** | extract from `EnrichmentEngine`; `com.gamma.config`/agent | G6 | with `kpi-to-sql` |
 | **Security hardening** (scoped tokens, constant-time compare, no open default) | `ControlApi` | G7 | MVP |
 | **Enrich `BatchEvent` with error detail + non-filtering subscriber** | `etl`/`service` | C1 alerts | MVP |
-| **Data Catalog + Semantic Schema** (schema `description` column + `*_meta.toon` + `CatalogService` + `/catalog` API) | `com.gamma.config`/`service`, schema model, `ControlApi` | G8 | **M2 — the data keystone (before any skill)** |
+| **Metadata Graph** (schema `description`/`unit`/`classification` columns + `*_meta.toon` + `MetadataGraphService` + `CatalogOverlay` + `DescriptionProvider` SPI + `/catalog*` API) | new `com.gamma.catalog`(`.spi`), `SchemaExtractor`, `SchemaSelector`, `SourceService`, `ControlApi` | G8 | **M2 — the data keystone ✅ implemented (built ahead of M1)** |
 | **`SourceService` decomposition** (extract `ConfigRegistry`, separate status-sync) | `com.gamma.service` | G9 | opportunistic, low-risk slices |
 | **Config write endpoints** (CRUD-from-body) | `ControlApi` | G10 | fast-follow after MVP |
 | **`MetricRegistry` non-singleton option** | `com.gamma.metrics` | G9 | deferred (only if multi-tenant) |
