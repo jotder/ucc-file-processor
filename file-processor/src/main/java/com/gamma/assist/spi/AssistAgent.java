@@ -1,6 +1,8 @@
 package com.gamma.assist.spi;
 
 import com.gamma.api.PublicApi;
+import com.gamma.assist.AssistRequest;
+import com.gamma.assist.AssistResult;
 import com.gamma.service.SourceService;
 
 /**
@@ -45,6 +47,23 @@ public interface AssistAgent extends AutoCloseable {
 
     /** Called after {@link SourceService#start()}. Default no-op. */
     default void start() {}
+
+    /**
+     * Handle one assist request and return a validated, ready-to-surface result (v3.3.0). The
+     * {@code request.intent()} selects the skill; an agent that doesn't recognise it returns
+     * {@link AssistResult#unsupported(String)} (the default). A skill whose model is unavailable
+     * returns {@link AssistResult#unavailable(String, String)}. The control plane maps the
+     * {@link AssistResult.Status} onto an HTTP status.
+     *
+     * <p>This is an <b>additive</b> default so existing providers (e.g. the M0 no-op) keep
+     * compiling and behaving unchanged. Implementations must never throw for an unknown intent or
+     * a down model — they report it through the returned {@link AssistResult}.
+     *
+     * @since 3.3.0
+     */
+    default AssistResult assist(AssistRequest request) {
+        return AssistResult.unsupported(request.intent());
+    }
 
     /** Released on service shutdown. Default no-op. */
     @Override default void close() {}

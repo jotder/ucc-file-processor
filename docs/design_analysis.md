@@ -21,6 +21,15 @@ The codebase has successfully completed the prerequisite foundation for `3.x`:
 3. **Noop implementation:** Added [NoopAssistAgent.java](file:///c:/sandbox/ucc-file-processor/file-processor-agent/src/main/java/com/gamma/agent/NoopAssistAgent.java) to prove wiring and classpath isolation.
 4. **Security Hardening:** Secured `ControlApi` ([ControlApi.java](file:///c:/sandbox/ucc-file-processor/file-processor/src/main/java/com/gamma/control/ControlApi.java)) with hierarchical scoped API tokens (`CONTROL`, `assist.write`, `assist.read`), constant-time token comparison, and a strict **fail-closed** mode (no open-by-default behavior if tokens are omitted).
 
+> **✅ Shipped since this analysis:** **M1** Metadata Graph (data keystone, v3.1.0), **M2** Smart Config
+> (config keystone, v3.2.0 — see §4.A), and **M3** Assist platform + `explain-entity` (v3.3.0). M3 deltas
+> from the roadmap sketch: the model seam shipped as **`ModelProvider`/`ModelRouter`/`AssistProfile`**
+> over **LangChain4j + Ollama** (the originally-locked client, behind the seam) rather than a thin
+> hand-rolled client; providers are **abstain-by-default** (no model I/O until `-Dassist.enabled=true`,
+> so CI runs CPU-only against a deterministic `FakeModelProvider`); hosted SDKs are **absent by
+> packaging** (no egress possible). The mermaid below predates the keystone insertion — read milestone
+> numbers as M0→M1(graph)→M2(config)→M3(assist).
+
 ---
 
 ## 2. Technical Gap Analysis (The Path to v3.x)

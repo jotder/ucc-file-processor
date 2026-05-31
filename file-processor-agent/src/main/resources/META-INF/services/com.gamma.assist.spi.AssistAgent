@@ -1,0 +1,4 @@
+# UCC File Processor — assist agent provider (v3.3.0, M3).
+# Discovered in-process by SourceService.start() via ServiceLoader when this optional module is
+# on the classpath. Abstain-safe: it contacts no model until the assist layer is enabled.
+com.gamma.agent.UccAssistAgent

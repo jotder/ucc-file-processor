@@ -8,9 +8,9 @@ sequenced task list. Each milestone is independently releasable as a minor versi
 `3.x` branch, mirroring the 2.x cadence (one minor release per milestone: feature → release
 commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH release).
 
-Branch is at **`3.3.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
-M2 Smart Config as **v3.2.0**). The foundation was hardened post-v3.0.0 — concurrency/audit fixes,
-cruft removal, CI reactor coverage.
+Branch is at **`3.4.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
+M2 Smart Config as **v3.2.0**; M3 Assist platform + `explain-entity` as **v3.3.0**). The foundation
+was hardened post-v3.0.0 — concurrency/audit fixes, cruft removal, CI reactor coverage.
 
 > **Status update (this revision):** **both keystones have shipped.** The **Metadata Graph** (data
 > keystone) shipped as **v3.1.0** — the `com.gamma.catalog` package, `SchemaExtractor` merge/preserve,
@@ -21,7 +21,13 @@ cruft removal, CI reactor coverage.
 > canonical `ConfigCodec`, the parse/`prepare` split in `PipelineConfig` (+ `fromMap` on
 > `EnrichmentConfig`/`JobConfig`), the O(1) `ConfigRegistry` (replacing the O(n) re-parse scans and
 > backing the catalog's `ConfigSource` seam), and the `GET /config/spec/{type}` + draft `POST /validate`
-> API. The assist skills (M3+) are unchanged — both keystones precede them.
+> API. **M3 has now shipped as v3.3.0** — the assist platform goes live: LangChain4j + Ollama behind a
+> `ModelProvider` seam (abstain-safe, local-first), a `SkillRegistry`, the read-only `explain-entity`
+> skill (grounded on the M1 catalog + Control API reads + `docs/*.md`, with derived citations), the
+> `POST /assist/{intent}` route (scope `assist.read`), and the AI `DescriptionProvider` that auto-fills
+> blank catalog descriptions (`Provenance.AI`, never overwriting `MANUAL`). All AI deps live in the
+> optional `file-processor-agent` module; the core fat-JAR stays zero-AI. Golden tests run CPU-only
+> (a deterministic fake model — no Ollama in CI).
 
 ## What changed in this revision (the "data keystone")
 
@@ -45,7 +51,7 @@ every skill. The assist skills (explain-entity → … → kpi-to-sql) sit at M3
 | V-1 | Agent topology | Embedded in-JVM via an `AssistAgent` SPI loaded by `SourceService` |
 | V-2 | Model provider | Per-env pluggable; **air-gapped = local-only, enforced by packaging** |
 | V-3 | First skill slice | `explain-entity` (read-only) |
-| V-4 | Semantic layer | **Shipped as the M1 Metadata Graph:** `description`/`unit`/`classification` columns in the schema `.toon` + a **`*_meta.toon`** (KPI catalog + domain notes), assembled by `MetadataGraphService` into a typed, traversable graph with a lazy operational overlay (`/catalog*`); descriptions ranked manual > AI > deduced via a `DescriptionProvider` SPI (AI at M3) |
+| V-4 | Semantic layer | **Shipped as the M1 Metadata Graph:** `description`/`unit`/`classification` columns in the schema `.toon` + a **`*_meta.toon`** (KPI catalog + domain notes), assembled by `MetadataGraphService` into a typed, traversable graph with a lazy operational overlay (`/catalog*`); descriptions ranked manual > AI > deduced via a `DescriptionProvider` SPI (**AI provider shipped at M3 / v3.3.0**) |
 | V-5 | Default 7B driver | Qwen2.5-7B-Instruct; 14B for `kpi-to-sql` in prod |
 | V-6 | Hosted choice | Pluggable Gemini / Claude / ChatGPT (absent in air-gapped build) |
 | V-7 | Assist auth | Separate scoped token tier; no open default |
@@ -154,17 +160,27 @@ slot onto this milestone's `ConfigRegistry` — and now does, with zero `Metadat
   unchanged (regression proof); the codec round-trips every shipped sample; full reactor green
   (**277 core + 2 agent**, +38 new tests), fat-JAR **90.3 MB, zero new deps, 0 AI classes**.
 
-### M3 — Assist platform + first slice `explain-entity` (read-only) → v3.3.0
-- **T3.1** `file-processor-agent`: LangChain4j + Ollama client; `AssistAgent` SPI impl; model
-  router with the **provider seam** (Ollama / hosted) + **grammar-constrained output**; air-gapped
-  packaging omits hosted SDKs.
-- **T3.2** Skill registry (id, schemas, tier, oracle, tools) + `POST /assist/{intent}` route
-  (scoped `assist.read`), assist manifest concept.
-- **T3.3** `explain-entity` skill — RAG over `docs/*.md` + Control API reads **+ the M2 catalog**
-  (so "what events does this source emit / what does this column mean" is answerable) →
-  `{answer, citations, links}`. 7B tier (never 2B for real Q&A).
-- **T3.4** Golden-test harness, **runnable CPU-only** (CI). Profile config bundles (V-8).
-- *Exit:* zero write surface; agent answers entity + catalog questions end-to-end on local Ollama.
+### M3 — Assist platform + first slice `explain-entity` (read-only) → v3.3.0 ✅ *shipped*
+- **T3.1 ✅** `file-processor-agent`: **LangChain4j + Ollama** (1.15.1, pinned in the agent POM only)
+  behind a `ModelProvider` seam (`com.gamma.agent.model`: `ModelProvider`/`OllamaModelProvider`/
+  `FakeModelProvider`/`ModelRouter`/`AssistProfile`/`ModelTier`). **Grammar-constrained output** via
+  Ollama's native `format=json`. **Abstain-by-default**: providers contact no model until the assist
+  layer is explicitly enabled (`-Dassist.enabled=true`) — so CI/vanilla runs do zero model I/O. Three
+  hardware profiles (V-8): `cpu-only`/`dev-laptop`/`production`. Air-gapped packaging omits hosted SDKs
+  (verified by `EgressGuardTest`).
+- **T3.2 ✅** `SkillRegistry` (intent→`Skill`) + the core seam: `AssistRequest`/`AssistResult` DTOs +
+  a default `AssistAgent.assist(...)` + `POST /assist/{intent}` (scope `assist.read`, 503 no-agent /
+  404 unknown intent / 503 model-down / 200 OK). `UccAssistAgent` registered via `ServiceLoader`.
+- **T3.3 ✅** `explain-entity` skill (7B / MEDIUM tier) — grounds on the M1 catalog
+  (`hydrated`/`traverse`/`domain`) + Control API reads + `docs/*.md` (a tiny `DocRetriever`) →
+  `{answer, citations[], links[]}`. **Citations are derived from the sources fed to the model**, so a
+  local model can't fabricate a reference. Read-only: `applyVia` always null.
+- **T3.4 ✅** Golden-test harness, **CPU-only** (a deterministic `FakeModelProvider` injected through
+  the seam — no Ollama in CI). Audit trail (`AuditEvent`) — one suggestion event per call. AI
+  `DescriptionProvider` (`com.gamma.agent.catalog.AiDescriptionProvider`, SMALL tier) registered via
+  `ServiceLoader`, abstain-safe + never-throws, preserves `MANUAL`.
+- *Exit (met):* zero write surface; agent answers entity + catalog questions end-to-end; lean core
+  stays 0-AI (90 MB fat-JAR, 0 AI classes); full reactor green CPU-only (**282 core + 28 agent**).
 
 ### M4 — `nl-to-schedule` (draft-only) → v3.4.0
 - **T4.1** Skill: NL → `{cron,on_pipeline,humanReadable,nextRuns[]}` → JobConfig **draft**
@@ -232,8 +248,8 @@ draft-only (V-9) to one-click-apply: `POST/PUT /configs` validate-and-persist vi
 ---
 
 **Net sequence:** M0 foundation ✅ (v3.0.0) → **M1 Metadata Graph (data keystone)** ✅ (v3.1.0) →
-**M2 Smart Config (config keystone)** ✅ (v3.2.0) → M3 assist platform + `explain-entity` (consumes the
-catalog; adds the AI `DescriptionProvider`) → M4 `nl-to-schedule` → M5 `suggest-config` →
+**M2 Smart Config (config keystone)** ✅ (v3.2.0) → **M3 assist platform + `explain-entity`** ✅ (v3.3.0;
+consumes the catalog; adds the AI `DescriptionProvider`) → M4 `nl-to-schedule` → M5 `suggest-config` →
 **M6 `kpi-to-sql` + SQL sandbox** (grounds on the catalog/KPI catalog) → M7 `diagnose-and-alert`
 → (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor release per milestone on
 `3.x`, additive, suite-green, lean core preserved.

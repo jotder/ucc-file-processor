@@ -3,6 +3,9 @@ package com.gamma.control;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
+import com.gamma.assist.AssistRequest;
+import com.gamma.assist.AssistResult;
+import com.gamma.assist.spi.AssistAgent;
 import com.gamma.catalog.EdgeKind;
 import com.gamma.catalog.MetadataEdge;
 import com.gamma.catalog.MetadataGraph;
@@ -34,6 +37,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -58,7 +62,7 @@ import java.util.regex.Pattern;
  * <p><b>Fail-closed:</b> unlike 2.x there is no open-by-default mode. If a scope has no
  * token configured, its routes return {@code 401} (locked) rather than running open. Set
  * {@code -Dcontrol.token} to use the control plane. The {@code assist.*} scopes back the
- * {@code /assist/*} routes that arrive in M2.
+ * {@code /assist/*} and read-only catalog/spec routes (M3, v3.3.0).
  *
  * <h3>Routes</h3>
  * <pre>
@@ -91,11 +95,14 @@ import java.util.regex.Pattern;
  *   GET  /catalog/kpis                        KPI catalog + domain notes                   [v3.2.0]
  *   GET  /catalog/graph[?from=&depth=&direction=&kinds=&edgeKinds=&overlay=]  subgraph      [v3.2.0]
  *   GET  /config/spec/{type}                  declarative spec for a config type           [v3.2.0]
+ *   POST /assist/{intent}                     run an assist skill (e.g. explain-entity)    [v3.3.0]
  * </pre>
  *
- * <p>The {@code /catalog*} and {@code /config/spec/*} routes require the {@code assist.read} scope
- * (satisfied by {@code control}); they expose the M2 metadata graph and the declarative config
- * specs for the UI and assist agent.</p>
+ * <p>The {@code /catalog*}, {@code /config/spec/*} and {@code /assist/*} routes require the
+ * {@code assist.read} scope (satisfied by {@code control}); they expose the M1 metadata graph, the
+ * M2 declarative config specs, and the M3 in-process assist agent for the UI and the agent. The
+ * {@code /assist/*} route delegates to the optional {@code file-processor-agent} module when it is
+ * on the classpath; with no agent present it returns {@code 503}, leaving the core unchanged.</p>
  *
  * <p>Report routes accept an optional inclusive date range {@code ?from=&to=} (v2.10.0) —
  * a date ({@code 2026-05-01}) or datetime ({@code 2026-05-01 09:00:00}); a date-only
@@ -302,6 +309,42 @@ public final class ControlApi implements AutoCloseable {
 
         // Validate a saved file ({"configPath":"…"}) OR an unsaved draft ({"type":…,"config":{…}}).
         post("/validate", true, (e, m) -> validate(body(e)));
+
+        // ── v3.3.0: embedded assist agent — POST /assist/{intent} (scope assist.read) ──
+        post("/assist/(.+)", Scope.ASSIST_READ, (e, m) -> assist(name(m), body(e)));
+    }
+
+    /**
+     * Dispatch one assist request to the in-process {@link AssistAgent} (v3.3.0). The {@code intent}
+     * (path segment) selects the skill; the JSON body supplies {@code screenContext},
+     * {@code partialInput}, and {@code userText}. The agent lives in the optional
+     * {@code file-processor-agent} module — core holds only this seam — so the agent may be absent.
+     *
+     * <p>Status mapping (fail-safe, never throws to the model): no agent on the classpath → 503;
+     * an unknown intent ({@link AssistResult.Status#UNSUPPORTED}) → 404; a skill whose model is
+     * unavailable ({@link AssistResult.Status#UNAVAILABLE}) → 503 with its message; otherwise the
+     * {@link AssistResult} is returned as JSON (200).
+     */
+    private Object assist(String intent, Map<String, Object> body) {
+        Optional<AssistAgent> agent = service.assistAgent();
+        if (agent.isEmpty())
+            throw new ApiException(503, "assist agent not available (file-processor-agent not on classpath)");
+        AssistRequest req = new AssistRequest(
+                intent, mapField(body, "screenContext"), mapField(body, "partialInput"), str(body, "userText"));
+        AssistResult result = agent.get().assist(req);
+        return switch (result.status()) {
+            case UNSUPPORTED -> throw new ApiException(404, "unknown assist intent: " + intent);
+            case UNAVAILABLE -> throw new ApiException(503,
+                    result.message() == null ? "assist model unavailable" : result.message());
+            case OK -> result;
+        };
+    }
+
+    /** A nested JSON object from a request body as a {@code Map}, or an empty map when absent/not an object. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> mapField(Map<String, Object> body, String key) {
+        Object v = body.get(key);
+        return (v instanceof Map<?, ?> map) ? (Map<String, Object>) map : Map.of();
     }
 
     /**

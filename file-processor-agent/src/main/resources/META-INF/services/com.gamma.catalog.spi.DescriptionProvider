@@ -1,0 +1,5 @@
+# UCC File Processor — AI description provider (v3.3.0, M3).
+# Discovered by MetadataGraphService via ServiceLoader when this optional module is on the
+# classpath. Abstain-safe: returns EMPTY (no network) until the assist layer + Ollama are enabled,
+# and never overwrites operator-authored (MANUAL) descriptions.
+com.gamma.agent.catalog.AiDescriptionProvider

@@ -190,7 +190,13 @@ the build," not "add a module."
 Ordered by build sequence. Each notes the **UI it replaces** — the usability thesis.
 Model tiers reflect the viability review (Gemma 2B was over-assigned in the first draft).
 
-### A1 — `explain-entity`  *(read-only, ship first, lowest risk)*
+### A1 — `explain-entity`  *(read-only, ship first, lowest risk)* — ✅ **shipped v3.3.0 (M3)**
+> Realized as `com.gamma.agent.skill.ExplainEntitySkill` (MEDIUM/7B tier) behind the `POST
+> /assist/explain-entity` route. Grounds on the M1 catalog + Control API reads + a tiny `docs/*.md`
+> retriever; citations are derived from the fed sources (not parsed from the model). Platform pieces
+> P1 (Assist API + in-JVM SPI), P2 (skill registry + `ModelProvider`/`ModelRouter`/profile seam +
+> grammar-constrained JSON), and the AI `DescriptionProvider` (V-4) shipped with it. Hosted seam
+> deferred (M3 is local-only Ollama by packaging). Golden tests run CPU-only via a deterministic fake.
 - **Does:** on any entity screen (pipeline, batch, enrichment run, report, error), pull
   the entity via the Control API + relevant docs and explain it / answer "why is this
   slow / what changed".
@@ -372,9 +378,9 @@ load-bearing (R1/R3/R4):
 
 0. **P6 build restructure + P1 SPI** — parent POM, two modules, agent SPI + injection
    point, shade rework, scoped assist token (V-7). *(Prerequisite — nothing ships without it.)*
-1. **Platform + A1 (first vertical slice)** — Assist API, skill registry, Ollama wiring
-   (2B + 7B) with the provider seam + grammar-constrained output, the read-only path; ship
-   **`explain-entity`**. Builds confidence with no state-change surface.
+1. **Platform + A1 (first vertical slice)** — ✅ **shipped v3.3.0 (M3).** Assist API, skill registry,
+   Ollama wiring with the `ModelProvider` provider seam + grammar-constrained output, the read-only
+   path; shipped **`explain-entity`** + the AI `DescriptionProvider`. No state-change surface.
 2. **A2** — `nl-to-schedule` (draft-only; introduces the config-parser oracle + safety
    validator + the `applyVia`/draft distinction).
 3. **A3 + P5** — `suggest-config` + the `*_meta.toon` semantic descriptor + config safety

@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.gamma.inspector</groupId>
         <artifactId>file-processor-parent</artifactId>
-        <version>3.3.0-SNAPSHOT</version>
+        <version>3.3.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -24,16 +24,35 @@
         fat-JAR stays lean. The air-gapped build omits hosted SDKs, making "local-only" a
         packaging guarantee rather than a config flag.
 
-        M0 status: skeleton only — the SPI wiring plus a no-op provider that proves the
-        cross-module integration. Real skills (explain-entity, nl-to-schedule, suggest-config,
-        kpi-to-sql, diagnose-and-alert) arrive from M2 onward (see docs/v3-plan.md).
+        M3 status (v3.3.0): the assist platform goes live — LangChain4j + Ollama behind a
+        ModelProvider seam, a skill registry, the explain-entity skill, and an AI-backed
+        DescriptionProvider. These deps live ONLY here; the core fat-JAR remains zero-new-dep.
+        No hosted-model SDK ships in M3, so "local-only" is guaranteed by packaging.
     </description>
+
+    <properties>
+        <!-- All AI/LLM deps are pinned here, in the optional module only. CVE-scan this tree
+             (SBOM) — it never reaches the lean core fat-JAR. -->
+        <langchain4j.version>1.15.1</langchain4j.version>
+    </properties>
 
     <dependencies>
         <dependency>
             <groupId>com.gamma.inspector</groupId>
             <artifactId>file-processor</artifactId>
             <version>${project.version}</version>
+        </dependency>
+
+        <!-- LangChain4j + Ollama: local-first model access behind the ModelProvider seam. -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-core</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-ollama</artifactId>
+            <version>${langchain4j.version}</version>
         </dependency>
 
         <dependency>

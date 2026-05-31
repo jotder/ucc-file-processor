@@ -152,7 +152,8 @@ the `_enrich.toon` suffix is a concrete symptom).
   catalog + domain notes), assembled by **`MetadataGraphService`** into a typed, traversable graph
   (sources → raw schemas → columns → emitted event tables → Stage-2 transforms → KPIs/reports) with
   a **lazy operational overlay** (status/lineage/completeness/error reused from the audit reads) and
-  a **`DescriptionProvider` SPI** (manual > AI > deduced; AI lands at M3). Served at `/catalog`,
+  a **`DescriptionProvider` SPI** (manual > AI > deduced; **the AI provider shipped at M3 / v3.3.0**
+  as `com.gamma.agent.catalog.AiDescriptionProvider`). Served at `/catalog`,
   `/catalog/tables/{id}`, `/catalog/kpis`, `/catalog/graph`. This is what `kpi-to-sql` and
   `explain-entity` ground on.
 - **Failure-diagnoser** subscribes to the (enriched) FAILED `BatchEvent`s, hands off async.
@@ -181,6 +182,7 @@ renderer of specs + a caller of assist intents, not a hand-built form for every 
 | **Smart Config layer** (`ConfigSpec`/`ConfigSpecs`, `ConfigLoader` parse/validate split, `ResourceLoader`, `ConfigCodec` serializer, `fromMap`/`prepare`) | `com.gamma.config.spec`/`.io`, `PipelineConfig`/`EnrichmentConfig`/`JobConfig` | G1–G3, G5 | **M2 / v3.2.0 — the config keystone ✅ shipped** |
 | **`ConfigRegistry`** (in-file-identity id, rebuild-on-cycle, O(1) lookups) | `com.gamma.service` | G4 | **M2 / v3.2.0 ✅ shipped** |
 | **Structured validation findings + `/validate` body form + `GET /config/spec/{type}`** | `ConfigLoader`→`Finding`, `ControlApi` | G3 | **M2 / v3.2.0 ✅ shipped** |
+| **Assist platform + `explain-entity`** (`ModelProvider`/`ModelRouter`/`AssistProfile` seam over LangChain4j+Ollama, `SkillRegistry`, `ExplainEntitySkill`, `AiDescriptionProvider`, `AssistRequest`/`AssistResult` DTOs + `AssistAgent.assist` + `POST /assist/{intent}`) | core seam in `com.gamma.assist`/`ControlApi`; all AI in `com.gamma.agent`(`.model`/`.skill`/`.catalog`) | V-1/V-3/V-4 | **M3 / v3.3.0 ✅ shipped (local-only; lean core stays 0-AI)** |
 | **`SqlOracle` + locked-down DuckDB connection** | extract from `EnrichmentEngine`; `com.gamma.config`/agent | G6 | with `kpi-to-sql` |
 | **Security hardening** (scoped tokens, constant-time compare, no open default) | `ControlApi` | G7 | MVP |
 | **Enrich `BatchEvent` with error detail + non-filtering subscriber** | `etl`/`service` | C1 alerts | MVP |
