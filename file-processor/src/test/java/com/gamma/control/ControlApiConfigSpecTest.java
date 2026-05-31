@@ -126,6 +126,44 @@ class ControlApiConfigSpecTest {
     }
 
     @Test
+    void safetyFlagSurfacesPathJailErrors(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            // A UNC/network backup path is structurally a fine FILEPATH string (spec passes) but unsafe.
+            String body = """
+                    {"type":"pipeline","config":{
+                       "name":"X",
+                       "dirs":{"poll":"/in","database":"/out","backup":"//evil/share"},
+                       "processing":{"threads":1}},
+                     "safety":true}""";
+            HttpResponse<String> r = post(c.port, "/validate", TOKEN, body);
+            assertEquals(200, r.statusCode());
+            JsonNode out = JSON.readTree(r.body());
+            assertTrue(out.get("safetyChecked").asBoolean(), "safety gate ran");
+            assertFalse(out.get("clean").asBoolean(), "unsafe path → not clean");
+            boolean pathJail = false;
+            for (JsonNode f : out.get("findings"))
+                if (f.get("fieldPath").asText().contains("dirs.backup")) pathJail = true;
+            assertTrue(pathJail, "path-jail ERROR surfaced: " + out.get("findings"));
+        }
+    }
+
+    @Test
+    void withoutSafetyFlagTheResponseIsUnchanged(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            // Same unsafe path, but no safety flag → spec-only validation (FILEPATH is free text),
+            // so no path-jail finding is injected and the gate is reported as not run.
+            String body = """
+                    {"type":"pipeline","config":{
+                       "name":"X",
+                       "dirs":{"poll":"/in","database":"/out","backup":"//evil/share"},
+                       "processing":{"threads":1}}}""";
+            JsonNode out = JSON.readTree(post(c.port, "/validate", TOKEN, body).body());
+            assertFalse(out.get("safetyChecked").asBoolean(), "gate not run by default");
+            assertTrue(out.get("clean").asBoolean(), "spec-only path is unchanged: " + out.get("findings"));
+        }
+    }
+
+    @Test
     void validateBadDraftShapeIs400AndUnknownTypeIs404(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             assertEquals(400, post(c.port, "/validate", TOKEN, "{}").statusCode(),

@@ -222,7 +222,13 @@ Model tiers reflect the viability review (Gemma 2B was over-assigned in the firs
   `humanReadable`/`nextRuns[]` confirm are essential).
 - **Replaces:** the cron-builder widget entirely.
 
-### A3 — `suggest-config`  *(high value — draft-only)*
+### A3 — `suggest-config`  *(high value — draft-only)* — ✅ **shipped v3.5.0 (M5)**
+> Realized as `com.gamma.agent.skill.SuggestConfigSkill` (7B / MEDIUM) behind `POST
+> /assist/suggest-config`. All config types via `ConfigSpecs.forType`; oracle = `ConfigSpecs` validate
+> **+ the new hard-fail `ConfigSafetyValidator`** (R6) **+ a pure type-parse**, driven by the M4
+> `RepairLoop`. Per-field `rationale`/`confidence` surfaced (confirm-first). Draft-only: `applyVia`
+> null. The safety validator (`com.gamma.config.safety`, core/zero-dep) is also exposed on `POST
+> /validate` behind an opt-in `"safety":true` flag. Golden tests run CPU-only via a deterministic fake.
 - **Does:** given a source sample + partial config + docs, suggest field values with
   rationale; validate via the loader + safety validator.
 - **In:** `{ sourceSample, partialConfig, configType }`.
@@ -359,10 +365,11 @@ load-bearing (R1/R3/R4):
 6. **No autonomous apply, ever (MVP)** — agent holds no write token; apply uses the
    human's credential through the existing endpoint; confirm UI shows the **exact** SQL/
    config diff and what it touches (tables, output DB, paths). *(R5)*
-7. **Hard-fail config safety validator** — path jail (poll/output dirs under allowed
-   roots; reject absolute escapes, `..`, UNC, symlinks), numeric bounds (threads, batch
-   caps), output-DB allow-list. Advisory `ConfigValidator` warnings become **blocking** for
-   agent drafts. *(R6)*
+7. **Hard-fail config safety validator** — ✅ **shipped v3.5.0 (M5)** as `com.gamma.config.safety`
+   (core, zero-dep): path jail (reject absolute escapes, `..`, UNC, symlink-escape; resolve outside
+   allowed roots), numeric bounds (threads/duckdb-threads/batch caps; retention-wipes-markers), and an
+   output format/codec allow-list. The hard gate for `suggest-config` drafts and an opt-in flag on
+   `POST /validate`; does not alter the production config-load path. *(R6)*
 8. **Full audit trail** — distinguish agent-*suggested* from human-*applied*, with model/
    tier, input-context hash, oracle result, approver, applied diff. *(R5)*
 9. **Dependency isolation enforced in CI** — the lean ETL JAR gains **zero** new deps; the
@@ -392,8 +399,9 @@ load-bearing (R1/R3/R4):
    cron oracle + the generate→validate→repair `RepairLoop` + the `applyVia`/draft distinction (the
    hard-fail config *safety* validator — path jail/numeric bounds/output-DB allow-list — lands with
    A3/`suggest-config`).
-3. **A3 + P5** — `suggest-config` + the `*_meta.toon` semantic descriptor + config safety
-   validator.
+3. **A3** — ✅ **shipped v3.5.0 (M5).** `suggest-config` (draft-only) + the hard-fail config safety
+   validator (`com.gamma.config.safety`, R6). (The `*_meta.toon` semantic descriptor shipped earlier
+   as part of the M1 Metadata Graph.)
 4. **B1** — `kpi-to-sql`, the hero, on the **sandboxed** DuckDB oracle + P5 (14B in prod /
    7B on dev+CPU / hosted-recommended connected).
 5. **C1 + failure-event seam** — add the `BatchEventBus` error-event publication + async

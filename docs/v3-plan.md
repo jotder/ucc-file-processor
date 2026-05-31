@@ -8,10 +8,10 @@ sequenced task list. Each milestone is independently releasable as a minor versi
 `3.x` branch, mirroring the 2.x cadence (one minor release per milestone: feature → release
 commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH release).
 
-Branch is at **`3.5.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
+Branch is at **`3.6.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
 M2 Smart Config as **v3.2.0**; M3 Assist platform + `explain-entity` as **v3.3.0**; M4
-`nl-to-schedule` as **v3.4.0**). The foundation was hardened post-v3.0.0 — concurrency/audit
-fixes, cruft removal, CI reactor coverage.
+`nl-to-schedule` as **v3.4.0**; M5 `suggest-config` + config safety validator as **v3.5.0**). The
+foundation was hardened post-v3.0.0 — concurrency/audit fixes, cruft removal, CI reactor coverage.
 
 > **Status update (this revision):** **both keystones have shipped.** The **Metadata Graph** (data
 > keystone) shipped as **v3.1.0** — the `com.gamma.catalog` package, `SchemaExtractor` merge/preserve,
@@ -34,6 +34,11 @@ fixes, cruft removal, CI reactor coverage.
 > the **generate→validate→repair** oracle pattern (reusing the core cron engine + job spec) and a
 > deterministic `CronDescriber`. It stays draft-only (V-9) — `applyVia` is null, no write endpoint;
 > the only core touch is one additive `AssistResult.data` structured-payload field (zero new deps).
+> **M5 has now shipped as v3.5.0** — `suggest-config` (draft-only): a source sample + partial config →
+> validated field suggestions with rationale/confidence, gated by the new **hard-fail config safety
+> validator** (`com.gamma.config.safety` — path jail / numeric bounds / output allow-list, security
+> guardrail R6; core, zero-dep), additively exposed on `POST /validate` behind an opt-in flag. It
+> reuses the M4 `RepairLoop` + `AssistResult.data`; stays draft-only.
 
 ## What changed in this revision (the "data keystone")
 
@@ -210,11 +215,31 @@ slot onto this milestone's `ConfigRegistry` — and now does, with zero `Metadat
   the user to save; **draft-only** (no write surface); full reactor green CPU-only (**283 core +
   48 agent**); lean core stays 0-AI (90.3 MB fat-JAR, 0 AI classes, 0 new deps).
 
-### M5 — `suggest-config` (draft-only) → v3.5.0
-- **T5.1** `suggest-config` skill — sample + partial config → field suggestions w/ rationale;
-  validated by the M1 loader + a **hard-fail config safety validator** (path jail, numeric bounds,
-  output-DB allow-list). 7B. Draft-only. (The `*_meta.toon` it can also draft now lives in M2.)
-- *Exit:* config-form replacement demo; safety validator blocks harmful-but-parseable configs.
+### M5 — `suggest-config` (draft-only) + config safety validator → v3.5.0 ✅ *shipped*
+- **T5.1 ✅** `SuggestConfigSkill` (`com.gamma.agent.skill`, 7B / MEDIUM): `{configType, sourceSample?,
+  partialConfig}` → JSON `{fields:[{name,value,rationale,confidence}]}` merged onto the partial config
+  → a validated draft `{fields[], validated, draftToon, findings[], safetyChecked}`. All config types
+  via `ConfigSpecs.forType`. The oracle (driven by the M4 `RepairLoop`, cap 3) is `ConfigSpecs`
+  validate (structural) **+ the new hard-fail `ConfigSafetyValidator` (security) + a pure type-parse**
+  (`JobConfig`/`EnrichmentConfig.fromMap`; pipeline leans on spec+safety since `PipelineConfig.fromMap`
+  resolves a schema file off disk). Per-field `rationale`/`confidence` are surfaced because structural
+  validity ≠ semantic correctness (confirm-first). Draft-only: `applyVia` null.
+- **T5.1a ✅ — `com.gamma.config.safety` (core, zero-dep, security guardrail R6).** `SafetyPolicy`
+  (allowed filesystem roots, numeric caps, output format/codec allow-list; `defaultPolicy()` reads
+  `-Dassist.safety.roots`, else `user.dir`) + `ConfigSafetyValidator.check(type, raw, policy)` →
+  ERROR `Finding`s for: **path jail** (reject UNC, `..` escapes, outside-root, symlink-escape via
+  `toRealPath`), **numeric bounds** (threads/duckdb-threads/batch caps; `retention_days` ≥ 1 when
+  dedup on), **output allow-list**. Additively surfaced on `POST /validate` behind an opt-in
+  `"safety":true` flag (default response unchanged). Does **not** touch the production config-load path.
+- **T5.2 ✅** Tests: adversarial `ConfigSafetyValidatorTest` (traversal/UNC/outside-root/symlink/
+  out-of-bounds/bad-output all rejected; clean under-root passes); `/validate` safety on/off;
+  `SuggestConfigSkillTest` golden (pipeline draft round-trips + is spec-clean; **a model-suggested
+  unsafe path is rejected by the gate and repaired, not surfaced**; enrichment grounds + cites a
+  catalog node; model-unavailable → graceful); end-to-end `POST /assist/suggest-config` (scoped
+  `assist.read`, `applyVia` null, no config written); one audit event per call.
+- *Exit (met):* config-form replacement works end-to-end; the safety validator **blocks
+  harmful-but-parseable configs**; draft-only; full reactor green CPU-only (**296 core + 55 agent**);
+  lean core stays 0-AI (90.3 MB fat-JAR, 0 AI classes, 0 new deps).
 
 ### M6 — `kpi-to-sql` (the hero) + SQL sandbox → v3.6.0
 - **T6.1 — `SqlOracle` (locked-down DuckDB).** Extract from `EnrichmentEngine`'s view-registration.
@@ -270,7 +295,8 @@ draft-only (V-9) to one-click-apply: `POST/PUT /configs` validate-and-persist vi
 **Net sequence:** M0 foundation ✅ (v3.0.0) → **M1 Metadata Graph (data keystone)** ✅ (v3.1.0) →
 **M2 Smart Config (config keystone)** ✅ (v3.2.0) → **M3 assist platform + `explain-entity`** ✅ (v3.3.0;
 consumes the catalog; adds the AI `DescriptionProvider`) → **M4 `nl-to-schedule` (draft-only)** ✅
-(v3.4.0; the generate→validate→repair oracle on the core cron engine) → M5 `suggest-config` →
+(v3.4.0; the generate→validate→repair oracle on the core cron engine) → **M5 `suggest-config`
+(draft-only) + config safety validator** ✅ (v3.5.0; R6 path-jail/bounds/output gate) →
 **M6 `kpi-to-sql` + SQL sandbox** (grounds on the catalog/KPI catalog) → M7 `diagnose-and-alert`
 → (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor release per milestone on
 `3.x`, additive, suite-green, lean core preserved.

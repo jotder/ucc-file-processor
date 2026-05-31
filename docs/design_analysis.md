@@ -33,8 +33,13 @@ The codebase has successfully completed the prerequisite foundation for `3.x`:
 > deterministic `CronDescriber`, and a SMALL→MEDIUM tier-routing heuristic. M4 deltas: the structured
 > result rides an additive **`AssistResult.data`** map (the generic payload seam M5/M6 reuse) rather
 > than new per-skill fields; it stays **draft-only** (`applyVia` null — no config write endpoint yet,
-> V-9). The mermaid below predates the keystone insertion — read milestone numbers as
-> M0→M1(graph)→M2(config)→M3(assist)→M4(nl-to-schedule).
+> V-9). **M5** `suggest-config` (draft-only, v3.5.0) then added the **hard-fail config safety validator**
+> (`com.gamma.config.safety` — `SafetyPolicy` + `ConfigSafetyValidator`: path jail / numeric bounds /
+> output allow-list; security guardrail R6), the security gate for agent config drafts and an opt-in
+> flag on `POST /validate`. M5 deltas: it's **core + skill + opt-in `/validate`** (not wired into the
+> production config-load path, preserving additive-only); all config types are handled generically via
+> `ConfigSpecs.forType`. The mermaid below predates the keystone insertion — read milestone numbers as
+> M0→M1(graph)→M2(config)→M3(assist)→M4(nl-to-schedule)→M5(suggest-config).
 
 ---
 

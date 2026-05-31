@@ -64,6 +64,29 @@ class AssistAuditTest {
     }
 
     @Test
+    void suggestConfigDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
+        Path pipe = AgentTestConfigs.writePipeline(dir);
+        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+            UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
+                    "{\"fields\":[{\"name\":\"job.name\",\"value\":\"nightly\",\"rationale\":\"x\",\"confidence\":\"high\"},"
+                            + "{\"name\":\"job.cron\",\"value\":\"0 2 * * *\",\"rationale\":\"x\",\"confidence\":\"high\"},"
+                            + "{\"name\":\"job.type\",\"value\":\"maintenance\",\"rationale\":\"x\",\"confidence\":\"low\"}]}")),
+                    captured::add);
+            agent.init(svc);
+
+            AssistResult res = agent.assist(new AssistRequest("suggest-config",
+                    Map.of("configType", "job"), Map.of(), null));
+            assertEquals(AssistResult.Status.OK, res.status());
+            assertNull(res.applyVia(), "draft-only: the audited call carries no write endpoint");
+
+            assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
+            assertEquals("suggest-config", captured.get(0).intent());
+            assertEquals(AssistResult.Status.OK, captured.get(0).status());
+        }
+    }
+
+    @Test
     void unknownIntentIsAuditedAsUnsupported(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AuditEvent> captured = new CopyOnWriteArrayList<>();

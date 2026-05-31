@@ -114,6 +114,35 @@ class AssistEndToEndTest {
     }
 
     @Test
+    void suggestConfigEndToEndReturnsDraftPayload(@TempDir Path dir) throws Exception {
+        // 'job' has no filesystem surface, so the safety gate is a no-op regardless of policy roots —
+        // this exercises the full HTTP → agent → spec+safety oracle → draft path CPU-only.
+        ModelRouter router = ModelRouter.of(FakeModelProvider.canned("""
+                {"fields":[
+                   {"name":"job.name","value":"nightly","rationale":"derived","confidence":"high"},
+                   {"name":"job.cron","value":"0 2 * * *","rationale":"nightly window","confidence":"high"},
+                   {"name":"job.type","value":"maintenance","rationale":"cleanup","confidence":"medium"}
+                ]}"""));
+        try (Ctx c = open(dir, router)) {
+            assertEquals(401, post(c.port, "/assist/suggest-config", null,
+                    "{\"screenContext\":{\"configType\":\"job\"}}").statusCode(), "fail-closed");
+
+            HttpResponse<String> r = post(c.port, "/assist/suggest-config", TOKEN,
+                    "{\"screenContext\":{\"configType\":\"job\"}}");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode out = JSON.readTree(r.body());
+            assertEquals("suggest-config", out.get("intent").asText());
+            assertTrue(out.get("applyVia").isNull(), "draft-only (V-9): no write endpoint");
+            JsonNode data = out.get("data");
+            assertEquals("job", data.get("configType").asText());
+            assertEquals(Boolean.TRUE, data.get("safetyChecked").asBoolean());
+            assertEquals(3, data.get("fields").size());
+            assertTrue(data.get("draftToon").asText().contains("0 2 * * *"),
+                    "the saveable draft .toon rides in the structured payload");
+        }
+    }
+
+    @Test
     void scopedAuthEnforced(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, ModelRouter.of(FakeModelProvider.canned("ok")))) {
             assertEquals(401, post(c.port, "/assist/explain-entity", null, "{}").statusCode());

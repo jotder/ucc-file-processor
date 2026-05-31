@@ -13,6 +13,8 @@ import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
 import com.gamma.config.io.ConfigLoader;
+import com.gamma.config.safety.ConfigSafetyValidator;
+import com.gamma.config.safety.SafetyPolicy;
 import com.gamma.config.spec.ConfigSpec;
 import com.gamma.config.spec.ConfigSpecs;
 import com.gamma.config.spec.Finding;
@@ -353,7 +355,10 @@ public final class ControlApi implements AutoCloseable {
      *   <li>{@code {"configPath":"…"}} — load the file, return the pipeline name, the legacy
      *       {@code warnings} string list (back-compat), and the structured {@code findings};</li>
      *   <li>{@code {"type":"pipeline|enrichment|job|schema|meta","config":{…}}} — validate an
-     *       in-memory draft against that type's spec with no file written, returning {@code findings}.</li>
+     *       in-memory draft against that type's spec with no file written, returning {@code findings}.
+     *       Add {@code "safety":true} to also run the hard-fail {@link ConfigSafetyValidator} (path
+     *       jail / numeric bounds / output allow-list, R6) and merge its findings; omitted/false
+     *       leaves the response unchanged.</li>
      * </ul>
      * {@code clean} is true when there are no findings.
      */
@@ -381,10 +386,17 @@ public final class ControlApi implements AutoCloseable {
         if (spec == null) throw new ApiException(404, "unknown config type: " + type);
         @SuppressWarnings("unchecked")
         Map<String, Object> draft = (Map<String, Object>) cfgObj;
-        List<Finding> findings = ConfigLoader.filesystem().validate(spec, draft);
+        List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(spec, draft));
+        // Opt-in hard-fail safety gate (R6): merged in only when the caller asks, so the default
+        // /validate response is byte-for-byte unchanged for existing callers.
+        boolean safety = "true".equalsIgnoreCase(String.valueOf(body.get("safety")));
+        if (safety) {
+            findings.addAll(ConfigSafetyValidator.check(type, draft, SafetyPolicy.defaultPolicy()));
+        }
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("type", type);
         r.put("findings", findings);
+        r.put("safetyChecked", safety);
         r.put("clean", findings.isEmpty());
         return r;
     }
