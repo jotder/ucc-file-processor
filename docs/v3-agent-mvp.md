@@ -205,7 +205,14 @@ Model tiers reflect the viability review (Gemma 2B was over-assigned in the firs
   questions to 2B — 2B only for trivial one-line restatements).
 - **Replaces:** drilling across multiple report/lineage/audit screens to assemble an answer.
 
-### A2 — `nl-to-schedule`  *(narrow, the clearest "less UI" demo — draft-only)*
+### A2 — `nl-to-schedule`  *(narrow, the clearest "less UI" demo — draft-only)* — ✅ **shipped v3.4.0 (M4)**
+> Realized as `com.gamma.agent.skill.NlToScheduleSkill` behind `POST /assist/nl-to-schedule`.
+> Introduces the **generate→validate→repair** oracle (a new `RepairLoop`) over the reused core
+> `CronExpression` + `JobConfig.fromMap` + `ConfigSpecs.job()`, a deterministic `CronDescriber`, and
+> the additive `AssistResult.data` structured payload. Tiered (V-5/V-8): plain→SMALL, compositional/
+> relative/timezone→MEDIUM. `on_pipeline` is grounded against real catalog SOURCE nodes (citation
+> derived, not parsed). **Draft-only (V-9):** `applyVia` null, no write endpoint — the user saves the
+> returned `draftToon`. Golden tests run CPU-only via a deterministic fake.
 - **Does:** "every weekday 6am after adjustment_etl" → `{ cron, on_pipeline,
   humanReadable, nextRuns[] }` → a JobConfig draft the user saves.
 - **In:** `{ userText, knownPipelines[] }`. **Out:** JobConfig draft + preview.
@@ -381,8 +388,10 @@ load-bearing (R1/R3/R4):
 1. **Platform + A1 (first vertical slice)** — ✅ **shipped v3.3.0 (M3).** Assist API, skill registry,
    Ollama wiring with the `ModelProvider` provider seam + grammar-constrained output, the read-only
    path; shipped **`explain-entity`** + the AI `DescriptionProvider`. No state-change surface.
-2. **A2** — `nl-to-schedule` (draft-only; introduces the config-parser oracle + safety
-   validator + the `applyVia`/draft distinction).
+2. **A2** — ✅ **shipped v3.4.0 (M4).** `nl-to-schedule` (draft-only); introduced the config-parser/
+   cron oracle + the generate→validate→repair `RepairLoop` + the `applyVia`/draft distinction (the
+   hard-fail config *safety* validator — path jail/numeric bounds/output-DB allow-list — lands with
+   A3/`suggest-config`).
 3. **A3 + P5** — `suggest-config` + the `*_meta.toon` semantic descriptor + config safety
    validator.
 4. **B1** — `kpi-to-sql`, the hero, on the **sandboxed** DuckDB oracle + P5 (14B in prod /

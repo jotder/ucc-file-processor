@@ -44,6 +44,26 @@ class AssistAuditTest {
     }
 
     @Test
+    void nlToScheduleDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
+        Path pipe = AgentTestConfigs.writePipeline(dir);
+        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+            UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
+                    "{\"name\":\"j\",\"cron\":\"0 2 * * *\",\"job_type\":\"maintenance\"}")), captured::add);
+            agent.init(svc);
+
+            AssistResult res = agent.assist(new AssistRequest("nl-to-schedule",
+                    Map.of(), Map.of(), "every day at 2am"));
+            assertEquals(AssistResult.Status.OK, res.status());
+            assertNull(res.applyVia(), "draft-only: the audited call carries no write endpoint");
+
+            assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
+            assertEquals("nl-to-schedule", captured.get(0).intent());
+            assertEquals(AssistResult.Status.OK, captured.get(0).status());
+        }
+    }
+
+    @Test
     void unknownIntentIsAuditedAsUnsupported(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AuditEvent> captured = new CopyOnWriteArrayList<>();

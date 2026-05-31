@@ -73,6 +73,47 @@ class AssistEndToEndTest {
     }
 
     @Test
+    void nlToScheduleEndToEndReturnsDraftPayload(@TempDir Path dir) throws Exception {
+        // The fake model returns a JSON schedule for every tier; the skill validates it via the
+        // cron + job oracle and returns a draft — no Ollama, no write.
+        ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
+                "{\"name\":\"weekday-report\",\"cron\":\"0 6 * * MON-FRI\",\"job_type\":\"report\"}"));
+        try (Ctx c = open(dir, router)) {
+            String body = "{\"userText\":\"every weekday at 6am\"}";
+            HttpResponse<String> r = post(c.port, "/assist/nl-to-schedule", TOKEN, body);
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode out = JSON.readTree(r.body());
+            assertEquals("nl-to-schedule", out.get("intent").asText());
+            assertEquals("OK", out.get("status").asText());
+            assertTrue(out.get("validated").asBoolean(), "ran through the oracle");
+            assertTrue(out.get("applyVia").isNull(), "draft-only (V-9): no write endpoint, ever");
+
+            JsonNode data = out.get("data");
+            assertEquals("0 6 * * MON-FRI", data.get("cron").asText());
+            assertEquals("every day at 06:00 on weekdays", data.get("humanReadable").asText());
+            assertEquals(5, data.get("nextRuns").size());
+            assertTrue(data.get("draftToon").asText().contains("0 6 * * MON-FRI"),
+                    "the saveable draft .toon rides in the structured payload");
+        }
+    }
+
+    @Test
+    void nlToScheduleRouteIsScopedAndDoesNotWrite(@TempDir Path dir) throws Exception {
+        ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
+                "{\"name\":\"j\",\"cron\":\"0 2 * * *\",\"job_type\":\"maintenance\"}"));
+        try (Ctx c = open(dir, router)) {
+            // Fail-closed: no/!valid token is rejected before the agent is ever consulted.
+            assertEquals(401, post(c.port, "/assist/nl-to-schedule", null, "{\"userText\":\"daily 2am\"}").statusCode());
+            assertEquals(401, post(c.port, "/assist/nl-to-schedule", "wrong", "{\"userText\":\"daily 2am\"}").statusCode());
+            // With the scoped token it answers, but nothing is persisted — the suggestion is a draft.
+            HttpResponse<String> ok = post(c.port, "/assist/nl-to-schedule", TOKEN, "{\"userText\":\"daily 2am\"}");
+            assertEquals(200, ok.statusCode(), ok.body());
+            int jobCount = c.svc.jobService().map(js -> js.jobs().size()).orElse(0);
+            assertEquals(0, jobCount, "draft-only: the suggestion is a draft, no job was created");
+        }
+    }
+
+    @Test
     void scopedAuthEnforced(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, ModelRouter.of(FakeModelProvider.canned("ok")))) {
             assertEquals(401, post(c.port, "/assist/explain-entity", null, "{}").statusCode());

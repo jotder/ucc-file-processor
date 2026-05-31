@@ -18,6 +18,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -42,6 +43,12 @@ class ControlApiAssistTest {
                 case "echo" -> AssistResult.answer("echo", "you said: " + req.userText(),
                         List.of(new AssistResult.Citation("test", "node:1")), List.of("http://x/1"));
                 case "down" -> AssistResult.unavailable("down", "model offline");
+                case "draft" -> AssistResult.draft("draft", "every weekday at 06:00",
+                        List.of(new AssistResult.Citation("catalog", "source:adjustment_etl")), List.of(),
+                        Map.of("cron", "0 6 * * MON-FRI",
+                               "onPipeline", "adjustment_etl",
+                               "nextRuns", List.of("2026-06-01 06:00:00", "2026-06-02 06:00:00"),
+                               "draftToon", "job:\n  name: nightly\n  cron: \"0 6 * * MON-FRI\"\n"));
                 default -> AssistResult.unsupported(req.intent());
             };
         }
@@ -99,6 +106,26 @@ class ControlApiAssistTest {
             assertEquals("node:1", out.get("citations").get(0).get("ref").asText());
             assertTrue(out.get("validated").asBoolean());
             assertTrue(out.get("applyVia").isNull(), "read-only skill carries no write endpoint");
+        }
+    }
+
+    @Test
+    void draftResultCarriesStructuredDataPayload(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, true)) {
+            HttpResponse<String> r = post(c.port, "/assist/draft", TOKEN, "{\"userText\":\"weekdays 6am\"}");
+            assertEquals(200, r.statusCode());
+            JsonNode out = JSON.readTree(r.body());
+            assertEquals("OK", out.get("status").asText());
+            assertTrue(out.get("validated").asBoolean(), "draft ran through the oracle");
+            assertTrue(out.get("applyVia").isNull(), "draft-only: no write endpoint (V-9)");
+            // The additive 'data' payload (since 3.4.0) round-trips through the route as JSON.
+            JsonNode data = out.get("data");
+            assertNotNull(data, "structured data payload present on the wire");
+            assertEquals("0 6 * * MON-FRI", data.get("cron").asText());
+            assertEquals("adjustment_etl", data.get("onPipeline").asText());
+            assertEquals(2, data.get("nextRuns").size());
+            assertTrue(data.get("draftToon").asText().contains("0 6 * * MON-FRI"),
+                    "the saveable draft .toon is carried in the payload");
         }
     }
 

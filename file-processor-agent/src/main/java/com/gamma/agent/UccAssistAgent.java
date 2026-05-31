@@ -4,6 +4,7 @@ import com.gamma.agent.model.ModelRouter;
 import com.gamma.agent.skill.AssistContext;
 import com.gamma.agent.skill.DocRetriever;
 import com.gamma.agent.skill.ExplainEntitySkill;
+import com.gamma.agent.skill.NlToScheduleSkill;
 import com.gamma.agent.skill.SkillRegistry;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
@@ -65,7 +66,9 @@ public final class UccAssistAgent implements AssistAgent {
         DocRetriever docs = DocRetriever.fromEnvironment();
         this.context = new AssistContext(service.catalog(), service.reports(),
                 service.statusStore(), docs, router);
-        this.registry = new SkillRegistry(List.of(new ExplainEntitySkill()));
+        this.registry = new SkillRegistry(List.of(
+                new ExplainEntitySkill(),
+                new NlToScheduleSkill()));
         log.info("Assist agent '{}' initialised: skills={}, docs={}, modelAvailable={}",
                 name(), registry.intents(), docs.size(), router.anyAvailable());
     }

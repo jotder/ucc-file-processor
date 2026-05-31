@@ -8,9 +8,10 @@ sequenced task list. Each milestone is independently releasable as a minor versi
 `3.x` branch, mirroring the 2.x cadence (one minor release per milestone: feature → release
 commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH release).
 
-Branch is at **`3.4.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
-M2 Smart Config as **v3.2.0**; M3 Assist platform + `explain-entity` as **v3.3.0**). The foundation
-was hardened post-v3.0.0 — concurrency/audit fixes, cruft removal, CI reactor coverage.
+Branch is at **`3.5.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
+M2 Smart Config as **v3.2.0**; M3 Assist platform + `explain-entity` as **v3.3.0**; M4
+`nl-to-schedule` as **v3.4.0**). The foundation was hardened post-v3.0.0 — concurrency/audit
+fixes, cruft removal, CI reactor coverage.
 
 > **Status update (this revision):** **both keystones have shipped.** The **Metadata Graph** (data
 > keystone) shipped as **v3.1.0** — the `com.gamma.catalog` package, `SchemaExtractor` merge/preserve,
@@ -27,7 +28,12 @@ was hardened post-v3.0.0 — concurrency/audit fixes, cruft removal, CI reactor 
 > `POST /assist/{intent}` route (scope `assist.read`), and the AI `DescriptionProvider` that auto-fills
 > blank catalog descriptions (`Provenance.AI`, never overwriting `MANUAL`). All AI deps live in the
 > optional `file-processor-agent` module; the core fat-JAR stays zero-AI. Golden tests run CPU-only
-> (a deterministic fake model — no Ollama in CI).
+> (a deterministic fake model — no Ollama in CI). **M4 has now shipped as v3.4.0** — the first
+> write-adjacent skill, `nl-to-schedule` (draft-only): a natural-language request → a validated
+> JobConfig draft `{cron, on_pipeline, jobType, humanReadable, nextRuns[], draftToon}`, introducing
+> the **generate→validate→repair** oracle pattern (reusing the core cron engine + job spec) and a
+> deterministic `CronDescriber`. It stays draft-only (V-9) — `applyVia` is null, no write endpoint;
+> the only core touch is one additive `AssistResult.data` structured-payload field (zero new deps).
 
 ## What changed in this revision (the "data keystone")
 
@@ -182,13 +188,27 @@ slot onto this milestone's `ConfigRegistry` — and now does, with zero `Metadat
 - *Exit (met):* zero write surface; agent answers entity + catalog questions end-to-end; lean core
   stays 0-AI (90 MB fat-JAR, 0 AI classes); full reactor green CPU-only (**282 core + 28 agent**).
 
-### M4 — `nl-to-schedule` (draft-only) → v3.4.0
-- **T4.1** Skill: NL → `{cron,on_pipeline,humanReadable,nextRuns[]}` → JobConfig **draft**
-  (validated by M1's parse/validate + cron oracle). Gemma 2B for plain; route compositional/
-  relative/timezone to 7B.
-- **T4.2** Golden tests incl. compositional cases (the oracle catches invalid cron, not
-  semantically-wrong-valid cron → assert `humanReadable`/`nextRuns`).
-- *Exit:* the cron-builder-widget replacement demo works; draft `.toon` returned for the user to save.
+### M4 — `nl-to-schedule` (draft-only) → v3.4.0 ✅ *shipped*
+- **T4.1 ✅** `NlToScheduleSkill` (`com.gamma.agent.skill`): NL → JSON `{cron, on_pipeline, job_type,
+  name}` → a validated **JobConfig draft** surfaced as `{cron, onPipeline, jobType, humanReadable,
+  nextRuns[], draftToon, findings[]}`. The validation oracle is **all reuse** — the core zero-dep
+  `CronExpression` (`parse`/`next`), `JobConfig.fromMap`, and `ConfigSpecs.job()` + `ConfigLoader.
+  validate` — driven by a new **`RepairLoop`** (generate→validate→repair, capped at 3 rounds, the
+  verbatim oracle error fed back). A deterministic **`CronDescriber`** produces `humanReadable`;
+  `nextRuns[]` is `CronExpression.next` ×5; `draftToon` is `ConfigCodec.toToon`. **Tier routing**
+  (V-5/V-8): plain phrasing → SMALL (2–3B), compositional/relative/timezone → MEDIUM (7B).
+  `on_pipeline` is grounded against real catalog SOURCE nodes (the node id is the **derived**
+  citation — the model can't fabricate a pipeline). The only core change is one additive
+  `AssistResult.data` structured-payload field (JDK-only; zero new deps).
+- **T4.2 ✅** Golden tests (CPU-only, deterministic `FakeModelProvider`): plain case round-trips its
+  `draftToon` back through `JobConfig.fromMap`; compositional case grounds + cites the pipeline;
+  invalid model cron is **repaired, not surfaced**; a hallucinated pipeline is rejected by grounding;
+  model-unavailable degrades to `unavailable`; tier-routing + `CronDescriber` shapes unit-tested;
+  end-to-end `POST /assist/nl-to-schedule` over HTTP (scoped `assist.read`, `applyVia` null, no job
+  created — draft-only); one audit suggestion event per call.
+- *Exit (met):* the cron-builder-widget replacement works end-to-end; a draft `.toon` is returned for
+  the user to save; **draft-only** (no write surface); full reactor green CPU-only (**283 core +
+  48 agent**); lean core stays 0-AI (90.3 MB fat-JAR, 0 AI classes, 0 new deps).
 
 ### M5 — `suggest-config` (draft-only) → v3.5.0
 - **T5.1** `suggest-config` skill — sample + partial config → field suggestions w/ rationale;
@@ -249,7 +269,8 @@ draft-only (V-9) to one-click-apply: `POST/PUT /configs` validate-and-persist vi
 
 **Net sequence:** M0 foundation ✅ (v3.0.0) → **M1 Metadata Graph (data keystone)** ✅ (v3.1.0) →
 **M2 Smart Config (config keystone)** ✅ (v3.2.0) → **M3 assist platform + `explain-entity`** ✅ (v3.3.0;
-consumes the catalog; adds the AI `DescriptionProvider`) → M4 `nl-to-schedule` → M5 `suggest-config` →
+consumes the catalog; adds the AI `DescriptionProvider`) → **M4 `nl-to-schedule` (draft-only)** ✅
+(v3.4.0; the generate→validate→repair oracle on the core cron engine) → M5 `suggest-config` →
 **M6 `kpi-to-sql` + SQL sandbox** (grounds on the catalog/KPI catalog) → M7 `diagnose-and-alert`
 → (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor release per milestone on
 `3.x`, additive, suite-green, lean core preserved.

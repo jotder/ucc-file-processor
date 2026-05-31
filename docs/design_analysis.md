@@ -27,8 +27,14 @@ The codebase has successfully completed the prerequisite foundation for `3.x`:
 > over **LangChain4j + Ollama** (the originally-locked client, behind the seam) rather than a thin
 > hand-rolled client; providers are **abstain-by-default** (no model I/O until `-Dassist.enabled=true`,
 > so CI runs CPU-only against a deterministic `FakeModelProvider`); hosted SDKs are **absent by
-> packaging** (no egress possible). The mermaid below predates the keystone insertion — read milestone
-> numbers as M0→M1(graph)→M2(config)→M3(assist).
+> packaging** (no egress possible). **M4** `nl-to-schedule` (draft-only, v3.4.0) then shipped on top:
+> the first write-adjacent skill, introducing the **generate→validate→repair** loop (`RepairLoop`) over
+> the reused core cron oracle (`CronExpression`) + `JobConfig.fromMap` + `ConfigSpecs.job()`, a
+> deterministic `CronDescriber`, and a SMALL→MEDIUM tier-routing heuristic. M4 deltas: the structured
+> result rides an additive **`AssistResult.data`** map (the generic payload seam M5/M6 reuse) rather
+> than new per-skill fields; it stays **draft-only** (`applyVia` null — no config write endpoint yet,
+> V-9). The mermaid below predates the keystone insertion — read milestone numbers as
+> M0→M1(graph)→M2(config)→M3(assist)→M4(nl-to-schedule).
 
 ---
 

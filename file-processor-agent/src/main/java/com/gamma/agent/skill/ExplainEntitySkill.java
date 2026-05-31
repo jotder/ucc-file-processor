@@ -111,7 +111,7 @@ public final class ExplainEntitySkill implements Skill {
 
         return new AssistResult(ID, AssistResult.Status.OK, answer, citations, links,
                 "synthesized from the metadata catalog" + (ctx.docs().isEmpty() ? "" : " + docs"),
-                "local", false, null, null);
+                "local", false, null, null, java.util.Map.of());
     }
 
     /** Resolve a catalog node id from the request: an explicit id, else entityType+id heuristics. */
