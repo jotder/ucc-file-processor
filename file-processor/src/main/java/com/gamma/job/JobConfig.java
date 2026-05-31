@@ -64,7 +64,15 @@ public record JobConfig(String name, JobType type, String cron, String onPipelin
     // ── factory ────────────────────────────────────────────────────────────────
 
     public static JobConfig load(String configPath) throws IOException {
-        Map<String, Object> raw = ToonHelper.load(configPath);
+        return fromMap(ToonHelper.load(configPath));
+    }
+
+    /**
+     * Build a {@code JobConfig} from an already-decoded config map — a <b>pure</b> parse (no file
+     * I/O). The cron expression is still validated eagerly so a bad expression fails here rather than
+     * at first fire.
+     */
+    public static JobConfig fromMap(Map<String, Object> raw) {
         Map<String, Object> job = ToonHelper.requireSection(raw, "job");
 
         String name = ToonHelper.require(job, "name", "job");

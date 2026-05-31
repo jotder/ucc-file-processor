@@ -195,6 +195,21 @@ public final class ConfigRegistry {
 ```
 *At startup and upon configuration watch-key events, re-populate the `ConfigRegistry` once.* This turns `SourceService.configFor` into a lightning-fast $O(1)$ memory lookup, eliminating disk reads from API listing routes.
 
+> **✅ Realized in v3.2.0 (M2 Smart Config), with these deltas from the sketch above:**
+> - The validation result type shipped as **`Finding`** (not `ValidationFinding`); `CrossFieldRule.rule`
+>   is a `Predicate<Map>` that returns **true when the invariant holds** (a `false` emits a `Finding`),
+>   and is `@JsonIgnore`d so the rule catalog still serialises for UI/LLM.
+> - The pure step is a **`fromMap`** factory on each config (`PipelineConfig`/`EnrichmentConfig`/`JobConfig`)
+>   plus an instance **`prepare()`** for the single directory-creation side-effect; `load(path)`
+>   delegates (`decode → fromMap → prepare`), so the parse stays pure and side-effect-free.
+> - `ConfigRegistry` is keyed by **in-file identity** and **rebuilt once per poll cycle** (and at
+>   construction); its rebuild callback fires the M1 catalog's `invalidate()`. The ingest run path
+>   still uses raw registry paths + re-loads each cycle, so a cached config's frozen run-timestamp
+>   never affects a run.
+> - The schema-aware serializer shipped as **`ConfigCodec`** (canonical, comment-free, strict-decodable
+>   encode + lenient decode); listing is via `GET /config/spec/{type}` + the existing `/pipelines`/
+>   `/catalog` surfaces rather than a new `/configs` route.
+
 ---
 
 ### B. Bulletproofing the SQL Sandbox & Oracle (M5)

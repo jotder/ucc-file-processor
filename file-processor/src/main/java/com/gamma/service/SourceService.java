@@ -98,6 +98,10 @@ public final class SourceService implements AutoCloseable {
     private final List<SemanticModel> semanticModels;
     /** The metadata graph / data catalog (M2): config-derived structure + lazy operational overlay. */
     private final MetadataGraphService catalog;
+    /** O(1) index of loaded pipeline configs keyed by in-file identity (M2 config keystone, v3.2.0):
+     *  backs pathFor/configFor/activeRegistry/pipelines and the catalog's ConfigSource without the
+     *  former per-call O(n) re-parse. Rebuilt at construction and at the top of every poll cycle. */
+    private final ConfigRegistry configRegistry;
 
     /** A pipeline's identity + current state, for the Control API's listing. */
     public record PipelineView(String name, String configPath, boolean paused, int committedBatches) {}
@@ -158,12 +162,15 @@ public final class SourceService implements AutoCloseable {
                 : new JobService(jobConfigs, bus, scheduler, reports,
                         System.getProperty("jobs.audit.dir", "jobs_audit"));
         this.semanticModels    = List.copyOf(semanticModels);
+        // Invalidate the catalog whenever configs are (re)indexed — the registry is now the
+        // config-change signal the M1 catalog plan anticipated.
+        this.configRegistry    = new ConfigRegistry(this::invalidateCatalog);
 
-        // The catalog reads configs through a ConfigSource seam (reloading paths today; the M1
-        // ConfigRegistry will implement the same seam later) and overlays operational state by
-        // reusing the existing StatusStore / EnrichmentService audit reads.
+        // The catalog reads configs through a ConfigSource seam, now backed by the O(1) registry
+        // (the seam was designed for exactly this swap — MetadataGraphService is unchanged). It
+        // overlays operational state by reusing the existing StatusStore / EnrichmentService reads.
         ConfigSource configSource = new ConfigSource() {
-            public List<PipelineConfig> pipelines() { return loadConfigs(); }
+            public List<PipelineConfig> pipelines() { return configRegistry.configs(); }
             public List<EnrichmentConfig> enrichments() {
                 return enrichment != null ? enrichment.configs() : List.of();
             }
@@ -177,6 +184,17 @@ public final class SourceService implements AutoCloseable {
             }
         };
         this.catalog = new MetadataGraphService(configSource, new CatalogOverlay(this::configFor, status, stage2));
+
+        // Initial population so the read surface (catalog, pathFor, configFor, pipelines) is live
+        // before the first poll cycle. Unloadable configs are warned and skipped.
+        configRegistry.rebuild(this.registry);
+    }
+
+    /** Drop the catalog's cached structural graph; the next access rebuilds it (config-only, cheap). */
+    private void invalidateCatalog() {
+        if (catalog != null) {
+            catalog.invalidate();
+        }
     }
 
     /** The bus carrying committed-batch events; subscribe before {@link #start()}. */
@@ -218,15 +236,10 @@ public final class SourceService implements AutoCloseable {
         if (agent == null) {
             ServiceLoader.load(AssistAgent.class).findFirst().ifPresent(this::registerAgent);
         }
-        for (Path p : registry) {
-            try {
-                PipelineConfig cfg = PipelineConfig.load(p.toString());
-                int committed = fileStatus.committedBatches(cfg).size();   // on-disk truth
-                log.info("Registered '{}' ({}) — {} previously committed batch(es)",
-                        cfg.identity().pipelineName(), p, committed);
-            } catch (Exception e) {
-                log.warn("Could not load config {} at startup: {}", p, e.getMessage());
-            }
+        for (ConfigRegistry.Entry e : configRegistry.all()) {
+            int committed = fileStatus.committedBatches(e.config()).size();   // on-disk truth
+            log.info("Registered '{}' ({}) — {} previously committed batch(es)",
+                    e.id(), e.path(), committed);
         }
         // Project the on-disk audit into the status DB (if DB-backed) before serving any
         // query, so the API/observability see current state from the first scrape onward.
@@ -256,6 +269,9 @@ public final class SourceService implements AutoCloseable {
     public MultiSourceProcessor.RunResult runAllOnce() {
         ingestLock.lock();   // never overlap with another cycle / operator trigger (see field doc)
         try {
+            // Re-index configs once per cycle (picks up edits/additions; fires catalog invalidation
+            // via the registry callback), replacing the former per-call O(n) re-parse scans.
+            configRegistry.rebuild(registry);
             List<Path> active = paused.isEmpty() ? registry : activeRegistry();
             if (active.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
             com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
@@ -275,10 +291,7 @@ public final class SourceService implements AutoCloseable {
             syncStatus();
             return r;
         } finally {
-            // Configs are reloaded each cycle, so drop the cached structural graph; the next
-            // catalog access rebuilds it (cheap, config-only). Swaps to a ConfigRegistry watch
-            // callback when M1 lands.
-            catalog.invalidate();
+            // (Catalog invalidation already fired from configRegistry.rebuild at the top of the cycle.)
             ingestLock.unlock();
         }
     }
@@ -298,14 +311,9 @@ public final class SourceService implements AutoCloseable {
         }
     }
 
-    /** Load every registered config, skipping (with a warning) any that won't parse. */
+    /** Every successfully-indexed config (from the registry; unloadable ones were warned at rebuild). */
     private List<PipelineConfig> loadConfigs() {
-        List<PipelineConfig> out = new ArrayList<>();
-        for (Path p : registry) {
-            try { out.add(PipelineConfig.load(p.toString())); }
-            catch (Exception e) { log.warn("Could not load config {} for status sync: {}", p, e.getMessage()); }
-        }
-        return out;
+        return configRegistry.configs();
     }
 
     // ── Control API surface (M3) ─────────────────────────────────────────────────
@@ -338,36 +346,21 @@ public final class SourceService implements AutoCloseable {
     /** List each registered pipeline with its current paused state and commit count. */
     public List<PipelineView> pipelines() {
         List<PipelineView> out = new ArrayList<>();
-        for (Path p : registry) {
-            try {
-                PipelineConfig cfg = PipelineConfig.load(p.toString());
-                String name = cfg.identity().pipelineName();
-                out.add(new PipelineView(name, p.toString(),
-                        paused.contains(name), status.committedBatches(cfg).size()));
-            } catch (Exception e) {
-                log.warn("Could not load config {} for listing: {}", p, e.getMessage());
-            }
+        for (ConfigRegistry.Entry e : configRegistry.all()) {
+            out.add(new PipelineView(e.id(), e.path().toString(),
+                    paused.contains(e.id()), status.committedBatches(e.config()).size()));
         }
         return out;
     }
 
-    /** Load the {@link PipelineConfig} for a registered pipeline by its (normalised) name. */
+    /** The {@link PipelineConfig} for a registered pipeline by its (normalised) name — O(1). */
     public Optional<PipelineConfig> configFor(String pipelineName) {
-        return pathFor(pipelineName).map(p -> {
-            try { return PipelineConfig.load(p.toString()); }
-            catch (Exception e) { throw new RuntimeException("Cannot load config for " + pipelineName, e); }
-        });
+        return configRegistry.get(pipelineName);
     }
 
-    /** The registry path of a pipeline by name, if registered. */
+    /** The registry path of a pipeline by name, if registered — O(1). */
     public Optional<Path> pathFor(String pipelineName) {
-        for (Path p : registry) {
-            try {
-                if (PipelineConfig.load(p.toString()).identity().pipelineName().equals(pipelineName))
-                    return Optional.of(p);
-            } catch (Exception ignore) { /* skip unloadable */ }
-        }
-        return Optional.empty();
+        return configRegistry.getPath(pipelineName);
     }
 
     /** Run a single registered pipeline once. Empty if no pipeline by that name. */
@@ -398,15 +391,14 @@ public final class SourceService implements AutoCloseable {
         return true;
     }
 
-    /** Registry paths whose pipeline is not currently paused. */
+    /** Registry paths whose pipeline is not currently paused (resolved via the O(1) index;
+     *  a path with no indexed identity — i.e. unloadable — is kept rather than silently dropped). */
     private List<Path> activeRegistry() {
         List<Path> active = new ArrayList<>();
         for (Path p : registry) {
-            try {
-                if (!paused.contains(PipelineConfig.load(p.toString()).identity().pipelineName()))
-                    active.add(p);
-            } catch (Exception e) {
-                active.add(p);   // can't classify → don't silently drop it
+            String id = configRegistry.idForPath(p).orElse(null);
+            if (id == null || !paused.contains(id)) {
+                active.add(p);
             }
         }
         return active;

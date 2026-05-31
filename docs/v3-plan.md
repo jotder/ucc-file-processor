@@ -8,16 +8,20 @@ sequenced task list. Each milestone is independently releasable as a minor versi
 `3.x` branch, mirroring the 2.x cadence (one minor release per milestone: feature → release
 commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH release).
 
-Branch is at **`3.1.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; the foundation was hardened
-post-release — concurrency/audit fixes, cruft removal, CI reactor coverage).
+Branch is at **`3.3.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
+M2 Smart Config as **v3.2.0**). The foundation was hardened post-v3.0.0 — concurrency/audit fixes,
+cruft removal, CI reactor coverage.
 
-> **Status update (this revision):** the **Metadata Graph** is **implemented and shipping as
-> v3.1.0** — the `com.gamma.catalog` package (typed node/edge model, `MetadataGraphService` with a
-> cached structural graph + lazy operational overlay, `SchemaProjection`, `SemanticModel`, the
-> `DescriptionProvider` SPI), `SchemaExtractor` merge/preserve, the `*_meta.toon` loader, and the
-> `/catalog*` API. Built **ahead of the Smart Config keystone** at the user's direction, so the
-> keystones are **renumbered to follow ship order**: the Metadata Graph is now **M1 (v3.1.0)** and
-> Smart Config is **M2 (v3.2.0)**. The assist skills (M3+) are unchanged — both keystones precede them.
+> **Status update (this revision):** **both keystones have shipped.** The **Metadata Graph** (data
+> keystone) shipped as **v3.1.0** — the `com.gamma.catalog` package, `SchemaExtractor` merge/preserve,
+> the `*_meta.toon` loader, and the `/catalog*` API. The **Smart Config** layer (config keystone) has
+> now shipped as **v3.2.0** — the declarative `com.gamma.config.spec` model (`ConfigSpec`/`FieldSpec`/
+> `CrossFieldRule`/`Finding` + the authored `ConfigSpecs` for pipeline/enrichment/job/schema/meta), the
+> pure `com.gamma.config.io` decode→validate pipeline behind a pluggable `ResourceLoader`, the
+> canonical `ConfigCodec`, the parse/`prepare` split in `PipelineConfig` (+ `fromMap` on
+> `EnrichmentConfig`/`JobConfig`), the O(1) `ConfigRegistry` (replacing the O(n) re-parse scans and
+> backing the catalog's `ConfigSource` seam), and the `GET /config/spec/{type}` + draft `POST /validate`
+> API. The assist skills (M3+) are unchanged — both keystones precede them.
 
 ## What changed in this revision (the "data keystone")
 
@@ -48,7 +52,7 @@ every skill. The assist skills (explain-entity → … → kpi-to-sql) sit at M3
 | V-8 | Hardware profiles | dev-laptop (4GB GPU) · CPU-only (test/CI) · prod (16GB+ GPU) |
 | V-9 | Config skills | Draft-only for MVP; CRUD endpoints a fast-follow |
 | V-10 | Alerts | Subscribe to existing FAILED events + enrich `BatchEvent`; async hand-off |
-| **A-1** | **Config keystone** | **Smart Config (`ConfigSpec`) lands before the config-authoring skills (M2, v3.2.0)** |
+| **A-1** | **Config keystone** | **✅ Shipped (v3.2.0): Smart Config (`ConfigSpec` + `ConfigRegistry`) landed before the config-authoring skills** |
 | **A-2** | Compatibility | Additive only; `.toon` stays canonical; suite green each step; lean core zero-new-dep |
 | **A-3** | **Data keystone** | **Metadata Graph is a foundational milestone before any assist skill — built first, shipped as M1 (v3.1.0)** |
 | **A-4** | Catalog source | **Config-derived** (assembled from schema + enrichment configs) + a **light DuckDB `DESCRIBE` verify** against a `read_parquet` view; not a filesystem scan |
@@ -117,29 +121,38 @@ the existing audit reads. New package: `com.gamma.catalog`.
   (HTTP-tested); shipped sample schema (`config/events/call_schema.toon`) carries real descriptions;
   full reactor green (239 core + 2 agent), lean core unchanged.
 
-### M2 — Smart Config layer (the config keystone) → v3.2.0
+### M2 — Smart Config layer (the config keystone) → v3.2.0 ✅ **shipped**
 *Solves G1–G5/G10; everything AI/UI leans on it. Concrete class shapes in
 [design_analysis.md §4.A](design_analysis.md). The M1 catalog's `ConfigSource` seam was designed to
-slot onto this milestone's `ConfigRegistry`.*
-- **T2.1** `com.gamma.config.spec`: `ConfigSpec`, `FieldSpec` (type/required/default/enum/
-  constraints/uiHint/visibleWhen/**description**), `CrossFieldRule`. Author specs for pipeline /
-  enrichment / job / schema / **`*_meta`**, encoding today's implicit rules (exactly-one-of,
-  engine×skip_tail, threads×duckdb_threads, partitions-tabular).
-- **T2.2** `com.gamma.config.io`: pluggable `ResourceLoader` (filesystem default; a
-  `MapResourceLoader` for tests/REST bodies), `decode→Map` (no side effects), `parse(spec,raw)→
-  Config` (pure), `validate(spec,raw|Config)→List<Finding{severity,fieldPath,message}>` (pure).
-  Split disk side effects out of `PipelineConfig.load` into an explicit `prepare(Config)`; add a
-  public `fromMap`/builder. Same parse/validate split for `EnrichmentConfig`/`JobConfig`.
-- **T2.3** Schema-aware `.toon` serializer (always-quote colons, never `#`, correct inline-vs-
-  tabular) + JSON wire form. `.toon` stays canonical + backward-compatible.
-- **T2.4** `ConfigRegistry` keyed by stable id (watch/reload) → O(1) memory lookup; replace the
-  O(n) re-parse scans in `SourceService.pathFor/configFor/activeRegistry`. Fix the
-  discovery-suffix vs in-file-identity mismatch. **Swap the M1 catalog's per-cycle `invalidate()`
-  to this registry's watch callback.**
-- **T2.5** API: `GET /config/spec/{type}` (UI/AI read the spec) + `/validate` **body** form
-  (validate a draft, no file needed) returning structured findings.
-- *Exit:* existing `load(path)` delegates to the new pipeline; all 2.x config tests green; the
-  spec round-trips and validates the shipped sample configs.
+slot onto this milestone's `ConfigRegistry` — and now does, with zero `MetadataGraphService` change.*
+- **T2.1 ✅** `com.gamma.config.spec`: `ConfigSpec`, `FieldSpec` (type/required/default/enum/
+  pattern/uiHint/visibleWhen/**description**), `CrossFieldRule` (a `@JsonIgnore` predicate that
+  returns true-when-satisfied; the rule catalog still serialises for UI/LLM), `Finding`,
+  `Severity`, `FieldType`, and `RawConfig` dotted-path navigation. Authored `ConfigSpecs` for
+  pipeline / enrichment / job / schema / **meta**, encoding today's implicit rules verbatim
+  (plugin-ingester⇒segments, engine×skip-tail, threads×duckdb_threads, threads-vs-batch,
+  dup-check-retention, transform-or-file, job-type, cron-field-count).
+- **T2.2 ✅** `com.gamma.config.io`: pluggable `ResourceLoader` (`FilesystemResourceLoader`
+  default; `MapResourceLoader` for tests/REST drafts), `ConfigLoader` with `decode→Map` (no side
+  effects) + pure `validate(spec,raw)→List<Finding>`. Split the one disk side-effect out of
+  `PipelineConfig.load` into `prepare()`; added public `fromMap` (pure parse) on `PipelineConfig`,
+  `EnrichmentConfig`, and `JobConfig` — `load(path)` now delegates (identical behaviour).
+- **T2.3 ✅** `ConfigCodec` — canonical, comment-free, strict-decodable `.toon` encode + lenient
+  decode (round-trips every shipped sample); JSON wire form via the API's Jackson mapper.
+  `.toon` stays canonical + backward-compatible.
+- **T2.4 ✅** `ConfigRegistry` keyed by **in-file identity** → O(1) lookups; replaced the O(n)
+  re-parse scans in `SourceService.pathFor/configFor/activeRegistry/pipelines/loadConfigs`; resolved
+  the discovery-suffix vs in-file-identity mismatch (lookups address pipelines by their declared
+  name regardless of filename; duplicates warn). **The catalog's per-cycle `invalidate()` now fires
+  off the registry's rebuild callback.** (The run path still uses raw registry paths + re-loads each
+  cycle, so a cached config's frozen run-timestamp never affects a run; audit reads resolve by the
+  stable status dir + name + persistent commit log.)
+- **T2.5 ✅** API: `GET /config/spec/{type}` (scope `assist.read`) + extended `POST /validate`
+  accepting an in-memory draft (`{type,config}`) — validates with no file written, returns
+  structured `Finding`s; the legacy `{configPath}` form still works (now also returns `findings`).
+- *Exit ✅:* `load(path)` delegates to the new pipeline; all prior config/service tests green
+  unchanged (regression proof); the codec round-trips every shipped sample; full reactor green
+  (**277 core + 2 agent**, +38 new tests), fat-JAR **90.3 MB, zero new deps, 0 AI classes**.
 
 ### M3 — Assist platform + first slice `explain-entity` (read-only) → v3.3.0
 - **T3.1** `file-processor-agent`: LangChain4j + Ollama client; `AssistAgent` SPI impl; model
@@ -219,7 +232,7 @@ draft-only (V-9) to one-click-apply: `POST/PUT /configs` validate-and-persist vi
 ---
 
 **Net sequence:** M0 foundation ✅ (v3.0.0) → **M1 Metadata Graph (data keystone)** ✅ (v3.1.0) →
-**M2 Smart Config (config keystone)** (v3.2.0) → M3 assist platform + `explain-entity` (consumes the
+**M2 Smart Config (config keystone)** ✅ (v3.2.0) → M3 assist platform + `explain-entity` (consumes the
 catalog; adds the AI `DescriptionProvider`) → M4 `nl-to-schedule` → M5 `suggest-config` →
 **M6 `kpi-to-sql` + SQL sandbox** (grounds on the catalog/KPI catalog) → M7 `diagnose-and-alert`
 → (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor release per milestone on

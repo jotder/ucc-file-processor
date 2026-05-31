@@ -103,6 +103,13 @@ public final class PipelineConfig {
     private final Output     output;
     private final Schemas    schemas;
 
+    /**
+     * The {@code status_dir} to create in {@link #prepare()} ({@code null} when status is disabled or
+     * a literal {@code status_file} was used). Holding it here keeps {@link #fromMap} free of the one
+     * filesystem side-effect that {@code load} historically performed inline.
+     */
+    private final String statusDirToPrepare;
+
     public Identity   identity()   { return identity; }
     public Dirs       dirs()       { return dirs; }
     public Processing processing() { return processing; }
@@ -130,6 +137,7 @@ public final class PipelineConfig {
                 b.ingesterConfig != null
                         ? Collections.unmodifiableMap(b.ingesterConfig)
                         : Collections.emptyMap());
+        this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
     // ── static factory ────────────────────────────────────────────────────────
@@ -138,14 +146,48 @@ public final class PipelineConfig {
      * Parse the pipeline {@code .toon} file at {@code configPath}, validate all
      * directories, load schema(s), and return an immutable {@code PipelineConfig}.
      *
+     * <p>Equivalent to {@code fromMap(ToonHelper.load(configPath)).prepare()} — it decodes the file,
+     * builds the (pure) config, then performs the one filesystem side-effect (creating the status
+     * directory). Splitting those steps lets a draft be parsed/validated from memory with no I/O via
+     * {@link #fromMap(Map)}.
+     *
      * @param configPath filesystem path to the pipeline {@code .toon} file
      * @throws FileNotFoundException if the pipeline or any referenced schema file is missing
      * @throws IOException           on any I/O or parse failure
      * @throws IllegalArgumentException if any managed directory is nested inside the poll dir
      */
-    @SuppressWarnings("unchecked")
     public static PipelineConfig load(String configPath) throws IOException {
-        Map<String, Object> raw = ToonHelper.load(configPath);
+        PipelineConfig cfg = fromMap(ToonHelper.load(configPath), configPath);
+        cfg.prepare();
+        return cfg;
+    }
+
+    /**
+     * Build an immutable {@code PipelineConfig} from an already-decoded config map — a <b>pure</b>
+     * parse: it resolves and validates schemas and directories but performs no directory creation
+     * (call {@link #prepare()} for that). This is the entry point for validating a draft that has
+     * never been written to disk.
+     *
+     * @throws IOException if a referenced schema file is missing or unreadable
+     * @throws IllegalArgumentException on any structural/validation problem
+     */
+    public static PipelineConfig fromMap(Map<String, Object> raw) throws IOException {
+        return fromMap(raw, "<config>");
+    }
+
+    /**
+     * Create the run's status directory — the single filesystem side-effect formerly performed
+     * inline during {@code load}. A no-op when status is disabled or a literal {@code status_file}
+     * was configured. Idempotent and safe to call more than once.
+     */
+    public void prepare() throws IOException {
+        if (statusDirToPrepare != null && !statusDirToPrepare.isBlank()) {
+            Files.createDirectories(Paths.get(statusDirToPrepare));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static PipelineConfig fromMap(Map<String, Object> raw, String sourceLabel) throws IOException {
         Builder b = new Builder();
 
         // ── identity ──────────────────────────────────────────────────────────
@@ -170,7 +212,8 @@ public final class PipelineConfig {
         // status file path: status_dir (new) → timestamped filename; status_file (legacy) → literal
         String statusDir = (String) dirs.get("status_dir");
         if (statusDir != null && !statusDir.isBlank()) {
-            Files.createDirectories(Paths.get(statusDir));
+            // Defer the directory creation to prepare(); fromMap stays a pure parse.
+            b.statusDirToPrepare = statusDir;
             b.statusFilePath = Paths.get(statusDir,
                     b.pipelineName + "_status_" + b.runTimestamp + ".csv").toString();
         } else {
@@ -191,7 +234,7 @@ public final class PipelineConfig {
             b.commitLogPath = statusParent.resolve(b.pipelineName + "_commits.log").toString();
         }
 
-        validateDirs(configPath, b.pollDir, dirs);
+        validateDirs(sourceLabel, b.pollDir, dirs);
 
         // ── processing ────────────────────────────────────────────────────────
         Map<String, Object> proc = ToonHelper.requireSection(raw, "processing");
@@ -366,6 +409,7 @@ public final class PipelineConfig {
         String markersDir;
         String logDir;
         String statusFilePath;
+        String statusDirToPrepare;
         int    threads       = 4;
         int    duckdbThreads = 0;
         String filePattern   = "glob:**/*.{csv,csv.gz}";

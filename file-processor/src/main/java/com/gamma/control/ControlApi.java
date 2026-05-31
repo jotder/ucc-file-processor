@@ -9,6 +9,10 @@ import com.gamma.catalog.MetadataGraph;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
+import com.gamma.config.io.ConfigLoader;
+import com.gamma.config.spec.ConfigSpec;
+import com.gamma.config.spec.ConfigSpecs;
+import com.gamma.config.spec.Finding;
 import com.gamma.etl.ConfigValidator;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.MultiSourceProcessor;
@@ -71,7 +75,7 @@ import java.util.regex.Pattern;
  *   GET  /pipelines/{name}/quarantine         quarantined inputs + reason
  *   POST /pipelines/{name}/reprocess          body {"batchId":"…"} — replay a batch
  *   POST /trigger                             run all pipelines once
- *   POST /validate                            body {"configPath":"…"} — config warnings
+ *   POST /validate                            body {"configPath":"…"} or {"type":…,"config":{…}} — findings
  *   GET  /status                              live status snapshot (all pipelines)        [v2.8.0]
  *   GET  /report[?from=&to=]                  service-wide batch-audit report             [v2.8.0]
  *   GET  /pipelines/{name}/report[?from=&to=] batch-audit report for one pipeline         [v2.8.0]
@@ -86,10 +90,12 @@ import java.util.regex.Pattern;
  *   GET  /catalog/tables/{id}                 one node + overlay + neighbours              [v3.2.0]
  *   GET  /catalog/kpis                        KPI catalog + domain notes                   [v3.2.0]
  *   GET  /catalog/graph[?from=&depth=&direction=&kinds=&edgeKinds=&overlay=]  subgraph      [v3.2.0]
+ *   GET  /config/spec/{type}                  declarative spec for a config type           [v3.2.0]
  * </pre>
  *
- * <p>The {@code /catalog*} routes require the {@code assist.read} scope (satisfied by
- * {@code control}); they expose the M2 metadata graph for the UI and assist agent.</p>
+ * <p>The {@code /catalog*} and {@code /config/spec/*} routes require the {@code assist.read} scope
+ * (satisfied by {@code control}); they expose the M2 metadata graph and the declarative config
+ * specs for the UI and assist agent.</p>
  *
  * <p>Report routes accept an optional inclusive date range {@code ?from=&to=} (v2.10.0) —
  * a date ({@code 2026-05-01}) or datetime ({@code 2026-05-01 09:00:00}); a date-only
@@ -287,17 +293,57 @@ public final class ControlApi implements AutoCloseable {
                 "true".equalsIgnoreCase(query(e, "overlay"))));
         get("/catalog/tables/(.+)", Scope.ASSIST_READ, (e, m) -> catalogNodeDetail(name(m)));
 
-        post("/validate", true, (e, m) -> {
-            String configPath = str(body(e), "configPath");
-            if (configPath == null) throw new ApiException(400, "body must include 'configPath'");
+        // ── v3.2.0: declarative config spec (UI form rendering + LLM-constrained authoring) ──
+        get("/config/spec/(.+)", Scope.ASSIST_READ, (e, m) -> {
+            ConfigSpec spec = ConfigSpecs.forType(name(m));
+            if (spec == null) throw new ApiException(404, "unknown config type: " + name(m));
+            return spec;
+        });
+
+        // Validate a saved file ({"configPath":"…"}) OR an unsaved draft ({"type":…,"config":{…}}).
+        post("/validate", true, (e, m) -> validate(body(e)));
+    }
+
+    /**
+     * Validate a config and return structured {@link Finding}s. Two body forms:
+     * <ul>
+     *   <li>{@code {"configPath":"…"}} — load the file, return the pipeline name, the legacy
+     *       {@code warnings} string list (back-compat), and the structured {@code findings};</li>
+     *   <li>{@code {"type":"pipeline|enrichment|job|schema|meta","config":{…}}} — validate an
+     *       in-memory draft against that type's spec with no file written, returning {@code findings}.</li>
+     * </ul>
+     * {@code clean} is true when there are no findings.
+     */
+    private Object validate(Map<String, Object> body) throws IOException {
+        String configPath = str(body, "configPath");
+        if (configPath != null) {
             PipelineConfig cfg = PipelineConfig.load(configPath);
             List<String> warnings = ConfigValidator.validate(cfg);
+            List<Finding> findings = ConfigLoader.filesystem()
+                    .validate(ConfigSpecs.pipeline(), ConfigLoader.filesystem().decode(configPath));
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("pipeline", cfg.identity().pipelineName());
-            r.put("warnings", warnings);
+            r.put("warnings", warnings);     // legacy string form (back-compat)
+            r.put("findings", findings);     // structured form (v3.2.0)
             r.put("clean", warnings.isEmpty());
             return r;
-        });
+        }
+        String type = str(body, "type");
+        Object cfgObj = body.get("config");
+        if (type == null || !(cfgObj instanceof Map<?, ?>)) {
+            throw new ApiException(400,
+                    "body must include 'configPath', or 'type' + 'config' (a draft config map)");
+        }
+        ConfigSpec spec = ConfigSpecs.forType(type);
+        if (spec == null) throw new ApiException(404, "unknown config type: " + type);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> draft = (Map<String, Object>) cfgObj;
+        List<Finding> findings = ConfigLoader.filesystem().validate(spec, draft);
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("type", type);
+        r.put("findings", findings);
+        r.put("clean", findings.isEmpty());
+        return r;
     }
 
     // ── dispatch ───────────────────────────────────────────────────────────────

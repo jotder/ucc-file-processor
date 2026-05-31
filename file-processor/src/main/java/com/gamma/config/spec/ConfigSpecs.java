@@ -1,0 +1,265 @@
+package com.gamma.config.spec;
+
+import java.util.List;
+import java.util.Map;
+
+import static com.gamma.config.spec.RawConfig.at;
+import static com.gamma.config.spec.RawConfig.boolOr;
+import static com.gamma.config.spec.RawConfig.intOr;
+import static com.gamma.config.spec.RawConfig.present;
+import static com.gamma.config.spec.RawConfig.str;
+
+/**
+ * The authored {@link ConfigSpec}s for every configuration type the system loads.
+ *
+ * <p>Each spec encodes — as data — the rules that today live implicitly in the {@code load} methods
+ * ({@code PipelineConfig}, {@code EnrichmentConfig}, {@code JobConfig}) and in {@code ConfigValidator}.
+ * The cross-field predicates are deliberately copied from those sources so the declarative spec and
+ * the imperative loaders agree; the matching unit tests assert that equivalence on good/bad maps.
+ *
+ * <p>Fields are addressed by dotted path (see {@link RawConfig}); the paths match the nested
+ * structure of the corresponding {@code .toon} file exactly.
+ */
+public final class ConfigSpecs {
+
+    private ConfigSpecs() {}
+
+    /** Spec types in canonical order — also the set accepted by {@code GET /config/spec/{type}}. */
+    public static final List<String> TYPES =
+            List.of("pipeline", "enrichment", "job", "schema", "meta");
+
+    /** The {@link ConfigSpec} for {@code type}, or {@code null} if {@code type} is unknown. */
+    public static ConfigSpec forType(String type) {
+        if (type == null) {
+            return null;
+        }
+        return switch (type.toLowerCase()) {
+            case "pipeline"   -> pipeline();
+            case "enrichment" -> enrichment();
+            case "job"        -> job();
+            case "schema"     -> schema();
+            case "meta"       -> meta();
+            default           -> null;
+        };
+    }
+
+    // ── pipeline ────────────────────────────────────────────────────────────────
+
+    public static ConfigSpec pipeline() {
+        List<FieldSpec> fields = List.of(
+                FieldSpec.required("name", "Pipeline name", FieldType.STRING,
+                        "Display name; the lowercased, underscored form is the pipeline's stable id."),
+                FieldSpec.required("dirs.poll", "Poll directory", FieldType.FILEPATH,
+                        "Directory watched for incoming files. All managed dirs must live outside it."),
+                FieldSpec.required("dirs.database", "Output database directory", FieldType.FILEPATH,
+                        "Root of the Stage-1 partitioned output."),
+                FieldSpec.of("dirs.backup", "Backup directory", FieldType.FILEPATH,
+                        "Where processed source files are moved after a successful run."),
+                FieldSpec.of("dirs.temp", "Temp directory", FieldType.FILEPATH, "Scratch space for a run."),
+                FieldSpec.of("dirs.status_dir", "Status directory", FieldType.FILEPATH,
+                        "Directory for run audit CSVs; a timestamped status file is created here."),
+                FieldSpec.withDefault("processing.threads", "Batch concurrency", FieldType.INT, 4,
+                        "Concurrent batches (semaphore permits over a virtual-thread executor)."),
+                FieldSpec.withDefault("processing.duckdb_threads", "DuckDB threads/batch", FieldType.INT, 0,
+                        "Per-batch DuckDB parallelism (PRAGMA threads); 0 = DuckDB default."),
+                FieldSpec.withDefault("processing.file_pattern", "File pattern", FieldType.STRING,
+                        "glob:**/*.{csv,csv.gz}", "Glob selecting source files under the poll dir."),
+                FieldSpec.of("processing.ingester", "Plugin ingester class", FieldType.STRING,
+                        "FQCN of a plugin ingester; when set, processing.segments must be non-empty."),
+                FieldSpec.enumField("processing.csv_settings.engine", "CSV engine",
+                        List.of("auto", "duckdb", "java"), "auto",
+                        "auto uses DuckDB's native reader for clean configs and the Java parser otherwise."),
+                FieldSpec.withDefault("processing.csv_settings.delimiter", "Delimiter", FieldType.STRING, ",",
+                        "Field delimiter; a blank value silently falls back to ','."),
+                FieldSpec.withDefault("processing.csv_settings.has_header", "Has header", FieldType.BOOL, true,
+                        "Whether source files carry a header row."),
+                FieldSpec.withDefault("processing.batch.max_files", "Batch max files", FieldType.INT, 1,
+                        "Files packed into one batch; raise above 1 for intra-batch parallelism."),
+                FieldSpec.enumField("output.format", "Output format",
+                        List.of("CSV", "PARQUET"), "CSV", "Stage-1 output file format.")
+        );
+
+        int cores = Runtime.getRuntime().availableProcessors();
+        List<CrossFieldRule> rules = List.of(
+                new CrossFieldRule(
+                        "plugin-ingester-requires-segments",
+                        "processing.segments must be a non-empty map when processing.ingester is set.",
+                        Severity.ERROR,
+                        List.of("processing.ingester", "processing.segments"),
+                        raw -> {
+                            String ing = str(raw, "processing.ingester");
+                            if (ing == null || ing.isBlank()) {
+                                return true;
+                            }
+                            Object segs = at(raw, "processing.segments");
+                            return segs instanceof Map<?, ?> m && !m.isEmpty();
+                        }),
+                new CrossFieldRule(
+                        "threads-x-duckdb-threads-oversubscription",
+                        "processing.threads × processing.duckdb_threads should not exceed available cores ("
+                                + cores + ") — concurrent batches may oversubscribe the CPU.",
+                        Severity.WARNING,
+                        List.of("processing.threads", "processing.duckdb_threads"),
+                        raw -> {
+                            int d = intOr(raw, "processing.duckdb_threads", 0);
+                            if (d <= 0) {
+                                return true;
+                            }
+                            int t = intOr(raw, "processing.threads", 4);
+                            return (long) t * d <= cores;
+                        }),
+                new CrossFieldRule(
+                        "duckdb-engine-x-skip-tail-columns",
+                        "csv_settings.engine=duckdb with skip_tail_columns>0 — the native reader rejects "
+                                + "over-wide rows rather than trimming them; use engine=java/auto to retain them.",
+                        Severity.WARNING,
+                        List.of("processing.csv_settings.engine", "processing.csv_settings.skip_tail_columns"),
+                        raw -> {
+                            boolean duckdb = "duckdb".equalsIgnoreCase(str(raw, "processing.csv_settings.engine"));
+                            int skipTail = intOr(raw, "processing.csv_settings.skip_tail_columns", 0);
+                            return !(duckdb && skipTail > 0);
+                        }),
+                new CrossFieldRule(
+                        "threads-vs-batch-max-files",
+                        "processing.threads>1 with batch.max_files=1 yields only file-level parallelism; "
+                                + "raise batch.max_files for intra-batch packing.",
+                        Severity.WARNING,
+                        List.of("processing.threads", "processing.batch.max_files"),
+                        raw -> {
+                            int t = intOr(raw, "processing.threads", 4);
+                            int maxFiles = intOr(raw, "processing.batch.max_files", 1);
+                            return !(t > 1 && maxFiles == 1);
+                        }),
+                new CrossFieldRule(
+                        "duplicate-check-retention",
+                        "duplicate_check.enabled=true with retention_days<=0 deletes every marker on the next "
+                                + "cleanup; set retention_days >= 1.",
+                        Severity.WARNING,
+                        List.of("processing.duplicate_check.enabled", "processing.duplicate_check.retention_days"),
+                        raw -> {
+                            boolean enabled = boolOr(raw, "processing.duplicate_check.enabled", false);
+                            int retention = intOr(raw, "processing.duplicate_check.retention_days", 90);
+                            return !(enabled && retention <= 0);
+                        })
+        );
+        return new ConfigSpec("pipeline", fields, rules);
+    }
+
+    // ── enrichment ──────────────────────────────────────────────────────────────
+
+    public static ConfigSpec enrichment() {
+        List<FieldSpec> fields = List.of(
+                FieldSpec.required("name", "Enrichment name", FieldType.STRING, "Stable id for the Stage-2 job."),
+                FieldSpec.required("input.database", "Input database", FieldType.FILEPATH,
+                        "Root of the Stage-1 Hive-partitioned output to read."),
+                FieldSpec.enumField("input.format", "Input format", List.of("PARQUET", "CSV"), "PARQUET",
+                        "Format of the Stage-1 output."),
+                FieldSpec.of("input.partitions", "Input partitions", FieldType.LIST,
+                        "Hive partition columns present on the input."),
+                FieldSpec.required("output.database", "Output database", FieldType.FILEPATH,
+                        "Where enriched output is written."),
+                FieldSpec.enumField("output.format", "Output format", List.of("PARQUET", "CSV"), "PARQUET",
+                        "Enriched output format."),
+                FieldSpec.of("output.compression", "Output compression", FieldType.STRING,
+                        "Codec for the output (e.g. snappy)."),
+                FieldSpec.of("output.partitions", "Output partitions", FieldType.LIST,
+                        "Output grain; may differ from the input grain."),
+                FieldSpec.of("transform", "Transform SQL", FieldType.SQL,
+                        "Inline SQL reading from the 'input' view and any references; or use transform_file."),
+                FieldSpec.of("transform_file", "Transform SQL file", FieldType.FILEPATH,
+                        "Path to a .sql file used when 'transform' is absent."),
+                FieldSpec.of("triggers.on_pipeline", "Trigger pipeline", FieldType.STRING,
+                        "Upstream pipeline/enrichment whose commit triggers an incremental recompute."),
+                FieldSpec.of("triggers.schedule_seconds", "Schedule seconds", FieldType.LONG,
+                        "Interval for a full completeness recompute; <=0 disables.")
+        );
+        List<CrossFieldRule> rules = List.of(
+                new CrossFieldRule(
+                        "transform-or-transform-file",
+                        "An enrichment needs either an inline 'transform' or a 'transform_file'.",
+                        Severity.ERROR,
+                        List.of("transform", "transform_file"),
+                        raw -> present(raw, "transform") || present(raw, "transform_file"))
+        );
+        return new ConfigSpec("enrichment", fields, rules);
+    }
+
+    // ── job ───────────────────────────────────────────────────────────────────
+
+    public static ConfigSpec job() {
+        List<FieldSpec> fields = List.of(
+                FieldSpec.required("job.name", "Job name", FieldType.STRING, "Unique job name."),
+                FieldSpec.enumField("job.type", "Job type",
+                        List.of("ingest", "enrich", "report", "maintenance"), null, "The kind of work."),
+                new FieldSpec("job.cron", "Cron", "Calendar schedule (5 or 6 cron fields), or blank.",
+                        FieldType.CRON, false, null, List.of(), null, "cron-editor", null),
+                FieldSpec.of("job.on_pipeline", "Trigger pipeline", FieldType.STRING,
+                        "Run when this upstream pipeline/job commits a batch."),
+                FieldSpec.withDefault("job.enabled", "Enabled", FieldType.BOOL, true,
+                        "Whether the scheduler arms this job.")
+        );
+        List<CrossFieldRule> rules = List.of(
+                new CrossFieldRule(
+                        "job-type-required",
+                        "job.type must be one of ingest|enrich|report|maintenance.",
+                        Severity.ERROR,
+                        List.of("job.type"),
+                        raw -> {
+                            String t = str(raw, "job.type");
+                            return t != null && List.of("ingest", "enrich", "report", "maintenance")
+                                    .contains(t.toLowerCase());
+                        }),
+                new CrossFieldRule(
+                        "cron-field-count",
+                        "job.cron, when present, must have 5 or 6 whitespace-separated fields.",
+                        Severity.ERROR,
+                        List.of("job.cron"),
+                        raw -> {
+                            String cron = str(raw, "job.cron");
+                            if (cron == null || cron.isBlank()) {
+                                return true;
+                            }
+                            int n = cron.trim().split("\\s+").length;
+                            return n == 5 || n == 6;
+                        })
+        );
+        return new ConfigSpec("job", fields, rules);
+    }
+
+    // ── schema ──────────────────────────────────────────────────────────────────
+
+    public static ConfigSpec schema() {
+        List<FieldSpec> fields = List.of(
+                FieldSpec.required("raw.name", "Schema name", FieldType.STRING, "Logical name of the raw source."),
+                FieldSpec.enumField("raw.format", "Raw format", List.of("CSV", "PARQUET"), "CSV",
+                        "Source file format."),
+                FieldSpec.of("partitionKey", "Partition key", FieldType.STRING,
+                        "Column whose value drives Hive partitioning (or use fields[].partitions)."),
+                FieldSpec.of("raw.fields", "Field definitions", FieldType.LIST,
+                        "Tabular array of {name,selector,type[,description,unit,classification]}."),
+                FieldSpec.of("mapping.canonicalName", "Canonical name", FieldType.STRING,
+                        "Canonical table name the raw source maps to.")
+        );
+        // Schema bodies are deeply validated by Identifiers.validateSchema at parse time; the spec
+        // describes shape for UI/AI rather than re-implementing that structural validation.
+        return new ConfigSpec("schema", fields, List.of());
+    }
+
+    // ── meta (KPI/report semantics) ──────────────────────────────────────────────
+
+    public static ConfigSpec meta() {
+        List<FieldSpec> fields = List.of(
+                FieldSpec.required("name", "Semantics name", FieldType.STRING, "Name of this semantic model."),
+                FieldSpec.of("version", "Version", FieldType.INT, "Schema version of the meta file."),
+                FieldSpec.of("tables", "Table descriptions", FieldType.MAP,
+                        "Map of table id → {description, grain}."),
+                FieldSpec.of("kpis", "KPI catalog", FieldType.MAP,
+                        "Map of KPI name → {definition, grain, inputs[], join_keys[]}."),
+                FieldSpec.of("reports", "Report catalog", FieldType.MAP,
+                        "Map of report name → {description, uses[]}."),
+                FieldSpec.of("domain", "Domain notes", FieldType.MAP,
+                        "{currency, timezone, notes[]} — cross-cutting domain context.")
+        );
+        return new ConfigSpec("meta", fields, List.of());
+    }
+}

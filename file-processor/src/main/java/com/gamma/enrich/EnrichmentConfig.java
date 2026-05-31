@@ -95,9 +95,30 @@ public record EnrichmentConfig(String name,
 
     // ── factory ────────────────────────────────────────────────────────────────
 
-    @SuppressWarnings("unchecked")
     public static EnrichmentConfig load(String configPath) throws IOException {
         Map<String, Object> raw = ToonHelper.load(configPath);
+
+        // The one filesystem read stays in load(): resolve an external transform_file to SQL text,
+        // then hand the already-resolved SQL to the pure fromMap.
+        String transform = (String) raw.get("transform");
+        String transformFile = (String) raw.get("transform_file");
+        if ((transform == null || transform.isBlank()) && transformFile != null) {
+            if (!Files.exists(Paths.get(transformFile)))
+                throw new FileNotFoundException("transform_file not found: " + transformFile);
+            transform = Files.readString(Paths.get(transformFile), StandardCharsets.UTF_8);
+        }
+        return fromMap(raw, transform);
+    }
+
+    /**
+     * Build an {@code EnrichmentConfig} from an already-decoded map and an already-resolved transform
+     * SQL — a <b>pure</b> parse with no file I/O. {@code resolvedTransformSql} is the SQL read from a
+     * {@code transform_file} (or {@code null} to use the inline {@code transform} key in {@code raw}).
+     *
+     * @throws IllegalArgumentException if neither an inline transform nor resolved SQL is present
+     */
+    @SuppressWarnings("unchecked")
+    public static EnrichmentConfig fromMap(Map<String, Object> raw, String resolvedTransformSql) {
         String name = String.valueOf(raw.get("name"));
 
         Map<String, Object> in = ToonHelper.requireSection(raw, "input");
@@ -132,13 +153,9 @@ public record EnrichmentConfig(String name,
             }
         }
 
-        String transform = (String) raw.get("transform");
-        String transformFile = (String) raw.get("transform_file");
-        if ((transform == null || transform.isBlank()) && transformFile != null) {
-            if (!Files.exists(Paths.get(transformFile)))
-                throw new FileNotFoundException("transform_file not found: " + transformFile);
-            transform = Files.readString(Paths.get(transformFile), StandardCharsets.UTF_8);
-        }
+        String transform = (resolvedTransformSql != null && !resolvedTransformSql.isBlank())
+                ? resolvedTransformSql
+                : (String) raw.get("transform");
         if (transform == null || transform.isBlank())
             throw new IllegalArgumentException("Enrichment config needs 'transform' or 'transform_file'");
 

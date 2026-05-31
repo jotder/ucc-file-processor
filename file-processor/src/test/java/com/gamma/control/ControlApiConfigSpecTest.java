@@ -1,0 +1,151 @@
+package com.gamma.control;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.etl.PipelineConfigBatchTest;
+import com.gamma.service.SourceService;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Integration tests for the v3.2.0 config-keystone routes over real HTTP (P4): the declarative
+ * {@code GET /config/spec/{type}} (scope assist.read), and the extended {@code POST /validate} that
+ * checks an unsaved draft against a spec with no file written — plus the back-compatible
+ * {@code {"configPath"}} form.
+ */
+class ControlApiConfigSpecTest {
+
+    private static final String TOKEN = "secret";
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private final HttpClient client = HttpClient.newHttpClient();
+
+    private record Ctx(SourceService svc, ControlApi api, int port, String name) implements AutoCloseable {
+        public void close() { api.close(); svc.close(); }
+    }
+
+    private Ctx open(Path dir) throws Exception {
+        Path pipe = PipelineConfigBatchTest.writePipeline(dir, "");
+        SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        api.start();
+        return new Ctx(svc, api, api.port(), "mini_etl");
+    }
+
+    private HttpResponse<String> get(int port, String path, String token) throws Exception {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
+        if (token != null) b.header("Authorization", "Bearer " + token);
+        return client.send(b.method("GET", BodyPublishers.noBody()).build(), BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> post(int port, String path, String token, String body) throws Exception {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
+        if (token != null) b.header("Authorization", "Bearer " + token);
+        return client.send(b.method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
+    }
+
+    @Test
+    void configSpecRouteIsScopedAssistRead(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            assertEquals(401, get(c.port, "/config/spec/pipeline", null).statusCode(), "no token -> locked");
+            assertEquals(401, get(c.port, "/config/spec/pipeline", "wrong").statusCode(), "bad token -> 401");
+            assertEquals(200, get(c.port, "/config/spec/pipeline", TOKEN).statusCode(),
+                    "control token satisfies assist.read");
+        }
+    }
+
+    @Test
+    void specFetchForEveryTypeAndUnknownIs404(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            for (String type : List.of("pipeline", "enrichment", "job", "schema", "meta")) {
+                HttpResponse<String> r = get(c.port, "/config/spec/" + type, TOKEN);
+                assertEquals(200, r.statusCode(), type);
+                JsonNode spec = JSON.readTree(r.body());
+                assertEquals(type, spec.get("type").asText());
+                assertTrue(spec.get("fields").size() > 0, type + " has fields");
+            }
+            assertEquals(404, get(c.port, "/config/spec/bogus", TOKEN).statusCode());
+        }
+    }
+
+    @Test
+    void specExposesCrossFieldRuleCatalogWithoutThePredicate(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            JsonNode spec = JSON.readTree(get(c.port, "/config/spec/pipeline", TOKEN).body());
+            JsonNode rules = spec.get("rules");
+            assertTrue(rules.size() >= 1);
+            JsonNode rule = rules.get(0);
+            assertTrue(rule.has("id") && rule.has("description") && rule.has("severity"));
+            assertFalse(rule.has("rule"), "the executable predicate must not serialise");
+        }
+    }
+
+    @Test
+    void validateDraftBodyReportsCrossFieldViolationWithoutAFile(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            // ingester set but no segments → the plugin-ingester-requires-segments ERROR
+            String body = """
+                    {"type":"pipeline","config":{
+                       "name":"X",
+                       "dirs":{"poll":"/in","database":"/out"},
+                       "processing":{"ingester":"com.x.Plugin","threads":1}}}""";
+            HttpResponse<String> r = post(c.port, "/validate", TOKEN, body);
+            assertEquals(200, r.statusCode());
+            JsonNode out = JSON.readTree(r.body());
+            assertEquals("pipeline", out.get("type").asText());
+            assertFalse(out.get("clean").asBoolean(), "violation present → not clean");
+            boolean hasSegmentsErr = false;
+            for (JsonNode f : out.get("findings"))
+                if (f.get("message").asText().contains("segments")) hasSegmentsErr = true;
+            assertTrue(hasSegmentsErr, "segments rule surfaced: " + out.get("findings"));
+        }
+    }
+
+    @Test
+    void validateCleanDraftHasNoFindings(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            String body = """
+                    {"type":"pipeline","config":{
+                       "name":"X",
+                       "dirs":{"poll":"/in","database":"/out"},
+                       "processing":{"threads":1}}}""";
+            JsonNode out = JSON.readTree(post(c.port, "/validate", TOKEN, body).body());
+            assertTrue(out.get("clean").asBoolean(), "clean draft: " + out.get("findings"));
+            assertEquals(0, out.get("findings").size());
+        }
+    }
+
+    @Test
+    void validateBadDraftShapeIs400AndUnknownTypeIs404(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            assertEquals(400, post(c.port, "/validate", TOKEN, "{}").statusCode(),
+                    "neither configPath nor type+config");
+            assertEquals(404, post(c.port, "/validate", TOKEN,
+                    "{\"type\":\"bogus\",\"config\":{}}").statusCode());
+        }
+    }
+
+    @Test
+    void legacyConfigPathFormStillWorksAndAddsFindings(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            Path toon = c.svc.pathFor(c.name).orElseThrow();
+            String body = "{\"configPath\":\"" + toon.toString().replace("\\", "/") + "\"}";
+            HttpResponse<String> r = post(c.port, "/validate", TOKEN, body);
+            assertEquals(200, r.statusCode());
+            JsonNode out = JSON.readTree(r.body());
+            assertEquals(c.name, out.get("pipeline").asText());
+            assertTrue(out.has("warnings"), "legacy warnings field preserved");
+            assertTrue(out.has("findings"), "structured findings added");
+        }
+    }
+}
