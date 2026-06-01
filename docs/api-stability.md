@@ -27,10 +27,12 @@ Two audiences depend on the framework from outside:
 
 | Type | Since | Role |
 |---|---|---|
-| `com.gamma.etl.FileIngester` | 1.3.0 | The interface you implement |
+| `com.gamma.etl.FileIngester` | 1.3.0 | The interface you implement (whole-file: build DuckDB tables, return) |
 | `com.gamma.etl.FileIngester.Segment` | 1.3.0 | One returned event-type table |
+| `com.gamma.etl.StreamingFileIngester` | 3.10.0 | Streaming alternative for very large custom files — emit records into a sink; the framework owns tables/transform/write and bounds scratch. Additive; classic `FileIngester` unchanged |
+| `com.gamma.etl.RecordSink` | 3.10.0 | Framework-provided callback a `StreamingFileIngester` writes records into (`define`/`emit`/`reject`/`junk`) |
 | `com.gamma.etl.IngestResult` | 1.0.0 | Row counts you report |
-| `com.gamma.etl.PipelineConfig` (+ nested records `Identity`, `Dirs`, `Processing`, `CsvSettings`, `Output`, `Schemas`) | 1.0.0 / records 2.0.0 | Passed to `ingest(...)`; read for paths, settings, `ingesterConfig` |
+| `com.gamma.etl.PipelineConfig` (+ nested records `Identity`, `Dirs`, `Processing`, `CsvSettings`, `Output`, `Schemas`, `DuckDbSettings`, `Chunking`) | 1.0.0 / records 2.0.0 (`DuckDbSettings`/`Chunking` 3.10.0) | Passed to `ingest(...)`; read for paths, settings, `ingesterConfig`; `DuckDbSettings`/`Chunking` are additive large-file controls |
 
 **Embedders** (driving the ETL from Java instead of the CLI):
 

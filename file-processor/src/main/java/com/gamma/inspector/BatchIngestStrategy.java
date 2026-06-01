@@ -2,8 +2,13 @@ package com.gamma.inspector;
 
 import com.gamma.etl.Batch;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.util.DuckDbUtil;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
@@ -41,5 +46,39 @@ interface BatchIngestStrategy {
     /** A non-null message for an exception, falling back to its simple class name. */
     static String msg(Exception e) {
         return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+    }
+
+    /**
+     * The scratch directory for the per-batch temp DB <em>and</em> DuckDB's spill: explicit
+     * {@code processing.duckdb.temp_directory}, else {@code dirs.temp} (on the data volume), else
+     * {@code null} ⇒ fall back to the JVM temp dir. Routing scratch here is what keeps a huge
+     * file's multi-hundred-GB temp data off a small system {@code /tmp}.
+     */
+    static String scratchDir(PipelineConfig cfg) {
+        String explicit = cfg.duckdb().tempDirectory();
+        if (explicit != null && !explicit.isBlank()) return explicit;
+        String temp = cfg.dirs().temp();
+        return (temp != null && !temp.isBlank()) ? temp : null;
+    }
+
+    /**
+     * Create the per-batch temp DuckDB database in the resolved {@link #scratchDir scratch dir}
+     * (data volume), falling back to {@code java.io.tmpdir} only when none is configured.
+     */
+    static File openTempDb(PipelineConfig cfg, String prefix) throws IOException {
+        String dir = scratchDir(cfg);
+        return dir == null ? DuckDbUtil.tempDbFile(prefix)
+                           : DuckDbUtil.tempDbFile(prefix, Paths.get(dir));
+    }
+
+    /**
+     * Apply the per-connection thread cap and any optional DuckDB resource controls
+     * (memory limit, spill {@code temp_directory} = the scratch dir, spill size cap) to a freshly
+     * opened worker connection.
+     */
+    static void configure(Connection conn, PipelineConfig cfg) throws SQLException {
+        DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads());
+        DuckDbUtil.applyDuckDbSettings(conn,
+                cfg.duckdb().memoryLimit(), scratchDir(cfg), cfg.duckdb().maxTempDirectorySize());
     }
 }

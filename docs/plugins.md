@@ -213,6 +213,53 @@ processing:
 
 See `TypedRecordIngester.java` for the full source — it's deliberately compact (~150 lines) and is the recommended starting point for forking your own typed-record variant.
 
+### Streaming ingester — very large custom files {#streaming-ingester}
+
+The classic `FileIngester` above is **whole-file by construction**: it must build complete DuckDB tables for the *entire* input before returning. For a multi-hundred-GB / TB custom file (binary, proprietary, ASN.1) that means the full decoded dataset lands in heap and/or scratch at once — and unlike CSV, the framework **cannot auto-chunk it** (`processing.chunking` splits on line boundaries; only your decoder knows where an opaque record ends).
+
+`com.gamma.etl.StreamingFileIngester` (since 3.10.0) is the additive answer. Instead of building tables, you **emit records one at a time** into a framework-owned `RecordSink`; the framework owns table creation, transform, partitioned write, lineage, *and* flushes bounded **generations** as it goes — so peak heap and scratch stay bounded regardless of total file size. The classic `FileIngester` is untouched and remains the right choice for modest files.
+
+```java
+package com.acme.etl;
+
+import com.gamma.etl.*;
+import java.io.File;
+
+public class AsnCdrIngester implements StreamingFileIngester {
+
+    @Override
+    public void ingest(File file, RecordSink sink, int srcId, PipelineConfig cfg) throws Exception {
+        try (var decoder = openYourDecoder(file)) {     // your TLV / binary / record walker
+            for (var record : decoder) {
+                switch (record.type()) {
+                    // emit(segmentKey, values…) — values positional, matching the segment's columns.
+                    // Do NOT pass __src_id; the framework adds it.
+                    case CALL -> sink.emit("CALL", record.id(), "CALL", record.date());
+                    case SMS  -> sink.emit("SMS",  record.id(), "SMS",  record.date());
+                    case BAD  -> sink.reject(record.typeKey());   // known type, malformed → errorRows
+                    default   -> sink.junk();                     // unknown type, skipped → junkCandidateRows
+                }
+            }
+        }
+        // Returning normally signals end-of-file; the framework performs the final flush.
+    }
+}
+```
+
+**Contract:**
+
+| Rule | Detail |
+|---|---|
+| Columns | Either call `sink.define(key, columns)` once per segment before emitting, **or** rely on the framework deriving columns from that segment's `raw.fields`. You *must* `define` explicitly when a `partitions[]` source column is ingester-derived and not in `raw.fields` (e.g. `EVENT_TYPE`). |
+| `emit` values | Positional, matching the declared/derived column count and order; stored as `VARCHAR` (`null` ⇒ SQL `NULL`). No `__src_id`. |
+| Quarantine | Throw (e.g. `IOException`) → `QUARANTINED_UNREADABLE`. Emit zero records across all segments → `QUARANTINED_MISMATCH`. |
+| Don't flush yourself | Do **not** create tables, transform, or write output — the framework does, and bounds scratch for you. |
+| Precedence | A class implementing both `FileIngester` and `StreamingFileIngester` uses the **streaming** path. |
+
+**Output layout difference.** Each member streams independently and each bounded generation writes its own per-partition file (`<stem>_gNNNNN_out.*`), which coexist in the partition directories — valid Hive layout, the same trade-off the CSV auto-chunker makes. A file small enough to fit one generation produces a single output file, identical to the classic path. The per-generation row budget defaults to 5,000,000 rows (a deliberate internal default; see [design-notes D9](design-notes.md)).
+
+Registration is identical to the classic path — set `processing.ingester` to your FQCN and declare `processing.segments`.
+
 ### Plugin author workflow
 
 End-to-end recipe for shipping a custom `FileIngester` to a deployed pipeline:

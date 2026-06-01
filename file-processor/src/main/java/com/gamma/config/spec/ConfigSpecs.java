@@ -75,6 +75,16 @@ public final class ConfigSpecs {
                         "Whether source files carry a header row."),
                 FieldSpec.withDefault("processing.batch.max_files", "Batch max files", FieldType.INT, 1,
                         "Files packed into one batch; raise above 1 for intra-batch parallelism."),
+                FieldSpec.of("processing.duckdb.temp_directory", "DuckDB scratch dir", FieldType.FILEPATH,
+                        "Directory for the per-batch temp DB and DuckDB spill; defaults to dirs.temp (never the system /tmp). Point at the roomiest disk for very large files."),
+                FieldSpec.of("processing.duckdb.memory_limit", "DuckDB memory limit", FieldType.STRING,
+                        "RAM cap per worker connection (DuckDB size string, e.g. '16GB'); beyond it DuckDB spills to temp_directory. Blank = DuckDB default (~80% RAM)."),
+                FieldSpec.of("processing.duckdb.max_temp_directory_size", "DuckDB spill cap", FieldType.STRING,
+                        "Hard cap on spill size (e.g. '900GB') so a runaway query fails fast instead of filling the disk."),
+                FieldSpec.withDefault("processing.chunking.max_file_bytes", "Auto-chunk threshold (bytes)", FieldType.LONG, 0L,
+                        "Files larger than this are streamed in bounded chunks to cap scratch; 0 = disabled."),
+                FieldSpec.of("processing.chunking.target_chunk_bytes", "Target chunk size (bytes)", FieldType.LONG,
+                        "Approximate size of each chunk when chunking is active; defaults to the threshold."),
                 FieldSpec.enumField("output.format", "Output format",
                         List.of("CSV", "PARQUET"), "CSV", "Stage-1 output file format.")
         );

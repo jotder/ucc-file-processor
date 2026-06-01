@@ -16,8 +16,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.gamma.inspector.BatchIngestStrategy.configure;
 import static com.gamma.inspector.BatchIngestStrategy.dropTable;
 import static com.gamma.inspector.BatchIngestStrategy.msg;
+import static com.gamma.inspector.BatchIngestStrategy.openTempDb;
 
 /**
  * Plugin-ingester path. A {@link FileIngester} (named by {@link PipelineConfig.Schemas#ingesterClass()})
@@ -63,9 +65,9 @@ final class PluginBatchStrategy implements BatchIngestStrategy {
 
         File tempDb = null;
         try {
-            tempDb = DuckDbUtil.tempDbFile("duckdb_plugin_");
+            tempDb = openTempDb(cfg, "duckdb_plugin_");
             try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
-                DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads());
+                configure(conn, cfg);
 
                 // ── ingest all members ────────────────────────────────────────
                 for (Batch.Member m : batch.members()) {

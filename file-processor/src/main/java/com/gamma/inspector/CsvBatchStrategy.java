@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.Statement;
@@ -16,8 +18,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.gamma.inspector.BatchIngestStrategy.configure;
 import static com.gamma.inspector.BatchIngestStrategy.dropTable;
 import static com.gamma.inspector.BatchIngestStrategy.msg;
+import static com.gamma.inspector.BatchIngestStrategy.openTempDb;
+import static com.gamma.inspector.BatchIngestStrategy.scratchDir;
 
 /**
  * Built-in CSV ingest path. Ingests each member into a per-file temp table, inserts
@@ -47,9 +52,22 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
 
         File tempDb = null;
         try {
-            tempDb = DuckDbUtil.tempDbFile("duckdb_batch_");
+            tempDb = openTempDb(cfg, "duckdb_batch_");
             try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
-                DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads());
+                configure(conn, cfg);
+
+                // Single-member native batches stream in ONE pass (read_csv → transform →
+                // partitioned COPY) with no raw_f0/raw_input data copy — bounding scratch to one
+                // transformed table instead of ~2× the file. A file over the chunking threshold is
+                // streamed chunk-by-chunk so peak scratch stays bounded regardless of file size.
+                // Multi-member / Java-engine batches keep the per-member union path below unchanged.
+                if (batch.members().size() == 1 && DuckDbCsvIngester.usesDuckDb(cfg)) {
+                    Batch.Member only = batch.members().get(0);
+                    return cfg.chunking().appliesTo(only.file().length())
+                            ? chunkedIngest(batch, only, cfg, conn, batchStart)
+                            : streamingIngest(batch, only, cfg, conn, batchStart);
+                }
+
                 boolean rawCreated = false;
                 for (Batch.Member m : batch.members()) {
                     LocalDateTime mStart = LocalDateTime.now();
@@ -134,5 +152,170 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
 
         return new IngestOutcome(batchStart, batchStatus, batchError, survivors, memberAudits,
                 outputs, lineage, totalInputRows, batch.schemaName());
+    }
+
+    /**
+     * One-pass streaming ingest for a single-member native-{@code read_csv} batch.
+     *
+     * <p>Instead of {@code read_csv → raw_f0 (table) → raw_input (table) → transformed (table) →
+     * COPY}, {@link #streamUnit} builds {@code raw_input} as a lazy {@code VIEW} over {@code read_csv}
+     * and lets the one {@code CREATE TABLE transformed AS …} pull the data through in a single
+     * streaming pass. Peak scratch drops from ~2× the file (raw_input + transformed coexisting) to a
+     * single transformed table, and the redundant copy is gone — faster and far smaller.
+     *
+     * <p>Output and lineage are produced by the same {@link PartitionWriter}/{@link LineageCollector}
+     * the multi-member path uses, over the same {@code transformed} table, so results are identical.
+     * Quarantine/empty semantics mirror the per-member path exactly (unreadable → QUARANTINED_UNREADABLE;
+     * 0 valid rows + rejects → QUARANTINED_MISMATCH; otherwise EMPTY/SUCCESS).
+     */
+    private IngestOutcome streamingIngest(Batch batch, Batch.Member m, PipelineConfig cfg,
+                                          Connection conn, LocalDateTime batchStart) throws Exception {
+        Map<String, Object> schema = m.selection().schema();
+        LocalDateTime mStart = LocalDateTime.now();
+        String dbDir = databaseDir(batch, cfg);
+        List<String> partCols = partitionColumns(schema);
+        String baseName = CsvIngester.stripExtensions(m.file().getName());
+
+        Streamed s;
+        try {
+            s = streamUnit(conn, m.file(), m.file().getName(), schema, cfg,
+                    dbDir, baseName, partCols, m.srcId(), batch.batchId());
+        } catch (Exception e) {
+            // read_csv failure (unreadable/undecodable) surfaces when the CTAS drives it.
+            QuarantineManager.quarantine(m.file(), "unreadable", false, cfg);
+            return empty(batch, batchStart, MemberAudit.rejected(m, "QUARANTINED_UNREADABLE", msg(e), mStart));
+        }
+        return finishSingle(batch, m, cfg, batchStart, mStart, s.parsed(), s.rejects(),
+                s.outputs(), s.lineage());
+    }
+
+    /**
+     * Streaming ingest for a single file that exceeds {@code processing.chunking.max_file_bytes}.
+     * Splits the file into bounded, self-contained chunks ({@link FileChunker}) and streams each
+     * through {@link #streamUnit} <em>one at a time</em> — dropping the transformed table and
+     * deleting the chunk between iterations — so peak scratch stays ~one chunk regardless of total
+     * file size. Each chunk writes its own per-partition output file ({@code <base>_cNNNN_out.*}),
+     * which coexist in the partition dirs (valid Hive layout). Counts/outputs/lineage aggregate; the
+     * <em>original</em> file remains the member for audit/markers/backup, so commit is unchanged.
+     */
+    private IngestOutcome chunkedIngest(Batch batch, Batch.Member m, PipelineConfig cfg,
+                                        Connection conn, LocalDateTime batchStart) throws Exception {
+        Map<String, Object> schema = m.selection().schema();
+        LocalDateTime mStart = LocalDateTime.now();
+        String dbDir = databaseDir(batch, cfg);
+        List<String> partCols = partitionColumns(schema);
+        String baseName = CsvIngester.stripExtensions(m.file().getName());
+
+        String scratch = scratchDir(cfg);
+        Path chunkDir = Paths.get(scratch != null ? scratch : System.getProperty("java.io.tmpdir"));
+
+        long parsedTotal = 0, rejectTotal = 0;
+        List<PartitionOutput> outputs = new ArrayList<>();
+        List<LineageRow>      lineage = new ArrayList<>();
+        int chunkCount = 0;
+
+        try (FileChunker chunker = new FileChunker(m.file(), cfg, chunkDir)) {
+            int seq = 0;
+            while (chunker.hasNext()) {
+                File chunk = chunker.next();
+                chunkCount++;
+                try {
+                    // Lineage is attributed to the ORIGINAL file name, not the transient chunk.
+                    Streamed s = streamUnit(conn, chunk, m.file().getName(), schema, cfg, dbDir,
+                            baseName + "_c" + String.format("%05d", seq), partCols,
+                            m.srcId(), batch.batchId());
+                    parsedTotal += s.parsed();
+                    rejectTotal += s.rejects();
+                    outputs.addAll(s.outputs());
+                    lineage.addAll(s.lineage());
+                } finally {
+                    Files.deleteIfExists(chunk.toPath());
+                }
+                seq++;
+            }
+        }
+        log.info("[INGEST] [{}] streamed {} chunk(s): {} rows{}", m.file().getName(), chunkCount,
+                String.format("%,d", parsedTotal), rejectTotal > 0 ? "  rejected=" + rejectTotal : "");
+
+        return finishSingle(batch, m, cfg, batchStart, mStart, parsedTotal, rejectTotal, outputs, lineage);
+    }
+
+    /**
+     * Stream one physical CSV unit (a whole file or one chunk) through the single-pass pipeline:
+     * lazy {@code read_csv} view → one {@code transformed} table → partitioned write → lineage.
+     * Drops the view and table before returning so the next chunk reuses the names and frees scratch.
+     * Returns {@code parsed == 0} (with empty outputs) for an empty unit; throws if read_csv fails.
+     *
+     * @param physical     the file actually read (the original file, or a chunk file)
+     * @param lineageName  the file name to record in lineage (the original file, even for chunks)
+     */
+    private static Streamed streamUnit(Connection conn, File physical, String lineageName,
+                                       Map<String, Object> schema, PipelineConfig cfg, String dbDir,
+                                       String baseName, List<String> partCols, int srcId, String batchId)
+            throws Exception {
+        dropTable(conn, "transformed");
+        DuckDbCsvIngester.createRawInputView(physical, conn, schema, cfg, "raw_input", srcId);
+        DataTransformer.materialize(conn, schema, cfg);   // read_csv runs here (streaming)
+
+        long parsed  = countRows(conn, "transformed");
+        long rejects = DuckDbCsvIngester.drainRejects(conn, physical, cfg);
+        if (parsed == 0) {
+            dropTable(conn, "transformed");
+            return new Streamed(0, rejects, List.of(), List.of());
+        }
+        List<PartitionOutput> outputs = PartitionWriter.write(conn, "transformed", dbDir,
+                cfg.output().format(), cfg.output().compression(), baseName, partCols);
+        List<LineageRow> lineage = LineageCollector.collect(conn, "transformed",
+                batchId, Map.of(srcId, lineageName), outputs, partCols);
+        dropTable(conn, "transformed");
+        return new Streamed(parsed, rejects, outputs, lineage);
+    }
+
+    /** Apply the shared empty/quarantine/success decision for a single-member outcome. */
+    private IngestOutcome finishSingle(Batch batch, Batch.Member m, PipelineConfig cfg,
+                                       LocalDateTime batchStart, LocalDateTime mStart,
+                                       long parsed, long rejects,
+                                       List<PartitionOutput> outputs, List<LineageRow> lineage)
+            throws Exception {
+        if (parsed == 0 && rejects > 0) {
+            QuarantineManager.quarantine(m.file(), "field_mismatch", true, cfg);
+            String reason = String.format("0 valid rows; %d row(s) rejected (field mismatch)", rejects);
+            return empty(batch, batchStart, MemberAudit.rejected(m, "QUARANTINED_MISMATCH", reason, mStart));
+        }
+        if (parsed == 0)
+            return empty(batch, batchStart, MemberAudit.accepted(m, 0, 0, mStart));
+
+        return new IngestOutcome(batchStart, "SUCCESS", "", List.of(m),
+                List.of(MemberAudit.accepted(m, parsed, rejects, mStart)),
+                outputs, lineage, parsed, batch.schemaName());
+    }
+
+    private IngestOutcome empty(Batch batch, LocalDateTime batchStart, MemberAudit memberAudit) {
+        return new IngestOutcome(batchStart, "EMPTY", "", List.of(), List.of(memberAudit),
+                List.of(), List.of(), 0, batch.schemaName());
+    }
+
+    private static String databaseDir(Batch batch, PipelineConfig cfg) {
+        return (batch.table() != null && !batch.table().isBlank())
+                ? Paths.get(cfg.dirs().database(), batch.table()).toString()
+                : cfg.dirs().database();
+    }
+
+    private static List<String> partitionColumns(Map<String, Object> schema) {
+        List<PartitionDef> partDefs = PartitionDef.fromSchema(schema);
+        return partDefs.isEmpty() ? List.of("year", "month", "day")
+                                  : PartitionDef.columnNames(partDefs);
+    }
+
+    /** Per-unit streaming result aggregated by {@link #chunkedIngest}. */
+    private record Streamed(long parsed, long rejects,
+                            List<PartitionOutput> outputs, List<LineageRow> lineage) {}
+
+    private static long countRows(Connection conn, String table) throws java.sql.SQLException {
+        try (Statement st = conn.createStatement();
+             java.sql.ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM \"" + table + "\"")) {
+            rs.next();
+            return rs.getLong(1);
+        }
     }
 }

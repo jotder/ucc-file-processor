@@ -94,6 +94,42 @@ public final class PipelineConfig {
                           LinkedHashMap<String, Map<String, Object>> segments,
                           String ingesterClass, Map<String, Object> ingesterConfig) {}
 
+    /**
+     * Optional DuckDB engine-resource controls (additive, 3.10.0). All {@code null}/blank ⇒
+     * DuckDB defaults — fully backward-compatible. Parsed from {@code processing.duckdb}.
+     *
+     * <p>{@code tempDirectory} relocates the per-batch temp database <em>and</em> DuckDB's spill
+     * scratch. The engine defaults it to {@code dirs.temp} (on the data volume) rather than the
+     * JVM/system temp dir ({@code /tmp}), so a huge file's scratch never lands on a small
+     * {@code /tmp}. {@code memoryLimit} and {@code maxTempDirectorySize} accept DuckDB size
+     * strings (e.g. {@code "16GB"}); the latter caps spill so a runaway query fails fast instead
+     * of filling the disk.
+     */
+    @PublicApi(since = "3.10.0")
+    public record DuckDbSettings(String memoryLimit, String tempDirectory,
+                                 String maxTempDirectorySize) {}
+
+    /**
+     * Optional large-file auto-chunking (additive, 3.10.0). Parsed from {@code processing.chunking}.
+     *
+     * <p>{@code maxFileBytes <= 0} disables chunking (the default — behaviour unchanged). When a
+     * single input file exceeds {@code maxFileBytes}, the CSV ingester streams it into bounded
+     * chunks of ~{@code targetChunkBytes} (defaulting to {@code maxFileBytes} when unset), so peak
+     * scratch stays bounded per chunk and chunks process concurrently — instead of materialising
+     * one multi-hundred-GB unit.
+     */
+    @PublicApi(since = "3.10.0")
+    public record Chunking(long maxFileBytes, long targetChunkBytes) {
+        /** Effective per-chunk target, defaulting to the threshold when unset. */
+        public long effectiveChunkBytes() {
+            return targetChunkBytes > 0 ? targetChunkBytes : maxFileBytes;
+        }
+        /** Whether chunking is enabled for a file of {@code fileBytes}. */
+        public boolean appliesTo(long fileBytes) {
+            return maxFileBytes > 0 && fileBytes > maxFileBytes;
+        }
+    }
+
     // ── grouped state + accessors ──────────────────────────────────────────────
 
     private final Identity   identity;
@@ -102,6 +138,8 @@ public final class PipelineConfig {
     private final CsvSettings csv;
     private final Output     output;
     private final Schemas    schemas;
+    private final DuckDbSettings duckdb;
+    private final Chunking       chunking;
 
     /**
      * The {@code status_dir} to create in {@link #prepare()} ({@code null} when status is disabled or
@@ -116,6 +154,10 @@ public final class PipelineConfig {
     public CsvSettings csv()       { return csv; }
     public Output     output()     { return output; }
     public Schemas    schemas()    { return schemas; }
+    /** Optional DuckDB resource controls; never null (fields may be null ⇒ DuckDB defaults). */
+    public DuckDbSettings duckdb()   { return duckdb; }
+    /** Optional large-file chunking config; never null ({@code maxFileBytes <= 0} ⇒ disabled). */
+    public Chunking       chunking() { return chunking; }
 
     // ── private constructor — use load() ──────────────────────────────────────
 
@@ -137,6 +179,8 @@ public final class PipelineConfig {
                 b.ingesterConfig != null
                         ? Collections.unmodifiableMap(b.ingesterConfig)
                         : Collections.emptyMap());
+        this.duckdb   = new DuckDbSettings(b.duckMemoryLimit, b.duckTempDirectory, b.duckMaxTempSize);
+        this.chunking = new Chunking(b.chunkMaxFileBytes, b.chunkTargetBytes);
         this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
@@ -248,6 +292,23 @@ public final class PipelineConfig {
             b.batchMaxFiles = toInt(batch.getOrDefault("max_files", 1));
             Object mb = batch.get("max_bytes");
             b.batchMaxBytes = (mb == null) ? Long.MAX_VALUE : Long.parseLong(String.valueOf(mb));
+        }
+
+        // ── DuckDB engine-resource controls (additive, optional) ───────────────
+        // Defaults (all absent) preserve DuckDB's own defaults; tempDirectory falls back to
+        // dirs.temp at the call site so scratch lands on the data volume, never the system /tmp.
+        Map<String, Object> duck = (Map<String, Object>) proc.get("duckdb");
+        if (duck != null) {
+            b.duckMemoryLimit   = blankToNull(duck.get("memory_limit"));
+            b.duckTempDirectory = blankToNull(duck.get("temp_directory"));
+            b.duckMaxTempSize   = blankToNull(duck.get("max_temp_directory_size"));
+        }
+
+        // ── large-file auto-chunking (additive, optional; disabled by default) ──
+        Map<String, Object> chunk = (Map<String, Object>) proc.get("chunking");
+        if (chunk != null) {
+            b.chunkMaxFileBytes = toLong(chunk.get("max_file_bytes"));
+            b.chunkTargetBytes  = toLong(chunk.get("target_chunk_bytes"));
         }
 
         // ── duplicate check ───────────────────────────────────────────────────
@@ -394,6 +455,20 @@ public final class PipelineConfig {
         return Integer.parseInt(String.valueOf(v));
     }
 
+    /** Parse a size/count to long; {@code null}/blank ⇒ 0. Accepts plain digits (bytes). */
+    private static long toLong(Object v) {
+        if (v == null) return 0;
+        String s = String.valueOf(v).trim();
+        return s.isEmpty() ? 0 : Long.parseLong(s);
+    }
+
+    /** Trim a config value to a String; {@code null}/blank ⇒ {@code null}. */
+    private static String blankToNull(Object v) {
+        if (v == null) return null;
+        String s = String.valueOf(v).trim();
+        return s.isEmpty() ? null : s;
+    }
+
     // ── builder (private, only used inside load()) ────────────────────────────
 
     private static final class Builder {
@@ -415,6 +490,11 @@ public final class PipelineConfig {
         String filePattern   = "glob:**/*.{csv,csv.gz}";
         int    batchMaxFiles   = 1;
         long   batchMaxBytes   = Long.MAX_VALUE;
+        String duckMemoryLimit;
+        String duckTempDirectory;
+        String duckMaxTempSize;
+        long   chunkMaxFileBytes = 0;
+        long   chunkTargetBytes  = 0;
         String batchesFilePath;
         String lineageFilePath;
         String manifestsDir;

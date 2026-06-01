@@ -264,6 +264,64 @@ processing:
 
 ---
 
+### Large files: scratch location & auto-chunking
+
+Each batch runs on a per-batch **embedded DuckDB temp database**, and DuckDB **spills** intermediate
+data to disk when it exceeds its memory budget. By default both land in the JVM temp dir
+(`java.io.tmpdir`, i.e. the system `/tmp`) — which is often small or RAM-backed (`tmpfs`). A very large
+input (tens of GB to TB) will exhaust it with `No space left on device` / out-of-memory. Two additive,
+optional config blocks under `processing` make the engine handle big files without touching `/tmp`.
+
+#### `processing.duckdb` — relocate & cap engine scratch
+
+```yaml
+processing:
+  duckdb:
+    temp_directory: temp/<data_source>      # where the temp DB + DuckDB spill live (default: dirs.temp)
+    memory_limit: "16GB"                     # RAM cap before spilling (default: DuckDB's own ~80% RAM)
+    max_temp_directory_size: "900GB"         # cap spill so a runaway query fails fast, not the disk
+```
+
+| Key | Default | Effect |
+|---|---|---|
+| `temp_directory` | `dirs.temp` | Directory for the per-batch temp database **and** DuckDB's spill scratch. **As of 3.10.0 the engine no longer uses the system `/tmp`** — scratch defaults to the pipeline's `dirs.temp` (on the data volume). Set this to override (point at the roomiest/fastest disk). |
+| `memory_limit` | DuckDB default (~80% RAM) | RAM cap per worker connection (DuckDB size string, e.g. `"16GB"`). Lower it to leave headroom for other work; DuckDB spills to `temp_directory` beyond it. |
+| `max_temp_directory_size` | DuckDB default | Hard cap on spill size — a pathological query fails fast instead of filling the disk. |
+
+> **This is usually the only change needed for a large single file.** With scratch on a roomy data
+> volume, DuckDB's native `read_csv` is internally multi-threaded, so a single large file still uses all
+> cores. Budget roughly **1–3× the decoded file size** of free space on `temp_directory` for the
+> transient transform table + spill.
+
+#### `processing.chunking` — bound scratch for arbitrarily large files
+
+```yaml
+processing:
+  chunking:
+    max_file_bytes: 5000000000               # 0/absent = disabled (default). Files larger than this are chunked.
+    target_chunk_bytes: 2000000000           # approx size of each chunk (default: max_file_bytes)
+```
+
+When a single input file exceeds `max_file_bytes`, the CSV ingester **streams it into bounded chunks**
+of ~`target_chunk_bytes` and processes them one at a time — so peak scratch stays ~one chunk regardless
+of total file size, instead of materialising one multi-hundred-GB unit. Details:
+
+- Only applies on the **native `read_csv` path** (clean files: `skip_junk_lines`/`skip_tail_lines`/
+  `skip_tail_columns` all `0`). Messy SQL\*Plus dumps (Java engine) are not chunked.
+- Each chunk reproduces the source's leading context (the `skip_header_lines` preamble + header row),
+  so the same config reads it; `.csv.gz` inputs are decompressed on the fly.
+- Chunks write their own per-partition output files (`<base>_cNNNNN_out.<ext>`), which coexist in the
+  partition directories (valid Hive layout). The **original file** remains the unit for audit, lineage,
+  markers, and backup — so idempotency and commit semantics are unchanged.
+- Exactly one chunk file exists on disk at a time (it's deleted after processing), so chunk staging
+  doesn't itself need room for the whole file.
+
+> **Rule of thumb:** if `/tmp` can't grow, set `processing.duckdb.temp_directory` to a big data-volume
+> path; if the data volume also can't hold ~1× the file, additionally enable `processing.chunking` to
+> cap peak scratch to a chunk. Both are off/inherited by default, so existing pipelines are unchanged.
+
+---
+
 ## Type Mapping Reference
 
 Transformations are applied by DuckDB during the `CREATE TABLE AS SELECT` step.

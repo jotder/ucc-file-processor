@@ -56,6 +56,32 @@ The startup validator enforces that `database`, `backup`, `temp`, `errors`, `qua
 
 DuckDB 1.1.1 on Windows has a native AVX2 page-boundary bug triggered by large files. The current code works around this by materialising the transformation into an intermediate table (`CREATE TABLE transformed AS ...`) before `COPY TO`. If the crash recurs after a DuckDB version upgrade, check whether the workaround is still in place.
 
+### `No space left on device` / out-of-memory on a very large file
+
+The per-batch embedded DuckDB writes its temp database and **spills** intermediate data to disk. As
+of 3.10.0 that scratch goes to the pipeline's `dirs.temp` (on your data volume), **not** the system
+`/tmp` — so the first thing to check is that `dirs.temp` points at a roomy disk (older symptom: it
+defaulted to `/tmp`, often a small or `tmpfs` RAM disk, and a big file filled it instantly).
+
+For a genuinely huge single file:
+1. **Aim scratch at the biggest/fastest disk:** set `processing.duckdb.temp_directory: /data/scratch`.
+   Budget ~1–3× the decoded file size of free space there for the transform table + spill.
+2. **Cap memory and spill:** `processing.duckdb.memory_limit: "16GB"` and
+   `processing.duckdb.max_temp_directory_size: "900GB"` (fail fast instead of filling the disk).
+3. **Bound scratch regardless of file size:** enable `processing.chunking` —
+   `max_file_bytes: 5000000000` streams the file in ~5GB chunks, so peak scratch is ~one chunk.
+
+See [Configuration → Large files](configuration.md#large-files-scratch-location--auto-chunking). Note
+the single-pass streaming ingest still materialises the `transformed` table before `COPY TO`, so the
+DuckDB-AVX2 crash workaround above remains in effect.
+
+**Custom (plugin) formats.** The steps above cover the built-in CSV path. A very large **custom**
+file (binary / proprietary / ASN.1) read through a classic `FileIngester` cannot be auto-chunked
+(only the decoder knows record boundaries) and materialises the whole file — so it can still exhaust
+heap or scratch. Implement `com.gamma.etl.StreamingFileIngester` instead: it emits records into the
+framework, which flushes bounded generations and keeps heap/scratch bounded regardless of file size.
+See [plugins.md → Streaming ingester](plugins.md#streaming-ingester).
+
 ### DuckLake registration fails silently
 
 Check stderr output for `DuckLake registration failed`. Common causes:

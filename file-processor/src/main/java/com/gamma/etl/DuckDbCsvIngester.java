@@ -91,12 +91,72 @@ public final class DuckDbCsvIngester {
      *
      * @throws IOException if the file cannot be read by DuckDB (→ {@code QUARANTINED_UNREADABLE})
      */
-    @SuppressWarnings("unchecked")
     public static IngestResult ingest(File file, Connection conn,
                                       Map<String, Object> schemaConfig,
                                       PipelineConfig cfg,
                                       String targetTable) throws Exception {
 
+        ReadSpec spec = buildReadSpec(file, schemaConfig, cfg);
+
+        long parsed;
+        try (Statement st = conn.createStatement()) {
+            st.execute("DROP TABLE IF EXISTS \"" + targetTable + "\"");
+            st.execute("CREATE TABLE \"" + targetTable + "\" AS SELECT " + spec.projection()
+                    + " FROM " + spec.readCsv());
+            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM \"" + targetTable + "\"")) {
+                rs.next();
+                parsed = rs.getLong(1);
+            }
+        } catch (Exception e) {
+            // read_csv throws on an unreadable / nonexistent / undecodable file.
+            throw new IOException("DuckDB read_csv failed for " + file.getName() + ": " + e.getMessage(), e);
+        }
+
+        long errors = drainRejects(conn, file, cfg);
+
+        if (parsed > 0)
+            log.info("[INGEST] [{}] {} rows (native read_csv){}",
+                    file.getName(), String.format("%,d", parsed),
+                    errors > 0 ? "  rejected=" + errors : "");
+
+        // junkCandidateRows is a Java-parser concept; the native path folds all
+        // dropped lines into errorRows, so report 0 here.
+        return new IngestResult(parsed, errors, 0);
+    }
+
+    /**
+     * Create a lazy {@code VIEW} over {@code read_csv} — projecting the schema columns plus a
+     * constant {@code __src_id} — <em>without materialising any data</em>. Used by the
+     * single-member streaming path ({@code CsvBatchStrategy}) so the whole pipeline
+     * (read_csv → transform → partitioned COPY) runs in one streaming pass instead of copying
+     * the data into {@code raw_f0} then {@code raw_input} before transforming.
+     *
+     * <p>The view embeds the <em>same</em> {@code read_csv} parameters as {@link #ingest} (including
+     * {@code store_rejects=true}), so {@link #drainRejects} returns the same rejects once the view
+     * has been consumed (e.g. by {@code CREATE TABLE transformed AS SELECT … FROM <viewName>}).
+     *
+     * @param viewName the view to (re)create — typically {@code "raw_input"}
+     * @param srcId    the lineage tag baked into the view (single-member ⇒ {@code 0})
+     */
+    public static void createRawInputView(File file, Connection conn,
+                                          Map<String, Object> schemaConfig,
+                                          PipelineConfig cfg,
+                                          String viewName, int srcId) throws Exception {
+        ReadSpec spec = buildReadSpec(file, schemaConfig, cfg);
+        try (Statement st = conn.createStatement()) {
+            st.execute("DROP VIEW IF EXISTS \"" + viewName + "\"");
+            st.execute("CREATE VIEW \"" + viewName + "\" AS SELECT " + spec.projection()
+                    + ", CAST(" + srcId + " AS INTEGER) AS __src_id FROM " + spec.readCsv());
+        }
+    }
+
+    /** The {@code read_csv(...)} relation SQL and the selector projection for a schema. */
+    private record ReadSpec(String projection, String readCsv) {}
+
+    /** Build the {@code read_csv} relation + selector projection shared by {@link #ingest} and
+     *  {@link #createRawInputView}. Pure string assembly — no DB contact. */
+    @SuppressWarnings("unchecked")
+    private static ReadSpec buildReadSpec(File file, Map<String, Object> schemaConfig, PipelineConfig cfg) {
         List<Map<String, Object>> fields =
                 (List<Map<String, Object>>) ((Map<String, Object>) schemaConfig.get("raw")).get("fields");
 
@@ -140,29 +200,17 @@ public final class DuckDbCsvIngester {
                 + ", auto_detect=false"
                 + ", store_rejects=true)";
 
-        long parsed;
-        try (Statement st = conn.createStatement()) {
-            st.execute("DROP TABLE IF EXISTS \"" + targetTable + "\"");
-            st.execute("CREATE TABLE \"" + targetTable + "\" AS SELECT " + proj + " FROM " + readCsv);
-            try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM \"" + targetTable + "\"")) {
-                rs.next();
-                parsed = rs.getLong(1);
-            }
-        } catch (Exception e) {
-            // read_csv throws on an unreadable / nonexistent / undecodable file.
-            throw new IOException("DuckDB read_csv failed for " + file.getName() + ": " + e.getMessage(), e);
-        }
+        return new ReadSpec(proj.toString(), readCsv);
+    }
 
-        long errors = writeRejects(conn, file, filePath, cfg);
-
-        if (parsed > 0)
-            log.info("[INGEST] [{}] {} rows (native read_csv){}",
-                    file.getName(), String.format("%,d", parsed),
-                    errors > 0 ? "  rejected=" + errors : "");
-
-        // junkCandidateRows is a Java-parser concept; the native path folds all
-        // dropped lines into errorRows, so report 0 here.
-        return new IngestResult(parsed, errors, 0);
+    /**
+     * Drain this file's rejected rows from the connection's {@code reject_errors} table to
+     * {@code errors/<base>_errors.csv} and return the reject count. Public so the streaming path
+     * can call it after the {@code raw_input} view has been consumed. Safe to call even if the
+     * file produced no rejects (returns {@code 0}).
+     */
+    public static long drainRejects(Connection conn, File file, PipelineConfig cfg) {
+        return writeRejects(conn, file, file.getAbsolutePath().replace("\\", "/"), cfg);
     }
 
     // ── reject handling ─────────────────────────────────────────────────────

@@ -166,3 +166,27 @@ is forced alongside `skip_tail_columns > 0`.
   reveal in <2 s.
 - **Partition fan-out** is cheap: 30 distinct dates → 30 output files added no
   measurable cost over a single partition.
+
+## Very large single files (3.10.0)
+
+For a multi-hundred-GB / TB single file the bottleneck is **scratch**, not CPU — DuckDB's
+native `read_csv` already parallelises across the whole file. Two changes target scratch:
+
+- **Scratch off `/tmp`.** The per-batch temp DB + DuckDB spill default to `dirs.temp` (data
+  volume), tunable via `processing.duckdb.{temp_directory,memory_limit,max_temp_directory_size}`.
+  Previously both went to `java.io.tmpdir` (system `/tmp`), which fails fast on big inputs.
+- **One materialization, not 2–3×.** Single-member native batches stream `read_csv → transform →
+  COPY` through a lazy view, so only the `transformed` table is materialised (peak scratch ~1×
+  the decoded data) instead of `raw_f0` + `raw_input` + `transformed` (~2–3×). Fewer
+  intermediate writes also means less I/O — faster, not just smaller. The `transformed` table is
+  deliberately kept (the DuckDB-AVX2 COPY workaround depends on it).
+- **`processing.chunking`** bounds peak scratch to ~one chunk regardless of file size; the split
+  is a single sequential read (cheap vs the materialization it avoids). Chunks process
+  sequentially today — each is already internally multi-threaded, so cores stay busy.
+
+For very large **custom** (binary / proprietary / ASN.1) files the same scratch bound is achieved a
+different way: a `StreamingFileIngester` emits records into the framework's `RecordSink`, which
+append-batches them to DuckDB and flushes bounded **generations** (default 5M rows) — so heap and
+scratch stay bounded without any auto-chunker (which can't split an opaque format). The classic
+whole-file `FileIngester` materialises the entire file and is unsuitable above scratch capacity. See
+[plugins.md → Streaming ingester](plugins.md#streaming-ingester) and [design-notes D9](design-notes.md).

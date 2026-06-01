@@ -2,6 +2,8 @@ package com.gamma.util;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -64,6 +66,62 @@ public final class DuckDbUtil {
         f.delete();
         return f;
     }
+
+    /**
+     * Like {@link #tempDbFile(String)} but creates the temp database in {@code dir} instead of the
+     * JVM's {@code java.io.tmpdir} (typically the system {@code /tmp}).
+     *
+     * <p>This matters for large inputs: both the on-disk temp database <em>and</em> DuckDB's spill
+     * scratch ({@code <dbfile>.tmp}) live next to this file, so pointing it at a roomy data volume
+     * (e.g. the pipeline's {@code dirs.temp}) keeps multi-hundred-GB scratch off a small
+     * {@code /tmp}. The directory is created if absent.
+     *
+     * @param prefix temp-file name prefix (e.g. {@code "duckdb_batch_"})
+     * @param dir    directory to create the temp database in (must be writable / creatable)
+     * @return the (now-deleted) {@link File} whose path DuckDB will use
+     * @throws IOException if the directory or temp file cannot be created
+     */
+    public static File tempDbFile(String prefix, Path dir) throws IOException {
+        Files.createDirectories(dir);
+        File f = File.createTempFile(prefix, ".db", dir.toFile());
+        f.delete();
+        return f;
+    }
+
+    /**
+     * Apply optional DuckDB resource controls to a worker connection via {@code SET} statements.
+     * Each argument is applied only when non-null/non-blank; all-null is a no-op leaving DuckDB's
+     * own defaults. Kept dependency-free (primitive args) so {@code com.gamma.util} need not depend
+     * on the config model.
+     *
+     * <ul>
+     *   <li>{@code temp_directory} — where DuckDB spills; aim at a roomy data volume, not /tmp.</li>
+     *   <li>{@code memory_limit} — RAM cap (DuckDB size string, e.g. {@code "16GB"}).</li>
+     *   <li>{@code max_temp_directory_size} — spill cap so a runaway query fails fast.</li>
+     * </ul>
+     *
+     * @param conn                 an open DuckDB connection
+     * @param memoryLimit          DuckDB {@code memory_limit} value, or {@code null} to leave default
+     * @param tempDirectory        DuckDB {@code temp_directory} value, or {@code null} to leave default
+     * @param maxTempDirectorySize DuckDB {@code max_temp_directory_size} value, or {@code null} to leave default
+     */
+    public static void applyDuckDbSettings(Connection conn, String memoryLimit,
+                                           String tempDirectory, String maxTempDirectorySize)
+            throws SQLException {
+        try (Statement st = conn.createStatement()) {
+            if (notBlank(tempDirectory))
+                st.execute("SET temp_directory='" + sqlLiteral(tempDirectory.replace('\\', '/')) + "'");
+            if (notBlank(memoryLimit))
+                st.execute("SET memory_limit='" + sqlLiteral(memoryLimit) + "'");
+            if (notBlank(maxTempDirectorySize))
+                st.execute("SET max_temp_directory_size='" + sqlLiteral(maxTempDirectorySize) + "'");
+        }
+    }
+
+    private static boolean notBlank(String s) { return s != null && !s.isBlank(); }
+
+    /** Escape single quotes for a single-quoted SQL string literal. */
+    private static String sqlLiteral(String s) { return s.replace("'", "''"); }
 
     /**
      * Opens a DuckDB JDBC connection to {@code dbFile}.

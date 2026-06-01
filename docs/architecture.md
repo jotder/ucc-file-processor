@@ -154,7 +154,13 @@ com.gamma
     BatchProcessor           — thin per-batch coordinator: selects a BatchIngestStrategy, then drives the shared commit → audit tail
     BatchIngestStrategy      — ingest+transform+write seam (CSV vs plugin); returns a typed IngestOutcome (+ shared dropTable/msg helpers)
     CsvBatchStrategy         — built-in CSV path: per-file temp table → raw_input(__src_id) → transform → write → lineage
+                               (single-member native batches stream in one pass via a read_csv VIEW; files over
+                                processing.chunking.max_file_bytes are streamed in bounded chunks — see FileChunker)
+    FileChunker              — streams an oversized file into bounded, header-replicating chunks (one on disk at a time)
     PluginBatchStrategy      — plugin path: FileIngester per member → union per segment → transform/write/lineage per segment
+    StreamingPluginBatchStrategy — streaming plugin path (StreamingFileIngester): emit records → DuckDbRecordSink flushes
+                               bounded generations (transform/write/lineage), so TB-scale custom files stay heap/scratch-bounded
+    DuckDbRecordSink         — framework RecordSink impl: append-batches rows to DuckDB, generation-flushes on a row budget
     IngestOutcome            — record: status, survivors, outputs, lineage, per-member audit, totals (commit/audit input)
     MemberAudit              — record: per-input-file audit row accumulated during ingest
     ReprocessCommand         — `ura reprocess <batch_id>`: delete outputs/markers, restore members, re-run
@@ -204,7 +210,7 @@ com.gamma
 
 **Behavior-injection seams.** Variant behavior is injected into the engine rather than branched inline, so the orchestration code stays thin and a new variant is a closed-set edit:
 
-- **`BatchIngestStrategy`** (`CsvBatchStrategy` / `PluginBatchStrategy`) — the per-batch ingest+transform+write path. `BatchProcessor.process` selects one by config and consumes its typed `IngestOutcome`; the shared commit → audit tail is path-agnostic.
+- **`BatchIngestStrategy`** (`CsvBatchStrategy` / `PluginBatchStrategy` / `StreamingPluginBatchStrategy`) — the per-batch ingest+transform+write path. `BatchProcessor.process` selects one by config (CSV when no `ingester`; streaming when the ingester class implements `StreamingFileIngester`; classic plugin otherwise) and consumes its typed `IngestOutcome`; the shared commit → audit tail is path-agnostic.
 - **`FileIngester`** (SPI, by FQCN) — custom parsers; the reference `TypedRecordIngester` splits one input into many typed segment streams.
 - **`TransformCompiler`** — a `transformType → ColumnRule` function registry; `DataTransformer` assembles the SELECT and delegates each column expression.
 - **`OutputFormat`** — enum-as-strategy owning each format's extension, COPY token, and compression rule, used by `PartitionWriter`.
@@ -238,7 +244,9 @@ sandbox-root/                ← working directory for local runs
   backup/
     <data_source>/              ← original source files archived after processing
   temp/
-    <data_source>/              ← scratch space for tar extraction (auto-cleaned)
+    <data_source>/              ← scratch: tar extraction, the per-batch DuckDB temp DB + spill,
+                                  and large-file chunks (auto-cleaned). Override via
+                                  processing.duckdb.temp_directory; never the system /tmp.
   errors/
     <data_source>/              ← per-file error CSVs (rows rejected during ingest)
   quarantine/
