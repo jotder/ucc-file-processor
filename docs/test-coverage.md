@@ -1,6 +1,6 @@
 # Test Coverage Assessment
 
-Measured with JaCoCo 0.8.13 on **v3.9.0-SNAPSHOT** (2026-06-01). Reproduce with:
+Measured with JaCoCo 0.8.13 on **v3.9.0** (2026-06-01). Reproduce with:
 
 ```
 mvn -Pcoverage test
