@@ -2,6 +2,7 @@ package com.gamma.enrich;
 
 import com.gamma.etl.PartitionOutput;
 import com.gamma.etl.PartitionWriter;
+import com.gamma.sql.SqlViews;
 import com.gamma.util.DuckDbUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,13 +84,13 @@ public final class EnrichmentEngine {
             // 1. reference views
             for (EnrichmentConfig.Reference r : cfg.references()) {
                 st.execute("CREATE VIEW \"" + r.name() + "\" AS SELECT * FROM "
-                        + reader(r.format(), r.path(), false));
+                        + SqlViews.reader(r.format(), r.path(), false));
             }
 
             // 2. input view over the selected Stage-1 partitions
             String inputGlob = cfg.input().database().replace("\\", "/")
-                    + "/**/*." + ext(cfg.input().format());
-            String inputSql = "SELECT * FROM " + reader(cfg.input().format(), inputGlob, true);
+                    + "/**/*." + SqlViews.ext(cfg.input().format());
+            String inputSql = "SELECT * FROM " + SqlViews.reader(cfg.input().format(), inputGlob, true);
             String where = buildFilter(partitionFilter);
             if (!where.isEmpty()) inputSql += " WHERE " + where;
             st.execute("CREATE VIEW input AS " + inputSql);
@@ -124,23 +125,6 @@ public final class EnrichmentEngine {
         try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM " + table)) {
             return rs.next() ? rs.getLong(1) : 0L;
         }
-    }
-
-    private static String ext(String format) {
-        return "PARQUET".equals(format) ? "parquet" : "csv";
-    }
-
-    /** A DuckDB table-function reading {@code pathOrGlob}. hive_types_autocast=0 keeps
-     *  partition values as VARCHAR so zero-padded month/day (e.g. "04") survive. */
-    private static String reader(String format, String pathOrGlob, boolean hive) {
-        String p = pathOrGlob.replace("\\", "/");
-        return switch (format) {
-            case "PARQUET" -> "read_parquet('" + p + "'"
-                    + (hive ? ", hive_partitioning=true, hive_types_autocast=0" : "") + ")";
-            case "CSV" -> "read_csv('" + p + "', header=true, all_varchar=true, union_by_name=true"
-                    + (hive ? ", hive_partitioning=true, hive_types_autocast=0" : "") + ")";
-            default -> throw new IllegalArgumentException("Unsupported format: " + format);
-        };
     }
 
     /** Build {@code (c1='v1' AND c2='v2') OR (...)} from the partition filter. */

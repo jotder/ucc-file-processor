@@ -4,6 +4,7 @@ import com.gamma.agent.model.ModelRouter;
 import com.gamma.agent.skill.AssistContext;
 import com.gamma.agent.skill.DocRetriever;
 import com.gamma.agent.skill.ExplainEntitySkill;
+import com.gamma.agent.skill.KpiToSqlSkill;
 import com.gamma.agent.skill.NlToScheduleSkill;
 import com.gamma.agent.skill.SkillRegistry;
 import com.gamma.agent.skill.SuggestConfigSkill;
@@ -70,7 +71,8 @@ public final class UccAssistAgent implements AssistAgent {
         this.registry = new SkillRegistry(List.of(
                 new ExplainEntitySkill(),
                 new NlToScheduleSkill(),
-                new SuggestConfigSkill()));
+                new SuggestConfigSkill(),
+                new KpiToSqlSkill()));
         log.info("Assist agent '{}' initialised: skills={}, docs={}, modelAvailable={}",
                 name(), registry.intents(), docs.size(), router.anyAvailable());
     }

@@ -241,21 +241,33 @@ slot onto this milestone's `ConfigRegistry` — and now does, with zero `Metadat
   harmful-but-parseable configs**; draft-only; full reactor green CPU-only (**296 core + 55 agent**);
   lean core stays 0-AI (90.3 MB fat-JAR, 0 AI classes, 0 new deps).
 
-### M6 — `kpi-to-sql` (the hero) + SQL sandbox → v3.6.0
-- **T6.1 — `SqlOracle` (locked-down DuckDB).** Extract from `EnrichmentEngine`'s view-registration.
-  Native sandbox: `enable_external_access=false`, `lock_configuration=true`, disable custom/auto
-  extension repos. **Plus a lexical/structural allow-list** ([design_analysis.md §4.B](design_analysis.md)):
-  reject `;` multi-statements, block `read_*`/`write_*`/`copy`/`getenv`/`pragma`/`install`/`load`/
-  `query`/`eval`, allow only a single `WITH`/`SELECT` (no DDL/DML) — because **`EXPLAIN` can still
-  evaluate smuggled functions during planning**. Memory/threads/timeout caps.
-- **T6.2 — `kpi-to-sql` skill** — `{kpiDescription,targetGrain,catalogRefs[],domainNotes?}` (the
-  `catalogRefs` resolve against the **M2 Data Catalog + KPI catalog**) → `{sql,logicExplanation,
-  columnsProduced,chosenJoinKeys,kpiInterpretation,validated,sampleRows?,enrichmentConfigSnippet}`.
-  EXPLAIN/LIMIT-0 validate→repair (cap 2–3). 14B prod / 7B dev / hosted-recommended connected.
-  **Confirm-first; surface interpretation + chosen join keys + sample rows** (the oracle proves it
-  *runs*, not that it computes the KPI).
-- *Exit:* KPI-in-domain-terms → validated Stage-2 SQL grounded in the catalog, draft on local /
-  high-quality on hosted; SQL sandbox rejects disallowed statements (tested).
+### M6 — `kpi-to-sql` (the hero) + SQL sandbox → v3.6.0 ✅ **shipped v3.6.0**
+- **T6.1 — `SqlOracle` (locked-down DuckDB).** ✅ Realized as the core **`com.gamma.sql`** package
+  (zero-new-dep — DuckDB was already core): **`SqlViews`** (the `reader()`/`ext()` view-builder
+  extracted from `EnrichmentEngine`, which now delegates to it — one source of truth, no drift),
+  **`SqlGuard`** (lexical/structural allow-list), **`SqlSandbox`**/`SqlSandboxPolicy` (hardened
+  ephemeral connection), and **`SqlOracle`** (validate = guard → seal → EXPLAIN + LIMIT 0). Two
+  layers: `SqlGuard` rejects `;` multi-statements, DDL/DML, and `read_*`/`write_*`/`*_scan`/`copy`/
+  `getenv`/`pragma`/`install`/`load`/`attach`/`query` (comment-smuggling defeated by stripping comments
+  before the token scan) — allowing only a single `WITH`/`SELECT` — **because `EXPLAIN` can still
+  evaluate smuggled functions during planning**; `SqlSandbox` registers the inputs while file access is
+  on, then **`seal()`s** (`enable_external_access=false`, `lock_configuration=true`, extension
+  auto-install/auto-load off, memory/threads/timeout caps) before the untrusted candidate ever runs.
+- **T6.2 — `kpi-to-sql` skill** ✅ `com.gamma.agent.skill.KpiToSqlSkill` (`tier()=LARGE`):
+  `{kpiDescription,targetGrain,catalogRefs[],domainNotes?,sampleRows?}` (the `catalogRefs` resolve
+  against the **M2 Data Catalog + KPI catalog** — EVENT_TABLE/TRANSFORMED_TABLE/REFERENCE_TABLE →
+  oracle view specs, KPI → prompt grounding) → `{sql,logicExplanation,columnsProduced,chosenJoinKeys,
+  kpiInterpretation,validated,sampleRows?,enrichmentConfigSnippet,repaired}`. `RepairLoop` over
+  `SqlGuard` + `SqlOracle` (EXPLAIN/LIMIT-0, cap 3). 14B prod / hosted-recommended connected.
+  **Confirm-first; surfaces interpretation + chosen join keys + opt-in sample rows** (the oracle proves
+  it *runs*, not that it computes the KPI); `columnsProduced` is taken from the oracle's
+  `ResultSetMetaData`, not the model's claim. Draft-only (`applyVia` null). M6 deltas: sample rows are
+  **opt-in** (default response carries no data-plane values); EVENT_TABLE nodes gained an additive
+  `format` attr so the oracle reads them correctly.
+- *Exit (met):* KPI-in-domain-terms → validated Stage-2 SQL grounded in the catalog, draft-only; the
+  SQL sandbox rejects file/extension/DDL/DML/multi-statement/comment-smuggled queries (adversarially
+  tested); full reactor green CPU-only (**323 core / 1 skipped + 68 agent**); lean core stays 0-AI
+  (0 AI classes, 0 new deps, `com.gamma.sql` present). Closes architecture gap **G4**.
 
 ### M7 — `diagnose-and-alert` (event-driven) → v3.7.0
 - **T7.1** Enrich `BatchEvent` with error detail (reason/exception/quarantine context/offending
@@ -297,6 +309,6 @@ draft-only (V-9) to one-click-apply: `POST/PUT /configs` validate-and-persist vi
 consumes the catalog; adds the AI `DescriptionProvider`) → **M4 `nl-to-schedule` (draft-only)** ✅
 (v3.4.0; the generate→validate→repair oracle on the core cron engine) → **M5 `suggest-config`
 (draft-only) + config safety validator** ✅ (v3.5.0; R6 path-jail/bounds/output gate) →
-**M6 `kpi-to-sql` + SQL sandbox** (grounds on the catalog/KPI catalog) → M7 `diagnose-and-alert`
-→ (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor release per milestone on
-`3.x`, additive, suite-green, lean core preserved.
+**M6 `kpi-to-sql` (hero) + SQL sandbox** ✅ (v3.6.0; grounds on the catalog/KPI catalog; closes G4) →
+**M7 `diagnose-and-alert`** → (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor
+release per milestone on `3.x`, additive, suite-green, lean core preserved.

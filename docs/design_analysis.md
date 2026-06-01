@@ -38,8 +38,16 @@ The codebase has successfully completed the prerequisite foundation for `3.x`:
 > output allow-list; security guardrail R6), the security gate for agent config drafts and an opt-in
 > flag on `POST /validate`. M5 deltas: it's **core + skill + opt-in `/validate`** (not wired into the
 > production config-load path, preserving additive-only); all config types are handled generically via
-> `ConfigSpecs.forType`. The mermaid below predates the keystone insertion — read milestone numbers as
-> M0→M1(graph)→M2(config)→M3(assist)→M4(nl-to-schedule)→M5(suggest-config).
+> `ConfigSpecs.forType`. **M6** `kpi-to-sql` (the hero, v3.6.0) then shipped the **locked-down SQL
+> sandbox** that closes **Gap G4** (below): core `com.gamma.sql` = `SqlGuard` (lexical allow-list run
+> before any `EXPLAIN`, since planning can evaluate smuggled functions) + `SqlSandbox` (register inputs,
+> then **seal**: `enable_external_access=false`, `lock_configuration=true`, extension auto-load off,
+> resource caps) + `SqlOracle` (EXPLAIN + LIMIT 0; authoritative columns) + `SqlViews` (the view-builder
+> extracted from `EnrichmentEngine`, behavior-preserving). The `KpiToSqlSkill` (LARGE tier) grounds on
+> the M1/M2 catalog + KPI catalog and is confirm-first + draft-only. M6 deltas: sample rows **opt-in**;
+> EVENT_TABLE nodes gained an additive `format` attr. The mermaid below predates the keystone insertion
+> — read milestone numbers as
+> M0→M1(graph)→M2(config)→M3(assist)→M4(nl-to-schedule)→M5(suggest-config)→M6(kpi-to-sql).
 
 ---
 
@@ -71,9 +79,10 @@ While the `2.x` line is solid, there are several structural limitations that mus
 - **Root Cause:** `SourceService.configFor(name)` and `pathFor(name)` iterate over a list of file paths and fully parse every `.toon` config file on disk during each query to find the match.
 - **AI/UI Block:** Scale bottleneck. Listing and querying pipelines from a BFF/UI results in $O(N)$ high-frequency disk reads and parsing cycles.
 
-### Gap G4: Unsandboxed SQL Operations
+### Gap G4: Unsandboxed SQL Operations — ✅ **RESOLVED at M6 (v3.6.0)**
 - **Root Cause:** DuckDB is used out-of-the-box. A SQL-generation agent could emit queries that read arbitrary local system files (`read_csv`), execute shell hooks, or write files to sensitive directories.
 - **AI/UI Block:** Massive prompt injection and security vulnerability.
+- **Resolution:** core `com.gamma.sql` — two layers, neither sufficient alone. `SqlGuard` (a lexical/structural allow-list: single read-only `WITH`/`SELECT`, no DDL/DML, no `read_*`/`write_*`/`copy`/`attach`/`install`/`load`/`getenv`/`pragma`/`*_scan`/system functions, comment-smuggling defeated) runs **before** any DuckDB contact, because `EXPLAIN` evaluates functions during planning. `SqlSandbox` registers the legitimate inputs while file access is on, then **seals** the connection (`enable_external_access=false`, `lock_configuration=true`, extension auto-install/auto-load off, memory/threads/timeout caps) before the untrusted candidate runs. The `kpi-to-sql` skill validates every generated query through this oracle (`EXPLAIN` + `LIMIT 0`) and surfaces only what plans — adversarially tested.
 
 ---
 

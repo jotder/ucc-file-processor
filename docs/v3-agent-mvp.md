@@ -142,7 +142,7 @@ platform change. This is the "lots of prompts/skills" surface the end user benef
 | Generative task | Oracle |
 |---|---|
 | Config / job drafts (`.toon`, JobConfig) | `PipelineConfig.load()` / `EnrichmentConfig.load()` / `JobConfig.load()` — they throw specific, machine-usable messages naming the offending key → repair-loop. **Plus** a new hard-fail **config safety validator** (below). |
-| **Transformation / report SQL** | A **locked-down, ephemeral DuckDB connection per validation** (not the production one): it registers the relevant Parquet/CSV partitions + references as views — *exactly the `EnrichmentEngine` view-setup pattern* — then `EXPLAIN` / `LIMIT 0`. |
+| **Transformation / report SQL** | ✅ **Shipped at M6 (v3.6.0)** as core `com.gamma.sql.SqlOracle`: a **locked-down, ephemeral DuckDB connection per validation** (not the production one) that registers the relevant Parquet/CSV partitions + references via the shared `SqlViews` builder (extracted from `EnrichmentEngine`), then `EXPLAIN` / `LIMIT 0`. Paired with the lexical `SqlGuard` allow-list. |
 
 **Correction from review:** there is no resident, schema-loaded DuckDB connection to
 "borrow" — DuckDB is used per-operation against ephemeral temp DBs, and the only
@@ -153,10 +153,13 @@ each time (extract a `SqlOracle` helper from `EnrichmentEngine`'s logic).
 **The SQL oracle is also the security boundary** and must be sandboxed (see
 [Security guardrails](#non-negotiable-security-guardrails)): `EXPLAIN`/`LIMIT 0` validates
 the *plan*, it does **not** neutralize `COPY … TO`, `read_csv('/etc/…')`, `ATTACH`,
-`INSTALL`/`LOAD`. The sandbox connection sets `enable_external_access=false`,
-`disabled_filesystems=…`, `autoinstall/autoload_known_extensions=false`,
-`lock_configuration=true`, plus a statement allow-list (single read-only `SELECT` only)
-and memory/threads/timeout caps.
+`INSTALL`/`LOAD`. ✅ **Realized at M6 as two layers:** `SqlGuard` (a lexical/structural
+allow-list — single read-only `WITH`/`SELECT`, no DDL/DML, no file/extension/system functions,
+comment-smuggling defeated — run **before** any `EXPLAIN`, because planning can evaluate smuggled
+functions) **plus** `SqlSandbox`, which registers the inputs while file access is on and then
+**`seal()`s** the connection (`enable_external_access=false`,
+`autoinstall/autoload_known_extensions=false`, `lock_configuration=true`, memory/threads caps + a
+best-effort query timeout) before the untrusted candidate runs.
 
 ### P5 — Metadata / semantic descriptor: a new `*_meta.toon` (locked, V-4)
 > **Promoted, expanded & ✅ implemented (see [v3-plan.md](v3-plan.md) M1).** P5 is no longer a
@@ -239,7 +242,18 @@ Model tiers reflect the viability review (Gemma 2B was over-assigned in the firs
   that still parse; confidence is unreliable, so confirm-first.)
 - **Replaces:** hunting through configuration.md + filling a long config form by hand.
 
-### B1 — `kpi-to-sql`  *(the hero — Stage-2 transformation logic from a KPI)*
+### B1 — `kpi-to-sql`  *(the hero — Stage-2 transformation logic from a KPI)* — ✅ **shipped v3.6.0 (M6)**
+> Realized as `com.gamma.agent.skill.KpiToSqlSkill` (LARGE/14B tier) behind `POST /assist/kpi-to-sql`.
+> Grounds on the M1/M2 catalog + KPI catalog: `catalogRefs` resolve to EVENT_TABLE/TRANSFORMED_TABLE/
+> REFERENCE_TABLE → oracle view specs, and KPI nodes inject their definition/grain/joinKeys into the
+> prompt. The **SQL sandbox guardrail (R-SQL / gap G4) shipped as core `com.gamma.sql`**: `SqlGuard`
+> (lexical allow-list — runs before any DuckDB contact, since planning can evaluate smuggled functions)
+> + `SqlSandbox` (registers inputs, then **seals**: `enable_external_access=false`,
+> `lock_configuration=true`, extension auto-load off, resource caps) + `SqlOracle` (EXPLAIN + LIMIT 0;
+> `columnsProduced` from `ResultSetMetaData`, authoritative). `SqlViews` was extracted from
+> `EnrichmentEngine` (behavior-preserving). M6 deltas: sample rows are **opt-in** (no data-plane values
+> in the default response); cap **3** repair rounds; `metadataRefs` shipped as `catalogRefs`. Golden +
+> e2e tests run CPU-only via a deterministic fake against seeded partitions.
 - **Does:** describe a business KPI in domain terms; the agent writes the Stage-2
   enrichment **transformation SQL/logic** (join/aggregate/derive) against the P5 metadata.
 - **In:** `{ kpiDescription, targetGrain, metadataRefs[], domainNotes? }`.

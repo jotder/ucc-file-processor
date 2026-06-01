@@ -211,6 +211,7 @@ public final class MetadataGraphService {
         for (PipelineConfig cfg : cs.pipelines()) {
             String pipeline = cfg.identity().pipelineName();
             String dbRoot = cfg.dirs().database();
+            String outFormat = cfg.output() == null ? null : cfg.output().format();
             if (dbRoot != null) pipelineByDbRoot.put(normPath(dbRoot), pipeline);
 
             Map<String, Object> srcAttrs = new LinkedHashMap<>();
@@ -224,19 +225,19 @@ public final class MetadataGraphService {
             PipelineConfig.Schemas s = cfg.schemas();
             if (s.segments() != null && !s.segments().isEmpty()) {
                 for (Map.Entry<String, Map<String, Object>> e : s.segments().entrySet()) {
-                    addSchemaAndEvent(pipeline, e.getKey(), e.getValue(), null, dbRoot, nodes, edges);
+                    addSchemaAndEvent(pipeline, e.getKey(), e.getValue(), null, dbRoot, outFormat, nodes, edges);
                 }
             } else if (s.selector() != null && s.selector().hasSchemas()) {
                 int i = 0;
                 for (SchemaSelector.Selection sel : s.selector().entries()) {
                     String key = firstNonBlank(sel.table(),
                             SchemaProjection.canonicalName(sel.schema()), "schema_" + i);
-                    addSchemaAndEvent(pipeline, key, sel.schema(), sel.table(), dbRoot, nodes, edges);
+                    addSchemaAndEvent(pipeline, key, sel.schema(), sel.table(), dbRoot, outFormat, nodes, edges);
                     i++;
                 }
             } else if (s.single() != null) {
                 String key = firstNonBlank(SchemaProjection.canonicalName(s.single()), "main");
-                addSchemaAndEvent(pipeline, key, s.single(), null, dbRoot, nodes, edges);
+                addSchemaAndEvent(pipeline, key, s.single(), null, dbRoot, outFormat, nodes, edges);
             }
         }
 
@@ -374,7 +375,7 @@ public final class MetadataGraphService {
     }
 
     private void addSchemaAndEvent(String pipeline, String key, Map<String, Object> schema,
-                                   String table, String dbRoot,
+                                   String table, String dbRoot, String outputFormat,
                                    Map<String, MetadataNode> nodes, List<MetadataEdge> edges) {
         String sourceId = IdScheme.source(pipeline);
         String schemaId = IdScheme.schema(pipeline, key);
@@ -404,6 +405,7 @@ public final class MetadataGraphService {
         evAttrs.put("grain", grainOf(schema));
         if (table != null && !table.isBlank()) evAttrs.put("table", table);
         if (dbRoot != null) evAttrs.put("outputGlob", dbRoot);
+        if (outputFormat != null && !outputFormat.isBlank()) evAttrs.put("format", outputFormat);
         String label = (table != null && !table.isBlank()) ? table : key;
         nodes.put(eventId, new MetadataNode(eventId, NodeKind.EVENT_TABLE, label,
                 Description.EMPTY, evAttrs));
