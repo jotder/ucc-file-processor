@@ -5,6 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.*;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -41,5 +42,32 @@ class BatchAuditWriterTest {
         String lin = Files.readString(Path.of(lineageCsv));
         assertTrue(lin.startsWith("batch_id,src_id,input_file,output_file,partition,row_count"));
         assertTrue(lin.contains("year=2020/month=04/day=03"));
+    }
+
+    /** v3.7.0: a FAILED batch's emitted event carries error detail (error/offendingFile/errorRows). */
+    @Test
+    void emittedEventCarriesErrorDetailOnFailure(@TempDir Path dir) {
+        BatchAuditWriter w = new BatchAuditWriter(
+                dir.resolve("s.csv").toString(), dir.resolve("b.csv").toString(),
+                dir.resolve("l.csv").toString());
+        AtomicReference<BatchEvent> seen = new AtomicReference<>();
+        w.setCommitListener(seen::set);
+
+        var fileRows = List.of(
+                new BatchAuditWriter.FileRow("t0", "t1", "good.csv", "SUCCESS",
+                        2, 0, List.of("/db/out.csv"), List.of(10L), 5, "", "B9"),
+                new BatchAuditWriter.FileRow("t0", "t1", "bad.csv", "QUARANTINED_MISMATCH",
+                        0, 3, List.of(), List.of(), 5, "schema selector mismatch", "B9"));
+        var batchRow = new BatchAuditWriter.BatchRow("B9", "mini_etl", "mini", "",
+                "t0", "t2", "FAILED", 2, 1, 2, 0, 0, 0L, 20, "batch failed: schema selector mismatch");
+
+        w.flush(batchRow, fileRows, List.of());
+
+        BatchEvent ev = seen.get();
+        assertNotNull(ev, "a terminal batch emits an event");
+        assertEquals("FAILED", ev.status());
+        assertEquals("batch failed: schema selector mismatch", ev.error());
+        assertEquals("bad.csv", ev.offendingFile(), "first member file with an error");
+        assertEquals(3L, ev.errorRows(), "sum of member error rows");
     }
 }

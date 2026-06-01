@@ -299,6 +299,20 @@ Before passing SQL to the database sandbox, implement a strict **lexical / struc
 
 ### C. Failure Diagnosis Reactor & Event Bus Enrichment (M6)
 
+> **✅ Realized at M7 (v3.7.0)** — note the milestone renumbering (the keystone insertion shifted
+> diagnose-and-alert from M6 to M7). The recommendations below shipped almost verbatim: `BatchEvent`
+> gained `error`/`offendingFile`/`errorRows` (with a back-compat 7-arg constructor so the SUCCESS
+> emitters and existing tests are untouched), populated at the FAILED-aware emission site
+> (`BatchAuditWriter.flush`). The agent's **`FailureReactor`** subscribes to the bus and, on the ingest
+> thread, only filters → `offer()`s to a **bounded `LinkedBlockingQueue`** → schedules on its own
+> **daemon virtual-thread-per-task executor** → returns, so AI diagnosis never throttles ingest
+> (asserted by a non-blocking test). Deltas from the sketch: a deterministic `HeuristicDiagnoser`
+> always runs (the LLM only enriches prose when available — abstain-by-default), and the result is a
+> bounded in-memory `DiagnosisStore` surfaced read-only at `GET /assist/diagnoses` through an additive
+> `AssistAgent.recentDiagnoses` SPI default (core never depends on the agent) rather than persisted to
+> a new store. The `BatchEvent` payload carries operational metadata (message/filename/count), not a
+> `Throwable`/`Path`, keeping the core record JSON-clean and zero-dep.
+
 Milestone M6 hooks into the `BatchEventBus` to capture failed batches and async-diagnose them. To make this resilient and prevent the ingest engine from being degraded by slow AI diagnostics:
 
 ```

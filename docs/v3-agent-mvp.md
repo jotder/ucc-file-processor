@@ -279,7 +279,19 @@ Model tiers reflect the viability review (Gemma 2B was over-assigned in the firs
   **2B** for narrative (strictly extractive — narrate given numbers, never *compute*).
 - **Replaces:** a report-builder UI / manual reading of dense report JSON.
 
-### C1 — `diagnose-and-alert`  *(in MVP, V-10; introduces event-driven assist + a new seam)*
+### C1 — `diagnose-and-alert`  *(in MVP, V-10; introduces event-driven assist + a new seam)* — ✅ **shipped v3.7.0 (M7)**
+> Realized as `com.gamma.agent.skill.DiagnoseAndAlertSkill` (MEDIUM tier) + the event-driven
+> `com.gamma.agent.diagnose` package (`FailureReactor` / `DiagnosisStore` / `HeuristicDiagnoser` /
+> `ModelDiagnoser`). **(a) event-driven:** `BatchEvent` was enriched with error detail
+> (`error`/`offendingFile`/`errorRows`, back-compat constructor preserved); the `FailureReactor`
+> subscribes to the bus and hands each FAILED batch to its **own bounded-queue daemon virtual-thread
+> executor** so the ingest thread is never blocked. The `ModelDiagnoser` always runs a deterministic
+> `HeuristicDiagnoser` (severity + rule-of-thumb cause) and enriches the root-cause prose with a model
+> **only when available** (abstain-by-default); diagnoses are read via **`GET /assist/diagnoses`**
+> (core `Diagnosis` DTO + additive `AssistAgent.recentDiagnoses` SPI default — no core→agent dep) and
+> audited (keys, not values). **(b) NL→alert rule:** `RepairLoop` over the agent-side
+> `AlertRuleValidator` → a validated draft `.toon`. Draft-only (V-9): `applyVia` null. Golden + e2e
+> tests run CPU-only via a deterministic fake + a direct executor.
 - **Does:** two modes — (a) **event-driven**: on a failure event → classify severity +
   draft root-cause + suggested alert; (b) NL → alert rule ("warn when error rate > 5%").
 - **In/Out:** event or `{ userText }` → `{ severity, rootCause, alertRuleDraft }`.
@@ -416,10 +428,13 @@ load-bearing (R1/R3/R4):
 3. **A3** — ✅ **shipped v3.5.0 (M5).** `suggest-config` (draft-only) + the hard-fail config safety
    validator (`com.gamma.config.safety`, R6). (The `*_meta.toon` semantic descriptor shipped earlier
    as part of the M1 Metadata Graph.)
-4. **B1** — `kpi-to-sql`, the hero, on the **sandboxed** DuckDB oracle + P5 (14B in prod /
-   7B on dev+CPU / hosted-recommended connected).
-5. **C1 + failure-event seam** — add the `BatchEventBus` error-event publication + async
-   hand-off, then `diagnose-and-alert` (event-driven + NL alert rules). *(In MVP, V-10.)*
+4. **B1** — ✅ **shipped v3.6.0 (M6).** `kpi-to-sql`, the hero, on the **sandboxed** DuckDB oracle
+   (`com.gamma.sql`) + the catalog/KPI grounding (14B in prod / 7B on dev+CPU / hosted-recommended
+   connected). Closes gap G4.
+5. **C1 + failure-event seam** — ✅ **shipped v3.7.0 (M7).** Enriched `BatchEvent` + a non-blocking
+   queue-backed virtual-thread `FailureReactor`, then `diagnose-and-alert` (event-driven heuristic +
+   model root-cause, surfaced at `GET /assist/diagnoses`; and NL → alert-rule draft). *(In MVP, V-10.)*
+   The MVP skill catalog is complete.
 6. **B2 (optional)** — `report-sql` + `report-narrative` if time allows.
 
 ## Review-cycle findings (what changed)

@@ -4,6 +4,7 @@ import com.gamma.agent.model.FakeModelProvider;
 import com.gamma.agent.model.ModelRouter;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
+import com.gamma.etl.BatchEvent;
 import com.gamma.service.SourceService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -83,6 +84,76 @@ class AssistAuditTest {
             assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
             assertEquals("suggest-config", captured.get(0).intent());
             assertEquals(AssistResult.Status.OK, captured.get(0).status());
+        }
+    }
+
+    @Test
+    void diagnoseAndAlertDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
+        Path pipe = AgentTestConfigs.writePipeline(dir);
+        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+            UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
+                    "{\"name\":\"errs\",\"metric\":\"error_rate\",\"comparator\":\"gt\",\"threshold\":0.05,"
+                            + "\"window\":\"1h\",\"severity\":\"WARNING\"}")), captured::add);
+            agent.init(svc);
+
+            AssistResult res = agent.assist(new AssistRequest("diagnose-and-alert",
+                    Map.of(), Map.of(), "warn when error rate exceeds 5%"));
+            assertEquals(AssistResult.Status.OK, res.status());
+            assertNull(res.applyVia(), "draft-only: the audited call carries no write endpoint");
+
+            assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
+            assertEquals("diagnose-and-alert", captured.get(0).intent());
+            assertEquals(AssistResult.Status.OK, captured.get(0).status());
+        }
+    }
+
+    /** Event-driven: a FAILED batch is diagnosed off-thread and audited (keys, not values). */
+    @Test
+    void failedBatchEventIsDiagnosedAndAudited(@TempDir Path dir) throws Exception {
+        Path pipe = AgentTestConfigs.writePipeline(dir);
+        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+            UccAssistAgent agent = new UccAssistAgent(
+                    ModelRouter.of(FakeModelProvider.canned("Likely a schema drift; reconcile selectors.")),
+                    captured::add);
+            agent.init(svc);   // subscribes the failure reactor to the bus
+
+            svc.eventBus().publish(new BatchEvent("MINI_ETL", "B1", "FAILED", List.of(),
+                    0, 10L, 1, "schema selector mismatch", "bad.csv", 3));
+
+            // Diagnosis happens on the reactor's executor — await the audit event.
+            long deadline = System.nanoTime() + 5_000_000_000L;
+            while (captured.isEmpty() && System.nanoTime() < deadline) Thread.sleep(20);
+
+            assertEquals(1, captured.size(), "one audit event for the diagnosis");
+            AuditEvent e = captured.get(0);
+            assertEquals("diagnose-and-alert", e.intent());
+            assertEquals(AssistResult.Status.OK, e.status());
+            assertTrue(e.contextKeys().contains("batchId") && e.contextKeys().contains("severity"),
+                    "records context keys, not data-plane values: " + e.contextKeys());
+
+            // And the diagnosis is queryable via the agent's SPI seam.
+            assertEquals(1, agent.recentDiagnoses(10).size());
+            assertEquals("B1", agent.recentDiagnoses(10).get(0).batchId());
+        }
+    }
+
+    /** A SUCCESS commit must not be diagnosed — only failures are. */
+    @Test
+    void successfulBatchEventIsNotDiagnosed(@TempDir Path dir) throws Exception {
+        Path pipe = AgentTestConfigs.writePipeline(dir);
+        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+            UccAssistAgent agent = new UccAssistAgent(
+                    ModelRouter.of(FakeModelProvider.canned("ignored")), captured::add);
+            agent.init(svc);
+
+            svc.eventBus().publish(new BatchEvent("MINI_ETL", "ok1", "SUCCESS", List.of(), 5, 10L, 0));
+            Thread.sleep(200);   // give any (erroneous) async work a chance to run
+
+            assertEquals(0, captured.size(), "SUCCESS commits are not diagnosed");
+            assertEquals(0, agent.recentDiagnoses(10).size());
         }
     }
 

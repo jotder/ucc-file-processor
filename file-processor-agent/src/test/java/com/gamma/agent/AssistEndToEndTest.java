@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.agent.model.FakeModelProvider;
 import com.gamma.agent.model.ModelRouter;
 import com.gamma.control.ControlApi;
+import com.gamma.etl.BatchEvent;
 import com.gamma.service.SourceService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -49,6 +50,12 @@ class AssistEndToEndTest {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> get(int port, String path, String token) throws Exception {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
+        if (token != null) b.header("Authorization", "Bearer " + token);
+        return client.send(b.GET().build(), BodyHandlers.ofString());
     }
 
     @Test
@@ -139,6 +146,63 @@ class AssistEndToEndTest {
             assertEquals(3, data.get("fields").size());
             assertTrue(data.get("draftToon").asText().contains("0 2 * * *"),
                     "the saveable draft .toon rides in the structured payload");
+        }
+    }
+
+    @Test
+    void diagnoseAndAlertEndToEndReturnsDraftPayload(@TempDir Path dir) throws Exception {
+        ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
+                "{\"name\":\"high-error-rate\",\"metric\":\"error_rate\",\"comparator\":\"gt\","
+                        + "\"threshold\":0.05,\"window\":\"1h\",\"severity\":\"CRITICAL\"}"));
+        try (Ctx c = open(dir, router)) {
+            assertEquals(401, post(c.port, "/assist/diagnose-and-alert", null,
+                    "{\"userText\":\"warn at 5%\"}").statusCode(), "fail-closed");
+
+            HttpResponse<String> r = post(c.port, "/assist/diagnose-and-alert", TOKEN,
+                    "{\"userText\":\"warn when the error rate exceeds 5%\"}");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode out = JSON.readTree(r.body());
+            assertEquals("diagnose-and-alert", out.get("intent").asText());
+            assertTrue(out.get("validated").asBoolean(), "ran through the alert-rule oracle");
+            assertTrue(out.get("applyVia").isNull(), "draft-only (V-9): no write endpoint, ever");
+            JsonNode data = out.get("data");
+            assertEquals("error_rate", data.get("metric").asText());
+            assertEquals("CRITICAL", data.get("severity").asText());
+            assertTrue(data.get("draftToon").asText().contains("error_rate"),
+                    "the saveable draft .toon rides in the structured payload");
+        }
+    }
+
+    @Test
+    void diagnosesEndpointReflectsAFailedBatch(@TempDir Path dir) throws Exception {
+        // The model enriches the prose; the deterministic heuristic still sets severity. Driving a
+        // FAILED event through the real bus exercises the full event → reactor → store → HTTP path.
+        ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
+                "Input columns no longer match the configured schema; reconcile the selectors."));
+        try (Ctx c = open(dir, router)) {
+            assertEquals(401, get(c.port, "/assist/diagnoses", null).statusCode(), "fail-closed");
+            assertEquals(200, get(c.port, "/assist/diagnoses", TOKEN).statusCode());
+            assertEquals(0, JSON.readTree(get(c.port, "/assist/diagnoses", TOKEN).body()).size(),
+                    "no failures yet");
+
+            c.svc.eventBus().publish(new BatchEvent("MINI_ETL", "B1", "FAILED", List.of(),
+                    0, 10L, 1, "schema selector mismatch", "bad.csv", 3));
+
+            // Diagnosis runs off-thread; poll the endpoint until it lands.
+            JsonNode arr = null;
+            long deadline = System.nanoTime() + 5_000_000_000L;
+            while (System.nanoTime() < deadline) {
+                arr = JSON.readTree(get(c.port, "/assist/diagnoses", TOKEN).body());
+                if (arr.size() > 0) break;
+                Thread.sleep(20);
+            }
+            assertNotNull(arr);
+            assertEquals(1, arr.size(), "the failed batch produced one diagnosis");
+            JsonNode d = arr.get(0);
+            assertEquals("B1", d.get("batchId").asText());
+            assertEquals("CRITICAL", d.get("severity").asText(), "no output on a failure -> critical");
+            assertFalse(d.get("heuristicOnly").asBoolean(), "the fake model enriched the root cause");
+            assertTrue(d.get("rootCause").asText().toLowerCase().contains("schema"));
         }
     }
 

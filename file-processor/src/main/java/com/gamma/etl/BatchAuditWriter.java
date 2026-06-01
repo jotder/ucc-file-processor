@@ -84,13 +84,20 @@ public final class BatchAuditWriter {
         }
         // Emit a batch event for every terminal batch (SUCCESS + FAILED) so observability
         // sees error rates and latency; enrichment consumers filter on status. Fired last,
-        // so a delivered event implies the audit + commit log are written.
+        // so a delivered event implies the audit + commit log are written. The error detail
+        // (error/offendingFile/errorRows) lets the assist agent's failure reactor (M7) diagnose a
+        // FAILED batch; it is operational metadata derived from the audit rows, never row content.
         if (commitListener != null) {
             List<String> partitions = lineage.stream()
                     .map(LineageRow::partition).distinct().collect(Collectors.toList());
+            String offendingFile = files.stream()
+                    .filter(f -> f.error() != null && !f.error().isBlank())
+                    .map(FileRow::filename).findFirst().orElse(null);
+            long errorRows = files.stream().mapToLong(FileRow::errorRows).sum();
             commitListener.accept(new BatchEvent(
                     batch.pipeline(), batch.batchId(), batch.status(),
-                    partitions, batch.totalOutputRows(), batch.durationMs(), batch.rejectedCount()));
+                    partitions, batch.totalOutputRows(), batch.durationMs(), batch.rejectedCount(),
+                    batch.error(), offendingFile, errorRows));
         }
     }
 

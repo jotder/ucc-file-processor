@@ -8,10 +8,12 @@ sequenced task list. Each milestone is independently releasable as a minor versi
 `3.x` branch, mirroring the 2.x cadence (one minor release per milestone: feature → release
 commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH release).
 
-Branch is at **`3.6.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
+Branch is at **`3.8.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
 M2 Smart Config as **v3.2.0**; M3 Assist platform + `explain-entity` as **v3.3.0**; M4
-`nl-to-schedule` as **v3.4.0**; M5 `suggest-config` + config safety validator as **v3.5.0**). The
-foundation was hardened post-v3.0.0 — concurrency/audit fixes, cruft removal, CI reactor coverage.
+`nl-to-schedule` as **v3.4.0**; M5 `suggest-config` + config safety validator as **v3.5.0**; M6
+`kpi-to-sql` + SQL sandbox as **v3.6.0**; M7 `diagnose-and-alert` + failure-event seam as
+**v3.7.0** — the MVP skill catalog is complete). The foundation was hardened post-v3.0.0 —
+concurrency/audit fixes, cruft removal, CI reactor coverage.
 
 > **Status update (this revision):** **both keystones have shipped.** The **Metadata Graph** (data
 > keystone) shipped as **v3.1.0** — the `com.gamma.catalog` package, `SchemaExtractor` merge/preserve,
@@ -269,14 +271,27 @@ slot onto this milestone's `ConfigRegistry` — and now does, with zero `Metadat
   tested); full reactor green CPU-only (**323 core / 1 skipped + 68 agent**); lean core stays 0-AI
   (0 AI classes, 0 new deps, `com.gamma.sql` present). Closes architecture gap **G4**.
 
-### M7 — `diagnose-and-alert` (event-driven) → v3.7.0
-- **T7.1** Enrich `BatchEvent` with error detail (reason/exception/quarantine context/offending
-  file/rows). Add a non-filtering failure subscriber that **immediately hands off to its own
-  queue-backed virtual-thread executor** so slow AI diagnosis never throttles the ingest thread
-  ([design_analysis.md §4.C](design_analysis.md)).
-- **T7.2** `diagnose-and-alert` skill — event → `{severity,rootCause,alertRuleDraft}` (2B classify
-  + 7B/hosted root-cause) and NL → alert rule. Alert-rule shape validated.
-- *Exit:* proactive failure diagnosis + drafted alerts; ingest thread never blocked.
+### M7 — `diagnose-and-alert` (event-driven) → v3.7.0 ✅ **shipped v3.7.0**
+- **T7.1 — failure-event seam + async hand-off.** ✅ Enriched `BatchEvent` with error detail
+  (`error`/`offendingFile`/`errorRows`), populated at the FAILED-aware emission site
+  (`BatchAuditWriter.flush`) and **back-compat** (a 7-arg constructor keeps the SUCCESS emitters
+  `EnrichmentService`/`EnrichJob` + all existing tests unchanged). The agent's **`FailureReactor`**
+  subscribes to the bus and, for every FAILED batch, does the minimum on the ingest thread — filter,
+  `offer()` to a **bounded** queue, schedule on its own **daemon virtual-thread** executor, return —
+  so slow AI never throttles ingest ([design_analysis.md §4.C](design_analysis.md), V-10).
+- **T7.2 — `diagnose-and-alert` skill (two modes).** ✅ `com.gamma.agent.skill.DiagnoseAndAlertSkill`
+  (`tier()=MEDIUM`). **(a) event-driven:** `ModelDiagnoser` always runs a deterministic
+  `HeuristicDiagnoser` (severity + rule-of-thumb cause from the event), enriching the root-cause prose
+  with a model **only when one is available** (abstain-by-default — CPU-only/air-gapped does useful
+  work with zero model I/O); the pipeline citation is derived from the catalog SOURCE node, never
+  fabricated. Diagnoses land in a bounded in-memory `DiagnosisStore`, read via **`GET /assist/diagnoses`**
+  (core `Diagnosis` DTO + additive `AssistAgent.recentDiagnoses` SPI default; no core→agent dep) and
+  audited (keys, not values). **(b) NL → alert rule:** `RepairLoop` over the agent-side
+  `AlertRuleValidator` (shape + numeric bounds + catalog-grounded `onPipeline`) → a validated draft
+  `.toon`. Draft-only (V-9): `applyVia` null; nothing executes the rule yet.
+- *Exit (met):* proactive failure diagnosis + drafted alerts; **ingest thread never blocked**
+  (asserted); full reactor green CPU-only (**326 core / 1 skipped + 88 agent**); lean core stays 0-AI
+  (0 AI classes, 0 new deps, `com.gamma.assist.Diagnosis` present). The MVP skill catalog is complete.
 
 ### M8 (optional) — `report-sql` / `report-narrative` → v3.8.0
 NL → report SQL over the audit/status stores (sandboxed-DuckDB validated, 7B) + report-JSON →
@@ -310,5 +325,7 @@ consumes the catalog; adds the AI `DescriptionProvider`) → **M4 `nl-to-schedul
 (v3.4.0; the generate→validate→repair oracle on the core cron engine) → **M5 `suggest-config`
 (draft-only) + config safety validator** ✅ (v3.5.0; R6 path-jail/bounds/output gate) →
 **M6 `kpi-to-sql` (hero) + SQL sandbox** ✅ (v3.6.0; grounds on the catalog/KPI catalog; closes G4) →
-**M7 `diagnose-and-alert`** → (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor
-release per milestone on `3.x`, additive, suite-green, lean core preserved.
+**M7 `diagnose-and-alert` (event-driven) + failure-event seam** ✅ (v3.7.0; non-blocking
+queue-backed reactor, heuristic + model root-cause, NL→alert-rule draft — the MVP skill catalog is
+complete) → (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor release per
+milestone on `3.x`, additive, suite-green, lean core preserved.

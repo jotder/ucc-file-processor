@@ -313,6 +313,11 @@ public final class ControlApi implements AutoCloseable {
         post("/validate", true, (e, m) -> validate(body(e)));
 
         // ── v3.3.0: embedded assist agent — POST /assist/{intent} (scope assist.read) ──
+        // ── v3.7.0: recent failure diagnoses (read-only) — registered before the POST catch-all ──
+        get("/assist/diagnoses", Scope.ASSIST_READ, (e, m) ->
+                service.assistAgent()
+                        .map(a -> (Object) a.recentDiagnoses(parseIntOr(query(e, "limit"), 50)))
+                        .orElse(List.of()));
         post("/assist/(.+)", Scope.ASSIST_READ, (e, m) -> assist(name(m), body(e)));
     }
 

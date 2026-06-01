@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
+import com.gamma.assist.Diagnosis;
 import com.gamma.assist.spi.AssistAgent;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.service.SourceService;
@@ -52,6 +53,13 @@ class ControlApiAssistTest {
                 default -> AssistResult.unsupported(req.intent());
             };
         }
+        @Override public List<Diagnosis> recentDiagnoses(int limit) {
+            return limit <= 0 ? List.of() : List.of(new Diagnosis(
+                    "B7", "mini_etl", Diagnosis.Severity.CRITICAL,
+                    "all member files rejected: schema selector mismatch",
+                    null, true, 1_000L,
+                    List.of(new AssistResult.Citation("catalog", "source:mini_etl"))));
+        }
     }
 
     private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
@@ -72,6 +80,12 @@ class ControlApiAssistTest {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> get(int port, String path, String token) throws Exception {
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
+        if (token != null) b.header("Authorization", "Bearer " + token);
+        return client.send(b.GET().build(), BodyHandlers.ofString());
     }
 
     @Test
@@ -144,6 +158,34 @@ class ControlApiAssistTest {
             HttpResponse<String> r = post(c.port, "/assist/down", TOKEN, "{}");
             assertEquals(503, r.statusCode());
             assertEquals("model offline", JSON.readTree(r.body()).get("error").asText());
+        }
+    }
+
+    // ── v3.7.0: GET /assist/diagnoses (read-only failure diagnoses; scope assist.read) ──
+
+    @Test
+    void diagnosesRouteIsScopedAndReturnsAgentDiagnoses(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, true)) {
+            assertEquals(401, get(c.port, "/assist/diagnoses", null).statusCode(), "no token -> locked");
+            HttpResponse<String> r = get(c.port, "/assist/diagnoses", TOKEN);
+            assertEquals(200, r.statusCode());
+            JsonNode out = JSON.readTree(r.body());
+            assertTrue(out.isArray() && out.size() == 1, "the agent's recent diagnoses come through as JSON");
+            JsonNode d = out.get(0);
+            assertEquals("B7", d.get("batchId").asText());
+            assertEquals("CRITICAL", d.get("severity").asText());
+            assertTrue(d.get("heuristicOnly").asBoolean());
+            assertEquals("source:mini_etl", d.get("citations").get(0).get("ref").asText());
+        }
+    }
+
+    @Test
+    void diagnosesRouteReturnsEmptyWhenNoAgent(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, false)) {
+            HttpResponse<String> r = get(c.port, "/assist/diagnoses", TOKEN);
+            assertEquals(200, r.statusCode(), "no agent -> empty list, not an error");
+            assertTrue(JSON.readTree(r.body()).isArray());
+            assertEquals(0, JSON.readTree(r.body()).size());
         }
     }
 }

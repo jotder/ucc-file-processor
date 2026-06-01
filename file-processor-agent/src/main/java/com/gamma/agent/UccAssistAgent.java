@@ -1,7 +1,11 @@
 package com.gamma.agent;
 
+import com.gamma.agent.diagnose.DiagnosisStore;
+import com.gamma.agent.diagnose.FailureReactor;
+import com.gamma.agent.diagnose.ModelDiagnoser;
 import com.gamma.agent.model.ModelRouter;
 import com.gamma.agent.skill.AssistContext;
+import com.gamma.agent.skill.DiagnoseAndAlertSkill;
 import com.gamma.agent.skill.DocRetriever;
 import com.gamma.agent.skill.ExplainEntitySkill;
 import com.gamma.agent.skill.KpiToSqlSkill;
@@ -10,12 +14,14 @@ import com.gamma.agent.skill.SkillRegistry;
 import com.gamma.agent.skill.SuggestConfigSkill;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
+import com.gamma.assist.Diagnosis;
 import com.gamma.assist.spi.AssistAgent;
 import com.gamma.service.SourceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -41,6 +47,8 @@ public final class UccAssistAgent implements AssistAgent {
     private final Consumer<AuditEvent> audit;
     private volatile SkillRegistry registry;
     private volatile AssistContext context;
+    private volatile DiagnosisStore diagnoses;
+    private volatile FailureReactor reactor;
 
     /** {@code ServiceLoader} entry point: model router resolved from the environment (abstain-safe). */
     public UccAssistAgent() {
@@ -72,8 +80,18 @@ public final class UccAssistAgent implements AssistAgent {
                 new ExplainEntitySkill(),
                 new NlToScheduleSkill(),
                 new SuggestConfigSkill(),
-                new KpiToSqlSkill()));
-        log.info("Assist agent '{}' initialised: skills={}, docs={}, modelAvailable={}",
+                new KpiToSqlSkill(),
+                new DiagnoseAndAlertSkill()));
+
+        // ── M7: event-driven failure diagnosis. Subscribe BEFORE start() (the SPI contract) so the
+        // reactor sees the first FAILED batch. The reactor hands work to its own executor, so the
+        // ingest thread is never blocked; with no model it still records a deterministic heuristic. ──
+        this.diagnoses = new DiagnosisStore();
+        this.reactor = new FailureReactor(
+                new ModelDiagnoser(router, service.catalog()), diagnoses, this::auditDiagnosis);
+        service.eventBus().subscribe(reactor::onEvent);
+
+        log.info("Assist agent '{}' initialised: skills={}, docs={}, modelAvailable={}, failureReactor=on",
                 name(), registry.intents(), docs.size(), router.anyAvailable());
     }
 
@@ -100,5 +118,32 @@ public final class UccAssistAgent implements AssistAgent {
         log.info("[ASSIST] intent={} status={} citations={} ms={} ctxKeys={}",
                 event.intent(), event.status(), event.citationCount(), event.durationMs(), event.contextKeys());
         if (audit != null) audit.accept(event);
+    }
+
+    /**
+     * One audit event per event-driven diagnosis (M7), mirroring the per-call trail. Records context
+     * <em>keys</em> only ({@code batchId}/{@code pipeline}/{@code severity}), never data-plane values.
+     * Runs on the reactor's executor, not the ingest thread.
+     */
+    private void auditDiagnosis(Diagnosis d) {
+        AuditEvent event = new AuditEvent(DiagnoseAndAlertSkill.ID, AssistResult.Status.OK,
+                d.citations().size(), 0L, Set.of("batchId", "pipeline", "severity"));
+        log.info("[ASSIST] diagnosis intent={} batch={} pipeline={} severity={} heuristicOnly={} citations={}",
+                event.intent(), d.batchId(), d.pipeline(), d.severity(), d.heuristicOnly(), event.citationCount());
+        if (audit != null) audit.accept(event);
+    }
+
+    /** The agent's recent failure diagnoses (M7), newest first — backs {@code GET /assist/diagnoses}. */
+    @Override
+    public List<Diagnosis> recentDiagnoses(int limit) {
+        DiagnosisStore d = diagnoses;
+        return d == null ? List.of() : d.recent(limit);
+    }
+
+    /** Release the failure reactor's executor on service shutdown. */
+    @Override
+    public void close() {
+        FailureReactor r = reactor;
+        if (r != null) r.close();
     }
 }
