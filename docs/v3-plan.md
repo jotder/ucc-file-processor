@@ -8,12 +8,14 @@ sequenced task list. Each milestone is independently releasable as a minor versi
 `3.x` branch, mirroring the 2.x cadence (one minor release per milestone: feature → release
 commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH release).
 
-Branch is at **`3.10.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
+Branch is at **`3.10.0`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
 M2 Smart Config as **v3.2.0**; M3 Assist platform + `explain-entity` as **v3.3.0**; M4
 `nl-to-schedule` as **v3.4.0**; M5 `suggest-config` + config safety validator as **v3.5.0**; M6
 `kpi-to-sql` + SQL sandbox as **v3.6.0**; M7 `diagnose-and-alert` + failure-event seam as
 **v3.7.0** — the MVP skill catalog is complete; M8 `report-sql` + `report-narrative` as **v3.8.0** —
-the optional reporting pair; the engine-modularity pass — behavior-injection seams — as **v3.9.0**). The foundation was hardened post-v3.0.0 — concurrency/audit fixes,
+the optional reporting pair; the engine-modularity pass — behavior-injection seams — as **v3.9.0**;
+the very-large-file handling pass — big-file CSV scratch-bounding + streaming SPI for custom
+formats — as **v3.10.0**). The foundation was hardened post-v3.0.0 — concurrency/audit fixes,
 cruft removal, CI reactor coverage.
 
 > **Status update (this revision):** **both keystones have shipped.** The **Metadata Graph** (data

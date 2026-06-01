@@ -13,7 +13,7 @@ or binary formats that emit multiple event types. Stage-1 ingest deliberately do
 heavy joins, lookups, or cross-record aggregation — those run in Stage-2, downstream over the
 Parquet output.
 
-- **Current line:** v3.x · repo at `3.10.0-SNAPSHOT` · latest release **v3.9.0**
+- **Current line:** v3.x · repo at `3.10.0` · latest release **v3.10.0**
 - **Runtime:** Java 24+, zero external runtime dependencies (everything bundled in the fat-JAR)
 
 ---
