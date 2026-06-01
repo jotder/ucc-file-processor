@@ -3,6 +3,7 @@ package com.gamma.sql;
 import com.gamma.config.spec.Finding;
 
 import java.io.IOException;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -67,12 +68,54 @@ public final class SqlOracle {
     public record ViewSpec(String name, String format, String pathOrGlob, boolean hive) {}
 
     /**
-     * A validation request: the candidate read-only SQL, the inputs to register, and whether to
-     * include preview rows.
+     * An <em>in-memory</em> table to register before validating: a logical name plus its column
+     * headers and string-valued rows, materialised directly in the sandbox rather than read from a
+     * file. This is how {@code report-sql} (M8 / v3.8.0) feeds the platform's operational audit/status
+     * data — which reaches the agent as header→value row maps through the backend-agnostic
+     * {@code StatusStore}/{@code EnrichmentAuditReader} seams, not as a fixed on-disk CSV layout. All
+     * columns are typed {@code VARCHAR}; the candidate SQL {@code CAST}s as needed. Each row's cells
+     * are positional against {@code columns} (missing trailing cells bind {@code NULL}).
+     *
+     * @param name    the table name the candidate SQL uses (e.g. {@code "batches"}, {@code "enrich_runs"})
+     * @param columns the column headers, in order
+     * @param rows    the data rows, each a positional list aligned to {@code columns}
      */
-    public record Request(String sql, List<ViewSpec> views, boolean sampleRows) {
+    public record TableData(String name, List<String> columns, List<List<String>> rows) {
+        public TableData {
+            columns = (columns == null) ? List.of() : List.copyOf(columns);
+            // Cells may be null (a ledger row that omits a column → SQL NULL), so we cannot use the
+            // null-rejecting List.copyOf here; wrap each row in a null-tolerant unmodifiable copy.
+            List<List<String>> copy = new ArrayList<>();
+            if (rows != null) {
+                for (List<String> r : rows) {
+                    copy.add(r == null ? List.of()
+                            : java.util.Collections.unmodifiableList(new ArrayList<>(r)));
+                }
+            }
+            rows = java.util.Collections.unmodifiableList(copy);
+        }
+    }
+
+    /**
+     * A validation request: the candidate read-only SQL, the inputs to register, and whether to
+     * include preview rows. Inputs come as path-backed {@link ViewSpec}s (catalog partitions, for
+     * {@code kpi-to-sql}) and/or in-memory {@link TableData}s (operational rows, for {@code report-sql});
+     * a request may carry either or both.
+     */
+    public record Request(String sql, List<ViewSpec> views, List<TableData> tables, boolean sampleRows) {
         public Request {
             views = (views == null) ? List.of() : List.copyOf(views);
+            tables = (tables == null) ? List.of() : List.copyOf(tables);
+        }
+
+        /** Back-compat: a path-backed request with no in-memory tables (the M6 {@code kpi-to-sql} shape). */
+        public Request(String sql, List<ViewSpec> views, boolean sampleRows) {
+            this(sql, views, List.of(), sampleRows);
+        }
+
+        /** An in-memory request with no path-backed views (the M8 {@code report-sql} shape). */
+        public static Request ofTables(String sql, List<TableData> tables, boolean sampleRows) {
+            return new Request(sql, List.of(), tables, sampleRows);
         }
     }
 
@@ -120,7 +163,7 @@ public final class SqlOracle {
         int inputCap = req.sampleRows() ? SAMPLE_INPUT_CAP : 0;
 
         try (SqlSandbox sb = SqlSandbox.open(policy)) {
-            // Layer 2a (trusted, file access on): materialise each input as a schema-typed table.
+            // Layer 2a (trusted, file access on): materialise each path-backed input as a typed table.
             try (Statement st = sb.statement()) {
                 for (ViewSpec v : req.views()) {
                     st.execute("CREATE TABLE " + quote(v.name()) + " AS SELECT * FROM "
@@ -128,6 +171,10 @@ public final class SqlOracle {
                             + " LIMIT " + inputCap);
                 }
             }
+            // Layer 2a' (trusted): materialise each in-memory table (all-VARCHAR). The DDL gives the
+            // planner the columns; rows are inserted (bounded) only when a preview was requested.
+            materializeTables(sb, req.tables(), req.sampleRows() ? SAMPLE_INPUT_CAP : 0);
+
             // Layer 2b: seal — no file access, frozen config — before the untrusted candidate runs.
             sb.seal();
 
@@ -166,6 +213,47 @@ public final class SqlOracle {
             return Result.failed(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         } catch (IOException e) {
             return Result.failed("SQL sandbox could not start: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Create each {@link TableData} as an all-{@code VARCHAR} table in the (still-trusted) sandbox and,
+     * when {@code rowCap > 0}, insert up to that many rows via a parameterised batch — values bind as
+     * statement parameters, never interpolated, so untrusted cell content cannot alter the SQL. A table
+     * with no columns is skipped (DuckDB cannot create a zero-column table).
+     */
+    private static void materializeTables(SqlSandbox sb, List<TableData> tables, int rowCap)
+            throws SQLException {
+        for (TableData t : tables) {
+            List<String> cols = t.columns();
+            if (cols.isEmpty()) continue;
+
+            StringBuilder ddl = new StringBuilder("CREATE TABLE ").append(quote(t.name())).append(" (");
+            for (int i = 0; i < cols.size(); i++) {
+                if (i > 0) ddl.append(", ");
+                ddl.append(quote(cols.get(i))).append(" VARCHAR");
+            }
+            ddl.append(")");
+            try (Statement st = sb.statement()) {
+                st.execute(ddl.toString());
+            }
+
+            if (rowCap <= 0 || t.rows().isEmpty()) continue;
+
+            StringBuilder placeholders = new StringBuilder();
+            for (int i = 0; i < cols.size(); i++) placeholders.append(i == 0 ? "?" : ", ?");
+            String insert = "INSERT INTO " + quote(t.name()) + " VALUES (" + placeholders + ")";
+            try (PreparedStatement ps = sb.connection().prepareStatement(insert)) {
+                int n = 0;
+                for (List<String> row : t.rows()) {
+                    if (n++ >= rowCap) break;
+                    for (int c = 0; c < cols.size(); c++) {
+                        ps.setString(c + 1, c < row.size() ? row.get(c) : null);
+                    }
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            }
         }
     }
 

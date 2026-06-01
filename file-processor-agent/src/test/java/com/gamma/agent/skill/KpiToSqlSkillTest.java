@@ -73,7 +73,7 @@ class KpiToSqlSkillTest {
     }
 
     private static AssistContext ctx(MetadataGraphService catalog, ModelRouter router) {
-        return new AssistContext(catalog, null, null, null, router);
+        return new AssistContext(catalog, null, null, null, router, null);
     }
 
     private static AssistRequest ask(Cat cat, boolean sampleRows) {

@@ -207,6 +207,60 @@ class AssistEndToEndTest {
     }
 
     @Test
+    void reportSqlEndToEndReturnsDraftPayload(@TempDir Path dir) throws Exception {
+        // The fake model returns a read-only query over the operational tables; the skill validates it
+        // in the sealed SQL sandbox and returns a draft. The real (empty) status store still presents
+        // correctly-shaped tables, so the query plans CPU-only — no Ollama, no write.
+        ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
+                "{\"sql\":\"SELECT status, COUNT(*) AS n FROM batches GROUP BY status\","
+                        + "\"logicExplanation\":\"count batches by terminal status\"}"));
+        try (Ctx c = open(dir, router)) {
+            assertEquals(401, post(c.port, "/assist/report-sql", null,
+                    "{\"screenContext\":{\"pipeline\":\"MINI_ETL\"}}").statusCode(), "fail-closed");
+
+            String body = """
+                    {"screenContext":{"pipeline":"MINI_ETL"},
+                     "userText":"how many batches per status?"}""";
+            HttpResponse<String> r = post(c.port, "/assist/report-sql", TOKEN, body);
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode out = JSON.readTree(r.body());
+            assertEquals("report-sql", out.get("intent").asText());
+            assertTrue(out.get("validated").asBoolean(), "ran through the SQL sandbox oracle");
+            assertTrue(out.get("applyVia").isNull(), "draft-only (V-9): no write endpoint, ever");
+            JsonNode data = out.get("data");
+            assertEquals("status", data.get("columnsProduced").get(0).asText(),
+                    "columns are authoritative, from the oracle");
+            boolean usesBatches = false;
+            for (JsonNode t : data.get("tablesUsed")) if (t.asText().equals("batches")) usesBatches = true;
+            assertTrue(usesBatches, "queried the resolved operational table: " + data.get("tablesUsed"));
+        }
+    }
+
+    @Test
+    void reportNarrativeEndToEndReturnsGroundedNarrative(@TempDir Path dir) throws Exception {
+        // A fresh service has run nothing → the service report is all zeros; the canned narrative uses
+        // only those grounded figures, so the extractive guard passes.
+        ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
+                "No batches have run yet: 0 total, 0 succeeded, 0 failed."));
+        try (Ctx c = open(dir, router)) {
+            assertEquals(401, post(c.port, "/assist/report-narrative", null,
+                    "{\"screenContext\":{\"reportType\":\"service\"}}").statusCode(), "fail-closed");
+
+            HttpResponse<String> r = post(c.port, "/assist/report-narrative", TOKEN,
+                    "{\"screenContext\":{\"reportType\":\"service\"}}");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode out = JSON.readTree(r.body());
+            assertEquals("report-narrative", out.get("intent").asText());
+            assertTrue(out.get("applyVia").isNull(), "draft-only");
+            JsonNode data = out.get("data");
+            assertEquals("service", data.get("reportType").asText());
+            assertEquals(Boolean.TRUE, data.get("grounded").asBoolean());
+            assertTrue(data.get("narrative").asText().contains("0 total"),
+                    "the grounded narrative rides in the structured payload");
+        }
+    }
+
+    @Test
     void scopedAuthEnforced(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, ModelRouter.of(FakeModelProvider.canned("ok")))) {
             assertEquals(401, post(c.port, "/assist/explain-entity", null, "{}").statusCode());

@@ -108,6 +108,28 @@ class AssistAuditTest {
         }
     }
 
+    @Test
+    void reportSqlDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
+        Path pipe = AgentTestConfigs.writePipeline(dir);
+        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+            UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
+                    "{\"sql\":\"SELECT status, COUNT(*) AS n FROM batches GROUP BY status\","
+                            + "\"logicExplanation\":\"count by status\"}")), captured::add);
+            agent.init(svc);
+
+            AssistResult res = agent.assist(new AssistRequest("report-sql",
+                    Map.of("pipeline", "MINI_ETL"), Map.of(), "how many batches per status"));
+            assertEquals(AssistResult.Status.OK, res.status(), res.message());
+            assertNull(res.applyVia(), "draft-only: the audited call carries no write endpoint");
+
+            assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
+            assertEquals("report-sql", captured.get(0).intent());
+            assertTrue(captured.get(0).contextKeys().contains("pipeline"),
+                    "context keys recorded (not values)");
+        }
+    }
+
     /** Event-driven: a FAILED batch is diagnosed off-thread and audited (keys, not values). */
     @Test
     void failedBatchEventIsDiagnosedAndAudited(@TempDir Path dir) throws Exception {

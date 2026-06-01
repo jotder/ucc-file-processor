@@ -272,7 +272,19 @@ Model tiers reflect the viability review (Gemma 2B was over-assigned in the firs
   local→hosted quality gap.
 - **Replaces:** hand-writing transformation SQL / a visual transform builder.
 
-### B2 — `report-sql` / `report-narrative`  *(stretch / optional 6th skill)*
+### B2 — `report-sql` / `report-narrative`  *(stretch / optional 6th+7th skill)* — ✅ **shipped v3.8.0 (M8)**
+> Realized as `com.gamma.agent.skill.ReportSqlSkill` (MEDIUM) + `ReportNarrativeSkill` (SMALL).
+> **`report-sql`:** NL → a read-only DuckDB query over the **operational** ledgers (`batches`/`files`/
+> `lineage`/`quarantine` per pipeline, `enrich_runs`/`enrich_lineage` per job), validated to run by the
+> M6 `SqlOracle`. Because those ledgers reach the agent as row maps through the backend-agnostic
+> `StatusStore`/`EnrichmentAuditReader` seams (not a fixed CSV layout), the oracle gained an additive
+> in-memory **tabular-input** mode (`SqlOracle.TableData`, all-VARCHAR, registered + parameterised-`INSERT`ed
+> in the sandbox's trusted pre-`seal` phase). `OperationalTables` resolves a pipeline/job **name**
+> (grounded) to fixed-schema tables; draft-only, sample rows opt-in. **`report-narrative`:** a structured
+> `ReportService` report → a short, strictly-extractive narrative; the deterministic `NarrativeGuard`
+> rejects any figure not in the source report (×100/÷100 + integer tolerance), repaired via the
+> `RepairLoop`. Abstain-safe — no model → a deterministic template narrative (`modelBacked=false`).
+> Golden + e2e tests run CPU-only via a fake model + a temp-rooted sandbox policy.
 - **Does:** NL → report SQL over the audit/status stores (sandboxed-DuckDB validated),
   and/or turn a report JSON into a short plain-language narrative.
 - **Oracle:** sandboxed DuckDB for SQL; none for narrative. **Model:** 7B for SQL,

@@ -98,6 +98,10 @@ public final class SourceService implements AutoCloseable {
     private final List<SemanticModel> semanticModels;
     /** The metadata graph / data catalog (M2): config-derived structure + lazy operational overlay. */
     private final MetadataGraphService catalog;
+    /** The read-only config seam (pipelines + enrichments + semantics) the catalog assembles from;
+     *  also exposed to the assist agent (M8) so {@code report-sql} can resolve a pipeline/job name to
+     *  its config without a write-bearing handle. */
+    private final ConfigSource configSource;
     /** O(1) index of loaded pipeline configs keyed by in-file identity (M2 config keystone, v3.2.0):
      *  backs pathFor/configFor/activeRegistry/pipelines and the catalog's ConfigSource without the
      *  former per-call O(n) re-parse. Rebuilt at construction and at the top of every poll cycle. */
@@ -176,6 +180,7 @@ public final class SourceService implements AutoCloseable {
             }
             public List<SemanticModel> semantics() { return SourceService.this.semanticModels; }
         };
+        this.configSource = configSource;
         CatalogOverlay.Stage2Reads stage2 = enrichment == null ? null : new CatalogOverlay.Stage2Reads() {
             public boolean hosts(String job) { return enrichment.config(job).isPresent(); }
             public List<Map<String, String>> runs(String job) { return enrichment.runs(job); }
@@ -341,6 +346,12 @@ public final class SourceService implements AutoCloseable {
     /** The metadata graph / data catalog (M2, v3.2.0): always present (core, zero-AI by default). */
     public MetadataGraphService catalog() {
         return catalog;
+    }
+
+    /** The read-only config seam (pipelines + enrichments + semantics) — handed to the assist agent
+     *  (M8, v3.8.0) so {@code report-sql} can resolve a pipeline/job name to its config. */
+    public ConfigSource configSource() {
+        return configSource;
     }
 
     /** List each registered pipeline with its current paused state and commit count. */

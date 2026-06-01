@@ -45,7 +45,11 @@ The codebase has successfully completed the prerequisite foundation for `3.x`:
 > resource caps) + `SqlOracle` (EXPLAIN + LIMIT 0; authoritative columns) + `SqlViews` (the view-builder
 > extracted from `EnrichmentEngine`, behavior-preserving). The `KpiToSqlSkill` (LARGE tier) grounds on
 > the M1/M2 catalog + KPI catalog and is confirm-first + draft-only. M6 deltas: sample rows **opt-in**;
-> EVENT_TABLE nodes gained an additive `format` attr. The mermaid below predates the keystone insertion
+> EVENT_TABLE nodes gained an additive `format` attr. **M8 (v3.8.0) reused this same sandbox for
+`report-sql` over the *operational* ledgers by adding an in-memory tabular-input mode to `SqlOracle`
+(`TableData` = name + columns + string rows, materialised + parameterised-`INSERT`ed in the trusted
+pre-`seal` phase) — backend-agnostic (file- or DB-backed `StatusStore`), so no on-disk CSV-layout
+coupling; the lexical guard + seal still apply unchanged.** The mermaid below predates the keystone insertion
 > — read milestone numbers as
 > M0→M1(graph)→M2(config)→M3(assist)→M4(nl-to-schedule)→M5(suggest-config)→M6(kpi-to-sql).
 

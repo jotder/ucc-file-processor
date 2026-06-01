@@ -28,7 +28,7 @@ class ExplainEntitySkillTest {
 
     private AssistContext context(SourceService svc, ModelRouter router) {
         return new AssistContext(svc.catalog(), svc.reports(), svc.statusStore(),
-                new DocRetriever(Map.of()), router);
+                new DocRetriever(Map.of()), router, svc.configSource());
     }
 
     private AssistRequest explain(String question) {

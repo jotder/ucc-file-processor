@@ -10,6 +10,8 @@ import com.gamma.agent.skill.DocRetriever;
 import com.gamma.agent.skill.ExplainEntitySkill;
 import com.gamma.agent.skill.KpiToSqlSkill;
 import com.gamma.agent.skill.NlToScheduleSkill;
+import com.gamma.agent.skill.ReportNarrativeSkill;
+import com.gamma.agent.skill.ReportSqlSkill;
 import com.gamma.agent.skill.SkillRegistry;
 import com.gamma.agent.skill.SuggestConfigSkill;
 import com.gamma.assist.AssistRequest;
@@ -75,13 +77,15 @@ public final class UccAssistAgent implements AssistAgent {
     public void init(SourceService service) {
         DocRetriever docs = DocRetriever.fromEnvironment();
         this.context = new AssistContext(service.catalog(), service.reports(),
-                service.statusStore(), docs, router);
+                service.statusStore(), docs, router, service.configSource());
         this.registry = new SkillRegistry(List.of(
                 new ExplainEntitySkill(),
                 new NlToScheduleSkill(),
                 new SuggestConfigSkill(),
                 new KpiToSqlSkill(),
-                new DiagnoseAndAlertSkill()));
+                new DiagnoseAndAlertSkill(),
+                new ReportSqlSkill(),
+                new ReportNarrativeSkill()));
 
         // ── M7: event-driven failure diagnosis. Subscribe BEFORE start() (the SPI contract) so the
         // reactor sees the first FAILED batch. The reactor hands work to its own executor, so the

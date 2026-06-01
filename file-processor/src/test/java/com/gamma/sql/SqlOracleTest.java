@@ -111,4 +111,82 @@ class SqlOracleTest {
         assertFalse(r.ok());
         assertFalse(r.findings().isEmpty(), "guard catches the second statement before execution");
     }
+
+    // ── M8: in-memory tabular inputs (report-sql) ───────────────────────────────────────
+
+    /** An operational "batches" table as the StatusStore would surface it: header→string rows. */
+    private static SqlOracle.TableData seedBatches() {
+        return new SqlOracle.TableData("batches",
+                List.of("pipeline", "status", "total_output_rows"),
+                List.of(
+                        List.of("EVENTS", "SUCCESS", "100"),
+                        List.of("EVENTS", "FAILED", "0"),
+                        List.of("EVENTS", "SUCCESS", "250")));
+    }
+
+    @Test
+    void inMemoryTableDerivesColumnsAndNoSampleByDefault() {
+        SqlOracle.Result r = new SqlOracle(POLICY).validate(SqlOracle.Request.ofTables(
+                "SELECT status, COUNT(*) AS n FROM batches GROUP BY status", List.of(seedBatches()), false));
+
+        assertTrue(r.ok(), "an aggregate over the in-memory table plans: " + r.error());
+        assertEquals(List.of("status", "n"), r.columnsProduced(),
+                "columns are authoritative, from ResultSetMetaData");
+        assertTrue(r.sampleRows().isEmpty(), "no preview rows unless requested");
+    }
+
+    @Test
+    void inMemoryTableSampleRowsReturnedOnlyWhenRequested() {
+        SqlOracle oracle = new SqlOracle(POLICY);
+        SqlOracle.Result r = oracle.validate(SqlOracle.Request.ofTables(
+                "SELECT status, COUNT(*) AS n FROM batches GROUP BY status ORDER BY status",
+                List.of(seedBatches()), true));
+
+        assertTrue(r.ok(), r.error());
+        assertFalse(r.sampleRows().isEmpty(), "preview rows present when requested");
+        // VARCHAR columns mean the candidate must CAST to count/aggregate numerically; COUNT(*) is fine.
+        Map<String, Object> failed = r.sampleRows().get(0);
+        assertEquals("FAILED", String.valueOf(failed.get("status")));
+        assertEquals(1L, ((Number) failed.get("n")).longValue(), "one FAILED batch");
+    }
+
+    @Test
+    void inMemoryColumnsAreVarcharSoCandidateCasts() {
+        SqlOracle.Result r = new SqlOracle(POLICY).validate(SqlOracle.Request.ofTables(
+                "SELECT SUM(CAST(total_output_rows AS BIGINT)) AS rows FROM batches WHERE status = 'SUCCESS'",
+                List.of(seedBatches()), true));
+        assertTrue(r.ok(), "a CAST over the VARCHAR column plans + runs: " + r.error());
+        assertEquals(List.of("rows"), r.columnsProduced());
+        assertEquals(350L, ((Number) r.sampleRows().get(0).get("rows")).longValue());
+    }
+
+    @Test
+    void rowValuesBindAsParametersNotInjectedSql() {
+        // A cell that looks like SQL must be data, not executable — the parameterised INSERT guarantees it.
+        SqlOracle.TableData hostile = new SqlOracle.TableData("files",
+                List.of("filename"),
+                List.of(List.of("'); DROP TABLE files; --")));
+        SqlOracle.Result r = new SqlOracle(POLICY).validate(SqlOracle.Request.ofTables(
+                "SELECT COUNT(*) AS n FROM files", List.of(hostile), true));
+        assertTrue(r.ok(), "the hostile cell is inert data: " + r.error());
+        assertEquals(1L, ((Number) r.sampleRows().get(0).get("n")).longValue(),
+                "the row is present as a single literal value, no DDL executed");
+    }
+
+    @Test
+    void inMemoryFileReadingCandidateStillRejectedLexically() {
+        SqlOracle.Result r = new SqlOracle(POLICY).validate(SqlOracle.Request.ofTables(
+                "SELECT * FROM read_csv('/etc/passwd')", List.of(seedBatches()), false));
+        assertFalse(r.ok(), "the guard runs regardless of input kind");
+        assertFalse(r.findings().isEmpty(), "rejection is lexical, before any connection");
+        assertTrue(r.error().contains("read_csv"));
+    }
+
+    @Test
+    void inMemoryUnknownColumnFailsWithEngineError() {
+        SqlOracle.Result r = new SqlOracle(POLICY).validate(SqlOracle.Request.ofTables(
+                "SELECT no_such_column FROM batches", List.of(seedBatches()), false));
+        assertFalse(r.ok(), "a missing column must not validate");
+        assertNotNull(r.error());
+    }
 }

@@ -39,7 +39,7 @@ class SuggestConfigSkillTest {
 
     private AssistContext context(SourceService svc, ModelRouter router) {
         return new AssistContext(svc.catalog(), svc.reports(), svc.statusStore(),
-                new DocRetriever(Map.of()), router);
+                new DocRetriever(Map.of()), router, svc.configSource());
     }
 
     /** A pipeline request whose partial config already declares dirs under {@code root}. */

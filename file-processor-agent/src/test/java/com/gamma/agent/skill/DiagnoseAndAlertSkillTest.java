@@ -32,7 +32,7 @@ class DiagnoseAndAlertSkillTest {
 
     private AssistContext context(SourceService svc, ModelRouter router) {
         return new AssistContext(svc.catalog(), svc.reports(), svc.statusStore(),
-                new DocRetriever(Map.of()), router);
+                new DocRetriever(Map.of()), router, svc.configSource());
     }
 
     private AssistRequest ask(String userText) {

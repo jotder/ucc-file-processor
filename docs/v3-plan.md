@@ -8,12 +8,13 @@ sequenced task list. Each milestone is independently releasable as a minor versi
 `3.x` branch, mirroring the 2.x cadence (one minor release per milestone: feature → release
 commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH release).
 
-Branch is at **`3.8.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
+Branch is at **`3.9.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
 M2 Smart Config as **v3.2.0**; M3 Assist platform + `explain-entity` as **v3.3.0**; M4
 `nl-to-schedule` as **v3.4.0**; M5 `suggest-config` + config safety validator as **v3.5.0**; M6
 `kpi-to-sql` + SQL sandbox as **v3.6.0**; M7 `diagnose-and-alert` + failure-event seam as
-**v3.7.0** — the MVP skill catalog is complete). The foundation was hardened post-v3.0.0 —
-concurrency/audit fixes, cruft removal, CI reactor coverage.
+**v3.7.0** — the MVP skill catalog is complete; M8 `report-sql` + `report-narrative` as **v3.8.0** —
+the optional reporting pair). The foundation was hardened post-v3.0.0 — concurrency/audit fixes,
+cruft removal, CI reactor coverage.
 
 > **Status update (this revision):** **both keystones have shipped.** The **Metadata Graph** (data
 > keystone) shipped as **v3.1.0** — the `com.gamma.catalog` package, `SchemaExtractor` merge/preserve,
@@ -293,9 +294,31 @@ slot onto this milestone's `ConfigRegistry` — and now does, with zero `Metadat
   (asserted); full reactor green CPU-only (**326 core / 1 skipped + 88 agent**); lean core stays 0-AI
   (0 AI classes, 0 new deps, `com.gamma.assist.Diagnosis` present). The MVP skill catalog is complete.
 
-### M8 (optional) — `report-sql` / `report-narrative` → v3.8.0
-NL → report SQL over the audit/status stores (sandboxed-DuckDB validated, 7B) + report-JSON →
-prose narrative (2B, strictly extractive).
+### M8 — `report-sql` + `report-narrative` (operational reporting) → v3.8.0 ✅ **shipped v3.8.0**
+- **T8.1 — `report-sql` (MEDIUM/7B).** ✅ NL → a read-only DuckDB query over the platform's own
+  **operational** audit/status data — `batches`/`files`/`lineage`/`quarantine` for a pipeline,
+  `enrich_runs`/`enrich_lineage` for an enrichment job — validated to *run* by the M6 `SqlOracle`
+  before a human sees it. Those ledgers reach the agent as header→value row maps through the
+  backend-agnostic `StatusStore`/`EnrichmentAuditReader` seams, so a small **additive** core extension
+  gave `SqlOracle` an in-memory **tabular-input** mode (`TableData` = name + columns + rows; all-VARCHAR,
+  registered + batch-`INSERT`ed in the sandbox's trusted pre-`seal` phase via a parameterised statement
+  — no value interpolation). `com.gamma.agent.skill.OperationalTables` resolves a pipeline/job **name**
+  (grounded — an unresolved name can't be queried) to fixed-schema tables; `ReportSqlSkill` runs the
+  `RepairLoop` (cap 3) over the sandbox oracle. Draft-only (`applyVia` null); sample rows opt-in. The
+  agent reaches configs through a new read-only `SourceService.configSource()` handle on
+  `AssistContext` — no write-bearing handle, no core→agent dep.
+- **T8.2 — `report-narrative` (SMALL/2B).** ✅ A structured `ReportService` report (resolved server-side
+  by selector, or supplied verbatim) → a short, **strictly-extractive** plain-language narrative. A 2B
+  model is safe here because the deterministic `NarrativeGuard` rejects any figure that does not appear
+  in the source report (×100/÷100 scale + integer tolerance), feeding ungrounded numbers back to the
+  `RepairLoop` → repaired, never surfaced. Abstain-safe: with no model the skill returns a deterministic
+  template narrative assembled from the report's own fields (`modelBacked=false`), grounded by
+  construction. Draft-only.
+- *Exit (met):* NL operational reports + grounded narratives, draft-only; the SQL sandbox boundary holds
+  for operational data too (adversarially tested — file/extension/DDL/DML/multi-statement rejected; row
+  cells are inert parameters); full reactor green CPU-only (**332 core / 1 skipped + 104 agent**); lean
+  core stays 0-AI (0 AI classes, 0 new deps, `com.gamma.sql` + `SqlOracle$TableData` present). **The MVP
+  skill catalog + the optional reporting pair are both complete.**
 
 ### Fast-follow — Config write endpoints (CRUD-from-body)
 Promote `nl-to-schedule`/`suggest-config` (and `*_meta.toon`/schema-description edits) from
@@ -327,5 +350,7 @@ consumes the catalog; adds the AI `DescriptionProvider`) → **M4 `nl-to-schedul
 **M6 `kpi-to-sql` (hero) + SQL sandbox** ✅ (v3.6.0; grounds on the catalog/KPI catalog; closes G4) →
 **M7 `diagnose-and-alert` (event-driven) + failure-event seam** ✅ (v3.7.0; non-blocking
 queue-backed reactor, heuristic + model root-cause, NL→alert-rule draft — the MVP skill catalog is
-complete) → (M8 reports) → CRUD fast-follow → UI/distributed deferred. One minor release per
-milestone on `3.x`, additive, suite-green, lean core preserved.
+complete) → **M8 `report-sql` + `report-narrative`** ✅ (v3.8.0; NL→read-only SQL over the operational
+stores via the M6 sandbox's additive in-memory tabular-input mode, + strictly-extractive grounded
+narrative) → CRUD fast-follow → UI/distributed deferred. One minor release per milestone on `3.x`,
+additive, suite-green, lean core preserved.
