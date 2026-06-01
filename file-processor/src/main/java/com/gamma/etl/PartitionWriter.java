@@ -79,9 +79,8 @@ public final class PartitionWriter {
                                               List<String> excludeColumns)
             throws Exception {
 
-        boolean isParquet = "PARQUET".equals(outputFormat);
-        String  ext       = isParquet ? ".parquet" : ".csv";
-        String  outputFileName = baseName + "_out" + ext;
+        OutputFormat fmt = OutputFormat.resolve(outputFormat);
+        String  outputFileName = baseName + "_out" + fmt.extension();
 
         new File(databaseDir).mkdirs();
         String workerTag   = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
@@ -93,9 +92,9 @@ public final class PartitionWriter {
 
         try (Statement stmt = conn.createStatement()) {
             String partBy = String.join(", ", partitionColumns);
-            StringBuilder copyOpts = new StringBuilder("FORMAT ").append(outputFormat)
+            StringBuilder copyOpts = new StringBuilder("FORMAT ").append(fmt.copyToken())
                     .append(", PARTITION_BY (").append(partBy).append("), OVERWRITE_OR_IGNORE 1");
-            if (isParquet && compression != null && !compression.isBlank())
+            if (fmt.supportsCompression() && compression != null && !compression.isBlank())
                 copyOpts.append(", COMPRESSION ").append(compression);
 
             String projection = (excludeColumns == null || excludeColumns.isEmpty())

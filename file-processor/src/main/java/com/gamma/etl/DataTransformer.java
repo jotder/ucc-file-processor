@@ -1,7 +1,5 @@
 package com.gamma.etl;
 
-import com.gamma.util.SqlBuilder;
-
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.*;
@@ -69,46 +67,12 @@ public final class DataTransformer {
         StringBuilder select = new StringBuilder("SELECT ");
 
         // ── mapped data columns ───────────────────────────────────────────────
+        // Per-column expression generation is delegated to TransformCompiler (a
+        // transformType → function registry); this method only assembles the SELECT.
         for (int i = 0; i < rules.size(); i++) {
             Map<String, String> rule = rules.get(i);
-            String source        = rule.get("sourceExpression");
-            String target        = rule.get("targetColumn");
-            String transformType = rule.getOrDefault("transformType", "DIRECT");
-
-            if ("CONCAT_DT".equals(transformType)) {
-                String[] parts  = source.split("\\|", 2);
-                String dateCol  = "\"" + sourceTable + "\".\"" + parts[0] + '"';
-                String timeCol  = "\"" + sourceTable + "\".\"" + parts[1] + '"';
-                SqlBuilder.appendCoalesce(select,
-                        dateCol + " || ' ' || " + timeCol, cfg.csv().tsFormats(), "TIMESTAMP");
-            } else if ("FILENAME_DATE".equals(transformType)) {
-                if (!"EVENT_DATE".equals(target)) {
-                    throw new IllegalArgumentException(
-                            "FILENAME_DATE transform is only supported for the EVENT_DATE column, got: " + target);
-                }
-                String[] parts  = source.split("\\|", 3);
-                String   col    = "\"" + sourceTable + "\".\"" + parts[0] + '"';
-                String   prefix = parts.length > 1 ? parts[1] : "";
-                String   fmt    = parts.length > 2 ? parts[2] : "%Y%m%d";
-                select.append("TRY_STRPTIME(regexp_extract(")
-                      .append(col).append(", '").append(prefix)
-                      .append("([0-9]{8})', 1), '").append(fmt).append("')::DATE");
-            } else {
-                String col  = "\"" + sourceTable + "\".\"" + source + '"';
-                String type = fieldTypes.getOrDefault(source, "VARCHAR");
-                switch (type) {
-                    // Cast to VARCHAR first: no-op for raw VARCHAR (CSV path);
-                    // converts already-typed DATE/TIMESTAMP (plugin path) to ISO string
-                    // so TRY_STRPTIME always receives a string argument.
-                    case "TIMESTAMP" -> SqlBuilder.appendCoalesce(select,
-                            "CAST(" + col + " AS VARCHAR)", cfg.csv().tsFormats(), "TIMESTAMP");
-                    case "DATE"      -> SqlBuilder.appendCoalesce(select,
-                            "CAST(" + col + " AS VARCHAR)", cfg.csv().dateFormats(), "DATE");
-                    case "DOUBLE"    -> select.append("TRY_CAST(").append(col).append(" AS DOUBLE)");
-                    default          -> select.append(col);
-                }
-            }
-            select.append(" AS \"").append(target).append('"');
+            select.append(TransformCompiler.dataColumn(rule, fieldTypes, sourceTable, cfg));
+            select.append(" AS \"").append(rule.get("targetColumn")).append('"');
             if (i < rules.size() - 1) select.append(", ");
         }
 
@@ -120,7 +84,7 @@ public final class DataTransformer {
         } else {
             for (PartitionDef pd : partDefs) {
                 select.append(", ");
-                appendPartitionColumn(select, pd, sourceTable, fieldTypes, cfg);
+                select.append(TransformCompiler.partitionColumn(pd, sourceTable, fieldTypes, cfg));
                 select.append(" AS \"").append(pd.column()).append('"');
             }
         }
@@ -131,43 +95,6 @@ public final class DataTransformer {
 
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("CREATE TABLE \"" + destTable + "\" AS " + select);
-        }
-    }
-
-    // ── private helpers ───────────────────────────────────────────────────────
-
-    /**
-     * Append the SQL expression for one partition column (without the {@code AS} alias).
-     * DATE_YEAR/MONTH/DAY use a direct column reference when the source is already
-     * DATE/TIMESTAMP (ingester pre-typed), or a COALESCE(TRY_STRPTIME…) chain for
-     * VARCHAR sources (CSV pipeline).
-     */
-    private static void appendPartitionColumn(StringBuilder sb, PartitionDef pd,
-                                               String sourceTable,
-                                               Map<String, String> fieldTypes,
-                                               PipelineConfig cfg) {
-        String col = "\"" + sourceTable + "\".\"" + pd.source() + "\"";
-
-        switch (pd.type()) {
-            case VARCHAR -> sb.append(col);
-            case DOUBLE  -> sb.append("TRY_CAST(").append(col).append(" AS DOUBLE)");
-            case INTEGER -> sb.append("TRY_CAST(").append(col).append(" AS INTEGER)");
-            case DATE_YEAR, DATE_MONTH, DATE_DAY -> {
-                // Cast to VARCHAR first: no-op for raw VARCHAR (CSV path);
-                // converts already-typed DATE/TIMESTAMP (plugin path) to ISO string
-                // so TRY_STRPTIME always receives a string argument.
-                String varcharExpr = "CAST(" + col + " AS VARCHAR)";
-                String dateExpr = SqlBuilder.buildCastExpr(varcharExpr, "DATE",
-                        cfg.csv().dateFormats(), cfg.csv().tsFormats());
-                switch (pd.type()) {
-                    case DATE_YEAR  -> sb.append("YEAR(").append(dateExpr).append(")::VARCHAR");
-                    case DATE_MONTH -> sb.append("LPAD(MONTH(").append(dateExpr)
-                                         .append(")::VARCHAR, 2, '0')");
-                    case DATE_DAY   -> sb.append("LPAD(DAY(").append(dateExpr)
-                                         .append(")::VARCHAR, 2, '0')");
-                    default -> throw new AssertionError();
-                }
-            }
         }
     }
 }

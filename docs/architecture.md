@@ -151,14 +151,22 @@ com.gamma
   inspector/
     SourceProcessor          — single-source ETL runner; virtual-thread + semaphore batch fan-out
     MultiSourceProcessor     — runs many sources concurrently in one JVM (outer M..N orchestrator)
-    BatchProcessor           — owns one temp DuckDB per batch; ingest loop → transform → lineage → commit
+    BatchProcessor           — thin per-batch coordinator: selects a BatchIngestStrategy, then drives the shared commit → audit tail
+    BatchIngestStrategy      — ingest+transform+write seam (CSV vs plugin); returns a typed IngestOutcome (+ shared dropTable/msg helpers)
+    CsvBatchStrategy         — built-in CSV path: per-file temp table → raw_input(__src_id) → transform → write → lineage
+    PluginBatchStrategy      — plugin path: FileIngester per member → union per segment → transform/write/lineage per segment
+    IngestOutcome            — record: status, survivors, outputs, lineage, per-member audit, totals (commit/audit input)
+    MemberAudit              — record: per-input-file audit row accumulated during ingest
     ReprocessCommand         — `ura reprocess <batch_id>`: delete outputs/markers, restore members, re-run
   etl/
     PipelineConfig           — immutable config object; static factory loads and validates .toon
     SchemaSelector           — two-pass schema dispatch (file-pattern fast path + column-count probe)
     CsvIngester              — Java line-by-line CSV/CSV.GZ parser → DuckDB staging table (fallback engine)
     DuckDbCsvIngester        — native vectorized read_csv ingest (4-5× faster; default for clean configs)
-    DataTransformer          — applies typed SQL transformations; writes Parquet/CSV output (two-stage)
+    DataTransformer          — assembles the transform SELECT (CREATE TABLE AS); delegates per-column SQL to TransformCompiler
+    TransformCompiler        — pure per-column SQL compiler; transformType → expression function registry (functional injection)
+    PartitionWriter          — COPY … PARTITION_BY + two-step atomic file reveal; format via the OutputFormat enum-strategy
+    OutputFormat             — enum-as-strategy: extension + COPY token + compression applicability per output format
     MarkerManager            — .processed sentinel files for idempotent ingest; retention-based cleanup
     QuarantineManager        — moves zero-valid-row and unreadable files to quarantine/
     DuckLakeRegistrar        — optional: registers written Parquet files into a DuckLake catalog
@@ -193,6 +201,16 @@ com.gamma
 ```
 
 **Design principle:** `SourceProcessor` is a pure orchestrator — it creates the thread pool and drives the per-batch lifecycle, but contains zero business logic itself.  Every concern is owned by a focused single-responsibility class: batch planning (`BatchPlanner`), parsing (`CsvIngester`), transformation (`DataTransformer`), deduplication (`MarkerManager`), quarantine (`QuarantineManager`), registration (`DuckLakeRegistrar`), and auditing (`BatchAuditWriter`, `ManifestStore`, `LineageCollector`).  All shared low-level helpers live in `com.gamma.util` and are reused by both the ETL and the pre-ETL utilities.
+
+**Behavior-injection seams.** Variant behavior is injected into the engine rather than branched inline, so the orchestration code stays thin and a new variant is a closed-set edit:
+
+- **`BatchIngestStrategy`** (`CsvBatchStrategy` / `PluginBatchStrategy`) — the per-batch ingest+transform+write path. `BatchProcessor.process` selects one by config and consumes its typed `IngestOutcome`; the shared commit → audit tail is path-agnostic.
+- **`FileIngester`** (SPI, by FQCN) — custom parsers; the reference `TypedRecordIngester` splits one input into many typed segment streams.
+- **`TransformCompiler`** — a `transformType → ColumnRule` function registry; `DataTransformer` assembles the SELECT and delegates each column expression.
+- **`OutputFormat`** — enum-as-strategy owning each format's extension, COPY token, and compression rule, used by `PartitionWriter`.
+- **`StatusStore`** (`FileStatusStore` / `DbStatusStore`) and the **`BatchEventBus`** (`Consumer<BatchEvent>` observers) — pluggable audit backend and commit-event fan-out.
+
+These keep the data path lean while making formats, ingest paths, transforms, and audit sinks independently extensible and testable. See [design-notes → D7](design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390).
 
 ---
 

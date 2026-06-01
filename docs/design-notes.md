@@ -130,16 +130,54 @@ processing & concurrency, multi-source, output, audit, deployment, onboarding),
 `integrations.md` (DuckLake + warehouse query layer), `troubleshooting.md`.
 Content was moved byte-for-byte; cross-links were repointed.
 
+### D7 — Engine modularity pass (behavior-injection seams) — ✅ DONE (v3.9.0)
+
+A targeted, **behavior-preserving** refactor of the Stage-1 engine: same public API,
+same `.toon` contract, byte-identical emitted SQL and on-disk output, every step green
+(452 → 466 tests). The goal was to replace inline type/format branching with injectable
+behavior so the engine code stays thin and new variants are closed-set edits rather than
+edits to growing methods. Four seams landed:
+
+- **`OutputFormat` (enum-as-strategy).** `PartitionWriter` no longer does
+  `"PARQUET".equals(outputFormat)`; each format constant owns its extension, COPY
+  `FORMAT` token, and compression applicability. `resolve(String)` reproduces the
+  historical rule exactly (PARQUET only for the canonical token, else CSV). A new format
+  is one enum constant + a `resolve` mapping.
+- **`TransformCompiler` (functional injection).** Per-column SQL generation moved out of
+  `DataTransformer.materialize` into a pure compiler with a `transformType → ColumnRule`
+  function registry (`CONCAT_DT`, `FILENAME_DATE`, `DIRECT`/fallback). `materialize` is now
+  a thin SELECT-assembler. The deliberate data-column-vs-partition asymmetry (data columns
+  wrap DATE/TIMESTAMP in `CAST(... AS VARCHAR)`; partition columns route through
+  `SqlBuilder.buildCastExpr`) is preserved and pinned by byte-exact tests
+  (`TransformCompilerTest`).
+- **`BatchIngestStrategy` (Strategy).** The former `BatchProcessor.processCsv` /
+  `processPlugin` god-methods became `CsvBatchStrategy` / `PluginBatchStrategy`, each
+  returning a typed `IngestOutcome` (status, survivors, outputs, lineage, per-member audit,
+  totals). `BatchProcessor` is now a thin coordinator: pick strategy → run → shared
+  `commit` → shared `writeAudit`. The two audit-assembly variants collapsed into one
+  (the CSV/plugin difference is just `IngestOutcome.schemaLabel`). Shared `dropTable`/`msg`
+  live as static methods on the interface.
+- **`TypedRecordIngester` hot-loop hoist.** The nested `raw→fields` cast that computed the
+  declared field count was recomputed per input line; it's now resolved once per segment
+  into `declaredByKey`/`fieldsByKey` before the parse loop.
+
+**Why behavior-preserving over a teardown.** The codebase is shipped and guardrailed
+(backward-compat, lean-core, `.toon` stability). The bigger restructure that was *not* done
+— replacing the `Map<String,Object>` config core with a typed model — would break the
+`.toon`/embedding contract for marginal internal gain; it stays out of scope. No new
+runtime dependency was added. `OutputFormat`/`TransformCompiler` and the strategy types are
+all framework-internal (see [api-stability.md](api-stability.md)).
+
 ---
 
 ## Cross-cutting conventions
 
 - **SLF4J everywhere in the framework.** ETL code (`com.gamma.etl.*`, `com.gamma.inspector.*`) uses SLF4J at INFO/WARN/ERROR. Pre-ETL utility commands (`com.gamma.util.*` CLI tools) keep `System.out.println` because their output is for the human invoker, not log scrapers. `LogSetup` still tees stdout to a per-run file for diagnostics.
 
-- **DuckDB connection per batch.** Each `BatchProcessor.process` opens its own temp DuckDB file via `DuckDbUtil.tempDbFile` and closes it in `finally`. No pooling, no sharing. Worth it for crash isolation. Each connection's internal parallelism is capped by `DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads())` immediately after open — set `processing.duckdb_threads` so `threads × duckdb_threads ≈ cores`, else concurrent batches oversubscribe (the outer `Semaphore(cfg.processing().threads())` only bounds batch count, not DuckDB's per-connection threads).
+- **DuckDB connection per batch.** Each batch's `BatchIngestStrategy` (`CsvBatchStrategy` / `PluginBatchStrategy`) opens its own temp DuckDB file via `DuckDbUtil.tempDbFile` and closes it in `finally`. No pooling, no sharing. Worth it for crash isolation. Each connection's internal parallelism is capped by `DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads())` immediately after open — set `processing.duckdb_threads` so `threads × duckdb_threads ≈ cores`, else concurrent batches oversubscribe (the outer `Semaphore(cfg.processing().threads())` only bounds batch count, not DuckDB's per-connection threads).
 
-- **Two CSV ingest engines.** `DuckDbCsvIngester` (native `read_csv`, vectorized, 4–5× faster) and `CsvIngester` (Java line-by-line, lenient with ragged rows) are interchangeable behind the same `ingest(...)` signature. `BatchProcessor.processCsv` picks via `DuckDbCsvIngester.usesDuckDb(cfg)`. The Java path is the fallback for messy configs (`skip_tail_columns` etc.) the native reader can't faithfully reproduce — see `docs/performance.md` for the semantic-difference analysis. Don't delete the Java path; it's load-bearing for the messy-file sources.
+- **Two CSV ingest engines.** `DuckDbCsvIngester` (native `read_csv`, vectorized, 4–5× faster) and `CsvIngester` (Java line-by-line, lenient with ragged rows) are interchangeable behind the same `ingest(...)` signature. `CsvBatchStrategy` picks via `DuckDbCsvIngester.usesDuckDb(cfg)`. The Java path is the fallback for messy configs (`skip_tail_columns` etc.) the native reader can't faithfully reproduce — see `docs/performance.md` for the semantic-difference analysis. Don't delete the Java path; it's load-bearing for the messy-file sources.
 
-- **`raw_<KEY>_f<srcId>` table naming.** Hard-coded convention used by `BatchProcessor.processPlugin` to union member tables. Plugin authors must obey it; documented in `FileIngester` Javadoc.
+- **`raw_<KEY>_f<srcId>` table naming.** Hard-coded convention used by `PluginBatchStrategy` to union member tables. Plugin authors must obey it; documented in `FileIngester` Javadoc.
 
 - **Markers go last in `commit()`.** See `BatchProcessor.commit` for the ordering rationale comment. Any future commit-step change must preserve "markers signal durability" — if you create a marker for a file whose backup hasn't moved, that file is stranded.

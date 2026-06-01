@@ -52,6 +52,17 @@ pre-`seal` phase) — backend-agnostic (file- or DB-backed `StatusStore`), so no
 coupling; the lexical guard + seal still apply unchanged.** The mermaid below predates the keystone insertion
 > — read milestone numbers as
 > M0→M1(graph)→M2(config)→M3(assist)→M4(nl-to-schedule)→M5(suggest-config)→M6(kpi-to-sql).
+>
+> **✅ v3.9.0 engine-modularity pass (separate from the gap/roadmap work above).** A targeted,
+> behavior-preserving refactor of the Stage-1 engine introduced four behavior-injection seams —
+> `OutputFormat` (enum-as-strategy in `PartitionWriter`), `TransformCompiler` (a
+> `transformType → function` registry extracted from `DataTransformer`), `BatchIngestStrategy`
+> (`CsvBatchStrategy`/`PluginBatchStrategy` returning a typed `IngestOutcome`, collapsing the former
+> `BatchProcessor` god-methods into a thin coordinator), and a hot-loop cast hoist in
+> `TypedRecordIngester`. Public API, `.toon` contract, emitted SQL, and on-disk output are unchanged;
+> tests went 452→466 (two byte-exact characterization suites), coverage held/edged up, and the
+> stage-isolating benchmark showed no transform/write regression. Full rationale:
+> [design-notes D7](design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390).
 
 ---
 

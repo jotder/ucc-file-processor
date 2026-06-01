@@ -14,6 +14,16 @@ mvn -Dtest=PipelineBenchmark -DfailIfNoTests=false -Dbench.run=true \
 > is kept for the record and because the Java path remains the fallback for
 > messy-file configs.
 
+> **Re-measured v3.9.0 (engine modularity pass).** The behavior-injection refactor
+> ([design-notes D7](design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390))
+> touched the **transform** stage (`DataTransformer` now delegates per-column SQL to
+> `TransformCompiler`) and the **write** stage (`PartitionWriter` resolves format via the
+> `OutputFormat` enum). Re-running the 2M-row × 12-col × PARQUET scenario on JDK 26 shows
+> **no regression** — transform `1.4–1.8 s` (≈1.1–1.4M rows/s) and write `1.9 s`
+> (≈1.0M rows/s), matching the pre-refactor figures in the table below. Expected: both
+> seams run **once per column / once per write**, not per row, so the vectorized per-row
+> cost is unchanged. Ingest re-measured at `3.5 s` (duckdb) / `15.6 s` (java), also in line.
+
 ## Headline: ingest is the bottleneck
 
 For a 2,000,000-row × 12-column file → PARQUET, 30 date partitions:

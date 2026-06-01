@@ -11,18 +11,19 @@ mvn -Pcoverage test
 Since v3.9.0 the `coverage` profile is declared in **both** reactor modules, so a single
 `mvn -Pcoverage test` instruments the core engine *and* the optional assist agent in one pass.
 
-**452 tests** (332 core, 1 skipped; 120 agent), full reactor ~38 s CPU-only (no Ollama).
+**466 tests** (346 core, 1 skipped; 120 agent), full reactor ~38 s CPU-only (no Ollama). The
+v3.9.0 engine-modularity pass added the 14 `OutputFormatTest` + `TransformCompilerTest` characterizations.
 
 ## Summary
 
 | Scope | Line coverage | Branch coverage |
 |---|---|---|
-| **Core ETL data-path** (`etl` + `inspector` + `ingester`) | **86.8%** (1286/1482) | **75.9%** (516/680) |
-| **Core engine** (everything except the `util` CLI tools) | **86.3%** (3834/4444) | 72.2% (1683/2331) |
+| **Core ETL data-path** (`etl` + `inspector` + `ingester`) | **87.4%** (1308/1496) | **76.0%** (512/674) |
+| **Core engine** (everything except the `util` CLI tools) | **86.5%** (3857/4458) | 72.2% (1679/2325) |
 | **Assist agent** (`file-processor-agent`) | **85.8%** (1170/1364) | 62.9% (628/999) |
 | Pre-ETL utilities (`util` CLI tools) | ~5.7% (86/1500) | ~7.9% (51/643) |
-| Core *total* (incl. `util`) | 65.9% (3920/5944) | 58.3% (1734/2974) |
-| Whole project (core + agent) | 69.6% (5090/7308) | 59.5% (2362/3973) |
+| Core *total* (incl. `util`) | 66.2% (3943/5958) | 58.3% (1730/2968) |
+| Whole project (core + agent) | 69.8% (5113/7322) | 59.4% (2358/3967) |
 
 The whole-project and core-*total* numbers are misleading: both are dragged down by the pre-ETL
 utility CLI tools, which have essentially no automated tests (a conscious, documented tradeoff —
@@ -35,6 +36,13 @@ The data-path and control-plane classes are fully or near-fully exercised. Repre
 (line / branch): `LineageCollector` 100%/100%, `report.*` 98%/77%, `config.spec.*` 99%/—,
 `metrics.*` 98%/80%, `ingester.*` 94%/91%, `catalog.*` 95%/72%, `sql.*` 90%/76%,
 `enrich.*` 89%/68%, `etl.*` 89%/76%, `control.*` 88%/72%.
+
+The v3.9.0 engine-modularity pass ([design-notes D7](design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390))
+added two byte-exact characterization suites — `OutputFormatTest` and `TransformCompilerTest` — that
+pin the new injection seams: `OutputFormat` 100%, `TransformCompiler` 98%, `BatchIngestStrategy`/
+`IngestOutcome`/`MemberAudit` 100%, `BatchProcessor` 98%, with the extracted `CsvBatchStrategy` (81%)
+and `PluginBatchStrategy` (89%) carrying the same error/quarantine-branch gaps the pre-split
+`processCsv`/`processPlugin` methods had (no regression). The data-path edged up to 87.4% line.
 
 ## Assist agent — well covered, with intentional model-dependent gaps
 

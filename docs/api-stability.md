@@ -56,12 +56,15 @@ Two audiences depend on the framework from outside:
 
 ## Explicitly internal (do not depend on)
 
-`CsvIngester`, `DuckDbCsvIngester`, `DataTransformer`, `PartitionWriter`,
-`LineageCollector`, `SchemaSelector`, `BatchProcessor`, `BatchPlanner`,
-`MarkerManager`, `QuarantineManager`, `DuckLakeRegistrar`, `CommitLog`,
-`BatchAuditWriter`, the `com.gamma.util.*` CLI tools, and all of
+`CsvIngester`, `DuckDbCsvIngester`, `DataTransformer`, `TransformCompiler`,
+`PartitionWriter`, `OutputFormat`, `LineageCollector`, `SchemaSelector`,
+`BatchProcessor`, `BatchPlanner`, `MarkerManager`, `QuarantineManager`,
+`DuckLakeRegistrar`, `CommitLog`, `BatchAuditWriter`, the `com.gamma.util.*` CLI
+tools, and all of
 `ManifestStore`/`Batch`/`PartitionDef`/`PartitionOutput`/`LineageRow` are
-implementation detail. They are stable enough for the framework's own use but
+implementation detail. (The `com.gamma.inspector` batch-ingest strategy seam —
+`BatchIngestStrategy`, `CsvBatchStrategy`, `PluginBatchStrategy`, `IngestOutcome`,
+`MemberAudit`, all package-private since v3.9.0 — is likewise internal.) They are stable enough for the framework's own use but
 carry no cross-version guarantee. Plugin authors interact with them only
 indirectly (e.g. you populate DuckDB tables that `DataTransformer` later reads —
 that contract is documented on `FileIngester`, not on `DataTransformer`).
