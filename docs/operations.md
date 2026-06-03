@@ -204,7 +204,7 @@ Add a `batch:` sub-section inside the `processing:` block of the pipeline toon:
 ```yaml
 processing:
   threads: 4              # max batches processed concurrently (see Concurrency below)
-  duckdb_threads: 4       # PRAGMA threads per batch connection (0 = DuckDB default)
+  duckdb_threads: 0       # PRAGMA threads per batch connection (0 = auto: cores ÷ threads)
   file_pattern: "glob:**/*.{csv,csv.gz}"
   batch:
     max_files: 500
@@ -227,9 +227,9 @@ Two knobs control CPU/I/O pressure, and they multiply:
 | Key | Default | Controls |
 |---|---|---|
 | `processing.threads` | `4` | How many batches run concurrently (semaphore permits). |
-| `processing.duckdb_threads` | `0` | `PRAGMA threads=N` on each batch's DuckDB connection. `0` leaves DuckDB's default (one thread per core). |
+| `processing.duckdb_threads` | `0` | `PRAGMA threads=N` on each batch's DuckDB connection. `0` = **auto** (`max(1, cores ÷ threads)`); `-1` = DuckDB's per-core default; positive `N` = exactly `N`. |
 
-Each concurrent batch opens its own DuckDB connection, so the effective worker count is roughly `threads × duckdb_threads`. With `duckdb_threads=0` and `threads=4` on a 16-core box you can momentarily run 4 × 16 = 64 DuckDB workers and oversubscribe the CPU. Set `duckdb_threads` so the product ≈ core count (e.g. `threads=4, duckdb_threads=4` on 16 cores). The config validator warns when `threads × duckdb_threads` exceeds the available cores.
+Each concurrent batch opens its own DuckDB connection, and DuckDB defaults to one thread per core — so an *unmanaged* per-core default gives an effective worker count of roughly `threads × cores`. With `threads=4` on a 16-core box that is 4 × 16 = 64 DuckDB workers fighting over 16 CPUs (≈100%-sys oversubscription stall). **Since v3.12.0 the default `duckdb_threads=0` auto-derives `max(1, cores ÷ threads)`**, so the concurrent batches divide the cores (e.g. `threads=4` on 16 cores → 4 threads each; `threads=16` on 56 cores → 3 each); a single batch keeps all cores. Set a positive value to tune manually, or `-1` to deliberately let one batch use the whole machine. The config validator warns only when an *explicit* `threads × duckdb_threads` exceeds the available cores.
 
 ### Multiple sources in one process
 
@@ -247,7 +247,7 @@ java -cp file-processor.jar com.gamma.inspector.MultiSourceProcessor config/
 
 Sources run on a virtual-thread executor bounded by `-Dsources.max` (default: all resolved sources in parallel). Each source is isolated — one source failing (bad config or batch failures) is logged and counted but never aborts the others; the process exits non-zero if any source failed. A failed source does not stop the rest.
 
-**Three multiplying caps.** Total worker pressure ≈ `sources.max × processing.threads × processing.duckdb_threads`. Size them together for the host — e.g. on 16 cores: `sources.max=4`, `threads=2`, `duckdb_threads=2`.
+**Three multiplying caps.** Total worker pressure ≈ `sources.max × processing.threads × processing.duckdb_threads`. The auto-derive for `duckdb_threads=0` only divides cores among one source's `threads` — it does **not** know about `sources.max`. When running many sources in one JVM, set `duckdb_threads` explicitly (or lower `sources.max`/`threads`) so the three-way product ≈ cores — e.g. on 16 cores: `sources.max=4`, `threads=2`, `duckdb_threads=2`.
 
 ### Service mode — always-on host (`SourceService`)
 

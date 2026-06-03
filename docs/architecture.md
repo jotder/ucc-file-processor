@@ -153,9 +153,11 @@ com.gamma
     MultiSourceProcessor     — runs many sources concurrently in one JVM (outer M..N orchestrator)
     BatchProcessor           — thin per-batch coordinator: selects a BatchIngestStrategy, then drives the shared commit → audit tail
     BatchIngestStrategy      — ingest+transform+write seam (CSV vs plugin); returns a typed IngestOutcome (+ shared dropTable/msg helpers)
-    CsvBatchStrategy         — built-in CSV path: per-file temp table → raw_input(__src_id) → transform → write → lineage
-                               (single-member native batches stream in one pass via a read_csv VIEW; files over
-                                processing.chunking.max_file_bytes are streamed in bounded chunks — see FileChunker)
+    CsvBatchStrategy         — built-in CSV path → transform → write → lineage. Native (read_csv) batches stream with
+                               NO raw_f/raw_input table copies: single member via one read_csv VIEW, many members via
+                               per-member views UNION ALL-ed into one transform (materialised once). Files over
+                               processing.chunking.max_file_bytes are streamed in bounded chunks (FileChunker). The Java
+                               parse engine keeps the per-file temp table → raw_input(__src_id) staging path.
     FileChunker              — streams an oversized file into bounded, header-replicating chunks (one on disk at a time)
     StreamingPluginBatchStrategy — the plugin path (StreamingFileIngester): per batch, picks union mode (many small
                                files → emit into per-member tables → union per segment → one transform/write/lineage) or

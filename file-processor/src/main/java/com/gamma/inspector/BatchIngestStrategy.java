@@ -75,9 +75,18 @@ interface BatchIngestStrategy {
      * Apply the per-connection thread cap and any optional DuckDB resource controls
      * (memory limit, spill {@code temp_directory} = the scratch dir, spill size cap) to a freshly
      * opened worker connection.
+     *
+     * <p>The thread cap is resolved through {@link DuckDbUtil#effectiveWorkerThreads} so that the
+     * default ({@code duckdb_threads = 0}) auto-divides the host's cores among the concurrent
+     * batches ({@code processing.threads}) instead of letting every batch connection grab all cores
+     * — the latter oversubscribes the CPU when more than one batch runs at a time.
      */
     static void configure(Connection conn, PipelineConfig cfg) throws SQLException {
-        DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads());
+        int effectiveThreads = DuckDbUtil.effectiveWorkerThreads(
+                cfg.processing().duckdbThreads(),
+                cfg.processing().threads(),
+                Runtime.getRuntime().availableProcessors());
+        DuckDbUtil.applyWorkerThreads(conn, effectiveThreads);
         DuckDbUtil.applyDuckDbSettings(conn,
                 cfg.duckdb().memoryLimit(), scratchDir(cfg), cfg.duckdb().maxTempDirectorySize());
     }

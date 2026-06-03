@@ -102,13 +102,25 @@ lower thanks to the native engine below).
 | Knob | Controls | Default |
 |---|---|---|
 | `processing.threads` | how many batches run concurrently (semaphore permits) | 4 |
-| `processing.duckdb_threads` | `PRAGMA threads=N` per batch's DuckDB connection | 0 = DuckDB default (all cores) |
+| `processing.duckdb_threads` | `PRAGMA threads=N` per batch's DuckDB connection | 0 = **auto** (`cores ÷ threads`) |
 
 The inner/outer interaction: each concurrent batch opens its own DuckDB
-connection. With `threads=4` and `duckdb_threads=0` on a 16-core box you can
-momentarily have 4 × 16 = 64 DuckDB workers. Set `duckdb_threads` so
-`threads × duckdb_threads ≈ cores` (e.g. `threads=4, duckdb_threads=4` on a
-16-core box). `ConfigValidator` warns when the product exceeds the core count.
+connection, and DuckDB defaults to one thread per core. So with `threads=4` and
+an *unmanaged* per-core default on a 16-core box you would momentarily have
+4 × 16 = 64 DuckDB workers fighting over 16 CPUs — the classic ~100%-sys / ~2%-user
+oversubscription stall (felt acutely on big-core boxes: 16 batches × 56 cores ≈ 896 workers).
+
+**Since v3.12.0 this is handled by default.** `duckdb_threads=0` (the default) now
+**auto-derives** `max(1, cores ÷ threads)` so the concurrent batches divide the cores
+(e.g. `threads=4` on 16 cores → 4 each; `threads=16` on 56 cores → 3 each). A single
+batch (`threads ≤ 1`) still gets all cores. Overrides:
+
+- **positive N** — use exactly `N` threads per batch (manual tuning; honored verbatim).
+- **`-1`** — opt out: leave DuckDB's per-core default even under concurrency (when you
+  deliberately want one batch to use the whole machine).
+
+`ConfigValidator` warns when an *explicit* `threads × duckdb_threads` exceeds the core
+count; the `0` default is self-managing and never trips it.
 
 ## Resolution — native DuckDB CSV engine (v1.4.0)
 
@@ -175,11 +187,18 @@ native `read_csv` already parallelises across the whole file. Two changes target
 - **Scratch off `/tmp`.** The per-batch temp DB + DuckDB spill default to `dirs.temp` (data
   volume), tunable via `processing.duckdb.{temp_directory,memory_limit,max_temp_directory_size}`.
   Previously both went to `java.io.tmpdir` (system `/tmp`), which fails fast on big inputs.
-- **One materialization, not 2–3×.** Single-member native batches stream `read_csv → transform →
-  COPY` through a lazy view, so only the `transformed` table is materialised (peak scratch ~1×
-  the decoded data) instead of `raw_f0` + `raw_input` + `transformed` (~2–3×). Fewer
-  intermediate writes also means less I/O — faster, not just smaller. The `transformed` table is
-  deliberately kept (the DuckDB-AVX2 COPY workaround depends on it).
+- **One materialization, not 2–3×.** Native (`read_csv`) batches stream `read_csv → transform →
+  COPY` through lazy views, so only the `transformed` table is materialised (peak scratch ~1×
+  the decoded data) instead of `raw_f<id>` + `raw_input` + `transformed` (~2–3×). A *single-member*
+  batch streams its one file through a `raw_input` view; a *multi-member* batch (v3.12.0) builds one
+  lazy `read_csv` view per member and `UNION ALL`s them into a single `raw_input` view that one
+  transform pulls through — so a consolidated many-file batch is also materialised exactly once
+  rather than copying every member into `raw_f<id>` then into `raw_input` first. Per-member
+  quarantine is preserved (each member is probed with a `COUNT(*)` over its view; an unreadable
+  file throws and is quarantined individually). Fewer intermediate writes also means less I/O —
+  faster, not just smaller. The `transformed` table is deliberately kept (the DuckDB-AVX2 COPY
+  workaround depends on it). *(The Java parse engine still stages per-member tables — line-by-line
+  parsing can't stream through a view.)*
 - **`processing.chunking`** bounds peak scratch to ~one chunk regardless of file size; the split
   is a single sequential read (cheap vs the materialization it avoids). Chunks process
   sequentially today — each is already internally multi-threaded, so cores stay busy.

@@ -79,6 +79,9 @@ public final class ConfigValidator {
         // CPU oversubscription: concurrent batches (threads) each open a DuckDB connection
         // that, capped by duckdb_threads, fans out to that many threads. Their product
         // exceeding the core count oversubscribes the CPU and adds I/O contention.
+        // Only an EXPLICIT positive duckdb_threads can do this now — the default (0) auto-derives
+        // a safe per-batch cap (cores ÷ threads) in BatchIngestStrategy.configure, and -1 is a
+        // deliberate opt-out — so this warning is scoped to explicitly configured values.
         if (cfg.processing().duckdbThreads() > 0) {
             int cores = Runtime.getRuntime().availableProcessors();
             int total = cfg.processing().threads() * cfg.processing().duckdbThreads();

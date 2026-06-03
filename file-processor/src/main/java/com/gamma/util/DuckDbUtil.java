@@ -159,6 +159,42 @@ public final class DuckDbUtil {
     }
 
     /**
+     * Resolve the effective per-connection DuckDB thread count for a batch worker, given the
+     * configured value, the batch concurrency, and the machine's core count.
+     *
+     * <p>This is the anti-oversubscription policy. DuckDB defaults to one thread per core, so when
+     * {@code batchConcurrency} batches each open their own connection, the product
+     * {@code batchConcurrency × cores} of DuckDB workers fights over {@code cores} CPUs — the
+     * kernel-time blowup (futex / TLB / mmap-lock contention) that looks like ~100% sys, ~2% user.
+     *
+     * <ul>
+     *   <li>{@code configured > 0} — honor it exactly (explicit tuning; unchanged behaviour).</li>
+     *   <li>{@code configured == 0} (the default) — auto-derive: with more than one concurrent batch,
+     *       split the cores evenly ({@code max(1, cores / batchConcurrency)}) so
+     *       {@code batchConcurrency × result ≈ cores}; with a single batch, return {@code 0} (let
+     *       DuckDB use every core — no oversubscription is possible).</li>
+     *   <li>{@code configured < 0} — explicit opt-out: return {@code 0} so DuckDB keeps its own
+     *       per-core default even under concurrency (use when you deliberately want one batch to
+     *       grab the whole machine).</li>
+     * </ul>
+     *
+     * <p>A {@code 0} result is the "leave DuckDB's default" sentinel understood by
+     * {@link #applyWorkerThreads}. Kept dependency-free (primitive args) so {@code com.gamma.util}
+     * need not depend on the config model, and pure so it is trivially unit-testable.
+     *
+     * @param configured       the configured {@code processing.duckdb_threads}
+     * @param batchConcurrency  the configured {@code processing.threads} (concurrent batches)
+     * @param availableCores    {@link Runtime#availableProcessors()} on this host
+     * @return the value to pass to {@link #applyWorkerThreads} ({@code 0} = leave DuckDB default)
+     */
+    public static int effectiveWorkerThreads(int configured, int batchConcurrency, int availableCores) {
+        if (configured > 0) return configured;             // explicit cap — honor exactly
+        if (configured < 0) return 0;                      // explicit opt-out — DuckDB per-core default
+        if (batchConcurrency <= 1) return 0;               // single batch — all cores, can't oversubscribe
+        return Math.max(1, availableCores / batchConcurrency);   // auto: divide cores among batches
+    }
+
+    /**
      * Returns the JDBC URL for a DuckDB database file.
      *
      * <p>Forward slashes are used unconditionally: DuckDB's URL parser rejects

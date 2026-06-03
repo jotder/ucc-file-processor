@@ -61,7 +61,8 @@ public final class ConfigSpecs {
                 FieldSpec.withDefault("processing.threads", "Batch concurrency", FieldType.INT, 4,
                         "Concurrent batches (semaphore permits over a virtual-thread executor)."),
                 FieldSpec.withDefault("processing.duckdb_threads", "DuckDB threads/batch", FieldType.INT, 0,
-                        "Per-batch DuckDB parallelism (PRAGMA threads); 0 = DuckDB default."),
+                        "Per-batch DuckDB parallelism (PRAGMA threads): 0 = auto (cores ÷ threads, avoids "
+                                + "oversubscription), -1 = DuckDB default (all cores per batch), N = exactly N."),
                 FieldSpec.withDefault("processing.file_pattern", "File pattern", FieldType.STRING,
                         "glob:**/*.{csv,csv.gz}", "Glob selecting source files under the poll dir."),
                 FieldSpec.of("processing.ingester", "Plugin ingester class", FieldType.STRING,

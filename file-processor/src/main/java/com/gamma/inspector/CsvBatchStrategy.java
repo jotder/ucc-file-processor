@@ -25,10 +25,21 @@ import static com.gamma.inspector.BatchIngestStrategy.openTempDb;
 import static com.gamma.inspector.BatchIngestStrategy.scratchDir;
 
 /**
- * Built-in CSV ingest path. Ingests each member into a per-file temp table, inserts
- * accepted rows into a shared {@code raw_input} tagged with {@code __src_id}, transforms
- * once, writes consolidated partition output, and computes the lineage matrix. Rejected
- * members are quarantined; their rows never reach {@code raw_input}.
+ * Built-in CSV ingest path. Tags every accepted row with {@code __src_id}, transforms once, writes
+ * consolidated partition output, and computes the lineage matrix; rejected members are quarantined
+ * and their rows never reach the transform.
+ *
+ * <p>How rows reach the {@code transformed} table depends on the parse engine:
+ * <ul>
+ *   <li><b>Native {@code read_csv} engine</b> — fully streaming, no intermediate data copies. A
+ *       single-member batch streams {@code read_csv → transform → COPY} in one pass
+ *       ({@link #streamingIngest}, chunked for huge files via {@link #chunkedIngest}); a multi-member
+ *       batch builds a lazy {@code read_csv} view per member and {@code UNION ALL}s them into one
+ *       transform ({@link #unionStreamingIngest}). The data is materialised exactly once.</li>
+ *   <li><b>Java parse engine</b> — each member is parsed into a per-file temp table and its accepted
+ *       rows inserted into a shared {@code raw_input} table before the single transform (the loop in
+ *       {@link #ingest}), since the line-by-line parser cannot stream through a view.</li>
+ * </ul>
  *
  * <p>Behaviour-identical to the former {@code BatchProcessor.processCsv} — only the
  * commit/audit tail was lifted out into {@link BatchProcessor}.
@@ -56,16 +67,22 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
             try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
                 configure(conn, cfg);
 
-                // Single-member native batches stream in ONE pass (read_csv → transform →
-                // partitioned COPY) with no raw_f0/raw_input data copy — bounding scratch to one
-                // transformed table instead of ~2× the file. A file over the chunking threshold is
-                // streamed chunk-by-chunk so peak scratch stays bounded regardless of file size.
-                // Multi-member / Java-engine batches keep the per-member union path below unchanged.
-                if (batch.members().size() == 1 && DuckDbCsvIngester.usesDuckDb(cfg)) {
-                    Batch.Member only = batch.members().get(0);
-                    return cfg.chunking().appliesTo(only.file().length())
-                            ? chunkedIngest(batch, only, cfg, conn, batchStart)
-                            : streamingIngest(batch, only, cfg, conn, batchStart);
+                // Native (read_csv) batches stream with NO per-member raw_f/raw_input table copies:
+                //   • single member → one streaming pass (read_csv → transform → COPY), chunked if
+                //     the file exceeds the chunking threshold so peak scratch stays bounded;
+                //   • many members  → each member becomes a lazy read_csv view, the views are
+                //     UNION ALL-ed into one raw_input view, and a single transform pulls them
+                //     through — the data is materialised exactly once (the transformed table)
+                //     instead of the read_csv → raw_f<id> → raw_input → transformed triple-copy.
+                // The Java parse engine keeps the per-member materialise→raw_input path below.
+                if (DuckDbCsvIngester.usesDuckDb(cfg)) {
+                    if (batch.members().size() == 1) {
+                        Batch.Member only = batch.members().get(0);
+                        return cfg.chunking().appliesTo(only.file().length())
+                                ? chunkedIngest(batch, only, cfg, conn, batchStart)
+                                : streamingIngest(batch, only, cfg, conn, batchStart);
+                    }
+                    return unionStreamingIngest(batch, cfg, conn, batchStart);
                 }
 
                 boolean rawCreated = false;
@@ -152,6 +169,112 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
 
         return new IngestOutcome(batchStart, batchStatus, batchError, survivors, memberAudits,
                 outputs, lineage, totalInputRows, batch.schemaName());
+    }
+
+    /**
+     * Multi-member native ({@code read_csv}) ingest with no per-member {@code raw_f}/{@code raw_input}
+     * table copies. Each surviving member becomes a lazy {@code read_csv} view (via
+     * {@link DuckDbCsvIngester#createRawInputView}); the views are {@code UNION ALL}-ed into a single
+     * {@code raw_input} view that one {@code CREATE TABLE transformed AS …} pulls through in a single
+     * streaming pass — so the batch's data is materialised exactly <em>once</em> (the
+     * {@code transformed} table), versus the {@code read_csv → raw_f<id> → raw_input → transformed}
+     * triple materialisation the Java-engine path uses.
+     *
+     * <p>Per-member quarantine is preserved exactly. Each member is probed with a {@code COUNT(*)}
+     * over its view (which drives {@code read_csv} and fires {@code store_rejects}), so:
+     * <ul>
+     *   <li>an unreadable/undecodable file throws → quarantined {@code UNREADABLE} individually;</li>
+     *   <li>0 valid rows with rejects → quarantined {@code MISMATCH};</li>
+     *   <li>0 valid rows, no rejects → accepted with 0 rows but <em>not</em> a survivor;</li>
+     *   <li>parsed &gt; 0 → survivor, feeds the union.</li>
+     * </ul>
+     * Only surviving members feed the union, so one bad file never fails the whole batch — identical
+     * to the per-member loop it replaces, with the same {@code baseName} rule (single survivor keeps
+     * its file stem; otherwise the consolidated output is named by batch id).
+     */
+    private IngestOutcome unionStreamingIngest(Batch batch, PipelineConfig cfg,
+                                               Connection conn, LocalDateTime batchStart) throws Exception {
+        Map<String, Object>  schema       = batch.members().get(0).selection().schema();
+        Map<Integer, String> srcIdToFile  = new LinkedHashMap<>();
+        List<Batch.Member>   survivors    = new ArrayList<>();
+        List<MemberAudit>    memberAudits = new ArrayList<>();
+        List<String>         memberViews  = new ArrayList<>();
+        long totalInputRows = 0;
+
+        for (Batch.Member m : batch.members()) {
+            LocalDateTime mStart = LocalDateTime.now();
+            String view = "raw_m" + m.srcId();
+
+            long parsed;
+            try {
+                DuckDbCsvIngester.createRawInputView(m.file(), conn, schema, cfg, view, m.srcId());
+                parsed = countRows(conn, view);   // drives read_csv (store_rejects fires here)
+            } catch (Exception e) {
+                QuarantineManager.quarantine(m.file(), "unreadable", false, cfg);
+                memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_UNREADABLE", msg(e), mStart));
+                dropView(conn, view);
+                continue;
+            }
+
+            long rejects = DuckDbCsvIngester.drainRejects(conn, m.file(), cfg);
+
+            if (parsed == 0 && rejects > 0) {
+                QuarantineManager.quarantine(m.file(), "field_mismatch", true, cfg);
+                String reason = String.format("0 valid rows; %d row(s) rejected (field mismatch)", rejects);
+                memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_MISMATCH", reason, mStart));
+                dropView(conn, view);
+                continue;
+            }
+            if (parsed == 0) {   // genuinely empty file: accepted-0, not a survivor (mirrors the loop)
+                memberAudits.add(MemberAudit.accepted(m, 0, 0, mStart));
+                dropView(conn, view);
+                continue;
+            }
+
+            srcIdToFile.put(m.srcId(), m.file().getName());
+            survivors.add(m);
+            memberViews.add(view);
+            totalInputRows += parsed;
+            memberAudits.add(MemberAudit.accepted(m, parsed, rejects, mStart));
+        }
+
+        if (survivors.isEmpty())
+            return new IngestOutcome(batchStart, "EMPTY", "", List.of(), memberAudits,
+                    List.of(), List.of(), 0, batch.schemaName());
+
+        // UNION ALL the surviving member views into one raw_input view; transform pulls it through once.
+        StringBuilder union = new StringBuilder();
+        for (int i = 0; i < memberViews.size(); i++) {
+            if (i > 0) union.append(" UNION ALL ");
+            union.append("SELECT * FROM \"").append(memberViews.get(i)).append('"');
+        }
+        try (Statement st = conn.createStatement()) {
+            st.execute("DROP VIEW IF EXISTS \"raw_input\"");
+            st.execute("CREATE VIEW \"raw_input\" AS " + union);
+        }
+        DataTransformer.materialize(conn, schema, cfg);   // single streaming pass over all members
+
+        List<String> partCols = partitionColumns(schema);
+        String dbDir    = databaseDir(batch, cfg);
+        String baseName = survivors.size() == 1
+                ? CsvIngester.stripExtensions(survivors.get(0).file().getName())
+                : batch.batchId();
+
+        List<PartitionOutput> outputs = PartitionWriter.write(conn, "transformed", dbDir,
+                cfg.output().format(), cfg.output().compression(), baseName, partCols);
+        List<LineageRow> lineage = LineageCollector.collect(conn, "transformed",
+                batch.batchId(), srcIdToFile, outputs, partCols);
+
+        return new IngestOutcome(batchStart, "SUCCESS", "", survivors, memberAudits,
+                outputs, lineage, totalInputRows, batch.schemaName());
+    }
+
+    private static void dropView(Connection conn, String view) {
+        try (Statement st = conn.createStatement()) {
+            st.execute("DROP VIEW IF EXISTS \"" + view + "\"");
+        } catch (Exception e) {
+            log.debug("Could not drop view {} ({})", view, e.getMessage());
+        }
     }
 
     /**

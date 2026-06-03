@@ -76,7 +76,7 @@ public final class ConfigSafetyValidator {
         checkPath(raw, "output.ducklake.data_path", p, out);
 
         checkIntBound(raw, "processing.threads", 1, p.maxThreads(), out);
-        checkIntBound(raw, "processing.duckdb_threads", 0, p.maxThreads(), out);
+        checkIntBound(raw, "processing.duckdb_threads", -1, p.maxThreads(), out);
         checkIntBound(raw, "processing.batch.max_files", 1, p.maxBatchFiles(), out);
 
         Object maxBytes = RawConfig.at(raw, "processing.batch.max_bytes");

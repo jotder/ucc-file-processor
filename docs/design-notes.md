@@ -62,9 +62,16 @@ pins a platform thread, and the cap still protects a shared box from I/O pressur
 
 Companion knob: `processing.duckdb_threads` applies `PRAGMA threads=N` per worker
 connection via `DuckDbUtil.applyWorkerThreads`, so the *inner* DuckDB parallelism is
-also controllable. `ConfigValidator` warns when `threads × duckdb_threads` exceeds
-the core count (oversubscription). Default `duckdb_threads=0` leaves DuckDB's default
-(no behaviour change unless set).
+also controllable. The resolved cap goes through `DuckDbUtil.effectiveWorkerThreads`
+(`BatchIngestStrategy.configure`): the default `duckdb_threads=0` **auto-derives**
+`max(1, cores / threads)` so the concurrent batches divide the cores rather than each
+grabbing all of them — DuckDB's one-thread-per-core default times `threads` batches is
+the oversubscription that shows up as ~100%-sys / ~2%-user (e.g. 16 batches × 56 cores ≈
+896 workers). A positive value is honored verbatim, `-1` opts back into DuckDB's per-core
+default, and a single batch (`threads ≤ 1`) always keeps all cores. `ConfigValidator`
+warns only when an *explicit* `threads × duckdb_threads` exceeds the core count
+(the `0` default is self-managing). **Auto-derive added v3.12.0** — before that, `0`
+left DuckDB's default unconditionally.
 
 The pre-ETL utilities still use `VirtualThreadRunner` + `Phaser` (uncapped); that's
 fine — they're operator-supervised staging tools, not the high-throughput path.
@@ -192,8 +199,19 @@ intra-file chunking; (3) the CSV path materialised the data **2–3×** (`raw_f0
   `CREATE TABLE transformed AS …` pulls data through in a single streaming pass — peak scratch
   drops from ~2× to one transformed table, the redundant copy is gone. Output and lineage come
   from the **same** `PartitionWriter`/`LineageCollector` over the same `transformed` table, so
-  results are identical (the existing suite, mostly single-file batches, stayed green). Multi-member
-  and Java-engine paths are unchanged.
+  results are identical (the existing suite, mostly single-file batches, stayed green).
+- **B′ — Multi-member streaming UNION (v3.12.0).** Extends B to consolidated many-file native
+  batches (`CsvBatchStrategy.unionStreamingIngest`): each member becomes its own lazy `read_csv`
+  view, the surviving views are `UNION ALL`-ed into one `raw_input` view, and the single transform
+  materialises the whole batch once — replacing the `read_csv → raw_f<id> (table) → raw_input
+  (table) → transformed` **triple** copy with one materialisation. Per-member quarantine is byte-
+  identical to the old loop: each member is probed with `COUNT(*)` over its view (drives `read_csv`,
+  fires `store_rejects`), so unreadable → `QUARANTINED_UNREADABLE` and 0-valid-with-rejects →
+  `QUARANTINED_MISMATCH` are attributed individually; only survivors feed the union. The Java parse
+  engine keeps the per-member `raw_f → raw_input` staging path (line-by-line parsing can't stream
+  through a view). The pre-existing multi-file parity test (`consolidatesGoodFilesQuarantinesBadOne`)
+  now runs through this path and stayed green; row-conservation and per-member-unreadable tests were
+  added.
 - **C — Auto-chunking (`processing.chunking`).** `FileChunker` streams an oversized file into
   bounded, self-contained chunks (header replicated, `.gz` decompressed, one chunk on disk at a
   time); each chunk runs through the streaming pass writing `<base>_cNNNNN_out.*`, with counts /

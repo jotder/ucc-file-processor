@@ -66,6 +66,39 @@ class DuckDbSettingsTest {
         }
     }
 
+    // ── effectiveWorkerThreads: the anti-oversubscription policy ─────────────────────────────
+
+    @Test
+    void explicitPositiveDuckDbThreadsIsHonoredVerbatim() {
+        // A user who tuned the value gets exactly that, regardless of cores/concurrency.
+        assertEquals(4, DuckDbUtil.effectiveWorkerThreads(4, 8, 56));
+        assertEquals(1, DuckDbUtil.effectiveWorkerThreads(1, 1, 56));
+        assertEquals(64, DuckDbUtil.effectiveWorkerThreads(64, 16, 56)); // even over-cores, honored
+    }
+
+    @Test
+    void defaultZeroAutoDividesCoresAmongConcurrentBatches() {
+        // The pathology fix: 16 batches on 56 cores → 3 threads each (≈ cores), not 56 each.
+        assertEquals(3, DuckDbUtil.effectiveWorkerThreads(0, 16, 56));
+        assertEquals(7, DuckDbUtil.effectiveWorkerThreads(0, 8, 56));
+        // Floors at 1 when batches outnumber cores (never PRAGMA threads=0 by accident).
+        assertEquals(1, DuckDbUtil.effectiveWorkerThreads(0, 64, 56));
+    }
+
+    @Test
+    void singleBatchKeepsAllCores() {
+        // One batch can't oversubscribe — return 0 (the "leave DuckDB default = all cores" sentinel).
+        assertEquals(0, DuckDbUtil.effectiveWorkerThreads(0, 1, 56));
+        assertEquals(0, DuckDbUtil.effectiveWorkerThreads(0, 0, 56));
+    }
+
+    @Test
+    void negativeDuckDbThreadsOptsOutToDuckDbDefault() {
+        // -1 = "I really want every batch to use all cores" → 0 sentinel, even under concurrency.
+        assertEquals(0, DuckDbUtil.effectiveWorkerThreads(-1, 16, 56));
+        assertEquals(0, DuckDbUtil.effectiveWorkerThreads(-1, 1, 8));
+    }
+
     private static String currentSetting(Connection conn, String key) throws Exception {
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery("SELECT current_setting('" + key + "')")) {

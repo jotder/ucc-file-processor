@@ -60,8 +60,12 @@ public final class PipelineConfig {
     /**
      * Execution controls. {@code threads} caps concurrent batches (semaphore permits
      * over a virtual-thread executor; default 4); {@code duckdbThreads} caps each batch
-     * connection's DuckDB parallelism via {@code PRAGMA threads} ({@code 0} = DuckDB
-     * default). Set so {@code threads × duckdbThreads ≈ cores} to avoid oversubscription.
+     * connection's DuckDB parallelism via {@code PRAGMA threads}. The default {@code 0}
+     * <em>auto-derives</em> {@code max(1, cores / threads)} so concurrent batches divide the
+     * cores instead of each grabbing all of them (avoiding CPU oversubscription); {@code -1}
+     * opts out and leaves DuckDB's per-core default; a positive value is used verbatim. A single
+     * batch ({@code threads <= 1}) always gets all cores. See
+     * {@link com.gamma.util.DuckDbUtil#effectiveWorkerThreads}.
      *
      * <p>{@code largeFileBytes} drives the streaming plugin engine's per-batch mode pick: a batch
      * whose largest member is {@code >= largeFileBytes} runs in bounded <em>generation mode</em>
