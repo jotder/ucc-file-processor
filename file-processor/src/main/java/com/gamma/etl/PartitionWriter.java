@@ -30,6 +30,14 @@ public final class PartitionWriter {
     private static final List<String> DEFAULT_PARTITION_COLS = List.of("year", "month", "day");
 
     /**
+     * Reveal the staged partition files in parallel only when there are at least
+     * this many. Below the threshold a sequential loop is faster (no fork/join
+     * setup) and keeps low-cardinality output byte-for-byte as before; above it,
+     * the per-file rename dance is what dominates write cost, so we fan it out.
+     */
+    private static final int REVEAL_PARALLEL_THRESHOLD = 16;
+
+    /**
      * Backward-compatible overload — partitions by {@code (year, month, day)}.
      *
      * @param conn         worker DuckDB connection containing {@code table}
@@ -88,7 +96,7 @@ public final class PartitionWriter {
         Files.createDirectories(stagingPath);
         String stagingDir  = stagingPath.toString().replace("\\", "/");
 
-        List<PartitionOutput> outputs = new ArrayList<>();
+        List<PartitionOutput> outputs;
 
         try (Statement stmt = conn.createStatement()) {
             String partBy = String.join(", ", partitionColumns);
@@ -102,29 +110,53 @@ public final class PartitionWriter {
                     : "SELECT * EXCLUDE (" + String.join(", ", excludeColumns) + ") FROM " + table;
             stmt.execute(String.format("COPY (%s) TO '%s' (%s)", projection, stagingDir, copyOpts));
 
+            // Collect the staged partition files in one walk, then reveal each under its
+            // stable name. The reveal (a cross-dir rename into place + an atomic same-dir
+            // rename) is what dominates write cost when the partition fan-out is large, so
+            // for many files we fan it out across the common pool; each file targets a
+            // distinct partition directory, so the renames don't contend. Output order is
+            // irrelevant (callers key by partition), so parallel collection is safe.
+            List<Path> stagedFiles;
             try (Stream<Path> staged = Files.walk(stagingPath)) {
-                staged.filter(Files::isRegularFile).forEach(src -> {
-                    Path rel      = stagingPath.relativize(src);
-                    Path dstFinal = Paths.get(databaseDir).resolve(rel).resolveSibling(outputFileName);
-                    Path dstTemp  = dstFinal.resolveSibling(outputFileName + ".tmp");
-                    try {
-                        Files.createDirectories(dstFinal.getParent());
-                        Files.move(src, dstTemp, StandardCopyOption.REPLACE_EXISTING);
-                        Files.move(dstTemp, dstFinal,
-                                StandardCopyOption.REPLACE_EXISTING,
-                                StandardCopyOption.ATOMIC_MOVE);
-                        String partition = rel.getParent().toString().replace("\\", "/");
-                        outputs.add(new PartitionOutput(partition, dstFinal.toString(), Files.size(dstFinal)));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
+                stagedFiles = staged.filter(Files::isRegularFile)
+                        .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
             }
+            final Path stagingRoot = stagingPath;
+            Stream<Path> revealStream = stagedFiles.size() >= REVEAL_PARALLEL_THRESHOLD
+                    ? stagedFiles.parallelStream() : stagedFiles.stream();
+            outputs = revealStream
+                    .map(src -> reveal(src, stagingRoot, databaseDir, outputFileName))
+                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 
             try (Stream<Path> cleanup = Files.walk(stagingPath)) {
                 cleanup.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
             }
         }
         return outputs;
+    }
+
+    /**
+     * Reveal one staged partition file under its stable {@code <baseName>_out.<ext>}
+     * name: move it into the final partition directory as a unique temp, then
+     * atomically rename within that directory (a same-dir rename is atomic on every
+     * platform, unlike a cross-dir one). The temp name embeds the staged file name so
+     * concurrent reveals into the same partition directory never collide on the temp.
+     */
+    private static PartitionOutput reveal(Path src, Path stagingRoot,
+                                          String databaseDir, String outputFileName) {
+        Path rel      = stagingRoot.relativize(src);
+        Path dstFinal = Paths.get(databaseDir).resolve(rel).resolveSibling(outputFileName);
+        Path dstTemp  = dstFinal.resolveSibling(outputFileName + "." + src.getFileName() + ".tmp");
+        try {
+            Files.createDirectories(dstFinal.getParent());
+            Files.move(src, dstTemp, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(dstTemp, dstFinal,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+            String partition = rel.getParent().toString().replace("\\", "/");
+            return new PartitionOutput(partition, dstFinal.toString(), Files.size(dstFinal));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

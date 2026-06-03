@@ -230,6 +230,16 @@ intra-file chunking; (3) the CSV path materialised the data **2–3×** (`raw_f0
   outputs / lineage aggregated. The **original file** stays the audit/marker/backup unit, so
   commit ordering and idempotency are untouched. Peak scratch is bounded to ~one chunk regardless
   of file size.
+- **D — Parallel partition reveal (v3.12.0).** After the DuckDB `COPY ... PARTITION_BY` writes the
+  staging tree, `PartitionWriter` reveals each partition file under its `<base>_out.<ext>` name via
+  a two-step rename (cross-dir move into place + atomic same-dir rename). At high partition
+  cardinality that serial loop — not the `COPY` — dominates, so the reveal now runs over
+  `parallelStream()` once there are ≥ `REVEAL_PARALLEL_THRESHOLD` (16) staged files. Safe because
+  each file targets a **distinct** partition directory (renames don't contend) and the temp name
+  now embeds the staged file name, so even two files landing in the same partition dir can't collide
+  on the temp. Below the threshold it stays a sequential loop (byte-identical, no fork/join setup).
+  Output order was already irrelevant (callers key by partition). New deps: none; covered by
+  `PartitionWriterTest.revealsManyPartitionsInParallelWithoutLoss`.
 
 DuckDB's native `read_csv` is itself multi-threaded, so even an un-chunked large file uses all
 cores once scratch is off `/tmp`; chunking is about **bounding scratch** (and crash-isolating a

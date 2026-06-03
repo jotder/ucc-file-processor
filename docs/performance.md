@@ -189,11 +189,17 @@ is forced alongside `skip_tail_columns > 0`.
 
 - **transform / write / lineage** run at 1–1.4M rows/s on DuckDB's vectorized
   engine. No optimization needed; don't add complexity here.
-- **PARQUET vs CSV output** — write cost is dominated by partition file reveal
-  (the two-step atomic rename per partition), not the format. 30 partitions
-  reveal in <2 s.
+- **PARQUET vs CSV output** — write cost is dominated by the DuckDB `COPY`, not the
+  format. The post-COPY reveal (a two-step atomic rename per partition file) is cheap
+  at low fan-out; at *high* partition cardinality the serial rename loop starts to show,
+  so since **v3.12.0** the reveal runs in parallel once there are ≥ 16 staged files
+  (`PartitionWriter.REVEAL_PARALLEL_THRESHOLD`) — each file targets a distinct partition
+  directory so the renames don't contend, and the temp name embeds the staged file name
+  so parallel reveals into the same directory can't collide. Below the threshold it stays
+  a sequential loop (byte-identical to before, no fork/join overhead).
 - **Partition fan-out** is cheap: 30 distinct dates → 30 output files added no
-  measurable cost over a single partition.
+  measurable cost over a single partition. Thousands of partitions (high-cardinality
+  partition keys) is where the parallel reveal above earns its keep.
 
 ## Very large single files (3.10.0)
 
