@@ -1,13 +1,14 @@
 package com.gamma.inspector;
 
 import com.gamma.etl.*;
+import org.duckdb.DuckDBAppender;
+import org.duckdb.DuckDBConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.nio.file.Paths;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -34,7 +35,7 @@ import static com.gamma.inspector.BatchIngestStrategy.dropTable;
  * </ul>
  *
  * <p>The transform/write/lineage path is exactly the one {@link CsvBatchStrategy}/{@link
- * PluginBatchStrategy} use ({@link DataTransformer#materialize}, {@link PartitionWriter#write},
+ * StreamingPluginBatchStrategy} use ({@link DataTransformer#materialize}, {@link PartitionWriter#write},
  * {@link LineageCollector#collect}) over the same {@code transformed_<KEY>} table shape, so output is
  * identical to the classic path — only the scheduling differs. The {@code __src_id} lineage tag is
  * carried as a trailing column on the raw table (the ingester does not supply it).
@@ -59,6 +60,7 @@ final class DuckDbRecordSink implements RecordSink, Closeable {
     private final String     fileStem;     // output basename stem (no extension)
     private final String     lineageName;  // file name recorded in lineage
     private final long       flushRows;    // generation budget (rows per raw table)
+    private final boolean    unionMode;    // true → accumulate raw tables only; strategy unions + transforms
 
     private final Map<String, Seg> segs = new LinkedHashMap<>();
 
@@ -76,7 +78,7 @@ final class DuckDbRecordSink implements RecordSink, Closeable {
         final String dbDir;
         List<String> columns;            // explicit (define) or derived (lazy)
         boolean created;
-        PreparedStatement ps;
+        DuckDBAppender appender;
         final List<Object[]> buffer = new ArrayList<>();
         long pendingInRaw;               // rows emitted since last generation flush
         int  genSeq;
@@ -86,14 +88,26 @@ final class DuckDbRecordSink implements RecordSink, Closeable {
         }
     }
 
+    /** Generation-mode sink (per-member bounded flushing). */
     DuckDbRecordSink(Connection conn, int srcId, PipelineConfig cfg, String batchId,
                      String fileStem, String lineageName, long flushRows) {
+        this(conn, srcId, cfg, batchId, fileStem, lineageName, flushRows, false);
+    }
+
+    /**
+     * @param unionMode when {@code true} the sink only populates {@code raw_<KEY>_f<srcId>} tables and
+     *                  never generation-flushes or transforms — the strategy unions across members and
+     *                  runs a single transform/write/lineage per segment.
+     */
+    DuckDbRecordSink(Connection conn, int srcId, PipelineConfig cfg, String batchId,
+                     String fileStem, String lineageName, long flushRows, boolean unionMode) {
         this.conn = conn;
         this.srcId = srcId;
         this.cfg = cfg;
         this.batchId = batchId;
         this.fileStem = fileStem;
         this.lineageName = lineageName;
+        this.unionMode = unionMode;
         this.flushRows = flushRows > 0 ? flushRows : Long.MAX_VALUE;
         for (Map.Entry<String, Map<String, Object>> e : cfg.schemas().segments().entrySet()) {
             String key = e.getKey();
@@ -130,7 +144,7 @@ final class DuckDbRecordSink implements RecordSink, Closeable {
         parsed++;
         s.pendingInRaw++;
         if (s.buffer.size() >= APPEND_BATCH) appendFlush(s);
-        if (s.pendingInRaw >= flushRows) generationFlush(s);
+        if (!unionMode && s.pendingInRaw >= flushRows) generationFlush(s);
     }
 
     @Override public void reject(String segmentKey) { require(segmentKey); errors++; }
@@ -142,17 +156,35 @@ final class DuckDbRecordSink implements RecordSink, Closeable {
     void finish() {
         for (Seg s : segs.values()) {
             appendFlush(s);
-            if (s.pendingInRaw > 0) generationFlush(s);
+            if (unionMode) {
+                // Union mode: leave the populated raw table in place; the strategy unions + transforms.
+                closeAppender(s);
+            } else if (s.pendingInRaw > 0) {
+                generationFlush(s);
+            }
         }
+    }
+
+    /**
+     * Union-mode accessor: segment key → populated {@code raw_<KEY>_f<srcId>} table name, for every
+     * segment that received at least one row. The strategy unions these across members.
+     */
+    Map<String, String> rawTables() {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Seg s : segs.values())
+            if (s.created && s.pendingInRaw > 0) out.put(s.key, raw(s));
+        return out;
     }
 
     @Override
     public void close() {
-        for (Seg s : segs.values()) {
-            if (s.ps != null) {
-                try { s.ps.close(); } catch (Exception ignored) { }
-                s.ps = null;
-            }
+        for (Seg s : segs.values()) closeAppender(s);
+    }
+
+    private static void closeAppender(Seg s) {
+        if (s.appender != null) {
+            try { s.appender.close(); } catch (Exception ignored) { }
+            s.appender = null;
         }
     }
 
@@ -191,12 +223,9 @@ final class DuckDbRecordSink implements RecordSink, Closeable {
         StringBuilder ddl = new StringBuilder("CREATE TABLE \"").append(table).append("\" (");
         for (String c : s.columns) ddl.append('"').append(c).append("\" VARCHAR, ");
         ddl.append("\"__src_id\" INTEGER)");
-        StringBuilder ins = new StringBuilder("INSERT INTO \"").append(table).append("\" VALUES (");
-        for (int i = 0; i < s.columns.size() + 1; i++) ins.append(i > 0 ? ", ?" : "?");
-        ins.append(')');
         try (Statement st = conn.createStatement()) {
             st.execute(ddl.toString());
-            s.ps = conn.prepareStatement(ins.toString());
+            s.appender = ((DuckDBConnection) conn).createAppender("", table);
         } catch (Exception e) {
             throw new SinkFlushException("CREATE TABLE failed for " + table, e);
         }
@@ -217,11 +246,12 @@ final class DuckDbRecordSink implements RecordSink, Closeable {
         try {
             int n = s.columns.size();
             for (Object[] row : s.buffer) {
-                for (int i = 0; i < n; i++) s.ps.setString(i + 1, (String) row[i]);
-                s.ps.setInt(n + 1, srcId);
-                s.ps.addBatch();
+                s.appender.beginRow();
+                for (int i = 0; i < n; i++) s.appender.append((String) row[i]);
+                s.appender.append(srcId);
+                s.appender.endRow();
             }
-            s.ps.executeBatch();
+            s.appender.flush();
             s.buffer.clear();
         } catch (Exception e) {
             throw new SinkFlushException("INSERT failed for " + raw(s), e);
@@ -232,6 +262,8 @@ final class DuckDbRecordSink implements RecordSink, Closeable {
     private void generationFlush(Seg s) {
         appendFlush(s);
         if (s.pendingInRaw == 0) return;
+        // Close the appender so all rows are committed and visible before the transform query reads them.
+        closeAppender(s);
         String raw  = raw(s);
         String dest = "transformed_" + s.key;
         try {
@@ -251,7 +283,6 @@ final class DuckDbRecordSink implements RecordSink, Closeable {
             throw new SinkFlushException("generation flush failed for segment '" + s.key + "'", e);
         }
         // Free the generation's scratch and start the next one clean.
-        if (s.ps != null) { try { s.ps.close(); } catch (Exception ignored) { } s.ps = null; }
         dropTable(conn, raw);
         s.created = false;
         s.pendingInRaw = 0;

@@ -184,9 +184,28 @@ native `read_csv` already parallelises across the whole file. Two changes target
   is a single sequential read (cheap vs the materialization it avoids). Chunks process
   sequentially today — each is already internally multi-threaded, so cores stay busy.
 
-For very large **custom** (binary / proprietary / ASN.1) files the same scratch bound is achieved a
-different way: a `StreamingFileIngester` emits records into the framework's `RecordSink`, which
-append-batches them to DuckDB and flushes bounded **generations** (default 5M rows) — so heap and
-scratch stay bounded without any auto-chunker (which can't split an opaque format). The classic
-whole-file `FileIngester` materialises the entire file and is unsuitable above scratch capacity. See
-[plugins.md → Streaming ingester](plugins.md#streaming-ingester) and [design-notes D9](design-notes.md).
+### Plugin ingestion: one SPI, two size-routed modes
+
+Custom (binary / proprietary / ASN.1) files go through the single `StreamingFileIngester` SPI; the
+framework picks an execution mode per batch by file size (`processing.streaming.large_file_bytes`,
+default 256 MB):
+
+- **Union mode** (many small files) — members accumulate into per-member raw tables, then one
+  transform/write per batch. Output is **consolidated** (one set of partition files), and the fixed
+  per-batch cost is amortised across all packed files (raise `processing.batch.max_files`).
+- **Generation mode** (a huge single file) — records flush in bounded generations (default 5M rows via
+  `processing.streaming.flush_records`); peak heap and scratch stay bounded regardless of total size,
+  without any auto-chunker (which can't split an opaque format).
+
+**Insert path: DuckDB Appender, not JDBC.** Both `DuckDbRecordSink` and the reference
+`TypedRecordIngester` bulk-load via the DuckDB **Appender** API. Measured on 1M `ID,EVT_DATE` rows
+(`PluginIngestBenchmark`): the old JDBC `PreparedStatement.executeBatch` path ran ~6.9K rows/s; the
+Appender path runs **~520–530K rows/s — ~75× faster**, at parity with the native CSV `duckdb` engine.
+This is what makes union-mode many-small-files throughput acceptable and shrinks the single-threaded
+ingest trough that otherwise starves many-core hosts (see [troubleshooting → CPU](troubleshooting.md)).
+
+Mode comparison (`PluginIngestBenchmark`, 500K rows, PARQUET, 30 day-partitions): union ≈ 233K rows/s /
+30 consolidated files / 23 MB peak; generation (4 gens) ≈ 202K rows/s / 120 files / 15 MB peak — i.e.
+generation trades output fragmentation and a little throughput for bounded memory. See
+[plugins.md → execution modes](plugins.md#execution-modes--the-framework-picks-by-file-size) and
+[design-notes D9/D10](design-notes.md).

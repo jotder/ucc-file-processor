@@ -260,14 +260,61 @@ whole-batch).
 
 ---
 
+### D10 — Unify the plugin SPI on streaming; size-routed union/generation modes — ✅ DONE (3.11.0)
+
+**Problem.** After D9 there were **two** plugin SPIs with opposite strengths and a routing rule
+(`BatchProcessor` picked streaming iff the class `instanceof StreamingFileIngester`) that ignored the
+*shape of the work*. Two real production pains:
+(1) **genuinely huge single files** want the streaming generation flush (bounded scratch); (2) an
+**exceptionally large number of small files** want the classic `PluginBatchStrategy` union (pack many
+files into one batch → one transform/write), because the streaming path has **no cross-member union** —
+each member would pay its own transform + explode output into per-file fragments. A single static
+ingester choice could not serve both. Benchmarking also showed both classic paths were bottlenecked at
+~7K rows/s by JDBC `PreparedStatement.executeBatch`; the DuckDB Appender lifts that ~75× (see
+[performance.md](performance.md)).
+
+**Decision (breaking, shipped as 3.11.0 — a deliberate exception to within-major stability, the SPI
+had little external adoption).** Make `StreamingFileIngester` the **sole** plugin SPI and let the
+framework choose an execution **mode per batch by file size**:
+
+- **Removed** `com.gamma.etl.FileIngester` + `FileIngester.Segment` and the whole-file
+  `PluginBatchStrategy`. No backward-compat shim — plugins port to `emit(...)` (the reference
+  `TypedRecordIngester` is now a `StreamingFileIngester`).
+- `StreamingPluginBatchStrategy` gained two modes over the existing `DuckDbRecordSink`:
+  - **Generation mode** (largest member `>= processing.streaming.large_file_bytes`, default 256 MB):
+    the D9 bounded-generation flush, per member. Huge-file safety.
+  - **Union mode** (otherwise): `DuckDbRecordSink` in a new `unionMode` (accumulate into
+    `raw_<KEY>_f<srcId>`, **no** generation flush, no per-member transform); the strategy then unions
+    each segment's per-member tables into `raw_<KEY>` and transforms/writes/lineages **once** for the
+    batch — the old `PluginBatchStrategy` union semantics, now fed by `emit`. The member tables already
+    carry `__src_id`, so the union is `SELECT *` (no synthetic-column step the old path needed).
+- `BatchProcessor` routing collapses to: no ingester → CSV; else → `StreamingPluginBatchStrategy`
+  (which self-selects the mode). The `isStreamingIngester` interface sniff is gone.
+- New `.toon` surface (additive within the new SPI): `processing.streaming.large_file_bytes` and
+  `processing.streaming.flush_records` (the D9 follow-up), on `PipelineConfig.Processing` + `ConfigSpecs`.
+
+**Performance foundation.** `DuckDbRecordSink` (and `TypedRecordIngester`) switched their inserts from
+JDBC `executeBatch` to the DuckDB **Appender** — ~75× faster ingest (~7K → ~520K rows/s), which is what
+makes union mode's many-small-files throughput acceptable and shrinks the low-CPU ingest trough that was
+starving multi-core hosts.
+
+**Parity & tests.** Union mode reproduces the old classic path exactly — `BatchProcessorPluginDeepTest`
+(now streaming stubs) covers multi-member union, quarantine UNREADABLE/MISMATCH, empty-segment omission,
+mixed-batch survival, row-count accuracy, partition correctness, plus a new
+`sameDateMembersConsolidateIntoOneFile` proving cross-member consolidation. Mode selection is covered by
+`StreamingPluginBatchStrategyTest.configLargeFileThresholdRoutesToGenerationMode`. New deps: **none**.
+Follow-ups (not done): cross-member / cross-generation parallelism; Stage-2 streaming.
+
+---
+
 ## Cross-cutting conventions
 
 - **SLF4J everywhere in the framework.** ETL code (`com.gamma.etl.*`, `com.gamma.inspector.*`) uses SLF4J at INFO/WARN/ERROR. Pre-ETL utility commands (`com.gamma.util.*` CLI tools) keep `System.out.println` because their output is for the human invoker, not log scrapers. `LogSetup` still tees stdout to a per-run file for diagnostics.
 
-- **DuckDB connection per batch.** Each batch's `BatchIngestStrategy` (`CsvBatchStrategy` / `PluginBatchStrategy` / `StreamingPluginBatchStrategy`) opens its own temp DuckDB file via `DuckDbUtil.tempDbFile` and closes it in `finally`. No pooling, no sharing. Worth it for crash isolation. Each connection's internal parallelism is capped by `DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads())` immediately after open — set `processing.duckdb_threads` so `threads × duckdb_threads ≈ cores`, else concurrent batches oversubscribe (the outer `Semaphore(cfg.processing().threads())` only bounds batch count, not DuckDB's per-connection threads).
+- **DuckDB connection per batch.** Each batch's `BatchIngestStrategy` (`CsvBatchStrategy` / `StreamingPluginBatchStrategy`) opens its own temp DuckDB file via `DuckDbUtil.tempDbFile` and closes it in `finally`. No pooling, no sharing. Worth it for crash isolation. Each connection's internal parallelism is capped by `DuckDbUtil.applyWorkerThreads(conn, cfg.processing().duckdbThreads())` immediately after open — set `processing.duckdb_threads` so `threads × duckdb_threads ≈ cores`, else concurrent batches oversubscribe (the outer `Semaphore(cfg.processing().threads())` only bounds batch count, not DuckDB's per-connection threads).
 
 - **Two CSV ingest engines.** `DuckDbCsvIngester` (native `read_csv`, vectorized, 4–5× faster) and `CsvIngester` (Java line-by-line, lenient with ragged rows) are interchangeable behind the same `ingest(...)` signature. `CsvBatchStrategy` picks via `DuckDbCsvIngester.usesDuckDb(cfg)`. The Java path is the fallback for messy configs (`skip_tail_columns` etc.) the native reader can't faithfully reproduce — see `docs/performance.md` for the semantic-difference analysis. Don't delete the Java path; it's load-bearing for the messy-file sources.
 
-- **`raw_<KEY>_f<srcId>` table naming.** Hard-coded convention used by `PluginBatchStrategy` to union member tables; plugin authors must obey it (documented in `FileIngester` Javadoc). The **streaming** path (`StreamingFileIngester` → `DuckDbRecordSink`) owns table creation itself, so streaming authors never name tables — they only `emit`.
+- **`raw_<KEY>_f<srcId>` table naming.** Internal convention `DuckDbRecordSink` uses to name per-member raw tables, which `StreamingPluginBatchStrategy` then unions (union mode). Plugin authors never name tables — they only `emit`; the framework owns table creation and the `__src_id` tag.
 
 - **Markers go last in `commit()`.** See `BatchProcessor.commit` for the ordering rationale comment. Any future commit-step change must preserve "markers signal durability" — if you create a marker for a file whose backup hasn't moved, that file is stranded.

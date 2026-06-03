@@ -12,42 +12,33 @@ Use the plugin ingester when:
 
 The CSV path is unchanged for all existing sources. Plugin ingester is an opt-in mode activated by adding `processing.ingester:` to the pipeline toon.
 
-### FileIngester interface
+### The `StreamingFileIngester` SPI
 
-Implement `com.gamma.etl.FileIngester` in the same fat JAR and provide a public zero-arg constructor:
+There is **one** plugin ingestion SPI: `com.gamma.etl.StreamingFileIngester`. You decode the file and **emit records one at a time** into a framework-owned `RecordSink`; the framework owns DuckDB table creation, transform, partitioned write, and lineage. Implement it in the same fat JAR with a public zero-arg constructor:
 
 ```java
 package com.acme.etl;
 
 import com.gamma.etl.*;
 import java.io.File;
-import java.sql.*;
-import java.util.List;
 
-public class MyCdrIngester implements FileIngester {
+public class MyCdrIngester implements StreamingFileIngester {
 
     @Override
-    public List<Segment> ingest(File file, Connection conn, int srcId, PipelineConfig cfg)
-            throws Exception {
-
-        // 1. Parse the binary/proprietary file in whatever way you need.
-        // 2. For each event type, create one DuckDB table named "raw_<KEY>_f<srcId>".
-        //    Include payload columns AND any derived partition columns (e.g. EVENT_TYPE).
-        //    Do NOT add a __src_id column — the framework adds it when building the union.
-        // 3. Return a Segment record for each created table.
-
-        int callCount = 0, smsCount = 0;
-        try (Statement st = conn.createStatement()) {
-            st.execute("CREATE TABLE \"raw_CALL_f" + srcId + "\" " +
-                       "(ID VARCHAR, EVENT_TYPE VARCHAR, EVENT_DATE DATE)");
-            st.execute("CREATE TABLE \"raw_SMS_f" + srcId + "\" " +
-                       "(ID VARCHAR, EVENT_TYPE VARCHAR, EVENT_DATE DATE)");
-            // ... parse file, insert rows into the appropriate tables ...
+    public void ingest(File file, RecordSink sink, int srcId, PipelineConfig cfg) throws Exception {
+        try (var decoder = openYourDecoder(file)) {     // your TLV / binary / record walker
+            for (var record : decoder) {
+                switch (record.type()) {
+                    // emit(segmentKey, values…) — values positional, matching the segment's columns.
+                    // Do NOT pass __src_id; the framework adds it.
+                    case CALL -> sink.emit("CALL", record.id(), "CALL", record.date());
+                    case SMS  -> sink.emit("SMS",  record.id(), "SMS",  record.date());
+                    case BAD  -> sink.reject(record.typeKey());   // known type, malformed → errorRows
+                    default   -> sink.junk();                     // unknown type, skipped → junkCandidateRows
+                }
+            }
         }
-        return List.of(
-            new Segment("CALL", "raw_CALL_f" + srcId, new IngestResult(callCount, 0, 0)),
-            new Segment("SMS",  "raw_SMS_f"  + srcId, new IngestResult(smsCount,  0, 0))
-        );
+        // Returning normally signals end-of-file; the framework performs the final flush.
     }
 }
 ```
@@ -56,11 +47,33 @@ public class MyCdrIngester implements FileIngester {
 
 | Rule | Detail |
 |---|---|
-| Table name | Must be `raw_<KEY>_f<srcId>` — the framework unions per-member tables by this convention |
-| Derived columns | Add computed partition columns (e.g. `EVENT_TYPE VARCHAR`) directly into the raw table as extra columns |
-| `__src_id` | Do **not** include — the framework appends it when creating the union table |
-| Quarantine | Throw `IOException` → `QUARANTINED_UNREADABLE`. Return `parsedRows = 0` for all segments → `QUARANTINED_MISMATCH` |
-| Segment keys | Must match the keys declared in `processing.segments:` in the pipeline toon |
+| Columns | Either call `sink.define(key, columns)` once per segment before emitting, **or** rely on the framework deriving columns from that segment's `raw.fields`. You *must* `define` explicitly when a `partitions[]` source column is ingester-derived and not in `raw.fields` (e.g. `EVENT_TYPE`). |
+| `emit` values | Positional, matching the declared/derived column count and order; stored as `VARCHAR` (`null` ⇒ SQL `NULL`). Do **not** pass a `__src_id` value — the framework adds that column itself. |
+| Quarantine | Throw (e.g. `IOException`) → `QUARANTINED_UNREADABLE`. Emit zero records across all segments → `QUARANTINED_MISMATCH`. |
+| Don't flush yourself | Do **not** create DuckDB tables, transform, or write output — the framework does, and bounds scratch for you. |
+| Segment keys | Must match the keys declared in `processing.segments:` in the pipeline toon. |
+
+> **Migrating from the old `FileIngester`?** The whole-file `FileIngester` SPI (return `List<Segment>` of pre-built DuckDB tables) was **removed in v3.11.0**. Port to `StreamingFileIngester`: replace table creation + inserts with `sink.emit(...)` calls, drop the `raw_<KEY>_f<srcId>` table bookkeeping and the `__src_id` handling (the framework owns both now), and let counts flow through `emit`/`reject`/`junk` instead of `IngestResult`.
+
+### Execution modes — the framework picks by file size
+
+The same ingester serves both ingestion shapes; the [`StreamingPluginBatchStrategy`](../file-processor/src/main/java/com/gamma/inspector/StreamingPluginBatchStrategy.java) chooses one **per batch** with zero extra I/O (member sizes are already known):
+
+| Mode | When | What it does | Output |
+|---|---|---|---|
+| **Union** | the batch's largest member is `< processing.streaming.large_file_bytes` (the common many-small-files case) | each member's emitted records accumulate into `raw_<KEY>_f<srcId>`; after all members, each segment's tables are unioned and transformed/written **once** for the whole batch | **consolidated** — one set of partition files per batch |
+| **Generation** | the largest member is `>= processing.streaming.large_file_bytes` (a genuinely huge single file) | records flush in bounded **generations**; peak heap and scratch stay bounded regardless of total file size | per-generation files (`<stem>_gNNNNN_out.*`) coexisting in the partition dirs (valid Hive layout) |
+
+Union mode amortises the fixed per-batch cost (one temp DB, one transform, one write) across thousands of small files and consolidates output instead of fragmenting it. Generation mode is the only way to process a multi-hundred-GB / TB file the framework cannot otherwise split (line-based CSV auto-chunking via `processing.chunking` does not apply to opaque records). Both modes conserve row counts and produce byte-identical transform/lineage output for the same input.
+
+Tuning knobs (both optional, under `processing.streaming`):
+
+| Key | Default | Description |
+|---|---|---|
+| `large_file_bytes` | `268435456` (256 MB) | A batch whose largest member is `>=` this runs in generation mode; smaller batches use union mode. `0` forces union mode always. |
+| `flush_records` | `5000000` | Rows per generation flush (generation mode only); bounds scratch per generation. |
+
+To make many-small-files efficient, also raise `processing.batch.max_files` so the planner packs many files into each union batch.
 
 ### Segment schema toon (`partitions[]`) {#segment-schema-toon-partitions}
 
@@ -72,7 +85,7 @@ Each segment key has its own schema toon. Use the `partitions[N]{...}` tabular l
 # file: config/events/call_schema.toon
 
 partitions[4]{column,source,type}:
-  event_type,EVENT_TYPE,VARCHAR    # column in raw_CALL_f<srcId> added by the ingester
+  event_type,EVENT_TYPE,VARCHAR    # column emitted by the ingester (define it on the sink)
   year,EVENT_DATE,DATE_YEAR
   month,EVENT_DATE,DATE_MONTH
   day,EVENT_DATE,DATE_DAY
@@ -133,10 +146,15 @@ output:
 processing:
   threads: 1
   file_pattern: "glob:**/*.bin"
-  ingester: com.acme.etl.MyCdrIngester   # fully-qualified class in the fat JAR
+  ingester: com.acme.etl.MyCdrIngester   # fully-qualified StreamingFileIngester in the fat JAR
   segments:
-    CALL: config/events/call_schema.toon  # key must match Segment.key() from the ingester
+    CALL: config/events/call_schema.toon  # key must match the segment key the ingester emits
     SMS:  config/events/sms_schema.toon
+  streaming:                # optional — mode selection + generation budget
+    large_file_bytes: 268435456   # ≥ this (per member) → generation mode; else union mode
+    flush_records: 5000000        # rows per generation flush
+  batch:
+    max_files: 1000         # pack many small files per union batch (raise for the many-small case)
   csv_settings:
     delimiter: ","
     skip_header_lines: 0
@@ -148,8 +166,10 @@ processing:
 
 | Key | Required | Description |
 |---|---|---|
-| `processing.ingester` | yes | Fully-qualified class name of a `FileIngester` implementation in the fat JAR |
+| `processing.ingester` | yes | Fully-qualified class name of a `StreamingFileIngester` implementation in the fat JAR |
 | `processing.segments` | yes (when ingester is set) | Ordered map of segment key → schema toon path; validated at startup |
+| `processing.streaming.large_file_bytes` | no | Generation-mode threshold in bytes (default 256 MB); `0` = always union |
+| `processing.streaming.flush_records` | no | Rows per generation flush (default 5,000,000) |
 | `processing.ingester_config` | no | Free-form map for plugin-specific settings (e.g. `record_length`, `byte_order`). Plugins read it via `cfg.schemas().ingesterConfig().get("key")`. Defaults to empty map. |
 
 > `segments:` must be a non-empty map when `ingester:` is set; a missing or empty map throws `IllegalArgumentException` at startup. Each schema file must exist; a missing file throws `FileNotFoundException`.
@@ -169,7 +189,7 @@ database/events/
       year=2020/
         month=04/
           day=03/
-            events_20200403_out.csv
+            events_20200403_out.csv       # union mode: one consolidated file per partition
   SMS/
     event_type=SMS/
       year=2020/
@@ -177,6 +197,8 @@ database/events/
           day=03/
             events_20200403_out.csv
 ```
+
+In **generation mode** each bounded generation writes its own per-partition file (`<stem>_gNNNNN_out.*`), which coexist in the partition directories — valid Hive layout, the same trade-off the CSV auto-chunker makes. In **union mode** the batch's members are consolidated, so each partition gets a single file (named for the sole member's stem when the batch has one survivor, else the batch id).
 
 All lineage (input → output row counts), audit files (`_batches_`, `_lineage_`, `_status_`), and per-batch JSON manifests are written identically to the CSV path — one consolidated `BatchRow` per batch, with the segment keys used as the `schemaLabel`.
 
@@ -190,13 +212,13 @@ SMS,S001,2020-04-03,+15551234567
 CALL,C002,2020-04-04,17
 ```
 
-For each line, field 0 is matched against the keys of `processing.segments:`. Fields 1..N are mapped positionally to that segment's `raw.fields` list — so the schema's field order must match the input column order. Lines whose prefix isn't in `segments:` are silently skipped (counted as junk candidates).
+For each line, field 0 is matched against the keys of `processing.segments:`. Fields 1..N are mapped positionally to that segment's `raw.fields` list — so the schema's field order must match the input column order. Lines whose prefix isn't in `segments:` are silently skipped (`sink.junk()`).
 
 Behaviour worth knowing:
 
-- All columns stored as `VARCHAR` in DuckDB. `DataTransformer` handles type coercion at transform time via `CAST(... AS VARCHAR)` + `TRY_STRPTIME` — pre-typing would force every plugin to re-implement the same parsing logic.
-- The ingester injects a derived `EVENT_TYPE VARCHAR` column into every raw table (populated with the segment key), so schemas can reference `EVENT_TYPE` as a partition source without redeclaring it in `raw.fields`.
-- Blank lines and lines starting with `#` are skipped without being counted as errors. Lines with the wrong field count for a known segment are counted into `errorRows` and dropped.
+- Every emitted value is stored as `VARCHAR` in DuckDB. `DataTransformer` handles type coercion at transform time via `CAST(... AS VARCHAR)` + `TRY_STRPTIME` — pre-typing would force every plugin to re-implement the same parsing logic.
+- The ingester `define`s a trailing `EVENT_TYPE` column on every segment (emitted with the segment key), so schemas can reference `EVENT_TYPE` as a partition source without redeclaring it in `raw.fields`.
+- Blank lines and lines starting with `#` are skipped without being counted as errors. Lines with the wrong field count for a known segment go through `sink.reject(key)` (counted as `errorRows`) and are dropped.
 - Field delimiter comes from `processing.csv_settings.delimiter` (default `,`).
 
 Wire it up exactly like a custom ingester:
@@ -211,58 +233,11 @@ processing:
     delimiter: ","
 ```
 
-See `TypedRecordIngester.java` for the full source — it's deliberately compact (~150 lines) and is the recommended starting point for forking your own typed-record variant.
-
-### Streaming ingester — very large custom files {#streaming-ingester}
-
-The classic `FileIngester` above is **whole-file by construction**: it must build complete DuckDB tables for the *entire* input before returning. For a multi-hundred-GB / TB custom file (binary, proprietary, ASN.1) that means the full decoded dataset lands in heap and/or scratch at once — and unlike CSV, the framework **cannot auto-chunk it** (`processing.chunking` splits on line boundaries; only your decoder knows where an opaque record ends).
-
-`com.gamma.etl.StreamingFileIngester` (since 3.10.0) is the additive answer. Instead of building tables, you **emit records one at a time** into a framework-owned `RecordSink`; the framework owns table creation, transform, partitioned write, lineage, *and* flushes bounded **generations** as it goes — so peak heap and scratch stay bounded regardless of total file size. The classic `FileIngester` is untouched and remains the right choice for modest files.
-
-```java
-package com.acme.etl;
-
-import com.gamma.etl.*;
-import java.io.File;
-
-public class AsnCdrIngester implements StreamingFileIngester {
-
-    @Override
-    public void ingest(File file, RecordSink sink, int srcId, PipelineConfig cfg) throws Exception {
-        try (var decoder = openYourDecoder(file)) {     // your TLV / binary / record walker
-            for (var record : decoder) {
-                switch (record.type()) {
-                    // emit(segmentKey, values…) — values positional, matching the segment's columns.
-                    // Do NOT pass __src_id; the framework adds it.
-                    case CALL -> sink.emit("CALL", record.id(), "CALL", record.date());
-                    case SMS  -> sink.emit("SMS",  record.id(), "SMS",  record.date());
-                    case BAD  -> sink.reject(record.typeKey());   // known type, malformed → errorRows
-                    default   -> sink.junk();                     // unknown type, skipped → junkCandidateRows
-                }
-            }
-        }
-        // Returning normally signals end-of-file; the framework performs the final flush.
-    }
-}
-```
-
-**Contract:**
-
-| Rule | Detail |
-|---|---|
-| Columns | Either call `sink.define(key, columns)` once per segment before emitting, **or** rely on the framework deriving columns from that segment's `raw.fields`. You *must* `define` explicitly when a `partitions[]` source column is ingester-derived and not in `raw.fields` (e.g. `EVENT_TYPE`). |
-| `emit` values | Positional, matching the declared/derived column count and order; stored as `VARCHAR` (`null` ⇒ SQL `NULL`). No `__src_id`. |
-| Quarantine | Throw (e.g. `IOException`) → `QUARANTINED_UNREADABLE`. Emit zero records across all segments → `QUARANTINED_MISMATCH`. |
-| Don't flush yourself | Do **not** create tables, transform, or write output — the framework does, and bounds scratch for you. |
-| Precedence | A class implementing both `FileIngester` and `StreamingFileIngester` uses the **streaming** path. |
-
-**Output layout difference.** Each member streams independently and each bounded generation writes its own per-partition file (`<stem>_gNNNNN_out.*`), which coexist in the partition directories — valid Hive layout, the same trade-off the CSV auto-chunker makes. A file small enough to fit one generation produces a single output file, identical to the classic path. The per-generation row budget defaults to 5,000,000 rows (a deliberate internal default; see [design-notes D9](design-notes.md)).
-
-Registration is identical to the classic path — set `processing.ingester` to your FQCN and declare `processing.segments`.
+See `TypedRecordIngester.java` for the full source — it's deliberately compact (~120 lines) and is the recommended starting point for forking your own typed-record variant.
 
 ### Plugin author workflow
 
-End-to-end recipe for shipping a custom `FileIngester` to a deployed pipeline:
+End-to-end recipe for shipping a custom `StreamingFileIngester` to a deployed pipeline:
 
 **1. Set up your project.** Depend on the file-processor fat JAR. The minimal Maven snippet:
 
@@ -270,25 +245,18 @@ End-to-end recipe for shipping a custom `FileIngester` to a deployed pipeline:
 <dependency>
     <groupId>com.gamma.inspector</groupId>
     <artifactId>file-processor</artifactId>
-    <version>1.3.0</version>
+    <version>3.11.0</version>
     <scope>provided</scope>
 </dependency>
 ```
 
 Use `<scope>provided</scope>` because the deployment server already has the fat JAR — you don't want to repackage it into yours.
 
-**2. Implement `FileIngester`.** Two correctness rules above all else:
+**2. Implement `StreamingFileIngester`.** Decode the file and `emit` records; let the framework own tables, transform, write, and lineage. The fastest path uses no JDBC at all — just `sink.emit(...)`. For derived partition columns not in `raw.fields` (e.g. `EVENT_TYPE`), call `sink.define(key, columns)` once per segment before the first emit. `TypedRecordIngester` is the conservative baseline — fork it when your format diverges.
 
-| Rule | Why |
-|---|---|
-| Table name is exactly `raw_<KEY>_f<srcId>` | The framework unions members by string match on this convention |
-| Do **not** include a `__src_id` column | The framework adds it when building the union table; adding it yourself causes a `Binder Error: duplicate column` |
+**3. Write the segment schema files.** One toon per segment key. Use the JToon `partitions[N]{column,source,type}:` tabular form (see the warning earlier — YAML-style lists silently break partitioning). `raw.fields` describes the data columns your ingester emits; ingester-derived columns (like `EVENT_TYPE`) go in `partitions[]` and must be `define`d on the sink.
 
-Everything else is your call: pre-type columns or not, parse with a streaming reader or load fully into memory, use prepared statements or DuckDB's appender API. `TypedRecordIngester` is the conservative baseline — fork it when your format diverges.
-
-**3. Write the segment schema files.** One toon per segment key. Use the JToon `partitions[N]{column,source,type}:` tabular form (see the warning earlier — YAML-style lists silently break partitioning). `raw.fields` describes the data columns your ingester populates; ingester-derived columns (like `EVENT_TYPE`) go in `partitions[]` only.
-
-**4. Test locally before deploying.** Pattern after `TypedRecordIngesterTest`: construct a `PipelineConfig` from an in-test temp pipeline toon, build a `Batch`, and call `BatchProcessor.process(batch, cfg, audit)`. This exercises the full plugin path including `DataTransformer` + `PartitionWriter` against a real DuckDB instance. Smoke-test with rows on **at least two distinct dates** — single-date tests can mask the partition-fan-out bug class.
+**4. Test locally before deploying.** Pattern after `TypedRecordIngesterTest` / `BatchProcessorPluginDeepTest`: construct a `PipelineConfig` from an in-test temp pipeline toon, build a `Batch`, and call `BatchProcessor.process(batch, cfg, audit)`. This exercises the full plugin path including `DataTransformer` + `PartitionWriter` against a real DuckDB instance. Smoke-test with rows on **at least two distinct dates** — single-date tests can mask the partition-fan-out bug class — and with **two members sharing a partition** to confirm union consolidation.
 
 **5. Package and deploy.**
 
@@ -302,13 +270,13 @@ Everything else is your call: pre-type columns or not, parse with a streaming re
 [CONFIG] Plugin ingester: com.acme.events.MyIngester  segments: [CALL, SMS]
 ```
 
-If you see `Cannot instantiate ingester: ...` with a `ClassNotFoundException`, your JAR isn't on the classpath. If you see it with a `NoSuchMethodException`, you're missing the public no-arg constructor.
+If you see `Cannot instantiate streaming ingester: ...` with a `ClassNotFoundException`, your JAR isn't on the classpath. If you see it with a `NoSuchMethodException`, you're missing the public no-arg constructor. A `ClassCastException` means the class doesn't implement `StreamingFileIngester`.
 
 Per-file outcomes appear in `<source>_status_<runTimestamp>.csv`:
 
 - `SUCCESS` — at least one segment produced rows; output written
-- `QUARANTINED_UNREADABLE` — ingester threw `IOException` (file moved to `dirs.quarantine/unreadable/`)
-- `QUARANTINED_MISMATCH` — every segment returned `parsedRows = 0` (file moved to `dirs.quarantine/field_mismatch/`)
+- `QUARANTINED_UNREADABLE` — ingester threw (file moved to `dirs.quarantine/unreadable/`)
+- `QUARANTINED_MISMATCH` — every segment emitted 0 rows (file moved to `dirs.quarantine/field_mismatch/`)
 
 ---
 

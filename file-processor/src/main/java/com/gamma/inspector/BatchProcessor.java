@@ -26,10 +26,10 @@ import java.util.*;
  * quarantined; their rows never reach {@code raw_input}.
  *
  * <h3>Plugin-ingester path</h3>
- * When {@link PipelineConfig.Schemas#ingesterClass()} is set, {@link PluginBatchStrategy}
- * runs a {@link FileIngester} per member, unions each segment's tables across members, then
- * transforms → writes → counts lineage per segment, aggregating all segment outputs into one
- * batch audit entry.
+ * When {@link PipelineConfig.Schemas#ingesterClass()} is set, {@link StreamingPluginBatchStrategy}
+ * runs the configured {@link StreamingFileIngester} and picks, per batch by file size, between
+ * union mode (many small files → one transform/write) and generation mode (huge single files →
+ * bounded scratch). All segment outputs aggregate into one batch audit entry.
  */
 public final class BatchProcessor {
 
@@ -40,14 +40,9 @@ public final class BatchProcessor {
     // ── entry point ───────────────────────────────────────────────────────────
 
     public static void process(Batch batch, PipelineConfig cfg, BatchAuditWriter audit) {
-        BatchIngestStrategy strategy;
-        if (cfg.schemas().ingesterClass() == null) {
-            strategy = new CsvBatchStrategy();
-        } else if (isStreamingIngester(cfg)) {
-            strategy = new StreamingPluginBatchStrategy();
-        } else {
-            strategy = new PluginBatchStrategy();
-        }
+        BatchIngestStrategy strategy = (cfg.schemas().ingesterClass() == null)
+                ? new CsvBatchStrategy()
+                : new StreamingPluginBatchStrategy();
 
         IngestOutcome outcome = strategy.ingest(batch, cfg);
 
@@ -70,21 +65,6 @@ public final class BatchProcessor {
             writeAudit(batch, cfg, audit, outcome, status, error);
         } catch (Exception e) {
             log.error("Batch {} failed during audit", batch.batchId(), e);
-        }
-    }
-
-    /**
-     * Whether the configured ingester class implements {@link StreamingFileIngester} (record-by-record
-     * streaming, bounded scratch) rather than the classic whole-file {@link FileIngester}. A class may
-     * implement both — streaming wins. A load failure here is swallowed so {@link PluginBatchStrategy}
-     * surfaces the {@code Cannot instantiate ingester} error with its full message.
-     */
-    private static boolean isStreamingIngester(PipelineConfig cfg) {
-        try {
-            return StreamingFileIngester.class.isAssignableFrom(
-                    Class.forName(cfg.schemas().ingesterClass()));
-        } catch (Throwable t) {
-            return false;
         }
     }
 

@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * End-to-end test for the {@link TypedRecordIngester} reference plugin.
  *
  * <p>Exercises the full plugin path: {@code PipelineConfig.load} →
- * {@code BatchProcessor.process} → {@code PluginBatchStrategy} → {@code DataTransformer} →
+ * {@code BatchProcessor.process} → {@code StreamingPluginBatchStrategy} (union mode) → {@code DataTransformer} →
  * {@code PartitionWriter} → on-disk Hive layout.  Acts as the working example
  * a real plugin author would copy from.
  */

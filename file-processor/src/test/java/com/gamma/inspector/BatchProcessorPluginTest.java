@@ -15,55 +15,30 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration test for the plugin-ingester path in {@link BatchProcessor}.
  *
- * <p>Uses a stub {@link FileIngester} ({@link StubEventIngester}) registered as an
- * inner class so there is no external JAR dependency. The stub reads lines from a
- * plain text file and routes them into two DuckDB tables: {@code raw_CALL_f<srcId>}
- * and {@code raw_SMS_f<srcId>}.
+ * <p>Uses a stub {@link StreamingFileIngester} ({@link StubEventIngester}) registered as an
+ * inner class so there is no external JAR dependency. The stub reads lines from a plain text
+ * file and emits CALL/SMS records, which the unified streaming engine consolidates per segment.
  */
 class BatchProcessorPluginTest {
 
     // ── stub ingester ─────────────────────────────────────────────────────────
 
     /**
-     * Lines starting with "CALL," become CALL rows; "SMS," become SMS rows.
-     * Each row gets an EVENT_TYPE column (the type key) and an EVENT_DATE column.
-     * Table names: raw_CALL_f{srcId}, raw_SMS_f{srcId}.
+     * Lines starting with "CALL," become CALL records; "SMS," become SMS records.
+     * Each record is emitted with columns ID, EVENT_TYPE (the type key), EVENT_DATE.
      */
-    public static class StubEventIngester implements FileIngester {
+    public static class StubEventIngester implements StreamingFileIngester {
         @Override
-        public List<Segment> ingest(File file, Connection conn, int srcId, PipelineConfig cfg)
-                throws Exception {
-            List<String[]> callRows = new ArrayList<>();
-            List<String[]> smsRows  = new ArrayList<>();
+        public void ingest(File file, RecordSink sink, int srcId, PipelineConfig cfg) throws Exception {
             for (String line : Files.readAllLines(file.toPath())) {
                 if (line.startsWith("CALL,")) {
-                    String[] p = line.split(",", 3);
-                    callRows.add(p);
+                    String[] p = line.split(",", 3);     // type,id,date
+                    sink.emit("CALL", p[1], "CALL", p[2]);
                 } else if (line.startsWith("SMS,")) {
                     String[] p = line.split(",", 3);
-                    smsRows.add(p);
+                    sink.emit("SMS", p[1], "SMS", p[2]);
                 }
             }
-
-            List<Segment> segs = new ArrayList<>();
-            segs.add(populateTable(conn, "CALL", "raw_CALL_f" + srcId, callRows, srcId));
-            segs.add(populateTable(conn, "SMS",  "raw_SMS_f"  + srcId, smsRows,  srcId));
-            return segs;
-        }
-
-        private Segment populateTable(Connection conn, String key, String table,
-                                       List<String[]> rows, int srcId) throws Exception {
-            try (Statement st = conn.createStatement()) {
-                st.execute("CREATE TABLE \"" + table
-                        + "\" (ID VARCHAR, EVENT_TYPE VARCHAR, EVENT_DATE VARCHAR)");
-                for (String[] r : rows) {
-                    // r[0]=type, r[1]=id, r[2]=date
-                    st.execute(String.format(
-                            "INSERT INTO \"%s\" VALUES ('%s','%s','%s')",
-                            table, r[1], key, r[2]));
-                }
-            }
-            return new Segment(key, table, new IngestResult(rows.size(), 0, 0));
         }
     }
 

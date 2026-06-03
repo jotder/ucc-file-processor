@@ -320,6 +320,35 @@ of total file size, instead of materialising one multi-hundred-GB unit. Details:
 > path; if the data volume also can't hold ~1× the file, additionally enable `processing.chunking` to
 > cap peak scratch to a chunk. Both are off/inherited by default, so existing pipelines are unchanged.
 
+#### `processing.streaming` — plugin-ingester mode selection (the `StreamingFileIngester` path)
+
+`processing.chunking` above bounds the **CSV** path. Plugin ingesters (`processing.ingester`) get an
+analogous control: the framework runs the same `StreamingFileIngester` in one of two modes, chosen per
+batch by file size.
+
+```yaml
+processing:
+  ingester: com.acme.etl.MyCdrIngester
+  segments:
+    CALL: config/events/call_schema.toon
+  streaming:
+    large_file_bytes: 268435456     # default 256 MB. A batch whose largest member is ≥ this runs in
+                                     # bounded GENERATION mode (huge files); smaller batches use UNION
+                                     # mode (many small files → one transform/write). 0 = always union.
+    flush_records: 5000000          # rows per generation flush in generation mode (bounds scratch).
+  batch:
+    max_files: 1000                 # pack many small files per union batch (raise for the many-small case)
+```
+
+- **Union mode** (default for files under the threshold) consolidates a batch's members into one
+  transform/write and one set of partition output files — the right choice for an exceptionally large
+  *number of small files*. Pair it with a high `batch.max_files` so the planner packs many files per batch.
+- **Generation mode** (members ≥ `large_file_bytes`) flushes bounded generations so a genuinely huge
+  single file processes with bounded heap and scratch; it writes per-generation output files
+  (`<stem>_gNNNNN_out.*`).
+
+Both are optional and have working defaults; see [plugins.md](plugins.md) for the full SPI guide.
+
 ---
 
 ## Type Mapping Reference

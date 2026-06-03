@@ -75,12 +75,14 @@ See [Configuration → Large files](configuration.md#large-files-scratch-locatio
 the single-pass streaming ingest still materialises the `transformed` table before `COPY TO`, so the
 DuckDB-AVX2 crash workaround above remains in effect.
 
-**Custom (plugin) formats.** The steps above cover the built-in CSV path. A very large **custom**
-file (binary / proprietary / ASN.1) read through a classic `FileIngester` cannot be auto-chunked
-(only the decoder knows record boundaries) and materialises the whole file — so it can still exhaust
-heap or scratch. Implement `com.gamma.etl.StreamingFileIngester` instead: it emits records into the
-framework, which flushes bounded generations and keeps heap/scratch bounded regardless of file size.
-See [plugins.md → Streaming ingester](plugins.md#streaming-ingester).
+**Custom (plugin) formats.** The steps above cover the built-in CSV path. Custom files
+(binary / proprietary / ASN.1) go through the `com.gamma.etl.StreamingFileIngester` SPI, which the
+framework runs in **generation mode** for a genuinely huge single file (member ≥
+`processing.streaming.large_file_bytes`, default 256 MB) — flushing bounded generations so heap and
+scratch stay bounded regardless of file size — or **union mode** for many small files. If a huge custom
+file still exhausts memory, confirm it is actually being routed to generation mode (lower
+`large_file_bytes`, or check the member size). See
+[plugins.md → execution modes](plugins.md#execution-modes--the-framework-picks-by-file-size).
 
 ### DuckLake registration fails silently
 

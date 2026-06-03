@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 
 /**
  * Marks a type, method, or constructor as part of the <b>stable public API</b> —
- * the surface external code (plugin authors implementing {@code FileIngester},
+ * the surface external code (plugin authors implementing {@code StreamingFileIngester},
  * and embedders driving the ETL from Java) is allowed to depend on.
  *
  * <h3>Stability contract</h3>

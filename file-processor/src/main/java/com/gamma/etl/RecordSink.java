@@ -6,19 +6,15 @@ import java.util.List;
 
 /**
  * The framework-provided callback a {@link StreamingFileIngester} writes records into, one
- * record at a time. It is the streaming counterpart to the classic {@link FileIngester} contract:
- * instead of the ingester building complete DuckDB tables for the <em>whole</em> file and returning
- * them, the ingester {@linkplain #emit emits} records as it decodes, and the framework owns all
- * buffering, the DuckDB writes, transform, partitioned output, and lineage.
+ * record at a time. The ingester {@linkplain #emit emits} records as it decodes; the framework owns
+ * all buffering, the DuckDB writes, transform, partitioned output, and lineage.
  *
  * <h3>Why this exists</h3>
- * The classic {@link FileIngester} is whole-file by construction — it must materialise every row
- * before returning, so a multi-hundred-GB / TB custom file (binary, proprietary text, ASN.1, …)
- * either exhausts the JVM heap or fills scratch with the full decoded dataset. A format the
- * framework cannot split itself (only the ingester knows record boundaries) therefore cannot be
- * bounded from the outside. This sink inverts that: the ingester streams records, and the framework
- * periodically flushes a bounded "generation" to partitioned output, so peak scratch stays bounded
- * regardless of total file size.
+ * Emitting record-by-record (rather than returning whole materialised tables) lets the framework
+ * bound memory and scratch for inputs of any size: in generation mode it periodically flushes a
+ * bounded "generation" to partitioned output, so a multi-hundred-GB / TB custom file (binary,
+ * proprietary text, ASN.1, …) neither exhausts the JVM heap nor fills scratch with the full decoded
+ * dataset — even for formats only the ingester knows how to split.
  *
  * <h3>Usage</h3>
  * <ol>

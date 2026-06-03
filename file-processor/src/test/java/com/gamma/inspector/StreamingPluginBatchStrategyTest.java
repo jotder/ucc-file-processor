@@ -85,6 +85,40 @@ class StreamingPluginBatchStrategyTest {
     }
 
     @Test
+    void configLargeFileThresholdRoutesToGenerationMode(@TempDir Path dir) throws Exception {
+        // large_file_bytes=1 forces every non-empty file into generation mode; flush_records=2
+        // makes the 5-row input flush several bounded generations — all via the no-arg, config-driven
+        // strategy (no forced-flush test seam).
+        String streaming = "\n  streaming:\n    large_file_bytes: 1\n    flush_records: 2";
+        PipelineConfig cfg = setup(dir, StubStreamingIngester.class.getName(), streaming);
+        assertEquals(1, cfg.processing().largeFileBytes(), "large_file_bytes parsed");
+        assertEquals(2, cfg.processing().flushRecords(), "flush_records parsed");
+
+        File input = writeInput(cfg, "events_20200403.bin",
+                "CALL,C001,2020-04-03\n" +
+                "CALL,C002,2020-04-03\n" +
+                "CALL,C003,2020-04-04\n" +
+                "SMS,S001,2020-04-03\n" +
+                "SMS,S002,2020-04-04\n");
+        Batch batch = buildBatch(cfg, input);
+
+        IngestOutcome out = new StreamingPluginBatchStrategy().ingest(batch, cfg);
+
+        assertEquals("SUCCESS", out.status());
+        long outputRows = out.lineage().stream().mapToLong(LineageRow::rowCount).sum();
+        assertEquals(5, outputRows, "rows conserved under config-driven generation mode");
+        assertTrue(out.outputs().size() >= 2,
+                "small flush_records must yield multiple generation files, got " + out.outputs().size());
+        long genFiles;
+        try (Stream<Path> s = Files.walk(Path.of(cfg.dirs().database()))) {
+            genFiles = s.filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().contains("_g"))
+                    .count();
+        }
+        assertTrue(genFiles >= 2, "expected multiple _g generation files, found " + genFiles);
+    }
+
+    @Test
     void routedThroughBatchProcessorWhenStreaming(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = setup(dir, StubStreamingIngester.class.getName());
         File input = writeInput(cfg, "events_20200403.bin",
@@ -128,12 +162,16 @@ class StreamingPluginBatchStrategyTest {
     // ── harness ─────────────────────────────────────────────────────────────────
 
     private static PipelineConfig setup(Path dir, String ingesterClass) throws Exception {
+        return setup(dir, ingesterClass, "");
+    }
+
+    private static PipelineConfig setup(Path dir, String ingesterClass, String streamingBlock) throws Exception {
         Path callSchema = dir.resolve("call_schema.toon");
         Path smsSchema  = dir.resolve("sms_schema.toon");
         Files.writeString(callSchema, callSchemaToon());
         Files.writeString(smsSchema,  smsSchemaToon());
         Path pipeline = dir.resolve("events_pipeline.toon");
-        Files.writeString(pipeline, pipelineToon(dir, callSchema, smsSchema, ingesterClass));
+        Files.writeString(pipeline, pipelineToon(dir, callSchema, smsSchema, ingesterClass, streamingBlock));
         return PipelineConfig.load(pipeline.toString());
     }
 
@@ -181,7 +219,8 @@ class StreamingPluginBatchStrategyTest {
                                .replace("canonicalName: call", "canonicalName: sms");
     }
 
-    private static String pipelineToon(Path dir, Path callSchema, Path smsSchema, String ingesterClass) {
+    private static String pipelineToon(Path dir, Path callSchema, Path smsSchema,
+                                       String ingesterClass, String streamingBlock) {
         String cs = callSchema.toString().replace("\\", "/");
         String ss = smsSchema.toString().replace("\\", "/");
         return """
@@ -201,7 +240,7 @@ class StreamingPluginBatchStrategyTest {
                 processing:
                   threads: 1
                   file_pattern: "glob:**/*.bin"
-                  ingester: %s
+                  ingester: %s%s
                   segments:
                     CALL: %s
                     SMS: %s
@@ -212,6 +251,6 @@ class StreamingPluginBatchStrategyTest {
                     skip_tail_lines: 0
                     date_formats[1]: "%%Y-%%m-%%d"
                     timestamp_formats[1]: "%%Y-%%m-%%d"
-                """.formatted(dir, dir, dir, dir, dir, dir, dir, dir, ingesterClass, cs, ss);
+                """.formatted(dir, dir, dir, dir, dir, dir, dir, dir, ingesterClass, streamingBlock, cs, ss);
     }
 }

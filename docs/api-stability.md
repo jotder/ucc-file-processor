@@ -27,12 +27,12 @@ Two audiences depend on the framework from outside:
 
 | Type | Since | Role |
 |---|---|---|
-| `com.gamma.etl.FileIngester` | 1.3.0 | The interface you implement (whole-file: build DuckDB tables, return) |
-| `com.gamma.etl.FileIngester.Segment` | 1.3.0 | One returned event-type table |
-| `com.gamma.etl.StreamingFileIngester` | 3.10.0 | Streaming alternative for very large custom files — emit records into a sink; the framework owns tables/transform/write and bounds scratch. Additive; classic `FileIngester` unchanged |
+| `com.gamma.etl.StreamingFileIngester` | 3.10.0 | **The** plugin ingester SPI — emit records into a sink; the framework owns tables/transform/write/lineage and picks union vs generation mode by file size. (Sole SPI since 3.11.0.) |
 | `com.gamma.etl.RecordSink` | 3.10.0 | Framework-provided callback a `StreamingFileIngester` writes records into (`define`/`emit`/`reject`/`junk`) |
-| `com.gamma.etl.IngestResult` | 1.0.0 | Row counts you report |
-| `com.gamma.etl.PipelineConfig` (+ nested records `Identity`, `Dirs`, `Processing`, `CsvSettings`, `Output`, `Schemas`, `DuckDbSettings`, `Chunking`) | 1.0.0 / records 2.0.0 (`DuckDbSettings`/`Chunking` 3.10.0) | Passed to `ingest(...)`; read for paths, settings, `ingesterConfig`; `DuckDbSettings`/`Chunking` are additive large-file controls |
+| `com.gamma.etl.IngestResult` | 1.0.0 | Row counts (CSV path); plugin counts flow through `RecordSink` |
+| `com.gamma.etl.PipelineConfig` (+ nested records `Identity`, `Dirs`, `Processing`, `CsvSettings`, `Output`, `Schemas`, `DuckDbSettings`, `Chunking`) | 1.0.0 / records 2.0.0 (`DuckDbSettings`/`Chunking` 3.10.0) | Passed to `ingest(...)`; read for paths, settings, `ingesterConfig`; `Processing` adds `largeFileBytes`/`flushRecords` streaming controls (3.11.0) |
+
+> **Removed in 3.11.0 (breaking):** the whole-file `com.gamma.etl.FileIngester` and its nested `Segment` (both since 1.3.0). The plugin SPI is unified on `StreamingFileIngester`; the framework now runs the same ingester in *union mode* (many small files → one transform/write) or *generation mode* (huge single files → bounded scratch), chosen per batch by `processing.streaming.large_file_bytes`. Port `FileIngester` plugins to `StreamingFileIngester` (see [plugins.md](plugins.md)). This is a **deliberate exception** to the within-major-version stability promise above, made to consolidate the plugin SPI before it had wide external adoption.
 
 **Embedders** (driving the ETL from Java instead of the CLI):
 
@@ -65,11 +65,11 @@ Two audiences depend on the framework from outside:
 tools, and all of
 `ManifestStore`/`Batch`/`PartitionDef`/`PartitionOutput`/`LineageRow` are
 implementation detail. (The `com.gamma.inspector` batch-ingest strategy seam —
-`BatchIngestStrategy`, `CsvBatchStrategy`, `PluginBatchStrategy`, `IngestOutcome`,
-`MemberAudit`, all package-private since v3.9.0 — is likewise internal.) They are stable enough for the framework's own use but
+`BatchIngestStrategy`, `CsvBatchStrategy`, `StreamingPluginBatchStrategy`, `DuckDbRecordSink`,
+`IngestOutcome`, `MemberAudit`, all package-private — is likewise internal.) They are stable enough for the framework's own use but
 carry no cross-version guarantee. Plugin authors interact with them only
-indirectly (e.g. you populate DuckDB tables that `DataTransformer` later reads —
-that contract is documented on `FileIngester`, not on `DataTransformer`).
+indirectly (e.g. you emit records that `DataTransformer` later reads —
+that contract is documented on `StreamingFileIngester`/`RecordSink`, not on `DataTransformer`).
 
 ## What is *not* covered by code-level stability — but is still stable
 

@@ -157,10 +157,11 @@ com.gamma
                                (single-member native batches stream in one pass via a read_csv VIEW; files over
                                 processing.chunking.max_file_bytes are streamed in bounded chunks — see FileChunker)
     FileChunker              — streams an oversized file into bounded, header-replicating chunks (one on disk at a time)
-    PluginBatchStrategy      — plugin path: FileIngester per member → union per segment → transform/write/lineage per segment
-    StreamingPluginBatchStrategy — streaming plugin path (StreamingFileIngester): emit records → DuckDbRecordSink flushes
-                               bounded generations (transform/write/lineage), so TB-scale custom files stay heap/scratch-bounded
-    DuckDbRecordSink         — framework RecordSink impl: append-batches rows to DuckDB, generation-flushes on a row budget
+    StreamingPluginBatchStrategy — the plugin path (StreamingFileIngester): per batch, picks union mode (many small
+                               files → emit into per-member tables → union per segment → one transform/write/lineage) or
+                               generation mode (huge file → DuckDbRecordSink flushes bounded generations) by file size
+    DuckDbRecordSink         — framework RecordSink impl: Appender-loads emitted rows to DuckDB; generation-flushes on a
+                               row budget, or (union mode) leaves raw tables for the strategy to union
     IngestOutcome            — record: status, survivors, outputs, lineage, per-member audit, totals (commit/audit input)
     MemberAudit              — record: per-input-file audit row accumulated during ingest
     ReprocessCommand         — `ura reprocess <batch_id>`: delete outputs/markers, restore members, re-run
@@ -182,10 +183,11 @@ com.gamma
     LineageCollector         — tracks input-to-output row counts for the lineage CSV; dynamic partition paths
     IngestResult             — record: parsedRows, errorRows, junkCandidateRows
     PartitionOutput          — record: output paths and sizes produced by one batch
-    FileIngester             — plugin interface for custom parsers; ingest() returns one Segment per event type
+    StreamingFileIngester    — the plugin SPI for custom parsers; ingest() emits records into a RecordSink
+    RecordSink               — framework callback the ingester emits into (define/emit/reject/junk)
     PartitionDef             — record + enum for explicit partitions[] declarations; backward-compat fromSchema()
   ingester/
-    TypedRecordIngester      — reference FileIngester for type-tagged text records; multi-segment dispatch
+    TypedRecordIngester      — reference StreamingFileIngester for type-tagged text records; multi-segment dispatch
   util/
     ToonHelper               — load/validate .toon files; require/opt section helpers; parseBaseDirs
     TarUtil                  — isTar/isCsv/isGzipped predicates; extractTar; peekTar; deleteTree
@@ -210,8 +212,8 @@ com.gamma
 
 **Behavior-injection seams.** Variant behavior is injected into the engine rather than branched inline, so the orchestration code stays thin and a new variant is a closed-set edit:
 
-- **`BatchIngestStrategy`** (`CsvBatchStrategy` / `PluginBatchStrategy` / `StreamingPluginBatchStrategy`) — the per-batch ingest+transform+write path. `BatchProcessor.process` selects one by config (CSV when no `ingester`; streaming when the ingester class implements `StreamingFileIngester`; classic plugin otherwise) and consumes its typed `IngestOutcome`; the shared commit → audit tail is path-agnostic.
-- **`FileIngester`** (SPI, by FQCN) — custom parsers; the reference `TypedRecordIngester` splits one input into many typed segment streams.
+- **`BatchIngestStrategy`** (`CsvBatchStrategy` / `StreamingPluginBatchStrategy`) — the per-batch ingest+transform+write path. `BatchProcessor.process` selects one by config (CSV when no `ingester`, else the streaming plugin engine) and consumes its typed `IngestOutcome`; the shared commit → audit tail is path-agnostic. The plugin engine then self-selects union vs generation mode per batch by file size.
+- **`StreamingFileIngester`** (SPI, by FQCN) — custom parsers emit records into a `RecordSink`; the reference `TypedRecordIngester` splits one input into many typed segment streams.
 - **`TransformCompiler`** — a `transformType → ColumnRule` function registry; `DataTransformer` assembles the SELECT and delegates each column expression.
 - **`OutputFormat`** — enum-as-strategy owning each format's extension, COPY token, and compression rule, used by `PartitionWriter`.
 - **`StatusStore`** (`FileStatusStore` / `DbStatusStore`) and the **`BatchEventBus`** (`Consumer<BatchEvent>` observers) — pluggable audit backend and commit-event fan-out.

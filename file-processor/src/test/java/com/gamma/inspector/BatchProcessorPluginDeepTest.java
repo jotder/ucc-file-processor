@@ -24,60 +24,37 @@ class BatchProcessorPluginDeepTest {
     // ── stub ingesters ────────────────────────────────────────────────────────
 
     /**
-     * Normal ingester: "CALL,id,date" lines → CALL table; "SMS,id,date" → SMS table.
-     * EVENT_TYPE is added as a derived partition column alongside the payload.
+     * Normal ingester: "CALL,id,date" lines → CALL records; "SMS,id,date" → SMS records.
+     * EVENT_TYPE is emitted as a derived partition column alongside the payload.
      */
-    public static class StubEventIngester implements FileIngester {
+    public static class StubEventIngester implements StreamingFileIngester {
         @Override
-        public List<Segment> ingest(File file, Connection conn, int srcId, PipelineConfig cfg)
-                throws Exception {
-            List<String[]> callRows = new ArrayList<>(), smsRows = new ArrayList<>();
+        public void ingest(File file, RecordSink sink, int srcId, PipelineConfig cfg) throws Exception {
             for (String line : Files.readAllLines(file.toPath())) {
-                if (line.startsWith("CALL,")) callRows.add(line.split(",", 3));
-                else if (line.startsWith("SMS,"))  smsRows.add(line.split(",", 3));
+                if (line.startsWith("CALL,")) {
+                    String[] p = line.split(",", 3);
+                    sink.emit("CALL", p[1], "CALL", p[2]);   // ID, EVENT_TYPE, EVENT_DATE
+                } else if (line.startsWith("SMS,")) {
+                    String[] p = line.split(",", 3);
+                    sink.emit("SMS", p[1], "SMS", p[2]);
+                }
             }
-            return List.of(
-                    populateTable(conn, "CALL", "raw_CALL_f" + srcId, callRows),
-                    populateTable(conn, "SMS",  "raw_SMS_f"  + srcId, smsRows));
-        }
-
-        private Segment populateTable(Connection conn, String key, String table,
-                                      List<String[]> rows) throws Exception {
-            try (Statement st = conn.createStatement()) {
-                st.execute("CREATE TABLE \"" + table
-                        + "\" (ID VARCHAR, EVENT_TYPE VARCHAR, EVENT_DATE VARCHAR)");
-                for (String[] r : rows)
-                    st.execute(String.format(
-                            "INSERT INTO \"%s\" VALUES ('%s','%s','%s')",
-                            table, r[1], key, r[2]));
-            }
-            return new Segment(key, table, new IngestResult(rows.size(), 0, 0));
         }
     }
 
     /** Always throws IOException — simulates an unreadable / corrupt file. */
-    public static class ThrowingIngester implements FileIngester {
+    public static class ThrowingIngester implements StreamingFileIngester {
         @Override
-        public List<Segment> ingest(File file, Connection conn, int srcId, PipelineConfig cfg)
-                throws Exception {
+        public void ingest(File file, RecordSink sink, int srcId, PipelineConfig cfg) throws Exception {
             throw new IOException("Simulated unreadable: " + file.getName());
         }
     }
 
-    /** Creates tables but inserts 0 rows — simulates an event-less file. */
-    public static class ZeroRowIngester implements FileIngester {
+    /** Emits 0 rows — simulates an event-less file (→ QUARANTINED_MISMATCH). */
+    public static class ZeroRowIngester implements StreamingFileIngester {
         @Override
-        public List<Segment> ingest(File file, Connection conn, int srcId, PipelineConfig cfg)
-                throws Exception {
-            try (Statement st = conn.createStatement()) {
-                st.execute("CREATE TABLE \"raw_CALL_f" + srcId
-                        + "\" (ID VARCHAR, EVENT_TYPE VARCHAR, EVENT_DATE VARCHAR)");
-                st.execute("CREATE TABLE \"raw_SMS_f" + srcId
-                        + "\" (ID VARCHAR, EVENT_TYPE VARCHAR, EVENT_DATE VARCHAR)");
-            }
-            return List.of(
-                    new Segment("CALL", "raw_CALL_f" + srcId, new IngestResult(0, 0, 0)),
-                    new Segment("SMS",  "raw_SMS_f"  + srcId, new IngestResult(0, 0, 0)));
+        public void ingest(File file, RecordSink sink, int srcId, PipelineConfig cfg) {
+            // no emits
         }
     }
 
@@ -85,15 +62,14 @@ class BatchProcessorPluginDeepTest {
      * Selective ingester: throws IOException for files whose name starts with {@code "bad_"};
      * all other files are processed normally (like {@link StubEventIngester}).
      */
-    public static class SelectiveThrowIngester implements FileIngester {
+    public static class SelectiveThrowIngester implements StreamingFileIngester {
         private final StubEventIngester delegate = new StubEventIngester();
 
         @Override
-        public List<Segment> ingest(File file, Connection conn, int srcId, PipelineConfig cfg)
-                throws Exception {
+        public void ingest(File file, RecordSink sink, int srcId, PipelineConfig cfg) throws Exception {
             if (file.getName().startsWith("bad_"))
                 throw new IOException("Selective failure: " + file.getName());
-            return delegate.ingest(file, conn, srcId, cfg);
+            delegate.ingest(file, sink, srcId, cfg);
         }
     }
 
@@ -136,6 +112,32 @@ class BatchProcessorPluginDeepTest {
 
         // Batch audit: SUCCESS
         assertTrue(Files.readString(Path.of(cfg.dirs().batchesFilePath())).contains(",SUCCESS,"));
+    }
+
+    /**
+     * Union-mode consolidation: two members whose CALL rows fall in the <em>same</em> partition
+     * (same date) must union into a single output file containing both members' rows — not one file
+     * per member. This is the behaviour that distinguishes union mode from per-member writing.
+     */
+    @Test
+    void sameDateMembersConsolidateIntoOneFile(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = loadConfig(dir, StubEventIngester.class.getName());
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
+        Path f1 = inbox.resolve("part_a.bin");
+        Path f2 = inbox.resolve("part_b.bin");
+        Files.writeString(f1, "CALL,C001,2020-04-03\n");
+        Files.writeString(f2, "CALL,C002,2020-04-03\n");
+
+        run(cfg, f1.toFile(), f2.toFile());
+
+        // One consolidated CALL file for day=03, holding both members' rows.
+        assertOutputFileCount(cfg, "CALL", 1);
+        assertEquals(2, countDataRowsInOutput(cfg, "CALL"),
+                "both members' rows must land in one consolidated output file");
+        // Lineage attributes the consolidated output to both source files.
+        String lineage = Files.readString(Path.of(cfg.dirs().lineageFilePath()));
+        assertTrue(lineage.contains("part_a.bin") && lineage.contains("part_b.bin"),
+                "lineage must reference both consolidated members");
     }
 
     /**

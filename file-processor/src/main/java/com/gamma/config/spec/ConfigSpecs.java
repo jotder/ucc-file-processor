@@ -85,6 +85,12 @@ public final class ConfigSpecs {
                         "Files larger than this are streamed in bounded chunks to cap scratch; 0 = disabled."),
                 FieldSpec.of("processing.chunking.target_chunk_bytes", "Target chunk size (bytes)", FieldType.LONG,
                         "Approximate size of each chunk when chunking is active; defaults to the threshold."),
+                FieldSpec.withDefault("processing.streaming.large_file_bytes", "Streaming generation-mode threshold (bytes)",
+                        FieldType.LONG, 268_435_456L,
+                        "Plugin-ingester batches whose largest member is >= this run in bounded generation mode (huge files); smaller batches use union mode (many small files packed → one transform/write). 0 = always union."),
+                FieldSpec.withDefault("processing.streaming.flush_records", "Streaming generation row budget",
+                        FieldType.LONG, 5_000_000L,
+                        "Rows per generation flush in generation mode; bounds scratch per generation."),
                 FieldSpec.enumField("output.format", "Output format",
                         List.of("CSV", "PARQUET"), "CSV", "Stage-1 output file format.")
         );

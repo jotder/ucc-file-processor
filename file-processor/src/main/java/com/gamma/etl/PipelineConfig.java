@@ -62,12 +62,18 @@ public final class PipelineConfig {
      * over a virtual-thread executor; default 4); {@code duckdbThreads} caps each batch
      * connection's DuckDB parallelism via {@code PRAGMA threads} ({@code 0} = DuckDB
      * default). Set so {@code threads × duckdbThreads ≈ cores} to avoid oversubscription.
+     *
+     * <p>{@code largeFileBytes} drives the streaming plugin engine's per-batch mode pick: a batch
+     * whose largest member is {@code >= largeFileBytes} runs in bounded <em>generation mode</em>
+     * (huge single files), otherwise <em>union mode</em> (many small files packed → one transform/
+     * write). {@code <= 0} forces union mode always. {@code flushRecords} is the per-generation row
+     * budget used in generation mode.
      */
     @PublicApi(since = "2.0.0")
     public record Processing(int threads, int duckdbThreads, String filePattern,
                              int batchMaxFiles, long batchMaxBytes,
                              boolean duplicateCheckEnabled, String markerExtension,
-                             int retentionDays) {}
+                             int retentionDays, long largeFileBytes, long flushRecords) {}
 
     /**
      * Delimited-text parse settings. {@code engine} is {@code "auto"}/{@code "duckdb"}/
@@ -168,7 +174,7 @@ public final class PipelineConfig {
                 b.batchesFilePath, b.lineageFilePath, b.manifestsDir, b.commitLogPath);
         this.processing = new Processing(b.threads, b.duckdbThreads, b.filePattern,
                 b.batchMaxFiles, b.batchMaxBytes, b.duplicateCheckEnabled,
-                b.markerExtension, b.retentionDays);
+                b.markerExtension, b.retentionDays, b.largeFileBytes, b.flushRecords);
         this.csv = new CsvSettings(b.delimiter, b.skipHeaderLines, b.skipJunkLines,
                 b.skipTailLines, b.skipTailCols, b.hasHeader, b.csvEngine,
                 Collections.unmodifiableList(b.dateFormats),
@@ -292,6 +298,15 @@ public final class PipelineConfig {
             b.batchMaxFiles = toInt(batch.getOrDefault("max_files", 1));
             Object mb = batch.get("max_bytes");
             b.batchMaxBytes = (mb == null) ? Long.MAX_VALUE : Long.parseLong(String.valueOf(mb));
+        }
+
+        // ── streaming plugin engine: mode threshold + generation budget (optional) ──
+        Map<String, Object> streaming = (Map<String, Object>) proc.get("streaming");
+        if (streaming != null) {
+            Object lfb = streaming.get("large_file_bytes");
+            if (lfb != null) b.largeFileBytes = Long.parseLong(String.valueOf(lfb));
+            Object fr = streaming.get("flush_records");
+            if (fr != null) b.flushRecords = Long.parseLong(String.valueOf(fr));
         }
 
         // ── DuckDB engine-resource controls (additive, optional) ───────────────
@@ -490,6 +505,8 @@ public final class PipelineConfig {
         String filePattern   = "glob:**/*.{csv,csv.gz}";
         int    batchMaxFiles   = 1;
         long   batchMaxBytes   = Long.MAX_VALUE;
+        long   largeFileBytes  = 268_435_456L;   // 256 MB: streaming plugin generation-mode threshold
+        long   flushRecords    = 5_000_000L;      // streaming plugin generation row budget
         String duckMemoryLimit;
         String duckTempDirectory;
         String duckMaxTempSize;

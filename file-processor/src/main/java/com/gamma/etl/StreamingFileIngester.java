@@ -5,23 +5,23 @@ import com.gamma.api.PublicApi;
 import java.io.File;
 
 /**
- * Streaming alternative to {@link FileIngester} for custom file formats (binary, proprietary text,
- * ASN.1, …) that are too large to materialise whole. Instead of building complete DuckDB tables for
- * the entire file and returning them, the implementation decodes records and pushes them one at a
- * time into the supplied {@link RecordSink}; the framework owns buffering, the DuckDB writes,
- * transform, partitioned output, and lineage — and flushes bounded "generations" so peak scratch
- * stays bounded regardless of total file size.
+ * The plugin ingestion SPI for custom file formats (binary, proprietary text, ASN.1, delimited, …).
+ * The implementation decodes records and pushes them one at a time into the supplied
+ * {@link RecordSink}; the framework owns buffering, the DuckDB writes, transform, partitioned output,
+ * and lineage. The {@link com.gamma.inspector.StreamingPluginBatchStrategy unified engine} then picks
+ * an execution mode per batch by file size:
  *
- * <h3>When to implement this instead of {@link FileIngester}</h3>
  * <ul>
- *   <li>The input is a single very large file (hundreds of GB / TB) whose decoded rows would not fit
- *       in heap or scratch if fully materialised.</li>
- *   <li>The format is not line-delimited, so the built-in CSV auto-chunker
- *       ({@code processing.chunking}) cannot split it — only your decoder knows where records end.</li>
+ *   <li><b>Union mode</b> (many small files) — each member's records are accumulated and the batch is
+ *       transformed/written once, amortising fixed per-batch cost and consolidating output.</li>
+ *   <li><b>Generation mode</b> (a single very large file, ≥ {@code processing.streaming.large_file_bytes})
+ *       — records flush in bounded "generations" so peak heap and scratch stay bounded regardless of
+ *       total file size.</li>
  * </ul>
- * For modest files, {@link FileIngester} remains perfectly fine and is simpler. Both are discovered
- * the same way — by fully-qualified class name in {@code processing.ingester}. When a class
- * implements <em>both</em> interfaces, the streaming path takes precedence.
+ *
+ * <p>The same ingester serves both modes — you write one decoder and the framework chooses. For
+ * line-delimited CSV the built-in CSV path ({@code processing.engine}/{@code processing.chunking})
+ * remains available; this SPI is for everything else.
  *
  * <h3>Contract</h3>
  * <ul>
@@ -37,8 +37,8 @@ import java.io.File;
  * </ul>
  *
  * <h3>Registration</h3>
- * Identical to {@link FileIngester}: reference the FQCN in the pipeline toon and declare segments.
- * The class must have a public no-arg constructor and be on the fat-JAR classpath.
+ * Reference the FQCN in the pipeline toon and declare segments. The class must have a public no-arg
+ * constructor and be on the fat-JAR classpath.
  * <pre>
  * processing:
  *   ingester: com.acme.AsnCdrIngester   # implements StreamingFileIngester
@@ -48,7 +48,6 @@ import java.io.File;
  * </pre>
  *
  * @see RecordSink
- * @see FileIngester
  */
 @PublicApi(since = "3.10.0")
 public interface StreamingFileIngester {
