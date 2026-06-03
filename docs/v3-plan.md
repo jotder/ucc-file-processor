@@ -8,7 +8,7 @@ sequenced task list. Each milestone is independently releasable as a minor versi
 `3.x` branch, mirroring the 2.x cadence (one minor release per milestone: feature → release
 commit → annotated tag → next `-SNAPSHOT` → fat-JAR from tag → GH release).
 
-Branch is at **`3.11.0`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
+Branch is at **`3.12.0-SNAPSHOT`** (M0 shipped as **v3.0.0**; M1 Metadata Graph as **v3.1.0**;
 M2 Smart Config as **v3.2.0**; M3 Assist platform + `explain-entity` as **v3.3.0**; M4
 `nl-to-schedule` as **v3.4.0**; M5 `suggest-config` + config safety validator as **v3.5.0**; M6
 `kpi-to-sql` + SQL sandbox as **v3.6.0**; M7 `diagnose-and-alert` + failure-event seam as
