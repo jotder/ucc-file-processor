@@ -77,6 +77,70 @@ class ConfigValidatorTest {
                 "Clean config should not emit warnings. Got: " + warnings);
     }
 
+    @Test
+    void oversubscriptionWarningFactorsInSourcesMax(@TempDir Path dir) throws Exception {
+        // Explicit duckdb_threads: sources.max multiplies the worker pressure on top of
+        // threads, and the warning must reflect that combined product.
+        Path schema = writeMinimalSchema(dir);
+        Path pipeline = dir.resolve("pipeline.toon");
+        Files.writeString(pipeline, basePipeline(dir, schema.toString().replace("\\", "/"))
+                .replace("threads: 1", "threads: 4\n  duckdb_threads: 64"));
+        PipelineConfig cfg = PipelineConfig.load(pipeline.toString());
+
+        String prev = System.getProperty("sources.max");
+        System.setProperty("sources.max", "4");
+        try {
+            List<String> warnings = ConfigValidator.validate(cfg);
+            assertTrue(warnings.stream().anyMatch(w -> w.contains("sources.max(4)") && w.contains("oversubscribe")),
+                    "Expected sources.max-factored oversubscription warning. Got: " + warnings);
+        } finally {
+            if (prev == null) System.clearProperty("sources.max"); else System.setProperty("sources.max", prev);
+        }
+    }
+
+    @Test
+    void warnsAutoDuckdbThreadsBlindSpotUnderMultiSource(@TempDir Path dir) throws Exception {
+        // duckdb_threads unset → 0 (auto). The auto cap (cores ÷ threads) ignores sources.max,
+        // so under MultiSourceProcessor with sources.max > 1 it still oversubscribes — surface it.
+        Path schema = writeMinimalSchema(dir);
+        Path pipeline = dir.resolve("pipeline.toon");
+        Files.writeString(pipeline, basePipeline(dir, schema.toString().replace("\\", "/"))
+                .replace("threads: 1", "threads: 2"));
+        PipelineConfig cfg = PipelineConfig.load(pipeline.toString());
+        assertEquals(0, cfg.processing().duckdbThreads(), "default duckdb_threads should be 0 (auto)");
+
+        String prev = System.getProperty("sources.max");
+        System.setProperty("sources.max", "3");
+        try {
+            List<String> warnings = ConfigValidator.validate(cfg);
+            assertTrue(warnings.stream().anyMatch(w -> w.contains("sources.max=3") && w.contains("auto")),
+                    "Expected multi-source auto blind-spot warning. Got: " + warnings);
+        } finally {
+            if (prev == null) System.clearProperty("sources.max"); else System.setProperty("sources.max", prev);
+        }
+    }
+
+    @Test
+    void noBlindSpotWarningWithoutSourcesMax(@TempDir Path dir) throws Exception {
+        // Single-source (no sources.max property): auto duckdb_threads self-manages, so the
+        // multi-source blind-spot warning must NOT fire.
+        Path schema = writeMinimalSchema(dir);
+        Path pipeline = dir.resolve("pipeline.toon");
+        Files.writeString(pipeline, basePipeline(dir, schema.toString().replace("\\", "/"))
+                .replace("threads: 1", "threads: 8"));
+        PipelineConfig cfg = PipelineConfig.load(pipeline.toString());
+
+        String prev = System.getProperty("sources.max");
+        System.clearProperty("sources.max");
+        try {
+            List<String> warnings = ConfigValidator.validate(cfg);
+            assertFalse(warnings.stream().anyMatch(w -> w.contains("sources.max")),
+                    "No sources.max set → no multi-source warning. Got: " + warnings);
+        } finally {
+            if (prev != null) System.setProperty("sources.max", prev);
+        }
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static PipelineConfig loadPipeline(Path dir, Path schema) throws Exception {

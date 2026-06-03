@@ -19,6 +19,9 @@ import java.util.List;
  *       hides explicit-intent typos.</li>
  *   <li>Marker retention shorter than 1 day on a non-trivial pipeline.</li>
  *   <li>{@code threads} set to a value that's inconsistent with batch caps.</li>
+ *   <li>CPU oversubscription — {@code sources.max × threads × duckdb_threads}
+ *       exceeding the core count (explicit cap), or the auto cap's multi-source
+ *       blind spot ({@code duckdb_threads=0} ignores {@code sources.max}).</li>
  *   <li>Plugin path with an empty {@code ingester_config} where a known-binary
  *       ingester class lives.</li>
  * </ul>
@@ -76,20 +79,41 @@ public final class ConfigValidator {
                     "each batch is a single file, so only " + cfg.processing().threads() + "-way file-level parallelism. " +
                     "Raise batch.max_files for intra-batch packing.");
 
-        // CPU oversubscription: concurrent batches (threads) each open a DuckDB connection
-        // that, capped by duckdb_threads, fans out to that many threads. Their product
-        // exceeding the core count oversubscribes the CPU and adds I/O contention.
-        // Only an EXPLICIT positive duckdb_threads can do this now — the default (0) auto-derives
-        // a safe per-batch cap (cores ÷ threads) in BatchIngestStrategy.configure, and -1 is a
-        // deliberate opt-out — so this warning is scoped to explicitly configured values.
+        // CPU oversubscription: concurrent batches each open a DuckDB connection that,
+        // capped by duckdb_threads, fans out to that many threads. The real worker
+        // pressure is sources.max × threads × duckdb_threads (sources.max multiplies when
+        // running under MultiSourceProcessor); its product exceeding the core count
+        // oversubscribes the CPU and adds I/O contention.
+        int cores = Runtime.getRuntime().availableProcessors();
+        // sources.max is a -D JVM property read by MultiSourceProcessor; only present (and
+        // > 1) when several sources share this JVM. Factor it in when explicitly set.
+        Integer sourcesMaxProp = Integer.getInteger("sources.max");
+        int srcFactor = (sourcesMaxProp != null && sourcesMaxProp > 1) ? sourcesMaxProp : 1;
+        String srcPrefix = srcFactor > 1 ? "sources.max(" + srcFactor + ") × " : "";
+
+        // (a) EXPLICIT positive duckdb_threads — the operator pinned a per-batch cap. The
+        // default (0) auto-derives cores ÷ threads in BatchIngestStrategy.configure and -1
+        // opts out, so the verbatim-product warning is scoped to explicit positive values.
         if (cfg.processing().duckdbThreads() > 0) {
-            int cores = Runtime.getRuntime().availableProcessors();
-            int total = cfg.processing().threads() * cfg.processing().duckdbThreads();
+            int total = srcFactor * cfg.processing().threads() * cfg.processing().duckdbThreads();
             if (total > cores)
-                warn(warnings, "processing.threads(" + cfg.processing().threads() + ") × duckdb_threads(" +
+                warn(warnings, srcPrefix + "processing.threads(" + cfg.processing().threads() + ") × duckdb_threads(" +
                         cfg.processing().duckdbThreads() + ") = " + total + " exceeds available cores (" + cores +
                         ") — concurrent batches may oversubscribe the CPU. Lower one so the product " +
                         "is ≈ cores.");
+        }
+
+        // (b) Multi-source blind spot for the auto cap: the default duckdb_threads=0 derives
+        // cores ÷ threads WITHOUT knowledge of sources.max, so under MultiSourceProcessor with
+        // sources.max > 1 the real concurrency is sources.max × threads batches and the auto cap
+        // still oversubscribes by ~sources.max×. Surface the fix (set duckdb_threads explicitly
+        // or lower sources.max) — this is the one case the auto-derive cannot self-manage.
+        if (cfg.processing().duckdbThreads() == 0 && srcFactor > 1) {
+            int suggested = Math.max(1, cores / (srcFactor * cfg.processing().threads()));
+            warn(warnings, "sources.max=" + srcFactor + " with processing.duckdb_threads=0 (auto): the auto " +
+                    "cap (cores ÷ threads) ignores sources.max, so " + srcFactor + " concurrent sources × " +
+                    cfg.processing().threads() + " batch(es) can still oversubscribe the CPU. Set " +
+                    "processing.duckdb_threads ≈ " + suggested + " (cores ÷ (sources.max × threads)) or lower sources.max.");
         }
 
         // Native DuckDB CSV engine forced on a config that strips phantom trailing
