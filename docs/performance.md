@@ -122,6 +122,22 @@ batch (`threads ≤ 1`) still gets all cores. Overrides:
 `ConfigValidator` warns when an *explicit* `threads × duckdb_threads` exceeds the core
 count; the `0` default is self-managing and never trips it.
 
+### Inbox discovery — parallel duplicate check (v3.12.0)
+
+Before any batch runs, `SourceProcessor` scans `dirs.poll` for matching files and drops the
+ones already processed in a prior run. The directory walk is one tree traversal, but the
+per-file duplicate check is a **filesystem stat** (`Files.exists` on the marker mirror under
+`dirs.markers`). On an inbox of tens of thousands of files that stat *latency* — not CPU —
+dominates the scan, and it serialises ahead of the first batch.
+
+The scan is now split: one walk collects the matching regular files, then the marker check
+runs in parallel (`parallelStream`, bounded to ≈ cores by the common pool — each task is a
+single short stat, so briefly parking a carrier is fine and there's no oversubscription).
+`BatchPlanner` re-sorts candidates by path, so parallelising the filter changes nothing about
+batch composition or output. Parallelism is gated on `processing.threads > 1`; a deliberately
+single-threaded run keeps its sequential scan, and it's skipped entirely when
+`duplicate_check.enabled = false` (no stat to do).
+
 ## Resolution — native DuckDB CSV engine (v1.4.0)
 
 `DuckDbCsvIngester` replaces the Java parse+appender loop with DuckDB's native

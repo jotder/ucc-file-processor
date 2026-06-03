@@ -42,4 +42,42 @@ class SourceProcessorPollTest {
             assertEquals(1, w.filter(p -> p.getFileName().toString().endsWith("_out.csv")).count());
         }
     }
+
+    @Test
+    void parallelScanSkipsAlreadyProcessedAndPicksUpNewFiles(@TempDir Path dir) throws Exception {
+        // threads > 1 routes the candidate scan through the parallel duplicate-check
+        // path; verify it still skips marked files exactly and only the newly-arrived
+        // files form a fresh batch on the next poll.
+        String batch = """
+              batch:
+                max_files: 100
+                max_bytes: 268435456
+            """;
+        Path toon = PipelineConfigBatchTestRef.writePipeline(dir, batch);
+        PipelineConfig cfg = PipelineConfig.load(toon.toString());
+        assertTrue(cfg.processing().threads() > 1, "default config should use > 1 thread");
+
+        Path inbox = Path.of(cfg.dirs().poll());
+        Files.createDirectories(inbox);
+        for (int i = 0; i < 30; i++)
+            Files.writeString(inbox.resolve("a" + i + ".csv"),
+                    "ID,AMT,EVENT_DATE\nr" + i + ",1.0,2020-04-03\n");
+
+        SourceProcessor.run(cfg);                              // processes all 30 → 1 batch
+        String afterFirst = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
+        assertEquals(2, afterFirst.split("\n").length, "header + 1 batch row");
+
+        // No new files: parallel scan finds every candidate already marked → no-op.
+        SourceProcessor.run(cfg);
+        assertEquals(afterFirst, Files.readString(Path.of(cfg.dirs().batchesFilePath())),
+                "re-run with all files marked must add no batch rows");
+
+        // Add 4 new files among the 30 marked ones: only the new ones get processed.
+        for (int i = 0; i < 4; i++)
+            Files.writeString(inbox.resolve("b" + i + ".csv"),
+                    "ID,AMT,EVENT_DATE\nn" + i + ",2.0,2020-04-04\n");
+        SourceProcessor.run(cfg);
+        String afterThird = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
+        assertEquals(3, afterThird.split("\n").length, "header + 2 batch rows (1 per run that found work)");
+    }
 }

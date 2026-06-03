@@ -73,6 +73,18 @@ warns only when an *explicit* `threads × duckdb_threads` exceeds the core count
 (the `0` default is self-managing). **Auto-derive added v3.12.0** — before that, `0`
 left DuckDB's default unconditionally.
 
+**Parallel inbox discovery — ✅ DONE (v3.12.0).** The candidate scan that precedes
+batch submission now does the per-file duplicate check in parallel. The walk of
+`dirs.poll` is one traversal, but each surviving file costs a `Files.exists` stat on its
+marker mirror under `dirs.markers`; on a large inbox that *stat latency* serialises ahead
+of the first batch. `SourceProcessor.run` splits it — one walk collects the matching
+regular files, then `parallelStream` filters out the already-processed ones (bounded to
+≈ cores by the common pool; one short stat per task, no oversubscription). `BatchPlanner`
+re-sorts by path, so parallelising the filter cannot change batch composition or output.
+Gated on `processing.threads > 1` (a single-threaded run keeps the sequential scan) and
+skipped when `duplicate_check.enabled = false`. New deps: none; covered by
+`SourceProcessorPollTest`.
+
 The pre-ETL utilities still use `VirtualThreadRunner` + `Phaser` (uncapped); that's
 fine — they're operator-supervised staging tools, not the high-throughput path.
 

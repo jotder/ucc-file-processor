@@ -11,6 +11,7 @@ import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -68,15 +69,36 @@ public class SourceProcessor {
         MarkerManager.cleanupStaleMarkers(cfg);
 
         // ── collect candidates (skip already-processed) ──────────────────────────
-        List<File> candidates = new ArrayList<>();
+        // The walk is one tree traversal, but the per-file duplicate check is a
+        // filesystem stat (Files.exists on the marker mirror). On a large inbox that
+        // stat latency dominates the scan, so we split it in two: collect matching
+        // regular files in a single walk, then run the duplicate check in parallel.
+        // BatchPlanner re-sorts candidates by path, so scan order need not be
+        // preserved. Parallelism is gated on processing.threads (> 1) so a
+        // deliberately single-threaded run keeps its sequential scan.
+        List<File> matched = new ArrayList<>();
         try (Stream<Path> walk = Files.walk(root)) {
             walk.filter(Files::isRegularFile)
                 .filter(p -> !p.startsWith(errorsDir))
                 .filter(p -> !p.startsWith(quarantineDir))
                 .filter(matcher::matches)
                 .map(Path::toFile)
-                .filter(f -> !MarkerManager.isAlreadyProcessed(f, cfg))
-                .forEach(candidates::add);
+                .forEach(matched::add);
+        }
+
+        List<File> candidates;
+        if (!cfg.processing().duplicateCheckEnabled()) {
+            candidates = matched;                       // no marker stat to do
+        } else if (matched.size() > 1 && cfg.processing().threads() > 1) {
+            // Bounded by the common ForkJoinPool (≈ cores); each task is one short
+            // stat, so parking carriers briefly is fine and we avoid oversubscription.
+            candidates = matched.parallelStream()
+                    .filter(f -> !MarkerManager.isAlreadyProcessed(f, cfg))
+                    .collect(Collectors.toCollection(ArrayList::new));
+        } else {
+            candidates = new ArrayList<>(matched.size());
+            for (File f : matched)
+                if (!MarkerManager.isAlreadyProcessed(f, cfg)) candidates.add(f);
         }
 
         if (candidates.isEmpty()) {
