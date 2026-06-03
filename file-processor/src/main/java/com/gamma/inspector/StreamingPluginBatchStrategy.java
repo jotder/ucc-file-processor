@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static com.gamma.inspector.BatchIngestStrategy.configure;
 import static com.gamma.inspector.BatchIngestStrategy.dropTable;
+import static com.gamma.inspector.BatchIngestStrategy.dropView;
 import static com.gamma.inspector.BatchIngestStrategy.msg;
 import static com.gamma.inspector.BatchIngestStrategy.openTempDb;
 
@@ -238,25 +239,32 @@ final class StreamingPluginBatchStrategy implements BatchIngestStrategy {
                         Map<Integer, String> contribs = tablesBySeg.get(segKey);
                         if (contribs == null || contribs.isEmpty()) continue;
 
+                        // Consolidate the per-member raw tables through a lazy UNION ALL
+                        // *view* rather than copying every member's rows into a physical
+                        // raw_<KEY> table first. The single transform below pulls the union
+                        // through, so the batch is materialised once (transformed_<KEY>)
+                        // instead of twice (raw_<KEY> + transformed_<KEY>) — peak scratch
+                        // drops by ~1× the segment's data and the redundant copy is gone.
+                        // Mirrors the CSV streaming-UNION path (CsvBatchStrategy). The member
+                        // tables must outlive the transform (the view reads them), so they're
+                        // dropped only after the write/lineage below.
                         String unionTable = "raw_" + segKey;
-                        boolean unionCreated = false;
+                        List<String> memberTables = new ArrayList<>();
                         Map<Integer, String> segSrcToFile = new LinkedHashMap<>();
                         for (Map.Entry<Integer, String> ce : contribs.entrySet()) {
-                            int    srcId       = ce.getKey();
-                            String memberTable = ce.getValue();   // already carries __src_id
-                            try (Statement st = conn.createStatement()) {
-                                if (!unionCreated) {
-                                    st.execute("CREATE TABLE \"" + unionTable + "\" AS SELECT * FROM \""
-                                            + memberTable + "\" WHERE false");
-                                    unionCreated = true;
-                                }
-                                st.execute("INSERT INTO \"" + unionTable + "\" SELECT * FROM \""
-                                        + memberTable + "\"");
-                            }
-                            dropTable(conn, memberTable);
-                            segSrcToFile.put(srcId, srcIdToFile.get(srcId));
+                            memberTables.add(ce.getValue());   // already carries __src_id
+                            segSrcToFile.put(ce.getKey(), srcIdToFile.get(ce.getKey()));
                         }
-                        if (!unionCreated) continue;
+                        if (memberTables.isEmpty()) continue;
+
+                        StringBuilder union = new StringBuilder();
+                        for (int i = 0; i < memberTables.size(); i++) {
+                            if (i > 0) union.append(" UNION ALL ");
+                            union.append("SELECT * FROM \"").append(memberTables.get(i)).append("\"");
+                        }
+                        try (Statement st = conn.createStatement()) {
+                            st.execute("CREATE VIEW \"" + unionTable + "\" AS " + union);
+                        }
 
                         String destTable = "transformed_" + segKey;
                         DataTransformer.materialize(conn, segSchema, cfg, unionTable, destTable);
@@ -280,7 +288,8 @@ final class StreamingPluginBatchStrategy implements BatchIngestStrategy {
                         allOutputs.addAll(segOutputs);
                         allLineage.addAll(segLineage);
 
-                        dropTable(conn, unionTable);
+                        dropView(conn, unionTable);
+                        for (String mt : memberTables) dropTable(conn, mt);
                         dropTable(conn, destTable);
                     }
                 }

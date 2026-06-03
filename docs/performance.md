@@ -231,9 +231,13 @@ Custom (binary / proprietary / ASN.1) files go through the single `StreamingFile
 framework picks an execution mode per batch by file size (`processing.streaming.large_file_bytes`,
 default 256 MB):
 
-- **Union mode** (many small files) — members accumulate into per-member raw tables, then one
-  transform/write per batch. Output is **consolidated** (one set of partition files), and the fixed
-  per-batch cost is amortised across all packed files (raise `processing.batch.max_files`).
+- **Union mode** (many small files) — members accumulate into per-member raw tables, which are then
+  consolidated through a lazy `UNION ALL` **view** (since v3.12.0) that one transform/write pulls
+  through per batch. Output is **consolidated** (one set of partition files), and the fixed per-batch
+  cost is amortised across all packed files (raise `processing.batch.max_files`). The view replaced an
+  intermediate physical `raw_<KEY>` table that every member's rows were copied into before transform,
+  so the batch now materialises once (`transformed_<KEY>`) instead of twice — peak scratch drops by
+  ~1× the segment's data and a full copy pass is gone. Mirrors the native CSV streaming-UNION path.
 - **Generation mode** (a huge single file) — records flush in bounded generations (default 5M rows via
   `processing.streaming.flush_records`); peak heap and scratch stay bounded regardless of total size,
   without any auto-chunker (which can't split an opaque format).

@@ -43,6 +43,13 @@ interface BatchIngestStrategy {
         } catch (Exception ignored) { }
     }
 
+    /** Best-effort {@code DROP VIEW IF EXISTS}, swallowing any error. */
+    static void dropView(Connection conn, String view) {
+        try (Statement st = conn.createStatement()) {
+            st.execute("DROP VIEW IF EXISTS \"" + view + "\"");
+        } catch (Exception ignored) { }
+    }
+
     /** A non-null message for an exception, falling back to its simple class name. */
     static String msg(Exception e) {
         return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();

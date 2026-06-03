@@ -328,6 +328,12 @@ framework choose an execution **mode per batch by file size**:
     each segment's per-member tables into `raw_<KEY>` and transforms/writes/lineages **once** for the
     batch — the old `PluginBatchStrategy` union semantics, now fed by `emit`. The member tables already
     carry `__src_id`, so the union is `SELECT *` (no synthetic-column step the old path needed).
+    **Refined v3.12.0:** `raw_<KEY>` is now a lazy `UNION ALL` **view** over the per-member tables
+    rather than a physical table the members are `INSERT`-copied into. The single transform pulls the
+    view through, so the batch materialises once (`transformed_<KEY>`) instead of twice — peak scratch
+    drops ~1× the segment's data and the redundant copy pass is gone (the member tables outlive the
+    transform and are dropped after write/lineage). Same change as the native CSV streaming-UNION path
+    (`CsvBatchStrategy.unionStreamingIngest`); the `dropView` helper is now shared on `BatchIngestStrategy`.
 - `BatchProcessor` routing collapses to: no ingester → CSV; else → `StreamingPluginBatchStrategy`
   (which self-selects the mode). The `isStreamingIngester` interface sniff is gone.
 - New `.toon` surface (additive within the new SPI): `processing.streaming.large_file_bytes` and

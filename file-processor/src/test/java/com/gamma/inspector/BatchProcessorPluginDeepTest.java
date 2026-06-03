@@ -141,6 +141,35 @@ class BatchProcessorPluginDeepTest {
     }
 
     /**
+     * Union mode consolidates members through an N-way {@code UNION ALL} view (not a
+     * physical raw table). Three members on the same date must all flow through that
+     * view into one consolidated output file with every row conserved — exercises the
+     * multi-way view chain beyond the 2-member case above.
+     */
+    @Test
+    void threeMembersConsolidateThroughUnionViewConservingRows(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = loadConfig(dir, StubEventIngester.class.getName());
+        Path inbox = Files.createDirectories(Path.of(cfg.dirs().poll()));
+        Path f1 = inbox.resolve("m1.bin");
+        Path f2 = inbox.resolve("m2.bin");
+        Path f3 = inbox.resolve("m3.bin");
+        Files.writeString(f1, "CALL,C001,2020-04-03\n");
+        Files.writeString(f2, "CALL,C002,2020-04-03\nCALL,C003,2020-04-03\n");
+        Files.writeString(f3, "CALL,C004,2020-04-03\n");
+
+        run(cfg, f1.toFile(), f2.toFile(), f3.toFile());
+
+        // One consolidated CALL file holding all 4 rows from the 3 members.
+        assertOutputFileCount(cfg, "CALL", 1);
+        assertEquals(4, countDataRowsInOutput(cfg, "CALL"),
+                "all rows from 3 members must survive the union view");
+        String lineage = Files.readString(Path.of(cfg.dirs().lineageFilePath()));
+        assertTrue(lineage.contains("m1.bin") && lineage.contains("m2.bin") && lineage.contains("m3.bin"),
+                "lineage must reference all three consolidated members");
+        assertTrue(Files.readString(Path.of(cfg.dirs().batchesFilePath())).contains(",SUCCESS,"));
+    }
+
+    /**
      * A member whose ingester throws IOException is quarantined as QUARANTINED_UNREADABLE.
      * When all members fail the batch-level status is EMPTY (no survivors).
      */
