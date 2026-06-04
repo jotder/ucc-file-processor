@@ -34,6 +34,10 @@
         <!-- All AI/LLM deps are pinned here, in the optional module only. CVE-scan this tree
              (SBOM) — it never reaches the lean core fat-JAR. -->
         <langchain4j.version>1.15.1</langchain4j.version>
+        <!-- agent-kernel (U1): the reusable agent core. Consumed ONLY by this module — the lean
+             core (file-processor) takes no kernel dependency. 0.x is resolved from local .m2
+             (SNAPSHOT); the GitHub Packages repository is wired once the kernel is published. -->
+        <agentkernel.version>0.1.0-SNAPSHOT</agentkernel.version>
     </properties>
 
     <dependencies>
@@ -41,6 +45,19 @@
             <groupId>com.gamma.inspector</groupId>
             <artifactId>file-processor</artifactId>
             <version>${project.version}</version>
+        </dependency>
+
+        <!-- agent-kernel: ring-1 core + the Ollama provider companion (U1). Kernel types live ONLY
+             in this module, behind the AssistAgent SPI; the lean core never sees them. -->
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-kernel-core</artifactId>
+            <version>${agentkernel.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-provider-ollama</artifactId>
+            <version>${agentkernel.version}</version>
         </dependency>
 
         <!-- LangChain4j + Ollama: local-first model access behind the ModelProvider seam. -->
