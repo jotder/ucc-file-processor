@@ -376,7 +376,7 @@ A **new** agent: depend on `agent-kernel` (+ a provider module), write N capabil
 - **U0 — Eval net.** Golden fixtures for the 7 capabilities (KPI→SQL etc.) against a `FakeModelProvider`; establishes the regression baseline. *(Gap E)*
 - **U1 — Consume the kernel.** `file-processor-agent` depends on the published kernel (`0.x-SNAPSHOT`). The 7 skills become `Capability` impls; `UccAgentContext` implements `AgentContext`; `NarrativeGuard`→`GroundingGuard`; `SqlOracle`/etc. become `Tool`s. **Reshape** the core assist SPI (`AssistResult.confidence` `String`→`double`, richer status); `ControlApi` maps at the HTTP boundary. Wire real confidence + the **abstain** escalation rung. Update the suite for the reshaped API (target: full suite green). *(Gaps A, B, C, D, G, H)* → cut **UCC 4.0**.
 
-**Reuse phase (driven by the 2nd consumer — rule of three)**
+**Reuse phase (driven by the 2nd consumer — rule of three)** — detailed in [`AGENT_KERNEL_R1_PLAN.md`](AGENT_KERNEL_R1_PLAN.md)
 - **R1 — Companion modules + 1.0.** When CVVE or CxO first builds on the kernel, add the ring-2 modules it needs (`agent-kernel-spring`, `agent-store-postgres`, `agent-hitl`, `agent-orchestration`, `agent-provider-langchain4j`) and let that real usage reshape the API before freezing kernel **`1.0`**. UCC then upgrades to `1.0` at its own pace.
 
 The ETL *engine* (data path) is untouched throughout; only the assist SPI contract is reshaped.

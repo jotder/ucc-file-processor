@@ -422,7 +422,7 @@ public final class EvalCaseLoader {               // fixtures as classpath JSON 
 
 ## 5. Explicitly NOT in K0/K1 (later phases)
 
-- `agent-kernel-spring`, `agent-store-postgres`, `agent-hitl`, `agent-orchestration`, `agent-provider-langchain4j` → **R1**, driven by the first CVVE/CxO build.
+- `agent-kernel-spring`, `agent-store-postgres`, `agent-hitl`, `agent-orchestration`, `agent-provider-langchain4j` → **R1** (detailed in [`AGENT_KERNEL_R1_PLAN.md`](AGENT_KERNEL_R1_PLAN.md)), driven by the first CVVE/CxO build.
 - **The sync orchestrator** (run-capability → estimate-confidence → escalate → ground → audit pipeline) → **deferred to R1** (locked). K1 ships the *ingredients* — `EscalationPolicy`, `ConfidenceEstimator`, `GroundingGuard`, `Deadline`, `RepairLoop`, `AuditSink` — and `CapabilityRegistry.dispatch()` for plain dispatch, but **not** the assembled pipeline. UCC keeps running its own in-module orchestrator until R1 lands the shared one (then U-phase swaps it in). Rationale: the orchestrator is exactly the part most likely to be reshaped by the 2nd consumer (async/state-machine for CVVE, streaming for CxO), so freezing it on UCC alone is premature.
 - Any change to `ucc-file-processor` → **U0/U1** (separate plan: [`AGENT_KERNEL_U0_U1_PLAN.md`](AGENT_KERNEL_U0_U1_PLAN.md)). **U0 includes the Java 24→25 bump** (kernel-floor prerequisite).
 - Kernel `1.0` API freeze → after a 2nd consumer reshapes the API.
