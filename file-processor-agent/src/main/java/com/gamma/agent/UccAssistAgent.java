@@ -5,9 +5,9 @@ import com.gamma.agent.diagnose.FailureReactor;
 import com.gamma.agent.diagnose.ModelDiagnoser;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
+import com.gamma.agentkernel.retrieve.DocRetriever;
 import com.gamma.agent.skill.AssistContext;
 import com.gamma.agent.skill.DiagnoseAndAlertSkill;
-import com.gamma.agent.skill.DocRetriever;
 import com.gamma.agent.skill.ExplainEntitySkill;
 import com.gamma.agent.skill.KpiToSqlSkill;
 import com.gamma.agent.skill.NlToScheduleSkill;
@@ -23,6 +23,7 @@ import com.gamma.service.SourceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -76,7 +77,7 @@ public final class UccAssistAgent implements AssistAgent {
 
     @Override
     public void init(SourceService service) {
-        DocRetriever docs = DocRetriever.fromEnvironment();
+        DocRetriever docs = DocRetriever.fromDir(docsDir());
         this.context = new AssistContext(service.catalog(), service.reports(),
                 service.statusStore(), docs, router, service.configSource());
         this.registry = new SkillRegistry(List.of(
@@ -113,6 +114,16 @@ public final class UccAssistAgent implements AssistAgent {
             log.warn("assist intent '{}' failed", request.intent(), e);
             return AssistResult.unavailable(request.intent(), "assist error: " + e.getMessage());
         }
+    }
+
+    /**
+     * Resolve the docs-RAG corpus directory from {@code -Dassist.docs.dir} (default {@code docs/} under
+     * the working dir). The kernel {@link DocRetriever} stays config-neutral, so this UCC-facing knob is
+     * resolved here and handed to {@link DocRetriever#fromDir}.
+     */
+    private static Path docsDir() {
+        String d = System.getProperty("assist.docs.dir");
+        return Path.of(d == null || d.isBlank() ? "docs" : d);
     }
 
     /** One audit event per call — agent-<em>suggested</em>, never applied (read-only in M3). */

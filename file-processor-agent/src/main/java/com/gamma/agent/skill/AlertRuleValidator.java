@@ -1,5 +1,6 @@
 package com.gamma.agent.skill;
 
+import com.gamma.agentkernel.reason.RepairLoop;
 import com.gamma.config.spec.Finding;
 
 import java.util.ArrayList;

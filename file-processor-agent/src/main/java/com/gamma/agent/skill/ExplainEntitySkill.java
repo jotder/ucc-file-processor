@@ -3,6 +3,8 @@ package com.gamma.agent.skill;
 import com.gamma.agentkernel.model.ModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelTier;
+import com.gamma.agentkernel.retrieve.ContextBudget;
+import com.gamma.agentkernel.tool.Evidence;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.AssistResult.Citation;
@@ -95,9 +97,10 @@ public final class ExplainEntitySkill implements Skill {
         }
 
         // ── Docs RAG (optional grounding) ──
-        for (DocRetriever.Snippet s : ctx.docs().retrieve(question + " " + headline, MAX_DOC_SNIPPETS)) {
-            context.append("DOC[").append(s.file()).append("]: ").append(s.text()).append('\n');
-            citations.add(new Citation("doc", s.file()));
+        for (Evidence ev : ctx.docs().retrieve(question + " " + headline,
+                new ContextBudget(0, MAX_DOC_SNIPPETS * 200, 0))) {
+            context.append("DOC[").append(ev.sourceRef()).append("]: ").append(ev.value()).append('\n');
+            citations.add(new Citation("doc", ev.sourceRef()));
         }
 
         String prompt = "QUESTION: " + question + "\n\nCONTEXT:\n" + context;

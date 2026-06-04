@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.agentkernel.model.ModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelTier;
+import com.gamma.agentkernel.reason.RepairLoop;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.AssistResult.Citation;

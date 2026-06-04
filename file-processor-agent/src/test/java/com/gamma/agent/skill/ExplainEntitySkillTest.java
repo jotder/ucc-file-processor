@@ -4,6 +4,7 @@ import com.gamma.agent.AgentTestConfigs;
 import com.gamma.agent.model.FakeModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelRouter;
+import com.gamma.agentkernel.retrieve.DocRetriever;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.service.SourceService;

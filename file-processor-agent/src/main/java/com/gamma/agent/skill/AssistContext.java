@@ -1,6 +1,7 @@
 package com.gamma.agent.skill;
 
 import com.gamma.agentkernel.model.ModelRouter;
+import com.gamma.agentkernel.retrieve.DocRetriever;
 import com.gamma.catalog.ConfigSource;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.report.ReportService;
