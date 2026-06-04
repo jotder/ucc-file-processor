@@ -1,0 +1,8 @@
+[
+  {
+    "name": "unknown-intent-is-unsupported",
+    "capabilityId": "no-such-skill",
+    "input": { "userText": "anything" },
+    "expect": { "status": "UNSUPPORTED" }
+  }
+]

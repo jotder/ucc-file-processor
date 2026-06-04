@@ -1,0 +1,23 @@
+[
+  {
+    "name": "returns-grounded-narrative",
+    "capabilityId": "report-narrative",
+    "input": { "screenContext": { "reportType": "service" } },
+    "model": { "response": "No batches have run yet: 0 total, 0 succeeded, 0 failed." },
+    "expect": {
+      "status": "OK",
+      "requiredDataKeys": ["reportType", "grounded", "narrative"]
+    }
+  },
+  {
+    "name": "template-fallback-when-model-unavailable",
+    "capabilityId": "report-narrative",
+    "input": { "screenContext": { "reportType": "service" } },
+    "model": { "available": false },
+    "comment": "report-narrative is abstain-safe via a deterministic template fallback (M8): with no model it still returns a grounded OK narrative, it does NOT go UNAVAILABLE.",
+    "expect": {
+      "status": "OK",
+      "requiredDataKeys": ["reportType", "grounded", "narrative"]
+    }
+  }
+]

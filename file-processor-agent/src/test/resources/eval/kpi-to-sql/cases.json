@@ -1,0 +1,33 @@
+[
+  {
+    "name": "returns-validated-draft-sql-cites-catalog",
+    "capabilityId": "kpi-to-sql",
+    "input": {
+      "screenContext": {
+        "kpiDescription": "count of mini events",
+        "catalogRefs": ["event:mini_etl/mini"]
+      }
+    },
+    "model": {
+      "response": "{\"sql\":\"SELECT COUNT(*) AS n FROM mini\",\"logicExplanation\":\"count the mini events\",\"chosenJoinKeys\":[],\"kpiInterpretation\":\"total number of mini events\",\"enrichmentConfigSnippet\":\"SELECT COUNT(*) AS n FROM mini\"}"
+    },
+    "expect": {
+      "status": "OK",
+      "mustValidate": true,
+      "requiredDataKeys": ["sql"],
+      "requiredCitationRefs": ["event:mini_etl/mini"]
+    }
+  },
+  {
+    "name": "abstains-when-model-unavailable",
+    "capabilityId": "kpi-to-sql",
+    "input": {
+      "screenContext": {
+        "kpiDescription": "count of mini events",
+        "catalogRefs": ["event:mini_etl/mini"]
+      }
+    },
+    "model": { "available": false },
+    "expect": { "mustAbstainWhenNoData": true }
+  }
+]

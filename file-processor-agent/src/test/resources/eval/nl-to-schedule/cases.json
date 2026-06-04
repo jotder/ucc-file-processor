@@ -1,0 +1,22 @@
+[
+  {
+    "name": "returns-validated-draft-schedule",
+    "capabilityId": "nl-to-schedule",
+    "input": { "userText": "every weekday at 6am" },
+    "model": {
+      "response": "{\"name\":\"weekday-report\",\"cron\":\"0 6 * * MON-FRI\",\"job_type\":\"report\"}"
+    },
+    "expect": {
+      "status": "OK",
+      "mustValidate": true,
+      "requiredDataKeys": ["cron", "humanReadable", "nextRuns", "draftToon"]
+    }
+  },
+  {
+    "name": "abstains-when-model-unavailable",
+    "capabilityId": "nl-to-schedule",
+    "input": { "userText": "every weekday at 6am" },
+    "model": { "available": false },
+    "expect": { "mustAbstainWhenNoData": true }
+  }
+]
