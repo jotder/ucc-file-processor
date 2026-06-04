@@ -113,7 +113,7 @@ class PluginIngestBenchmark {
         long t = System.nanoTime();
         IngestOutcome out = call.run();
         double sec = secs(t);
-        sampler.stop();
+        sampler.stopSampling();
         sampler.join();
 
         if (!"SUCCESS".equals(out.status()))
@@ -135,7 +135,7 @@ class PluginIngestBenchmark {
         volatile boolean running = true;
         long peak;
         HeapSampler(long base) { this.peak = base; setDaemon(true); }
-        void stop()  { running = false; }
+        void stopSampling()  { running = false; }
         @Override public void run() {
             while (running) {
                 long u = usedHeap();
