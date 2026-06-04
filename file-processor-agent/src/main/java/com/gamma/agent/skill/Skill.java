@@ -1,6 +1,6 @@
 package com.gamma.agent.skill;
 
-import com.gamma.agent.model.ModelTier;
+import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 

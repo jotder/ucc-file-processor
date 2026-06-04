@@ -3,7 +3,8 @@ package com.gamma.agent;
 import com.gamma.agent.diagnose.DiagnosisStore;
 import com.gamma.agent.diagnose.FailureReactor;
 import com.gamma.agent.diagnose.ModelDiagnoser;
-import com.gamma.agent.model.ModelRouter;
+import com.gamma.agentkernel.model.ModelRouter;
+import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
 import com.gamma.agent.skill.AssistContext;
 import com.gamma.agent.skill.DiagnoseAndAlertSkill;
 import com.gamma.agent.skill.DocRetriever;
@@ -54,7 +55,7 @@ public final class UccAssistAgent implements AssistAgent {
 
     /** {@code ServiceLoader} entry point: model router resolved from the environment (abstain-safe). */
     public UccAssistAgent() {
-        this(ModelRouter.fromEnvironment());
+        this(OllamaModelProvider.fromEnvironment());
     }
 
     /** Test/embedder entry point: inject a router (e.g. a fake-backed one) for deterministic runs. */

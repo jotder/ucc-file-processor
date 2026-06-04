@@ -1,6 +1,6 @@
 package com.gamma.agent;
 
-import com.gamma.agent.model.ModelRouter;
+import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,7 +40,7 @@ class EgressGuardTest {
     @Test
     void defaultEnvironmentContactsNoModel() {
         // No -Dassist.* configured (the CI/vanilla case) -> nothing is available, so nothing is called.
-        assertFalse(ModelRouter.fromEnvironment().anyAvailable(),
+        assertFalse(OllamaModelProvider.fromEnvironment().anyAvailable(),
                 "assist is off by default — local-first, opt-in");
     }
 }

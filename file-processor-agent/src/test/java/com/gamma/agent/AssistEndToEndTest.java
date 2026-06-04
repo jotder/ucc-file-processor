@@ -3,7 +3,7 @@ package com.gamma.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.agent.model.FakeModelProvider;
-import com.gamma.agent.model.ModelRouter;
+import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.control.ControlApi;
 import com.gamma.etl.BatchEvent;
 import com.gamma.service.SourceService;

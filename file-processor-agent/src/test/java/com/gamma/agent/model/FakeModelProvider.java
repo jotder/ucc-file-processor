@@ -1,11 +1,18 @@
 package com.gamma.agent.model;
 
+import com.gamma.agentkernel.model.ModelProvider;
+import com.gamma.agentkernel.model.ModelRequest;
+import com.gamma.agentkernel.model.ModelResponse;
+
 import java.util.function.Function;
 
 /**
- * Deterministic in-memory {@link ModelProvider} for CPU-only tests (v3.3.0). It never touches the
- * network, so golden tests run with no GPU/Ollama. The response is computed by a supplied function
- * of the {@link ModelRequest}, making outputs fixed and assertable.
+ * Deterministic in-memory {@link ModelProvider} for CPU-only tests. It never touches the network, so
+ * golden tests run with no GPU/Ollama. The response text is computed by a supplied function of the
+ * {@link ModelRequest}; {@link #generate} wraps it as a {@link ModelResponse} (token usage unknown).
+ *
+ * <p>Migrated to the agent-kernel {@code ModelProvider} SPI at U1: {@code generate} returns a
+ * {@link ModelResponse} rather than a bare {@code String}.
  */
 public final class FakeModelProvider implements ModelProvider {
 
@@ -43,8 +50,8 @@ public final class FakeModelProvider implements ModelProvider {
     @Override public boolean available() { return available; }
 
     @Override
-    public String generate(ModelRequest request) {
+    public ModelResponse generate(ModelRequest request) {
         if (!available) throw new IllegalStateException("fake model is down");
-        return responder.apply(request);
+        return ModelResponse.of(responder.apply(request));
     }
 }

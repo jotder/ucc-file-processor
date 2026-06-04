@@ -1,7 +1,7 @@
 package com.gamma.agent.skill;
 
-import com.gamma.agent.model.ModelRequest;
-import com.gamma.agent.model.ModelRouter;
+import com.gamma.agentkernel.model.ModelRequest;
+import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agent.model.FakeModelProvider;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;

@@ -2,9 +2,9 @@ package com.gamma.agent.skill;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gamma.agent.model.ModelProvider;
-import com.gamma.agent.model.ModelRequest;
-import com.gamma.agent.model.ModelTier;
+import com.gamma.agentkernel.model.ModelProvider;
+import com.gamma.agentkernel.model.ModelRequest;
+import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.AssistResult.Citation;
@@ -100,9 +100,9 @@ public final class NlToScheduleSkill implements Skill {
 
         // ── tier routing: plain → SMALL, compositional/relative/timezone → MEDIUM (V-5/V-8) ──
         ModelTier chosen = routeTier(userText);
-        ModelProvider model = ctx.models().provider(chosen);
+        ModelProvider model = ctx.models().providerFor(chosen);
         if (!model.available() && chosen == ModelTier.SMALL) {
-            ModelProvider medium = ctx.models().provider(ModelTier.MEDIUM);
+            ModelProvider medium = ctx.models().providerFor(ModelTier.MEDIUM);
             if (medium.available()) { model = medium; chosen = ModelTier.MEDIUM; }
         }
         if (!model.available()) {
@@ -124,7 +124,7 @@ public final class NlToScheduleSkill implements Skill {
         RepairLoop.Result<Draft> result = RepairLoop.run(MAX_REPAIR_ROUNDS,
                 feedback -> {
                     String prompt = (feedback == null) ? basePrompt : basePrompt + "\n\n" + feedback;
-                    return m.generate(ModelRequest.json(t, SYSTEM, prompt));
+                    return m.generate(ModelRequest.json(t, SYSTEM, prompt)).text();
                 },
                 raw -> parseAndValidate(raw, pipelineIdByName.keySet()));
 

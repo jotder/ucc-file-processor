@@ -2,9 +2,9 @@ package com.gamma.agent.skill;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gamma.agent.model.ModelProvider;
-import com.gamma.agent.model.ModelRequest;
-import com.gamma.agent.model.ModelTier;
+import com.gamma.agentkernel.model.ModelProvider;
+import com.gamma.agentkernel.model.ModelRequest;
+import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.AssistResult.Citation;
@@ -99,7 +99,7 @@ public final class SuggestConfigSkill implements Skill {
             return AssistResult.unavailable(ID, "unknown config type '" + type + "'");
         }
 
-        ModelProvider model = ctx.models().provider(tier());
+        ModelProvider model = ctx.models().providerFor(tier());
         if (!model.available()) {
             return AssistResult.unavailable(ID,
                     "the assist model (tier " + tier() + ") is not available — enable the assist "
@@ -124,7 +124,7 @@ public final class SuggestConfigSkill implements Skill {
         RepairLoop.Result<Draft> result = RepairLoop.run(MAX_REPAIR_ROUNDS,
                 feedback -> {
                     String prompt = (feedback == null) ? basePrompt : basePrompt + "\n\n" + feedback;
-                    return model.generate(ModelRequest.json(tier(), SYSTEM, prompt));
+                    return model.generate(ModelRequest.json(tier(), SYSTEM, prompt)).text();
                 },
                 raw -> parseAndValidate(raw, t, spec, base));
 

@@ -2,9 +2,9 @@ package com.gamma.agent.skill;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gamma.agent.model.ModelProvider;
-import com.gamma.agent.model.ModelRequest;
-import com.gamma.agent.model.ModelTier;
+import com.gamma.agentkernel.model.ModelProvider;
+import com.gamma.agentkernel.model.ModelRequest;
+import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.AssistResult.Citation;
@@ -92,7 +92,7 @@ public final class ReportNarrativeSkill implements Skill {
         String reportJson = writeJson(report);
         List<Citation> citations = List.of(new Citation("report", label));
 
-        ModelProvider model = ctx.models() == null ? null : ctx.models().provider(tier());
+        ModelProvider model = ctx.models() == null ? null : ctx.models().providerFor(tier());
         if (model == null || !model.available()) {
             // Abstain-safe: a deterministic, grounded-by-construction narrative from the report fields.
             String narrative = templateNarrative(label, report);
@@ -104,7 +104,7 @@ public final class ReportNarrativeSkill implements Skill {
         RepairLoop.Result<String> result = RepairLoop.run(MAX_REPAIR_ROUNDS,
                 feedback -> {
                     String prompt = (feedback == null) ? basePrompt : basePrompt + "\n\n" + feedback;
-                    return model.generate(ModelRequest.text(tier(), SYSTEM, prompt));
+                    return model.generate(ModelRequest.text(tier(), SYSTEM, prompt)).text();
                 },
                 raw -> {
                     String narrative = raw == null ? "" : raw.trim();

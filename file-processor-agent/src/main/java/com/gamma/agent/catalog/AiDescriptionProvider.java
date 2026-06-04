@@ -1,9 +1,9 @@
 package com.gamma.agent.catalog;
 
-import com.gamma.agent.model.ModelProvider;
-import com.gamma.agent.model.ModelRequest;
-import com.gamma.agent.model.ModelRouter;
-import com.gamma.agent.model.ModelTier;
+import com.gamma.agentkernel.model.ModelProvider;
+import com.gamma.agentkernel.model.ModelRequest;
+import com.gamma.agentkernel.model.ModelTier;
+import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
 import com.gamma.catalog.Description;
 import com.gamma.catalog.Provenance;
 import com.gamma.catalog.spi.DescriptionProvider;
@@ -42,7 +42,7 @@ public final class AiDescriptionProvider implements DescriptionProvider {
 
     /** {@code ServiceLoader} entry point: small-tier provider from the environment (abstain-safe). */
     public AiDescriptionProvider() {
-        this(ModelRouter.fromEnvironment().provider(ModelTier.SMALL));
+        this(OllamaModelProvider.fromEnvironment().providerFor(ModelTier.SMALL));
     }
 
     /** Test/embedder entry point: inject the model provider (e.g. a deterministic fake). */
@@ -77,7 +77,7 @@ public final class AiDescriptionProvider implements DescriptionProvider {
 
     private Description generate(String prompt, String what) {
         try {
-            String text = clean(model.generate(ModelRequest.text(ModelTier.SMALL, SYSTEM, prompt)));
+            String text = clean(model.generate(ModelRequest.text(ModelTier.SMALL, SYSTEM, prompt)).text());
             return text.isBlank() ? Description.EMPTY : new Description(text, Provenance.AI);
         } catch (RuntimeException e) {
             log.debug("describer abstained for {}: {}", what, e.toString());

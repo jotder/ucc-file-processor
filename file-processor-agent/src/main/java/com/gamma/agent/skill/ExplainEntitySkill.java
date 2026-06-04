@@ -1,8 +1,8 @@
 package com.gamma.agent.skill;
 
-import com.gamma.agent.model.ModelProvider;
-import com.gamma.agent.model.ModelRequest;
-import com.gamma.agent.model.ModelTier;
+import com.gamma.agentkernel.model.ModelProvider;
+import com.gamma.agentkernel.model.ModelRequest;
+import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.AssistResult.Citation;
@@ -50,7 +50,7 @@ public final class ExplainEntitySkill implements Skill {
 
     @Override
     public AssistResult run(AssistRequest request, AssistContext ctx) {
-        ModelProvider model = ctx.models().provider(tier());
+        ModelProvider model = ctx.models().providerFor(tier());
         if (!model.available()) {
             return AssistResult.unavailable(ID,
                     "the assist model (tier " + tier() + ") is not available — enable the assist "
@@ -104,7 +104,7 @@ public final class ExplainEntitySkill implements Skill {
 
         String answer;
         try {
-            answer = model.generate(ModelRequest.text(tier(), SYSTEM, prompt));
+            answer = model.generate(ModelRequest.text(tier(), SYSTEM, prompt)).text();
         } catch (RuntimeException e) {
             return AssistResult.unavailable(ID, "the assist model call failed: " + e.getMessage());
         }

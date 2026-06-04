@@ -1,6 +1,6 @@
 package com.gamma.agent.skill;
 
-import com.gamma.agent.model.ModelRouter;
+import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.catalog.ConfigSource;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.report.ReportService;

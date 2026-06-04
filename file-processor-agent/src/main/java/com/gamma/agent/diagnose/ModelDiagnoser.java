@@ -1,9 +1,9 @@
 package com.gamma.agent.diagnose;
 
-import com.gamma.agent.model.ModelProvider;
-import com.gamma.agent.model.ModelRequest;
-import com.gamma.agent.model.ModelRouter;
-import com.gamma.agent.model.ModelTier;
+import com.gamma.agentkernel.model.ModelProvider;
+import com.gamma.agentkernel.model.ModelRequest;
+import com.gamma.agentkernel.model.ModelRouter;
+import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.assist.AssistResult.Citation;
 import com.gamma.assist.Diagnosis;
 import com.gamma.catalog.MetadataGraphService;
@@ -62,11 +62,11 @@ public final class ModelDiagnoser implements FailureReactor.Diagnoser {
         List<Citation> citations = groundPipeline(e.pipeline());
         Diagnosis heuristic = HeuristicDiagnoser.diagnose(e, now, citations);
 
-        ModelProvider model = (models == null) ? null : models.provider(TIER);
+        ModelProvider model = (models == null) ? null : models.providerFor(TIER);
         if (model == null || !model.available()) return heuristic;   // abstain — deterministic only
 
         try {
-            String prose = model.generate(ModelRequest.text(TIER, SYSTEM, prompt(e, heuristic))).trim();
+            String prose = model.generate(ModelRequest.text(TIER, SYSTEM, prompt(e, heuristic))).text().trim();
             if (prose.isBlank()) return heuristic;
             // Model enriches the prose; severity stays the deterministic heuristic's.
             return new Diagnosis(e.batchId(), e.pipeline(), heuristic.severity(), prose,

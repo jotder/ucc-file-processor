@@ -2,7 +2,7 @@ package com.gamma.agent.diagnose;
 
 import com.gamma.agent.AgentTestConfigs;
 import com.gamma.agent.model.FakeModelProvider;
-import com.gamma.agent.model.ModelRouter;
+import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.assist.Diagnosis;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
