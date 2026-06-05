@@ -78,6 +78,24 @@
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- agent-eval (U1.6): the kernel's golden-eval harness — FakeModelProvider, EvalCase/Expect,
+             EvalCaseLoader, EvalRunner (the jar) + the Evals @TestFactory glue (the test-jar). Test-scope
+             only; never reaches the lean core fat-JAR. The UCC fixtures run the reshaped Capability SPI
+             through this runner, proving the migration preserved observable behavior. -->
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-eval</artifactId>
+            <version>${agentkernel.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-eval</artifactId>
+            <version>${agentkernel.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <!-- Build config (compiler + surefire native-access flag) is inherited from the parent

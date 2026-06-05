@@ -1,0 +1,8 @@
+[
+  {
+    "name": "abstains-when-model-unavailable",
+    "capabilityId": "nl-to-schedule",
+    "input": { "capabilityId": "nl-to-schedule", "userText": "every weekday at 6am" },
+    "expect": { "mustAbstainWhenNoData": true }
+  }
+]

@@ -3,24 +3,14 @@
     "name": "explains-table-and-cites-catalog-node",
     "capabilityId": "explain-entity",
     "input": {
+      "capabilityId": "explain-entity",
       "screenContext": { "entityType": "table", "id": "event:mini_etl/mini" },
       "userText": "what does this table contain?"
     },
-    "model": { "response": "The mini table holds mini events." },
     "expect": {
       "status": "OK",
-      "answerContains": "mini",
-      "requiredCitationRefs": ["event:mini_etl/mini"]
+      "requiredEvidenceRefs": ["event:mini_etl/mini"],
+      "minConfidence": 0.5
     }
-  },
-  {
-    "name": "abstains-when-model-unavailable",
-    "capabilityId": "explain-entity",
-    "input": {
-      "screenContext": { "entityType": "table", "id": "event:mini_etl/mini" },
-      "userText": "explain"
-    },
-    "model": { "available": false },
-    "expect": { "mustAbstainWhenNoData": true }
   }
 ]

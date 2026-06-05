@@ -2,21 +2,12 @@
   {
     "name": "returns-validated-draft-alert-rule",
     "capabilityId": "diagnose-and-alert",
-    "input": { "userText": "warn when the error rate exceeds 5%" },
-    "model": {
-      "response": "{\"name\":\"high-error-rate\",\"metric\":\"error_rate\",\"comparator\":\"gt\",\"threshold\":0.05,\"window\":\"1h\",\"severity\":\"CRITICAL\"}"
-    },
+    "input": { "capabilityId": "diagnose-and-alert", "userText": "warn when the error rate exceeds 5%" },
     "expect": {
       "status": "OK",
       "mustValidate": true,
-      "requiredDataKeys": ["metric", "severity", "draftToon"]
+      "requiredDataKeys": ["metric", "severity", "draftToon"],
+      "minConfidence": 0.5
     }
-  },
-  {
-    "name": "abstains-when-model-unavailable",
-    "capabilityId": "diagnose-and-alert",
-    "input": { "userText": "warn when the error rate exceeds 5%" },
-    "model": { "available": false },
-    "expect": { "mustAbstainWhenNoData": true }
   }
 ]

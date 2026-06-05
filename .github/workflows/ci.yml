@@ -6,10 +6,10 @@ name: CI
 
 on:
   push:
-    branches: [master, main, 3.x]
+    branches: [master, main, 3.x, 4.x]
     tags: ['v*']
   pull_request:
-    branches: [master, main, 3.x]
+    branches: [master, main, 3.x, 4.x]
 
 jobs:
   test:
@@ -28,6 +28,20 @@ jobs:
       # the cross-module AssistAgent SPI wiring are exercised, not just the core.
       - name: Run tests
         run: mvn --batch-mode --no-transfer-progress test
+
+      # Boundary law (U1): the lean ETL core never gains a kernel dependency. Kernel types live
+      # ONLY in the optional file-processor-agent module, behind the AssistAgent SPI. This guard
+      # makes that enforceable, not aspirational — it fails the build if a com.gamma.agentkernel
+      # reference ever leaks into the lean core's sources or its resolved dependency tree.
+      - name: Guard — lean core stays kernel-free
+        run: |
+          if grep -rEl "com\.gamma\.agentkernel" file-processor/src; then
+            echo "::error::lean core (file-processor) must not reference com.gamma.agentkernel"; exit 1
+          fi
+          if mvn --batch-mode --no-transfer-progress -pl file-processor dependency:tree | grep -E "com\.gamma\.agentkernel"; then
+            echo "::error::lean core (file-processor) must not depend on agent-kernel"; exit 1
+          fi
+          echo "OK: file-processor is kernel-free (sources + dependency tree)"
 
       - name: Upload test reports on failure
         if: failure()

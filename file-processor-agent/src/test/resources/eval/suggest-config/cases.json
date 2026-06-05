@@ -2,20 +2,11 @@
   {
     "name": "returns-safety-checked-draft-config",
     "capabilityId": "suggest-config",
-    "input": { "screenContext": { "configType": "job" } },
-    "model": {
-      "response": "{\"fields\":[{\"name\":\"job.name\",\"value\":\"nightly\",\"rationale\":\"derived\",\"confidence\":\"high\"},{\"name\":\"job.cron\",\"value\":\"0 2 * * *\",\"rationale\":\"nightly window\",\"confidence\":\"high\"},{\"name\":\"job.type\",\"value\":\"maintenance\",\"rationale\":\"cleanup\",\"confidence\":\"medium\"}]}"
-    },
+    "input": { "capabilityId": "suggest-config", "screenContext": { "configType": "job" } },
     "expect": {
       "status": "OK",
-      "requiredDataKeys": ["configType", "safetyChecked", "fields", "draftToon"]
+      "requiredDataKeys": ["configType", "safetyChecked", "fields", "draftToon"],
+      "minConfidence": 0.5
     }
-  },
-  {
-    "name": "abstains-when-model-unavailable",
-    "capabilityId": "suggest-config",
-    "input": { "screenContext": { "configType": "job" } },
-    "model": { "available": false },
-    "expect": { "mustAbstainWhenNoData": true }
   }
 ]

@@ -13,6 +13,13 @@ import java.util.function.Function;
  *
  * <p>Migrated to the agent-kernel {@code ModelProvider} SPI at U1: {@code generate} returns a
  * {@link ModelResponse} rather than a bare {@code String}.
+ *
+ * <p><b>Why this exists alongside the kernel's {@code agent-eval} {@code FakeModelProvider} (U1.6).</b>
+ * The kernel fake is always-available and prompt-predicate scripted — perfect for the declarative golden
+ * eval net. This UCC double is the richer app-level test util the unit tests need: it adds the modes the
+ * kernel fake deliberately omits — {@link #down() unavailable}, {@link #responding(Function) dynamic
+ * per-call responses} (RepairLoop retries, throw-on-call), and {@link #echo()}. It is a permanent test
+ * utility, not a temporary shim.
  */
 public final class FakeModelProvider implements ModelProvider {
 

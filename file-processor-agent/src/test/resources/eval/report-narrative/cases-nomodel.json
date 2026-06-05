@@ -1,6 +1,6 @@
 [
   {
-    "name": "returns-grounded-narrative",
+    "name": "template-fallback-when-model-unavailable",
     "capabilityId": "report-narrative",
     "input": { "capabilityId": "report-narrative", "screenContext": { "reportType": "service" } },
     "expect": {

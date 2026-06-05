@@ -1,0 +1,14 @@
+[
+  {
+    "name": "abstains-when-model-unavailable",
+    "capabilityId": "kpi-to-sql",
+    "input": {
+      "capabilityId": "kpi-to-sql",
+      "screenContext": {
+        "kpiDescription": "count of mini events",
+        "catalogRefs": ["event:mini_etl/mini"]
+      }
+    },
+    "expect": { "mustAbstainWhenNoData": true }
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "name": "abstains-when-model-unavailable",
+    "capabilityId": "diagnose-and-alert",
+    "input": { "capabilityId": "diagnose-and-alert", "userText": "warn when the error rate exceeds 5%" },
+    "expect": { "mustAbstainWhenNoData": true }
+  }
+]

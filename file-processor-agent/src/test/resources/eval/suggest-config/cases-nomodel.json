@@ -1,0 +1,8 @@
+[
+  {
+    "name": "abstains-when-model-unavailable",
+    "capabilityId": "suggest-config",
+    "input": { "capabilityId": "suggest-config", "screenContext": { "configType": "job" } },
+    "expect": { "mustAbstainWhenNoData": true }
+  }
+]

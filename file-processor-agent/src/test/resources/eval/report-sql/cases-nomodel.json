@@ -1,0 +1,12 @@
+[
+  {
+    "name": "abstains-when-model-unavailable",
+    "capabilityId": "report-sql",
+    "input": {
+      "capabilityId": "report-sql",
+      "screenContext": { "pipeline": "MINI_ETL" },
+      "userText": "how many batches per status?"
+    },
+    "expect": { "mustAbstainWhenNoData": true }
+  }
+]
