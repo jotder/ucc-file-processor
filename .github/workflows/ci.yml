@@ -50,29 +50,8 @@ jobs:
           name: surefire-reports
           path: '**/target/surefire-reports/'
 
-  package:
-    # Build the fat JAR on every push to a tag so v*.x.x tags get a downloadable
-    # artifact attached to the release. PRs and branch pushes skip this step. Only
-    # the lean core module is packaged — the agent module ships no fat-JAR.
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 25
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: maven
-
-      - name: Package fat JAR
-        working-directory: file-processor
-        run: mvn --batch-mode --no-transfer-progress package -DskipTests
-
-      - name: Upload fat JAR
-        uses: actions/upload-artifact@v4
-        with:
-          name: file-processor-jar
-          path: file-processor/target/file-processor-*.jar
+# Note: CI does not build or store the fat JAR. It is ~90 MB (almost entirely
+# DuckDB's per-platform native binaries) and would bloat Actions artifact
+# storage on every tag for no benefit — the downloadable release JAR is built
+# locally and attached to the GitHub release at cut time (see the release flow),
+# not produced here.
