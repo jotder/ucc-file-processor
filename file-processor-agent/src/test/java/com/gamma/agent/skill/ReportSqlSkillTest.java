@@ -5,8 +5,8 @@ import com.gamma.agent.model.FakeModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.retrieve.DocRetriever;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.service.SourceService;
 import com.gamma.service.StatusStore;
@@ -67,16 +67,16 @@ class ReportSqlSkillTest {
         };
     }
 
-    private AssistContext ctx(SourceService svc, StatusStore store, ModelRouter router) {
-        return new AssistContext(svc.catalog(), svc.reports(), store,
+    private UccAgentContext ctx(SourceService svc, StatusStore store, ModelRouter router) {
+        return new UccAgentContext(svc.catalog(), svc.reports(), store,
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
 
-    private static AssistRequest ask(String pipeline, String question, boolean sample) {
+    private static AgentRequest ask(String pipeline, String question, boolean sample) {
         Map<String, Object> partial = new LinkedHashMap<>();
         if (pipeline != null) partial.put("pipeline", pipeline);
         if (sample) partial.put("sampleRows", true);
-        return new AssistRequest(ReportSqlSkill.ID, Map.of(), partial, question);
+        return new AgentRequest(ReportSqlSkill.ID, Map.of(), partial, question);
     }
 
     // ── tests ──────────────────────────────────────────────────────────────────────────
@@ -85,18 +85,18 @@ class ReportSqlSkillTest {
     void validQuestionProducesDraftWithAuthoritativeColumns(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
-            AssistResult res = skill.run(ask("MINI_ETL", "how many batches per status?", false),
+            AgentResult res = skill.run(ask("MINI_ETL", "how many batches per status?", false),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.canned(GOOD))));
 
-            assertEquals(AssistResult.Status.OK, res.status(), res.message());
+            assertEquals(AgentResult.Status.OK, res.status(), res.message());
             assertTrue(res.validated(), "the SQL planned in the sandbox oracle");
             assertNull(res.applyVia(), "draft-only (V-9): no write endpoint");
             assertEquals(List.of("status", "n"), res.data().get("columnsProduced"),
                     "columns are authoritative (from the oracle)");
             assertTrue(((List<?>) res.data().get("tablesUsed")).contains("batches"));
             assertFalse(res.data().containsKey("sampleRows"), "no preview rows unless requested");
-            assertTrue(res.citations().stream().anyMatch(c -> c.ref().equalsIgnoreCase("MINI_ETL")),
-                    "grounded citation for the resolved pipeline: " + res.citations());
+            assertTrue(res.evidence().stream().anyMatch(c -> c.sourceRef().equalsIgnoreCase("MINI_ETL")),
+                    "grounded citation for the resolved pipeline: " + res.evidence());
         }
     }
 
@@ -104,10 +104,10 @@ class ReportSqlSkillTest {
     void sampleRowsReturnedOnlyWhenRequested(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
-            AssistResult res = skill.run(ask("MINI_ETL", "batches per status", true),
+            AgentResult res = skill.run(ask("MINI_ETL", "batches per status", true),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.canned(GOOD))));
 
-            assertEquals(AssistResult.Status.OK, res.status(), res.message());
+            assertEquals(AgentResult.Status.OK, res.status(), res.message());
             Object sample = res.data().get("sampleRows");
             assertTrue(sample instanceof List<?> l && !l.isEmpty(), "preview present over the seeded rows");
         }
@@ -122,10 +122,10 @@ class ReportSqlSkillTest {
                     round.incrementAndGet() == 1
                             ? "{\"sql\":\"SELECT * FROM read_csv('/etc/passwd')\"}"   // attack
                             : GOOD));                                                 // corrected
-            AssistResult res = skill.run(ask("MINI_ETL", "how many batches", false),
+            AgentResult res = skill.run(ask("MINI_ETL", "how many batches", false),
                     ctx(svc, store(twoBatches()), router));
 
-            assertEquals(AssistResult.Status.OK, res.status(), "the unsafe query was repaired, not failed");
+            assertEquals(AgentResult.Status.OK, res.status(), "the unsafe query was repaired, not failed");
             assertEquals(Boolean.TRUE, res.data().get("repaired"));
             assertFalse(String.valueOf(res.data().get("sql")).contains("read_csv"),
                     "the file-reading query is never surfaced");
@@ -138,9 +138,9 @@ class ReportSqlSkillTest {
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                     "{\"sql\":\"SELECT * FROM read_csv('/etc/passwd')\"}"));
-            AssistResult res = skill.run(ask("MINI_ETL", "x", false), ctx(svc, store(twoBatches()), router));
+            AgentResult res = skill.run(ask("MINI_ETL", "x", false), ctx(svc, store(twoBatches()), router));
 
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
             assertTrue(res.data() == null || !res.data().containsKey("sql"),
                     "no SQL draft surfaced when every attempt is unsafe");
         }
@@ -150,9 +150,9 @@ class ReportSqlSkillTest {
     void unknownPipelineIsGrounded(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
-            AssistResult res = skill.run(ask("NOPE", "how many batches", false),
+            AgentResult res = skill.run(ask("NOPE", "how many batches", false),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.canned(GOOD))));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status(),
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status(),
                     "a pipeline that does not resolve cannot be queried (grounding)");
         }
     }
@@ -161,9 +161,9 @@ class ReportSqlSkillTest {
     void noPipelineOrJobIsGraceful(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
-            AssistResult res = skill.run(ask(null, "how many batches", false),
+            AgentResult res = skill.run(ask(null, "how many batches", false),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.canned(GOOD))));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
         }
     }
 
@@ -171,9 +171,9 @@ class ReportSqlSkillTest {
     void modelUnavailableIsGraceful(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
-            AssistResult res = skill.run(ask("MINI_ETL", "how many batches", false),
+            AgentResult res = skill.run(ask("MINI_ETL", "how many batches", false),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.down())));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
         }
     }
 }

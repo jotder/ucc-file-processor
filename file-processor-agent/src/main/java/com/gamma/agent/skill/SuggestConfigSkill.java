@@ -2,13 +2,18 @@ package com.gamma.agent.skill;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.agentkernel.agent.AgentContext;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
+import com.gamma.agentkernel.agent.Capability;
+import com.gamma.agentkernel.agent.CapabilitySpec;
+import com.gamma.agentkernel.error.AgentError;
 import com.gamma.agentkernel.model.ModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.agentkernel.reason.RepairLoop;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
-import com.gamma.assist.AssistResult.Citation;
+import com.gamma.agentkernel.tool.CredibilityTier;
+import com.gamma.agentkernel.tool.Evidence;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
@@ -53,9 +58,15 @@ import java.util.Set;
  *
  * @since 3.5.0
  */
-public final class SuggestConfigSkill implements Skill {
+public final class SuggestConfigSkill implements Capability {
 
     public static final String ID = "suggest-config";
+
+    private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
+            "Suggest config field values with rationale and return a validated, safety-checked draft.",
+            ModelTier.MEDIUM, 0.0, java.time.Duration.ofSeconds(60),
+            java.util.Set.of(), java.util.Set.of());
+
     private static final int MAX_REPAIR_ROUNDS = 3;
 
     private static final ConfigLoader LOADER = ConfigLoader.filesystem(); // pure validate(spec, map)
@@ -81,29 +92,28 @@ public final class SuggestConfigSkill implements Skill {
         this.policy = policy;
     }
 
-    @Override public String id() { return ID; }
-
-    /** Config inference is judgement work → the 7B tier. */
-    @Override public ModelTier tier() { return ModelTier.MEDIUM; }
+    @Override public CapabilitySpec spec() { return SPEC; }
 
     @Override
-    public AssistResult run(AssistRequest request, AssistContext ctx) {
+    public AgentResult run(AgentRequest request, AgentContext context) throws AgentError {
+        UccAgentContext ctx = (UccAgentContext) context;
+        ModelTier tier = ctx.effectiveTier(SPEC.defaultTier());
         String type = firstNonBlank(request.context("configType"),
                 str(request.partialInput().get("configType")));
         if (type == null) {
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "suggest-config needs a 'configType' (pipeline|enrichment|job|schema|meta) in screenContext");
         }
         type = type.toLowerCase();
         ConfigSpec spec = ConfigSpecs.forType(type);
         if (spec == null) {
-            return AssistResult.unavailable(ID, "unknown config type '" + type + "'");
+            return AgentResult.unavailable(ID, "unknown config type '" + type + "'");
         }
 
-        ModelProvider model = ctx.models().providerFor(tier());
+        ModelProvider model = ctx.models().providerFor(tier);
         if (!model.available()) {
-            return AssistResult.unavailable(ID,
-                    "the assist model (tier " + tier() + ") is not available — enable the assist "
+            return AgentResult.unavailable(ID,
+                    "the assist model (tier " + tier + ") is not available — enable the assist "
                             + "layer and a local Ollama endpoint to use suggest-config");
         }
 
@@ -125,14 +135,14 @@ public final class SuggestConfigSkill implements Skill {
         RepairLoop.Result<Draft> result = RepairLoop.run(MAX_REPAIR_ROUNDS,
                 feedback -> {
                     String prompt = (feedback == null) ? basePrompt : basePrompt + "\n\n" + feedback;
-                    return model.generate(ModelRequest.json(tier(), SYSTEM, prompt)).text();
+                    return model.generate(ModelRequest.json(tier, SYSTEM, prompt)).text();
                 },
                 raw -> parseAndValidate(raw, t, spec, base));
 
         if (!result.ok()) {
             String last = result.errors().isEmpty() ? "unknown error"
                     : result.errors().get(result.errors().size() - 1);
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "could not produce a safe, valid config after " + result.rounds()
                             + " attempt(s): " + last);
         }
@@ -140,16 +150,18 @@ public final class SuggestConfigSkill implements Skill {
         Draft d = result.value();
         String draftToon = ConfigCodec.toToon(d.configMap);
 
-        List<Citation> citations = new ArrayList<>();
+        List<Evidence> evidence = new ArrayList<>();
         List<String> links = new ArrayList<>();
-        // Grounded citations: any known table the draft actually references (derived, not parsed).
+        // Grounded evidence: any known table the draft actually references (derived, not parsed).
         for (Map.Entry<String, String> e : tableIdByName.entrySet()) {
             if (referencesName(d.configMap, e.getKey())) {
-                citations.add(new Citation("catalog", e.getValue()));
+                evidence.add(new Evidence(e.getValue(), CredibilityTier.AUTHORITATIVE, "catalog", e.getValue(), 1.0, null));
                 links.add("/catalog/tables/" + e.getValue());
             }
         }
-        citations.add(new Citation("oracle", "config-spec+safety:" + type)); // what validated it
+        // what validated it
+        evidence.add(new Evidence("config-spec+safety:" + type, CredibilityTier.DERIVED, "oracle",
+                "config-spec+safety:" + type, 1.0, null));
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("configType", type);
@@ -169,7 +181,7 @@ public final class SuggestConfigSkill implements Skill {
                 + " config; the draft passed structural validation and the safety gate. "
                 + "Review the rationale/confidence per field, then save the draft below.";
 
-        return AssistResult.draft(ID, answer, citations, links, data);
+        return AgentResult.draft(ID, SPEC.version(), answer, evidence, links, null, 1.0, tier, data);
     }
 
     // ── oracle: parse JSON → merge → validate (spec + safety) → type-parse ──────────────

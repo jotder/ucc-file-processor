@@ -2,13 +2,18 @@ package com.gamma.agent.skill;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.agentkernel.agent.AgentContext;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
+import com.gamma.agentkernel.agent.Capability;
+import com.gamma.agentkernel.agent.CapabilitySpec;
+import com.gamma.agentkernel.error.AgentError;
 import com.gamma.agentkernel.model.ModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.agentkernel.reason.RepairLoop;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
-import com.gamma.assist.AssistResult.Citation;
+import com.gamma.agentkernel.tool.CredibilityTier;
+import com.gamma.agentkernel.tool.Evidence;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.sql.SqlOracle;
@@ -49,9 +54,15 @@ import java.util.Optional;
  *
  * @since 3.8.0
  */
-public final class ReportSqlSkill implements Skill {
+public final class ReportSqlSkill implements Capability {
 
     public static final String ID = "report-sql";
+
+    private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
+            "Write a validated read-only SQL query over the platform's operational audit/status tables.",
+            ModelTier.MEDIUM, 0.0, java.time.Duration.ofSeconds(60),
+            java.util.Set.of(), java.util.Set.of("sql-oracle"));
+
     private static final int MAX_REPAIR_ROUNDS = 3;
 
     private static final String SYSTEM = """
@@ -78,20 +89,19 @@ public final class ReportSqlSkill implements Skill {
         this.sandboxPolicy = sandboxPolicy;
     }
 
-    @Override public String id() { return ID; }
-
-    /** Operational reporting SQL (joins/aggregates/windows over audit rows) → the 7B tier. */
-    @Override public ModelTier tier() { return ModelTier.MEDIUM; }
+    @Override public CapabilitySpec spec() { return SPEC; }
 
     @Override
-    public AssistResult run(AssistRequest request, AssistContext ctx) {
+    public AgentResult run(AgentRequest request, AgentContext context) throws AgentError {
+        UccAgentContext ctx = (UccAgentContext) context;
+        ModelTier tier = ctx.effectiveTier(SPEC.defaultTier());
         String question = firstNonBlank(
                 request.context("userText"),
                 str(request.partialInput().get("question")),
                 str(request.partialInput().get("userText")),
                 request.userText());
         if (question == null) {
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "report-sql needs a question (the report in plain language) in userText, "
                             + "screenContext, or partialInput");
         }
@@ -106,39 +116,40 @@ public final class ReportSqlSkill implements Skill {
         // Resolve the named pipeline/job into operational tables (grounding — a name that does not
         // resolve cannot be queried, so the model can never invent one).
         List<SqlOracle.TableData> tables = new ArrayList<>();
-        List<Citation> citations = new ArrayList<>();
+        List<Evidence> evidence = new ArrayList<>();
         List<String> links = new ArrayList<>();
 
         if (pipelineName != null) {
             Optional<PipelineConfig> cfg = OperationalTables.pipeline(ctx.configs(), pipelineName);
             if (cfg.isEmpty()) {
-                return AssistResult.unavailable(ID, "no pipeline named '" + pipelineName + "'. "
+                return AgentResult.unavailable(ID, "no pipeline named '" + pipelineName + "'. "
                         + availableHint(ctx));
             }
             tables.addAll(OperationalTables.stage1(ctx.statusStore(), cfg.get()));
             String id = cfg.get().identity().name();
-            citations.add(new Citation("pipeline", id));
+            evidence.add(new Evidence(id, CredibilityTier.AUTHORITATIVE, "pipeline", id, 1.0, null));
             links.add("/catalog/tables/" + id);
         }
         if (jobName != null) {
             Optional<EnrichmentConfig> ec = OperationalTables.enrichment(ctx.configs(), jobName);
             if (ec.isEmpty()) {
-                return AssistResult.unavailable(ID, "no enrichment job named '" + jobName + "'. "
+                return AgentResult.unavailable(ID, "no enrichment job named '" + jobName + "'. "
                         + availableHint(ctx));
             }
             tables.addAll(OperationalTables.stage2(ec.get()));
-            citations.add(new Citation("job", ec.get().name()));
+            String jid = ec.get().name();
+            evidence.add(new Evidence(jid, CredibilityTier.AUTHORITATIVE, "job", jid, 1.0, null));
         }
 
         if (tables.isEmpty()) {
-            return AssistResult.unavailable(ID, "report-sql needs a 'pipeline' (and/or 'job') to "
+            return AgentResult.unavailable(ID, "report-sql needs a 'pipeline' (and/or 'job') to "
                     + "report on. " + availableHint(ctx));
         }
 
-        ModelProvider model = ctx.models().providerFor(tier());
+        ModelProvider model = ctx.models().providerFor(tier);
         if (!model.available()) {
-            return AssistResult.unavailable(ID,
-                    "the assist model (tier " + tier() + ") is not available — enable the assist layer "
+            return AgentResult.unavailable(ID,
+                    "the assist model (tier " + tier + ") is not available — enable the assist layer "
                             + "and a 7B-capable endpoint (or a hosted provider) to use report-sql");
         }
 
@@ -159,20 +170,21 @@ public final class ReportSqlSkill implements Skill {
         RepairLoop.Result<Draft> result = RepairLoop.run(MAX_REPAIR_ROUNDS,
                 feedback -> {
                     String prompt = (feedback == null) ? basePrompt : basePrompt + "\n\n" + feedback;
-                    return model.generate(ModelRequest.json(tier(), SYSTEM, prompt)).text();
+                    return model.generate(ModelRequest.json(tier, SYSTEM, prompt)).text();
                 },
                 raw -> parseAndValidate(raw, oracle, oracleTables, wantSample));
 
         if (!result.ok()) {
             String last = result.errors().isEmpty() ? "unknown error"
                     : result.errors().get(result.errors().size() - 1);
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "could not produce a valid, safe SQL draft after " + result.rounds()
                             + " attempt(s): " + last);
         }
 
         Draft d = result.value();
-        citations.add(new Citation("oracle", "sql-sandbox:explain+limit0"));
+        evidence.add(new Evidence("sql-sandbox:explain+limit0", CredibilityTier.DERIVED, "oracle",
+                "sql-sandbox:explain+limit0", 1.0, null));
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("sql", d.sql);
@@ -188,7 +200,7 @@ public final class ReportSqlSkill implements Skill {
                 + "the query runs, not that it answers exactly what you meant — review the logic before "
                 + "using it.";
 
-        return AssistResult.draft(ID, answer, citations, links, data);
+        return AgentResult.draft(ID, SPEC.version(), answer, evidence, links, null, 1.0, tier, data);
     }
 
     // ── oracle: parse JSON → validate the SQL in the sandbox ────────────────────────────
@@ -215,7 +227,7 @@ public final class ReportSqlSkill implements Skill {
 
     // ── helpers ─────────────────────────────────────────────────────────────────────────
 
-    private static String availableHint(AssistContext ctx) {
+    private static String availableHint(UccAgentContext ctx) {
         List<String> pipelines = new ArrayList<>();
         List<String> jobs = new ArrayList<>();
         if (ctx.configs() != null) {

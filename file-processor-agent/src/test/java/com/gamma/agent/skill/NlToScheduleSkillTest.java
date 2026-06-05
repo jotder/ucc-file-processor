@@ -2,12 +2,12 @@ package com.gamma.agent.skill;
 
 import com.gamma.agent.AgentTestConfigs;
 import com.gamma.agent.model.FakeModelProvider;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.agentkernel.retrieve.DocRetriever;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
 import com.gamma.config.io.ConfigCodec;
@@ -33,13 +33,13 @@ class NlToScheduleSkillTest {
 
     private final NlToScheduleSkill skill = new NlToScheduleSkill(ZoneId.of("UTC"));
 
-    private AssistContext context(SourceService svc, ModelRouter router) {
-        return new AssistContext(svc.catalog(), svc.reports(), svc.statusStore(),
+    private UccAgentContext context(SourceService svc, ModelRouter router) {
+        return new UccAgentContext(svc.catalog(), svc.reports(), svc.statusStore(),
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
 
-    private AssistRequest ask(String userText) {
-        return new AssistRequest(NlToScheduleSkill.ID, Map.of(), Map.of(), userText);
+    private AgentRequest ask(String userText) {
+        return new AgentRequest(NlToScheduleSkill.ID, Map.of(), Map.of(), userText);
     }
 
     @Test
@@ -48,9 +48,9 @@ class NlToScheduleSkillTest {
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                     "{\"name\":\"nightly-clean\",\"cron\":\"0 2 * * *\",\"job_type\":\"maintenance\"}"));
-            AssistResult res = skill.run(ask("clean up every day at 2am"), context(svc, router));
+            AgentResult res = skill.run(ask("clean up every day at 2am"), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status());
+            assertEquals(AgentResult.Status.OK, res.status());
             assertTrue(res.validated(), "the draft ran through the cron + job oracle");
             assertNull(res.applyVia(), "draft-only (V-9): no write endpoint");
 
@@ -72,8 +72,8 @@ class NlToScheduleSkillTest {
             assertEquals("0 2 * * *", parsed.cron());
 
             // Citation discipline: the cron was validated by the oracle (derived, not parsed).
-            assertTrue(res.citations().stream().anyMatch(c -> c.source().equals("oracle")),
-                    "cites the validating oracle: " + res.citations());
+            assertTrue(res.evidence().stream().anyMatch(c -> c.effectiveTierLabel().equals("oracle")),
+                    "cites the validating oracle: " + res.evidence());
         }
     }
 
@@ -88,19 +88,19 @@ class NlToScheduleSkillTest {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                     "{\"name\":\"weekday-enrich\",\"cron\":\"0 6 * * MON-FRI\",\"job_type\":\"enrich\","
                             + "\"on_pipeline\":\"" + pipeName + "\"}"));
-            AssistResult res = skill.run(
+            AgentResult res = skill.run(
                     ask("every weekday at 6am after " + pipeName), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status());
+            assertEquals(AgentResult.Status.OK, res.status());
             Map<String, Object> data = res.data();
             assertEquals("0 6 * * MON-FRI", data.get("cron"));
             assertEquals(pipeName, data.get("onPipeline"));
             assertEquals("every day at 06:00 on weekdays", data.get("humanReadable"));
 
             // The grounded pipeline node id is cited + linked — derived from the catalog, not the model.
-            assertTrue(res.citations().stream()
-                            .anyMatch(c -> c.source().equals("catalog") && c.ref().equals(pipeId)),
-                    "cites the grounded pipeline node: " + res.citations());
+            assertTrue(res.evidence().stream()
+                            .anyMatch(c -> c.effectiveTierLabel().equals("catalog") && c.sourceRef().equals(pipeId)),
+                    "cites the grounded pipeline node: " + res.evidence());
             assertTrue(res.links().contains("/catalog/tables/" + pipeId));
         }
     }
@@ -115,9 +115,9 @@ class NlToScheduleSkillTest {
                     round.incrementAndGet() == 1
                             ? "{\"name\":\"j\",\"cron\":\"0 99 * * *\",\"job_type\":\"report\"}"
                             : "{\"name\":\"j\",\"cron\":\"0 9 * * *\",\"job_type\":\"report\"}"));
-            AssistResult res = skill.run(ask("daily report at 9am"), context(svc, router));
+            AgentResult res = skill.run(ask("daily report at 9am"), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status(), "the bad cron was repaired, not surfaced");
+            assertEquals(AgentResult.Status.OK, res.status(), "the bad cron was repaired, not surfaced");
             assertEquals("0 9 * * *", res.data().get("cron"));
             assertEquals(Boolean.TRUE, res.data().get("repaired"), "took a repair round");
             assertTrue(round.get() >= 2, "the loop re-prompted after the oracle rejection");
@@ -134,12 +134,12 @@ class NlToScheduleSkillTest {
                     round.incrementAndGet() == 1
                             ? "{\"name\":\"j\",\"cron\":\"0 3 * * *\",\"job_type\":\"ingest\",\"on_pipeline\":\"ghost_pipeline\"}"
                             : "{\"name\":\"j\",\"cron\":\"0 3 * * *\",\"job_type\":\"ingest\",\"on_pipeline\":null}"));
-            AssistResult res = skill.run(ask("ingest daily at 3am"), context(svc, router));
+            AgentResult res = skill.run(ask("ingest daily at 3am"), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status());
+            assertEquals(AgentResult.Status.OK, res.status());
             assertFalse(res.data().containsKey("onPipeline"), "the fabricated pipeline was dropped");
             assertTrue(round.get() >= 2, "grounding rejection forced a repair round");
-            assertTrue(res.citations().stream().noneMatch(c -> c.source().equals("catalog")),
+            assertTrue(res.evidence().stream().noneMatch(c -> c.effectiveTierLabel().equals("catalog")),
                     "no catalog citation when no real pipeline was used");
         }
     }
@@ -149,8 +149,8 @@ class NlToScheduleSkillTest {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.down());
-            AssistResult res = skill.run(ask("daily at 2am"), context(svc, router));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            AgentResult res = skill.run(ask("daily at 2am"), context(svc, router));
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
             assertNull(res.answer());
             assertTrue(res.message().toLowerCase().contains("not available"));
         }
@@ -161,8 +161,8 @@ class NlToScheduleSkillTest {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned("{}"));
-            AssistResult res = skill.run(ask("   "), context(svc, router));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            AgentResult res = skill.run(ask("   "), context(svc, router));
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
             assertTrue(res.message().contains("userText"));
         }
     }

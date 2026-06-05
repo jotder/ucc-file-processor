@@ -2,13 +2,18 @@ package com.gamma.agent.skill;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.agentkernel.agent.AgentContext;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
+import com.gamma.agentkernel.agent.Capability;
+import com.gamma.agentkernel.agent.CapabilitySpec;
+import com.gamma.agentkernel.error.AgentError;
 import com.gamma.agentkernel.model.ModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.agentkernel.reason.RepairLoop;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
-import com.gamma.assist.AssistResult.Citation;
+import com.gamma.agentkernel.tool.CredibilityTier;
+import com.gamma.agentkernel.tool.Evidence;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
@@ -48,9 +53,15 @@ import java.util.Map;
  *
  * @since 3.6.0
  */
-public final class KpiToSqlSkill implements Skill {
+public final class KpiToSqlSkill implements Capability {
 
     public static final String ID = "kpi-to-sql";
+
+    private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
+            "Write a validated, catalog-grounded Stage-2 transformation SQL for a business KPI.",
+            ModelTier.LARGE, 0.0, java.time.Duration.ofSeconds(60),
+            java.util.Set.of(), java.util.Set.of("sql-oracle"));
+
     private static final int MAX_REPAIR_ROUNDS = 3;
 
     private static final String SYSTEM = """
@@ -78,19 +89,18 @@ public final class KpiToSqlSkill implements Skill {
         this.sandboxPolicy = sandboxPolicy;
     }
 
-    @Override public String id() { return ID; }
-
-    /** The reasoning-heaviest skill: joins/windows/multi-grain → the 14B tier. */
-    @Override public ModelTier tier() { return ModelTier.LARGE; }
+    @Override public CapabilitySpec spec() { return SPEC; }
 
     @Override
-    public AssistResult run(AssistRequest request, AssistContext ctx) {
+    public AgentResult run(AgentRequest request, AgentContext context) throws AgentError {
+        UccAgentContext ctx = (UccAgentContext) context;
+        ModelTier tier = ctx.effectiveTier(SPEC.defaultTier());
         String kpiDescription = firstNonBlank(
                 request.context("kpiDescription"),
                 str(request.partialInput().get("kpiDescription")),
                 request.userText());
         if (kpiDescription == null) {
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "kpi-to-sql needs a 'kpiDescription' (the KPI in domain terms) in screenContext, "
                             + "partialInput, or userText");
         }
@@ -103,7 +113,7 @@ public final class KpiToSqlSkill implements Skill {
 
         List<String> refs = catalogRefs(request);
         if (refs.isEmpty()) {
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "kpi-to-sql needs 'catalogRefs' (catalog node ids for the event/reference/"
                             + "transformed tables and KPIs to ground on)");
         }
@@ -133,15 +143,15 @@ public final class KpiToSqlSkill implements Skill {
             }
         }
         if (views.isEmpty()) {
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "none of the catalogRefs resolve to a data table (event/reference/transformed); "
                             + "kpi-to-sql needs at least one to validate against");
         }
 
-        ModelProvider model = ctx.models().providerFor(tier());
+        ModelProvider model = ctx.models().providerFor(tier);
         if (!model.available()) {
-            return AssistResult.unavailable(ID,
-                    "the assist model (tier " + tier() + ") is not available — enable the assist layer "
+            return AgentResult.unavailable(ID,
+                    "the assist model (tier " + tier + ") is not available — enable the assist layer "
                             + "and a 14B-capable endpoint (or a hosted provider) to use kpi-to-sql");
         }
 
@@ -158,27 +168,28 @@ public final class KpiToSqlSkill implements Skill {
         RepairLoop.Result<Draft> result = RepairLoop.run(MAX_REPAIR_ROUNDS,
                 feedback -> {
                     String prompt = (feedback == null) ? basePrompt : basePrompt + "\n\n" + feedback;
-                    return model.generate(ModelRequest.json(tier(), SYSTEM, prompt)).text();
+                    return model.generate(ModelRequest.json(tier, SYSTEM, prompt)).text();
                 },
                 raw -> parseAndValidate(raw, oracle, viewSpecs, wantSample));
 
         if (!result.ok()) {
             String last = result.errors().isEmpty() ? "unknown error"
                     : result.errors().get(result.errors().size() - 1);
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "could not produce a valid, safe SQL draft after " + result.rounds()
                             + " attempt(s): " + last);
         }
 
         Draft d = result.value();
 
-        List<Citation> citations = new ArrayList<>();
+        List<Evidence> evidence = new ArrayList<>();
         List<String> links = new ArrayList<>();
         for (String id : resolvedIds) {
-            citations.add(new Citation("catalog", id));
+            evidence.add(new Evidence(id, CredibilityTier.AUTHORITATIVE, "catalog", id, 1.0, null));
             links.add("/catalog/nodes/" + id);
         }
-        citations.add(new Citation("oracle", "sql-sandbox:explain+limit0"));
+        evidence.add(new Evidence("sql-sandbox:explain+limit0", CredibilityTier.DERIVED, "oracle",
+                "sql-sandbox:explain+limit0", 1.0, null));
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("sql", d.sql);
@@ -197,7 +208,7 @@ public final class KpiToSqlSkill implements Skill {
                 + "Confirm the interpretation and chosen join keys before using it — the oracle proves "
                 + "the query runs, not that it computes the KPI correctly.";
 
-        return AssistResult.draft(ID, answer, citations, links, data);
+        return AgentResult.draft(ID, SPEC.version(), answer, evidence, links, null, 1.0, tier, data);
     }
 
     // ── oracle: parse JSON → validate the SQL in the sandbox ────────────────────────────
@@ -273,7 +284,7 @@ public final class KpiToSqlSkill implements Skill {
 
     // ── input helpers ──────────────────────────────────────────────────────────────────
 
-    private static List<String> catalogRefs(AssistRequest request) {
+    private static List<String> catalogRefs(AgentRequest request) {
         Object v = request.partialInput().get("catalogRefs");
         if (v == null) v = request.screenContext().get("catalogRefs");
         List<String> out = new ArrayList<>();

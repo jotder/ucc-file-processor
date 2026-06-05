@@ -2,13 +2,20 @@ package com.gamma.agent.skill;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.agentkernel.agent.AgentContext;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
+import com.gamma.agentkernel.agent.Capability;
+import com.gamma.agentkernel.agent.CapabilitySpec;
+import com.gamma.agentkernel.error.AgentError;
 import com.gamma.agentkernel.model.ModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.agentkernel.reason.RepairLoop;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
-import com.gamma.assist.AssistResult.Citation;
+import com.gamma.agentkernel.tool.CredibilityTier;
+import com.gamma.agentkernel.tool.Evidence;
+import com.gamma.agentkernel.tool.GroundingGuard;
+import com.gamma.agentkernel.tool.NumericGroundingGuard;
 import com.gamma.config.spec.Finding;
 import com.gamma.report.ReportService;
 import com.gamma.report.ReportService.Window;
@@ -26,7 +33,7 @@ import java.util.Map;
  * A small (2B) model is enough <em>because</em> the skill does not trust it to do arithmetic: it
  * resolves the report server-side (so the figures are platform-computed, not caller-supplied), asks the
  * model only to restate them in prose, and then runs the result through the deterministic
- * {@link NarrativeGuard}, which rejects any number that does not appear in the source report. An
+ * {@link NumericGroundingGuard}, which rejects any number that does not appear in the source report. An
  * invented figure is fed back to the {@link RepairLoop} and repaired — never surfaced. This is the only
  * safety mechanism the skill needs, and it is fully CPU-testable.
  *
@@ -37,9 +44,15 @@ import java.util.Map;
  *
  * @since 3.8.0
  */
-public final class ReportNarrativeSkill implements Skill {
+public final class ReportNarrativeSkill implements Capability {
 
     public static final String ID = "report-narrative";
+
+    private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
+            "Narrate a structured pipeline report in plain language, grounded to the report's own figures.",
+            ModelTier.SMALL, 0.0, java.time.Duration.ofSeconds(60),
+            java.util.Set.of(), java.util.Set.of());
+
     private static final int MAX_REPAIR_ROUNDS = 2;
 
     private static final String SYSTEM = """
@@ -51,13 +64,12 @@ public final class ReportNarrativeSkill implements Skill {
 
     private final ObjectMapper json = new ObjectMapper();
 
-    @Override public String id() { return ID; }
-
-    /** Pure restatement of given numbers → the small/fast tier. */
-    @Override public ModelTier tier() { return ModelTier.SMALL; }
+    @Override public CapabilitySpec spec() { return SPEC; }
 
     @Override
-    public AssistResult run(AssistRequest request, AssistContext ctx) {
+    public AgentResult run(AgentRequest request, AgentContext context) throws AgentError {
+        UccAgentContext ctx = (UccAgentContext) context;
+        ModelTier tier = ctx.effectiveTier(SPEC.defaultTier());
         String reportType = firstNonBlank(request.context("reportType"),
                 str(request.partialInput().get("reportType")));
 
@@ -71,49 +83,52 @@ public final class ReportNarrativeSkill implements Skill {
             label = orDefault(reportType, "custom");
         } else {
             if (reportType == null) {
-                return AssistResult.unavailable(ID, "report-narrative needs a 'reportType' "
+                return AgentResult.unavailable(ID, "report-narrative needs a 'reportType' "
                         + "(status|service|batch|enrichment) or a 'report' object to narrate");
             }
             if (ctx.reports() == null) {
-                return AssistResult.unavailable(ID, "no report service is available to resolve a '"
+                return AgentResult.unavailable(ID, "no report service is available to resolve a '"
                         + reportType + "' report");
             }
             try {
                 report = resolve(ctx.reports(), reportType, request);
             } catch (IllegalArgumentException e) {
-                return AssistResult.unavailable(ID, e.getMessage());
+                return AgentResult.unavailable(ID, e.getMessage());
             }
             if (report == null) {
-                return AssistResult.unavailable(ID, "unknown reportType '" + reportType
+                return AgentResult.unavailable(ID, "unknown reportType '" + reportType
                         + "' (expected status|service|batch|enrichment)");
             }
             label = reportType;
         }
 
         String reportJson = writeJson(report);
-        List<Citation> citations = List.of(new Citation("report", label));
+        List<Evidence> evidence = List.of(new Evidence(label, CredibilityTier.AUTHORITATIVE, "report", label, 1.0, null));
+        // The allowed-evidence the grounding guard checks the narration against (the report's figures).
+        List<Evidence> allowed = List.of(new Evidence(report, CredibilityTier.AUTHORITATIVE, "report", label, 1.0, null));
 
-        ModelProvider model = ctx.models() == null ? null : ctx.models().providerFor(tier());
+        ModelProvider model = ctx.models() == null ? null : ctx.models().providerFor(tier);
         if (model == null || !model.available()) {
             // Abstain-safe: a deterministic, grounded-by-construction narrative from the report fields.
             String narrative = templateNarrative(label, report);
-            return AssistResult.draft(ID, "Assembled a deterministic report narrative (no model "
-                    + "available).", citations, List.of(), data(narrative, label, false, false, List.of()));
+            return AgentResult.draft(ID, SPEC.version(), "Assembled a deterministic report narrative (no model "
+                    + "available).", evidence, List.of(), null, 1.0, tier,
+                    data(narrative, label, false, false, List.of()));
         }
 
+        final ModelProvider m = model;
         String basePrompt = "REPORT:\n" + reportJson;
         RepairLoop.Result<String> result = RepairLoop.run(MAX_REPAIR_ROUNDS,
                 feedback -> {
                     String prompt = (feedback == null) ? basePrompt : basePrompt + "\n\n" + feedback;
-                    return model.generate(ModelRequest.text(tier(), SYSTEM, prompt)).text();
+                    return m.generate(ModelRequest.text(tier, SYSTEM, prompt)).text();
                 },
                 raw -> {
                     String narrative = raw == null ? "" : raw.trim();
-                    List<Finding> findings = NarrativeGuard.check(narrative, report);
-                    if (!findings.isEmpty()) {
-                        StringBuilder sb = new StringBuilder("ungrounded figure(s): ");
-                        for (Finding f : findings) sb.append(f.message()).append("; ");
-                        throw new IllegalArgumentException(sb.toString());
+                    GroundingGuard.Verdict v = new NumericGroundingGuard().check(narrative, allowed);
+                    if (!v.grounded()) {
+                        throw new IllegalArgumentException("ungrounded figure(s): "
+                                + String.join(", ", v.ungrounded()));
                     }
                     return narrative;
                 });
@@ -121,18 +136,18 @@ public final class ReportNarrativeSkill implements Skill {
         if (!result.ok()) {
             String last = result.errors().isEmpty() ? "unknown error"
                     : result.errors().get(result.errors().size() - 1);
-            return AssistResult.unavailable(ID, "could not produce a grounded narrative after "
+            return AgentResult.unavailable(ID, "could not produce a grounded narrative after "
                     + result.rounds() + " attempt(s): " + last);
         }
 
-        return AssistResult.draft(ID, "Generated a grounded narrative of the " + label + " report; "
-                + "every figure traces to the report.", citations, List.of(),
+        return AgentResult.draft(ID, SPEC.version(), "Generated a grounded narrative of the " + label + " report; "
+                + "every figure traces to the report.", evidence, List.of(), null, 1.0, tier,
                 data(result.value(), label, true, result.repaired(), List.of()));
     }
 
     // ── report resolution ────────────────────────────────────────────────────────────────
 
-    private Map<String, Object> resolve(ReportService reports, String reportType, AssistRequest request) {
+    private Map<String, Object> resolve(ReportService reports, String reportType, AgentRequest request) {
         String from = firstNonBlank(request.context("from"), str(request.partialInput().get("from")));
         String to = firstNonBlank(request.context("to"), str(request.partialInput().get("to")));
         Window window = Window.of(from, to);

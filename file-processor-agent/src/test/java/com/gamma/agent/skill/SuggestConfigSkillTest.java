@@ -5,8 +5,8 @@ import com.gamma.agent.model.FakeModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.retrieve.DocRetriever;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
 import com.gamma.config.io.ConfigCodec;
@@ -38,20 +38,20 @@ class SuggestConfigSkillTest {
         return new SuggestConfigSkill(SafetyPolicy.withRoots(root));
     }
 
-    private AssistContext context(SourceService svc, ModelRouter router) {
-        return new AssistContext(svc.catalog(), svc.reports(), svc.statusStore(),
+    private UccAgentContext context(SourceService svc, ModelRouter router) {
+        return new UccAgentContext(svc.catalog(), svc.reports(), svc.statusStore(),
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
 
     /** A pipeline request whose partial config already declares dirs under {@code root}. */
-    private AssistRequest pipelineReq(Path root) {
+    private AgentRequest pipelineReq(Path root) {
         Map<String, Object> dirs = new LinkedHashMap<>();
         dirs.put("poll", root.resolve("inbox").toString().replace("\\", "/"));
         dirs.put("database", root.resolve("db").toString().replace("\\", "/"));
         Map<String, Object> partial = new LinkedHashMap<>();
         partial.put("name", "ADJ");
         partial.put("dirs", dirs);
-        return new AssistRequest(SuggestConfigSkill.ID,
+        return new AgentRequest(SuggestConfigSkill.ID,
                 Map.of("configType", "pipeline", "sourceSample", "id,amt,ts\n1,2.0,2026-01-01"),
                 partial, null);
     }
@@ -65,9 +65,9 @@ class SuggestConfigSkillTest {
                        {"name":"processing.threads","value":2,"rationale":"~2 cores","confidence":"high"},
                        {"name":"output.format","value":"PARQUET","rationale":"columnar","confidence":"medium"}
                     ]}"""));
-            AssistResult res = skill(root).run(pipelineReq(root), context(svc, router));
+            AgentResult res = skill(root).run(pipelineReq(root), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status(), res.message());
+            assertEquals(AgentResult.Status.OK, res.status(), res.message());
             assertTrue(res.validated());
             assertNull(res.applyVia(), "draft-only (V-9)");
             Map<String, Object> data = res.data();
@@ -100,9 +100,9 @@ class SuggestConfigSkillTest {
                     round.incrementAndGet() == 1
                             ? "{\"fields\":[{\"name\":\"dirs.backup\",\"value\":\"/etc/exfil\",\"rationale\":\"x\",\"confidence\":\"low\"}]}"
                             : "{\"fields\":[{\"name\":\"dirs.backup\",\"value\":\"" + safeBackup + "\",\"rationale\":\"under workspace\",\"confidence\":\"high\"}]}"));
-            AssistResult res = skill(root).run(pipelineReq(root), context(svc, router));
+            AgentResult res = skill(root).run(pipelineReq(root), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status(), "the unsafe draft was repaired, not surfaced");
+            assertEquals(AgentResult.Status.OK, res.status(), "the unsafe draft was repaired, not surfaced");
             assertEquals(Boolean.TRUE, res.data().get("repaired"));
             assertTrue(round.get() >= 2, "the safety rejection forced a repair round");
             assertTrue(((String) res.data().get("draftToon")).contains("backup"));
@@ -130,18 +130,18 @@ class SuggestConfigSkillTest {
             partial.put("input", in);
             partial.put("output", out);
             partial.put("transform", "SELECT 1");
-            AssistRequest req = new AssistRequest(SuggestConfigSkill.ID,
+            AgentRequest req = new AgentRequest(SuggestConfigSkill.ID,
                     Map.of("configType", "enrichment"), partial, null);
 
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                     "{\"fields\":[{\"name\":\"triggers.on_pipeline\",\"value\":\"" + tableName
                             + "\",\"rationale\":\"run after upstream\",\"confidence\":\"high\"}]}"));
-            AssistResult res = skill(root).run(req, context(svc, router));
+            AgentResult res = skill(root).run(req, context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status(), res.message());
-            assertTrue(res.citations().stream()
-                            .anyMatch(c -> c.source().equals("catalog") && c.ref().equals(tableId)),
-                    "cites the grounded table node: " + res.citations());
+            assertEquals(AgentResult.Status.OK, res.status(), res.message());
+            assertTrue(res.evidence().stream()
+                            .anyMatch(c -> c.effectiveTierLabel().equals("catalog") && c.sourceRef().equals(tableId)),
+                    "cites the grounded table node: " + res.evidence());
         }
     }
 
@@ -150,9 +150,9 @@ class SuggestConfigSkillTest {
         Path pipe = AgentTestConfigs.writePipeline(root);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned("{\"fields\":[]}"));
-            AssistResult res = skill(root).run(
-                    new AssistRequest(SuggestConfigSkill.ID, Map.of(), Map.of(), null), context(svc, router));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            AgentResult res = skill(root).run(
+                    new AgentRequest(SuggestConfigSkill.ID, Map.of(), Map.of(), null), context(svc, router));
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
             assertTrue(res.message().contains("configType"));
         }
     }
@@ -162,8 +162,8 @@ class SuggestConfigSkillTest {
         Path pipe = AgentTestConfigs.writePipeline(root);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.down());
-            AssistResult res = skill(root).run(pipelineReq(root), context(svc, router));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            AgentResult res = skill(root).run(pipelineReq(root), context(svc, router));
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
             assertNull(res.answer());
         }
     }

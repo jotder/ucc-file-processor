@@ -2,11 +2,11 @@ package com.gamma.agent.skill;
 
 import com.gamma.agent.AgentTestConfigs;
 import com.gamma.agent.model.FakeModelProvider;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.retrieve.DocRetriever;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
 import com.gamma.service.SourceService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,13 +27,13 @@ class ExplainEntitySkillTest {
 
     private static final String EVENT_ID = "event:mini_etl/mini";
 
-    private AssistContext context(SourceService svc, ModelRouter router) {
-        return new AssistContext(svc.catalog(), svc.reports(), svc.statusStore(),
+    private UccAgentContext context(SourceService svc, ModelRouter router) {
+        return new UccAgentContext(svc.catalog(), svc.reports(), svc.statusStore(),
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
 
-    private AssistRequest explain(String question) {
-        return new AssistRequest(ExplainEntitySkill.ID,
+    private AgentRequest explain(String question) {
+        return new AgentRequest(ExplainEntitySkill.ID,
                 Map.of("entityType", "table", "id", EVENT_ID), Map.of(), question);
     }
 
@@ -43,16 +43,16 @@ class ExplainEntitySkillTest {
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             // The fake echoes the prompt back, so we can assert the catalog grounding reached the model.
             ModelRouter router = ModelRouter.of(FakeModelProvider.responding(ModelRequest::prompt));
-            AssistResult res = new ExplainEntitySkill().run(explain("what is this table?"), context(svc, router));
+            AgentResult res = new ExplainEntitySkill().run(explain("what is this table?"), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status());
+            assertEquals(AgentResult.Status.OK, res.status());
             assertNull(res.applyVia(), "read-only skill carries no write endpoint");
             assertFalse(res.validated(), "no oracle ran for read-only synthesis");
 
-            // citation points at the real event node...
-            assertTrue(res.citations().stream()
-                            .anyMatch(c -> c.source().equals("catalog") && c.ref().equals(EVENT_ID)),
-                    "cites the event node: " + res.citations());
+            // evidence points at the real event node...
+            assertTrue(res.evidence().stream()
+                            .anyMatch(c -> c.effectiveTierLabel().equals("catalog") && c.sourceRef().equals(EVENT_ID)),
+                    "cites the event node: " + res.evidence());
             assertTrue(res.links().contains("/catalog/tables/" + EVENT_ID));
 
             // ...and the grounding (node id + the source neighbour) actually reached the model prompt.
@@ -67,7 +67,7 @@ class ExplainEntitySkillTest {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned("This table stores mini events."));
-            AssistResult res = new ExplainEntitySkill().run(explain("explain"), context(svc, router));
+            AgentResult res = new ExplainEntitySkill().run(explain("explain"), context(svc, router));
             assertEquals("This table stores mini events.", res.answer());
         }
     }
@@ -77,8 +77,8 @@ class ExplainEntitySkillTest {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.down());
-            AssistResult res = new ExplainEntitySkill().run(explain("explain"), context(svc, router));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            AgentResult res = new ExplainEntitySkill().run(explain("explain"), context(svc, router));
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
             assertNull(res.answer());
             assertTrue(res.message().toLowerCase().contains("not available"));
         }

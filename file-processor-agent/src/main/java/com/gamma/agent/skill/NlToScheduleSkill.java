@@ -2,13 +2,18 @@ package com.gamma.agent.skill;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.agentkernel.agent.AgentContext;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
+import com.gamma.agentkernel.agent.Capability;
+import com.gamma.agentkernel.agent.CapabilitySpec;
+import com.gamma.agentkernel.error.AgentError;
 import com.gamma.agentkernel.model.ModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.agentkernel.reason.RepairLoop;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
-import com.gamma.assist.AssistResult.Citation;
+import com.gamma.agentkernel.tool.CredibilityTier;
+import com.gamma.agentkernel.tool.Evidence;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
@@ -53,9 +58,15 @@ import java.util.Set;
  *
  * @since 3.4.0
  */
-public final class NlToScheduleSkill implements Skill {
+public final class NlToScheduleSkill implements Capability {
 
     public static final String ID = "nl-to-schedule";
+
+    private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
+            "Translate a natural-language scheduling request into a validated JobConfig draft.",
+            ModelTier.SMALL, 0.0, java.time.Duration.ofSeconds(60),
+            java.util.Set.of(), java.util.Set.of());
+
     private static final int MAX_REPAIR_ROUNDS = 3;
     private static final int NEXT_RUNS = 5;
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -85,29 +96,29 @@ public final class NlToScheduleSkill implements Skill {
         this.zone = zone;
     }
 
-    @Override public String id() { return ID; }
-
-    /** The floor tier; {@link #routeTier} escalates compositional phrasing to MEDIUM at run time. */
-    @Override public ModelTier tier() { return ModelTier.SMALL; }
+    @Override public CapabilitySpec spec() { return SPEC; }
 
     @Override
-    public AssistResult run(AssistRequest request, AssistContext ctx) {
+    public AgentResult run(AgentRequest request, AgentContext context) throws AgentError {
+        UccAgentContext ctx = (UccAgentContext) context;
+        ModelTier tier = ctx.effectiveTier(SPEC.defaultTier());
         String userText = (request.userText() == null) ? "" : request.userText().trim();
         if (userText.isEmpty()) {
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "nl-to-schedule needs a natural-language request in 'userText', "
                             + "e.g. \"every weekday at 6am after adjustment_etl\"");
         }
 
-        // ── tier routing: plain → SMALL, compositional/relative/timezone → MEDIUM (V-5/V-8) ──
-        ModelTier chosen = routeTier(userText);
+        // ── tier routing: plain → SMALL, compositional/relative/timezone → MEDIUM (V-5/V-8);
+        //    an escalation override (effectiveTier) raises the floor further. ──
+        ModelTier chosen = max(tier, routeTier(userText));
         ModelProvider model = ctx.models().providerFor(chosen);
         if (!model.available() && chosen == ModelTier.SMALL) {
             ModelProvider medium = ctx.models().providerFor(ModelTier.MEDIUM);
             if (medium.available()) { model = medium; chosen = ModelTier.MEDIUM; }
         }
         if (!model.available()) {
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "the assist model (tier " + chosen + ") is not available — enable the assist "
                             + "layer and a local Ollama endpoint to use nl-to-schedule");
         }
@@ -132,7 +143,7 @@ public final class NlToScheduleSkill implements Skill {
         if (!result.ok()) {
             String last = result.errors().isEmpty() ? "unknown error"
                     : result.errors().get(result.errors().size() - 1);
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "could not produce a valid schedule after " + result.rounds()
                             + " attempt(s): " + last);
         }
@@ -143,14 +154,15 @@ public final class NlToScheduleSkill implements Skill {
         List<String> nextRuns = computeNextRuns(d.cron, zone, NEXT_RUNS);
         String draftToon = ConfigCodec.toToon(d.jobMap);
 
-        List<Citation> citations = new ArrayList<>();
+        List<Evidence> evidence = new ArrayList<>();
         List<String> links = new ArrayList<>();
         if (d.onPipeline != null && pipelineIdByName.containsKey(d.onPipeline)) {
             String pid = pipelineIdByName.get(d.onPipeline);
-            citations.add(new Citation("catalog", pid));    // derived, not parsed from the model
+            evidence.add(new Evidence(pid, CredibilityTier.AUTHORITATIVE, "catalog", pid, 1.0, null)); // derived, not parsed
             links.add("/catalog/tables/" + pid);
         }
-        citations.add(new Citation("oracle", "cron:" + d.cron)); // the schedule was validated by the cron oracle
+        // the schedule was validated by the cron oracle
+        evidence.add(new Evidence("cron:" + d.cron, CredibilityTier.DERIVED, "oracle", "cron:" + d.cron, 1.0, null));
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("name", d.name);
@@ -172,7 +184,11 @@ public final class NlToScheduleSkill implements Skill {
                 + (d.onPipeline != null ? " (also after the '" + d.onPipeline + "' pipeline commits)" : "")
                 + ". Review the draft below and save it as a *_job.toon to schedule it.";
 
-        return AssistResult.draft(ID, answer, citations, links, data);
+        return AgentResult.draft(ID, SPEC.version(), answer, evidence, links, null, 1.0, chosen, data);
+    }
+
+    private static ModelTier max(ModelTier a, ModelTier b) {
+        return a.ordinal() >= b.ordinal() ? a : b;
     }
 
     // ── tier routing heuristic ───────────────────────────────────────────────────────

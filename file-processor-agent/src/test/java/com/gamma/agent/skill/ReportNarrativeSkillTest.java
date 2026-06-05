@@ -5,8 +5,8 @@ import com.gamma.agent.model.FakeModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.retrieve.DocRetriever;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
 import com.gamma.service.SourceService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -30,8 +30,8 @@ class ReportNarrativeSkillTest {
 
     private final ReportNarrativeSkill skill = new ReportNarrativeSkill();
 
-    private AssistContext ctx(SourceService svc, ModelRouter router) {
-        return new AssistContext(svc == null ? null : svc.catalog(),
+    private UccAgentContext ctx(SourceService svc, ModelRouter router) {
+        return new UccAgentContext(svc == null ? null : svc.catalog(),
                 svc == null ? null : svc.reports(),
                 svc == null ? null : svc.statusStore(),
                 new DocRetriever(Map.of()), router,
@@ -39,11 +39,11 @@ class ReportNarrativeSkillTest {
     }
 
     /** A request carrying a raw report object to narrate (no ReportService needed). */
-    private static AssistRequest rawReport(Map<String, Object> report) {
+    private static AgentRequest rawReport(Map<String, Object> report) {
         Map<String, Object> partial = new LinkedHashMap<>();
         partial.put("report", report);
         partial.put("reportType", "service");
-        return new AssistRequest(ReportNarrativeSkill.ID, Map.of(), partial, null);
+        return new AgentRequest(ReportNarrativeSkill.ID, Map.of(), partial, null);
     }
 
     private static Map<String, Object> sampleReport() {
@@ -60,10 +60,10 @@ class ReportNarrativeSkillTest {
     @Test
     void groundedNarrativePasses() {
         String canned = "Across 412 batches, 405 succeeded and 7 failed (a 1.7% error rate).";
-        AssistResult res = skill.run(rawReport(sampleReport()),
+        AgentResult res = skill.run(rawReport(sampleReport()),
                 ctx(null, ModelRouter.of(FakeModelProvider.canned(canned))));
 
-        assertEquals(AssistResult.Status.OK, res.status(), res.message());
+        assertEquals(AgentResult.Status.OK, res.status(), res.message());
         assertNull(res.applyVia(), "draft-only");
         assertEquals(canned, res.data().get("narrative"));
         assertEquals(Boolean.TRUE, res.data().get("modelBacked"));
@@ -77,9 +77,9 @@ class ReportNarrativeSkillTest {
                 round.incrementAndGet() == 1
                         ? "A whopping 9999 batches failed catastrophically."   // 9999 not in report
                         : "Of 412 batches, 7 failed."));                        // grounded
-        AssistResult res = skill.run(rawReport(sampleReport()), ctx(null, router));
+        AgentResult res = skill.run(rawReport(sampleReport()), ctx(null, router));
 
-        assertEquals(AssistResult.Status.OK, res.status(), "the hallucinated figure was repaired");
+        assertEquals(AgentResult.Status.OK, res.status(), "the hallucinated figure was repaired");
         assertEquals(Boolean.TRUE, res.data().get("repaired"));
         assertFalse(String.valueOf(res.data().get("narrative")).contains("9999"),
                 "the invented number is never surfaced");
@@ -88,18 +88,18 @@ class ReportNarrativeSkillTest {
     @Test
     void persistentlyHallucinatingModelFailsGracefully() {
         ModelRouter router = ModelRouter.of(FakeModelProvider.canned("There were 9999 failures."));
-        AssistResult res = skill.run(rawReport(sampleReport()), ctx(null, router));
+        AgentResult res = skill.run(rawReport(sampleReport()), ctx(null, router));
 
-        assertEquals(AssistResult.Status.UNAVAILABLE, res.status(),
+        assertEquals(AgentResult.Status.UNAVAILABLE, res.status(),
                 "an always-ungrounded narrative is never surfaced");
     }
 
     @Test
     void noModelFallsBackToDeterministicTemplate() {
-        AssistResult res = skill.run(rawReport(sampleReport()),
+        AgentResult res = skill.run(rawReport(sampleReport()),
                 ctx(null, ModelRouter.of(FakeModelProvider.down())));
 
-        assertEquals(AssistResult.Status.OK, res.status(), "abstain-safe: a template is produced");
+        assertEquals(AgentResult.Status.OK, res.status(), "abstain-safe: a template is produced");
         assertEquals(Boolean.FALSE, res.data().get("modelBacked"));
         String narrative = String.valueOf(res.data().get("narrative"));
         assertTrue(narrative.contains("412") && narrative.contains("7"),
@@ -112,21 +112,21 @@ class ReportNarrativeSkillTest {
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             // A fresh service has run nothing → the service report is all zeros (grounded numbers).
             String canned = "No batches have run yet: 0 total, 0 succeeded, 0 failed.";
-            AssistRequest req = new AssistRequest(ReportNarrativeSkill.ID, Map.of(),
+            AgentRequest req = new AgentRequest(ReportNarrativeSkill.ID, Map.of(),
                     Map.of("reportType", "service"), null);
-            AssistResult res = skill.run(req, ctx(svc, ModelRouter.of(FakeModelProvider.canned(canned))));
+            AgentResult res = skill.run(req, ctx(svc, ModelRouter.of(FakeModelProvider.canned(canned))));
 
-            assertEquals(AssistResult.Status.OK, res.status(), res.message());
+            assertEquals(AgentResult.Status.OK, res.status(), res.message());
             assertEquals("service", res.data().get("reportType"));
             assertEquals(canned, res.data().get("narrative"));
-            assertTrue(res.citations().stream().anyMatch(c -> c.source().equals("report")));
+            assertTrue(res.evidence().stream().anyMatch(c -> c.effectiveTierLabel().equals("report")));
         }
     }
 
     @Test
     void missingReportTypeAndReportIsGraceful() {
-        AssistRequest req = new AssistRequest(ReportNarrativeSkill.ID, Map.of(), Map.of(), null);
-        AssistResult res = skill.run(req, ctx(null, ModelRouter.of(FakeModelProvider.canned("x"))));
-        assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+        AgentRequest req = new AgentRequest(ReportNarrativeSkill.ID, Map.of(), Map.of(), null);
+        AgentResult res = skill.run(req, ctx(null, ModelRouter.of(FakeModelProvider.canned("x"))));
+        assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
     }
 }

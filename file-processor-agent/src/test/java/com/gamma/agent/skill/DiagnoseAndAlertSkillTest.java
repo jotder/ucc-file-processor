@@ -5,8 +5,8 @@ import com.gamma.agent.model.FakeModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.retrieve.DocRetriever;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
 import com.gamma.config.io.ConfigCodec;
@@ -31,13 +31,13 @@ class DiagnoseAndAlertSkillTest {
 
     private final DiagnoseAndAlertSkill skill = new DiagnoseAndAlertSkill();
 
-    private AssistContext context(SourceService svc, ModelRouter router) {
-        return new AssistContext(svc.catalog(), svc.reports(), svc.statusStore(),
+    private UccAgentContext context(SourceService svc, ModelRouter router) {
+        return new UccAgentContext(svc.catalog(), svc.reports(), svc.statusStore(),
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
 
-    private AssistRequest ask(String userText) {
-        return new AssistRequest(DiagnoseAndAlertSkill.ID, Map.of(), Map.of(), userText);
+    private AgentRequest ask(String userText) {
+        return new AgentRequest(DiagnoseAndAlertSkill.ID, Map.of(), Map.of(), userText);
     }
 
     @Test
@@ -47,9 +47,9 @@ class DiagnoseAndAlertSkillTest {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                     "{\"name\":\"high-error-rate\",\"metric\":\"error_rate\",\"comparator\":\"gt\","
                             + "\"threshold\":0.05,\"window\":\"1h\",\"severity\":\"CRITICAL\",\"on_pipeline\":null}"));
-            AssistResult res = skill.run(ask("warn me when the error rate goes above 5%"), context(svc, router));
+            AgentResult res = skill.run(ask("warn me when the error rate goes above 5%"), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status());
+            assertEquals(AgentResult.Status.OK, res.status());
             assertTrue(res.validated(), "the draft passed the alert-rule oracle");
             assertNull(res.applyVia(), "draft-only (V-9): no write endpoint");
 
@@ -67,8 +67,8 @@ class DiagnoseAndAlertSkillTest {
             Map<String, Object> roundTrip = ConfigCodec.toMap(draftToon);
             assertTrue(roundTrip.containsKey("alert"), "draft .toon has an alert section: " + draftToon);
 
-            assertTrue(res.citations().stream().anyMatch(c -> c.source().equals("oracle")),
-                    "cites the validating oracle: " + res.citations());
+            assertTrue(res.evidence().stream().anyMatch(c -> c.effectiveTierLabel().equals("oracle")),
+                    "cites the validating oracle: " + res.evidence());
         }
     }
 
@@ -84,14 +84,14 @@ class DiagnoseAndAlertSkillTest {
                     "{\"name\":\"slow-batches\",\"metric\":\"duration_ms\",\"comparator\":\"gt\","
                             + "\"threshold\":60000,\"window\":\"1d\",\"severity\":\"WARNING\","
                             + "\"on_pipeline\":\"" + pipeName + "\"}"));
-            AssistResult res = skill.run(
+            AgentResult res = skill.run(
                     ask("warn if batches on " + pipeName + " take over a minute"), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status());
+            assertEquals(AgentResult.Status.OK, res.status());
             assertEquals(pipeName, res.data().get("onPipeline"));
-            assertTrue(res.citations().stream()
-                            .anyMatch(c -> c.source().equals("catalog") && c.ref().equals(pipeId)),
-                    "cites the grounded pipeline node: " + res.citations());
+            assertTrue(res.evidence().stream()
+                            .anyMatch(c -> c.effectiveTierLabel().equals("catalog") && c.sourceRef().equals(pipeId)),
+                    "cites the grounded pipeline node: " + res.evidence());
             assertTrue(res.links().contains("/catalog/tables/" + pipeId));
         }
     }
@@ -108,9 +108,9 @@ class DiagnoseAndAlertSkillTest {
                               + "\"window\":\"1h\",\"severity\":\"WARNING\"}"
                             : "{\"name\":\"r\",\"metric\":\"error_rate\",\"comparator\":\"gt\",\"threshold\":0.05,"
                               + "\"window\":\"1h\",\"severity\":\"WARNING\"}"));
-            AssistResult res = skill.run(ask("alert on high error rate"), context(svc, router));
+            AgentResult res = skill.run(ask("alert on high error rate"), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status(), "the bad threshold was repaired, not surfaced");
+            assertEquals(AgentResult.Status.OK, res.status(), "the bad threshold was repaired, not surfaced");
             assertEquals(0.05, ((Number) res.data().get("threshold")).doubleValue(), 1e-9);
             assertEquals(Boolean.TRUE, res.data().get("repaired"));
             assertTrue(round.get() >= 2, "the loop re-prompted after the oracle rejection");
@@ -128,12 +128,12 @@ class DiagnoseAndAlertSkillTest {
                               + "\"window\":\"1d\",\"severity\":\"CRITICAL\",\"on_pipeline\":\"ghost_pipeline\"}"
                             : "{\"name\":\"r\",\"metric\":\"failed_batches\",\"comparator\":\"gte\",\"threshold\":1,"
                               + "\"window\":\"1d\",\"severity\":\"CRITICAL\",\"on_pipeline\":null}"));
-            AssistResult res = skill.run(ask("alert on any failed batch"), context(svc, router));
+            AgentResult res = skill.run(ask("alert on any failed batch"), context(svc, router));
 
-            assertEquals(AssistResult.Status.OK, res.status());
+            assertEquals(AgentResult.Status.OK, res.status());
             assertFalse(res.data().containsKey("onPipeline"), "the fabricated pipeline was dropped");
             assertTrue(round.get() >= 2, "grounding rejection forced a repair round");
-            assertTrue(res.citations().stream().noneMatch(c -> c.source().equals("catalog")),
+            assertTrue(res.evidence().stream().noneMatch(c -> c.effectiveTierLabel().equals("catalog")),
                     "no catalog citation when no real pipeline was used");
         }
     }
@@ -143,8 +143,8 @@ class DiagnoseAndAlertSkillTest {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.down());
-            AssistResult res = skill.run(ask("warn on errors"), context(svc, router));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            AgentResult res = skill.run(ask("warn on errors"), context(svc, router));
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
             assertTrue(res.message().toLowerCase().contains("not available"));
         }
     }
@@ -154,8 +154,8 @@ class DiagnoseAndAlertSkillTest {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned("{}"));
-            AssistResult res = skill.run(ask("   "), context(svc, router));
-            assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+            AgentResult res = skill.run(ask("   "), context(svc, router));
+            assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
             assertTrue(res.message().contains("userText"));
         }
     }

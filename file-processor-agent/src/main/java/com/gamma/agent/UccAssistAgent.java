@@ -3,17 +3,19 @@ package com.gamma.agent;
 import com.gamma.agent.diagnose.DiagnosisStore;
 import com.gamma.agent.diagnose.FailureReactor;
 import com.gamma.agent.diagnose.ModelDiagnoser;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
+import com.gamma.agentkernel.agent.CapabilityRegistry;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
 import com.gamma.agentkernel.retrieve.DocRetriever;
-import com.gamma.agent.skill.AssistContext;
+import com.gamma.agent.skill.UccAgentContext;
 import com.gamma.agent.skill.DiagnoseAndAlertSkill;
 import com.gamma.agent.skill.ExplainEntitySkill;
 import com.gamma.agent.skill.KpiToSqlSkill;
 import com.gamma.agent.skill.NlToScheduleSkill;
 import com.gamma.agent.skill.ReportNarrativeSkill;
 import com.gamma.agent.skill.ReportSqlSkill;
-import com.gamma.agent.skill.SkillRegistry;
 import com.gamma.agent.skill.SuggestConfigSkill;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
@@ -31,17 +33,19 @@ import java.util.function.Consumer;
 /**
  * The real embedded assist agent (v3.3.0, M3) — the {@link AssistAgent} the optional
  * {@code file-processor-agent} module contributes via {@code ServiceLoader}. It captures the host
- * service's read-only handles in {@link #init}, builds the {@link SkillRegistry}, and dispatches
- * {@code POST /assist/{intent}} calls to the matching {@link com.gamma.agent.skill.Skill}.
+ * service's read-only handles in {@link #init} (into a {@link UccAgentContext}), builds the
+ * {@link CapabilityRegistry}, and dispatches {@code POST /assist/{intent}} calls to the matching
+ * {@link com.gamma.agentkernel.agent.Capability}, mapping the kernel {@link AgentResult} back onto the
+ * lean-core wire {@link AssistResult} in {@link #toWire}.
  *
  * <h3>Lazy & abstain-safe</h3>
  * Construction and {@link #init} touch no network: the {@link ModelRouter}'s providers build their
- * model clients lazily and report {@link com.gamma.agent.model.ModelProvider#available() unavailable}
- * until a deployment turns the assist layer on. So discovering this agent in a CI/test process is
- * harmless — skills simply return "model unavailable" until Ollama is configured.
+ * model clients lazily and report unavailable until a deployment turns the assist layer on. So
+ * discovering this agent in a CI/test process is harmless — capabilities simply return "model
+ * unavailable" until Ollama is configured.
  *
- * <p>M3 ships exactly one skill, {@code explain-entity} (read-only). The agent holds no write
- * credential and performs no autonomous action.
+ * <p>The agent holds no write credential and performs no autonomous action — every capability is
+ * read-only or draft-only ({@code applyVia} is always {@code null}).
  */
 public final class UccAssistAgent implements AssistAgent {
 
@@ -49,8 +53,8 @@ public final class UccAssistAgent implements AssistAgent {
 
     private final ModelRouter router;
     private final Consumer<AuditEvent> audit;
-    private volatile SkillRegistry registry;
-    private volatile AssistContext context;
+    private volatile CapabilityRegistry registry;
+    private volatile UccAgentContext context;
     private volatile DiagnosisStore diagnoses;
     private volatile FailureReactor reactor;
 
@@ -78,9 +82,9 @@ public final class UccAssistAgent implements AssistAgent {
     @Override
     public void init(SourceService service) {
         DocRetriever docs = DocRetriever.fromDir(docsDir());
-        this.context = new AssistContext(service.catalog(), service.reports(),
+        this.context = new UccAgentContext(service.catalog(), service.reports(),
                 service.statusStore(), docs, router, service.configSource());
-        this.registry = new SkillRegistry(List.of(
+        this.registry = CapabilityRegistry.of(List.of(
                 new ExplainEntitySkill(),
                 new NlToScheduleSkill(),
                 new SuggestConfigSkill(),
@@ -98,22 +102,36 @@ public final class UccAssistAgent implements AssistAgent {
         service.eventBus().subscribe(reactor::onEvent);
 
         log.info("Assist agent '{}' initialised: skills={}, docs={}, modelAvailable={}, failureReactor=on",
-                name(), registry.intents(), docs.size(), router.anyAvailable());
+                name(), registry.ids(), docs.size(), router.anyAvailable());
     }
 
     @Override
     public AssistResult assist(AssistRequest request) {
-        SkillRegistry r = registry;
+        CapabilityRegistry r = registry;
         if (r == null) return AssistResult.unsupported(request.intent());
         long t0 = System.nanoTime();
         try {
-            AssistResult result = r.dispatch(request, context);
+            AgentRequest agentReq = new AgentRequest(request.intent(), request.screenContext(),
+                    request.partialInput(), request.userText());
+            AssistResult result = toWire(r.dispatch(agentReq, context));
             audit(request, result, t0);
             return result;
         } catch (RuntimeException e) {
             log.warn("assist intent '{}' failed", request.intent(), e);
             return AssistResult.unavailable(request.intent(), "assist error: " + e.getMessage());
         }
+    }
+
+    /** Map a kernel {@link AgentResult} onto the lean-core wire {@link AssistResult} (U1.4 adapter). */
+    private static AssistResult toWire(AgentResult ar) {
+        AssistResult.Status status = AssistResult.Status.valueOf(ar.status().name());
+        List<AssistResult.Citation> citations = ar.evidence().stream()
+                .map(e -> new AssistResult.Citation(e.effectiveTierLabel(), e.sourceRef()))
+                .toList();
+        // The wire confidence stays a String this milestone (U1.5 reshapes it to a double).
+        String confidence = (status == AssistResult.Status.OK) ? "local" : null;
+        return new AssistResult(ar.capabilityId(), status, ar.answer(), citations, ar.links(),
+                ar.rationale(), confidence, ar.validated(), ar.applyVia(), ar.message(), ar.data());
     }
 
     /**

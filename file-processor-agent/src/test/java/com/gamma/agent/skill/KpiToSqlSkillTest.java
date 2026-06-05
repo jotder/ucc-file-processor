@@ -3,8 +3,8 @@ package com.gamma.agent.skill;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agent.model.FakeModelProvider;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
 import com.gamma.catalog.ConfigSource;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.MetadataNode;
@@ -72,17 +72,17 @@ class KpiToSqlSkillTest {
         return new Cat(svc, refId, kpiId);
     }
 
-    private static AssistContext ctx(MetadataGraphService catalog, ModelRouter router) {
-        return new AssistContext(catalog, null, null, null, router, null);
+    private static UccAgentContext ctx(MetadataGraphService catalog, ModelRouter router) {
+        return new UccAgentContext(catalog, null, null, null, router, null);
     }
 
-    private static AssistRequest ask(Cat cat, boolean sampleRows) {
+    private static AgentRequest ask(Cat cat, boolean sampleRows) {
         Map<String, Object> partial = new LinkedHashMap<>();
         partial.put("kpiDescription", "total calls per region");
         partial.put("targetGrain", "region");
         partial.put("catalogRefs", List.of(cat.refId, cat.kpiId));
         if (sampleRows) partial.put("sampleRows", true);
-        return new AssistRequest(KpiToSqlSkill.ID, Map.of(), partial, "total calls per region");
+        return new AgentRequest(KpiToSqlSkill.ID, Map.of(), partial, "total calls per region");
     }
 
     private static final String GOOD_SQL =
@@ -98,10 +98,10 @@ class KpiToSqlSkillTest {
     @Test
     void validKpiProducesConfirmFirstDraft(@TempDir Path dir) throws Exception {
         Cat cat = catalog(dir);
-        AssistResult res = skill.run(ask(cat, false),
+        AgentResult res = skill.run(ask(cat, false),
                 ctx(cat.catalog, ModelRouter.of(FakeModelProvider.canned(GOOD_SQL))));
 
-        assertEquals(AssistResult.Status.OK, res.status(), res.message());
+        assertEquals(AgentResult.Status.OK, res.status(), res.message());
         assertTrue(res.validated(), "the SQL planned in the sandbox oracle");
         assertNull(res.applyVia(), "draft-only (V-9): no write endpoint");
 
@@ -114,9 +114,9 @@ class KpiToSqlSkillTest {
                 "confirm-first: the interpretation is surfaced");
         assertFalse(data.containsKey("sampleRows"), "no preview rows unless requested");
 
-        boolean citesRef = res.citations().stream().anyMatch(c -> c.ref().equals(cat.refId));
-        boolean citesKpi = res.citations().stream().anyMatch(c -> c.ref().equals(cat.kpiId));
-        assertTrue(citesRef && citesKpi, "grounded citations for the resolved nodes: " + res.citations());
+        boolean citesRef = res.evidence().stream().anyMatch(c -> c.sourceRef().equals(cat.refId));
+        boolean citesKpi = res.evidence().stream().anyMatch(c -> c.sourceRef().equals(cat.kpiId));
+        assertTrue(citesRef && citesKpi, "grounded citations for the resolved nodes: " + res.evidence());
     }
 
     @Test
@@ -128,9 +128,9 @@ class KpiToSqlSkillTest {
                         ? "{\"sql\":\"SELECT * FROM read_csv('/etc/passwd')\"}"   // attack
                         : GOOD_SQL));                                              // corrected
 
-        AssistResult res = skill.run(ask(cat, false), ctx(cat.catalog, router));
+        AgentResult res = skill.run(ask(cat, false), ctx(cat.catalog, router));
 
-        assertEquals(AssistResult.Status.OK, res.status(), "the unsafe query was repaired, not failed");
+        assertEquals(AgentResult.Status.OK, res.status(), "the unsafe query was repaired, not failed");
         assertEquals(Boolean.TRUE, res.data().get("repaired"));
         assertEquals("SELECT region, COUNT(*) AS calls FROM events GROUP BY region", res.data().get("sql"),
                 "the file-reading query is never surfaced");
@@ -142,9 +142,9 @@ class KpiToSqlSkillTest {
         Cat cat = catalog(dir);
         ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                 "{\"sql\":\"SELECT * FROM read_csv('/etc/passwd')\"}"));
-        AssistResult res = skill.run(ask(cat, false), ctx(cat.catalog, router));
+        AgentResult res = skill.run(ask(cat, false), ctx(cat.catalog, router));
 
-        assertEquals(AssistResult.Status.UNAVAILABLE, res.status(),
+        assertEquals(AgentResult.Status.UNAVAILABLE, res.status(),
                 "an always-unsafe model yields a graceful failure, never the unsafe SQL");
         assertTrue(res.data() == null || !res.data().containsKey("sql"),
                 "no SQL draft is surfaced when every attempt is unsafe");
@@ -153,10 +153,10 @@ class KpiToSqlSkillTest {
     @Test
     void sampleRowsReturnedOnlyWhenRequested(@TempDir Path dir) throws Exception {
         Cat cat = catalog(dir);
-        AssistResult res = skill.run(ask(cat, true),
+        AgentResult res = skill.run(ask(cat, true),
                 ctx(cat.catalog, ModelRouter.of(FakeModelProvider.canned(GOOD_SQL))));
 
-        assertEquals(AssistResult.Status.OK, res.status(), res.message());
+        assertEquals(AgentResult.Status.OK, res.status(), res.message());
         Object sample = res.data().get("sampleRows");
         assertNotNull(sample, "preview rows present when sampleRows:true");
         assertTrue(sample instanceof List<?> l && !l.isEmpty(), "preview is non-empty over seeded data");
@@ -170,45 +170,45 @@ class KpiToSqlSkillTest {
                 round.incrementAndGet() == 1
                         ? "{\"sql\":\"SELECT no_such_col FROM events\"}"   // won't plan
                         : GOOD_SQL));
-        AssistResult res = skill.run(ask(cat, false), ctx(cat.catalog, router));
+        AgentResult res = skill.run(ask(cat, false), ctx(cat.catalog, router));
 
-        assertEquals(AssistResult.Status.OK, res.status(), "the unplannable query was repaired");
+        assertEquals(AgentResult.Status.OK, res.status(), "the unplannable query was repaired");
         assertEquals(Boolean.TRUE, res.data().get("repaired"));
     }
 
     @Test
     void modelUnavailableIsGraceful(@TempDir Path dir) throws Exception {
         Cat cat = catalog(dir);
-        AssistResult res = skill.run(ask(cat, false),
+        AgentResult res = skill.run(ask(cat, false),
                 ctx(cat.catalog, ModelRouter.of(FakeModelProvider.down())));
-        assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+        assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
     }
 
     @Test
     void missingKpiDescriptionIsGraceful(@TempDir Path dir) throws Exception {
         Cat cat = catalog(dir);
-        AssistRequest req = new AssistRequest(KpiToSqlSkill.ID, Map.of(),
+        AgentRequest req = new AgentRequest(KpiToSqlSkill.ID, Map.of(),
                 Map.of("catalogRefs", List.of(cat.refId)), null);
-        AssistResult res = skill.run(req, ctx(cat.catalog, ModelRouter.of(FakeModelProvider.canned(GOOD_SQL))));
-        assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+        AgentResult res = skill.run(req, ctx(cat.catalog, ModelRouter.of(FakeModelProvider.canned(GOOD_SQL))));
+        assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
     }
 
     @Test
     void noResolvableDataTableIsGraceful(@TempDir Path dir) throws Exception {
         Cat cat = catalog(dir);
         // Only the KPI ref (grounding-only) — no data table to validate against.
-        AssistRequest req = new AssistRequest(KpiToSqlSkill.ID, Map.of(),
+        AgentRequest req = new AgentRequest(KpiToSqlSkill.ID, Map.of(),
                 Map.of("kpiDescription", "x", "catalogRefs", List.of(cat.kpiId)), null);
-        AssistResult res = skill.run(req, ctx(cat.catalog, ModelRouter.of(FakeModelProvider.canned(GOOD_SQL))));
-        assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+        AgentResult res = skill.run(req, ctx(cat.catalog, ModelRouter.of(FakeModelProvider.canned(GOOD_SQL))));
+        assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
     }
 
     @Test
     void emptyCatalogRefsIsGraceful(@TempDir Path dir) throws Exception {
         Cat cat = catalog(dir);
-        AssistRequest req = new AssistRequest(KpiToSqlSkill.ID, Map.of(),
+        AgentRequest req = new AgentRequest(KpiToSqlSkill.ID, Map.of(),
                 Map.of("kpiDescription", "x"), null);
-        AssistResult res = skill.run(req, ctx(cat.catalog, ModelRouter.of(FakeModelProvider.canned(GOOD_SQL))));
-        assertEquals(AssistResult.Status.UNAVAILABLE, res.status());
+        AgentResult res = skill.run(req, ctx(cat.catalog, ModelRouter.of(FakeModelProvider.canned(GOOD_SQL))));
+        assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
     }
 }

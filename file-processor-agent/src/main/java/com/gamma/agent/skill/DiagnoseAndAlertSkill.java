@@ -2,13 +2,18 @@ package com.gamma.agent.skill;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.agentkernel.agent.AgentContext;
+import com.gamma.agentkernel.agent.AgentRequest;
+import com.gamma.agentkernel.agent.AgentResult;
+import com.gamma.agentkernel.agent.Capability;
+import com.gamma.agentkernel.agent.CapabilitySpec;
+import com.gamma.agentkernel.error.AgentError;
 import com.gamma.agentkernel.model.ModelProvider;
 import com.gamma.agentkernel.model.ModelRequest;
 import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.agentkernel.reason.RepairLoop;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
-import com.gamma.assist.AssistResult.Citation;
+import com.gamma.agentkernel.tool.CredibilityTier;
+import com.gamma.agentkernel.tool.Evidence;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
@@ -42,9 +47,15 @@ import java.util.Set;
  *
  * @since 3.7.0
  */
-public final class DiagnoseAndAlertSkill implements Skill {
+public final class DiagnoseAndAlertSkill implements Capability {
 
     public static final String ID = "diagnose-and-alert";
+
+    private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
+            "Translate a natural-language alerting request into a validated alert-rule draft.",
+            ModelTier.MEDIUM, 0.0, java.time.Duration.ofSeconds(60),
+            java.util.Set.of(), java.util.Set.of("alert-rule"));
+
     private static final int MAX_REPAIR_ROUNDS = 3;
 
     private static final String SYSTEM = """
@@ -62,24 +73,23 @@ public final class DiagnoseAndAlertSkill implements Skill {
 
     private final ObjectMapper json = new ObjectMapper();
 
-    @Override public String id() { return ID; }
-
-    /** Root-cause/alert reasoning routes to MEDIUM (7B); hosted-recommended in connected mode. */
-    @Override public ModelTier tier() { return ModelTier.MEDIUM; }
+    @Override public CapabilitySpec spec() { return SPEC; }
 
     @Override
-    public AssistResult run(AssistRequest request, AssistContext ctx) {
+    public AgentResult run(AgentRequest request, AgentContext context) throws AgentError {
+        UccAgentContext ctx = (UccAgentContext) context;
+        ModelTier tier = ctx.effectiveTier(SPEC.defaultTier());
         String userText = (request.userText() == null) ? "" : request.userText().trim();
         if (userText.isEmpty()) {
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "diagnose-and-alert needs a natural-language request in 'userText', "
                             + "e.g. \"warn when the error rate exceeds 5% on EVENTS\"");
         }
 
-        ModelProvider model = ctx.models().providerFor(tier());
+        ModelProvider model = ctx.models().providerFor(tier);
         if (!model.available()) {
-            return AssistResult.unavailable(ID,
-                    "the assist model (tier " + tier() + ") is not available — enable the assist "
+            return AgentResult.unavailable(ID,
+                    "the assist model (tier " + tier + ") is not available — enable the assist "
                             + "layer and a local Ollama endpoint to use diagnose-and-alert");
         }
 
@@ -94,14 +104,14 @@ public final class DiagnoseAndAlertSkill implements Skill {
         RepairLoop.Result<Draft> result = RepairLoop.run(MAX_REPAIR_ROUNDS,
                 feedback -> {
                     String prompt = (feedback == null) ? basePrompt : basePrompt + "\n\n" + feedback;
-                    return model.generate(ModelRequest.json(tier(), SYSTEM, prompt)).text();
+                    return model.generate(ModelRequest.json(tier, SYSTEM, prompt)).text();
                 },
                 raw -> parseAndValidate(raw, pipelineIdByName.keySet()));
 
         if (!result.ok()) {
             String last = result.errors().isEmpty() ? "unknown error"
                     : result.errors().get(result.errors().size() - 1);
-            return AssistResult.unavailable(ID,
+            return AgentResult.unavailable(ID,
                     "could not produce a valid alert rule after " + result.rounds()
                             + " attempt(s): " + last);
         }
@@ -111,15 +121,16 @@ public final class DiagnoseAndAlertSkill implements Skill {
         String humanReadable = describe(d.rule);
         String draftToon = ConfigCodec.toToon(Map.of("alert", d.rule));
 
-        List<Citation> citations = new ArrayList<>();
+        List<Evidence> evidence = new ArrayList<>();
         List<String> links = new ArrayList<>();
         Object onPipeline = d.rule.get("onPipeline");
         if (onPipeline != null && pipelineIdByName.containsKey(onPipeline.toString())) {
             String pid = pipelineIdByName.get(onPipeline.toString());
-            citations.add(new Citation("catalog", pid));        // derived, not parsed from the model
+            evidence.add(new Evidence(pid, CredibilityTier.AUTHORITATIVE, "catalog", pid, 1.0, null)); // derived, not parsed
             links.add("/catalog/tables/" + pid);
         }
-        citations.add(new Citation("oracle", "alert-rule"));    // the rule shape was validated
+        // the rule shape was validated
+        evidence.add(new Evidence("alert-rule", CredibilityTier.DERIVED, "oracle", "alert-rule", 1.0, null));
 
         Map<String, Object> data = new LinkedHashMap<>(d.rule);
         data.put("humanReadable", humanReadable);
@@ -129,7 +140,7 @@ public final class DiagnoseAndAlertSkill implements Skill {
 
         String answer = humanReadable
                 + ". Review the draft below and save it as a *_alert.toon to enable it.";
-        return AssistResult.draft(ID, answer, citations, links, data);
+        return AgentResult.draft(ID, SPEC.version(), answer, evidence, links, null, 1.0, tier, data);
     }
 
     // ── oracle: parse + validate the model's JSON into an alert-rule draft ─────────────
