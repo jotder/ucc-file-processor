@@ -1,6 +1,6 @@
 # agent-kernel — R1 Plan (reuse phase: companion modules, shared orchestrator, `1.0`)
 
-**Status:** **Plan — not started** · triggered by the **2nd consumer** (CVVE or CxO) first building on the kernel · not before then.
+**Status:** **In progress (one slice landed).** The **sync orchestrator** (§4) was extracted early from UCC — `SyncOrchestrator` in the new ring-2 `agent-orchestration` module, consumed by UCC (2026-06-05, ADR-0009); behavior-preserving, no ring-1 change. **Everything else stays trigger-gated:** the companion modules (§3), the async/streaming orchestrator variants (§4), the ring-1 reshape pass incl. `CredibilityTier` (§5), and the `1.0` freeze (§6) begin only when the **2nd consumer** (CVVE or CxO) first builds on the kernel · not before then.
 **Date:** 2026-06-04
 **Locked context:** the **rule of three** governs this phase — a concept enters ring-1 only once **≥2 apps share it**; the kernel stays `0.x`/SNAPSHOT until a 2nd consumer has **reshaped** the API, then freezes **`1.0`**. The sync orchestrator and all ring-2 companions were **deliberately deferred to here** so the 2nd consumer shapes them rather than UCC guessing alone.
 **Companion to:** `AGENT_ARCHITECTURE.md` (§3.1 orchestration, §8 matrix, §10 rings, §12 phases, §13 governance), `AGENT_KERNEL_K0_K1_PLAN.md` (ring-1 shipped), `AGENT_KERNEL_U0_U1_PLAN.md` (UCC consuming `0.x`).
@@ -88,6 +88,7 @@ Each companion is a **separate Maven artifact** under `com.gamma.agentkernel`, d
 K1 shipped the **ingredients** (`EscalationPolicy`, `ConfidenceEstimator`, `GroundingGuard`, `Deadline`, `RepairLoop`, `AuditSink`) + `CapabilityRegistry.dispatch()`. R1 assembles them into an actual pipeline — now informed by **two** orchestration models, not one:
 
 - **Sync orchestrator** (UCC/CxO-non-streaming shape): request → `effectiveTier` attempt → estimate → escalate(rungs) → ground → audit → result. This is the pipeline UCC currently hand-rolls in its module; R1 ships it shared, and UCC swaps its in-module dispatch for it (at UCC's pace, §6).
+  > **DELIVERED (UCC slice, 2026-06-05) — ADR-0009.** `SyncOrchestrator` shipped in the new pure ring-2 module `agent-orchestration` (resolve → escalate(estimate, abstain) → emit one `AgentCompleted`); **UCC consumes it now** (didn't wait for §6 — the extraction was behavior-preserving, full reactor green unmodified). **No ring-1 change was needed** — the K1 seam is confirmed for the sync case. Grounding stays where capabilities invoke it (not a top-level orchestrator step), matching UCC's current behavior. The **async** + **streaming** variants below remain trigger-gated.
 - **Async / state-machine orchestrator** (CVVE shape) and/or **streaming orchestrator** (CxO shape): same ingredients, different emission/lifecycle. These live in `agent-orchestration` as distinct entry points over the **same** ring-1 primitives.
 
 The design test: if all variants compose from the *same* ring-1 ingredients with no ring-1 changes, the K1 seam was right. Any ingredient that **can't** serve a second orchestration model is the reshape signal for §5.

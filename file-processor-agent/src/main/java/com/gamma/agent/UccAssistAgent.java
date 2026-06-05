@@ -5,11 +5,11 @@ import com.gamma.agent.diagnose.FailureReactor;
 import com.gamma.agent.diagnose.ModelDiagnoser;
 import com.gamma.agentkernel.agent.AgentRequest;
 import com.gamma.agentkernel.agent.AgentResult;
-import com.gamma.agentkernel.agent.Capability;
 import com.gamma.agentkernel.agent.CapabilityRegistry;
 import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.observe.AgentCompleted;
 import com.gamma.agentkernel.observe.AuditSink;
+import com.gamma.agentkernel.orchestrate.SyncOrchestrator;
 import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
 import com.gamma.agentkernel.reason.ConfidenceEstimator;
 import com.gamma.agentkernel.reason.EscalationPolicy;
@@ -40,13 +40,15 @@ import java.util.Set;
  * The real embedded assist agent (v3.3.0, M3) — the {@link AssistAgent} the optional
  * {@code file-processor-agent} module contributes via {@code ServiceLoader}. It captures the host
  * service's read-only handles in {@link #init} (into a {@link UccAgentContext}), builds the
- * {@link CapabilityRegistry}, and dispatches {@code POST /assist/{intent}} calls to the matching
- * {@link com.gamma.agentkernel.agent.Capability} through an {@link EscalationPolicy} — attempt →
+ * {@link CapabilityRegistry}, and dispatches {@code POST /assist/{intent}} calls through the shared
+ * {@link SyncOrchestrator} (R1): it resolves the matching
+ * {@link com.gamma.agentkernel.agent.Capability}, runs it under an {@link EscalationPolicy} — attempt →
  * {@link UccConfidenceEstimator estimate confidence} → surface if it clears the capability's
  * threshold, else {@link EscalationRung.Abstain abstain} (UNAVAILABLE) rather than ship a
- * low-confidence guess — then maps the kernel {@link AgentResult} back onto the lean-core wire
- * {@link AssistResult} in {@link #toWire} (the now-numeric confidence rides along). Each call emits one
- * keys-only {@link AgentCompleted} to the injected {@link AuditSink} (ADR-0008).
+ * low-confidence guess — and emits one keys-only {@link AgentCompleted} to the {@link AuditSink}
+ * (ADR-0008). UCC keeps only the transport concerns: mapping the kernel {@link AgentResult} back onto
+ * the lean-core wire {@link AssistResult} in {@link #toWire} (the numeric confidence rides along), and
+ * the {@link LoggingAuditSink} that preserves the {@code [ASSIST]} operator log.
  *
  * <h3>Lazy & abstain-safe</h3>
  * Construction and {@link #init} touch no network: the {@link ModelRouter}'s providers build their
@@ -63,10 +65,13 @@ public final class UccAssistAgent implements AssistAgent {
 
     private final ModelRouter router;
     private final AuditSink audit;
+    /** UCC's posture: estimate confidence, and {@link EscalationRung.Abstain abstain} below threshold
+        rather than ship a low-confidence guess (no tier-bump / human-handoff rungs — single-tier app). */
     private final EscalationPolicy escalation =
             new EscalationPolicy(List.of(new EscalationRung.Abstain()));
     private final ConfidenceEstimator estimator = new UccConfidenceEstimator();
     private volatile CapabilityRegistry registry;
+    private volatile SyncOrchestrator orchestrator;
     private volatile UccAgentContext context;
     private volatile DiagnosisStore diagnoses;
     private volatile FailureReactor reactor;
@@ -95,8 +100,10 @@ public final class UccAssistAgent implements AssistAgent {
     @Override
     public void init(SourceService service) {
         DocRetriever docs = DocRetriever.fromDir(docsDir());
+        // The orchestrator emits the per-call AgentCompleted via ctx.audit(); wrap the injected sink so
+        // the familiar [ASSIST] operator log is preserved, then delegate to the embedder's sink.
         this.context = new UccAgentContext(service.catalog(), service.reports(),
-                service.statusStore(), docs, router, service.configSource(), audit);
+                service.statusStore(), docs, router, service.configSource(), new LoggingAuditSink(audit));
         this.registry = CapabilityRegistry.of(List.of(
                 new ExplainEntitySkill(),
                 new NlToScheduleSkill(),
@@ -105,6 +112,9 @@ public final class UccAssistAgent implements AssistAgent {
                 new DiagnoseAndAlertSkill(),
                 new ReportSqlSkill(),
                 new ReportNarrativeSkill()));
+        // The shared sync pipeline (R1): resolve → escalate (estimate confidence, abstain below
+        // threshold) → audit one AgentCompleted. UCC supplies the registry, estimator, and abstain policy.
+        this.orchestrator = new SyncOrchestrator(registry, estimator, escalation);
 
         // ── M7: event-driven failure diagnosis. Subscribe BEFORE start() (the SPI contract) so the
         // reactor sees the first FAILED batch. The reactor hands work to its own executor, so the
@@ -120,20 +130,16 @@ public final class UccAssistAgent implements AssistAgent {
 
     @Override
     public AssistResult assist(AssistRequest request) {
-        CapabilityRegistry r = registry;
-        if (r == null) return AssistResult.unsupported(request.intent());
-        long t0 = System.nanoTime();
+        SyncOrchestrator o = orchestrator;
+        if (o == null) return AssistResult.unsupported(request.intent());
         try {
             AgentRequest agentReq = new AgentRequest(request.intent(), request.screenContext(),
                     request.partialInput(), request.userText());
-            // Resolve the capability ourselves (so an unknown intent is still audited as UNSUPPORTED),
-            // then run it through the escalation policy: it estimates confidence and abstains below the
-            // capability's threshold rather than dispatching plainly.
-            Capability capability = r.get(request.intent()).orElse(null);
-            AgentResult ar = (capability == null)
-                    ? AgentResult.unsupported(request.intent())
-                    : escalation.run(capability, agentReq, context, estimator);
-            audit(request, ar, t0);
+            // The shared orchestrator resolves the capability (unknown intent → UNSUPPORTED, still
+            // audited), runs it through the abstain-gated escalation policy, and emits one AgentCompleted.
+            // UCC keeps only the transport concerns: map the neutral result onto the wire type and
+            // contain unexpected failures.
+            AgentResult ar = o.run(agentReq, context);
             return toWire(ar);
         } catch (RuntimeException e) {
             log.warn("assist intent '{}' failed", request.intent(), e);
@@ -160,24 +166,6 @@ public final class UccAssistAgent implements AssistAgent {
     private static Path docsDir() {
         String d = System.getProperty("assist.docs.dir");
         return Path.of(d == null || d.isBlank() ? "docs" : d);
-    }
-
-    /**
-     * One {@link AgentCompleted} audit event per call — agent-<em>suggested</em>, never applied
-     * (read-only / draft-only). Records the screen-context <em>keys</em> only (ADR-0008), plus the
-     * serving tier, the estimator's confidence, and whether a repair round was needed — never
-     * data-plane values.
-     */
-    private void audit(AssistRequest req, AgentResult ar, long startNanos) {
-        long ms = (System.nanoTime() - startNanos) / 1_000_000;
-        boolean repaired = Boolean.TRUE.equals(ar.data().get("repaired"));
-        AgentCompleted event = new AgentCompleted(req.intent(), System.currentTimeMillis(), ar.status(),
-                ar.evidence().size(), ms, req.screenContext().keySet(), ar.servedBy(),
-                ar.servedBy() != null, repaired ? 1 : 0, ar.confidence(), 0, 0);
-        log.info("[ASSIST] intent={} status={} evidence={} ms={} confidence={} ctxKeys={}",
-                event.capabilityId(), event.status(), event.evidenceCount(), event.durationMs(),
-                String.format(Locale.ROOT, "%.2f", event.confidence()), event.contextKeys());
-        audit.emit(event);
     }
 
     /**

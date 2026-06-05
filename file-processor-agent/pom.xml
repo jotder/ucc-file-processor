@@ -60,6 +60,14 @@
             <version>${agentkernel.version}</version>
         </dependency>
 
+        <!-- agent-orchestration (R1): the assembled SYNC orchestrator. UCC swaps its hand-rolled
+             resolve→escalate→audit dispatch in UccAssistAgent for this shared ring-2 pipeline. -->
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-orchestration</artifactId>
+            <version>${agentkernel.version}</version>
+        </dependency>
+
         <!-- LangChain4j + Ollama: local-first model access behind the ModelProvider seam. -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
