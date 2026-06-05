@@ -59,7 +59,7 @@ public final class KpiToSqlSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Write a validated, catalog-grounded Stage-2 transformation SQL for a business KPI.",
-            ModelTier.LARGE, 0.0, java.time.Duration.ofSeconds(60),
+            ModelTier.LARGE, 0.5, java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of("sql-oracle"));
 
     private static final int MAX_REPAIR_ROUNDS = 3;

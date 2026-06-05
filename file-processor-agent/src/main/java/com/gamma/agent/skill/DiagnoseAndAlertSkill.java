@@ -53,7 +53,7 @@ public final class DiagnoseAndAlertSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Translate a natural-language alerting request into a validated alert-rule draft.",
-            ModelTier.MEDIUM, 0.0, java.time.Duration.ofSeconds(60),
+            ModelTier.MEDIUM, 0.5, java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of("alert-rule"));
 
     private static final int MAX_REPAIR_ROUNDS = 3;

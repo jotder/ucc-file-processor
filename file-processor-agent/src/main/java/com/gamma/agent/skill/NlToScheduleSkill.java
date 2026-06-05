@@ -64,7 +64,7 @@ public final class NlToScheduleSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Translate a natural-language scheduling request into a validated JobConfig draft.",
-            ModelTier.SMALL, 0.0, java.time.Duration.ofSeconds(60),
+            ModelTier.SMALL, 0.5, java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of());
 
     private static final int MAX_REPAIR_ROUNDS = 3;

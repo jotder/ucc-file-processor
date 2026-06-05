@@ -5,9 +5,15 @@ import com.gamma.agent.diagnose.FailureReactor;
 import com.gamma.agent.diagnose.ModelDiagnoser;
 import com.gamma.agentkernel.agent.AgentRequest;
 import com.gamma.agentkernel.agent.AgentResult;
+import com.gamma.agentkernel.agent.Capability;
 import com.gamma.agentkernel.agent.CapabilityRegistry;
 import com.gamma.agentkernel.model.ModelRouter;
+import com.gamma.agentkernel.observe.AgentCompleted;
+import com.gamma.agentkernel.observe.AuditSink;
 import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
+import com.gamma.agentkernel.reason.ConfidenceEstimator;
+import com.gamma.agentkernel.reason.EscalationPolicy;
+import com.gamma.agentkernel.reason.EscalationRung;
 import com.gamma.agentkernel.retrieve.DocRetriever;
 import com.gamma.agent.skill.UccAgentContext;
 import com.gamma.agent.skill.DiagnoseAndAlertSkill;
@@ -27,16 +33,20 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * The real embedded assist agent (v3.3.0, M3) — the {@link AssistAgent} the optional
  * {@code file-processor-agent} module contributes via {@code ServiceLoader}. It captures the host
  * service's read-only handles in {@link #init} (into a {@link UccAgentContext}), builds the
  * {@link CapabilityRegistry}, and dispatches {@code POST /assist/{intent}} calls to the matching
- * {@link com.gamma.agentkernel.agent.Capability}, mapping the kernel {@link AgentResult} back onto the
- * lean-core wire {@link AssistResult} in {@link #toWire}.
+ * {@link com.gamma.agentkernel.agent.Capability} through an {@link EscalationPolicy} — attempt →
+ * {@link UccConfidenceEstimator estimate confidence} → surface if it clears the capability's
+ * threshold, else {@link EscalationRung.Abstain abstain} (UNAVAILABLE) rather than ship a
+ * low-confidence guess — then maps the kernel {@link AgentResult} back onto the lean-core wire
+ * {@link AssistResult} in {@link #toWire} (the now-numeric confidence rides along). Each call emits one
+ * keys-only {@link AgentCompleted} to the injected {@link AuditSink} (ADR-0008).
  *
  * <h3>Lazy & abstain-safe</h3>
  * Construction and {@link #init} touch no network: the {@link ModelRouter}'s providers build their
@@ -52,7 +62,10 @@ public final class UccAssistAgent implements AssistAgent {
     private static final Logger log = LoggerFactory.getLogger(UccAssistAgent.class);
 
     private final ModelRouter router;
-    private final Consumer<AuditEvent> audit;
+    private final AuditSink audit;
+    private final EscalationPolicy escalation =
+            new EscalationPolicy(List.of(new EscalationRung.Abstain()));
+    private final ConfidenceEstimator estimator = new UccConfidenceEstimator();
     private volatile CapabilityRegistry registry;
     private volatile UccAgentContext context;
     private volatile DiagnosisStore diagnoses;
@@ -68,10 +81,10 @@ public final class UccAssistAgent implements AssistAgent {
         this(router, null);
     }
 
-    /** Inject a router and an audit sink (e.g. a capturing list in tests). A {@code null} sink logs only. */
-    public UccAssistAgent(ModelRouter router, Consumer<AuditEvent> audit) {
+    /** Inject a router and an {@link AuditSink} (e.g. a capturing list in tests). {@code null} ⇒ log-only. */
+    public UccAssistAgent(ModelRouter router, AuditSink audit) {
         this.router = router;
-        this.audit = audit;
+        this.audit = (audit == null) ? AuditSink.NONE : audit;
     }
 
     @Override
@@ -83,7 +96,7 @@ public final class UccAssistAgent implements AssistAgent {
     public void init(SourceService service) {
         DocRetriever docs = DocRetriever.fromDir(docsDir());
         this.context = new UccAgentContext(service.catalog(), service.reports(),
-                service.statusStore(), docs, router, service.configSource());
+                service.statusStore(), docs, router, service.configSource(), audit);
         this.registry = CapabilityRegistry.of(List.of(
                 new ExplainEntitySkill(),
                 new NlToScheduleSkill(),
@@ -113,25 +126,30 @@ public final class UccAssistAgent implements AssistAgent {
         try {
             AgentRequest agentReq = new AgentRequest(request.intent(), request.screenContext(),
                     request.partialInput(), request.userText());
-            AssistResult result = toWire(r.dispatch(agentReq, context));
-            audit(request, result, t0);
-            return result;
+            // Resolve the capability ourselves (so an unknown intent is still audited as UNSUPPORTED),
+            // then run it through the escalation policy: it estimates confidence and abstains below the
+            // capability's threshold rather than dispatching plainly.
+            Capability capability = r.get(request.intent()).orElse(null);
+            AgentResult ar = (capability == null)
+                    ? AgentResult.unsupported(request.intent())
+                    : escalation.run(capability, agentReq, context, estimator);
+            audit(request, ar, t0);
+            return toWire(ar);
         } catch (RuntimeException e) {
             log.warn("assist intent '{}' failed", request.intent(), e);
             return AssistResult.unavailable(request.intent(), "assist error: " + e.getMessage());
         }
     }
 
-    /** Map a kernel {@link AgentResult} onto the lean-core wire {@link AssistResult} (U1.4 adapter). */
+    /** Map a kernel {@link AgentResult} onto the lean-core wire {@link AssistResult} (the U1.5 adapter). */
     private static AssistResult toWire(AgentResult ar) {
         AssistResult.Status status = AssistResult.Status.valueOf(ar.status().name());
         List<AssistResult.Citation> citations = ar.evidence().stream()
                 .map(e -> new AssistResult.Citation(e.effectiveTierLabel(), e.sourceRef()))
                 .toList();
-        // The wire confidence stays a String this milestone (U1.5 reshapes it to a double).
-        String confidence = (status == AssistResult.Status.OK) ? "local" : null;
+        // The wire confidence is now the kernel's numeric, estimator-computed value (4.0 reshape).
         return new AssistResult(ar.capabilityId(), status, ar.answer(), citations, ar.links(),
-                ar.rationale(), confidence, ar.validated(), ar.applyVia(), ar.message(), ar.data());
+                ar.rationale(), ar.confidence(), ar.validated(), ar.applyVia(), ar.message(), ar.data());
     }
 
     /**
@@ -144,27 +162,37 @@ public final class UccAssistAgent implements AssistAgent {
         return Path.of(d == null || d.isBlank() ? "docs" : d);
     }
 
-    /** One audit event per call — agent-<em>suggested</em>, never applied (read-only in M3). */
-    private void audit(AssistRequest req, AssistResult res, long startNanos) {
+    /**
+     * One {@link AgentCompleted} audit event per call — agent-<em>suggested</em>, never applied
+     * (read-only / draft-only). Records the screen-context <em>keys</em> only (ADR-0008), plus the
+     * serving tier, the estimator's confidence, and whether a repair round was needed — never
+     * data-plane values.
+     */
+    private void audit(AssistRequest req, AgentResult ar, long startNanos) {
         long ms = (System.nanoTime() - startNanos) / 1_000_000;
-        AuditEvent event = new AuditEvent(req.intent(), res.status(),
-                res.citations().size(), ms, req.screenContext().keySet());
-        log.info("[ASSIST] intent={} status={} citations={} ms={} ctxKeys={}",
-                event.intent(), event.status(), event.citationCount(), event.durationMs(), event.contextKeys());
-        if (audit != null) audit.accept(event);
+        boolean repaired = Boolean.TRUE.equals(ar.data().get("repaired"));
+        AgentCompleted event = new AgentCompleted(req.intent(), System.currentTimeMillis(), ar.status(),
+                ar.evidence().size(), ms, req.screenContext().keySet(), ar.servedBy(),
+                ar.servedBy() != null, repaired ? 1 : 0, ar.confidence(), 0, 0);
+        log.info("[ASSIST] intent={} status={} evidence={} ms={} confidence={} ctxKeys={}",
+                event.capabilityId(), event.status(), event.evidenceCount(), event.durationMs(),
+                String.format(Locale.ROOT, "%.2f", event.confidence()), event.contextKeys());
+        audit.emit(event);
     }
 
     /**
-     * One audit event per event-driven diagnosis (M7), mirroring the per-call trail. Records context
-     * <em>keys</em> only ({@code batchId}/{@code pipeline}/{@code severity}), never data-plane values.
-     * Runs on the reactor's executor, not the ingest thread.
+     * One {@link AgentCompleted} per event-driven diagnosis (M7), mirroring the per-call trail. Records
+     * context <em>keys</em> only ({@code batchId}/{@code pipeline}/{@code severity}), never data-plane
+     * values. Runs on the reactor's executor, not the ingest thread.
      */
     private void auditDiagnosis(Diagnosis d) {
-        AuditEvent event = new AuditEvent(DiagnoseAndAlertSkill.ID, AssistResult.Status.OK,
-                d.citations().size(), 0L, Set.of("batchId", "pipeline", "severity"));
+        AgentCompleted event = new AgentCompleted(DiagnoseAndAlertSkill.ID, System.currentTimeMillis(),
+                AgentResult.Status.OK, d.citations().size(), 0L,
+                Set.of("batchId", "pipeline", "severity"), null, !d.heuristicOnly(), 0, 0.0, 0, 0);
         log.info("[ASSIST] diagnosis intent={} batch={} pipeline={} severity={} heuristicOnly={} citations={}",
-                event.intent(), d.batchId(), d.pipeline(), d.severity(), d.heuristicOnly(), event.citationCount());
-        if (audit != null) audit.accept(event);
+                event.capabilityId(), d.batchId(), d.pipeline(), d.severity(), d.heuristicOnly(),
+                event.evidenceCount());
+        audit.emit(event);
     }
 
     /** The agent's recent failure diagnoses (M7), newest first — backs {@code GET /assist/diagnoses}. */

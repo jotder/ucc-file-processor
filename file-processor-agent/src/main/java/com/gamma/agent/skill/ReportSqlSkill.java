@@ -60,7 +60,7 @@ public final class ReportSqlSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Write a validated read-only SQL query over the platform's operational audit/status tables.",
-            ModelTier.MEDIUM, 0.0, java.time.Duration.ofSeconds(60),
+            ModelTier.MEDIUM, 0.5, java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of("sql-oracle"));
 
     private static final int MAX_REPAIR_ROUNDS = 3;

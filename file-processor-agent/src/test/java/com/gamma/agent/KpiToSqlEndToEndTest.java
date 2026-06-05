@@ -3,7 +3,9 @@ package com.gamma.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.agent.model.FakeModelProvider;
+import com.gamma.agentkernel.agent.AgentResult;
 import com.gamma.agentkernel.model.ModelRouter;
+import com.gamma.agentkernel.observe.AgentCompleted;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.control.ControlApi;
@@ -127,10 +129,10 @@ class KpiToSqlEndToEndTest {
     void kpiToSqlDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         seedEventPartition(dir);
-        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
-                    ModelRouter.of(FakeModelProvider.canned(GOOD_SQL)), captured::add);
+                    ModelRouter.of(FakeModelProvider.canned(GOOD_SQL)), e -> captured.add((AgentCompleted) e));
             agent.init(svc);
 
             AssistResult res = agent.assist(new AssistRequest("kpi-to-sql",
@@ -140,9 +142,9 @@ class KpiToSqlEndToEndTest {
             assertNull(res.applyVia(), "draft-only: the audited call carries no write endpoint");
 
             assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
-            AuditEvent e = captured.get(0);
-            assertEquals("kpi-to-sql", e.intent());
-            assertEquals(AssistResult.Status.OK, e.status());
+            AgentCompleted e = captured.get(0);
+            assertEquals("kpi-to-sql", e.capabilityId());
+            assertEquals(AgentResult.Status.OK, e.status());
             assertTrue(e.contextKeys().contains("kpiDescription"), "context keys recorded (not values)");
         }
     }

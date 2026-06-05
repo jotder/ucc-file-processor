@@ -47,7 +47,7 @@ public final class ExplainEntitySkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Explain a catalog entity grounded on the metadata graph and bundled docs.",
-            ModelTier.MEDIUM, 0.0, java.time.Duration.ofSeconds(60),
+            ModelTier.MEDIUM, 0.5, java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of());
 
     private static final String SYSTEM = """

@@ -64,7 +64,7 @@ public final class SuggestConfigSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Suggest config field values with rationale and return a validated, safety-checked draft.",
-            ModelTier.MEDIUM, 0.0, java.time.Duration.ofSeconds(60),
+            ModelTier.MEDIUM, 0.5, java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of());
 
     private static final int MAX_REPAIR_ROUNDS = 3;

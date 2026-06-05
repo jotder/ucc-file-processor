@@ -1,7 +1,9 @@
 package com.gamma.agent;
 
 import com.gamma.agent.model.FakeModelProvider;
+import com.gamma.agentkernel.agent.AgentResult;
 import com.gamma.agentkernel.model.ModelRouter;
+import com.gamma.agentkernel.observe.AgentCompleted;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.etl.BatchEvent;
@@ -17,29 +19,30 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * P4: the agent emits one {@link AuditEvent} per call through the injectable sink — the audit trail
- * that distinguishes agent-<em>suggested</em> from (later) human-<em>applied</em>. M3 is read-only,
- * so every event is a suggestion.
+ * P4: the agent emits one {@link AgentCompleted} per call through the injectable {@code AuditSink} —
+ * the audit trail that distinguishes agent-<em>suggested</em> from (later) human-<em>applied</em>.
+ * Read-only / draft-only, so every event is a suggestion. Records context <em>keys</em> only
+ * (ADR-0008), never data-plane values.
  */
 class AssistAuditTest {
 
     @Test
     void emitsOneAuditEventPerCall(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
-                    ModelRouter.of(FakeModelProvider.canned("ok")), captured::add);
+                    ModelRouter.of(FakeModelProvider.canned("ok")), e -> captured.add((AgentCompleted) e));
             agent.init(svc);
 
             agent.assist(new AssistRequest("explain-entity",
                     Map.of("entityType", "table", "id", "event:mini_etl/mini"), Map.of(), "explain"));
 
             assertEquals(1, captured.size(), "exactly one audit event");
-            AuditEvent e = captured.get(0);
-            assertEquals("explain-entity", e.intent());
-            assertEquals(AssistResult.Status.OK, e.status());
-            assertTrue(e.citationCount() >= 1, "grounded answer cited at least the node");
+            AgentCompleted e = captured.get(0);
+            assertEquals("explain-entity", e.capabilityId());
+            assertEquals(AgentResult.Status.OK, e.status());
+            assertTrue(e.evidenceCount() >= 1, "grounded answer cited at least the node");
             assertTrue(e.contextKeys().contains("id"), "context keys recorded (not values)");
         }
     }
@@ -47,10 +50,11 @@ class AssistAuditTest {
     @Test
     void nlToScheduleDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
-                    "{\"name\":\"j\",\"cron\":\"0 2 * * *\",\"job_type\":\"maintenance\"}")), captured::add);
+                    "{\"name\":\"j\",\"cron\":\"0 2 * * *\",\"job_type\":\"maintenance\"}")),
+                    e -> captured.add((AgentCompleted) e));
             agent.init(svc);
 
             AssistResult res = agent.assist(new AssistRequest("nl-to-schedule",
@@ -59,21 +63,21 @@ class AssistAuditTest {
             assertNull(res.applyVia(), "draft-only: the audited call carries no write endpoint");
 
             assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
-            assertEquals("nl-to-schedule", captured.get(0).intent());
-            assertEquals(AssistResult.Status.OK, captured.get(0).status());
+            assertEquals("nl-to-schedule", captured.get(0).capabilityId());
+            assertEquals(AgentResult.Status.OK, captured.get(0).status());
         }
     }
 
     @Test
     void suggestConfigDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
                     "{\"fields\":[{\"name\":\"job.name\",\"value\":\"nightly\",\"rationale\":\"x\",\"confidence\":\"high\"},"
                             + "{\"name\":\"job.cron\",\"value\":\"0 2 * * *\",\"rationale\":\"x\",\"confidence\":\"high\"},"
                             + "{\"name\":\"job.type\",\"value\":\"maintenance\",\"rationale\":\"x\",\"confidence\":\"low\"}]}")),
-                    captured::add);
+                    e -> captured.add((AgentCompleted) e));
             agent.init(svc);
 
             AssistResult res = agent.assist(new AssistRequest("suggest-config",
@@ -82,19 +86,20 @@ class AssistAuditTest {
             assertNull(res.applyVia(), "draft-only: the audited call carries no write endpoint");
 
             assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
-            assertEquals("suggest-config", captured.get(0).intent());
-            assertEquals(AssistResult.Status.OK, captured.get(0).status());
+            assertEquals("suggest-config", captured.get(0).capabilityId());
+            assertEquals(AgentResult.Status.OK, captured.get(0).status());
         }
     }
 
     @Test
     void diagnoseAndAlertDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
                     "{\"name\":\"errs\",\"metric\":\"error_rate\",\"comparator\":\"gt\",\"threshold\":0.05,"
-                            + "\"window\":\"1h\",\"severity\":\"WARNING\"}")), captured::add);
+                            + "\"window\":\"1h\",\"severity\":\"WARNING\"}")),
+                    e -> captured.add((AgentCompleted) e));
             agent.init(svc);
 
             AssistResult res = agent.assist(new AssistRequest("diagnose-and-alert",
@@ -103,19 +108,20 @@ class AssistAuditTest {
             assertNull(res.applyVia(), "draft-only: the audited call carries no write endpoint");
 
             assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
-            assertEquals("diagnose-and-alert", captured.get(0).intent());
-            assertEquals(AssistResult.Status.OK, captured.get(0).status());
+            assertEquals("diagnose-and-alert", captured.get(0).capabilityId());
+            assertEquals(AgentResult.Status.OK, captured.get(0).status());
         }
     }
 
     @Test
     void reportSqlDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
                     "{\"sql\":\"SELECT status, COUNT(*) AS n FROM batches GROUP BY status\","
-                            + "\"logicExplanation\":\"count by status\"}")), captured::add);
+                            + "\"logicExplanation\":\"count by status\"}")),
+                    e -> captured.add((AgentCompleted) e));
             agent.init(svc);
 
             AssistResult res = agent.assist(new AssistRequest("report-sql",
@@ -124,7 +130,7 @@ class AssistAuditTest {
             assertNull(res.applyVia(), "draft-only: the audited call carries no write endpoint");
 
             assertEquals(1, captured.size(), "exactly one suggestion event for the draft");
-            assertEquals("report-sql", captured.get(0).intent());
+            assertEquals("report-sql", captured.get(0).capabilityId());
             assertTrue(captured.get(0).contextKeys().contains("pipeline"),
                     "context keys recorded (not values)");
         }
@@ -134,11 +140,11 @@ class AssistAuditTest {
     @Test
     void failedBatchEventIsDiagnosedAndAudited(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
                     ModelRouter.of(FakeModelProvider.canned("Likely a schema drift; reconcile selectors.")),
-                    captured::add);
+                    e -> captured.add((AgentCompleted) e));
             agent.init(svc);   // subscribes the failure reactor to the bus
 
             svc.eventBus().publish(new BatchEvent("MINI_ETL", "B1", "FAILED", List.of(),
@@ -149,9 +155,9 @@ class AssistAuditTest {
             while (captured.isEmpty() && System.nanoTime() < deadline) Thread.sleep(20);
 
             assertEquals(1, captured.size(), "one audit event for the diagnosis");
-            AuditEvent e = captured.get(0);
-            assertEquals("diagnose-and-alert", e.intent());
-            assertEquals(AssistResult.Status.OK, e.status());
+            AgentCompleted e = captured.get(0);
+            assertEquals("diagnose-and-alert", e.capabilityId());
+            assertEquals(AgentResult.Status.OK, e.status());
             assertTrue(e.contextKeys().contains("batchId") && e.contextKeys().contains("severity"),
                     "records context keys, not data-plane values: " + e.contextKeys());
 
@@ -165,10 +171,10 @@ class AssistAuditTest {
     @Test
     void successfulBatchEventIsNotDiagnosed(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
-                    ModelRouter.of(FakeModelProvider.canned("ignored")), captured::add);
+                    ModelRouter.of(FakeModelProvider.canned("ignored")), e -> captured.add((AgentCompleted) e));
             agent.init(svc);
 
             svc.eventBus().publish(new BatchEvent("MINI_ETL", "ok1", "SUCCESS", List.of(), 5, 10L, 0));
@@ -182,14 +188,14 @@ class AssistAuditTest {
     @Test
     void unknownIntentIsAuditedAsUnsupported(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        List<AuditEvent> captured = new CopyOnWriteArrayList<>();
+        List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
         try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
-                    ModelRouter.of(FakeModelProvider.canned("ok")), captured::add);
+                    ModelRouter.of(FakeModelProvider.canned("ok")), e -> captured.add((AgentCompleted) e));
             agent.init(svc);
             AssistResult res = agent.assist(new AssistRequest("no-such", Map.of(), Map.of(), null));
             assertEquals(AssistResult.Status.UNSUPPORTED, res.status());
-            assertEquals(AssistResult.Status.UNSUPPORTED, captured.get(0).status());
+            assertEquals(AgentResult.Status.UNSUPPORTED, captured.get(0).status());
         }
     }
 }

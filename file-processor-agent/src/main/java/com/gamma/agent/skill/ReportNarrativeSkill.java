@@ -50,7 +50,7 @@ public final class ReportNarrativeSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Narrate a structured pipeline report in plain language, grounded to the report's own figures.",
-            ModelTier.SMALL, 0.0, java.time.Duration.ofSeconds(60),
+            ModelTier.SMALL, 0.5, java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of());
 
     private static final int MAX_REPAIR_ROUNDS = 2;

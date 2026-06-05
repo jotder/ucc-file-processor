@@ -38,12 +38,18 @@ public final class UccAgentContext implements AgentContext {
     private final AuditSink audit;
     private final ModelTier tierOverride; // null = no escalation override
 
-    /** The 6-arg constructor the agent and tests use: default tools/audit, no tier override. */
+    /** The 6-arg constructor tests use: default tools, a no-op audit sink, no tier override. */
     public UccAgentContext(MetadataGraphService catalog, ReportService reports, StatusStore statusStore,
                            DocRetriever docs, ModelRouter models, ConfigSource configs) {
+        this(catalog, reports, statusStore, docs, models, configs, AuditSink.NONE);
+    }
+
+    /** The 7-arg constructor the agent uses: default tools, the supplied audit sink, no tier override. */
+    public UccAgentContext(MetadataGraphService catalog, ReportService reports, StatusStore statusStore,
+                           DocRetriever docs, ModelRouter models, ConfigSource configs, AuditSink audit) {
         this(catalog, reports, statusStore, docs, models, configs,
                 ToolRegistry.of(List.of(new SqlOracleTool(), new AlertRuleTool())),
-                AuditSink.NONE, null);
+                audit == null ? AuditSink.NONE : audit, null);
     }
 
     private UccAgentContext(MetadataGraphService catalog, ReportService reports, StatusStore statusStore,
