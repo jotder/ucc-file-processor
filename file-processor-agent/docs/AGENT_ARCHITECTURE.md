@@ -59,7 +59,7 @@ The kernel must **not** force one orchestration model or any infrastructure.
 - **CVVE** — async **state machine**: intake → queue → OCR agent → validate → (auto-pass | HITL) → terminal state (`PASSED/FAILED/OVERRIDDEN/EXPIRED`); idempotency keys, retries, dead-letter, webhooks.
 - **CxO** — **streaming** conversational tool-calling (SSE, first token < 5 s) + scenario (what-if) recompute.
 
-→ The kernel provides `Capability`, `Tool`, model, confidence/escalation, audit as **building blocks**. Each app composes them into its own shell (sync handler / state machine / streaming chat). A shared synchronous orchestrator is **deferred to R1** (not shipped at K1): it is the most consumer-specific piece, so it stays out of the core until the 2nd consumer reshapes it — until then UCC composes the building blocks in its own module. CVVE and CxO always bring their own (state machine / streaming).
+→ The kernel provides `Capability`, `Tool`, model, confidence/escalation, audit as **building blocks**. Each app composes them into its own shell (sync handler / state machine / streaming chat). The shared **synchronous** orchestrator that assembles these blocks now ships as the ring-2 `agent-orchestration` module (`SyncOrchestrator`, R1; ADR-0009) — UCC consumes it instead of hand-rolling dispatch. The **async** (CVVE state-machine) and **streaming** (CxO) orchestrator variants stay **deferred** until the 2nd consumer reshapes them; CVVE and CxO always bring their own shell.
 
 ### 3.2 Infrastructure (entirely app-owned; kernel is agnostic)
 
@@ -409,7 +409,7 @@ The load-bearing decisions below are each captured as an immutable ADR in [`adr/
 - **Java 25** is the kernel bytecode floor — every consumer runs JVM ≥25; **UCC moves 24→25** (a U0 prerequisite), CVVE/CxO start at 25. Ring-1 has **zero runtime deps**.
 - **Artifact registry:** GitHub Packages; **CI:** GitHub Actions, tag-driven release.
 - **`CredibilityTier`:** enum + `Evidence.tierLabel` `String` escape hatch for `0.x`; revisit promotion to an app-extensible interface at `1.0`.
-- **Sync orchestrator:** **deferred to R1**, not shipped in ring-1 at K1. The kernel ships the *ingredients* (escalation, confidence, grounding, deadline, repair, audit) + `CapabilityRegistry.dispatch()`; UCC keeps its own orchestrator until R1's shared one is proven by a 2nd consumer. (Supersedes the earlier "ship a minimal sync orchestrator for UCC-style hosts" lean — the orchestrator is the most consumer-specific piece, so it stays out until reshaped by CVVE/CxO.)
+- **Sync orchestrator:** **shipped at R1** (2026-06-05) as the ring-2 `agent-orchestration` module (`SyncOrchestrator`; ADR-0009), consumed by UCC — the one orchestration slice that did **not** need a 2nd consumer (UCC's hand-rolled dispatch was its spec; the extraction needed **no ring-1 change**, confirming the K1 seam). The kernel still ships the *ingredients* (escalation, confidence, grounding, deadline, repair, audit) + `CapabilityRegistry.dispatch()` for consumers that wire their own shell. The **async** (CVVE state-machine) and **streaming** (CxO) orchestrator variants remain **deferred** to a later R1 increment, shaped by whichever 2nd consumer lands first.
 
 **Still open (minor, non-blocking):**
 - GitHub **`<org>`** that owns the `agent-kernel` repo (the only value still needed to fill `distributionManagement`).

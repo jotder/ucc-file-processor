@@ -8,6 +8,30 @@
 
 ---
 
+## ▶ Resume here (next developer)
+
+**Done so far (2026-06-05):** the **synchronous orchestrator** only — `SyncOrchestrator` in the new pure
+ring-2 module `agent-orchestration` (kernel `main`), consumed by UCC (`4.x`). Behavior-preserving, no
+ring-1 change, both repos' CI green. See ADR-0009 and §4. This was extracted early **because it was the
+one non-speculative slice** (UCC's own tested dispatch was its spec); it did **not** require a 2nd consumer.
+
+**Pending — do NOT start without the trigger.** The rest of R1 is **demand-driven** (§0): it begins only
+when **CVVE or CxO** actually starts building on the kernel, and *that* consumer's needs pick the module
+set (§2). Building any of it from UCC alone is the speculative guessing this phase exists to avoid (§8).
+When a 2nd consumer starts, resume at **§7 task 1** (identify the trigger → select its module set). The
+open work, all gated:
+
+- [ ] **Async** + **streaming** orchestrator variants in `agent-orchestration` (§4) — CVVE state-machine / CxO streaming.
+- [ ] Ring-2 companions the trigger needs (§3): `agent-kernel-spring`, `agent-store-postgres`, `agent-hitl`, `agent-provider-langchain4j`.
+- [ ] Ring-1 **reshape pass** (§5) — `CredibilityTier` resolution (the headline `0.x` decision), `AgentContext.tenantId()`, escalation-rung completeness; each accepted reshape is a new ADR.
+- [ ] **`1.0` freeze** (§6) once a 2nd consumer is green and the API has stopped moving.
+- [ ] **UCC follow-ups (independent of the trigger, optional):** (a) `agent-eval`'s `EvalRunner` still calls plain `registry.dispatch` — it could route through `SyncOrchestrator` so evals exercise the confidence/abstain gate, but that changes `minConfidence` semantics in UCC fixtures, so it was deliberately left out of the sync slice; (b) UCC's `0.x`→`1.0` upgrade (a separate "U2" PR, §6) lands at UCC's own pace after the freeze.
+
+**Guardrails (unchanged):** ring-1 zero-dep; companions are separate artifacts depending on core, never the
+reverse; no commit/push/tag without an explicit ask; the kernel stays `0.x`/SNAPSHOT until §6.
+
+---
+
 ## 0. Trigger & guiding principle
 
 R1 is **demand-driven, not scheduled.** It begins the moment **CVVE or CxO** starts building against the kernel — whichever lands first. Until then the kernel sits at the green `0.x` K1 delivered, with UCC consuming it (post-U1).
