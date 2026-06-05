@@ -1,7 +1,7 @@
 # UCC 4.x — U0 + U1 Migration Plan (consume `agent-kernel`)
 
-**Status:** **Plan — not started** · depends on K1 (`agent-kernel 0.1.0-SNAPSHOT` published) · branch **`4.x`** of `ucc-file-processor`.
-**Date:** 2026-06-04
+**Status:** **SHIPPED — U0 + U1 complete; cut as UCC 4.0** (`v4.0.0`, 2026-06-05) · consumed `agent-kernel 0.1.0-SNAPSHOT` · branch **`4.x`** of `ucc-file-processor` (chain `253cebe..26bbda9`, pushed to `origin/4.x`).
+**Date:** 2026-06-04 (planned) · 2026-06-05 (shipped)
 **Locked context:** UCC assist is **pre-production**, so UCC 4.x may **reshape the `com.gamma.assist` SPI** (real numeric confidence, richer status) — no frozen-adapter constraint. The ETL **engine** (data path) is untouched; the lean ETL **core keeps zero AI dependencies**. Java floor is **25** (UCC bumps 24→25 here). Sync orchestrator is **deferred to R1** — U1 keeps UCC's own in-module dispatch.
 **Companion to:** `AGENT_ARCHITECTURE.md` (§3.1 orchestration, §8 responsibility matrix, §12 phases, §13 governance) and `AGENT_KERNEL_K0_K1_PLAN.md` (what the kernel ships).
 **Covers:** **U0** (Java 25 bump + the eval safety net) and **U1** (depend on the kernel, migrate skills→capabilities, reshape the assist SPI) → cut **UCC 4.0**. Defers companion modules + `1.0` to **R1**.
@@ -58,11 +58,11 @@ Today UCC has **no capability-level golden-eval harness** — skills are covered
 
 ### 2.3 U0 acceptance criteria
 
-- [ ] Full UCC reactor builds + tests green on **Java 25** (isolated bump commit).
-- [ ] `FakeModelProvider` (test scope) drives evals with **no Ollama**.
-- [ ] Golden fixtures exist for **all 7 capabilities** (happy / abstain / grounding), in the kernel-portable JSON shape, green via `@TestFactory`.
-- [ ] **Zero kernel dependency** anywhere in UCC (verify `mvn dependency:tree`). U0 changed nothing about the SPI.
-- [ ] No change to the ETL engine/data path; no commit/push/tag without explicit ask.
+- [x] Full UCC reactor builds + tests green on **Java 25** (isolated bump commit).
+- [x] `FakeModelProvider` (test scope) drives evals with **no Ollama**.
+- [x] Golden fixtures exist for **all 7 capabilities** (happy / abstain / grounding), in the kernel-portable JSON shape, green via `@TestFactory`.
+- [x] **Zero kernel dependency** anywhere in UCC (verify `mvn dependency:tree`). U0 changed nothing about the SPI.
+- [x] No change to the ETL engine/data path; no commit/push/tag without explicit ask.
 
 ---
 
@@ -145,15 +145,15 @@ On the **wire records in the lean core** (`com.gamma.assist`), gated to the 4.0 
 
 ### 3.8 U1 acceptance criteria
 
-- [ ] `file-processor-agent` depends on the kernel; **lean `file-processor` core has zero `com.gamma.agentkernel` deps** (CI guard passes).
-- [ ] All 7 skills are `Capability`s; `SkillRegistry`→`CapabilityRegistry`; `AssistContext`→`UccAgentContext implements AgentContext`.
-- [ ] `NarrativeGuard`→`GroundingGuard`; figure oracles→`Tool`s; `RepairLoop`/`DocRetriever`/model layer now consumed from the kernel (UCC copies deleted).
-- [ ] `AssistResult.confidence` is `double`; `ControlApi` maps at the HTTP boundary; `/assist/*` route + scopes unchanged.
-- [ ] `ConfidenceEstimator` + `EscalationPolicy(Abstain)` wired; abstain-below-threshold tested.
-- [ ] `diagnose-and-alert` capability runs under UCC's ring-3 `FailureReactor` (event path unchanged); keys-only audit preserved.
-- [ ] Eval net runs on the kernel `agent-eval` with the **same fixtures**, now incl. `minConfidence`; **full suite green**.
-- [ ] `milestone-verify` run with backward-compat scoped to exclude the intentional `com.gamma.assist` reshape; all other dimensions clean.
-- [ ] Cut **UCC 4.0** (only on explicit ask).
+- [x] `file-processor-agent` depends on the kernel; **lean `file-processor` core has zero `com.gamma.agentkernel` deps** (CI guard passes).
+- [x] All 7 skills are `Capability`s; `SkillRegistry`→`CapabilityRegistry`; `AssistContext`→`UccAgentContext implements AgentContext`.
+- [x] `NarrativeGuard`→`GroundingGuard`; figure oracles→`Tool`s; `RepairLoop`/`DocRetriever`/model layer now consumed from the kernel (UCC copies deleted).
+- [x] `AssistResult.confidence` is `double`; `ControlApi` maps at the HTTP boundary; `/assist/*` route + scopes unchanged.
+- [x] `ConfidenceEstimator` + `EscalationPolicy(Abstain)` wired; abstain-below-threshold tested.
+- [x] `diagnose-and-alert` capability runs under UCC's ring-3 `FailureReactor` (event path unchanged); keys-only audit preserved.
+- [x] Eval net runs on the kernel `agent-eval` with the **same fixtures**, now incl. `minConfidence`; **full suite green**.
+- [x] `milestone-verify` run with backward-compat scoped to exclude the intentional `com.gamma.assist` reshape; all other dimensions clean.
+- [x] Cut **UCC 4.0** (only on explicit ask).
 
 ---
 

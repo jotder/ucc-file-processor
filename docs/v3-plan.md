@@ -20,6 +20,17 @@ size-routed union/generation modes + DuckDB Appender ingest (breaking removal of
 as **v3.11.0**). The foundation was hardened post-v3.0.0 — concurrency/audit fixes,
 cruft removal, CI reactor coverage.
 
+> **4.0 (next major, shipped 2026-06-05 as `v4.0.0` off the `4.x` branch).** The whole `3.x`
+> assist surface above is preserved; 4.0 is the **`agent-kernel` migration** (see
+> [`file-processor-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md`](../file-processor-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md),
+> now **SHIPPED**): the 7 skills are reshaped onto the reusable kernel's `Capability`/`Tool` SPI,
+> the model/repair/retrieval layers are consumed from the kernel, and the lean ETL core stays
+> **kernel-free** (CI-guarded). The one deliberate breaking change — legitimate only because assist
+> is pre-production and this is the major — is **`AssistResult.confidence` `String` → `double`**
+> (real numeric confidence from the kernel `ConfidenceEstimator`, gated by an abstain rung). The ETL
+> engine/data path is untouched and stays byte-stable. `milestone-verify` ran clean (compat scoped to
+> exclude the sanctioned `com.gamma.assist` reshape).
+
 > **Status update (this revision):** **both keystones have shipped.** The **Metadata Graph** (data
 > keystone) shipped as **v3.1.0** — the `com.gamma.catalog` package, `SchemaExtractor` merge/preserve,
 > the `*_meta.toon` loader, and the `/catalog*` API. The **Smart Config** layer (config keystone) has

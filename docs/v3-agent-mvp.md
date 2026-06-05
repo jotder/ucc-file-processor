@@ -121,6 +121,11 @@ Body `{ screenContext, partialInput, userText? }` → `{ suggestions[], rational
 confidence, validated, applyVia? }`. Each screen ships a small **assist manifest**
 declaring which intents apply and what context it can supply.
 
+> **4.0 note.** With the `agent-kernel` migration (shipped `v4.0.0`), `confidence` is a real
+> **`double`** (kernel `ConfidenceEstimator` + abstain rung), no longer the `"local"` placeholder
+> `String` — the single sanctioned breaking change of the 4.0 major. The route, scopes, and the rest
+> of the body shape are unchanged.
+
 ### P2 — Skill / intent registry
 Each skill is self-contained: `id`, bound screen/context, system prompt + few-shot
 examples, **input schema**, **output schema**, allowed tools (read vs write), declared
