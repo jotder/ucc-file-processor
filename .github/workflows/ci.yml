@@ -11,9 +11,19 @@ on:
   pull_request:
     branches: [master, main, 3.x, 4.x]
 
+# Default GITHUB_TOKEN perms, narrowed: read the repo + read agent-kernel's published Maven packages.
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Consumed by the settings.xml below so Maven can authenticate to GitHub Packages. Public packages
+    # still require an authenticated token to download — GITHUB_TOKEN (packages: read) is sufficient.
+    env:
+      GH_PKG_ACTOR: ${{ github.actor }}
+      GH_PKG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -24,24 +34,45 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # The optional file-processor-agent module depends on agent-kernel 1.0.0. The kernel isn't
-      # published to a Maven registry yet, so build it from source at the v1.0.0 tag into the runner's
-      # local ~/.m2 so the reactor below can resolve agent-kernel-core / agent-provider-ollama /
-      # agent-orchestration / agent-eval (jar + test-jar). The repo is public, so no token is needed.
-      # (Switch to GitHub Packages once the kernel's release workflow has published artifacts there.)
-      - name: Check out agent-kernel (dependency source)
-        uses: actions/checkout@v4
-        with:
-          repository: jotder/agent-kernel
-          path: agent-kernel
-          ref: v1.0.0   # the released version this module pins (agentkernel.version=1.0.0)
-
-      - name: Install agent-kernel to local .m2
-        run: mvn --batch-mode --no-transfer-progress -f agent-kernel/pom.xml install -DskipTests
+      # The optional file-processor-agent module depends on agent-kernel 1.0.0, now published to GitHub
+      # Packages (the kernel's release workflow). Resolve it from there instead of building from source:
+      # a CI-only settings.xml adds the agent-kernel Maven repo + token auth, leaving the consumer POMs
+      # clean (local dev still resolves the kernel from ~/.m2). Only com.gamma.agentkernel.* artifacts come
+      # from this repo; everything else still resolves from Maven Central.
+      - name: Configure GitHub Packages auth (agent-kernel)
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <servers>
+              <server>
+                <id>github-agent-kernel</id>
+                <username>${env.GH_PKG_ACTOR}</username>
+                <password>${env.GH_PKG_TOKEN}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>github-agent-kernel</id>
+                <repositories>
+                  <repository>
+                    <id>github-agent-kernel</id>
+                    <url>https://maven.pkg.github.com/jotder/agent-kernel</url>
+                    <releases><enabled>true</enabled></releases>
+                    <snapshots><enabled>false</enabled></snapshots>
+                  </repository>
+                </repositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-agent-kernel</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
 
       # Build the whole reactor from the root POM so the optional agent module and
       # the cross-module AssistAgent SPI wiring are exercised, not just the core.
-      # -pl ... excludes nothing; the agent-kernel checkout dir is not a UCC reactor module.
+      # agent-kernel 1.0.0 resolves from GitHub Packages via the settings.xml above.
       - name: Run tests
         run: mvn --batch-mode --no-transfer-progress test
 
