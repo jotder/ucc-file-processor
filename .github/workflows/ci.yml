@@ -24,18 +24,17 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # The optional file-processor-agent module depends on agent-kernel, which is still
-      # 0.1.0-SNAPSHOT and not yet published to a Maven registry (it stays SNAPSHOT through
-      # UCC 4.x; a stable version gets pinned + pulled from GitHub Packages once the kernel
-      # cuts 1.0). Until then, build the kernel from source into the runner's local ~/.m2 so
-      # the reactor below can resolve agent-kernel-core / agent-provider-ollama / agent-eval
-      # (jar + test-jar). The repo is public, so no token is needed to check it out.
+      # The optional file-processor-agent module depends on agent-kernel 1.0.0. The kernel isn't
+      # published to a Maven registry yet, so build it from source at the v1.0.0 tag into the runner's
+      # local ~/.m2 so the reactor below can resolve agent-kernel-core / agent-provider-ollama /
+      # agent-orchestration / agent-eval (jar + test-jar). The repo is public, so no token is needed.
+      # (Switch to GitHub Packages once the kernel's release workflow has published artifacts there.)
       - name: Check out agent-kernel (dependency source)
         uses: actions/checkout@v4
         with:
           repository: jotder/agent-kernel
           path: agent-kernel
-          # Tracks the SNAPSHOT UCC pins; bump to a pinned ref/tag when the kernel cuts a release.
+          ref: v1.0.0   # the released version this module pins (agentkernel.version=1.0.0)
 
       - name: Install agent-kernel to local .m2
         run: mvn --batch-mode --no-transfer-progress -f agent-kernel/pom.xml install -DskipTests

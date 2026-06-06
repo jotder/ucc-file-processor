@@ -34,10 +34,11 @@
         <!-- All AI/LLM deps are pinned here, in the optional module only. CVE-scan this tree
              (SBOM) — it never reaches the lean core fat-JAR. -->
         <langchain4j.version>1.15.1</langchain4j.version>
-        <!-- agent-kernel (U1): the reusable agent core. Consumed ONLY by this module — the lean
-             core (file-processor) takes no kernel dependency. 0.x is resolved from local .m2
-             (SNAPSHOT); the GitHub Packages repository is wired once the kernel is published. -->
-        <agentkernel.version>0.1.0-SNAPSHOT</agentkernel.version>
+        <!-- agent-kernel: the reusable agent core. Consumed ONLY by this module — the lean core
+             (file-processor) takes no kernel dependency. Pinned to the stable 1.0.0 release (the freeze
+             R1 drove to; no breaking changes from the 0.x this module consumed). Resolved from local .m2;
+             CI builds the kernel from source at the v1.0.0 tag. -->
+        <agentkernel.version>1.0.0</agentkernel.version>
     </properties>
 
     <dependencies>
