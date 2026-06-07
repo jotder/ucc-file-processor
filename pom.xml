@@ -31,10 +31,13 @@
     </modules>
 
     <properties>
-        <!-- Java 25 floor: required to consume the agent-kernel library (bytecode floor 25; see
-             file-processor-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md §2.1). Uses `release` so the build
-             cannot accidentally rely on a newer JDK's API than the target. -->
-        <maven.compiler.release>25</maven.compiler.release>
+        <!-- Target JDK 24. Uses `release` so the build cannot accidentally rely on a newer JDK's API
+             than the target. NOTE: the lean ETL core (file-processor) runs on JDK 24 cleanly. The
+             optional file-processor-agent module depends on agent-kernel 1.0.0, whose bytecode is
+             Java 25 (class-file v69) — those classes cannot LOAD on a JDK 24 runtime
+             (UnsupportedClassVersionError). The agent module therefore requires a JDK 25+ runtime
+             until the kernel is rebuilt for 24; see file-processor-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md §2.1. -->
+        <maven.compiler.release>24</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.10.2</junit.version>
         <!-- Default empty so surefire's @{argLine} resolves cleanly when JaCoCo is inactive
