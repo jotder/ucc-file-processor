@@ -141,6 +141,14 @@ mapping:
       sourceExpression: AMOUNT
 ```
 
+**Partition columns** are declared by `partitionKey:` (shorthand — derives `year`/`month`/`day` from
+one column) or an explicit `partitions[]` list. The `DATE_YEAR`/`DATE_MONTH`/`DATE_DAY` types extract
+the component from the `source` column, parsing its value with **`timestamp_formats` when the source
+field is declared `TIMESTAMP`**, otherwise with **`date_formats`** (`VARCHAR`/`DATE` sources). Put the
+matching pattern in the right list: a `TIMESTAMP` value like `2018-04-09-00.00.00.000000` will **not**
+match a date-only pattern, and any unparsed value falls into the `1900/01/01` sentinel partition.
+(`VARCHAR` partition columns pass through as-is; `DOUBLE`/`INTEGER` use `TRY_CAST`.)
+
 `create-schema` generates pass-through rules with **no `transformType`** — a blank or omitted type means `DIRECT`, so the common case stays uncluttered. Add a `transformType` only for the non-`DIRECT` rules below.
 
 **`selector`** is the zero-based column index in the raw source CSV — decoupled from position in the output schema, so source column order changes do not break the pipeline.

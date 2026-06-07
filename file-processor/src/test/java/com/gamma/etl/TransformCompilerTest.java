@@ -144,6 +144,7 @@ class TransformCompilerTest {
 
     @Test
     void partitionDateComponents(@TempDir Path dir) throws Exception {
+        // A non-TIMESTAMP source (DT is untyped → VARCHAR) parses via date_formats.
         PipelineConfig cfg = cfg(dir);
         String dateExpr = "COALESCE(TRY_STRPTIME(CAST(\"raw_input\".\"DT\" AS VARCHAR), '%Y-%m-%d'))::DATE";
         assertEquals("YEAR(" + dateExpr + ")::VARCHAR",
@@ -154,6 +155,21 @@ class TransformCompilerTest {
                         "raw_input", TYPES, cfg));
         assertEquals("LPAD(DAY(" + dateExpr + ")::VARCHAR, 2, '0')",
                 TransformCompiler.partitionColumn(new PartitionDef("day", "DT", PartitionDef.Type.DATE_DAY),
+                        "raw_input", TYPES, cfg));
+    }
+
+    @Test
+    void partitionTimestampSourceUsesTimestampFormats(@TempDir Path dir) throws Exception {
+        // A TIMESTAMP-typed source (T) must parse via timestamp_formats, not date_formats — otherwise
+        // a value like "2018-04-09-00.00.00" fails a date-only parse and lands in the 1900 sentinel.
+        PipelineConfig cfg = cfg(dir);
+        String tsExpr = "COALESCE(TRY_STRPTIME(CAST(\"raw_input\".\"T\" AS VARCHAR), "
+                + "'%Y-%m-%d %H:%M:%S'))::TIMESTAMP";
+        assertEquals("YEAR(" + tsExpr + ")::VARCHAR",
+                TransformCompiler.partitionColumn(new PartitionDef("year", "T", PartitionDef.Type.DATE_YEAR),
+                        "raw_input", TYPES, cfg));
+        assertEquals("LPAD(MONTH(" + tsExpr + ")::VARCHAR, 2, '0')",
+                TransformCompiler.partitionColumn(new PartitionDef("month", "T", PartitionDef.Type.DATE_MONTH),
                         "raw_input", TYPES, cfg));
     }
 }

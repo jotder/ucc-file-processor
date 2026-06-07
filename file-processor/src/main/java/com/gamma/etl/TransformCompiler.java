@@ -140,8 +140,15 @@ public final class TransformCompiler {
 
     /**
      * Build the expression for one partition column (no {@code AS} alias).
-     * DATE_YEAR/MONTH/DAY use a direct reference when the source is already DATE/TIMESTAMP
-     * (ingester pre-typed) or a {@code COALESCE(TRY_STRPTIME…)} chain for VARCHAR sources.
+     *
+     * <p>{@code DATE_YEAR}/{@code MONTH}/{@code DAY} stringify the source column and parse it with the
+     * format list that matches the source field's <em>declared type</em>: a {@code TIMESTAMP} source
+     * uses {@code timestamp_formats}, everything else ({@code VARCHAR}/{@code DATE}) uses
+     * {@code date_formats}. This matters because a {@code TIMESTAMP} value rendered to text carries a
+     * time component that a date-only format cannot match — so a date-only parse would yield {@code NULL}
+     * and send every row to the {@code 1900/01/01} sentinel partition. {@code YEAR}/{@code MONTH}/
+     * {@code DAY} accept both {@code DATE} and {@code TIMESTAMP}, so the extracted component is correct
+     * either way.
      */
     public static String partitionColumn(PartitionDef pd, String sourceTable,
                                          Map<String, String> fieldTypes, PipelineConfig cfg) {
@@ -152,8 +159,12 @@ public final class TransformCompiler {
             case DOUBLE  -> sb.append("TRY_CAST(").append(col).append(" AS DOUBLE)");
             case INTEGER -> sb.append("TRY_CAST(").append(col).append(" AS INTEGER)");
             case DATE_YEAR, DATE_MONTH, DATE_DAY -> {
+                // Parse with the format list matching the source's declared type: timestamp_formats
+                // for a TIMESTAMP source (its text has a time component), date_formats otherwise.
+                String srcType     = fieldTypes.getOrDefault(pd.source(), "VARCHAR");
+                String castType    = "TIMESTAMP".equals(srcType) ? "TIMESTAMP" : "DATE";
                 String varcharExpr = "CAST(" + col + " AS VARCHAR)";
-                String dateExpr = SqlBuilder.buildCastExpr(varcharExpr, "DATE",
+                String dateExpr = SqlBuilder.buildCastExpr(varcharExpr, castType,
                         cfg.csv().dateFormats(), cfg.csv().tsFormats());
                 switch (pd.type()) {
                     case DATE_YEAR  -> sb.append("YEAR(").append(dateExpr).append(")::VARCHAR");
