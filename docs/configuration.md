@@ -27,6 +27,33 @@ each schema, and the audit/manifest machinery. Format-specific blocks only
 cover *how the bytes become rows* — once rows exist, the M..N partition-and-write
 path is identical regardless of source format.
 
+### How a source becomes partitioned output (the transform model)
+
+Configuration drives a deliberately thin, **per-record** transformation. One batch of input
+files becomes **one** DuckDB `CREATE TABLE … AS SELECT …`, and the three config files each own
+one part of it:
+
+| Config file | Owns | Authored |
+|---|---|---|
+| `*_gen.toon` (Generation) | how to *read the sample* — delimiter, junk/tail trimming, which columns are dates/timestamps | by hand |
+| `*_schema.toon` (Schema) | **the transform itself** — `raw.fields[]` (bind output field → source column by zero-based `selector` + declare its type), `mapping.rules[]` (how each target column is produced), `partitions[]` (derive the Hive partition columns) | generated, then tuned |
+| `*_pipeline.toon` (Pipeline) | runtime — directories, output format, threads, dedup, and the `date_formats`/`timestamp_formats` lists the casts use | generated, then tuned |
+
+The path every row takes:
+
+```
+raw bytes ──(built-in delimited reader │ plugin ingester)──►  VARCHAR staging row
+          ──(one mapping rule per column → typed scalar expr)──►  typed output row
+          ──(partitions[] → year / month / day / …)──►  Hive-partitioned Parquet/CSV
+```
+
+**The boundary that shapes all of this:** a mapping rule is a **scalar expression over a single
+row of one table** — cast a type, rename, pick a column, compose a date. It *cannot* join, look
+up, or aggregate, because Stage-1 is stateless per record — which is exactly what makes every
+batch parallel and safely re-runnable. Joins, lookups, and aggregation live in **Stage-2
+enrichment**: a separate `*_enrich.toon` with hand-written SQL over the committed output. See
+[Architecture → Design Philosophy & Scope](architecture.md#design-philosophy--scope).
+
 ### 1. Generation Config (`<source>_gen.toon`)
 
 **Hand-authored.** Tells SchemaExtractor how to read the sample file and which columns to force-type.
@@ -134,6 +161,28 @@ mapping:
     EVENT_DATE,FILENAME|cbs_cdr_vou_,FILENAME_DATE
 ```
 The generated SQL is: `TRY_STRPTIME(regexp_extract(raw_input."FILENAME", 'cbs_cdr_vou_([0-9]{8})', 1), '%Y%m%d')::DATE`
+
+> Each rule compiles to one column expression (`etl/TransformCompiler`); `DataTransformer`
+> assembles them — plus the derived partition columns — into the single `CREATE TABLE … AS
+> SELECT …`. The type cast a `DIRECT` rule applies comes from the field's declared type in
+> `raw.fields[]` and the pipeline's `date_formats`/`timestamp_formats` (see
+> [Type Mapping Reference](#type-mapping-reference)).
+
+#### Extending the transform — three levels
+
+Most onboarding needs **only config** (level 1). When config isn't enough, the next two levels
+are deliberate code seams in the engine — not a config SPI — so the transform vocabulary stays
+small and auditable:
+
+| Level | Reach for it when | Where / how |
+|---|---|---|
+| **1 — Mapping rule** *(config, no code)* | rename/select a column, cast a type, compose a timestamp (`CONCAT_DT`), derive a date from the filename (`FILENAME_DATE`) | a row in `mapping.rules[]` |
+| **2 — New `transformType`** *(engine code)* | you need a per-row verb the built-ins don't cover (e.g. `UPPER_TRIM`, a checksum, a coded-value lookup table baked into SQL) | add a `ColumnRule` to the `DATA_RULES` registry in `etl/TransformCompiler` — a one-line addition returning a DuckDB **scalar** expression (one row in → one row out) |
+| **3 — Plugin ingester** *(engine code)* | the **input format** isn't delimited text — binary, fixed-width, ASN.1 — or one file splits into several event-type tables | implement [`StreamingFileIngester`](plugins.md#plugin-ingester): you parse and `emit` records; the framework still applies the same `mapping.rules[]` / `partitions[]` to them |
+
+Anything that needs **more than one row** — a join to a reference table, a `GROUP BY`, a running
+total — is not a transform and does not belong in any of these levels. It is **Stage-2
+enrichment** (`*_enrich.toon`, hand-written SQL over the partitioned output).
 
 ---
 
