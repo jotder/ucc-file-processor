@@ -29,7 +29,7 @@ processing:
   schemas[3]{column_count,file_pattern,schema_file,table}:
     76,  "glob:**/*other*",    "config/voucher/voucher_unknown_76.toon",  voucher_other
     116, "glob:**/*main*",     "config/voucher/voucher_unknown_116.toon", voucher_main
-    537, "",                   "config/voucher/voucher_unknown_537.toon", voucher_cdr
+    537, "",                   "config/voucher/voucher_unknown_537.toon", voucher
   csv_settings:
     delimiter: ","
     skip_header_lines: 0
@@ -37,5 +37,5 @@ processing:
     skip_tail_lines: 0
     skip_tail_columns: 0
     has_header: false
-    date_formats[1]: "%Y%m%d"
-    timestamp_formats[1]: "%Y%m%d"
+    date_formats[2]: "%Y%m%d", "%Y-%m-%d-%H.%M.%S.%f"
+    timestamp_formats[2]: "%Y%m%d", "%Y-%m-%d-%H.%M.%S.%f"
