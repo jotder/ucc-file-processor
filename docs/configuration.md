@@ -216,7 +216,7 @@ All seven core `dirs.*` entries are required for SourceProcessor (`poll`, `datab
 
 #### Multi-schema dispatch
 
-When a single pipeline must handle CSV files with different column layouts (e.g. three related feeds delivered to the same inbox), replace the single `schema_file:` key with a `schemas[]` inline array. Each entry maps a column count to a schema file and target table, with an optional filename glob for the fast path.
+When a single pipeline must handle input files with different column layouts (e.g. three related feeds delivered to the same inbox), replace the single `schema_file:` key with a `schemas[]` inline array. Each entry maps a column count to a schema file and target table, with an optional filename glob for the fast path.
 
 ```yaml
 processing:

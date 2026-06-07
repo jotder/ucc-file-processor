@@ -245,7 +245,7 @@ End-to-end recipe for shipping a custom `StreamingFileIngester` to a deployed pi
 <dependency>
     <groupId>com.gamma.inspector</groupId>
     <artifactId>file-processor</artifactId>
-    <version>3.11.0</version>
+    <version>4.0.0</version>
     <scope>provided</scope>
 </dependency>
 ```

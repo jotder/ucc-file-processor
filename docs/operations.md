@@ -660,7 +660,7 @@ java --enable-native-access=ALL-UNNAMED \
      config/<data_source>/<data_source>_pipeline.toon
 ```
 
-**Java requirement:** Java 24 or later. No other runtime dependencies.
+**Java requirement:** Java 25 or later. No other runtime dependencies.
 
 ### Performance reference (single-node, HDD, 4 threads)
 
@@ -675,7 +675,7 @@ Note: the 20200117 <data_source> file is ~4.3 GB uncompressed (~2.97 M rows) due
 
 - [ ] Delete `inbox/<data_source>/20200101/vou_DATE_20200101.csv/` — this is an 8 GB uncompressed directory (duplicate of the `.gz`); the glob pattern would pick up the file inside it and double-process the day
 - [ ] Run from the bundle root (or sandbox root locally) so relative paths resolve correctly
-- [ ] Verify Java 24 is on `PATH`: `java -version`
+- [ ] Verify Java 25 is on `PATH`: `java -version`
 
 ---
 

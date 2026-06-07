@@ -152,8 +152,8 @@ com.gamma
     SourceProcessor          — single-source ETL runner; virtual-thread + semaphore batch fan-out
     MultiSourceProcessor     — runs many sources concurrently in one JVM (outer M..N orchestrator)
     BatchProcessor           — thin per-batch coordinator: selects a BatchIngestStrategy, then drives the shared commit → audit tail
-    BatchIngestStrategy      — ingest+transform+write seam (CSV vs plugin); returns a typed IngestOutcome (+ shared dropTable/msg helpers)
-    CsvBatchStrategy         — built-in CSV path → transform → write → lineage. Native (read_csv) batches stream with
+    BatchIngestStrategy      — ingest+transform+write seam (delimited-text vs plugin); returns a typed IngestOutcome (+ shared dropTable/msg helpers)
+    CsvBatchStrategy         — built-in delimited-text path → transform → write → lineage. Native (read_csv) batches stream with
                                NO raw_f/raw_input table copies: single member via one read_csv VIEW, many members via
                                per-member views UNION ALL-ed into one transform (materialised once). Files over
                                processing.chunking.max_file_bytes are streamed in bounded chunks (FileChunker). The Java
@@ -214,7 +214,7 @@ com.gamma
 
 **Behavior-injection seams.** Variant behavior is injected into the engine rather than branched inline, so the orchestration code stays thin and a new variant is a closed-set edit:
 
-- **`BatchIngestStrategy`** (`CsvBatchStrategy` / `StreamingPluginBatchStrategy`) — the per-batch ingest+transform+write path. `BatchProcessor.process` selects one by config (CSV when no `ingester`, else the streaming plugin engine) and consumes its typed `IngestOutcome`; the shared commit → audit tail is path-agnostic. The plugin engine then self-selects union vs generation mode per batch by file size.
+- **`BatchIngestStrategy`** (`CsvBatchStrategy` / `StreamingPluginBatchStrategy`) — the per-batch ingest+transform+write path. `BatchProcessor.process` selects one by config (the built-in delimited-text path when no `ingester`, else the streaming plugin engine) and consumes its typed `IngestOutcome`; the shared commit → audit tail is path-agnostic. The plugin engine then self-selects union vs generation mode per batch by file size.
 - **`StreamingFileIngester`** (SPI, by FQCN) — custom parsers emit records into a `RecordSink`; the reference `TypedRecordIngester` splits one input into many typed segment streams.
 - **`TransformCompiler`** — a `transformType → ColumnRule` function registry; `DataTransformer` assembles the SELECT and delegates each column expression.
 - **`OutputFormat`** — enum-as-strategy owning each format's extension, COPY token, and compression rule, used by `PartitionWriter`.
@@ -289,7 +289,7 @@ SourceProcessor  <pipeline_config.toon>
 ```
 
 Reads both generated config files, polls the inbox directory, and for each unprocessed file:
-1. Streams raw CSV lines into a per-worker DuckDB staging table
+1. Ingests the file into a per-worker DuckDB staging table (the built-in delimited-text reader, or a custom plugin ingester)
 2. Applies typed SQL transformations via DuckDB
 3. Writes partitioned output (Parquet or CSV)
 4. Optionally registers output into DuckLake

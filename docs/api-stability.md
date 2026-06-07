@@ -34,6 +34,8 @@ Two audiences depend on the framework from outside:
 
 > **Removed in 3.11.0 (breaking):** the whole-file `com.gamma.etl.FileIngester` and its nested `Segment` (both since 1.3.0). The plugin SPI is unified on `StreamingFileIngester`; the framework now runs the same ingester in *union mode* (many small files → one transform/write) or *generation mode* (huge single files → bounded scratch), chosen per batch by `processing.streaming.large_file_bytes`. Port `FileIngester` plugins to `StreamingFileIngester` (see [plugins.md](plugins.md)). This is a **deliberate exception** to the within-major-version stability promise above, made to consolidate the plugin SPI before it had wide external adoption.
 
+> **Major bump 4.0.0 (the agent-kernel migration):** the **core ETL `@PublicApi` surface above is unchanged** — Stage-1/Stage-2/control/embedder types and signatures carry over from 3.x untouched. The major bump is driven by two things: (1) the **Java 25 runtime floor** (the agent-kernel class-file floor; core code compiled cleanly at `release=25`), and (2) the optional `file-processor-agent` module was reshaped onto the reusable **agent-kernel** library — the assist layer now runs on the shared `SyncOrchestrator` / `Capability` / confidence-escalation / `AuditSink` primitives, and `com.gamma.assist.AssistResult.confidence` became a numeric `double` (was a `String`). Plugins and embedders of the **core** need only the JDK 25 bump; only code driving the assist module's result type is affected.
+
 **Embedders** (driving the ETL from Java instead of the CLI):
 
 | Type | Since | Role |

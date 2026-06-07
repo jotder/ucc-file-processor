@@ -1,20 +1,14 @@
 # UCC File Processor
 
 A small, high-throughput, **configuration-driven ETL platform** built on an embedded DuckDB
-engine. Its core is an **M..N multiplexer**: it ingests **M** CSV or binary input files,
-applies light per-record transformations, and demultiplexes them into **N** Hive-partitioned
-Parquet or CSV output files (not one-to-one). On top of that engine sit a **Stage-2 enrichment
-engine** (joins/aggregations over the partitioned output), a **control plane** (HTTP API,
-scheduler, metrics, audit), a machine-readable **Smart Config** model, a queryable **Metadata
-Graph**, and an **optional embedded AI assist agent**.
+engine. Its core is an **M..N multiplexer**: it ingests **M** input files, applies light per-record transformations, and demultiplexes them into **N** Hive-partitioned
+(Parquet or CSV) output files (not one-to-one). On top of that engine sit a **Stage-2 enrichment engine** (joins/aggregations over the partitioned output). A **control plane** (HTTP API, scheduler, metrics, audit), a machine-readable **Smart Config** model, a queryable **Metadata Graph**, and an **optional embedded AI assist agent**.
 
-Onboard a new CSV source with a single config file; plug in a custom Java parser for proprietary
-or binary formats that emit multiple event types. Stage-1 ingest deliberately does **not** do
-heavy joins, lookups, or cross-record aggregation — those run in Stage-2, downstream over the
-Parquet output.
+Onboard a new CSV source with a single config file; plug in a custom Java parser for proprietary or binary formats that emit multiple event types. Stage-1 ingest deliberately does **not** do
+heavy joins, lookups, or cross-record aggregation — those run in Stage-2, downstream over the Parquet output.
 
-- **Current line:** v3.x · repo at `3.12.0-SNAPSHOT` · latest release **v3.11.0**
-- **Runtime:** Java 24+, zero external runtime dependencies (everything bundled in the fat-JAR)
+- **Current line:** v4.x · repo at `4.1.0-SNAPSHOT` · latest release **v4.0.0**
+- **Runtime:** Java 25+, zero external runtime dependencies (everything bundled in the fat-JAR)
 
 ---
 
@@ -47,14 +41,14 @@ Parquet output.
 The platform is organized into two **data stages** under one **control plane**, with three
 **optional layers** (Smart Config, Metadata Graph, Assist Agent) that ship in the same build.
 
-| Layer | What it gives you |
-|---|---|
-| **Stage-1 ingest** (`com.gamma.etl`, `com.gamma.inspector`) | Poll an inbox → plan batches → ingest CSV (native DuckDB or Java parser) or a custom binary plugin → type-coerce & derive partition keys → write Hive-partitioned Parquet/CSV with atomic rename → markers/quarantine → fsync'd commit log + audit CSVs → emit a `BatchEvent`. |
-| **Stage-2 enrichment** (`com.gamma.enrich`) | Register reference + Stage-1 partitions as views on an ephemeral DuckDB, run a `transform` SQL (joins / aggregations / derivations), write an idempotent partitioned result. Event- and schedule-driven, per-job locked, self-chaining via the event bus. |
-| **Control plane** (`com.gamma.service` / `.control` / `.report` / `.job` / `.metrics`) | `SourceService` hub, `BatchEventBus` pub/sub, cron + fixed-delay `Scheduler`, `ControlApi` (JDK `HttpServer`, ~30 routes, bearer auth), dependency-free Prometheus metrics, job runner, reporting, and a pluggable `StatusStore` (file or DuckDB). |
+| Layer | What it gives you                                                                                                                                                                                                                                                                                                                         |
+|---|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Stage-1 ingest** (`com.gamma.etl`, `com.gamma.inspector`) | Poll an inbox → plan batches → ingest files (native DuckDB or Java parser) or a custom binary plugin → type-coerce & derive partition keys → write Hive-partitioned Parquet/CSV with atomic rename → markers/quarantine → fsync'd commit log + audit CSVs → emit a `BatchEvent`.                                                          |
+| **Stage-2 enrichment** (`com.gamma.enrich`) | Register reference + Stage-1 partitions as views on an ephemeral DuckDB, run a `transform` SQL (joins / aggregations / derivations), write an idempotent partitioned result. Event- and schedule-driven, per-job locked, self-chaining via the event bus.                                                                                 |
+| **Control plane** (`com.gamma.service` / `.control` / `.report` / `.job` / `.metrics`) | `SourceService` hub, `BatchEventBus` pub/sub, cron + fixed-delay `Scheduler`, `ControlApi` (JDK `HttpServer`, ~30 routes, bearer auth), dependency-free Prometheus metrics, job runner, reporting, and a pluggable `StatusStore` (file or DuckDB).                                                                                        |
 | **Smart Config** (`com.gamma.config.spec` / `.io` / `.safety`) | A machine-readable `ConfigSpec` per config type (one source of truth for the loader, the AI, and a future UI), a pure parse→validate→prepare pipeline, structured `Finding`s, a canonical `.toon` serializer, a stable-id `ConfigRegistry`, and a hard-fail config **safety validator** (path jail / numeric bounds / output allow-list). |
-| **Metadata Graph** (`com.gamma.catalog`) | A typed, traversable graph: sources → schemas → columns → emitted event tables → Stage-2 transforms → KPIs/reports, with a lazy operational overlay (status/lineage/completeness). Fed by `description`/`unit`/`classification` columns in the schema `.toon` plus a `*_meta.toon` KPI catalog. Served at `/catalog*`. |
-| **Assist Agent** (optional `file-processor-agent` module) | An in-JVM, scoped **Assist API** backed by a skill registry over local Ollama (or, in connected builds, a hosted model). Seven skills turn a sentence into a *validated, confirm-first draft*. All AI deps live in this module only — the core fat-JAR stays zero-new-dependency. |
+| **Metadata Graph** (`com.gamma.catalog`) | A typed, traversable graph: sources → schemas → columns → emitted event tables → Stage-2 transforms → KPIs/reports, with a lazy operational overlay (status/lineage/completeness). Fed by `description`/`unit`/`classification` columns in the schema `.toon` plus a `*_meta.toon` KPI catalog. Served at `/catalog*`.                    |
+| **Assist Agent** (optional `file-processor-agent` module) | An in-JVM, scoped **Assist API** backed by a skill registry over local Ollama (or, in connected builds, a hosted model). Seven skills turn a sentence into a *validated, confirm-first draft*. Built on the reusable **agent-kernel** library since v4.0 (shared `SyncOrchestrator` / capability / confidence-escalation / audit primitives). All AI deps live in this module only — the core fat-JAR stays zero-new-dependency.                                                         |
 
 ### The assist skill catalog (all shipped, all draft-only / confirm-first)
 
@@ -109,12 +103,12 @@ is the job of **Stage-2 enrichment**, which runs over the committed Parquet outp
 
 | Feature | Detail |
 |---|---|
-| **Generic onboarding** | Onboard any CSV source with one hand-authored generation config |
+| **Generic onboarding** | Onboard any source with one hand-authored generation config |
 | **Three-tier config** | Generation → Schema → Pipeline; each layer has a single responsibility |
 | **Smart Config model** | Machine-readable `ConfigSpec` per type; structured validation findings; canonical `.toon` serializer; stable-id registry — one source of truth for loader, AI, and UI |
 | **Config safety validator** | Hard-fail path jail, numeric bounds, output-format/codec allow-list (R6) |
 | **Pre-ETL utilities** | 6 independent commands to search, stage, extract, and archive raw deliveries |
-| **Vectorized CSV ingest** | `csv_settings.engine: auto` uses DuckDB's native `read_csv` for clean files (4–5× faster); falls back to the Java parser for messy SQL\*Plus dumps |
+| **Vectorized delimited-text ingest** | `csv_settings.engine: auto` uses DuckDB's native `read_csv` for clean files faster; falls back to the Java parser for messy dumps |
 | **Adaptive junk detection** | Skips SQL\*Plus preamble lines (fixed + variable, e.g. ORA-28002 password expiry) |
 | **Multi-format dates** | `COALESCE(TRY_STRPTIME(...))` chains handle multiple Oracle date formats per column |
 | **Typed output** | DATE, TIMESTAMP, DOUBLE, VARCHAR — all cast safely; bad values land as NULL, not crashes |
@@ -125,7 +119,7 @@ is the job of **Stage-2 enrichment**, which runs over the committed Parquet outp
 | **Multi-source orchestration** | `MultiSourceProcessor` runs many sources concurrently in one JVM, failure-isolated |
 | **Idempotency** | Marker files (`.processed`) prevent re-ingestion; stale markers pruned by `retention_days` |
 | **Multi-schema dispatch** | `schemas[]` routes files to schemas by filename pattern or column-count probe |
-| **Plugin ingester** | `processing.ingester:` loads a custom `FileIngester`; one input file can emit multiple event-type segments into separate partitioned tables. For TB-scale custom formats, implement `StreamingFileIngester` instead — emit records and the framework bounds heap/scratch automatically |
+| **Plugin ingester** | `processing.ingester:` loads a custom `StreamingFileIngester`; one input file can emit multiple event-type segments into separate partitioned tables. Emit records and the framework owns tables/transform/write/lineage and bounds heap/scratch automatically — running the same ingester in *union mode* (many small files) or *generation mode* (one huge file), chosen per batch by file size |
 | **Stage-2 enrichment** | DuckDB-backed joins/aggregations over Stage-1 output; event- and schedule-driven, idempotent, self-chaining |
 | **Scheduler & jobs** | Cron + fixed-delay job runner with per-job locking and run history |
 | **Control API** | ~30-route JDK HTTP server: lifecycle, audit, reports, enrichment, catalog, config-spec, validate, assist |
@@ -147,7 +141,7 @@ layers. Each step links to the deep-dive doc when you need more.
 
 ## 1. Install & build
 
-**Prerequisites:** Java 24+ (built/tested on JDK 24; local dev on 26) and Maven 3.9+. No other
+**Prerequisites:** Java 25+ (built/tested on JDK 25; local dev on 26) and Maven 3.9+. No other
 runtime dependencies — the fat JAR bundles DuckDB, univocity, JToon, and the rest.
 
 ```powershell
@@ -190,7 +184,7 @@ ura.bat create-schema <source> path\to\sample.csv config\<source>\<source>_gen.t
 Then review the generated files. The full field reference — every `csv_settings` knob,
 `transformType` (`DIRECT` / `CONCAT_DT` / `FILENAME_DATE`), multi-schema dispatch, and the type
 mapping — is in the [Configuration Reference](../docs/configuration.md). For proprietary/binary
-formats, write a `FileIngester` plugin instead of a schema; see [Plugin Ingester](../docs/plugins.md).
+formats, write a `StreamingFileIngester` plugin instead of a schema; see [Plugin Ingester](../docs/plugins.md).
 
 > **`.toon` gotchas:** no `#` comments (parsing stops at the first one); quote any value
 > containing `:` (Windows paths, JDBC URLs); the map-vs-tabular array choice is load-bearing.
@@ -217,7 +211,7 @@ java -jar file-processor/target/file-processor-<version>.jar config/<source>/<so
 
 ## 4. Drop files & run (the steady state)
 
-Place `.csv` or `.csv.gz` files under `inbox/<adapter>/` (in date sub-folders) and run the
+Place your input files (`.csv` / `.csv.gz`, or whatever format your plugin ingester reads) under `inbox/<adapter>/` (in date sub-folders) and run the
 pipeline. Already-processed files are skipped automatically via `.processed` markers in
 `markers/<adapter>/`; markers older than `retention_days` (default 90) are pruned at each poll
 start. Wrong-schema or unreadable files are moved to `quarantine/<adapter>/` and never retried.
@@ -366,7 +360,7 @@ For a huge **custom** (binary/ASN.1/proprietary) file, the CSV chunker doesn't a
 
 ## Requirements
 
-- **Java 24+** (built and tested on JDK 24; CI pins 24, local dev on 26)
+- **Java 25+** (built and tested on JDK 25; CI pins 25, local dev on 26)
 - **Maven 3.9+** to build
 - No other runtime dependencies for the core — the fat JAR bundles DuckDB, univocity, JToon, and
   the rest. The optional assist agent additionally needs a reachable model (local Ollama or a
@@ -382,7 +376,7 @@ This README is the overview + user guide. Detailed topics live under [`../docs/`
 |---|---|
 | [Architecture & Design](../docs/architecture.md) | The two-stage engine (M..N multiplexer + enrichment), behavior-injection seams, directory layout, deliberate non-goals |
 | [Configuration Reference](../docs/configuration.md) | The three config files, configuration by source format, multi-schema dispatch, type mapping |
-| [Plugin Ingester](../docs/plugins.md) | The `FileIngester` interface, segment schemas, the `TypedRecordIngester` reference plugin |
+| [Plugin Ingester](../docs/plugins.md) | The `StreamingFileIngester` interface, segment schemas, the `TypedRecordIngester` reference plugin |
 | [Operations](../docs/operations.md) | Pre-ETL utilities, batch processing & concurrency, multi-source orchestration, output structure, audit logs, deployment |
 | [Integrations](../docs/integrations.md) | DuckLake registration and the pg_duckdb warehouse query layer |
 | [Troubleshooting](../docs/troubleshooting.md) | Common failures and fixes |
