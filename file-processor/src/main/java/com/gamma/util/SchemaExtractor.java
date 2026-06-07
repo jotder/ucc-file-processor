@@ -179,10 +179,12 @@ public class SchemaExtractor {
 
             List<Map<String, String>> rules = new ArrayList<>();
             for (Map<String, String> f : fields) {
+                // transformType is omitted: a blank/absent type means DIRECT (the generated
+                // mapping is all pass-through). Hand-add transformType only for non-DIRECT rules
+                // (EXPR / CONCAT_DT / FILENAME_DATE).
                 Map<String, String> rule = new LinkedHashMap<>();
                 rule.put("targetColumn",    f.get("name"));
                 rule.put("sourceExpression", f.get("name"));
-                rule.put("transformType",   "DIRECT");
                 rules.add(rule);
             }
             mapping.put("rules", rules);

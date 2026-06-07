@@ -40,26 +40,42 @@ public final class TransformCompiler {
                        String sourceTable, PipelineConfig cfg);
     }
 
-    /** transformType → expression compiler. {@code DIRECT}/unknown falls through to {@link #direct}. */
+    /**
+     * transformType → expression compiler. {@code DIRECT} (and a blank/omitted type) is handled
+     * directly by {@link #dataColumn} via {@link #direct}; any other non-blank value not in this
+     * map is rejected.
+     */
     private static final Map<String, ColumnRule> DATA_RULES = Map.of(
             "CONCAT_DT",     TransformCompiler::concatDt,
-            "FILENAME_DATE", TransformCompiler::filenameDate
+            "FILENAME_DATE", TransformCompiler::filenameDate,
+            "EXPR",          TransformCompiler::expr
     );
 
     // ── data columns ────────────────────────────────────────────────────────────
 
     /**
-     * Build the expression for one mapping rule (no {@code AS} alias). Dispatches on
-     * {@code transformType} via {@link #DATA_RULES}; {@code DIRECT} and any unknown type
-     * use {@link #direct}.
+     * Build the expression for one mapping rule (no {@code AS} alias). The {@code transformType}
+     * is optional and case-insensitive: <b>blank or omitted means {@code DIRECT}</b>. Recognised
+     * types are {@code DIRECT}, {@code EXPR}, {@code CONCAT_DT}, {@code FILENAME_DATE}; any other
+     * non-blank value is rejected with an {@link IllegalArgumentException} so a typo (e.g.
+     * {@code EXPER}) fails fast instead of silently degrading to a pass-through.
      */
     public static String dataColumn(Map<String, String> rule, Map<String, String> fieldTypes,
                                     String sourceTable, PipelineConfig cfg) {
         String source = rule.get("sourceExpression");
         String target = rule.get("targetColumn");
-        String type   = rule.getOrDefault("transformType", "DIRECT");
-        return DATA_RULES.getOrDefault(type, TransformCompiler::direct)
-                .compile(source, target, fieldTypes, sourceTable, cfg);
+        String type   = rule.get("transformType");
+        String norm   = type == null ? "" : type.trim().toUpperCase();
+
+        if (norm.isEmpty() || norm.equals("DIRECT"))   // blank / omitted / DIRECT → pass-through cast
+            return direct(source, target, fieldTypes, sourceTable, cfg);
+
+        ColumnRule r = DATA_RULES.get(norm);
+        if (r == null)
+            throw new IllegalArgumentException(
+                    "Unknown transformType '" + type + "' for target column '" + target
+                    + "'. Valid: DIRECT (or leave blank), EXPR, CONCAT_DT, FILENAME_DATE.");
+        return r.compile(source, target, fieldTypes, sourceTable, cfg);
     }
 
     private static String direct(String source, String target, Map<String, String> fieldTypes,
@@ -79,6 +95,20 @@ public final class TransformCompiler {
             default          -> sb.append(col);
         }
         return sb.toString();
+    }
+
+    /**
+     * EXPR: the {@code sourceExpression} <em>is</em> a DuckDB scalar expression, emitted verbatim.
+     * Unqualified column references resolve against the single source table ({@code raw_input}),
+     * giving access to DuckDB's full scalar-function library (e.g. {@code UPPER(TRIM(col))},
+     * {@code TRY_CAST(amt AS DOUBLE) / 100}, {@code CASE WHEN … END}). The author owns validity and
+     * any explicit cast; it must stay a <b>per-row scalar</b> expression — no aggregates or joins,
+     * which belong to Stage-2 enrichment. Schema config is operator-authored and trusted (same model
+     * as the Stage-2 transform SQL), so the expression is not sandbox-validated.
+     */
+    private static String expr(String source, String target, Map<String, String> fieldTypes,
+                               String sourceTable, PipelineConfig cfg) {
+        return source;
     }
 
     private static String concatDt(String source, String target, Map<String, String> fieldTypes,

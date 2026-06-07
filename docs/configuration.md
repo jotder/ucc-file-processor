@@ -135,22 +135,25 @@ mapping:
   rules[3]:
     - targetColumn: ACCOUNT_NUMBER
       sourceExpression: ACCOUNT_NUMBER
-      transformType: DIRECT
     - targetColumn: REVERSAL_DATE
       sourceExpression: REVERSAL_DATE
-      transformType: DIRECT
     - targetColumn: AMOUNT
       sourceExpression: AMOUNT
-      transformType: DIRECT
 ```
+
+`create-schema` generates pass-through rules with **no `transformType`** — a blank or omitted type means `DIRECT`, so the common case stays uncluttered. Add a `transformType` only for the non-`DIRECT` rules below.
 
 **`selector`** is the zero-based column index in the raw source CSV — decoupled from position in the output schema, so source column order changes do not break the pipeline.
 
-**`transformType`** controls how the source expression is evaluated:
+**`transformType`** controls how the source expression is evaluated. It is **optional and
+case-insensitive — blank or omitted means `DIRECT`**. An unrecognised *non-blank* value (a typo
+like `EXPER`) is rejected at transform time rather than silently treated as `DIRECT`. Recognised
+values:
 
 | Value | `sourceExpression` format | Description |
 |---|---|---|
-| `DIRECT` | column name | Pass-through with type cast (DATE, TIMESTAMP, DOUBLE, VARCHAR) |
+| `DIRECT` *(default — leave blank/omit)* | column name | Pass-through with a type cast (DATE/TIMESTAMP/DOUBLE/VARCHAR) driven by the field's declared type in `raw.fields[]` |
+| `EXPR` | any DuckDB **scalar** expression | Emitted **verbatim**. Unqualified column names resolve against the source row, so the full DuckDB scalar-function library is available — e.g. `UPPER(TRIM(MSISDN))`, `TRY_CAST(AMT AS DOUBLE) / 100.0`, `CASE WHEN ERRORCODE='0' THEN 'OK' ELSE 'FAIL' END`. You own validity and any explicit cast. **Per-row scalar only** — no aggregates or joins (those are Stage-2). |
 | `CONCAT_DT` | `DATE_COL\|TIME_COL` | Concatenate two raw columns into a single TIMESTAMP: `COALESCE(TRY_STRPTIME(date \|\| ' ' \|\| time, ...))` |
 | `FILENAME_DATE` | `COL\|PREFIX` or `COL\|PREFIX\|FORMAT` | Extract an 8-digit date from a filename-style column using a fixed prefix. The default format is `%Y%m%d`. **Restricted to `EVENT_DATE` only** — an `IllegalArgumentException` is thrown at startup if used on any other target column. |
 
@@ -162,6 +165,18 @@ mapping:
 ```
 The generated SQL is: `TRY_STRPTIME(regexp_extract(raw_input."FILENAME", 'cbs_cdr_vou_([0-9]{8})', 1), '%Y%m%d')::DATE`
 
+**`EXPR` example** — derive columns with arbitrary DuckDB scalar functions, referencing raw columns by name (tabular form; quote the cell because it contains commas/parens):
+```yaml
+mapping:
+  rules[3]{targetColumn,sourceExpression,transformType}:
+    ACCOUNT_KEY,  "UPPER(TRIM(ACCOUNT_NUMBER))",                       EXPR
+    AMOUNT_MAJOR, "TRY_CAST(RECHARGE_AMT AS DOUBLE) / 100.0",          EXPR
+    RESULT,       "CASE WHEN ERRORCODE='0' THEN 'OK' ELSE 'FAIL' END", EXPR
+```
+The expression is emitted verbatim into the `SELECT`, so it must be a valid **per-row scalar**
+expression (the schema is operator-authored and trusted — it is not sandbox-validated, and an
+invalid expression fails the batch at `CREATE TABLE … AS SELECT`).
+
 > Each rule compiles to one column expression (`etl/TransformCompiler`); `DataTransformer`
 > assembles them — plus the derived partition columns — into the single `CREATE TABLE … AS
 > SELECT …`. The type cast a `DIRECT` rule applies comes from the field's declared type in
@@ -170,14 +185,14 @@ The generated SQL is: `TRY_STRPTIME(regexp_extract(raw_input."FILENAME", 'cbs_cd
 
 #### Extending the transform — three levels
 
-Most onboarding needs **only config** (level 1). When config isn't enough, the next two levels
-are deliberate code seams in the engine — not a config SPI — so the transform vocabulary stays
-small and auditable:
+Most onboarding needs **only config** (level 1) — and with `EXPR` that already includes the full
+DuckDB scalar-function library. Levels 2 and 3 are deliberate code seams in the engine (not a
+config SPI), reached only when config genuinely can't express the need:
 
 | Level | Reach for it when | Where / how |
 |---|---|---|
-| **1 — Mapping rule** *(config, no code)* | rename/select a column, cast a type, compose a timestamp (`CONCAT_DT`), derive a date from the filename (`FILENAME_DATE`) | a row in `mapping.rules[]` |
-| **2 — New `transformType`** *(engine code)* | you need a per-row verb the built-ins don't cover (e.g. `UPPER_TRIM`, a checksum, a coded-value lookup table baked into SQL) | add a `ColumnRule` to the `DATA_RULES` registry in `etl/TransformCompiler` — a one-line addition returning a DuckDB **scalar** expression (one row in → one row out) |
+| **1 — Mapping rule** *(config, no code)* | rename/select, cast a type, compose a timestamp (`CONCAT_DT`), derive a date from the filename (`FILENAME_DATE`), **or any per-row DuckDB scalar expression (`EXPR`)** | a row in `mapping.rules[]` |
+| **2 — New named `transformType`** *(engine code)* | you want a **reusable, named** verb across many schemas (e.g. a domain checksum) rather than repeating the same `EXPR` everywhere | add a `ColumnRule` to the `DATA_RULES` registry in `etl/TransformCompiler` — a one-line addition returning a DuckDB **scalar** expression (one row in → one row out) |
 | **3 — Plugin ingester** *(engine code)* | the **input format** isn't delimited text — binary, fixed-width, ASN.1 — or one file splits into several event-type tables | implement [`StreamingFileIngester`](plugins.md#plugin-ingester): you parse and `emit` records; the framework still applies the same `mapping.rules[]` / `partitions[]` to them |
 
 Anything that needs **more than one row** — a join to a reference table, a `GROUP BY`, a running

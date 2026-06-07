@@ -60,10 +60,44 @@ class TransformCompilerTest {
     }
 
     @Test
-    void unknownTransformTypeFallsBackToDirect(@TempDir Path dir) throws Exception {
-        // getOrDefault → direct(); an unknown transformType behaves like DIRECT.
+    void blankTransformTypeIsDirect(@TempDir Path dir) throws Exception {
+        // "nothing mentioned means DIRECT": a blank transformType cell → pass-through cast.
         assertEquals("\"raw_input\".\"X\"",
-                TransformCompiler.dataColumn(rule("X", "OUT", "MYSTERY"), TYPES, "raw_input", cfg(dir)));
+                TransformCompiler.dataColumn(rule("X", "OUT", ""), TYPES, "raw_input", cfg(dir)));
+    }
+
+    @Test
+    void absentTransformTypeIsDirect(@TempDir Path dir) throws Exception {
+        // An omitted transformType key (2-column rule) → DIRECT.
+        assertEquals("\"raw_input\".\"X\"",
+                TransformCompiler.dataColumn(Map.of("sourceExpression", "X", "targetColumn", "OUT"),
+                        TYPES, "raw_input", cfg(dir)));
+    }
+
+    @Test
+    void directIsCaseInsensitive(@TempDir Path dir) throws Exception {
+        assertEquals("\"raw_input\".\"X\"",
+                TransformCompiler.dataColumn(rule("X", "OUT", " direct "), TYPES, "raw_input", cfg(dir)));
+    }
+
+    @Test
+    void exprPassesThroughVerbatim(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = cfg(dir);
+        // EXPR emits the sourceExpression as-is; unqualified columns resolve against raw_input.
+        assertEquals("UPPER(TRIM(X))",
+                TransformCompiler.dataColumn(rule("UPPER(TRIM(X))", "OUT", "EXPR"), TYPES, "raw_input", cfg));
+        assertEquals("CASE WHEN E = '0' THEN 'OK' ELSE 'FAIL' END",
+                TransformCompiler.dataColumn(rule("CASE WHEN E = '0' THEN 'OK' ELSE 'FAIL' END", "R", "EXPR"),
+                        TYPES, "raw_input", cfg));
+    }
+
+    @Test
+    void unknownTransformTypeThrows(@TempDir Path dir) throws Exception {
+        // A non-blank, unrecognised type (typo) fails fast rather than silently degrading to DIRECT.
+        PipelineConfig cfg = cfg(dir);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
+                TransformCompiler.dataColumn(rule("X", "OUT", "EXPER"), TYPES, "raw_input", cfg));
+        assertTrue(e.getMessage().contains("EXPER"), e.getMessage());
     }
 
     @Test

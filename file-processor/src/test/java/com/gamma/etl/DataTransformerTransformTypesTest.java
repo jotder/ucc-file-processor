@@ -58,6 +58,40 @@ class DataTransformerTransformTypesTest {
         }
     }
 
+    /** EXPR emits the sourceExpression verbatim — runs DuckDB scalar functions end-to-end. */
+    @Test
+    void exprRunsArbitraryDuckDbExpression(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = cfg(dir, "\"%Y-%m-%d %H:%M:%S\"");
+        Map<String, Object> schema = Map.of(
+                "raw", Map.of("fields", List.of(
+                        Map.of("name", "NAME",   "selector", "0", "type", "VARCHAR"),
+                        Map.of("name", "AMT",    "selector", "1", "type", "VARCHAR"),
+                        Map.of("name", "STATUS", "selector", "2", "type", "VARCHAR"))),
+                "mapping", Map.of("rules", List.of(
+                        Map.of("targetColumn", "NAME_UC",
+                               "sourceExpression", "UPPER(TRIM(NAME))", "transformType", "EXPR"),
+                        Map.of("targetColumn", "AMOUNT_MAJOR",
+                               "sourceExpression", "TRY_CAST(AMT AS DOUBLE) / 100.0", "transformType", "EXPR"),
+                        Map.of("targetColumn", "RESULT",
+                               "sourceExpression", "CASE WHEN STATUS = '0' THEN 'OK' ELSE 'FAIL' END",
+                               "transformType", "EXPR"))));
+
+        File db = DuckDbUtil.tempDbFile("dt_expr_");
+        try (Connection conn = DuckDbUtil.openConnection(db); Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE src AS SELECT * FROM (VALUES " +
+                    "('  jane  ','12345','0',0)) t(NAME,AMT,STATUS,__src_id)");
+            DataTransformer.materialize(conn, schema, cfg, "src", "dst");
+            try (ResultSet rs = st.executeQuery("SELECT NAME_UC, AMOUNT_MAJOR, RESULT FROM dst")) {
+                assertTrue(rs.next());
+                assertEquals("JANE", rs.getString("NAME_UC"));
+                assertEquals(123.45, rs.getDouble("AMOUNT_MAJOR"), 1e-9);
+                assertEquals("OK", rs.getString("RESULT"));
+            }
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
     /** FILENAME_DATE extracts an 8-digit date embedded in a column value. */
     @Test
     void filenameDateExtractsDate(@TempDir Path dir) throws Exception {
