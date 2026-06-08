@@ -69,6 +69,9 @@ public final class CsvIngester {
         int maxJunkLines = cfg.csv().skipJunkLines() < 0 ? Integer.MAX_VALUE : cfg.csv().skipJunkLines();
         int skipTailCols = cfg.csv().skipTailCols();
 
+        // Row filters (parity with the native WHERE injection): rows are *filtered*, not rejected.
+        RowFilter rowFilter = RowFilter.from(cfg);
+
         // ── derive selector indices from schema (hoisted out of the row loop) ──
         // Parse each field's selector to an int ONCE here. The previous code did
         // Integer.parseInt(String.valueOf(f.get("selector"))) inside the per-row
@@ -208,6 +211,10 @@ public final class CsvIngester {
                         row = Arrays.copyOf(row,
                                 Math.max(row.length - skipTailCols, maxSelector + 1));
 
+                    // Row filter (include/exclude): filtered rows are silently dropped — not counted
+                    // as parsed or rejected — matching the native WHERE-clause semantics.
+                    if (rowFilter.active() && !rowFilter.keep(row)) continue;
+
                     // Reject rows with insufficient columns
                     if (row.length <= maxSelector) {
                         if (errOut == null) {
@@ -269,5 +276,51 @@ public final class CsvIngester {
     /** Strips {@code .gz} then the remaining extension. */
     public static String stripExtensions(String fileName) {
         return fileName.replaceAll("\\.gz$", "").replaceAll("\\.[^.]+$", "");
+    }
+
+    /**
+     * Row include/exclude filter for the Java parse path — the parity counterpart of
+     * {@link DuckDbCsvIngester#filterWhere}. A row is kept when it matches <em>any</em> include
+     * pattern (prefix or regex; empty include list ⇒ all included) <em>and</em> matches <em>no</em>
+     * exclude pattern. Targets the physical column at {@code filter_target_column} (a missing cell is
+     * treated as empty). Regexes use {@code Matcher.find} (contains-semantics), matching DuckDB's
+     * {@code regexp_matches}.
+     */
+    private record RowFilter(int target,
+                             List<String> includePrefixes, List<java.util.regex.Pattern> includeRegex,
+                             List<String> excludePrefixes, List<java.util.regex.Pattern> excludeRegex) {
+
+        static RowFilter from(PipelineConfig cfg) {
+            PipelineConfig.CsvSettings c = cfg.csv();
+            return new RowFilter(c.filterTargetColumn(),
+                    c.includePrefixes(), compile(c.includeRegex()),
+                    c.excludePrefixes(), compile(c.excludeRegex()));
+        }
+
+        private static List<java.util.regex.Pattern> compile(List<String> patterns) {
+            List<java.util.regex.Pattern> out = new ArrayList<>(patterns.size());
+            for (String p : patterns) out.add(java.util.regex.Pattern.compile(p));
+            return out;
+        }
+
+        boolean active() {
+            return !includePrefixes.isEmpty() || !includeRegex.isEmpty()
+                || !excludePrefixes.isEmpty() || !excludeRegex.isEmpty();
+        }
+
+        boolean keep(String[] row) {
+            String v = (target >= 0 && target < row.length && row[target] != null) ? row[target] : "";
+            boolean includeActive = !includePrefixes.isEmpty() || !includeRegex.isEmpty();
+            boolean included = !includeActive || matchesAny(v, includePrefixes, includeRegex);
+            boolean excluded = matchesAny(v, excludePrefixes, excludeRegex);
+            return included && !excluded;
+        }
+
+        private static boolean matchesAny(String v, List<String> prefixes,
+                                          List<java.util.regex.Pattern> regexes) {
+            for (String p : prefixes) if (v.startsWith(p)) return true;
+            for (java.util.regex.Pattern r : regexes) if (r.matcher(v).find()) return true;
+            return false;
+        }
     }
 }

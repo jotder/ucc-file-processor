@@ -139,10 +139,22 @@ class DuckDbCsvIngesterTest {
                 "explicit java never routes native");
     }
 
-    /** auto must fall back to Java when skip_tail_columns is set. */
+    /**
+     * 4.1 routing: {@code auto} now stays native for {@code skip_tail_columns} (the boundary scan
+     * declares a wide-enough column set), but still falls back to Java for {@code skip_tail_lines}
+     * (footer-line dropping has no native equivalent).
+     */
     @Test
-    void autoFallsBackToJavaWhenSkipTailColumnsSet(@TempDir Path dir) throws Exception {
-        Path schemaFile = dir.resolve("s2.toon");
+    void autoEngineRoutingForMessyKnobs(@TempDir Path dir) throws Exception {
+        assertTrue(DuckDbCsvIngester.usesDuckDb(messyCfg(dir, "tc", "skip_tail_columns: 2")),
+                "auto + skip_tail_columns should be native-eligible in 4.1");
+        assertFalse(DuckDbCsvIngester.usesDuckDb(messyCfg(dir, "tl", "skip_tail_lines: 2")),
+                "auto must still fall back to Java for skip_tail_lines (footer drop)");
+    }
+
+    /** Build a pipeline whose csv_settings carries one extra messy-knob line. */
+    private static PipelineConfig messyCfg(Path dir, String tag, String knobLine) throws Exception {
+        Path schemaFile = dir.resolve("s_" + tag + ".toon");
         Files.writeString(schemaFile, """
                 partitionKey: TXN_DATE
                 raw:
@@ -156,7 +168,7 @@ class DuckDbCsvIngesterTest {
                   rules[1]{targetColumn,sourceExpression,transformType}:
                     ID,ID,DIRECT
                 """);
-        Path p = dir.resolve("p2.toon");
+        Path p = dir.resolve("p_" + tag + ".toon");
         Files.writeString(p, """
                 name: T2_ETL
                 version: 1
@@ -178,14 +190,12 @@ class DuckDbCsvIngesterTest {
                   csv_settings:
                     delimiter: ","
                     engine: auto
-                    skip_tail_columns: 2
+                    %s
                     date_formats[1]: "%%Y-%%m-%%d"
                     timestamp_formats[1]: "%%Y-%%m-%%d"
                 """.formatted(dir, dir, dir, dir, dir, dir, dir, dir,
-                schemaFile.toString().replace("\\", "/")));
-        PipelineConfig cfg = PipelineConfig.load(p.toString());
-        assertFalse(DuckDbCsvIngester.usesDuckDb(cfg),
-                "auto must fall back to Java when skip_tail_columns is set");
+                schemaFile.toString().replace("\\", "/"), knobLine));
+        return PipelineConfig.load(p.toString());
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

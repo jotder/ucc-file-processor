@@ -75,7 +75,7 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
                 //     through — the data is materialised exactly once (the transformed table)
                 //     instead of the read_csv → raw_f<id> → raw_input → transformed triple-copy.
                 // The Java parse engine keeps the per-member materialise→raw_input path below.
-                if (DuckDbCsvIngester.usesDuckDb(cfg)) {
+                if (DuckDbCsvIngester.decideNative(batch, cfg)) {
                     if (batch.members().size() == 1) {
                         Batch.Member only = batch.members().get(0);
                         return cfg.chunking().appliesTo(only.file().length())
@@ -91,9 +91,8 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
                     String tempTable = "raw_f" + m.srcId();
                     IngestResult ing;
                     try {
-                        ing = DuckDbCsvIngester.usesDuckDb(cfg)
-                                ? DuckDbCsvIngester.ingest(m.file(), conn, m.selection().schema(), cfg, tempTable)
-                                : CsvIngester.ingest(m.file(), conn, m.selection().schema(), cfg, tempTable);
+                        // Reached only when decideNative() chose the Java path for this batch.
+                        ing = CsvIngester.ingest(m.file(), conn, m.selection().schema(), cfg, tempTable);
                     } catch (IOException e) {
                         QuarantineManager.quarantine(m.file(), "unreadable", false, cfg);
                         memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_UNREADABLE", msg(e), mStart));

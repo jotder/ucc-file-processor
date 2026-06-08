@@ -12,6 +12,7 @@ import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -64,25 +65,52 @@ public final class DuckDbCsvIngester {
     private DuckDbCsvIngester() {}
 
     /**
-     * Decide whether {@code cfg} should use the native DuckDB reader.
+     * Config-level native eligibility (no per-file knowledge).
      *
      * <ul>
-     *   <li>{@code engine: duckdb} — always native (operator accepts any
-     *       too-many-columns differences).</li>
+     *   <li>{@code engine: duckdb} — always native (operator accepts any too-many-columns
+     *       differences; the boundary pre-scan still resolves {@code skip}/width per file).</li>
      *   <li>{@code engine: java} — never native.</li>
-     *   <li>{@code engine: auto} (default) — native only when the messy-file knobs
-     *       ({@code skip_junk_lines}, {@code skip_tail_lines}, {@code skip_tail_columns})
-     *       are all zero, so no existing source's parse semantics change.</li>
+     *   <li>{@code engine: auto} (default) — native unless {@code skip_tail_lines > 0}. As of 4.1
+     *       the adaptive {@code skip_junk_lines} preamble and {@code skip_tail_columns} extra-column
+     *       trimming are resolved natively by {@link BoundaryScanner} (see {@link #decideNative});
+     *       only footer-line dropping ({@code skip_tail_lines}) still requires the Java parser.</li>
      * </ul>
+     *
+     * <p>This is the cheap gate; {@link #decideNative(Batch, PipelineConfig)} additionally confirms,
+     * per file, that the boundaries actually resolve before committing a batch to the native path.
      */
     public static boolean usesDuckDb(PipelineConfig cfg) {
         return switch (cfg.csv().engine() == null ? "auto" : cfg.csv().engine().toLowerCase()) {
             case "duckdb" -> true;
             case "java"   -> false;
-            default       -> cfg.csv().skipJunkLines() == 0
-                          && cfg.csv().skipTailLines() == 0
-                          && cfg.csv().skipTailCols()  == 0;
+            default       -> cfg.csv().skipTailLines() == 0;
         };
+    }
+
+    /**
+     * Authoritative native-vs-Java decision for a whole batch. Returns {@code true} only when
+     * {@link #usesDuckDb} is eligible <em>and</em> — for an {@code auto} config that uses the
+     * adaptive knobs ({@code skip_junk_lines}/{@code skip_tail_columns}) — every member's boundaries
+     * resolve via {@link BoundaryScanner}. If any member cannot be resolved, the whole batch falls
+     * back to the Java parser, so behaviour never regresses relative to the pre-4.1 routing.
+     *
+     * <p>{@code engine: duckdb} is honoured verbatim (native regardless of scan); {@code engine: java}
+     * is never native.
+     */
+    public static boolean decideNative(Batch batch, PipelineConfig cfg) {
+        String engine = cfg.csv().engine() == null ? "auto" : cfg.csv().engine().toLowerCase();
+        if (engine.equals("java"))   return false;
+        if (engine.equals("duckdb")) return true;
+        // auto
+        if (cfg.csv().skipTailLines() != 0) return false;                 // footer-drop stays Java
+        boolean needsScan = cfg.csv().skipJunkLines() != 0 || cfg.csv().skipTailCols() != 0;
+        if (!needsScan) return true;                                       // clean config → native
+        for (Batch.Member m : batch.members()) {
+            if (!BoundaryScanner.scan(m.file(), m.selection().schema(), cfg).resolved())
+                return false;                                             // unresolved member → Java
+        }
+        return true;
     }
 
     /**
@@ -102,7 +130,7 @@ public final class DuckDbCsvIngester {
         try (Statement st = conn.createStatement()) {
             st.execute("DROP TABLE IF EXISTS \"" + targetTable + "\"");
             st.execute("CREATE TABLE \"" + targetTable + "\" AS SELECT " + spec.projection()
-                    + " FROM " + spec.readCsv());
+                    + " FROM " + spec.readCsv() + filterWhere(cfg));
             try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM \"" + targetTable + "\"")) {
                 rs.next();
                 parsed = rs.getLong(1);
@@ -146,7 +174,8 @@ public final class DuckDbCsvIngester {
         try (Statement st = conn.createStatement()) {
             st.execute("DROP VIEW IF EXISTS \"" + viewName + "\"");
             st.execute("CREATE VIEW \"" + viewName + "\" AS SELECT " + spec.projection()
-                    + ", CAST(" + srcId + " AS INTEGER) AS __src_id FROM " + spec.readCsv());
+                    + ", CAST(" + srcId + " AS INTEGER) AS __src_id FROM " + spec.readCsv()
+                    + filterWhere(cfg));
         }
     }
 
@@ -174,6 +203,18 @@ public final class DuckDbCsvIngester {
         int    skipLines = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
         String filePath  = file.getAbsolutePath().replace("\\", "/");
 
+        // Resolve the adaptive knobs (preamble skip + physical width) via a cheap head-window scan,
+        // so SQL*Plus-style preambles and extra trailing columns can be parsed natively. The scan is
+        // only needed when those knobs are active; a clean config keeps the static skip + width.
+        if (cfg.csv().skipJunkLines() != 0 || cfg.csv().skipTailCols() != 0) {
+            BoundaryScanner.BoundaryScan bs = BoundaryScanner.scan(file, schemaConfig, cfg);
+            if (bs.resolved()) {
+                skipLines = bs.skip();
+                if (cfg.csv().skipTailCols() > 0)
+                    physicalCols = Math.max(physicalCols, bs.physicalWidth());
+            }
+        }
+
         // columns={'c0':'VARCHAR', 'c1':'VARCHAR', ...}
         StringBuilder cols = new StringBuilder("{");
         for (int i = 0; i < physicalCols; i++) {
@@ -195,6 +236,7 @@ public final class DuckDbCsvIngester {
                 + ", delim='" + escapeSql(delim) + "'"
                 + ", header=false"
                 + ", skip=" + skipLines
+                + readOptions(cfg)
                 + ", ignore_errors=true"
                 + ", null_padding=false"
                 + ", auto_detect=false"
@@ -262,6 +304,59 @@ public final class DuckDbCsvIngester {
     }
 
     private static String nz(String s) { return s == null ? "" : s; }
+
+    // ── 4.1 native read_csv pass-throughs + row filters ─────────────────────────
+
+    /**
+     * Optional {@code read_csv} parameters threaded from the grammar/csv_settings: {@code encoding},
+     * {@code compression}, {@code nullstr}, {@code strict_mode}. Each is emitted only when set, so a
+     * config that doesn't use them produces the exact same SQL as before.
+     */
+    private static String readOptions(PipelineConfig cfg) {
+        PipelineConfig.CsvSettings c = cfg.csv();
+        StringBuilder sb = new StringBuilder();
+        if (c.encoding() != null && !c.encoding().isBlank())
+            sb.append(", encoding='").append(escapeSql(c.encoding())).append('\'');
+        if (c.inputCompression() != null && !c.inputCompression().isBlank())
+            sb.append(", compression='").append(escapeSql(c.inputCompression())).append('\'');
+        if (c.nullStrings() != null && !c.nullStrings().isEmpty()) {
+            sb.append(", nullstr=[");
+            for (int i = 0; i < c.nullStrings().size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append('\'').append(escapeSql(c.nullStrings().get(i))).append('\'');
+            }
+            sb.append(']');
+        }
+        if (c.strictMode() != null)
+            sb.append(", strict_mode=").append(c.strictMode().booleanValue());
+        return sb.toString();
+    }
+
+    /**
+     * Build the row-filter {@code WHERE} clause (empty when no filters are configured). Include
+     * patterns (prefix {@code LIKE 'x%'} or {@code regexp_matches}) are OR'd (keep if any match);
+     * exclude patterns are negated and AND'd (drop if any match); both are AND-combined so the
+     * deny-list wins on overlap. The target is the physical column {@code c<filter_target_column>}.
+     * See {@code docs/delimited-grammar-design.md} §6.2.1.
+     */
+    static String filterWhere(PipelineConfig cfg) {
+        PipelineConfig.CsvSettings c = cfg.csv();
+        if (!c.hasRowFilters()) return "";
+        String col = "\"c" + c.filterTargetColumn() + "\"";
+
+        List<String> includes = new ArrayList<>();
+        for (String p : c.includePrefixes()) includes.add(col + " LIKE '" + escapeSql(p) + "%'");
+        for (String r : c.includeRegex())    includes.add("regexp_matches(" + col + ", '" + escapeSql(r) + "')");
+
+        List<String> excludes = new ArrayList<>();
+        for (String p : c.excludePrefixes()) excludes.add(col + " NOT LIKE '" + escapeSql(p) + "%'");
+        for (String r : c.excludeRegex())    excludes.add("NOT regexp_matches(" + col + ", '" + escapeSql(r) + "')");
+
+        List<String> parts = new ArrayList<>();
+        if (!includes.isEmpty()) parts.add("(" + String.join(" OR ",  includes) + ")");
+        if (!excludes.isEmpty()) parts.add("(" + String.join(" AND ", excludes) + ")");
+        return parts.isEmpty() ? "" : " WHERE " + String.join(" AND ", parts);
+    }
 
     /** Escape single quotes for embedding inside a single-quoted SQL string literal. */
     private static String escapeSql(String s) { return s.replace("'", "''"); }

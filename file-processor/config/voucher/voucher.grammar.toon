@@ -1,0 +1,12 @@
+name: voucher_delimited_grammar
+version: 1
+
+engine: auto
+delimiter: ","
+skip_header_lines: 0
+skip_junk_lines: 0
+skip_tail_lines: 0
+skip_tail_columns: 0
+has_header: false
+date_formats[4]: "%Y%m%d", "%Y-%m-%d-%H.%M.%S.%f", "%d-%b-%Y %H:%M:%S", "%d-%b-%Y"
+timestamp_formats[4]: "%Y%m%d", "%Y-%m-%d-%H.%M.%S.%f", "%d-%b-%Y %H:%M:%S", "%d-%b-%Y"

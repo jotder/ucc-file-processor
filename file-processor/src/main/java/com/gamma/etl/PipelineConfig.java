@@ -83,11 +83,34 @@ public final class PipelineConfig {
      * Delimited-text parse settings. {@code engine} is {@code "auto"}/{@code "duckdb"}/
      * {@code "java"} — {@code auto} uses DuckDB's native reader for clean configs and the
      * Java parser otherwise (see {@link DuckDbCsvIngester#usesDuckDb}).
+     *
+     * <p>These settings may be authored inline under {@code processing.csv_settings} <em>or</em>
+     * in a separate reusable grammar file referenced by {@code processing.grammar}; when both are
+     * present the inline keys override the grammar file (see {@link #resolveGrammar}).
+     *
+     * <p>Fields added in 4.1 (all optional, defaults preserve prior behaviour):
+     * {@code encoding}/{@code inputCompression}/{@code strictMode}/{@code nullStrings} pass through to
+     * DuckDB {@code read_csv}; {@code includePrefixes}/{@code includeRegex}/{@code excludePrefixes}/
+     * {@code excludeRegex} (anchored on {@code filterTargetColumn}, a 0-based selector index) compile
+     * to a row-filter {@code WHERE} clause on the native path and an in-loop filter on the Java path.
+     * {@code strictMode} is {@code null} when unset (⇒ DuckDB default).
      */
     @PublicApi(since = "2.0.0")
     public record CsvSettings(String delimiter, int skipHeaderLines, int skipJunkLines,
                               int skipTailLines, int skipTailCols, boolean hasHeader,
-                              String engine, List<String> dateFormats, List<String> tsFormats) {}
+                              String engine, List<String> dateFormats, List<String> tsFormats,
+                              String encoding, String inputCompression, Boolean strictMode,
+                              List<String> nullStrings,
+                              List<String> includePrefixes, List<String> includeRegex,
+                              List<String> excludePrefixes, List<String> excludeRegex,
+                              int filterTargetColumn) {
+
+        /** Whether any of the row-filter lists is non-empty. */
+        public boolean hasRowFilters() {
+            return !includePrefixes.isEmpty() || !includeRegex.isEmpty()
+                || !excludePrefixes.isEmpty() || !excludeRegex.isEmpty();
+        }
+    }
 
     /** Output format/compression and the optional {@code output.ducklake} map ({@code null} if absent). */
     @PublicApi(since = "2.0.0")
@@ -182,7 +205,14 @@ public final class PipelineConfig {
         this.csv = new CsvSettings(b.delimiter, b.skipHeaderLines, b.skipJunkLines,
                 b.skipTailLines, b.skipTailCols, b.hasHeader, b.csvEngine,
                 Collections.unmodifiableList(b.dateFormats),
-                Collections.unmodifiableList(b.tsFormats));
+                Collections.unmodifiableList(b.tsFormats),
+                b.encoding, b.inputCompression, b.strictMode,
+                Collections.unmodifiableList(b.nullStrings),
+                Collections.unmodifiableList(b.includePrefixes),
+                Collections.unmodifiableList(b.includeRegex),
+                Collections.unmodifiableList(b.excludePrefixes),
+                Collections.unmodifiableList(b.excludeRegex),
+                b.filterTargetColumn);
         this.output = new Output(b.outputFormat, b.compression, b.duckLakeCfg);
         this.schemas = new Schemas(b.schemaSelector, b.singleSchema, b.segmentSchemas,
                 b.ingesterClass,
@@ -338,8 +368,11 @@ public final class PipelineConfig {
             b.retentionDays         = toInt(dup.getOrDefault("retention_days", 90));
         }
 
-        // ── csv settings ──────────────────────────────────────────────────────
-        Map<String, Object> csv = (Map<String, Object>) proc.get("csv_settings");
+        // ── csv settings (inline csv_settings and/or external grammar file) ─────
+        // The delimited parse grammar may live inline under processing.csv_settings, in a separate
+        // reusable file referenced by processing.grammar, or both (inline keys win). resolveGrammar
+        // returns the effective map (or null when neither is present — defaults then apply).
+        Map<String, Object> csv = resolveGrammar(proc);
         if (csv != null) {
             b.delimiter       = opt(csv, "delimiter", ",");
             b.skipHeaderLines = toInt(csv.getOrDefault("skip_header_lines", 0));
@@ -353,6 +386,16 @@ public final class PipelineConfig {
                 b.dateFormats = (List<String>) df;
             if (csv.get("timestamp_formats") instanceof List<?> tf)
                 b.tsFormats   = (List<String>) tf;
+            // 4.1 additive: native read_csv pass-throughs + row filters
+            b.encoding         = blankToNull(csv.get("encoding"));
+            b.inputCompression = blankToNull(csv.get("compression"));
+            b.strictMode       = parseBoolOrNull(csv.get("strict_mode"));
+            b.nullStrings      = strList(csv.get("null_strings"));
+            b.includePrefixes  = strList(csv.get("include_prefixes"));
+            b.includeRegex     = strList(csv.get("include_regex"));
+            b.excludePrefixes  = strList(csv.get("exclude_prefixes"));
+            b.excludeRegex     = strList(csv.get("exclude_regex"));
+            b.filterTargetColumn = toInt(csv.getOrDefault("filter_target_column", 0));
         }
 
         // ── output ────────────────────────────────────────────────────────────
@@ -488,6 +531,57 @@ public final class PipelineConfig {
         return s.isEmpty() ? null : s;
     }
 
+    /** Parse a tri-state boolean: {@code null}/blank ⇒ {@code null} (unset), else parsed. */
+    private static Boolean parseBoolOrNull(Object v) {
+        if (v == null) return null;
+        String s = String.valueOf(v).trim();
+        return s.isEmpty() ? null : Boolean.valueOf(Boolean.parseBoolean(s));
+    }
+
+    /**
+     * Coerce a config value to a list of trimmed, non-empty strings. Accepts a JToon array
+     * ({@code List}) or a comma-separated scalar; {@code null} ⇒ empty list.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<String> strList(Object v) {
+        if (v == null) return new ArrayList<>();
+        List<String> out = new ArrayList<>();
+        Iterable<?> items = (v instanceof List<?> l) ? l : Arrays.asList(String.valueOf(v).split(","));
+        for (Object it : items) {
+            String s = String.valueOf(it).trim();
+            if (!s.isEmpty()) out.add(s);
+        }
+        return out;
+    }
+
+    /**
+     * Resolve the effective delimited-parse settings map from {@code processing}: load the external
+     * grammar file at {@code processing.grammar} (if any), then overlay the inline
+     * {@code processing.csv_settings} (so inline keys win for local overrides). Returns {@code null}
+     * when neither is present (defaults then apply, preserving pre-4.1 behaviour).
+     *
+     * @throws FileNotFoundException if {@code processing.grammar} names a file that does not exist
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> resolveGrammar(Map<String, Object> proc) throws IOException {
+        String grammarPath = blankToNull(proc.get("grammar"));
+        Map<String, Object> inline = (Map<String, Object>) proc.get("csv_settings");
+        Map<String, Object> grammar = null;
+        if (grammarPath != null) {
+            Path gp = Paths.get(grammarPath);
+            if (!Files.exists(gp))
+                throw new FileNotFoundException("Grammar file not found: " + grammarPath);
+            grammar = (Map<String, Object>)
+                    JToon.decode(Files.readString(gp, StandardCharsets.UTF_8));
+            log.info("[CONFIG] Delimited grammar: {}", grammarPath);
+        }
+        if (grammar == null && inline == null) return null;
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (grammar != null) merged.putAll(grammar);
+        if (inline  != null) merged.putAll(inline);   // inline overrides grammar
+        return merged;
+    }
+
     // ── builder (private, only used inside load()) ────────────────────────────
 
     private static final class Builder {
@@ -532,6 +626,15 @@ public final class PipelineConfig {
         String       csvEngine       = "auto";
         List<String> dateFormats     = new ArrayList<>();
         List<String> tsFormats       = new ArrayList<>();
+        String       encoding;
+        String       inputCompression;
+        Boolean      strictMode;
+        List<String> nullStrings     = new ArrayList<>();
+        List<String> includePrefixes = new ArrayList<>();
+        List<String> includeRegex    = new ArrayList<>();
+        List<String> excludePrefixes = new ArrayList<>();
+        List<String> excludeRegex    = new ArrayList<>();
+        int          filterTargetColumn = 0;
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;
