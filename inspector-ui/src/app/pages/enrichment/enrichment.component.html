@@ -1,67 +1,80 @@
 <h2 class="content-block">Enrichment</h2>
 
-<div *ngIf="unavailable" class="content-block">
-  <div class="dx-card responsive-paddings">
-    <p>No enrichment jobs are registered.</p>
-  </div>
-</div>
-
-<div *ngIf="!unavailable" class="content-block">
-  <div class="dx-card">
-    <dx-data-grid [dataSource]="jobs" [showBorders]="true" [columnAutoWidth]="true"
-                  [rowAlternationEnabled]="true" keyExpr="name"
-                  [selectedRowKeys]="selected ? [selected.name] : []"
-                  (onRowClick)="onRowClick($event)">
-      <dxo-selection mode="single"></dxo-selection>
-      <dxo-search-panel [visible]="true"></dxo-search-panel>
-      <dxi-column dataField="name" caption="Job"></dxi-column>
-      <dxi-column dataField="onPipeline" caption="On pipeline"></dxi-column>
-      <dxi-column dataField="eventTriggered" caption="Event" dataType="boolean" [width]="80"></dxi-column>
-      <dxi-column dataField="scheduleTriggered" caption="Scheduled" dataType="boolean" [width]="90"></dxi-column>
-      <dxi-column dataField="runCount" caption="Runs" dataType="number" [width]="80"></dxi-column>
-      <dxi-column dataField="lastRunStatus" caption="Last status" [width]="110"></dxi-column>
-      <dxi-column dataField="lastRunTime" caption="Last run" dataType="datetime"></dxi-column>
-    </dx-data-grid>
-  </div>
-</div>
-
-<div *ngIf="selected" class="content-block">
-  <div class="dx-card responsive-paddings">
-    <h4>{{ selected.name }}</h4>
-    <dx-tabs [dataSource]="tabs" [(selectedIndex)]="selectedIndex"
-             (onSelectionChanged)="onTabChange($event)"></dx-tabs>
-
-    <div *ngIf="activeTab === 'lineage'" class="enr-filter">
-      <dx-text-box [(value)]="lineageRunId" placeholder="filter by run id (optional)" [width]="280"></dx-text-box>
-      <dx-button text="Apply" type="default" (onClick)="loadTab()"></dx-button>
+@if (unavailable) {
+  <div class="content-block">
+    <div class="dx-card responsive-paddings">
+      <p>No enrichment jobs are registered.</p>
     </div>
+  </div>
+}
 
-    <div *ngIf="activeTab === 'report'" class="enr-filter">
-      <dx-date-box [(value)]="from" type="datetime" placeholder="from" [width]="220"></dx-date-box>
-      <dx-date-box [(value)]="to" type="datetime" placeholder="to" [width]="220"></dx-date-box>
-      <dx-button text="Run report" type="default" (onClick)="loadReport()"></dx-button>
+@if (!unavailable) {
+  <div class="content-block">
+    <div class="dx-card">
+      <dx-data-grid [dataSource]="jobs" [showBorders]="true" [columnAutoWidth]="true"
+        [rowAlternationEnabled]="true" keyExpr="name"
+        [selectedRowKeys]="selected ? [selected.name] : []"
+        (onRowClick)="onRowClick($event)">
+        <dxo-selection mode="single"></dxo-selection>
+        <dxo-search-panel [visible]="true"></dxo-search-panel>
+        <dxi-column dataField="name" caption="Job"></dxi-column>
+        <dxi-column dataField="onPipeline" caption="On pipeline"></dxi-column>
+        <dxi-column dataField="eventTriggered" caption="Event" dataType="boolean" [width]="80"></dxi-column>
+        <dxi-column dataField="scheduleTriggered" caption="Scheduled" dataType="boolean" [width]="90"></dxi-column>
+        <dxi-column dataField="runCount" caption="Runs" dataType="number" [width]="80"></dxi-column>
+        <dxi-column dataField="lastRunStatus" caption="Last status" [width]="110"></dxi-column>
+        <dxi-column dataField="lastRunTime" caption="Last run" dataType="datetime"></dxi-column>
+      </dx-data-grid>
     </div>
+  </div>
+}
 
-    <dx-load-indicator *ngIf="detailLoading" [visible]="true"></dx-load-indicator>
-
-    <table *ngIf="activeTab === 'report' && report && !detailLoading" class="report-stats">
-      <tr><th>Total runs</th><td>{{ report.totalRuns }}</td>
+@if (selected) {
+  <div class="content-block">
+    <div class="dx-card responsive-paddings">
+      <h4>{{ selected.name }}</h4>
+      <dx-tabs [dataSource]="tabs" [(selectedIndex)]="selectedIndex"
+      (onSelectionChanged)="onTabChange($event)"></dx-tabs>
+      @if (activeTab === 'lineage') {
+        <div class="enr-filter">
+          <dx-text-box [(value)]="lineageRunId" placeholder="filter by run id (optional)" [width]="280"></dx-text-box>
+          <dx-button text="Apply" type="default" (onClick)="loadTab()"></dx-button>
+        </div>
+      }
+      @if (activeTab === 'report') {
+        <div class="enr-filter">
+          <dx-date-box [(value)]="from" type="datetime" placeholder="from" [width]="220"></dx-date-box>
+          <dx-date-box [(value)]="to" type="datetime" placeholder="to" [width]="220"></dx-date-box>
+          <dx-button text="Run report" type="default" (onClick)="loadReport()"></dx-button>
+        </div>
+      }
+      @if (detailLoading) {
+        <dx-load-indicator [visible]="true"></dx-load-indicator>
+      }
+      @if (activeTab === 'report' && report && !detailLoading) {
+        <table class="report-stats">
+          <tr><th>Total runs</th><td>{{ report.totalRuns }}</td>
           <th>Success</th><td>{{ report.success }}</td>
           <th>Failed</th><td>{{ report.failed }}</td></tr>
-      <tr><th>Error rate</th><td>{{ (report.errorRate * 100).toFixed(1) }}%</td>
+          <tr><th>Error rate</th><td>{{ (report.errorRate * 100).toFixed(1) }}%</td>
           <th>Output rows</th><td>{{ report.totalOutputRows }}</td>
           <th>Output files</th><td>{{ report.totalOutputFiles ?? '—' }}</td></tr>
-      <tr><th>p50 (ms)</th><td>{{ report.p50DurationMs }}</td>
+          <tr><th>p50 (ms)</th><td>{{ report.p50DurationMs }}</td>
           <th>p95 (ms)</th><td>{{ report.p95DurationMs }}</td>
           <th>p99 (ms)</th><td>{{ report.p99DurationMs }}</td></tr>
-    </table>
-
-    <dx-data-grid *ngIf="activeTab !== 'report' && !detailLoading" [dataSource]="rows"
-                  [showBorders]="true" [columnAutoWidth]="true" [rowAlternationEnabled]="true"
-                  [allowColumnResizing]="true" class="enr-grid">
-      <dxo-search-panel [visible]="true"></dxo-search-panel>
-      <dxo-paging [pageSize]="25"></dxo-paging>
-      <dxi-column *ngFor="let c of columns" [dataField]="c"></dxi-column>
-    </dx-data-grid>
+        </table>
+      }
+      @if (activeTab !== 'report' && !detailLoading) {
+        <dx-data-grid [dataSource]="rows"
+          [showBorders]="true" [columnAutoWidth]="true" [rowAlternationEnabled]="true"
+          [allowColumnResizing]="true" class="enr-grid">
+          <dxo-search-panel [visible]="true"></dxo-search-panel>
+          <dxo-paging [pageSize]="25"></dxo-paging>
+          @for (c of columns; track c) {
+            <dxi-column [dataField]="c"></dxi-column>
+          }
+        </dx-data-grid>
+      }
+    </div>
   </div>
-</div>
+}

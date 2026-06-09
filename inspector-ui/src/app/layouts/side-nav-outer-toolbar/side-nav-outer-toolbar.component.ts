@@ -1,5 +1,5 @@
 import { Component, OnInit, Input, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { Router, NavigationEnd } from '@angular/router';
 
 
@@ -15,7 +15,7 @@ import { ScreenService, ThemeService } from '../../shared/services';
   templateUrl: './side-nav-outer-toolbar.component.html',
   styleUrls: ['./side-nav-outer-toolbar.component.scss'],
   standalone: true,
-  imports: [ CommonModule, SideNavigationMenuComponent, DxDrawerModule, HeaderComponent, DxScrollViewModule ],
+  imports: [SideNavigationMenuComponent, DxDrawerModule, HeaderComponent, DxScrollViewModule],
 })
 export class SideNavOuterToolbarComponent implements OnInit {
   @ViewChild(DxScrollViewComponent, { static: true }) scrollView!: DxScrollViewComponent;

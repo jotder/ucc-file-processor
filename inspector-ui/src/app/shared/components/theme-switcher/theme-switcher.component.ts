@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { DxButtonModule } from 'devextreme-angular';
 import { ThemeService } from '../../services/theme.service';
 
@@ -14,7 +14,7 @@ import { ThemeService } from '../../services/theme.service';
     ></dx-button>`,
   styleUrls: [],
   standalone: true,
-  imports: [CommonModule, DxButtonModule],
+  imports: [DxButtonModule],
 })
 export class ThemeSwitcherComponent {
   constructor(public themeService: ThemeService) {}

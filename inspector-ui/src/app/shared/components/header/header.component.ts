@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-import { CommonModule } from '@angular/common';
+
 import { DxButtonModule } from 'devextreme-angular/ui/button';
 import { DxToolbarModule } from 'devextreme-angular/ui/toolbar';
 
@@ -14,12 +14,11 @@ import { ThemeSwitcherComponent } from '../theme-switcher/theme-switcher.compone
   styleUrls: ['./header.component.scss'],
   standalone: true,
   imports: [
-    CommonModule,
     DxButtonModule,
     UserPanelComponent,
     DxToolbarModule,
-    ThemeSwitcherComponent,
-  ]
+    ThemeSwitcherComponent
+]
 })
 
 export class HeaderComponent implements OnInit {

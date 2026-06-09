@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { SingleCardComponent } from './layouts';
@@ -19,10 +19,9 @@ import { Router } from '@angular/router';
   `],
   standalone: true,
   imports: [
-    CommonModule,
     RouterModule,
-    SingleCardComponent,
-  ]
+    SingleCardComponent
+]
 })
 export class UnauthenticatedContentComponent {
 

@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, inject } from '@angular/core';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
 import { DxButtonModule } from 'devextreme-angular/ui/button';
@@ -20,9 +20,13 @@ type EnrTab = 'runs' | 'lineage' | 'report';
 @Component({
   standalone: true,
   imports: [
-    CommonModule, DxDataGridModule, DxButtonModule, DxTabsModule,
-    DxDateBoxModule, DxTextBoxModule, DxLoadIndicatorModule,
-  ],
+    DxDataGridModule,
+    DxButtonModule,
+    DxTabsModule,
+    DxDateBoxModule,
+    DxTextBoxModule,
+    DxLoadIndicatorModule
+],
   templateUrl: './enrichment.component.html',
   styleUrls: ['./enrichment.component.scss'],
 })

@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, forkJoin } from 'rxjs';
@@ -30,9 +30,15 @@ type FileFilter = 'ALL' | 'SUCCESS' | 'REJECTED' | 'ERRORED';
 @Component({
   standalone: true,
   imports: [
-    CommonModule, DxDataGridModule, DxButtonModule, DxTabsModule, DxDateBoxModule,
-    DxTextBoxModule, DxSelectBoxModule, DxPopupModule, DxLoadIndicatorModule,
-  ],
+    DxDataGridModule,
+    DxButtonModule,
+    DxTabsModule,
+    DxDateBoxModule,
+    DxTextBoxModule,
+    DxSelectBoxModule,
+    DxPopupModule,
+    DxLoadIndicatorModule
+],
   templateUrl: './pipeline-detail.component.html',
   styleUrls: ['./pipeline-detail.component.scss'],
 })

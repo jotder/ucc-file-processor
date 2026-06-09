@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component } from '@angular/core';
 import { DxSelectBoxModule } from 'devextreme-angular/ui/select-box';
 import { AssistPanelComponent } from '../../shared/components';
@@ -23,7 +23,7 @@ const INTENTS: IntentMeta[] = [
  */
 @Component({
   standalone: true,
-  imports: [CommonModule, DxSelectBoxModule, AssistPanelComponent],
+  imports: [DxSelectBoxModule, AssistPanelComponent],
   templateUrl: './assist.component.html',
 })
 export class AssistComponent {

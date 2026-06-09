@@ -1,5 +1,5 @@
 import { Component, Input} from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { DxScrollViewModule }  from 'devextreme-angular/ui/scroll-view';
 
 @Component({
@@ -7,7 +7,7 @@ import { DxScrollViewModule }  from 'devextreme-angular/ui/scroll-view';
   templateUrl: './single-card.component.html',
   styleUrls: ['./single-card.component.scss'],
   standalone: true,
-  imports: [ CommonModule, DxScrollViewModule ],
+  imports: [DxScrollViewModule],
 })
 export class SingleCardComponent {
   @Input()

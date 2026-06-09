@@ -3,117 +3,145 @@
 <div class="content-block">
   <div class="dx-card responsive-paddings">
     <dx-tabs [dataSource]="tabs" [(selectedIndex)]="selectedIndex"
-             (onSelectionChanged)="onTabChange($event)"></dx-tabs>
+    (onSelectionChanged)="onTabChange($event)"></dx-tabs>
   </div>
 </div>
 
-<dx-load-indicator *ngIf="loading" class="content-block" [visible]="true"></dx-load-indicator>
+@if (loading) {
+  <dx-load-indicator class="content-block" [visible]="true"></dx-load-indicator>
+}
 
 <!-- Tables -->
-<div *ngIf="activeTab === 'tables' && !loading" class="content-block">
-  <div class="dx-card">
-    <dx-data-grid [dataSource]="nodes" [showBorders]="true" [columnAutoWidth]="true"
-                  [rowAlternationEnabled]="true" (onRowClick)="onNodeRowClick($event)">
-      <dxo-search-panel [visible]="true"></dxo-search-panel>
-      <dxo-paging [pageSize]="25"></dxo-paging>
-      <dxi-column dataField="kind" caption="Kind" [width]="120"></dxi-column>
-      <dxi-column dataField="label" caption="Label"></dxi-column>
-      <dxi-column dataField="id" caption="Id"></dxi-column>
-      <dxi-column dataField="overlay.freshness" caption="Freshness" [width]="110"></dxi-column>
-      <dxi-column dataField="overlay.rowCount" caption="Rows" dataType="number" [width]="100"></dxi-column>
-      <dxi-column dataField="overlay.completeness" caption="Complete" dataType="number" [width]="100"
-                  format="#0%"></dxi-column>
-      <dxi-column dataField="overlay.lastSeen" caption="Last seen" dataType="datetime"></dxi-column>
-    </dx-data-grid>
-  </div>
-</div>
-
-<!-- KPIs -->
-<div *ngIf="activeTab === 'kpis' && !loading" class="content-block">
-  <div class="dx-card">
-    <dx-data-grid [dataSource]="kpis" [showBorders]="true" [columnAutoWidth]="true"
-                  [rowAlternationEnabled]="true" [wordWrapEnabled]="true">
-      <dxo-search-panel [visible]="true"></dxo-search-panel>
-      <dxi-column dataField="id" caption="Id" [width]="160"></dxi-column>
-      <dxi-column dataField="name" caption="Name"></dxi-column>
-      <dxi-column dataField="definition" caption="Definition"></dxi-column>
-      <dxi-column dataField="grain" caption="Grain" [width]="140"></dxi-column>
-      <dxi-column dataField="joinKeys" caption="Join keys"></dxi-column>
-      <dxi-column dataField="inputs" caption="Inputs"></dxi-column>
-    </dx-data-grid>
-  </div>
-</div>
-
-<!-- Graph -->
-<div *ngIf="activeTab === 'graph'" class="content-block">
-  <div class="dx-card responsive-paddings">
-    <div class="graph-filter">
-      <dx-text-box [(value)]="graphFrom" placeholder="from node id (blank = whole graph)" [width]="280"></dx-text-box>
-      <dx-number-box [(value)]="graphDepth" [min]="1" [max]="6" [showSpinButtons]="true" [width]="90"
-                     label="depth" labelMode="floating"></dx-number-box>
-      <dx-select-box [(value)]="graphDirection" [items]="directions" [width]="110"
-                     label="direction" labelMode="floating"></dx-select-box>
-      <dx-text-box [(value)]="graphKinds" placeholder="node kinds (csv)" [width]="180"></dx-text-box>
-      <dx-text-box [(value)]="graphEdgeKinds" placeholder="edge kinds (csv)" [width]="180"></dx-text-box>
-      <dx-check-box [(value)]="graphOverlay" text="overlay"></dx-check-box>
-      <dx-button text="Traverse" type="default" (onClick)="runGraph()"></dx-button>
-    </div>
-  </div>
-
-  <div *ngIf="graph && !loading" class="graph-results">
+@if (activeTab === 'tables' && !loading) {
+  <div class="content-block">
     <div class="dx-card">
-      <div class="grid-head">Nodes ({{ graph.nodes.length }}) — click to inspect</div>
-      <dx-data-grid [dataSource]="graph.nodes" [showBorders]="true" [columnAutoWidth]="true"
-                    [rowAlternationEnabled]="true" (onRowClick)="onNodeRowClick($event)">
+      <dx-data-grid [dataSource]="nodes" [showBorders]="true" [columnAutoWidth]="true"
+        [rowAlternationEnabled]="true" (onRowClick)="onNodeRowClick($event)">
+        <dxo-search-panel [visible]="true"></dxo-search-panel>
+        <dxo-paging [pageSize]="25"></dxo-paging>
         <dxi-column dataField="kind" caption="Kind" [width]="120"></dxi-column>
         <dxi-column dataField="label" caption="Label"></dxi-column>
         <dxi-column dataField="id" caption="Id"></dxi-column>
-      </dx-data-grid>
-    </div>
-    <div class="dx-card">
-      <div class="grid-head">Edges ({{ graph.edges.length }})</div>
-      <dx-data-grid [dataSource]="graph.edges" [showBorders]="true" [columnAutoWidth]="true"
-                    [rowAlternationEnabled]="true">
-        <dxi-column dataField="from" caption="From"></dxi-column>
-        <dxi-column dataField="kind" caption="Kind" [width]="140"></dxi-column>
-        <dxi-column dataField="to" caption="To"></dxi-column>
+        <dxi-column dataField="overlay.freshness" caption="Freshness" [width]="110"></dxi-column>
+        <dxi-column dataField="overlay.rowCount" caption="Rows" dataType="number" [width]="100"></dxi-column>
+        <dxi-column dataField="overlay.completeness" caption="Complete" dataType="number" [width]="100"
+        format="#0%"></dxi-column>
+        <dxi-column dataField="overlay.lastSeen" caption="Last seen" dataType="datetime"></dxi-column>
       </dx-data-grid>
     </div>
   </div>
-</div>
+}
+
+<!-- KPIs -->
+@if (activeTab === 'kpis' && !loading) {
+  <div class="content-block">
+    <div class="dx-card">
+      <dx-data-grid [dataSource]="kpis" [showBorders]="true" [columnAutoWidth]="true"
+        [rowAlternationEnabled]="true" [wordWrapEnabled]="true">
+        <dxo-search-panel [visible]="true"></dxo-search-panel>
+        <dxi-column dataField="id" caption="Id" [width]="160"></dxi-column>
+        <dxi-column dataField="name" caption="Name"></dxi-column>
+        <dxi-column dataField="definition" caption="Definition"></dxi-column>
+        <dxi-column dataField="grain" caption="Grain" [width]="140"></dxi-column>
+        <dxi-column dataField="joinKeys" caption="Join keys"></dxi-column>
+        <dxi-column dataField="inputs" caption="Inputs"></dxi-column>
+      </dx-data-grid>
+    </div>
+  </div>
+}
+
+<!-- Graph -->
+@if (activeTab === 'graph') {
+  <div class="content-block">
+    <div class="dx-card responsive-paddings">
+      <div class="graph-filter">
+        <dx-text-box [(value)]="graphFrom" placeholder="from node id (blank = whole graph)" [width]="280"></dx-text-box>
+        <dx-number-box [(value)]="graphDepth" [min]="1" [max]="6" [showSpinButtons]="true" [width]="90"
+        label="depth" labelMode="floating"></dx-number-box>
+        <dx-select-box [(value)]="graphDirection" [items]="directions" [width]="110"
+        label="direction" labelMode="floating"></dx-select-box>
+        <dx-text-box [(value)]="graphKinds" placeholder="node kinds (csv)" [width]="180"></dx-text-box>
+        <dx-text-box [(value)]="graphEdgeKinds" placeholder="edge kinds (csv)" [width]="180"></dx-text-box>
+        <dx-check-box [(value)]="graphOverlay" text="overlay"></dx-check-box>
+        <dx-button text="Traverse" type="default" (onClick)="runGraph()"></dx-button>
+      </div>
+    </div>
+    @if (graph && !loading) {
+      <div class="graph-results">
+        @if (graph.nodes.length) {
+          <div class="dx-card">
+            <div class="grid-head">{{ graph.nodes.length }} nodes, {{ graph.edges.length }} edges — click a node to inspect</div>
+            <dx-diagram class="graph-diagram" [readOnly]="true" [showGrid]="false"
+              [simpleView]="true" (onItemClick)="onDiagramItemClick($event)">
+              <dxo-nodes [dataSource]="diagramNodes" keyExpr="id" textExpr="label"
+                typeExpr="shape" styleExpr="style">
+                <dxo-auto-layout type="layered" orientation="horizontal"></dxo-auto-layout>
+              </dxo-nodes>
+              <dxo-edges [dataSource]="diagramEdges" keyExpr="id" fromExpr="from" toExpr="to"
+              textExpr="kind"></dxo-edges>
+              <dxo-main-toolbar [visible]="false"></dxo-main-toolbar>
+              <dxo-history-toolbar [visible]="false"></dxo-history-toolbar>
+              <dxo-properties-panel visibility="disabled"></dxo-properties-panel>
+              <dxo-context-menu [enabled]="false"></dxo-context-menu>
+              <dxo-context-toolbox [enabled]="false"></dxo-context-toolbox>
+            </dx-diagram>
+            <div class="graph-legend">
+              @for (l of legend; track l) {
+                <span class="legend-item">
+                  <span class="swatch" [style.border-color]="l.fill"></span>{{ l.kind }}
+                </span>
+              }
+            </div>
+          </div>
+        } @else {
+          <div class="dx-card responsive-paddings">No nodes matched — adjust the filters and traverse again.</div>
+        }
+      </div>
+    }
+  </div>
+}
 
 <!-- Node detail drawer -->
 <dx-popup [(visible)]="detailVisible" [width]="720" [height]="640" [showTitle]="true"
-          [title]="detail ? detail.node.label : 'Node'" [dragEnabled]="true" [hideOnOutsideClick]="true">
+  [title]="detail ? detail.node.label : 'Node'" [dragEnabled]="true" [hideOnOutsideClick]="true">
   <div *dxTemplate="let data of 'content'">
-    <dx-load-indicator *ngIf="detailLoading" [visible]="true"></dx-load-indicator>
+    @if (detailLoading) {
+      <dx-load-indicator [visible]="true"></dx-load-indicator>
+    }
 
-    <div *ngIf="detail && !detailLoading" class="node-detail">
-      <table class="kv">
-        <tr><th>Id</th><td>{{ detail.node.id }}</td></tr>
-        <tr><th>Kind</th><td>{{ detail.node.kind }}</td></tr>
-        <tr *ngIf="detail.node.description"><th>Description</th><td>{{ detail.node.description?.text }}</td></tr>
-        <tr *ngIf="detail.node.overlay"><th>Freshness</th><td>{{ detail.node.overlay?.freshness || '—' }}</td></tr>
-        <tr *ngIf="detail.node.overlay"><th>Row count</th><td>{{ detail.node.overlay?.rowCount ?? '—' }}</td></tr>
-      </table>
-
-      <h5>Attributes</h5>
-      <pre class="attrs">{{ pretty(detail.node.attrs || {}) }}</pre>
-
-      <h5>Neighbours ({{ detail.neighbors.nodes.length }} nodes, {{ detail.neighbors.edges.length }} edges)</h5>
-      <dx-data-grid [dataSource]="detail.neighbors.nodes" [showBorders]="true" [columnAutoWidth]="true"
-                    (onRowClick)="onNodeRowClick($event)">
-        <dxi-column dataField="kind" caption="Kind" [width]="110"></dxi-column>
-        <dxi-column dataField="label" caption="Label"></dxi-column>
-        <dxi-column dataField="id" caption="Id"></dxi-column>
-      </dx-data-grid>
-
-      <h5>Explain this entity</h5>
-      <!-- re-keyed on node id so it resets while walking neighbours -->
-      <app-assist-panel *ngFor="let n of [detail.node]; trackBy: trackNode"
-                        intent="explain-entity" [screenContext]="{ entityType: 'table', id: n.id }"
-                        [userText]="'Explain ' + n.label"
-                        placeholder="ask a question about this entity…"></app-assist-panel>
-    </div>
+    @if (detail && !detailLoading) {
+      <div class="node-detail">
+        <table class="kv">
+          <tr><th>Id</th><td>{{ detail.node.id }}</td></tr>
+          <tr><th>Kind</th><td>{{ detail.node.kind }}</td></tr>
+          @if (detail.node.description) {
+            <tr><th>Description</th><td>{{ detail.node.description?.text }}</td></tr>
+          }
+          @if (detail.node.overlay) {
+            <tr><th>Freshness</th><td>{{ detail.node.overlay?.freshness || '—' }}</td></tr>
+          }
+          @if (detail.node.overlay) {
+            <tr><th>Row count</th><td>{{ detail.node.overlay?.rowCount ?? '—' }}</td></tr>
+          }
+        </table>
+        <h5>Attributes</h5>
+        <pre class="attrs">{{ pretty(detail.node.attrs || {}) }}</pre>
+        <h5>Neighbours ({{ detail.neighbors.nodes.length }} nodes, {{ detail.neighbors.edges.length }} edges)</h5>
+        <dx-data-grid [dataSource]="detail.neighbors.nodes" [showBorders]="true" [columnAutoWidth]="true"
+          (onRowClick)="onNodeRowClick($event)">
+          <dxi-column dataField="kind" caption="Kind" [width]="110"></dxi-column>
+          <dxi-column dataField="label" caption="Label"></dxi-column>
+          <dxi-column dataField="id" caption="Id"></dxi-column>
+        </dx-data-grid>
+        <h5>Explain this entity</h5>
+        <!-- re-keyed on node id so it resets while walking neighbours -->
+        @for (n of [detail.node]; track trackNode($index, n)) {
+          <app-assist-panel
+            intent="explain-entity" [screenContext]="{ entityType: 'table', id: n.id }"
+            [userText]="'Explain ' + n.label"
+          placeholder="ask a question about this entity…"></app-assist-panel>
+        }
+      </div>
+    }
   </div>
 </dx-popup>

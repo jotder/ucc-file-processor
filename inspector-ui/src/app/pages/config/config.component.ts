@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, inject } from '@angular/core';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
 import { DxButtonModule } from 'devextreme-angular/ui/button';
@@ -23,9 +23,16 @@ const CONFIG_TYPES: ConfigType[] = ['pipeline', 'enrichment', 'job', 'schema', '
 @Component({
   standalone: true,
   imports: [
-    CommonModule, DxDataGridModule, DxButtonModule, DxTabsModule, DxTextBoxModule,
-    DxNumberBoxModule, DxCheckBoxModule, DxSelectBoxModule, DxTagBoxModule, DxLoadIndicatorModule,
-  ],
+    DxDataGridModule,
+    DxButtonModule,
+    DxTabsModule,
+    DxTextBoxModule,
+    DxNumberBoxModule,
+    DxCheckBoxModule,
+    DxSelectBoxModule,
+    DxTagBoxModule,
+    DxLoadIndicatorModule
+],
   templateUrl: './config.component.html',
   styleUrls: ['./config.component.scss'],
 })

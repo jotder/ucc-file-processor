@@ -1,5 +1,5 @@
 import { Component, HostBinding } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterModule, RouterOutlet } from '@angular/router';
 import { AuthService, ScreenService, AppInfoService } from './shared/services';
 import { DxHttpModule } from 'devextreme-angular/http';
@@ -16,12 +16,11 @@ import { SideNavOuterToolbarComponent as SideNavToolbarComponent } from './layou
   imports: [
     RouterModule,
     RouterOutlet,
-    CommonModule,
     DxHttpModule,
     SideNavToolbarComponent,
     FooterComponent,
-    UnauthenticatedContentComponent,
-  ],
+    UnauthenticatedContentComponent
+],
   providers: []
 })
 export class App {

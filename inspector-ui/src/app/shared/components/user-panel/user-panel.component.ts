@@ -1,5 +1,5 @@
 import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 
 import { DxListModule } from 'devextreme-angular/ui/list';
 import { DxDropDownButtonModule } from 'devextreme-angular/ui/drop-down-button';
@@ -13,9 +13,8 @@ import { DxContextMenuModule } from 'devextreme-angular/ui/context-menu';
   imports: [
     DxListModule,
     DxContextMenuModule,
-    DxDropDownButtonModule,
-    CommonModule
-  ]
+    DxDropDownButtonModule
+]
 })
 export class UserPanelComponent {
   @Input()

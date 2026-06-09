@@ -6,13 +6,33 @@
 }
 
 .graph-results {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
   margin-top: 16px;
+}
 
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
+.graph-diagram {
+  height: 620px;
+}
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(127, 127, 127, 0.2);
+  font-size: 13px;
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .swatch {
+    width: 14px;
+    height: 14px;
+    border: 3px solid;
+    border-radius: 3px;
+    background: transparent;
   }
 }
 

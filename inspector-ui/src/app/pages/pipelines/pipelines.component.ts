@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
@@ -19,7 +19,7 @@ import { AuthService } from '../../shared/services';
  */
 @Component({
   standalone: true,
-  imports: [CommonModule, DxDataGridModule, DxButtonModule, DxToolbarModule, DxPopupModule, DxTextBoxModule],
+  imports: [DxDataGridModule, DxButtonModule, DxToolbarModule, DxPopupModule, DxTextBoxModule],
   templateUrl: './pipelines.component.html',
 })
 export class PipelinesComponent implements OnInit {

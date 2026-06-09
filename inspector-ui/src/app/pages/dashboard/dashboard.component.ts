@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
@@ -23,7 +23,7 @@ import {
  */
 @Component({
   standalone: true,
-  imports: [CommonModule, DxDataGridModule, DxChartModule, DxPieChartModule, DxLoadIndicatorModule, DxButtonModule],
+  imports: [DxDataGridModule, DxChartModule, DxPieChartModule, DxLoadIndicatorModule, DxButtonModule],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
 })

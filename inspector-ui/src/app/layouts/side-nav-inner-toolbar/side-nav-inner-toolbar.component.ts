@@ -1,6 +1,6 @@
 import { Component, OnInit, Input, ViewChild } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
-import { CommonModule } from '@angular/common';
+
 
 import { DxTreeViewTypes } from 'devextreme-angular/ui/tree-view';
 import { DxDrawerModule, DxDrawerTypes } from 'devextreme-angular/ui/drawer';
@@ -21,9 +21,8 @@ import { ThemeService } from '../../shared/services/theme.service';
     DxDrawerModule,
     HeaderComponent,
     DxToolbarModule,
-    DxScrollViewModule,
-    CommonModule,
-  ]
+    DxScrollViewModule
+]
 })
 export class SideNavInnerToolbarComponent implements OnInit {
   @ViewChild(DxScrollViewComponent, { static: true }) scrollView!: DxScrollViewComponent;

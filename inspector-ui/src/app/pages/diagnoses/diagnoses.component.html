@@ -4,62 +4,72 @@
   <div class="dx-card">
     <div class="diag-toolbar">
       <dx-number-box [(value)]="limit" [min]="1" [max]="500" [showSpinButtons]="true"
-                     label="limit" labelMode="floating" [width]="120"></dx-number-box>
+      label="limit" labelMode="floating" [width]="120"></dx-number-box>
       <dx-button icon="refresh" text="Refresh" (onClick)="load()"></dx-button>
     </div>
 
-    <dx-load-indicator *ngIf="loading" [visible]="true"></dx-load-indicator>
+    @if (loading) {
+      <dx-load-indicator [visible]="true"></dx-load-indicator>
+    }
 
-    <div *ngIf="!loading && !diagnoses.length" class="diag-empty responsive-paddings">
-      No diagnoses yet (none recorded, or the assist agent is not running).
-    </div>
+    @if (!loading && !diagnoses.length) {
+      <div class="diag-empty responsive-paddings">
+        No diagnoses yet (none recorded, or the assist agent is not running).
+      </div>
+    }
 
-    <dx-data-grid *ngIf="!loading && diagnoses.length" [dataSource]="diagnoses" [showBorders]="true"
-                  [columnAutoWidth]="true" [rowAlternationEnabled]="true" [wordWrapEnabled]="true"
-                  (onRowClick)="openDetail($event)">
-      <dxo-search-panel [visible]="true"></dxo-search-panel>
-      <dxo-paging [pageSize]="25"></dxo-paging>
-      <dxi-column dataField="epochMillis" caption="When" dataType="datetime" [width]="170"
-                  sortOrder="desc"></dxi-column>
-      <dxi-column dataField="pipeline" caption="Pipeline"></dxi-column>
-      <dxi-column dataField="batchId" caption="Batch"></dxi-column>
-      <dxi-column dataField="severity" caption="Severity" [width]="100"></dxi-column>
-      <dxi-column dataField="rootCause" caption="Root cause"></dxi-column>
-      <dxi-column dataField="heuristicOnly" caption="Heuristic" dataType="boolean" [width]="100"></dxi-column>
-    </dx-data-grid>
+    @if (!loading && diagnoses.length) {
+      <dx-data-grid [dataSource]="diagnoses" [showBorders]="true"
+        [columnAutoWidth]="true" [rowAlternationEnabled]="true" [wordWrapEnabled]="true"
+        (onRowClick)="openDetail($event)">
+        <dxo-search-panel [visible]="true"></dxo-search-panel>
+        <dxo-paging [pageSize]="25"></dxo-paging>
+        <dxi-column dataField="epochMillis" caption="When" dataType="datetime" [width]="170"
+        sortOrder="desc"></dxi-column>
+        <dxi-column dataField="pipeline" caption="Pipeline"></dxi-column>
+        <dxi-column dataField="batchId" caption="Batch"></dxi-column>
+        <dxi-column dataField="severity" caption="Severity" [width]="100"></dxi-column>
+        <dxi-column dataField="rootCause" caption="Root cause"></dxi-column>
+        <dxi-column dataField="heuristicOnly" caption="Heuristic" dataType="boolean" [width]="100"></dxi-column>
+      </dx-data-grid>
+    }
   </div>
 </div>
 
 <!-- Detail drawer -->
 <dx-popup [(visible)]="detailVisible" [width]="760" [height]="700" [showTitle]="true"
-          title="Diagnosis" [dragEnabled]="true" [hideOnOutsideClick]="true">
+  title="Diagnosis" [dragEnabled]="true" [hideOnOutsideClick]="true">
   <div *dxTemplate="let data of 'content'">
-    <div *ngIf="selected" class="diag-detail">
-      <table class="kv">
-        <tr><th>Pipeline</th><td>{{ selected.pipeline }}</td></tr>
-        <tr><th>Batch</th><td>{{ selected.batchId }}</td></tr>
-        <tr><th>Severity</th><td>{{ selected.severity }}</td></tr>
-        <tr><th>Heuristic only</th><td>{{ selected.heuristicOnly }}</td></tr>
-      </table>
-
-      <h5>Root cause</h5>
-      <p class="root-cause">{{ selected.rootCause }}</p>
-
-      <div *ngIf="selected.citations?.length" class="citations">
-        <span *ngFor="let c of selected.citations" class="ref-chip">{{ c.source }}: {{ c.ref }}</span>
+    @if (selected) {
+      <div class="diag-detail">
+        <table class="kv">
+          <tr><th>Pipeline</th><td>{{ selected.pipeline }}</td></tr>
+          <tr><th>Batch</th><td>{{ selected.batchId }}</td></tr>
+          <tr><th>Severity</th><td>{{ selected.severity }}</td></tr>
+          <tr><th>Heuristic only</th><td>{{ selected.heuristicOnly }}</td></tr>
+        </table>
+        <h5>Root cause</h5>
+        <p class="root-cause">{{ selected.rootCause }}</p>
+        @if (selected.citations?.length) {
+          <div class="citations">
+            @for (c of selected.citations; track c) {
+              <span class="ref-chip">{{ c.source }}: {{ c.ref }}</span>
+            }
+          </div>
+        }
+        @if (selected.suggestedAlertRuleToon) {
+          <div class="assist-block">
+            <div class="block-head">Suggested alert rule (.toon)
+              <dx-button icon="copy" hint="Copy" [stylingMode]="'text'" (onClick)="copy(selected.suggestedAlertRuleToon)"></dx-button>
+            </div>
+            <pre class="code">{{ selected.suggestedAlertRuleToon }}</pre>
+          </div>
+        }
+        <h5>Refine as an alert rule</h5>
+        <p class="hint">Hand this diagnosis to the diagnose-and-alert skill to produce a validated draft rule.</p>
+        <app-assist-panel intent="diagnose-and-alert" [userText]="alertText"
+        placeholder="adjust the alert description…"></app-assist-panel>
       </div>
-
-      <div *ngIf="selected.suggestedAlertRuleToon" class="assist-block">
-        <div class="block-head">Suggested alert rule (.toon)
-          <dx-button icon="copy" hint="Copy" [stylingMode]="'text'" (onClick)="copy(selected.suggestedAlertRuleToon)"></dx-button>
-        </div>
-        <pre class="code">{{ selected.suggestedAlertRuleToon }}</pre>
-      </div>
-
-      <h5>Refine as an alert rule</h5>
-      <p class="hint">Hand this diagnosis to the diagnose-and-alert skill to produce a validated draft rule.</p>
-      <app-assist-panel intent="diagnose-and-alert" [userText]="alertText"
-                        placeholder="adjust the alert description…"></app-assist-panel>
-    </div>
+    }
   </div>
 </dx-popup>

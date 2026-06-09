@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, Input, OnInit, inject } from '@angular/core';
 import { DxTextAreaModule } from 'devextreme-angular/ui/text-area';
 import { DxButtonModule } from 'devextreme-angular/ui/button';
@@ -22,9 +22,12 @@ const SQL_INTENTS = ['kpi-to-sql', 'report-sql'];
   selector: 'app-assist-panel',
   standalone: true,
   imports: [
-    CommonModule, DxTextAreaModule, DxButtonModule, DxCheckBoxModule,
-    DxDataGridModule, DxLoadIndicatorModule,
-  ],
+    DxTextAreaModule,
+    DxButtonModule,
+    DxCheckBoxModule,
+    DxDataGridModule,
+    DxLoadIndicatorModule
+],
   templateUrl: './assist-panel.component.html',
   styleUrls: ['./assist-panel.component.scss'],
 })

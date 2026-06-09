@@ -6,142 +6,173 @@
 <div class="content-block">
   <div class="dx-card responsive-paddings">
     <dx-tabs [dataSource]="tabs" [(selectedIndex)]="selectedIndex"
-             (onSelectionChanged)="onTabChange($event)"></dx-tabs>
+    (onSelectionChanged)="onTabChange($event)"></dx-tabs>
   </div>
 </div>
 
 <!-- Lineage batch filter -->
-<div *ngIf="activeTab === 'lineage'" class="content-block">
-  <div class="dx-card responsive-paddings lineage-filter">
-    <dx-text-box [(value)]="lineageBatchId" placeholder="filter by batch id (optional)"
-                 [width]="280"></dx-text-box>
-    <dx-button text="Apply" type="default" (onClick)="loadTab()"></dx-button>
+@if (activeTab === 'lineage') {
+  <div class="content-block">
+    <div class="dx-card responsive-paddings lineage-filter">
+      <dx-text-box [(value)]="lineageBatchId" placeholder="filter by batch id (optional)"
+      [width]="280"></dx-text-box>
+      <dx-button text="Apply" type="default" (onClick)="loadTab()"></dx-button>
+    </div>
   </div>
-</div>
+}
 
 <!-- Report tab -->
-<div *ngIf="activeTab === 'report'" class="content-block">
-  <div class="dx-card responsive-paddings">
-    <div class="report-filter">
-      <dx-date-box [(value)]="from" type="datetime" placeholder="from" [width]="220"></dx-date-box>
-      <dx-date-box [(value)]="to" type="datetime" placeholder="to" [width]="220"></dx-date-box>
-      <dx-button text="Run report" type="default" (onClick)="loadReport()"></dx-button>
-    </div>
-
-    <table *ngIf="report" class="report-stats">
-      <tr><th>Total batches</th><td>{{ report.totalBatches }}</td>
+@if (activeTab === 'report') {
+  <div class="content-block">
+    <div class="dx-card responsive-paddings">
+      <div class="report-filter">
+        <dx-date-box [(value)]="from" type="datetime" placeholder="from" [width]="220"></dx-date-box>
+        <dx-date-box [(value)]="to" type="datetime" placeholder="to" [width]="220"></dx-date-box>
+        <dx-button text="Run report" type="default" (onClick)="loadReport()"></dx-button>
+      </div>
+      @if (report) {
+        <table class="report-stats">
+          <tr><th>Total batches</th><td>{{ report.totalBatches }}</td>
           <th>Success</th><td>{{ report.success }}</td>
           <th>Failed</th><td>{{ report.failed }}</td></tr>
-      <tr><th>Error rate</th><td>{{ (report.errorRate * 100).toFixed(1) }}%</td>
+          <tr><th>Error rate</th><td>{{ (report.errorRate * 100).toFixed(1) }}%</td>
           <th>Output rows</th><td>{{ report.totalOutputRows }}</td>
           <th>Output files</th><td>{{ report.totalOutputFiles ?? '—' }}</td></tr>
-      <tr><th>p50 (ms)</th><td>{{ report.p50DurationMs }}</td>
+          <tr><th>p50 (ms)</th><td>{{ report.p50DurationMs }}</td>
           <th>p95 (ms)</th><td>{{ report.p95DurationMs }}</td>
           <th>p99 (ms)</th><td>{{ report.p99DurationMs }}</td></tr>
-      <tr><th>Window from</th><td colspan="2">{{ report.windowFrom }}</td>
+          <tr><th>Window from</th><td colspan="2">{{ report.windowFrom }}</td>
           <th>Window to</th><td colspan="2">{{ report.windowTo }}</td></tr>
-    </table>
+        </table>
+      }
+    </div>
   </div>
-</div>
+}
 
 <!-- Files tab: processing-status breakdown + search -->
-<div *ngIf="activeTab === 'files'" class="content-block">
-  <div class="dx-card responsive-paddings">
-    <div class="file-stats">
-      <div class="stat plain pending" [class.warn]="(inbox?.pending || 0) > 0">
-        <span class="stat-value">{{ inbox ? (inbox.pending < 0 ? '—' : inbox.pending) : '…' }}</span>
-        <span class="stat-label">Pending</span>
+@if (activeTab === 'files') {
+  <div class="content-block">
+    <div class="dx-card responsive-paddings">
+      <div class="file-stats">
+        <div class="stat plain pending" [class.warn]="(inbox?.pending || 0) > 0">
+          <span class="stat-value">{{ inbox ? (inbox.pending < 0 ? '—' : inbox.pending) : '…' }}</span>
+          <span class="stat-label">Pending</span>
+        </div>
+        <div class="stat plain" [class.proc]="inbox?.running">
+          <span class="stat-value">{{ inbox ? (inbox.running ? 'Yes' : 'No') : '…' }}</span>
+          <span class="stat-label">Processing</span>
+        </div>
+        <div class="stat-divider"></div>
+        <button class="stat" [class.active]="fileStatus === 'ALL'" (click)="fileStatus = 'ALL'">
+          <span class="stat-value">{{ fileStats.total }}</span><span class="stat-label">Processed</span>
+        </button>
+        <button class="stat ok" [class.active]="fileStatus === 'SUCCESS'" (click)="fileStatus = 'SUCCESS'">
+          <span class="stat-value">{{ fileStats.success }}</span><span class="stat-label">Succeeded</span>
+        </button>
+        <button class="stat warn" [class.active]="fileStatus === 'REJECTED'" (click)="fileStatus = 'REJECTED'">
+          <span class="stat-value">{{ fileStats.rejected }}</span><span class="stat-label">Rejected</span>
+        </button>
+        <button class="stat bad" [class.active]="fileStatus === 'ERRORED'" (click)="fileStatus = 'ERRORED'">
+          <span class="stat-value">{{ fileStats.errored }}</span><span class="stat-label">With errors</span>
+        </button>
+        <div class="stat plain">
+          <span class="stat-value">{{ fileStats.rows }}</span><span class="stat-label">Rows parsed</span>
+        </div>
       </div>
-      <div class="stat plain" [class.proc]="inbox?.running">
-        <span class="stat-value">{{ inbox ? (inbox.running ? 'Yes' : 'No') : '…' }}</span>
-        <span class="stat-label">Processing</span>
+      <p class="files-note">
+        <b>Pending</b> / <b>Processing</b> are live from the inbox@if (inbox?.inbox) {
+        <span> (<code>{{ inbox?.inbox }}</code>)</span>
+        };
+        the status counts cover <b>processed</b> files recorded in the durable audit.
+      </p>
+      <div class="files-controls">
+        <dx-text-box [(value)]="fileSearch" placeholder="search filename…" [width]="280"
+        valueChangeEvent="keyup" mode="search"></dx-text-box>
+        <dx-select-box [(value)]="fileStatus" [items]="fileFilters" [width]="160"
+        label="status" labelMode="floating"></dx-select-box>
+        <dx-button icon="refresh" hint="Reload" (onClick)="loadFiles()"></dx-button>
       </div>
-      <div class="stat-divider"></div>
-      <button class="stat" [class.active]="fileStatus === 'ALL'" (click)="fileStatus = 'ALL'">
-        <span class="stat-value">{{ fileStats.total }}</span><span class="stat-label">Processed</span>
-      </button>
-      <button class="stat ok" [class.active]="fileStatus === 'SUCCESS'" (click)="fileStatus = 'SUCCESS'">
-        <span class="stat-value">{{ fileStats.success }}</span><span class="stat-label">Succeeded</span>
-      </button>
-      <button class="stat warn" [class.active]="fileStatus === 'REJECTED'" (click)="fileStatus = 'REJECTED'">
-        <span class="stat-value">{{ fileStats.rejected }}</span><span class="stat-label">Rejected</span>
-      </button>
-      <button class="stat bad" [class.active]="fileStatus === 'ERRORED'" (click)="fileStatus = 'ERRORED'">
-        <span class="stat-value">{{ fileStats.errored }}</span><span class="stat-label">With errors</span>
-      </button>
-      <div class="stat plain">
-        <span class="stat-value">{{ fileStats.rows }}</span><span class="stat-label">Rows parsed</span>
-      </div>
-    </div>
-    <p class="files-note">
-      <b>Pending</b> / <b>Processing</b> are live from the inbox<span *ngIf="inbox?.inbox"> (<code>{{ inbox?.inbox }}</code>)</span>;
-      the status counts cover <b>processed</b> files recorded in the durable audit.
-    </p>
-    <div class="files-controls">
-      <dx-text-box [(value)]="fileSearch" placeholder="search filename…" [width]="280"
-                   valueChangeEvent="keyup" mode="search"></dx-text-box>
-      <dx-select-box [(value)]="fileStatus" [items]="fileFilters" [width]="160"
-                     label="status" labelMode="floating"></dx-select-box>
-      <dx-button icon="refresh" hint="Reload" (onClick)="loadFiles()"></dx-button>
     </div>
   </div>
-</div>
+}
 
-<div *ngIf="activeTab === 'files' && !loading" class="content-block">
-  <div class="dx-card">
-    <dx-data-grid [dataSource]="filteredFiles" [showBorders]="true" [columnAutoWidth]="true"
-                  [rowAlternationEnabled]="true" [allowColumnResizing]="true">
-      <dxo-paging [pageSize]="25"></dxo-paging>
-      <dxi-column *ngFor="let c of fileColumns" [dataField]="c"></dxi-column>
-      <dxi-column type="buttons" caption="" [width]="60">
-        <dxi-button hint="Open the batch this file belongs to" icon="hierarchy" [onClick]="openBatch"></dxi-button>
-      </dxi-column>
-    </dx-data-grid>
+@if (activeTab === 'files' && !loading) {
+  <div class="content-block">
+    <div class="dx-card">
+      <dx-data-grid [dataSource]="filteredFiles" [showBorders]="true" [columnAutoWidth]="true"
+        [rowAlternationEnabled]="true" [allowColumnResizing]="true">
+        <dxo-paging [pageSize]="25"></dxo-paging>
+        @for (c of fileColumns; track c) {
+          <dxi-column [dataField]="c"></dxi-column>
+        }
+        <dxi-column type="buttons" caption="" [width]="60">
+          <dxi-button hint="Open the batch this file belongs to" icon="hierarchy" [onClick]="openBatch"></dxi-button>
+        </dxi-column>
+      </dx-data-grid>
+    </div>
   </div>
-</div>
+}
 
 <!-- Generic audit-row grid (batches / lineage / quarantine / commits) -->
-<div *ngIf="activeTab !== 'report' && activeTab !== 'files'" class="content-block">
-  <div class="dx-card">
-    <dx-data-grid [dataSource]="rows" [showBorders]="true" [columnAutoWidth]="true"
-                  [rowAlternationEnabled]="true" [allowColumnResizing]="true">
-      <dxo-search-panel [visible]="true"></dxo-search-panel>
-      <dxo-paging [pageSize]="25"></dxo-paging>
-      <dxi-column *ngFor="let c of columns" [dataField]="c"></dxi-column>
-      <dxi-column *ngIf="activeTab === 'batches'" type="buttons" caption="" [width]="96">
-        <dxi-button hint="Lineage & details" icon="hierarchy" [onClick]="openBatch"></dxi-button>
-        <dxi-button hint="Reprocess this batch" icon="refresh" [onClick]="reprocessRow"></dxi-button>
-      </dxi-column>
-    </dx-data-grid>
+@if (activeTab !== 'report' && activeTab !== 'files') {
+  <div class="content-block">
+    <div class="dx-card">
+      <dx-data-grid [dataSource]="rows" [showBorders]="true" [columnAutoWidth]="true"
+        [rowAlternationEnabled]="true" [allowColumnResizing]="true">
+        <dxo-search-panel [visible]="true"></dxo-search-panel>
+        <dxo-paging [pageSize]="25"></dxo-paging>
+        @for (c of columns; track c) {
+          <dxi-column [dataField]="c"></dxi-column>
+        }
+        @if (activeTab === 'batches') {
+          <dxi-column type="buttons" caption="" [width]="96">
+            <dxi-button hint="Lineage & details" icon="hierarchy" [onClick]="openBatch"></dxi-button>
+            <dxi-button hint="Reprocess this batch" icon="refresh" [onClick]="reprocessRow"></dxi-button>
+          </dxi-column>
+        }
+      </dx-data-grid>
+    </div>
   </div>
-</div>
+}
 
 <!-- Batch detail drawer: summary + member files + lineage -->
 <dx-popup [(visible)]="batchDetailVisible" [width]="860" [height]="720" [showTitle]="true"
-          [title]="'Batch ' + batchId" [dragEnabled]="true" [hideOnOutsideClick]="true">
+  [title]="'Batch ' + batchId" [dragEnabled]="true" [hideOnOutsideClick]="true">
   <div *dxTemplate="let data of 'content'">
-    <dx-load-indicator *ngIf="batchDetailLoading" [visible]="true"></dx-load-indicator>
+    @if (batchDetailLoading) {
+      <dx-load-indicator [visible]="true"></dx-load-indicator>
+    }
 
-    <div *ngIf="!batchDetailLoading" class="batch-detail">
-      <h5>Summary</h5>
-      <p *ngIf="!batchRow" class="muted">No batch-summary row found for this id.</p>
-      <table *ngIf="batchRow" class="kv">
-        <tr *ngFor="let kv of batchSummary"><th>{{ kv.key }}</th><td>{{ kv.value }}</td></tr>
-      </table>
-
-      <h5>Member files ({{ batchFiles.length }})</h5>
-      <dx-data-grid [dataSource]="batchFiles" [showBorders]="true" [columnAutoWidth]="true"
-                    [rowAlternationEnabled]="true" [allowColumnResizing]="true" height="220">
-        <dxo-paging [pageSize]="10"></dxo-paging>
-        <dxi-column *ngFor="let c of batchFileColumns" [dataField]="c"></dxi-column>
-      </dx-data-grid>
-
-      <h5>Lineage ({{ batchLineage.length }})</h5>
-      <dx-data-grid [dataSource]="batchLineage" [showBorders]="true" [columnAutoWidth]="true"
-                    [rowAlternationEnabled]="true" [allowColumnResizing]="true" height="220">
-        <dxo-paging [pageSize]="10"></dxo-paging>
-        <dxi-column *ngFor="let c of batchLineageColumns" [dataField]="c"></dxi-column>
-      </dx-data-grid>
-    </div>
+    @if (!batchDetailLoading) {
+      <div class="batch-detail">
+        <h5>Summary</h5>
+        @if (!batchRow) {
+          <p class="muted">No batch-summary row found for this id.</p>
+        }
+        @if (batchRow) {
+          <table class="kv">
+            @for (kv of batchSummary; track kv) {
+              <tr><th>{{ kv.key }}</th><td>{{ kv.value }}</td></tr>
+            }
+          </table>
+        }
+        <h5>Member files ({{ batchFiles.length }})</h5>
+        <dx-data-grid [dataSource]="batchFiles" [showBorders]="true" [columnAutoWidth]="true"
+          [rowAlternationEnabled]="true" [allowColumnResizing]="true" height="220">
+          <dxo-paging [pageSize]="10"></dxo-paging>
+          @for (c of batchFileColumns; track c) {
+            <dxi-column [dataField]="c"></dxi-column>
+          }
+        </dx-data-grid>
+        <h5>Lineage ({{ batchLineage.length }})</h5>
+        <dx-data-grid [dataSource]="batchLineage" [showBorders]="true" [columnAutoWidth]="true"
+          [rowAlternationEnabled]="true" [allowColumnResizing]="true" height="220">
+          <dxo-paging [pageSize]="10"></dxo-paging>
+          @for (c of batchLineageColumns; track c) {
+            <dxi-column [dataField]="c"></dxi-column>
+          }
+        </dx-data-grid>
+      </div>
+    }
   </div>
 </dx-popup>

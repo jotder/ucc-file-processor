@@ -39,11 +39,9 @@ module.exports = defineConfig([
       angular.configs.templateAccessibility,
     ],
     rules: {
-      // Deferred modernization: the screens were authored with *ngIf / *ngFor, which remain fully
-      // supported in Angular 21. Migrating ~90 sites to the @if / @for built-in control flow is a
-      // mechanical-but-broad change that deserves its own per-screen verified pass, so it is not
-      // gated here. Re-enable once that migration lands.
-      "@angular-eslint/template/prefer-control-flow": "off",
+      // All templates use the built-in @if / @for / @switch control flow (migrated from *ngIf /
+      // *ngFor via `ng g @angular/core:control-flow`). This rule keeps it that way.
+      "@angular-eslint/template/prefer-control-flow": "error",
     },
   },
 

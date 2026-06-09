@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, inject } from '@angular/core';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
 import { DxButtonModule } from 'devextreme-angular/ui/button';
@@ -9,10 +9,14 @@ import { DxNumberBoxModule } from 'devextreme-angular/ui/number-box';
 import { DxSelectBoxModule } from 'devextreme-angular/ui/select-box';
 import { DxCheckBoxModule } from 'devextreme-angular/ui/check-box';
 import { DxLoadIndicatorModule } from 'devextreme-angular/ui/load-indicator';
+import { DxDiagramModule } from 'devextreme-angular/ui/diagram';
 import {
-  CatalogService, MetadataNode, KpiCatalogEntry, NodeDetail, MetadataGraph, GraphDirection,
+  CatalogService, MetadataNode, NodeKind, KpiCatalogEntry, NodeDetail, MetadataGraph, GraphDirection,
 } from '../../shared/api';
 import { AssistPanelComponent } from '../../shared/components';
+import {
+  DiagramEdge, DiagramNode, legendFor, toDiagramEdges, toDiagramNodes,
+} from './catalog-graph';
 
 type CatTab = 'tables' | 'kpis' | 'graph';
 
@@ -24,10 +28,18 @@ type CatTab = 'tables' | 'kpis' | 'graph';
 @Component({
   standalone: true,
   imports: [
-    CommonModule, DxDataGridModule, DxButtonModule, DxTabsModule, DxPopupModule,
-    DxTextBoxModule, DxNumberBoxModule, DxSelectBoxModule, DxCheckBoxModule, DxLoadIndicatorModule,
-    AssistPanelComponent,
-  ],
+    DxDataGridModule,
+    DxButtonModule,
+    DxTabsModule,
+    DxPopupModule,
+    DxTextBoxModule,
+    DxNumberBoxModule,
+    DxSelectBoxModule,
+    DxCheckBoxModule,
+    DxLoadIndicatorModule,
+    DxDiagramModule,
+    AssistPanelComponent
+],
   templateUrl: './catalog.component.html',
   styleUrls: ['./catalog.component.scss'],
 })
@@ -55,6 +67,11 @@ export class CatalogComponent implements OnInit {
   graphOverlay = true;
   graph: MetadataGraph | null = null;
   directions: GraphDirection[] = ['out', 'in', 'both'];
+
+  // graph diagram (derived from `graph` on each successful traversal)
+  diagramNodes: DiagramNode[] = [];
+  diagramEdges: DiagramEdge[] = [];
+  legend: { kind: NodeKind; fill: string }[] = [];
 
   // node detail
   detailVisible = false;
@@ -93,10 +110,22 @@ export class CatalogComponent implements OnInit {
       edgeKinds: this.graphEdgeKinds.trim() ? this.graphEdgeKinds.split(',').map((s) => s.trim()) : undefined,
       overlay: this.graphOverlay,
     }).subscribe({
-      next: (g) => { this.graph = g; this.loading = false; },
-      error: () => { this.graph = null; this.loading = false; },
+      next: (g) => { this.setGraph(g); this.loading = false; },
+      error: () => { this.setGraph(null); this.loading = false; },
     });
   }
+
+  private setGraph(g: MetadataGraph | null): void {
+    this.graph = g;
+    this.diagramNodes = g ? toDiagramNodes(g.nodes) : [];
+    this.diagramEdges = g ? toDiagramEdges(g.edges) : [];
+    this.legend = g ? legendFor(g.nodes) : [];
+  }
+
+  /** Open the detail drawer when a node shape is clicked; ignore connector clicks. */
+  onDiagramItemClick = (e: { item?: { itemType?: string; dataItem?: { id?: string } } }) => {
+    if (e.item?.itemType === 'shape' && e.item.dataItem?.id) this.openNode(e.item.dataItem.id);
+  };
 
   openNode(id: string): void {
     if (!id) return;

@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, inject } from '@angular/core';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
 import { DxButtonModule } from 'devextreme-angular/ui/button';
@@ -19,9 +19,13 @@ import { AuthService } from '../../shared/services';
 @Component({
   standalone: true,
   imports: [
-    CommonModule, DxDataGridModule, DxButtonModule, DxToolbarModule,
-    DxPopupModule, DxLoadIndicatorModule, AssistPanelComponent,
-  ],
+    DxDataGridModule,
+    DxButtonModule,
+    DxToolbarModule,
+    DxPopupModule,
+    DxLoadIndicatorModule,
+    AssistPanelComponent
+],
   templateUrl: './jobs.component.html',
 })
 export class JobsComponent implements OnInit {

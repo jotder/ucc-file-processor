@@ -1,79 +1,108 @@
 <div class="assist-panel">
-  <div *ngIf="!hideInput" class="assist-input">
-    <dx-text-area [(value)]="userText" [height]="80" [placeholder]="placeholder"></dx-text-area>
-    <div class="assist-input-actions">
-      <dx-check-box *ngIf="isSql" [(value)]="wantSample" text="include sample rows"></dx-check-box>
-      <dx-button text="Ask" type="default" icon="comment" [disabled]="loading" (onClick)="run()"></dx-button>
-    </div>
-  </div>
-
-  <dx-load-indicator *ngIf="loading" [visible]="true"></dx-load-indicator>
-
-  <div *ngIf="result && !loading" class="assist-result">
-    <p class="assist-answer">{{ result.answer }}</p>
-    <p class="assist-meta">
-      status <b>{{ result.status }}</b> ·
-      confidence {{ (result.confidence * 100).toFixed(0) }}% ·
-      {{ result.validated ? 'validated' : 'unvalidated' }}
-      <span *ngIf="!result.applyVia">· draft only</span>
-    </p>
-    <p *ngIf="result.message" class="assist-message">{{ result.message }}</p>
-    <p *ngIf="result.rationale" class="assist-rationale">{{ result.rationale }}</p>
-
-    <!-- human-readable summary -->
-    <p *ngIf="humanReadable" class="assist-summary">{{ humanReadable }}</p>
-
-    <!-- narrative prose -->
-    <div *ngIf="narrative" class="assist-narrative">{{ narrative }}</div>
-
-    <!-- SQL -->
-    <div *ngIf="sql" class="assist-block">
-      <div class="block-head">SQL <dx-button icon="copy" hint="Copy SQL" [stylingMode]="'text'" (onClick)="copy(sql)"></dx-button></div>
-      <pre class="code">{{ sql }}</pre>
-    </div>
-
-    <!-- sample rows -->
-    <div *ngIf="sampleRows.length" class="assist-block">
-      <div class="block-head">Sample rows ({{ sampleRows.length }})</div>
-      <dx-data-grid [dataSource]="sampleRows" [showBorders]="true" [columnAutoWidth]="true">
-        <dxi-column *ngFor="let c of sampleColumns" [dataField]="c"></dxi-column>
-      </dx-data-grid>
-    </div>
-
-    <!-- draft toon -->
-    <div *ngIf="draftToon" class="assist-block">
-      <div class="block-head">Draft config (.toon)
-        <dx-button icon="copy" hint="Copy draft" [stylingMode]="'text'" (onClick)="copy(draftToon)"></dx-button>
+  @if (!hideInput) {
+    <div class="assist-input">
+      <dx-text-area [(value)]="userText" [height]="80" [placeholder]="placeholder"></dx-text-area>
+      <div class="assist-input-actions">
+        @if (isSql) {
+          <dx-check-box [(value)]="wantSample" text="include sample rows"></dx-check-box>
+        }
+        <dx-button text="Ask" type="default" icon="comment" [disabled]="loading" (onClick)="run()"></dx-button>
       </div>
-      <pre class="code">{{ draftToon }}</pre>
     </div>
+  }
 
-    <!-- next runs -->
-    <div *ngIf="nextRuns.length" class="assist-block">
-      <div class="block-head">Next runs</div>
-      <ul class="next-runs"><li *ngFor="let r of nextRuns">{{ r }}</li></ul>
+  @if (loading) {
+    <dx-load-indicator [visible]="true"></dx-load-indicator>
+  }
+
+  @if (result && !loading) {
+    <div class="assist-result">
+      <p class="assist-answer">{{ result.answer }}</p>
+      <p class="assist-meta">
+        status <b>{{ result.status }}</b> ·
+        confidence {{ (result.confidence * 100).toFixed(0) }}% ·
+        {{ result.validated ? 'validated' : 'unvalidated' }}
+        @if (!result.applyVia) {
+          <span>· draft only</span>
+        }
+      </p>
+      @if (result.message) {
+        <p class="assist-message">{{ result.message }}</p>
+      }
+      @if (result.rationale) {
+        <p class="assist-rationale">{{ result.rationale }}</p>
+      }
+      <!-- human-readable summary -->
+      @if (humanReadable) {
+        <p class="assist-summary">{{ humanReadable }}</p>
+      }
+      <!-- narrative prose -->
+      @if (narrative) {
+        <div class="assist-narrative">{{ narrative }}</div>
+      }
+      <!-- SQL -->
+      @if (sql) {
+        <div class="assist-block">
+          <div class="block-head">SQL <dx-button icon="copy" hint="Copy SQL" [stylingMode]="'text'" (onClick)="copy(sql)"></dx-button></div>
+          <pre class="code">{{ sql }}</pre>
+        </div>
+      }
+      <!-- sample rows -->
+      @if (sampleRows.length) {
+        <div class="assist-block">
+          <div class="block-head">Sample rows ({{ sampleRows.length }})</div>
+          <dx-data-grid [dataSource]="sampleRows" [showBorders]="true" [columnAutoWidth]="true">
+            @for (c of sampleColumns; track c) {
+              <dxi-column [dataField]="c"></dxi-column>
+            }
+          </dx-data-grid>
+        </div>
+      }
+      <!-- draft toon -->
+      @if (draftToon) {
+        <div class="assist-block">
+          <div class="block-head">Draft config (.toon)
+            <dx-button icon="copy" hint="Copy draft" [stylingMode]="'text'" (onClick)="copy(draftToon)"></dx-button>
+          </div>
+          <pre class="code">{{ draftToon }}</pre>
+        </div>
+      }
+      <!-- next runs -->
+      @if (nextRuns.length) {
+        <div class="assist-block">
+          <div class="block-head">Next runs</div>
+          <ul class="next-runs">@for (r of nextRuns; track r) {
+            <li>{{ r }}</li>
+          }</ul>
+        </div>
+      }
+      <!-- findings -->
+      @if (findings.length) {
+        <div class="assist-block">
+          <div class="block-head">Findings</div>
+          <dx-data-grid [dataSource]="findings" [showBorders]="true" [columnAutoWidth]="true" [wordWrapEnabled]="true">
+            <dxi-column dataField="severity" caption="Severity" [width]="100"></dxi-column>
+            <dxi-column dataField="fieldPath" caption="Field"></dxi-column>
+            <dxi-column dataField="message" caption="Message"></dxi-column>
+          </dx-data-grid>
+        </div>
+      }
+      <!-- citations / links -->
+      @if (result.citations?.length || result.links?.length) {
+        <div class="assist-refs">
+          @for (c of result.citations; track c) {
+            <span class="ref-chip">{{ c.source }}: {{ c.ref }}</span>
+          }
+          @for (l of result.links; track l) {
+            <a class="ref-link" [href]="l" target="_blank" rel="noopener">{{ l }}</a>
+          }
+        </div>
+      }
+      <!-- raw fallback -->
+      <details class="assist-raw">
+        <summary>Raw data</summary>
+        <pre class="code">{{ pretty(result.data) }}</pre>
+      </details>
     </div>
-
-    <!-- findings -->
-    <div *ngIf="findings.length" class="assist-block">
-      <div class="block-head">Findings</div>
-      <dx-data-grid [dataSource]="findings" [showBorders]="true" [columnAutoWidth]="true" [wordWrapEnabled]="true">
-        <dxi-column dataField="severity" caption="Severity" [width]="100"></dxi-column>
-        <dxi-column dataField="fieldPath" caption="Field"></dxi-column>
-        <dxi-column dataField="message" caption="Message"></dxi-column>
-      </dx-data-grid>
-    </div>
-
-    <!-- citations / links -->
-    <div *ngIf="result.citations?.length || result.links?.length" class="assist-refs">
-      <span *ngFor="let c of result.citations" class="ref-chip">{{ c.source }}: {{ c.ref }}</span>
-      <a *ngFor="let l of result.links" class="ref-link" [href]="l" target="_blank" rel="noopener">{{ l }}</a>
-    </div>
-
-    <!-- raw fallback -->
-    <details class="assist-raw">
-      <summary>Raw data</summary>
-      <pre class="code">{{ pretty(result.data) }}</pre>
-    </details>
-  </div>
+  }
 </div>

@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, inject } from '@angular/core';
 import { DxFormModule } from 'devextreme-angular/ui/form';
 import { DxButtonModule } from 'devextreme-angular/ui/button';
@@ -15,7 +15,7 @@ import { AppInfoService, AuthService } from '../../services';
   templateUrl: './connect-form.component.html',
   styleUrls: ['./connect-form.component.scss'],
   standalone: true,
-  imports: [CommonModule, DxFormModule, DxButtonModule],
+  imports: [DxFormModule, DxButtonModule],
 })
 export class ConnectFormComponent {
   private authService = inject(AuthService);

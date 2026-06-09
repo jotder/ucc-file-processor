@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+
 import { Component, OnInit, inject } from '@angular/core';
 import { DxDataGridModule } from 'devextreme-angular/ui/data-grid';
 import { DxButtonModule } from 'devextreme-angular/ui/button';
@@ -17,9 +17,13 @@ import { AssistService, Diagnosis } from '../../shared/api';
 @Component({
   standalone: true,
   imports: [
-    CommonModule, DxDataGridModule, DxButtonModule, DxPopupModule,
-    DxNumberBoxModule, DxLoadIndicatorModule, AssistPanelComponent,
-  ],
+    DxDataGridModule,
+    DxButtonModule,
+    DxPopupModule,
+    DxNumberBoxModule,
+    DxLoadIndicatorModule,
+    AssistPanelComponent
+],
   templateUrl: './diagnoses.component.html',
   styleUrls: ['./diagnoses.component.scss'],
 })
