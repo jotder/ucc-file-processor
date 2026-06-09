@@ -3,6 +3,8 @@ package com.gamma.service;
 import com.gamma.etl.CommitLog;
 import com.gamma.etl.PipelineConfig;
 import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
+import com.opencsv.RFC4180ParserBuilder;
 import com.opencsv.exceptions.CsvValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,8 +112,12 @@ public final class FileStatusStore implements StatusStore {
 
     /** Append each data row of a header-bearing CSV to {@code out} as a header→value map. */
     private void readCsv(Path file, List<Map<String, String>> out) {
+        // RFC4180 parser: backslashes are literal (the default CSVParser treats '\' as an escape
+        // char, which silently strips them from Windows output paths). Matches the writer, which
+        // wraps fields in double quotes and replaces any embedded quote with a single quote.
         try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8);
-             CSVReader csv = new CSVReader(r)) {
+             CSVReader csv = new CSVReaderBuilder(r)
+                     .withCSVParser(new RFC4180ParserBuilder().build()).build()) {
             String[] header = csv.readNext();
             if (header == null) return;
             String[] row;

@@ -1,6 +1,8 @@
 package com.gamma.enrich;
 
 import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
+import com.opencsv.RFC4180ParserBuilder;
 import com.opencsv.exceptions.CsvValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,8 +72,11 @@ public final class EnrichmentAuditReader {
     private static List<Map<String, String>> read(Path file) {
         List<Map<String, String>> out = new ArrayList<>();
         if (!Files.isRegularFile(file)) return out;
+        // RFC4180 parser: backslashes are literal (the default CSVParser uses '\' as an escape char,
+        // silently stripping it from Windows output paths). Matches the writer's quoting convention.
         try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8);
-             CSVReader csv = new CSVReader(r)) {
+             CSVReader csv = new CSVReaderBuilder(r)
+                     .withCSVParser(new RFC4180ParserBuilder().build()).build()) {
             String[] header = csv.readNext();
             if (header == null) return out;
             String[] row;
