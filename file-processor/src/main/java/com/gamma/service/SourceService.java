@@ -9,6 +9,7 @@ import com.gamma.catalog.SemanticModel;
 import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.MultiSourceProcessor;
+import com.gamma.inspector.SourceProcessor;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobService;
 import com.gamma.report.ReportService;
@@ -83,6 +84,10 @@ public final class SourceService implements AutoCloseable {
             new MetricsService(this, com.gamma.metrics.MetricRegistry.global());
     /** Pipeline names an operator has paused; the poll cycle skips them (Control API, M3). */
     private final Set<String> paused = ConcurrentHashMap.newKeySet();
+    /** Pipeline names currently mid-ingest. Marked around each run cycle / operator trigger; backs the
+     *  "under processing" signal of {@link #inboxStatus(String)}. Ingest is synchronous within a cycle,
+     *  so a pipeline is "running" only while its batches are actively being processed. */
+    private final Set<String> running = ConcurrentHashMap.newKeySet();
     /** Serializes ingest cycles so an operator-triggered run (Control API {@code /trigger},
      *  {@code /pipelines/{name}/trigger}) can never overlap the scheduled poll cycle or another
      *  trigger. The scheduler is already non-overlapping (fixed-delay); this guards the
@@ -282,6 +287,8 @@ public final class SourceService implements AutoCloseable {
             com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
             reg.inc("ucc_poll_cycles_total", "Poll cycles run", Map.of());
             reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), active.size());
+            List<String> activeNames = activeNames(active);
+            running.addAll(activeNames);
             MultiSourceProcessor.RunResult r;
             try {
                 r = MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
@@ -290,6 +297,7 @@ public final class SourceService implements AutoCloseable {
                     reg.inc("ucc_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
                 }
             } finally {
+                running.removeAll(activeNames);
                 reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), 0);
             }
             // Refresh the status DB (if DB-backed) so this cycle's commits are queryable.
@@ -354,6 +362,34 @@ public final class SourceService implements AutoCloseable {
         return configSource;
     }
 
+    /**
+     * Inbox status for a pipeline (M3, file-processing visibility): how many inbox files are waiting
+     * to be processed and whether the pipeline is currently ingesting.
+     *
+     * @param pipeline name (normalised)
+     * @param inbox    absolute poll-root path the files are scanned from
+     * @param pending  files matching {@code processing.file_pattern} not yet processed (the candidate
+     *                 set a poll cycle would pick up); {@code -1} if the scan failed
+     * @param running  whether this pipeline is mid-ingest right now ("under processing")
+     */
+    public record InboxStatus(String pipeline, String inbox, int pending, boolean running) {}
+
+    /** Inbox/processing status for one registered pipeline; empty if no pipeline by that name. */
+    public Optional<InboxStatus> inboxStatus(String pipelineName) {
+        return configFor(pipelineName).map(cfg -> new InboxStatus(
+                pipelineName,
+                java.nio.file.Paths.get(cfg.dirs().poll()).toAbsolutePath().toString(),
+                SourceProcessor.countPending(cfg),
+                running.contains(pipelineName)));
+    }
+
+    /** The pipeline names for a set of active registry paths (skips paths with no indexed identity). */
+    private List<String> activeNames(List<Path> active) {
+        List<String> names = new ArrayList<>();
+        for (Path p : active) configRegistry.idForPath(p).ifPresent(names::add);
+        return names;
+    }
+
     /** List each registered pipeline with its current paused state and commit count. */
     public List<PipelineView> pipelines() {
         List<PipelineView> out = new ArrayList<>();
@@ -378,9 +414,11 @@ public final class SourceService implements AutoCloseable {
     public Optional<MultiSourceProcessor.RunResult> runPipeline(String pipelineName) {
         return pathFor(pipelineName).map(p -> {
             ingestLock.lock();   // serialize with the poll cycle / other triggers (see field doc)
+            running.add(pipelineName);
             try {
                 return MultiSourceProcessor.runAll(List.of(p), 1, bus.sink());
             } finally {
+                running.remove(pipelineName);
                 ingestLock.unlock();
             }
         });

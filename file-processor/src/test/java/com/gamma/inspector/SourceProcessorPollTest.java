@@ -44,6 +44,40 @@ class SourceProcessorPollTest {
     }
 
     @Test
+    void countPendingReflectsUnprocessedInboxAndIsReadOnly(@TempDir Path dir) throws Exception {
+        String batch = """
+              batch:
+                max_files: 100
+                max_bytes: 268435456
+            """;
+        Path toon = PipelineConfigBatchTestRef.writePipeline(dir, batch);
+        PipelineConfig cfg = PipelineConfig.load(toon.toString());
+
+        // No inbox yet → read-only scan returns 0 (and creates nothing).
+        assertEquals(0, SourceProcessor.countPending(cfg), "no inbox → nothing pending");
+        assertFalse(Files.exists(Path.of(cfg.dirs().batchesFilePath())), "counting must not write audit");
+
+        Path inbox = Path.of(cfg.dirs().poll());
+        Files.createDirectories(inbox);
+        for (int i = 0; i < 6; i++)
+            Files.writeString(inbox.resolve("f" + i + ".csv"),
+                    "ID,AMT,EVENT_DATE\nr" + i + ",1.0,2020-04-03\n");
+
+        // All 6 are pending before any run; the scan is read-only (no batch rows written).
+        assertEquals(6, SourceProcessor.countPending(cfg), "6 unprocessed files pending");
+        assertFalse(Files.exists(Path.of(cfg.dirs().batchesFilePath())), "counting must not process");
+
+        SourceProcessor.run(cfg);                              // process all 6 → markers written
+        assertEquals(0, SourceProcessor.countPending(cfg), "all processed → none pending");
+
+        // New arrivals are pending again; previously-marked files stay excluded.
+        for (int i = 0; i < 2; i++)
+            Files.writeString(inbox.resolve("g" + i + ".csv"),
+                    "ID,AMT,EVENT_DATE\nn" + i + ",2.0,2020-04-04\n");
+        assertEquals(2, SourceProcessor.countPending(cfg), "only the 2 new files pending");
+    }
+
+    @Test
     void parallelScanSkipsAlreadyProcessedAndPicksUpNewFiles(@TempDir Path dir) throws Exception {
         // threads > 1 routes the candidate scan through the parallel duplicate-check
         // path; verify it still skips marked files exactly and only the newly-arrived

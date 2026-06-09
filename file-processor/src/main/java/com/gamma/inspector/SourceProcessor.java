@@ -60,46 +60,13 @@ public class SourceProcessor {
      */
     public static void run(PipelineConfig cfg, java.util.function.Consumer<BatchEvent> onCommit)
             throws Exception {
-        PathMatcher matcher = FileSystems.getDefault().getPathMatcher(cfg.processing().filePattern());
         Path root           = Paths.get(cfg.dirs().poll()).toAbsolutePath();
-        Path errorsDir      = Paths.get(cfg.dirs().errors()).toAbsolutePath();
-        Path quarantineDir  = Paths.get(cfg.dirs().quarantine()).toAbsolutePath();
         if (!Files.exists(root)) Files.createDirectories(root);
 
         MarkerManager.cleanupStaleMarkers(cfg);
 
-        // ── collect candidates (skip already-processed) ──────────────────────────
-        // The walk is one tree traversal, but the per-file duplicate check is a
-        // filesystem stat (Files.exists on the marker mirror). On a large inbox that
-        // stat latency dominates the scan, so we split it in two: collect matching
-        // regular files in a single walk, then run the duplicate check in parallel.
-        // BatchPlanner re-sorts candidates by path, so scan order need not be
-        // preserved. Parallelism is gated on processing.threads (> 1) so a
-        // deliberately single-threaded run keeps its sequential scan.
-        List<File> matched = new ArrayList<>();
-        try (Stream<Path> walk = Files.walk(root)) {
-            walk.filter(Files::isRegularFile)
-                .filter(p -> !p.startsWith(errorsDir))
-                .filter(p -> !p.startsWith(quarantineDir))
-                .filter(matcher::matches)
-                .map(Path::toFile)
-                .forEach(matched::add);
-        }
-
-        List<File> candidates;
-        if (!cfg.processing().duplicateCheckEnabled()) {
-            candidates = matched;                       // no marker stat to do
-        } else if (matched.size() > 1 && cfg.processing().threads() > 1) {
-            // Bounded by the common ForkJoinPool (≈ cores); each task is one short
-            // stat, so parking carriers briefly is fine and we avoid oversubscription.
-            candidates = matched.parallelStream()
-                    .filter(f -> !MarkerManager.isAlreadyProcessed(f, cfg))
-                    .collect(Collectors.toCollection(ArrayList::new));
-        } else {
-            candidates = new ArrayList<>(matched.size());
-            for (File f : matched)
-                if (!MarkerManager.isAlreadyProcessed(f, cfg)) candidates.add(f);
-        }
+        // The set of inbox files this cycle will ingest (matching, not already-processed).
+        List<File> candidates = collectCandidates(cfg);
 
         if (candidates.isEmpty()) {
             log.info("No new files to process in {}", root);
@@ -158,6 +125,54 @@ public class SourceProcessor {
         }   // try-with-resources close() shuts the executor down and awaits all virtual threads
         if (failedBatches > 0) {
             throw new BatchProcessingException(failedBatches, batches.size());
+        }
+    }
+
+    /**
+     * The inbox files a poll cycle would ingest right now: regular files under the poll root that
+     * match {@code processing.file_pattern}, are not under the errors/quarantine trees, and (when
+     * duplicate-checking is on) have no {@code .processed} marker. This is exactly the candidate set
+     * {@link #run(PipelineConfig, java.util.function.Consumer)} collects, factored out as a
+     * <em>read-only</em> scan (no marker cleanup, no directory creation) so observability can report
+     * "pending" work without side effects. Returns empty when the poll root does not exist yet.
+     */
+    public static List<File> collectCandidates(PipelineConfig cfg) throws java.io.IOException {
+        Path root = Paths.get(cfg.dirs().poll()).toAbsolutePath();
+        if (!Files.exists(root)) return List.of();
+        Path errorsDir     = Paths.get(cfg.dirs().errors()).toAbsolutePath();
+        Path quarantineDir = Paths.get(cfg.dirs().quarantine()).toAbsolutePath();
+        PathMatcher matcher = FileSystems.getDefault().getPathMatcher(cfg.processing().filePattern());
+
+        // One tree walk to collect matching files (see run(): the per-file marker stat is split out
+        // so a large inbox can run the duplicate check in parallel; order need not be preserved).
+        List<File> matched = new ArrayList<>();
+        try (Stream<Path> walk = Files.walk(root)) {
+            walk.filter(Files::isRegularFile)
+                .filter(p -> !p.startsWith(errorsDir))
+                .filter(p -> !p.startsWith(quarantineDir))
+                .filter(matcher::matches)
+                .map(Path::toFile)
+                .forEach(matched::add);
+        }
+        if (!cfg.processing().duplicateCheckEnabled()) return matched;   // no marker stat to do
+        if (matched.size() > 1 && cfg.processing().threads() > 1) {
+            return matched.parallelStream()
+                    .filter(f -> !MarkerManager.isAlreadyProcessed(f, cfg))
+                    .collect(Collectors.toCollection(ArrayList::new));
+        }
+        List<File> candidates = new ArrayList<>(matched.size());
+        for (File f : matched)
+            if (!MarkerManager.isAlreadyProcessed(f, cfg)) candidates.add(f);
+        return candidates;
+    }
+
+    /** Count of {@link #collectCandidates(PipelineConfig) pending} inbox files; {@code -1} if the scan fails. */
+    public static int countPending(PipelineConfig cfg) {
+        try {
+            return collectCandidates(cfg).size();
+        } catch (java.io.IOException e) {
+            log.warn("Pending scan failed for {}: {}", cfg.identity().pipelineName(), e.getMessage());
+            return -1;
         }
     }
 

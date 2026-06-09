@@ -33,6 +33,8 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -109,6 +111,19 @@ import java.util.regex.Pattern;
  * <p>Report routes accept an optional inclusive date range {@code ?from=&to=} (v2.10.0) —
  * a date ({@code 2026-05-01}) or datetime ({@code 2026-05-01 09:00:00}); a date-only
  * {@code to} covers the whole day. Reports also carry duration percentiles (p50/p95/p99).
+ *
+ * <h3>UI hosting (v4.1.0)</h3>
+ * Two optional, pure-JDK additions let a single process serve both the JSON API and the operator
+ * SPA, with no new dependencies:
+ * <ul>
+ *   <li><b>CORS</b> — set {@code -Dcontrol.cors=<origin>} (e.g. {@code http://localhost:4200}, or
+ *       {@code *}) to emit {@code Access-Control-Allow-*} headers and answer {@code OPTIONS}
+ *       preflights with {@code 204}. Unset (the default) ⇒ behaviour is byte-for-byte unchanged.</li>
+ *   <li><b>Static SPA</b> — set {@code -Dui.dir=<dir>} to serve the built Angular app from disk as a
+ *       {@code PUBLIC} fallback for any {@code GET} that matches no API route. A request for a file
+ *       that exists is served with its MIME type; an extensionless path (an SPA deep link) falls back
+ *       to {@code index.html}. API paths that match a route keep returning JSON (incl. JSON 404s).</li>
+ * </ul>
  */
 @PublicApi(since = "2.4.0")
 public final class ControlApi implements AutoCloseable {
@@ -122,6 +137,10 @@ public final class ControlApi implements AutoCloseable {
     private final Tokens tokens;
     private final ObjectMapper json = new ObjectMapper();
     private final List<Route> routes = new ArrayList<>();
+    /** Allowed CORS origin ({@code -Dcontrol.cors}); {@code null} ⇒ CORS disabled (default). */
+    private final String corsOrigin;
+    /** Static SPA root ({@code -Dui.dir}); {@code null} ⇒ no static serving (default). */
+    private final Path uiDir;
 
     /** Authorization scope for a route (v3.0). {@link #PUBLIC} routes need no token. */
     @PublicApi(since = "3.0.0")
@@ -168,6 +187,10 @@ public final class ControlApi implements AutoCloseable {
     public ControlApi(SourceService service, int port, Tokens tokens) throws IOException {
         this.service = service;
         this.tokens  = tokens != null ? tokens : new Tokens(null, null, null);
+        String cors  = System.getProperty("control.cors");
+        this.corsOrigin = blank(cors) ? null : cors.trim();
+        String ui    = System.getProperty("ui.dir");
+        this.uiDir   = blank(ui) ? null : Path.of(ui.trim()).toAbsolutePath().normalize();
         this.http    = HttpServer.create(new InetSocketAddress(port), 0);
         this.http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         registerRoutes();
@@ -253,6 +276,10 @@ public final class ControlApi implements AutoCloseable {
         get("/pipelines/([^/]+)/files",      true, (e, m) -> service.statusStore().files(cfg(m)));
         get("/pipelines/([^/]+)/lineage",    true, (e, m) -> service.statusStore().lineage(cfg(m), query(e, "batchId")));
         get("/pipelines/([^/]+)/quarantine", true, (e, m) -> service.statusStore().quarantine(cfg(m)));
+        // Inbox/processing status: files still pending (matched, not yet processed) + whether the
+        // pipeline is currently ingesting. Complements the audit-backed /files (processed history).
+        get("/pipelines/([^/]+)/pending",    true, (e, m) ->
+                service.inboxStatus(name(m)).orElseThrow(() -> notFound(name(m))));
 
         post("/pipelines/([^/]+)/reprocess", true, (e, m) -> {
             var path = service.pathFor(name(m)).orElseThrow(() -> notFound(name(m)));
@@ -411,7 +438,13 @@ public final class ControlApi implements AutoCloseable {
     private void dispatch(HttpExchange ex) throws IOException {
         String path   = ex.getRequestURI().getPath();
         String method = ex.getRequestMethod();
+        if (corsOrigin != null) applyCors(ex);     // rides every response written below
         try {
+            // CORS preflight: answer before route matching (no token, no body).
+            if (corsOrigin != null && "OPTIONS".equals(method)) {
+                ex.sendResponseHeaders(204, -1);
+                return;
+            }
             boolean pathMatched = false;
             for (Route r : routes) {
                 Matcher m = r.pattern.matcher(path);
@@ -423,6 +456,8 @@ public final class ControlApi implements AutoCloseable {
                 if (result != HANDLED) respond(ex, 200, result);
                 return;
             }
+            // No API route matched the path: a GET may be an SPA asset / deep link (PUBLIC).
+            if (!pathMatched && "GET".equals(method) && serveStatic(ex, path)) return;
             respond(ex, pathMatched ? 405 : 404,
                     Map.of("error", pathMatched ? "method not allowed" : "not found"));
         } catch (ApiException ae) {
@@ -492,6 +527,74 @@ public final class ControlApi implements AutoCloseable {
         ex.sendResponseHeaders(200, bytes.length);
         ex.getResponseBody().write(bytes);
         return HANDLED;
+    }
+
+    // ── CORS + static SPA (v4.1.0) ────────────────────────────────────────────────
+
+    /** Emit permissive CORS headers for the configured origin (set once per exchange in dispatch). */
+    private void applyCors(HttpExchange ex) {
+        var h = ex.getResponseHeaders();
+        h.set("Access-Control-Allow-Origin", corsOrigin);
+        h.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        h.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Token");
+        h.set("Access-Control-Max-Age", "600");
+        if (!"*".equals(corsOrigin)) h.set("Vary", "Origin");
+    }
+
+    /**
+     * Serve a file from the {@code -Dui.dir} SPA root (PUBLIC). Returns {@code false} (caller emits a
+     * JSON 404) when no static root is configured or the request resolves to no servable file. An
+     * extensionless path with no matching file falls back to {@code index.html} so client-side
+     * routing (deep links) works. Path traversal is blocked by confining the resolved path under the
+     * root.
+     */
+    private boolean serveStatic(HttpExchange ex, String path) throws IOException {
+        if (uiDir == null) return false;
+        String rel = path.equals("/") ? "index.html" : path.substring(1);   // strip leading '/'
+        Path target = uiDir.resolve(rel).normalize();
+        if (!target.startsWith(uiDir)) return false;                         // traversal guard
+        if (Files.isRegularFile(target)) { writeFile(ex, target); return true; }
+        if (!hasExtension(rel)) {                                            // SPA deep link
+            Path index = uiDir.resolve("index.html");
+            if (Files.isRegularFile(index)) { writeFile(ex, index); return true; }
+        }
+        return false;
+    }
+
+    private void writeFile(HttpExchange ex, Path file) throws IOException {
+        byte[] bytes = Files.readAllBytes(file);
+        ex.getResponseHeaders().set("Content-Type", contentType(file.getFileName().toString()));
+        ex.sendResponseHeaders(200, bytes.length);
+        ex.getResponseBody().write(bytes);
+    }
+
+    /** True when the last path segment carries a file extension (e.g. {@code main.js}, not {@code dashboard}). */
+    private static boolean hasExtension(String rel) {
+        int slash = rel.lastIndexOf('/');
+        return rel.lastIndexOf('.') > slash;
+    }
+
+    /** Minimal extension→MIME map for the static SPA assets we actually ship. */
+    private static String contentType(String name) {
+        int dot = name.lastIndexOf('.');
+        String ext = dot < 0 ? "" : name.substring(dot + 1).toLowerCase();
+        return switch (ext) {
+            case "html"          -> "text/html; charset=utf-8";
+            case "js", "mjs"     -> "text/javascript; charset=utf-8";
+            case "css"           -> "text/css; charset=utf-8";
+            case "json", "map"   -> "application/json";
+            case "svg"           -> "image/svg+xml";
+            case "ico"           -> "image/x-icon";
+            case "png"           -> "image/png";
+            case "jpg", "jpeg"   -> "image/jpeg";
+            case "gif"           -> "image/gif";
+            case "webp"          -> "image/webp";
+            case "woff2"         -> "font/woff2";
+            case "woff"          -> "font/woff";
+            case "ttf"           -> "font/ttf";
+            case "txt"           -> "text/plain; charset=utf-8";
+            default              -> "application/octet-stream";
+        };
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────
