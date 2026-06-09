@@ -9,6 +9,10 @@ configs, reviewing failure diagnoses, and running the AI assist skills.
 > DevExtreme is a commercial library; the template runs on the trial. A license is required for
 > production use.
 
+> **Operators:** this README covers building and serving the SPA. For using the console day-to-day
+> (connecting with tokens, what each screen does, common tasks), see the
+> **[Operator Console user guide](../docs/operator-console.md)**.
+
 ## Prerequisites
 
 - Node `^24.15.0`
@@ -74,6 +78,20 @@ src/app/
   operator commits the generated `.toon` manually.
 - The **catalog graph** is rendered as nodes/edges grids; an interactive `dxDiagram` is a future
   enhancement.
-- **Lint / unit tests / e2e** are not yet wired — the template ships no test runner or ESLint
-  config; adding one (e.g. Vitest via `@angular/build`, angular-eslint) is a follow-up. CI
-  (`.github/workflows/ui.yml`) currently gates on clean production **and** development builds.
+- **Lint** (`pnpm lint`) — angular-eslint + typescript-eslint. First-party code follows the strict
+  recommended rules; files vendored from the DevExtreme template are scoped to a looser bar, and the
+  `*ngIf`/`*ngFor` → built-in control-flow migration is deferred (documented in `eslint.config.js`).
+- **Unit tests** (`pnpm test`, or `pnpm test:ci` for a single run) — Vitest via the
+  `@angular/build:unit-test` builder (jsdom). The starter suite covers the API/auth layer
+  (`api-base`, `token-store`, `auth.service`, `auth.interceptor`, `pipelines.service`, `auto-refresh`);
+  component-level specs are a follow-up.
+- **e2e** is not yet wired (a thin smoke against a running backend is a follow-up).
+- CI (`.github/workflows/ui.yml`) gates on **lint → unit tests → production build → development build**.
+
+## Testing & linting
+
+```bash
+pnpm lint            # angular-eslint
+pnpm test            # Vitest (watch in a TTY)
+pnpm test:ci         # Vitest, single run (used by CI)
+```

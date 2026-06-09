@@ -42,6 +42,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Lint (angular-eslint + typescript-eslint); fails on any error.
+      - name: Lint
+        run: pnpm run lint
+
+      # Unit tests (Vitest via @angular/build:unit-test, jsdom); single run, no watch.
+      - name: Unit tests
+        run: pnpm run test:ci
+
       # Production build is the green gate (AOT type-check + bundle + budgets).
       - name: Build (production)
         run: pnpm run build

@@ -27,12 +27,12 @@ export class AuthService {
   hasControl(): boolean { return !!this.tokens.control; }
   hasAssist(): boolean { return !!this.tokens.assist || !!this.tokens.control; }
 
+  private router = inject(Router);
+
   private _lastAuthenticatedPath: string = defaultPath;
   set lastAuthenticatedPath(value: string) {
     this._lastAuthenticatedPath = value;
   }
-
-  constructor(private router: Router) { }
 
   /** Save the operator's token(s) and return to the last authenticated route. */
   async connect(controlToken: string | null, assistToken: string | null) {
@@ -66,7 +66,8 @@ export class AuthService {
 
 @Injectable()
 export class AuthGuardService implements CanActivate {
-  constructor(private router: Router, private authService: AuthService) { }
+  private router = inject(Router);
+  private authService = inject(AuthService);
 
   canActivate(route: ActivatedRouteSnapshot): boolean {
     const isLoggedIn = this.authService.loggedIn;

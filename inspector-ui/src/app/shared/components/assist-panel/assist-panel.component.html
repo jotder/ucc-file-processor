@@ -15,7 +15,7 @@
       status <b>{{ result.status }}</b> ·
       confidence {{ (result.confidence * 100).toFixed(0) }}% ·
       {{ result.validated ? 'validated' : 'unvalidated' }}
-      <span *ngIf="result.applyVia == null">· draft only</span>
+      <span *ngIf="!result.applyVia">· draft only</span>
     </p>
     <p *ngIf="result.message" class="assist-message">{{ result.message }}</p>
     <p *ngIf="result.rationale" class="assist-rationale">{{ result.rationale }}</p>

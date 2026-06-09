@@ -19,9 +19,9 @@
 
     <div *ngIf="spec && !specLoading" class="fields">
       <div *ngFor="let f of spec.fields" class="field">
-        <label [class.req]="f.required" [title]="f.description || ''">
+        <span class="field-label" [class.req]="f.required" [title]="f.description || ''">
           {{ f.path }}<span *ngIf="f.required" class="star">*</span>
-        </label>
+        </span>
 
         <ng-container [ngSwitch]="editorType(f)">
           <dx-select-box *ngSwitchCase="'select'" [items]="f.options || []"

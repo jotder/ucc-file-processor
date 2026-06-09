@@ -87,9 +87,9 @@
 
 <div *ngIf="!loading" class="content-block">
   <div class="dx-card responsive-paddings">
-    <a class="metrics-toggle" (click)="showMetrics = !showMetrics">
+    <button type="button" class="metrics-toggle" (click)="showMetrics = !showMetrics">
       {{ showMetrics ? '▼' : '▶' }} Prometheus metrics (raw)
-    </a>
+    </button>
     <pre *ngIf="showMetrics" class="metrics-raw">{{ metricsText }}</pre>
   </div>
 </div>
