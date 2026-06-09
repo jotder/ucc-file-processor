@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
@@ -66,6 +67,12 @@ public final class SourceService implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(SourceService.class);
 
+    /**
+     * The active set of pipeline config paths. A {@link CopyOnWriteArrayList} (not an immutable copy)
+     * so new pipelines can be added at runtime via {@link #registerPipeline(Path)} — the poll cycle
+     * re-indexes from this list each tick, so an addition is picked up on the next cycle without a
+     * restart. Mutated only under {@link #ingestLock}; iteration is snapshot-safe.
+     */
     private final List<Path> registry;
     private final long pollSeconds;
     private final int  maxConcurrentRuns;
@@ -159,7 +166,7 @@ public final class SourceService implements AutoCloseable {
     public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          List<JobConfig> jobConfigs, List<SemanticModel> semanticModels,
                          long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
-        this.registry          = List.copyOf(registry);
+        this.registry          = new CopyOnWriteArrayList<>(registry);
         this.pollSeconds       = Math.max(1, pollSeconds);
         this.maxConcurrentRuns = Math.max(1, maxConcurrentRuns);
         this.status            = statusStore != null ? statusStore : fileStatus;
@@ -307,6 +314,48 @@ public final class SourceService implements AutoCloseable {
             // (Catalog invalidation already fired from configRegistry.rebuild at the top of the cycle.)
             ingestLock.unlock();
         }
+    }
+
+    /**
+     * Register a new pipeline from an on-disk {@code .toon} at runtime (v4.1.0). The file must load
+     * as a valid {@link PipelineConfig}; its in-file {@code name} becomes the pipeline id. The path is
+     * added to the active registry and indexed immediately (so the catalog and {@link #pipelines()}
+     * reflect it at once); the next poll cycle then processes it with no restart — the single
+     * poll-all cycle already fans out over the whole registry, so no extra scheduling is needed.
+     *
+     * <p>Idempotent on path: re-registering the same file returns its existing id. A <em>different</em>
+     * file whose in-file name collides with an already-registered pipeline is rejected, so registration
+     * never silently shadows a running pipeline.
+     *
+     * @param path the config file to register
+     * @return the registered pipeline id (its in-file {@code name})
+     * @throws IllegalArgumentException if the file does not load as a valid pipeline
+     * @throws IllegalStateException    if its id collides with a different registered pipeline
+     */
+    public synchronized String registerPipeline(Path path) {
+        Path norm = path.toAbsolutePath().normalize();
+        PipelineConfig cfg;
+        try {
+            cfg = PipelineConfig.load(norm.toString());   // structural validation
+        } catch (java.io.IOException io) {
+            throw new IllegalArgumentException("cannot read config " + norm + ": " + io.getMessage(), io);
+        }
+        String id = cfg.identity().pipelineName();
+        Optional<Path> existing = configRegistry.getPath(id);
+        if (existing.isPresent()) {
+            if (existing.get().toAbsolutePath().normalize().equals(norm)) return id;   // already registered
+            throw new IllegalStateException("pipeline id '" + id + "' is already registered from "
+                    + existing.get());
+        }
+        ingestLock.lock();   // serialise the registry mutation against a running poll cycle
+        try {
+            registry.add(norm);
+            configRegistry.rebuild(registry);   // refresh the read surface now; fires catalog invalidation
+        } finally {
+            ingestLock.unlock();
+        }
+        log.info("Registered pipeline '{}' from {} ({} pipeline(s) now active)", id, norm, registry.size());
+        return id;
     }
 
     /**
