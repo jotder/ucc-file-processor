@@ -1,0 +1,94 @@
+<h2 class="content-block">Configuration</h2>
+
+<div class="content-block">
+  <div class="dx-card responsive-paddings">
+    <dx-tabs [dataSource]="modes" [(selectedIndex)]="modeIndex"></dx-tabs>
+  </div>
+</div>
+
+<!-- Author draft -->
+<div *ngIf="mode === 'draft'" class="content-block">
+  <div class="dx-card responsive-paddings">
+    <div class="type-row">
+      <dx-select-box [(value)]="type" [items]="types" (onValueChanged)="loadSpec()"
+                     label="config type" labelMode="floating" [width]="200"></dx-select-box>
+      <dx-check-box [(value)]="safety" text="safety gate (hard-fail)"></dx-check-box>
+    </div>
+
+    <dx-load-indicator *ngIf="specLoading" [visible]="true"></dx-load-indicator>
+
+    <div *ngIf="spec && !specLoading" class="fields">
+      <div *ngFor="let f of spec.fields" class="field">
+        <label [class.req]="f.required" [title]="f.description || ''">
+          {{ f.path }}<span *ngIf="f.required" class="star">*</span>
+        </label>
+
+        <ng-container [ngSwitch]="editorType(f)">
+          <dx-select-box *ngSwitchCase="'select'" [items]="f.options || []"
+            [value]="model[f.path]" [showClearButton]="true"
+            (onValueChanged)="setVal(f.path, $event.value)"></dx-select-box>
+
+          <dx-tag-box *ngSwitchCase="'tags'" [value]="model[f.path]" [acceptCustomValue]="true"
+            (onValueChanged)="setVal(f.path, $event.value)"
+            placeholder="add values…"></dx-tag-box>
+
+          <dx-number-box *ngSwitchCase="'number'" [value]="model[f.path]"
+            [min]="f.minValue ?? undefined" [max]="f.maxValue ?? undefined"
+            (onValueChanged)="setVal(f.path, $event.value)"></dx-number-box>
+
+          <dx-check-box *ngSwitchCase="'boolean'" [value]="model[f.path]"
+            (onValueChanged)="setVal(f.path, $event.value)"></dx-check-box>
+
+          <dx-text-box *ngSwitchDefault [value]="model[f.path]"
+            (onValueChanged)="setVal(f.path, $event.value)"></dx-text-box>
+        </ng-container>
+
+        <div *ngIf="f.description" class="hint">{{ f.description }}</div>
+      </div>
+    </div>
+
+    <div *ngIf="spec && spec.rules.length" class="rules">
+      <h5>Cross-field rules</h5>
+      <ul>
+        <li *ngFor="let r of spec.rules">{{ r.description }}
+          <span class="rule-fields">[{{ r.affectedFields.join(', ') }}]</span></li>
+      </ul>
+    </div>
+
+    <div class="popup-actions config-actions">
+      <dx-button text="Copy config" icon="copy" (onClick)="copyPreview()"></dx-button>
+      <dx-button text="Validate draft" type="default" [disabled]="validating" (onClick)="validateDraft()"></dx-button>
+    </div>
+  </div>
+
+  <div class="dx-card responsive-paddings preview-card">
+    <h5>Assembled config (preview — copy &amp; commit the .toon manually)</h5>
+    <pre class="preview">{{ assembledPreview }}</pre>
+  </div>
+</div>
+
+<!-- Validate file -->
+<div *ngIf="mode === 'file'" class="content-block">
+  <div class="dx-card responsive-paddings">
+    <div class="type-row">
+      <dx-text-box [(value)]="configPath" placeholder="path to a saved .toon config" [width]="420"></dx-text-box>
+      <dx-button text="Validate file" type="default" [disabled]="validating" (onClick)="validateFile()"></dx-button>
+    </div>
+  </div>
+</div>
+
+<!-- Findings -->
+<div *ngIf="result" class="content-block">
+  <div class="dx-card responsive-paddings">
+    <p class="verdict" [class.ok]="result.clean" [class.bad]="!result.clean">
+      {{ result.clean ? '✓ Clean' : '✗ ' + result.findings.length + ' finding(s)' }}
+      <span *ngIf="result.safetyChecked" class="safety-tag">safety checked</span>
+    </p>
+    <dx-data-grid *ngIf="result.findings.length" [dataSource]="result.findings"
+                  [showBorders]="true" [columnAutoWidth]="true" [wordWrapEnabled]="true">
+      <dxi-column dataField="severity" caption="Severity" [width]="110"></dxi-column>
+      <dxi-column dataField="fieldPath" caption="Field"></dxi-column>
+      <dxi-column dataField="message" caption="Message"></dxi-column>
+    </dx-data-grid>
+  </div>
+</div>

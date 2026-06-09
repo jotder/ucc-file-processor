@@ -1,0 +1,21 @@
+<div class="user-panel">
+  @if (menuMode !== 'list') {
+  <dx-drop-down-button
+    stylingMode="text"
+    [icon]="'https://js.devexpress.com/Demos/WidgetsGallery/JSDemos/images/employees/06.png'"
+    [showArrowIcon]="false"
+    [items]="menuItems"
+    displayExpr="text"
+    keyExpr="id"
+    [elementAttr]="{class: 'user-button'}"
+    [dropDownOptions]="{width: '150px'}">
+  </dx-drop-down-button>
+  } @else {
+  <dx-list
+    displayExpr="text"
+    keyExpr="id"
+    width="130"
+    [items]="menuItems">
+  </dx-list>
+  }
+</div>

@@ -15,6 +15,15 @@
 *.log
 *.dryrun
 
+# IDE files (IntelliJ)
+*.iml
+/file-processor/.idea/
+
+# Local build / deploy artifacts and ad-hoc run output
+/file-processor-deploy.zip
+/file-processor-4.0/
+/data/
+
 # Dry-run and audit outputs produced by ad-hoc local runs in the module root
 /file-processor/available_files.csv*
 /file-processor/missing_files.csv*

@@ -1,0 +1,17 @@
+<h2 class="content-block">Assistant</h2>
+
+<div class="content-block">
+  <div class="dx-card responsive-paddings">
+    <dx-select-box [items]="intents" displayExpr="label" [value]="selected"
+                   (onValueChanged)="onIntentChange($event)"
+                   label="assist skill" labelMode="floating" [width]="280"></dx-select-box>
+  </div>
+</div>
+
+<div class="content-block">
+  <div class="dx-card responsive-paddings">
+    <!-- ngFor+trackBy recreates the panel when the intent changes, resetting its state -->
+    <app-assist-panel *ngFor="let s of [selected]; trackBy: trackIntent"
+                      [intent]="s.id" [placeholder]="s.placeholder"></app-assist-panel>
+  </div>
+</div>

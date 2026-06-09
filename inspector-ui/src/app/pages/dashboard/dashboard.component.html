@@ -1,0 +1,95 @@
+<div class="content-block dashboard-head">
+  <h2>Dashboard</h2>
+  <div class="dashboard-actions">
+    <dx-button icon="refresh" hint="Refresh now" (onClick)="refresh()"></dx-button>
+    <dx-button [icon]="autoRefresh ? 'clock' : 'isnotblank'"
+               [text]="autoRefresh ? 'Auto: on' : 'Auto: off'"
+               [type]="autoRefresh ? 'default' : 'normal'"
+               hint="Toggle auto-refresh (pauses when the tab is hidden)"
+               (onClick)="autoRefresh = !autoRefresh"></dx-button>
+  </div>
+</div>
+
+<div class="content-block">
+  <div *ngIf="loading" class="dx-card responsive-paddings dashboard-loading">
+    <dx-load-indicator [visible]="true"></dx-load-indicator>
+    <span>Loading service status…</span>
+  </div>
+</div>
+
+<div *ngIf="!loading" class="content-block">
+  <!-- KPI tiles -->
+  <div class="tiles">
+    <div class="dx-card responsive-paddings tile" [class.tile-ok]="ready?.status === 'READY'"
+         [class.tile-warn]="ready && ready.status !== 'READY'">
+      <div class="tile-label">Service</div>
+      <div class="tile-value">{{ ready?.status || '—' }}</div>
+    </div>
+    <div class="dx-card responsive-paddings tile">
+      <div class="tile-label">Pipelines</div>
+      <div class="tile-value">{{ status?.pipelineCount ?? '—' }}</div>
+    </div>
+    <div class="dx-card responsive-paddings tile" [class.tile-warn]="(status?.pausedCount || 0) > 0">
+      <div class="tile-label">Paused</div>
+      <div class="tile-value">{{ status?.pausedCount ?? '—' }}</div>
+    </div>
+    <div class="dx-card responsive-paddings tile">
+      <div class="tile-label">Committed batches</div>
+      <div class="tile-value">{{ status?.totalCommittedBatches ?? '—' }}</div>
+    </div>
+    <div class="dx-card responsive-paddings tile" [class.tile-warn]="(status?.totalQuarantineFiles || 0) > 0">
+      <div class="tile-label">Quarantine files</div>
+      <div class="tile-value">{{ status?.totalQuarantineFiles ?? '—' }}</div>
+    </div>
+    <div class="dx-card responsive-paddings tile"
+         [class.tile-warn]="(report?.errorRate || 0) > 0 && (report?.errorRate || 0) < 0.1"
+         [class.tile-bad]="(report?.errorRate || 0) >= 0.1">
+      <div class="tile-label">Error rate</div>
+      <div class="tile-value">{{ errorRatePct }}</div>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="!loading && report" class="content-block charts">
+  <div class="dx-card responsive-paddings chart-card">
+    <h4>Batch duration percentiles (ms)</h4>
+    <dx-chart [dataSource]="latency">
+      <dxi-series valueField="ms" argumentField="metric" type="bar" color="#1db2f5"></dxi-series>
+      <dxo-legend [visible]="false"></dxo-legend>
+      <dxo-tooltip [enabled]="true"></dxo-tooltip>
+    </dx-chart>
+  </div>
+  <div class="dx-card responsive-paddings chart-card">
+    <h4>Batch outcomes ({{ report.totalBatches }} total)</h4>
+    <dx-pie-chart [dataSource]="outcome" type="doughnut" palette="Soft Pastel">
+      <dxi-series argumentField="label" valueField="value">
+        <dxo-label [visible]="true"></dxo-label>
+      </dxi-series>
+      <dxo-tooltip [enabled]="true"></dxo-tooltip>
+    </dx-pie-chart>
+  </div>
+</div>
+
+<div *ngIf="!loading" class="content-block">
+  <div class="dx-card">
+    <dx-data-grid [dataSource]="status?.pipelines || []" [showBorders]="true"
+                  [columnAutoWidth]="true" [rowAlternationEnabled]="true">
+      <dxi-column dataField="pipeline" caption="Pipeline"></dxi-column>
+      <dxi-column dataField="paused" caption="Paused" dataType="boolean"></dxi-column>
+      <dxi-column dataField="committedBatches" caption="Committed" dataType="number"></dxi-column>
+      <dxi-column dataField="quarantineFiles" caption="Quarantine" dataType="number"></dxi-column>
+      <dxi-column dataField="lastBatchId" caption="Last batch"></dxi-column>
+      <dxi-column dataField="lastBatchStatus" caption="Last status"></dxi-column>
+      <dxi-column dataField="lastBatchTime" caption="Last time" dataType="datetime"></dxi-column>
+    </dx-data-grid>
+  </div>
+</div>
+
+<div *ngIf="!loading" class="content-block">
+  <div class="dx-card responsive-paddings">
+    <a class="metrics-toggle" (click)="showMetrics = !showMetrics">
+      {{ showMetrics ? '▼' : '▶' }} Prometheus metrics (raw)
+    </a>
+    <pre *ngIf="showMetrics" class="metrics-raw">{{ metricsText }}</pre>
+  </div>
+</div>

@@ -1,0 +1,67 @@
+.diag-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.diag-empty {
+  opacity: 0.7;
+}
+
+.diag-detail {
+  h5 { margin: 18px 0 8px; }
+
+  .kv {
+    border-collapse: collapse;
+    width: 100%;
+
+    th, td {
+      text-align: left;
+      padding: 5px 12px;
+      border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+    }
+    th { width: 130px; opacity: 0.7; font-weight: 600; }
+  }
+
+  .root-cause { white-space: pre-wrap; line-height: 1.5; }
+
+  .citations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .ref-chip {
+    font-size: 11px;
+    background: rgba(127, 127, 127, 0.12);
+    padding: 3px 8px;
+    border-radius: 10px;
+  }
+
+  .assist-block {
+    margin-top: 16px;
+
+    .block-head {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .code {
+      margin: 0;
+      max-height: 220px;
+      overflow: auto;
+      font-size: 12px;
+      background: rgba(127, 127, 127, 0.08);
+      padding: 12px;
+      border-radius: 6px;
+    }
+  }
+
+  .hint { font-size: 12px; opacity: 0.65; }
+}

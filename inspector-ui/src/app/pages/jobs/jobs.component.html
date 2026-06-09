@@ -1,0 +1,62 @@
+<h2 class="content-block">Jobs &amp; Schedules</h2>
+
+<div *ngIf="unavailable" class="content-block">
+  <div class="dx-card responsive-paddings">
+    <p>No jobs are registered (the scheduler has no configured jobs).</p>
+  </div>
+</div>
+
+<div *ngIf="!unavailable" class="content-block">
+  <div class="dx-card">
+    <dx-toolbar class="jobs-toolbar">
+      <dxi-item location="before" widget="dxButton"
+        [options]="{ icon: 'refresh', text: 'Refresh', onClick: load.bind(this) }"></dxi-item>
+      <dxi-item location="before" widget="dxButton"
+        [options]="{ icon: 'add', text: 'New schedule', type: 'default', disabled: !canAssist, onClick: openSchedule.bind(this) }"></dxi-item>
+    </dx-toolbar>
+
+    <dx-data-grid [dataSource]="jobs" [showBorders]="true" [columnAutoWidth]="true"
+                  [rowAlternationEnabled]="true" keyExpr="name">
+      <dxo-search-panel [visible]="true"></dxo-search-panel>
+      <dxi-column dataField="name" caption="Job"></dxi-column>
+      <dxi-column dataField="type" caption="Type" [width]="110"></dxi-column>
+      <dxi-column dataField="cron" caption="Cron"></dxi-column>
+      <dxi-column dataField="onPipeline" caption="On pipeline"></dxi-column>
+      <dxi-column dataField="enabled" caption="Enabled" dataType="boolean" [width]="90"></dxi-column>
+      <dxi-column dataField="lastStatus" caption="Last status" [width]="110"></dxi-column>
+      <dxi-column dataField="lastRunTime" caption="Last run" dataType="datetime"></dxi-column>
+      <dxi-column dataField="nextFire" caption="Next fire" dataType="datetime"></dxi-column>
+      <dxi-column type="buttons" caption="Actions" [width]="120">
+        <dxi-button hint="Run now" icon="runner" [visible]="canControl" [onClick]="trigger"></dxi-button>
+        <dxi-button hint="Run history" icon="history" [onClick]="openRuns"></dxi-button>
+      </dxi-column>
+    </dx-data-grid>
+  </div>
+</div>
+
+<!-- Run history -->
+<dx-popup [(visible)]="runsVisible" [width]="760" [height]="560" [showTitle]="true"
+          [title]="'Run history — ' + runsJob" [dragEnabled]="true" [hideOnOutsideClick]="true">
+  <div *dxTemplate="let data of 'content'">
+    <dx-load-indicator *ngIf="runsLoading" [visible]="true"></dx-load-indicator>
+    <dx-data-grid *ngIf="!runsLoading" [dataSource]="runs" [showBorders]="true"
+                  [columnAutoWidth]="true" [rowAlternationEnabled]="true" height="100%">
+      <dxi-column dataField="runId" caption="Run"></dxi-column>
+      <dxi-column dataField="status" caption="Status" [width]="100"></dxi-column>
+      <dxi-column dataField="triggerType" caption="Trigger" [width]="100"></dxi-column>
+      <dxi-column dataField="startTime" caption="Started" dataType="datetime"></dxi-column>
+      <dxi-column dataField="endTime" caption="Ended" dataType="datetime"></dxi-column>
+      <dxi-column dataField="durationMs" caption="ms" dataType="number" [width]="90"></dxi-column>
+      <dxi-column dataField="error" caption="Error"></dxi-column>
+    </dx-data-grid>
+  </div>
+</dx-popup>
+
+<!-- New schedule (nl-to-schedule via the reusable AssistPanel) -->
+<dx-popup [(visible)]="scheduleVisible" [width]="680" [height]="640" [showTitle]="true"
+          title="New schedule — describe it in plain English" [dragEnabled]="true" [hideOnOutsideClick]="true">
+  <div *dxTemplate="let data of 'content'">
+    <app-assist-panel *ngIf="scheduleVisible" intent="nl-to-schedule"
+                      placeholder="e.g. run the daily-roaming ingest every weekday at 6am"></app-assist-panel>
+  </div>
+</dx-popup>

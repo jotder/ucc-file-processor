@@ -1,0 +1,57 @@
+/* You can add global styles to this file, and also import other style files */
+
+/* ── shared Inspector UI bits ───────────────────────────────────────────────── */
+
+/* action row at the bottom of dxPopup dialogs */
+.popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* percentile / throughput stats table (pipeline-detail + enrichment report tabs) */
+.report-stats {
+  margin-top: 16px;
+  border-collapse: collapse;
+  width: 100%;
+
+  th, td {
+    text-align: left;
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.2);
+  }
+
+  th { opacity: 0.7; font-weight: 600; width: 120px; }
+}
+
+/* rendered AssistResult block (used by jobs/config/diagnoses/assist screens) */
+.assist-result {
+  margin-top: 16px;
+
+  .assist-answer {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: pre-wrap;
+  }
+
+  .assist-meta {
+    font-size: 12px;
+    opacity: 0.7;
+    margin: 4px 0;
+  }
+
+  .assist-rationale {
+    font-style: italic;
+    opacity: 0.85;
+  }
+
+  .assist-data {
+    max-height: 280px;
+    overflow: auto;
+    font-size: 12px;
+    background: rgba(127, 127, 127, 0.08);
+    padding: 12px;
+    border-radius: 6px;
+  }
+}

@@ -13,7 +13,8 @@
 #      (or use the bundled run.bat / run.sh — they cd to the bundle root automatically)
 #
 param(
-    [switch]$NoBuild   # skip mvn build; use existing JAR in target/
+    [switch]$NoBuild,  # skip mvn build; use existing JAR in target/
+    [switch]$NoUi      # skip the Angular UI build/bundle (inspector-ui/ is optional)
 )
 
 Set-StrictMode -Version Latest
@@ -36,6 +37,27 @@ if (-not $NoBuild) {
     if ($LASTEXITCODE -ne 0) { throw "mvn build failed" }
     Pop-Location
     Write-Host "Build complete." -ForegroundColor Green
+}
+
+# ── step 1b: build the operator UI (optional; guarded so a checkout without inspector-ui/ still bundles) ──
+# The Angular SPA (Inspector) lives in the monorepo's top-level inspector-ui/ (sibling of file-processor/).
+# Its toolchain (Node/pnpm) is intentionally NOT part of the Maven reactor — invoked here only for the bundle.
+$uiDir    = Join-Path $sandboxRoot 'inspector-ui'
+$uiDistRoot = Join-Path $uiDir 'dist'
+$uiBuilt  = $false
+if (-not $NoUi -and (Test-Path (Join-Path $uiDir 'package.json'))) {
+    Write-Host "Building operator UI (inspector-ui/)..." -ForegroundColor Cyan
+    Push-Location $uiDir
+    try {
+        & pnpm install --frozen-lockfile
+        if ($LASTEXITCODE -ne 0) { throw "pnpm install failed in inspector-ui/" }
+        & pnpm run build
+        if ($LASTEXITCODE -ne 0) { throw "ng build failed in inspector-ui/" }
+        $uiBuilt = $true
+        Write-Host "UI build complete." -ForegroundColor Green
+    } finally { Pop-Location }
+} elseif (-not (Test-Path (Join-Path $uiDir 'package.json'))) {
+    Write-Host "  (no inspector-ui/ project found — bundling API only; UI hosting will be inactive)" -ForegroundColor Yellow
 }
 
 # Discover the shaded JAR by pattern so we don't pin to a specific version number.
@@ -73,6 +95,21 @@ $null = New-Item -ItemType Directory "$bundleDir\markers\voucher" -Force
 # ── step 3: copy JAR (canonical name for deployment) ──────────────────────────
 Copy-Item $jarSrc "$bundleDir\file-processor.jar"
 
+# ── step 3b: copy the built UI dist → bundle/ui (served by ControlApi via -Dui.dir=./ui) ──
+# Angular emits to ui/dist/<app>[/browser]; locate the folder that actually holds index.html.
+if ($uiBuilt -and (Test-Path $uiDistRoot)) {
+    $indexHtml = Get-ChildItem -Path $uiDistRoot -Filter 'index.html' -Recurse -ErrorAction SilentlyContinue |
+                 Select-Object -First 1
+    if ($indexHtml) {
+        $uiOut = "$bundleDir\ui"
+        $null = New-Item -ItemType Directory $uiOut -Force
+        Copy-Item -Path (Join-Path $indexHtml.DirectoryName '*') -Destination $uiOut -Recurse -Force
+        Write-Host "Bundled UI from $($indexHtml.DirectoryName) → $uiOut" -ForegroundColor Green
+    } else {
+        Write-Host "  (UI build produced no index.html under $uiDistRoot — skipping UI bundle)" -ForegroundColor Yellow
+    }
+}
+
 # ── step 4: copy configs — rewrite schema_file paths for bundle-root CWD ──────
 # Local configs use  "file-processor/config/<adapter>/..."  (relative to sandbox root).
 # Deployed configs use  "config/<adapter>/..."          (relative to bundle root).
@@ -96,14 +133,16 @@ Copy-IfPresent "$adjParserDir\config\adjustment\adjustment_schema.toon"   `
 Copy-IfPresent "$adjParserDir\config\adjustment\adj_gen.toon"             `
                "$bundleDir\config\adjustment\adj_gen.toon"
 
-Copy-Config "$adjParserDir\config\voucher\voucher_unknown_pipeline.toon" `
-            "$bundleDir\config\voucher\voucher_unknown_pipeline.toon"
-Copy-Item   "$adjParserDir\config\voucher\voucher_unknown_76.toon"       `
-            "$bundleDir\config\voucher\voucher_unknown_76.toon"
-Copy-Item   "$adjParserDir\config\voucher\voucher_unknown_116.toon"      `
-            "$bundleDir\config\voucher\voucher_unknown_116.toon"
-Copy-Item   "$adjParserDir\config\voucher\voucher_unknown_537.toon"      `
-            "$bundleDir\config\voucher\voucher_unknown_537.toon"
+Copy-Config    "$adjParserDir\config\voucher\voucher_pipeline.toon" `
+               "$bundleDir\config\voucher\voucher_pipeline.toon"
+Copy-Item      "$adjParserDir\config\voucher\voucher_76.toon"       `
+               "$bundleDir\config\voucher\voucher_76.toon"
+Copy-Item      "$adjParserDir\config\voucher\voucher_116.toon"      `
+               "$bundleDir\config\voucher\voucher_116.toon"
+Copy-Item      "$adjParserDir\config\voucher\voucher_537.toon"      `
+               "$bundleDir\config\voucher\voucher_537.toon"
+Copy-IfPresent "$adjParserDir\config\voucher\voucher.grammar.toon"  `
+               "$bundleDir\config\voucher\voucher.grammar.toon"
 
 
 # ── step 5: bundle run scripts (Linux + Windows) ───────────────────────────────
@@ -169,7 +208,7 @@ java --enable-native-access=ALL-UNNAMED ^
 # Examples:
 #   ./ura.sh help
 #   ./ura.sh search           config/adjustment/adjustment_pipeline.toon
-#   ./ura.sh copy             config/voucher/voucher_unknown_pipeline.toon
+#   ./ura.sh copy             config/voucher/voucher_pipeline.toon
 #   ./ura.sh --dry-run backup config/adjustment/adjustment_pipeline.toon
 #   ./ura.sh prepare-inbox    config/adjustment/adjustment_pipeline.toon
 #   ./ura.sh create-schema    adjustment  samples/adj_sample.csv  config/adjustment/adj_gen.toon
@@ -200,6 +239,52 @@ java --enable-native-access=ALL-UNNAMED ^
     [System.Text.Encoding]::ASCII
 )
 
+# ── step 6b: bundle serve scripts (run the control plane + operator UI) ─────────
+# Unlike run.sh (one-shot ETL), serve.sh launches the long-running ControlApi service with the
+# HTTP control plane + operator UI. It serves the bundled SPA from ./ui via -Dui.dir. Tokens are
+# read from the environment so secrets stay out of the bundle: CONTROL_TOKEN (required to use the
+# control plane) and ASSIST_TOKEN (optional, enables the assist/catalog read routes).
+@'
+#!/usr/bin/env bash
+# Usage: CONTROL_TOKEN=... [ASSIST_TOKEN=...] [PORT=8080] ./serve.sh [config-dir-or-pipeline ...]
+# Starts the control plane + operator UI. With no args it serves every pipeline under config/.
+set -euo pipefail
+cd "$(dirname "$0")"
+PORT="${PORT:-8080}"
+ARGS=("$@"); if [ ${#ARGS[@]} -eq 0 ]; then ARGS=("config"); fi
+JAVA_OPTS=(--enable-native-access=ALL-UNNAMED "-Dcontrol.port=${PORT}")
+[ -d ui ] && JAVA_OPTS+=("-Dui.dir=./ui")
+[ -n "${CONTROL_TOKEN:-}" ] && JAVA_OPTS+=("-Dcontrol.token=${CONTROL_TOKEN}")
+[ -n "${ASSIST_TOKEN:-}" ]  && JAVA_OPTS+=("-Dassist.read.token=${ASSIST_TOKEN}")
+[ -n "${CORS_ORIGIN:-}" ]   && JAVA_OPTS+=("-Dcontrol.cors=${CORS_ORIGIN}")
+echo "[serve.sh] ControlApi on :${PORT}  (UI: $([ -d ui ] && echo ./ui || echo none))"
+exec java "${JAVA_OPTS[@]}" -cp file-processor.jar com.gamma.control.ControlApi "${ARGS[@]}"
+'@ | Set-Content -Path "$bundleDir\serve.sh" -NoNewline
+
+$serveBatContent = @'
+@echo off
+rem Usage: set CONTROL_TOKEN=... && serve.bat [config-dir-or-pipeline ...]
+rem Optional env: ASSIST_TOKEN, PORT (default 8080), CORS_ORIGIN.
+rem Starts the control plane + operator UI (serves bundled .\ui via -Dui.dir).
+setlocal
+cd /d "%~dp0"
+if "%PORT%"=="" set "PORT=8080"
+set "ARGS=%*"
+if "%ARGS%"=="" set "ARGS=config"
+set "OPTS=--enable-native-access=ALL-UNNAMED -Dcontrol.port=%PORT%"
+if exist ui set "OPTS=%OPTS% -Dui.dir=./ui"
+if not "%CONTROL_TOKEN%"=="" set "OPTS=%OPTS% -Dcontrol.token=%CONTROL_TOKEN%"
+if not "%ASSIST_TOKEN%"=="" set "OPTS=%OPTS% -Dassist.read.token=%ASSIST_TOKEN%"
+if not "%CORS_ORIGIN%"=="" set "OPTS=%OPTS% -Dcontrol.cors=%CORS_ORIGIN%"
+echo [serve.bat] ControlApi on :%PORT%
+java %OPTS% -cp file-processor.jar com.gamma.control.ControlApi %ARGS%
+'@
+[System.IO.File]::WriteAllText(
+    "$bundleDir\serve.bat",
+    $serveBatContent.Replace("`n", "`r`n"),
+    [System.Text.Encoding]::ASCII
+)
+
 # ── step 7: copy README + docs tree ─────────────────────────────────────────────
 # In the repo the README lives in file-processor/ and links to ../docs/. In the
 # bundle the README sits at the root, so rewrite ../docs/ → docs/ and ship the
@@ -225,13 +310,17 @@ Write-Host "  1. Copy $outZip to the server"
 Write-Host "  2. Expand-Archive file-processor-deploy.zip   (PowerShell)"
 Write-Host "     or:  unzip file-processor-deploy.zip       (Linux)"
 Write-Host "  3. cd file-processor-deploy"
-Write-Host "  4. ETL pipeline:"
+Write-Host "  4. ETL pipeline (one-shot):"
 Write-Host "       run.bat voucher         (Windows)"
 Write-Host "       bash run.sh voucher     (Linux)"
+Write-Host "  4b. Control plane + operator UI (long-running service):"
+Write-Host "       set CONTROL_TOKEN=secret && serve.bat        (Windows)"
+Write-Host "       CONTROL_TOKEN=secret bash serve.sh           (Linux)"
+Write-Host "       then open http://localhost:8080/  (UI served from ./ui)"
 Write-Host "  5. Pre-ETL utilities:"
 Write-Host "       ura.bat help            (Windows)"
 Write-Host "       bash ura.sh help        (Linux)"
 Write-Host "       bash ura.sh search  config/adjustment/adjustment_pipeline.toon"
-Write-Host "       bash ura.sh backup  config/voucher/voucher_unknown_pipeline.toon"
+Write-Host "       bash ura.sh backup  config/voucher/voucher_pipeline.toon"
 Write-Host ""
 Write-Host "Java 24+ required on the target server.  No other dependencies needed."

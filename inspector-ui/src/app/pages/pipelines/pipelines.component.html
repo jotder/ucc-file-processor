@@ -1,0 +1,41 @@
+<h2 class="content-block">Pipelines</h2>
+
+<div class="content-block">
+  <div class="dx-card">
+    <dx-toolbar class="pipelines-toolbar">
+      <dxi-item location="before" widget="dxButton"
+        [options]="{ icon: 'refresh', text: 'Refresh', onClick: load.bind(this) }"></dxi-item>
+      <dxi-item location="before" widget="dxButton"
+        [options]="{ icon: 'runner', text: 'Run all', type: 'default', disabled: !canControl, onClick: runAll.bind(this) }"></dxi-item>
+      <dxi-item location="after" widget="dxButton"
+        [options]="{ icon: autoRefresh ? 'clock' : 'isnotblank', text: autoRefresh ? 'Auto: on' : 'Auto: off', type: autoRefresh ? 'default' : 'normal', hint: 'Toggle auto-refresh', onClick: toggleAuto.bind(this) }"></dxi-item>
+    </dx-toolbar>
+
+    <dx-data-grid [dataSource]="pipelines" [showBorders]="true" [columnAutoWidth]="true"
+                  [rowAlternationEnabled]="true" keyExpr="name">
+      <dxo-search-panel [visible]="true"></dxo-search-panel>
+      <dxi-column dataField="name" caption="Pipeline"></dxi-column>
+      <dxi-column dataField="configPath" caption="Config"></dxi-column>
+      <dxi-column dataField="paused" caption="Paused" dataType="boolean" [width]="90"></dxi-column>
+      <dxi-column dataField="committedBatches" caption="Committed" dataType="number" [width]="110"></dxi-column>
+      <dxi-column type="buttons" caption="Actions" [width]="220">
+        <dxi-button hint="Trigger" icon="runner" [onClick]="onTrigger"></dxi-button>
+        <dxi-button hint="Pause / resume" icon="pause" [onClick]="onTogglePause"></dxi-button>
+        <dxi-button hint="Reprocess batch" icon="refresh" [onClick]="onReprocess"></dxi-button>
+        <dxi-button hint="Open detail" icon="chevronnext" [onClick]="onOpen"></dxi-button>
+      </dxi-column>
+    </dx-data-grid>
+  </div>
+</div>
+
+<dx-popup [(visible)]="reprocessVisible" [width]="420" [height]="'auto'" [showTitle]="true"
+          title="Reprocess batch" [dragEnabled]="false" [hideOnOutsideClick]="true">
+  <div *dxTemplate="let data of 'content'">
+    <p>Reprocess a committed batch of <b>{{ reprocessTarget }}</b>.</p>
+    <dx-text-box [(value)]="reprocessBatchId" placeholder="batch id"></dx-text-box>
+    <div class="popup-actions">
+      <dx-button text="Cancel" (onClick)="reprocessVisible = false"></dx-button>
+      <dx-button text="Reprocess" type="default" (onClick)="confirmReprocess()"></dx-button>
+    </div>
+  </div>
+</dx-popup>

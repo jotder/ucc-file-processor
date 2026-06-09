@@ -1,0 +1,52 @@
+name: UI
+
+# Builds the Inspector operator console (inspector-ui/, an Angular + DevExtreme SPA). Kept fully
+# separate from the Java ci.yml: the Node toolchain never enters the Maven reactor. Path-filtered to
+# inspector-ui/** so backend-only changes don't trigger a frontend build (and vice-versa).
+
+on:
+  push:
+    branches: [master, main, 3.x, 4.x]
+    paths: ['inspector-ui/**', '.github/workflows/ui.yml']
+  pull_request:
+    branches: [master, main, 3.x, 4.x]
+    paths: ['inspector-ui/**', '.github/workflows/ui.yml']
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: inspector-ui
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.1
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: inspector-ui/pnpm-lock.yaml
+
+      # --frozen-lockfile fails if pnpm-lock.yaml is out of sync with package.json.
+      # postinstall runs `devextreme build` to generate the bundled themes.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Production build is the green gate (AOT type-check + bundle + budgets).
+      - name: Build (production)
+        run: pnpm run build
+
+      # Dev configuration uses different fileReplacements (the /api proxy base) — build it too so a
+      # dev-only regression can't slip through.
+      - name: Build (development)
+        run: pnpm exec ng build --configuration development

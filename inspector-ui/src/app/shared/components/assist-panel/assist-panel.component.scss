@@ -1,0 +1,84 @@
+.assist-panel {
+  .assist-input {
+    .assist-input-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 16px;
+      margin-top: 10px;
+    }
+  }
+
+  .assist-answer {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: pre-wrap;
+    margin-top: 12px;
+  }
+
+  .assist-meta {
+    font-size: 12px;
+    opacity: 0.7;
+    margin: 4px 0;
+  }
+
+  .assist-message { color: #ff9800; font-size: 13px; }
+  .assist-rationale { font-style: italic; opacity: 0.85; }
+  .assist-summary { font-weight: 600; }
+  .assist-narrative { white-space: pre-wrap; line-height: 1.5; margin: 12px 0; }
+
+  .assist-block {
+    margin-top: 16px;
+
+    .block-head {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .code {
+      margin: 0;
+      max-height: 280px;
+      overflow: auto;
+      font-size: 12px;
+      background: rgba(127, 127, 127, 0.08);
+      padding: 12px;
+      border-radius: 6px;
+    }
+
+    .next-runs { margin: 0; padding-left: 20px; }
+  }
+
+  .assist-refs {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .ref-chip {
+      font-size: 11px;
+      background: rgba(127, 127, 127, 0.12);
+      padding: 3px 8px;
+      border-radius: 10px;
+    }
+    .ref-link { font-size: 12px; }
+  }
+
+  .assist-raw {
+    margin-top: 16px;
+    font-size: 12px;
+
+    summary { cursor: pointer; opacity: 0.7; }
+    .code {
+      margin-top: 8px;
+      max-height: 240px;
+      overflow: auto;
+      background: rgba(127, 127, 127, 0.08);
+      padding: 12px;
+      border-radius: 6px;
+    }
+  }
+}
