@@ -314,6 +314,7 @@ A bearer token guards every route except the public `/health`, `/ready`, and `/m
 | `GET /pipelines/{name}/commits` | committed batch ids |
 | `GET /pipelines/{name}/batches` · `/files` · `/lineage[?batchId=]` | audit queries (via `StatusStore`) |
 | `GET /pipelines/{name}/quarantine` | quarantined inputs + reason |
+| `GET /pipelines/{name}/pending` | inbox scan — files awaiting processing (`pending`) + an under-processing flag (`running`); read-only, no audit side effects (v4.1) |
 | `POST /pipelines/{name}/reprocess` | body `{"batchId":"…"}` — replay a batch |
 | `POST /trigger` | run all pipelines once |
 | `POST /validate` | body `{"configPath":"…"}` — config warnings |
@@ -331,6 +332,29 @@ A bearer token guards every route except the public `/health`, `/ready`, and `/m
 ```bash
 curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines
 curl -s -X POST -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/trigger
+```
+
+**Serving the operator web console (Inspector).** The same `ControlApi` host can serve a built
+Angular SPA as static files, so one process hosts both the API and the UI (v4.1):
+
+- `-Dui.dir=<path>` — serve a built SPA bundle (the folder containing `index.html`). Unknown
+  **GET** paths with no file extension fall back to `index.html` (SPA deep links), while unmatched
+  **API** paths still return JSON `404` — routes always win over the static fallback. Static assets
+  are PUBLIC (no token) so the shell loads before the operator connects. A path-traversal guard
+  confines reads under the root.
+- `-Dcontrol.cors=<origin>` (e.g. `http://localhost:4200`, or `*`) — enable CORS headers + `OPTIONS`
+  preflight, for a separately-hosted dev SPA. Omit for prod (same-origin needs no CORS).
+
+Both flags are **off by default**: unset, the control plane behaves exactly as a headless API. The
+deploy bundle's `serve.sh` / `serve.bat` wire these up automatically (`-Dui.dir=./ui` when a `ui/`
+folder is present; `CORS_ORIGIN` env → `-Dcontrol.cors`). See the
+[Operator Console guide](operator-console.md) for the full UI walkthrough.
+
+```bash
+# bundle root — serve API + UI on :8080, reading tokens from the environment
+CONTROL_TOKEN=secret ASSIST_TOKEN=secret bash serve.sh        # Linux/Mac
+set CONTROL_TOKEN=secret && serve.bat                         # Windows
+# then open http://localhost:8080/
 ```
 
 ### Reports — status snapshot & batch-audit rollup (`ReportService`)
@@ -601,10 +625,11 @@ powershell -ExecutionPolicy Bypass -File file-processor\package.ps1 -NoBuild
 
 This produces **`file-processor-deploy.zip`** in the sandbox root. The script:
 1. Runs `mvn clean package` to build a fresh fat JAR
-2. Assembles a self-contained bundle with the JAR, config files, and run scripts
-3. Rewrites `schema_file` paths in the bundled configs so they are relative to the bundle root
-4. Creates all placeholder directories (inbox, database, backup, temp, errors, quarantine)
-5. Zips everything into `file-processor-deploy.zip`
+2. Builds the optional operator UI (`inspector-ui/` via pnpm) and bundles its `dist/` as `ui/` — skip with `-NoUi`, or omitted automatically when `inspector-ui/` is absent
+3. Assembles a self-contained bundle with the JAR, config files, and run/serve scripts
+4. Rewrites `schema_file` paths in the bundled configs so they are relative to the bundle root
+5. Creates all placeholder directories (inbox, database, backup, temp, errors, quarantine)
+6. Zips everything into `file-processor-deploy.zip`
 
 ### Bundle contents
 
@@ -624,8 +649,11 @@ file-processor-deploy/
   errors/<data_source>/               ← per-file error CSVs
   quarantine/<data_source>/               ← quarantined files
   markers/<data_source>/               ← .processed sentinel files (auto-pruned; mirrors inbox tree)
+  ui/                         ← built Inspector SPA (present only when inspector-ui/ was built); served via -Dui.dir=./ui
   run.sh                      ← Linux/Mac ETL launcher  (java -jar ... <adapter>_pipeline.toon)
   run.bat                     ← Windows ETL launcher
+  serve.sh                    ← Linux/Mac control-plane + UI launcher (ControlApi; reads CONTROL_TOKEN/ASSIST_TOKEN/PORT/CORS_ORIGIN)
+  serve.bat                   ← Windows control-plane + UI launcher
   ura.sh                      ← Linux/Mac utility CLI   (java -cp ... MainApp <command> ...)
   ura.bat                     ← Windows utility CLI
   warehouse_setup.sql         ← pg_duckdb warehouse schema, views, and RBAC (run once on server)
@@ -651,6 +679,10 @@ bash run.sh <data_source>          # or: bash run.sh <data_source>
 
 # 5. Run the ETL (Windows)
 run.bat <data_source>
+
+# 6. OR run the always-on control plane + operator console (serves every pipeline under config/)
+CONTROL_TOKEN=secret ASSIST_TOKEN=secret bash serve.sh    # Linux/Mac → http://localhost:8080/
+set CONTROL_TOKEN=secret && serve.bat                     # Windows
 ```
 
 **Direct invocation** (without the run scripts):

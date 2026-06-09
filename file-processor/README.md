@@ -2,7 +2,7 @@
 
 A small, high-throughput, **configuration-driven ETL platform** built on an embedded DuckDB
 engine. Its core is an **M..N multiplexer**: it ingests **M** input files, applies light per-record transformations, and demultiplexes them into **N** Hive-partitioned
-(Parquet or CSV) output files (not one-to-one). On top of that engine sit a **Stage-2 enrichment engine** (joins/aggregations over the partitioned output). A **control plane** (HTTP API, scheduler, metrics, audit), a machine-readable **Smart Config** model, a queryable **Metadata Graph**, and an **optional embedded AI assist agent**.
+(Parquet or CSV) output files (not one-to-one). On top of that engine sit a **Stage-2 enrichment engine** (joins/aggregations over the partitioned output). A **control plane** (HTTP API, scheduler, metrics, audit), a machine-readable **Smart Config** model, a queryable **Metadata Graph**, an **optional embedded AI assist agent**, and an **optional operator web console** (*Inspector*) served from the same process.
 
 Onboard a new CSV source with a single config file; plug in a custom Java parser for proprietary or binary formats that emit multiple event types. Stage-1 ingest deliberately does **not** do
 heavy joins, lookups, or cross-record aggregation — those run in Stage-2, downstream over the Parquet output.
@@ -28,6 +28,7 @@ heavy joins, lookups, or cross-record aggregation — those run in Stage-2, down
   - [7. Stage-2 enrichment (joins & aggregation)](#7-stage-2-enrichment-joins--aggregation)
   - [8. Schedule jobs](#8-schedule-jobs)
   - [9. Operate via the Control API](#9-operate-via-the-control-api)
+  - [9b. Operate via the Inspector web console](#9b-operate-via-the-inspector-web-console)
   - [10. Explore the Metadata Catalog](#10-explore-the-metadata-catalog)
   - [11. The optional AI assist agent](#11-the-optional-ai-assist-agent)
   - [12. Output, audit & troubleshooting](#12-output-audit--troubleshooting)
@@ -72,12 +73,13 @@ SDKs entirely, so "local-only" is a packaging guarantee, not a flag. Full design
 
 ## Repository layout
 
-A two-module Maven reactor (parent POM at the repo root):
+A two-module Maven reactor (parent POM at the repo root) plus a standalone web UI:
 
 | Module | Role |
 |---|---|
 | `file-processor/` | The lean, deployable ETL engine + control plane (this README). The fat-JAR; **stays zero-new-dependency**. |
 | `file-processor-agent/` | **Optional** embedded assist agent. All AI/LLM dependencies (LangChain4j, Ollama, hosted SDKs) live here only. Loaded in-process by `SourceService` via `ServiceLoader` when present. |
+| `inspector-ui/` | **Optional** operator web console — *Inspector* (Angular + DevExtreme SPA). Its Node/pnpm toolchain is **not** part of the Maven reactor; `package.ps1` builds it and bundles `dist/` next to the JAR, served by `ControlApi` from `-Dui.dir`. See the [Operator Console guide](../docs/operator-console.md) and [`inspector-ui/README.md`](../inspector-ui/README.md). |
 
 ```powershell
 cd file-processor && mvn clean package   # builds just the lean core (parent resolved by relativePath)
@@ -122,7 +124,8 @@ is the job of **Stage-2 enrichment**, which runs over the committed Parquet outp
 | **Plugin ingester** | `processing.ingester:` loads a custom `StreamingFileIngester`; one input file can emit multiple event-type segments into separate partitioned tables. Emit records and the framework owns tables/transform/write/lineage and bounds heap/scratch automatically — running the same ingester in *union mode* (many small files) or *generation mode* (one huge file), chosen per batch by file size |
 | **Stage-2 enrichment** | DuckDB-backed joins/aggregations over Stage-1 output; event- and schedule-driven, idempotent, self-chaining |
 | **Scheduler & jobs** | Cron + fixed-delay job runner with per-job locking and run history |
-| **Control API** | ~30-route JDK HTTP server: lifecycle, audit, reports, enrichment, catalog, config-spec, validate, assist |
+| **Control API** | ~30-route JDK HTTP server: lifecycle, audit, reports, enrichment, catalog, config-spec, validate, assist; also serves the operator SPA as static files and supports prop-gated CORS for dev |
+| **Operator console (Inspector)** | Optional Angular + DevExtreme web UI over every Control API route + all 7 assist skills: dashboard, pipelines + detail (batches/files/lineage/quarantine), inbox-pending status, jobs, enrichment, catalog graph, spec-driven config authoring, diagnoses, AI assist. Served same-origin by `ControlApi`; token-based connect |
 | **Metadata Graph** | Queryable catalog of sources → tables → columns → KPIs with a lazy operational overlay (`/catalog*`) |
 | **Embedded AI assist** | Optional in-JVM agent with 7 skills (NL→cron, NL→SQL, config suggest, diagnose, explain, report) — local-first, confirm-first, sandboxed |
 | **Full audit log** | Per-file status CSV, per-batch summary, and an input→output lineage matrix |
@@ -275,6 +278,7 @@ GET  /pipelines/{name}/batches            batch audit rows
 GET  /pipelines/{name}/files              per-file audit rows
 GET  /pipelines/{name}/lineage[?batchId=] input→output lineage rows
 GET  /pipelines/{name}/quarantine         quarantined inputs + reason
+GET  /pipelines/{name}/pending            inbox scan: files awaiting processing + under-processing flag
 POST /pipelines/{name}/reprocess          body {"batchId":"…"} — replay a batch
 POST /trigger                             run all pipelines once
 POST /validate                            body {"configPath":…} or {"type":…,"config":{…}[, "safety":true]}
@@ -296,6 +300,38 @@ POST /assist/{intent}                     run an assist skill (delegates to the 
 Security is **fail-closed**: a scope with no configured token returns `401` (locked) rather than
 running open. `/assist/*` returns `503` if the optional agent module isn't on the classpath,
 leaving the core unchanged. Token tiers are `control` (superuser) / `assist.read` / `assist.write`.
+
+The same host also **serves the operator web console** (below): point `-Dui.dir` at a built SPA
+bundle and `ControlApi` serves it as static files with an `index.html` deep-link fallback (API
+routes always win, so unknown API paths return JSON, not HTML). For a separately-hosted dev SPA,
+`-Dcontrol.cors=<origin>` enables CORS + `OPTIONS` preflight. Both are **off by default** — when
+unset, behaviour is byte-for-byte identical to a headless control plane.
+
+## 9b. Operate via the Inspector web console
+
+**Inspector** is an optional web console (Angular + DevExtreme) that drives every Control API route
+and all 7 assist skills from a browser — no `curl` required. It lives in `inspector-ui/` and is
+served same-origin by `ControlApi`, so one process hosts both the API and the UI.
+
+```bash
+# Prod: serve the bundled SPA from the deploy bundle (package.ps1 puts it in ./ui)
+CONTROL_TOKEN=secret bash serve.sh            # → http://localhost:8080/  (Linux)
+set CONTROL_TOKEN=secret && serve.bat         # Windows
+
+# Dev: run the SPA on :4200 with a live backend (CORS + proxy)
+java -Dcontrol.token=dev -Dassist.read.token=dev -Dcontrol.cors=http://localhost:4200 \
+     -cp file-processor.jar com.gamma.control.ControlApi config/
+cd inspector-ui && pnpm install && pnpm start  # ng serve, /api proxied to :8080
+```
+
+There is **no login endpoint** — on the *Connect* screen the operator pastes their scoped bearer
+token(s); an interceptor attaches them and the UI disables `CONTROL`-only actions when only an
+assist token is held. Screens cover monitoring (dashboard, pipelines + detail with batches / files /
+lineage / quarantine / inbox-pending status), scheduling & enrichment, the catalog graph,
+spec-driven config authoring, failure diagnoses, and a reusable AI-assist console (which degrades
+gracefully when the agent module is absent). Full screen-by-screen walkthrough:
+**[Operator Console (Inspector) guide](../docs/operator-console.md)**. Build/dev details:
+[`inspector-ui/README.md`](../inspector-ui/README.md).
 
 ## 10. Explore the Metadata Catalog
 
@@ -378,6 +414,7 @@ This README is the overview + user guide. Detailed topics live under [`../docs/`
 | [Configuration Reference](../docs/configuration.md) | The three config files, configuration by source format, multi-schema dispatch, type mapping |
 | [Plugin Ingester](../docs/plugins.md) | The `StreamingFileIngester` interface, segment schemas, the `TypedRecordIngester` reference plugin |
 | [Operations](../docs/operations.md) | Pre-ETL utilities, batch processing & concurrency, multi-source orchestration, output structure, audit logs, deployment |
+| [Operator Console (Inspector)](../docs/operator-console.md) | The web UI: connecting with tokens, every screen, common operator tasks, dev vs. prod serving, troubleshooting |
 | [Integrations](../docs/integrations.md) | DuckLake registration and the pg_duckdb warehouse query layer |
 | [Troubleshooting](../docs/troubleshooting.md) | Common failures and fixes |
 | [v3 Architecture & Redesign](../docs/v3-architecture.md) | The 3.x assessment, gaps (G1–G10), and the Smart Config / agent / UI-ready redesign |
