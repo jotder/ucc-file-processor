@@ -19,10 +19,14 @@ import java.util.List;
 import java.util.Map;
 
 import static com.gamma.inspector.BatchIngestStrategy.configure;
+import static com.gamma.inspector.BatchIngestStrategy.consolidatedBaseName;
 import static com.gamma.inspector.BatchIngestStrategy.dropTable;
 import static com.gamma.inspector.BatchIngestStrategy.msg;
 import static com.gamma.inspector.BatchIngestStrategy.openTempDb;
+import static com.gamma.inspector.BatchIngestStrategy.partitionColumns;
 import static com.gamma.inspector.BatchIngestStrategy.scratchDir;
+import static com.gamma.inspector.BatchIngestStrategy.unionAll;
+import static com.gamma.inspector.BatchIngestStrategy.writeAndTrace;
 
 /**
  * Built-in CSV ingest path. Tags every accepted row with {@code __src_id}, transforms once, writes
@@ -141,21 +145,11 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
                     Map<String, Object> schema = batch.members().get(0).selection().schema();
                     DataTransformer.materialize(conn, schema, cfg);
 
-                    List<PartitionDef> partDefs = PartitionDef.fromSchema(schema);
-                    List<String> partCols = partDefs.isEmpty()
-                            ? List.of("year", "month", "day")
-                            : PartitionDef.columnNames(partDefs);
-
-                    String dbDir = (batch.table() != null && !batch.table().isBlank())
-                            ? Paths.get(cfg.dirs().database(), batch.table()).toString()
-                            : cfg.dirs().database();
-                    String baseName = survivors.size() == 1
-                            ? CsvIngester.stripExtensions(survivors.get(0).file().getName())
-                            : batch.batchId();
-                    outputs = PartitionWriter.write(conn, "transformed", dbDir,
-                            cfg.output().format(), cfg.output().compression(), baseName, partCols);
-                    lineage = LineageCollector.collect(conn, "transformed",
-                            batch.batchId(), srcIdToFile, outputs, partCols);
+                    var written = writeAndTrace(conn, "transformed", partitionColumns(schema),
+                            cfg, databaseDir(batch, cfg), consolidatedBaseName(survivors, batch),
+                            batch.batchId(), srcIdToFile);
+                    outputs = written.outputs();
+                    lineage = written.lineage();
                 }
             }
         } catch (Exception e) {
@@ -242,30 +236,18 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
                     List.of(), List.of(), 0, batch.schemaName());
 
         // UNION ALL the surviving member views into one raw_input view; transform pulls it through once.
-        StringBuilder union = new StringBuilder();
-        for (int i = 0; i < memberViews.size(); i++) {
-            if (i > 0) union.append(" UNION ALL ");
-            union.append("SELECT * FROM \"").append(memberViews.get(i)).append('"');
-        }
         try (Statement st = conn.createStatement()) {
             st.execute("DROP VIEW IF EXISTS \"raw_input\"");
-            st.execute("CREATE VIEW \"raw_input\" AS " + union);
+            st.execute("CREATE VIEW \"raw_input\" AS " + unionAll(memberViews));
         }
         DataTransformer.materialize(conn, schema, cfg);   // single streaming pass over all members
 
-        List<String> partCols = partitionColumns(schema);
-        String dbDir    = databaseDir(batch, cfg);
-        String baseName = survivors.size() == 1
-                ? CsvIngester.stripExtensions(survivors.get(0).file().getName())
-                : batch.batchId();
-
-        List<PartitionOutput> outputs = PartitionWriter.write(conn, "transformed", dbDir,
-                cfg.output().format(), cfg.output().compression(), baseName, partCols);
-        List<LineageRow> lineage = LineageCollector.collect(conn, "transformed",
-                batch.batchId(), srcIdToFile, outputs, partCols);
+        var written = writeAndTrace(conn, "transformed", partitionColumns(schema),
+                cfg, databaseDir(batch, cfg), consolidatedBaseName(survivors, batch),
+                batch.batchId(), srcIdToFile);
 
         return new IngestOutcome(batchStart, "SUCCESS", "", survivors, memberAudits,
-                outputs, lineage, totalInputRows, batch.schemaName());
+                written.outputs(), written.lineage(), totalInputRows, batch.schemaName());
     }
 
     private static void dropView(Connection conn, String view) {
@@ -385,12 +367,10 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
             dropTable(conn, "transformed");
             return new Streamed(0, rejects, List.of(), List.of());
         }
-        List<PartitionOutput> outputs = PartitionWriter.write(conn, "transformed", dbDir,
-                cfg.output().format(), cfg.output().compression(), baseName, partCols);
-        List<LineageRow> lineage = LineageCollector.collect(conn, "transformed",
-                batchId, Map.of(srcId, lineageName), outputs, partCols);
+        var written = writeAndTrace(conn, "transformed", partCols, cfg, dbDir, baseName,
+                batchId, Map.of(srcId, lineageName));
         dropTable(conn, "transformed");
-        return new Streamed(parsed, rejects, outputs, lineage);
+        return new Streamed(parsed, rejects, written.outputs(), written.lineage());
     }
 
     /** Apply the shared empty/quarantine/success decision for a single-member outcome. */
@@ -421,12 +401,6 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
         return (batch.table() != null && !batch.table().isBlank())
                 ? Paths.get(cfg.dirs().database(), batch.table()).toString()
                 : cfg.dirs().database();
-    }
-
-    private static List<String> partitionColumns(Map<String, Object> schema) {
-        List<PartitionDef> partDefs = PartitionDef.fromSchema(schema);
-        return partDefs.isEmpty() ? List.of("year", "month", "day")
-                                  : PartitionDef.columnNames(partDefs);
     }
 
     /** Per-unit streaming result aggregated by {@link #chunkedIngest}. */

@@ -16,10 +16,14 @@ import java.util.List;
 import java.util.Map;
 
 import static com.gamma.inspector.BatchIngestStrategy.configure;
+import static com.gamma.inspector.BatchIngestStrategy.consolidatedBaseName;
 import static com.gamma.inspector.BatchIngestStrategy.dropTable;
 import static com.gamma.inspector.BatchIngestStrategy.dropView;
 import static com.gamma.inspector.BatchIngestStrategy.msg;
 import static com.gamma.inspector.BatchIngestStrategy.openTempDb;
+import static com.gamma.inspector.BatchIngestStrategy.partitionColumns;
+import static com.gamma.inspector.BatchIngestStrategy.unionAll;
+import static com.gamma.inspector.BatchIngestStrategy.writeAndTrace;
 
 /**
  * The unified plugin-ingester engine. Every plugin ingests via the single {@link StreamingFileIngester}
@@ -257,36 +261,20 @@ final class StreamingPluginBatchStrategy implements BatchIngestStrategy {
                         }
                         if (memberTables.isEmpty()) continue;
 
-                        StringBuilder union = new StringBuilder();
-                        for (int i = 0; i < memberTables.size(); i++) {
-                            if (i > 0) union.append(" UNION ALL ");
-                            union.append("SELECT * FROM \"").append(memberTables.get(i)).append("\"");
-                        }
                         try (Statement st = conn.createStatement()) {
-                            st.execute("CREATE VIEW \"" + unionTable + "\" AS " + union);
+                            st.execute("CREATE VIEW \"" + unionTable + "\" AS " + unionAll(memberTables));
                         }
 
                         String destTable = "transformed_" + segKey;
                         DataTransformer.materialize(conn, segSchema, cfg, unionTable, destTable);
 
-                        List<PartitionDef> partDefs = PartitionDef.fromSchema(segSchema);
-                        List<String> partCols = partDefs.isEmpty()
-                                ? List.of("year", "month", "day")
-                                : PartitionDef.columnNames(partDefs);
+                        var written = writeAndTrace(conn, destTable, partitionColumns(segSchema),
+                                cfg, Paths.get(cfg.dirs().database(), segKey).toString(),
+                                consolidatedBaseName(survivors, batch),
+                                batch.batchId(), segSrcToFile);
 
-                        String dbDir = Paths.get(cfg.dirs().database(), segKey).toString();
-                        String baseName = survivors.size() == 1
-                                ? CsvIngester.stripExtensions(survivors.get(0).file().getName())
-                                : batch.batchId();
-
-                        List<PartitionOutput> segOutputs = PartitionWriter.write(
-                                conn, destTable, dbDir, cfg.output().format(),
-                                cfg.output().compression(), baseName, partCols);
-                        List<LineageRow> segLineage = LineageCollector.collect(
-                                conn, destTable, batch.batchId(), segSrcToFile, segOutputs, partCols);
-
-                        allOutputs.addAll(segOutputs);
-                        allLineage.addAll(segLineage);
+                        allOutputs.addAll(written.outputs());
+                        allLineage.addAll(written.lineage());
 
                         dropView(conn, unionTable);
                         for (String mt : memberTables) dropTable(conn, mt);

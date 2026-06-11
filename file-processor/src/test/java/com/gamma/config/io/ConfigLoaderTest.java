@@ -32,9 +32,9 @@ class ConfigLoaderTest {
 
     @Test
     void decodeReadsDraftFromMemory() throws Exception {
-        ConfigLoader mem = new ConfigLoader(MapResourceLoader.of(
+        ConfigLoader mem = new ConfigLoader(ResourceLoader.ofDraft(
                 "name: ACME\ndirs:\n  poll: /in\n  database: /out\n"));
-        Map<String, Object> raw = mem.decode(MapResourceLoader.DRAFT);
+        Map<String, Object> raw = mem.decode(ResourceLoader.DRAFT);
         assertEquals("ACME", raw.get("name"));
         assertEquals("/in", ((Map<?, ?>) raw.get("dirs")).get("poll"));
     }

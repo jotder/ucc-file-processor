@@ -2,10 +2,9 @@ package com.gamma.enrich;
 
 import com.gamma.etl.CommitLog;
 import com.gamma.etl.PartitionOutput;
+import com.gamma.util.CsvLedger;
 
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,7 +12,6 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Persists <b>run-level audit + lineage</b> for Stage-2 enrichment recomputes — the
@@ -45,9 +43,12 @@ public final class EnrichmentAuditWriter {
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter RUN_TS = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
-    private final String runsPath;
-    private final String lineagePath;
+    private final CsvLedger<RunRow> runs;
+    private final CsvLedger<LineageEntry> lineage;
     private final CommitLog commitLog;
+
+    /** One lineage line's full context: the run plus one written partition file. */
+    private record LineageEntry(String runId, String job, PartitionOutput out) {}
 
     /** Open (creating the directory) the audit ledger for {@code job} under {@code auditDir}. */
     public EnrichmentAuditWriter(String auditDir, String job) {
@@ -58,9 +59,15 @@ public final class EnrichmentAuditWriter {
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot create enrichment audit dir: " + auditDir, e);
         }
-        this.runsPath    = dir.resolve(base + "_enrich_runs.csv").toString();
-        this.lineagePath = dir.resolve(base + "_enrich_lineage.csv").toString();
-        this.commitLog   = new CommitLog(dir.resolve(base + "_enrich_commits.log").toString());
+        this.runs = new CsvLedger<>(dir.resolve(base + "_enrich_runs.csv").toString(),
+                "run_id,job,trigger,reason,scope,input_partition_count,start_time,end_time,"
+                        + "status,output_partition_count,output_file_count,total_output_rows,"
+                        + "total_output_bytes,duration_ms,error",
+                EnrichmentAuditWriter::runLine);
+        this.lineage = new CsvLedger<>(dir.resolve(base + "_enrich_lineage.csv").toString(),
+                "run_id,job,partition,output_file,bytes",
+                EnrichmentAuditWriter::lineageLine);
+        this.commitLog = new CommitLog(dir.resolve(base + "_enrich_commits.log").toString());
     }
 
     /** Default audit directory for a job: a {@code _audit} sibling of the output root. */
@@ -91,8 +98,11 @@ public final class EnrichmentAuditWriter {
      * @param outputs the written partition files (empty for a failed/no-op run)
      */
     public synchronized void record(RunRow run, List<PartitionOutput> outputs) {
-        appendRun(run);
-        appendLineage(run.runId(), run.job(), outputs);
+        runs.append(run);
+        if (outputs != null && !outputs.isEmpty()) {
+            lineage.appendAll(outputs.stream()
+                    .map(o -> new LineageEntry(run.runId(), run.job(), o)).toList());
+        }
         if ("SUCCESS".equals(run.status())) {
             commitLog.record(run.endTime(), run.runId(), run.job(), run.status(),
                     run.inputPartitionCount(), run.outputFileCount(),
@@ -100,38 +110,19 @@ public final class EnrichmentAuditWriter {
         }
     }
 
-    private void appendRun(RunRow r) {
-        boolean exists = new java.io.File(runsPath).exists();
-        try (PrintWriter pw = new PrintWriter(new FileWriter(runsPath, true))) {
-            if (!exists)
-                pw.println("run_id,job,trigger,reason,scope,input_partition_count,start_time,end_time,"
-                        + "status,output_partition_count,output_file_count,total_output_rows,"
-                        + "total_output_bytes,duration_ms,error");
-            pw.printf("%s,%s,%s,\"%s\",\"%s\",%d,%s,%s,%s,%d,%d,%d,%d,%d,\"%s\"%n",
-                    r.runId(), r.job(), r.trigger(), q(r.reason()), q(r.scope()),
-                    r.inputPartitionCount(), r.startTime(), r.endTime(), r.status(),
-                    r.outputPartitionCount(), r.outputFileCount(), r.totalOutputRows(),
-                    r.totalOutputBytes(), r.durationMs(), q(r.error()));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    // ── row codecs (column order + quoting identical to the pre-CsvLedger writer) ──
+
+    private static String runLine(RunRow r) {
+        return String.format("%s,%s,%s,\"%s\",\"%s\",%d,%s,%s,%s,%d,%d,%d,%d,%d,\"%s\"",
+                r.runId(), r.job(), r.trigger(), CsvLedger.q(r.reason()), CsvLedger.q(r.scope()),
+                r.inputPartitionCount(), r.startTime(), r.endTime(), r.status(),
+                r.outputPartitionCount(), r.outputFileCount(), r.totalOutputRows(),
+                r.totalOutputBytes(), r.durationMs(), CsvLedger.q(r.error()));
     }
 
-    private void appendLineage(String runId, String job, List<PartitionOutput> outputs) {
-        if (outputs == null || outputs.isEmpty()) return;
-        boolean exists = new java.io.File(lineagePath).exists();
-        try (PrintWriter pw = new PrintWriter(new FileWriter(lineagePath, true))) {
-            if (!exists) pw.println("run_id,job,partition,output_file,bytes");
-            for (PartitionOutput o : outputs)
-                pw.printf("%s,%s,%s,\"%s\",%d%n",
-                        runId, job, o.partition(), q(o.outputFile()), o.bytes());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    /** Make a value safe inside a double-quoted CSV field. */
-    private static String q(String v) {
-        return v == null ? "" : v.replace('"', '\'');
+    private static String lineageLine(LineageEntry e) {
+        return String.format("%s,%s,%s,\"%s\",%d",
+                e.runId(), e.job(), e.out().partition(),
+                CsvLedger.q(e.out().outputFile()), e.out().bytes());
     }
 }

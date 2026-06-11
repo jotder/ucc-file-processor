@@ -1,20 +1,13 @@
 package com.gamma.enrich;
 
-import com.opencsv.CSVReader;
-import com.opencsv.CSVReaderBuilder;
-import com.opencsv.RFC4180ParserBuilder;
-import com.opencsv.exceptions.CsvValidationException;
+import com.gamma.util.Csv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -72,21 +65,9 @@ public final class EnrichmentAuditReader {
     private static List<Map<String, String>> read(Path file) {
         List<Map<String, String>> out = new ArrayList<>();
         if (!Files.isRegularFile(file)) return out;
-        // RFC4180 parser: backslashes are literal (the default CSVParser uses '\' as an escape char,
-        // silently stripping it from Windows output paths). Matches the writer's quoting convention.
-        try (Reader r = Files.newBufferedReader(file, StandardCharsets.UTF_8);
-             CSVReader csv = new CSVReaderBuilder(r)
-                     .withCSVParser(new RFC4180ParserBuilder().build()).build()) {
-            String[] header = csv.readNext();
-            if (header == null) return out;
-            String[] row;
-            while ((row = csv.readNext()) != null) {
-                Map<String, String> m = new LinkedHashMap<>();
-                for (int i = 0; i < header.length; i++)
-                    m.put(header[i], i < row.length ? row[i] : "");
-                out.add(m);
-            }
-        } catch (IOException | CsvValidationException e) {
+        try {
+            Csv.readInto(file, out);
+        } catch (Exception e) {
             log.warn("Could not read enrichment audit CSV {}: {}", file, e.getMessage());
         }
         return out;

@@ -55,24 +55,15 @@ public class IntegratedProcessor {
     public void run() throws Exception {
         if (dryRun) System.out.println("!!! DRY-RUN MODE ENABLED - No files will be moved or extracted !!!");
         System.out.println("--- Starting Integrated Extract & Move ---");
-        VirtualThreadRunner.submit(executor, phaser, () -> walkParallel(walkRoot));
+        VirtualThreadRunner.submit(executor, phaser, () -> FileWalker.walk(executor, phaser, walkRoot,
+                entry -> {
+                    if (isWantedTar(entry))
+                        VirtualThreadRunner.submit(executor, phaser, () -> processArchive(entry));
+                },
+                (dir, e) -> System.err.println("[ERR] Access Denied: " + dir)));
         phaser.arriveAndAwaitAdvance();
         executor.shutdown();
         printSummary();
-    }
-
-    private void walkParallel(Path dir) {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-            for (Path entry : stream) {
-                if (Files.isDirectory(entry)) {
-                    VirtualThreadRunner.submit(executor, phaser, () -> walkParallel(entry));
-                } else if (isWantedTar(entry)) {
-                    VirtualThreadRunner.submit(executor, phaser, () -> processArchive(entry));
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("[ERR] Access Denied: " + dir);
-        }
     }
 
     private boolean isWantedTar(Path file) {

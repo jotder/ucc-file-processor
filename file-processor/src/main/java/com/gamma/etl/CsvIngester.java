@@ -72,26 +72,15 @@ public final class CsvIngester {
         // Row filters (parity with the native WHERE injection): rows are *filtered*, not rejected.
         RowFilter rowFilter = RowFilter.from(cfg);
 
-        // ── derive selector indices from schema (hoisted out of the row loop) ──
-        // Parse each field's selector to an int ONCE here. The previous code did
-        // Integer.parseInt(String.valueOf(f.get("selector"))) inside the per-row
-        // append loop — O(rows × cols) string parses (24M calls on a 2M×12 file),
-        // which measurably dominated ingest. selectorIdx[i] is the raw-column index
-        // for output column i.
-        List<Map<String, Object>> fields =
-                (List<Map<String, Object>>) ((Map<String, Object>) schemaConfig.get("raw")).get("fields");
-        int[] selectorIdx = new int[fields.size()];
-        int maxSelector = 0;
-        for (int i = 0; i < fields.size(); i++) {
-            int sel = Integer.parseInt(String.valueOf(fields.get(i).get("selector")));
-            selectorIdx[i] = sel;
-            if (sel > maxSelector) maxSelector = sel;
-        }
+        // ── derive the parse plan from the schema (hoisted out of the row loop) ──
+        ParserSpec spec = ParserSpec.fromSchema(schemaConfig);
+        List<Map<String, Object>> fields = spec.fields();
+        int[] selectorIdx = spec.selectorIdx();
+        int maxSelector   = spec.maxSelector();
 
         // ── prepare error CSV (created lazily — only if errors actually occur) ──
-        String baseName    = stripExtensions(file.getName());
-        Path errorDir      = Paths.get(cfg.dirs().errors()).toAbsolutePath();
-        Path errorFilePath = errorDir.resolve(baseName + "_errors.csv");
+        Path errorFilePath = ParserSpec.errorFile(file, cfg);
+        Path errorDir      = errorFilePath.getParent();
 
         CsvParser parser = buildParser(cfg.csv().delimiter());
 
@@ -273,9 +262,13 @@ public final class CsvIngester {
         return new CsvParser(s);
     }
 
+    private static final java.util.regex.Pattern GZ_SUFFIX  = java.util.regex.Pattern.compile("\\.gz$");
+    private static final java.util.regex.Pattern EXT_SUFFIX = java.util.regex.Pattern.compile("\\.[^.]+$");
+
     /** Strips {@code .gz} then the remaining extension. */
     public static String stripExtensions(String fileName) {
-        return fileName.replaceAll("\\.gz$", "").replaceAll("\\.[^.]+$", "");
+        return EXT_SUFFIX.matcher(GZ_SUFFIX.matcher(fileName).replaceAll(""))
+                .replaceAll("");
     }
 
     /**
@@ -286,40 +279,57 @@ public final class CsvIngester {
      * treated as empty). Regexes use {@code Matcher.find} (contains-semantics), matching DuckDB's
      * {@code regexp_matches}.
      */
-    private record RowFilter(int target,
-                             List<String> includePrefixes, List<java.util.regex.Pattern> includeRegex,
-                             List<String> excludePrefixes, List<java.util.regex.Pattern> excludeRegex) {
+    private static final class RowFilter {
+
+        private final int target;
+        private final List<String> includePrefixes;
+        private final List<String> excludePrefixes;
+        /** Matchers are created once and {@code reset()} per row — an ingest is single-threaded,
+         *  and a fresh {@code Matcher} allocation per row × pattern measurably adds up on
+         *  filter-heavy multi-million-row files. */
+        private final java.util.regex.Matcher[] includeM;
+        private final java.util.regex.Matcher[] excludeM;
+
+        private RowFilter(int target, List<String> includePrefixes, List<String> includeRegex,
+                          List<String> excludePrefixes, List<String> excludeRegex) {
+            this.target = target;
+            this.includePrefixes = includePrefixes;
+            this.excludePrefixes = excludePrefixes;
+            this.includeM = compile(includeRegex);
+            this.excludeM = compile(excludeRegex);
+        }
 
         static RowFilter from(PipelineConfig cfg) {
             PipelineConfig.CsvSettings c = cfg.csv();
             return new RowFilter(c.filterTargetColumn(),
-                    c.includePrefixes(), compile(c.includeRegex()),
-                    c.excludePrefixes(), compile(c.excludeRegex()));
+                    c.includePrefixes(), c.includeRegex(),
+                    c.excludePrefixes(), c.excludeRegex());
         }
 
-        private static List<java.util.regex.Pattern> compile(List<String> patterns) {
-            List<java.util.regex.Pattern> out = new ArrayList<>(patterns.size());
-            for (String p : patterns) out.add(java.util.regex.Pattern.compile(p));
+        private static java.util.regex.Matcher[] compile(List<String> patterns) {
+            java.util.regex.Matcher[] out = new java.util.regex.Matcher[patterns.size()];
+            for (int i = 0; i < patterns.size(); i++)
+                out[i] = java.util.regex.Pattern.compile(patterns.get(i)).matcher("");
             return out;
         }
 
         boolean active() {
-            return !includePrefixes.isEmpty() || !includeRegex.isEmpty()
-                || !excludePrefixes.isEmpty() || !excludeRegex.isEmpty();
+            return !includePrefixes.isEmpty() || includeM.length > 0
+                || !excludePrefixes.isEmpty() || excludeM.length > 0;
         }
 
         boolean keep(String[] row) {
             String v = (target >= 0 && target < row.length && row[target] != null) ? row[target] : "";
-            boolean includeActive = !includePrefixes.isEmpty() || !includeRegex.isEmpty();
-            boolean included = !includeActive || matchesAny(v, includePrefixes, includeRegex);
-            boolean excluded = matchesAny(v, excludePrefixes, excludeRegex);
+            boolean includeActive = !includePrefixes.isEmpty() || includeM.length > 0;
+            boolean included = !includeActive || matchesAny(v, includePrefixes, includeM);
+            boolean excluded = matchesAny(v, excludePrefixes, excludeM);
             return included && !excluded;
         }
 
         private static boolean matchesAny(String v, List<String> prefixes,
-                                          List<java.util.regex.Pattern> regexes) {
+                                          java.util.regex.Matcher[] matchers) {
             for (String p : prefixes) if (v.startsWith(p)) return true;
-            for (java.util.regex.Pattern r : regexes) if (r.matcher(v).find()) return true;
+            for (java.util.regex.Matcher m : matchers) if (m.reset(v).find()) return true;
             return false;
         }
     }

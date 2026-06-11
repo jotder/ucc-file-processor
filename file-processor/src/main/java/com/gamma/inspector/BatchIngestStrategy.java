@@ -1,6 +1,12 @@
 package com.gamma.inspector;
 
 import com.gamma.etl.Batch;
+import com.gamma.etl.CsvIngester;
+import com.gamma.etl.LineageCollector;
+import com.gamma.etl.LineageRow;
+import com.gamma.etl.PartitionDef;
+import com.gamma.etl.PartitionOutput;
+import com.gamma.etl.PartitionWriter;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.util.DuckDbUtil;
 
@@ -10,6 +16,8 @@ import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The ingest+transform+write half of processing one {@link Batch} — the part that
@@ -53,6 +61,51 @@ interface BatchIngestStrategy {
     /** A non-null message for an exception, falling back to its simple class name. */
     static String msg(Exception e) {
         return e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+    }
+
+    // ── shared ingest-tail helpers (used by both strategies) ─────────────────────
+
+    /** Partition columns from a schema ({@code year/month/day} when none are declared). */
+    static List<String> partitionColumns(Map<String, Object> schema) {
+        List<PartitionDef> defs = PartitionDef.fromSchema(schema);
+        return defs.isEmpty() ? List.of("year", "month", "day") : PartitionDef.columnNames(defs);
+    }
+
+    /** The result of one partitioned write: output files plus their lineage matrix. */
+    record Written(List<PartitionOutput> outputs, List<LineageRow> lineage) {}
+
+    /**
+     * The shared tail of every ingest path: write {@code table} Hive-partitioned under
+     * {@code dbDir} and collect the input→output lineage matrix over the same partitions.
+     */
+    static Written writeAndTrace(Connection conn, String table, List<String> partCols,
+                                 PipelineConfig cfg, String dbDir, String baseName,
+                                 String batchId, Map<Integer, String> srcIdToFile) throws Exception {
+        List<PartitionOutput> outputs = PartitionWriter.write(conn, table, dbDir,
+                cfg.output().format(), cfg.output().compression(), baseName, partCols);
+        List<LineageRow> lineage = LineageCollector.collect(
+                conn, table, batchId, srcIdToFile, outputs, partCols);
+        return new Written(outputs, lineage);
+    }
+
+    /**
+     * Consolidated-output base name: a single surviving member keeps its file stem (legacy
+     * {@code <basename>_out.<ext>} naming); a multi-member batch is named by its batch id.
+     */
+    static String consolidatedBaseName(List<Batch.Member> survivors, Batch batch) {
+        return survivors.size() == 1
+                ? CsvIngester.stripExtensions(survivors.get(0).file().getName())
+                : batch.batchId();
+    }
+
+    /** A lazy {@code SELECT * … UNION ALL …} over the given relations (tables or views). */
+    static String unionAll(List<String> relations) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < relations.size(); i++) {
+            if (i > 0) sb.append(" UNION ALL ");
+            sb.append("SELECT * FROM \"").append(relations.get(i)).append('"');
+        }
+        return sb.toString();
     }
 
     /**

@@ -1,8 +1,6 @@
 package com.gamma.util;
 
 import com.opencsv.CSVReader;
-import com.opencsv.CSVReaderBuilder;
-import com.opencsv.RFC4180ParserBuilder;
 
 import java.io.*;
 import java.nio.file.*;
@@ -76,11 +74,7 @@ public class FileBackup {
         ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor();
         Phaser          ph   = new Phaser(1);
 
-        // RFC4180 parser: backslashes are literal. The default CSVParser treats '\' as an escape
-        // char, silently stripping it from the Windows found_path written by FileOrganizer's
-        // CSVWriter ("C:\db\out.csv" -> "C:dbout.csv"). Matches the writer's quoting convention.
-        try (CSVReader reader = new CSVReaderBuilder(new FileReader(logAvailablePath))
-                .withCSVParser(new RFC4180ParserBuilder().build()).build()) {
+        try (CSVReader reader = Csv.reader(new FileReader(logAvailablePath))) {
             reader.readNext(); // skip header
 
             String[] row;

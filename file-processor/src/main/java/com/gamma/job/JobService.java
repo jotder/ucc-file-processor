@@ -7,16 +7,22 @@ import com.gamma.report.ReportService;
 import com.gamma.service.BatchEventBus;
 import com.gamma.service.CronExpression;
 import com.gamma.service.Scheduler;
+import com.gamma.util.BoundedHistory;
+import com.gamma.util.CsvLedger;
+import com.gamma.util.LockingRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Registry + scheduler for config-driven {@link Job}s (v2.8.0). It hosts a uniform "what
@@ -64,13 +69,15 @@ public final class JobService implements AutoCloseable {
     private final Scheduler scheduler;
     private final ReportService reports;
     private final ZoneId zone;
-    private final JobAuditWriter audit;
+    /** Append-only run audit ({@code jobs_runs.csv}) — a job run isn't a recoverable unit,
+     *  so a single durable CSV is the right grain (no commit log). */
+    private final CsvLedger<JobRun> audit;
 
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final Map<String, Job> jobs = new LinkedHashMap<>();
     private final Map<String, CronExpression> crons = new ConcurrentHashMap<>();
-    private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
-    private final Map<String, Deque<JobRun>> history = new ConcurrentHashMap<>();
+    private final LockingRunner runner = new LockingRunner();
+    private final Map<String, BoundedHistory<JobRun>> history = new ConcurrentHashMap<>();
     private final AtomicLong seq = new AtomicLong();
 
     /** A job's identity + state for the Control API listing. */
@@ -84,7 +91,7 @@ public final class JobService implements AutoCloseable {
         this.scheduler = scheduler;
         this.reports   = reports;
         this.zone      = ZoneId.systemDefault();
-        this.audit     = new JobAuditWriter(auditDir);
+        this.audit     = openAudit(auditDir);
         for (JobConfig c : this.configs) {
             if (c.enabled()) jobs.put(c.name(), build(c));
         }
@@ -141,16 +148,10 @@ public final class JobService implements AutoCloseable {
     private void runJob(String name, String trigger) {
         Job job = jobs.get(name);
         if (job == null) return;
-        ReentrantLock lock = locks.computeIfAbsent(name, k -> new ReentrantLock());
         String runId = name.toLowerCase().replace(' ', '_') + "-"
                 + LocalDateTime.now().format(RUN_TS) + "-" + seq.incrementAndGet();
         String start = LocalDateTime.now().format(TS);
-        if (!lock.tryLock()) {   // a previous run is still in flight — don't overlap
-            recordRun(new JobRun(runId, name, job.type().name(), trigger, start,
-                    LocalDateTime.now().format(TS), "SKIPPED", 0L, "previous run still in flight"));
-            return;
-        }
-        try {
+        runner.runExclusiveOrSkip(name, () -> {
             JobResult res;
             try {
                 res = job.run();
@@ -168,22 +169,33 @@ public final class JobService implements AutoCloseable {
                     Map.of("job", name), res.durationMs() / 1000.0);
             log.info("[JOB] {} ({}) {} in {}ms — {}",
                     name, trigger, res.status(), res.durationMs(), res.message());
-        } finally {
-            lock.unlock();
+        }, () ->   // a previous run is still in flight — don't overlap
+            recordRun(new JobRun(runId, name, job.type().name(), trigger, start,
+                    LocalDateTime.now().format(TS), "SKIPPED", 0L, "previous run still in flight")));
+    }
+
+    /** Create the audit dir and open the {@code jobs_runs.csv} ledger (was JobAuditWriter). */
+    private static CsvLedger<JobRun> openAudit(String auditDir) {
+        Path dir = Paths.get(auditDir);
+        try {
+            Files.createDirectories(dir);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot create jobs audit dir: " + auditDir, e);
         }
+        return new CsvLedger<>(dir.resolve("jobs_runs.csv").toString(),
+                "run_id,job,type,trigger,start_time,end_time,status,duration_ms,message",
+                r -> String.format("%s,%s,%s,%s,%s,%s,%s,%d,\"%s\"",
+                        r.runId(), r.job(), r.type(), r.trigger(), r.startTime(), r.endTime(),
+                        r.status(), r.durationMs(), CsvLedger.q(r.message())));
     }
 
     private void recordRun(JobRun run) {
         try {
-            audit.record(run);
+            audit.append(run);
         } catch (Exception e) {
             log.warn("Could not write job audit for {}: {}", run.job(), e.getMessage());
         }
-        Deque<JobRun> hist = history.computeIfAbsent(run.job(), k -> new ArrayDeque<>());
-        synchronized (hist) {
-            hist.addFirst(run);
-            while (hist.size() > MAX_HISTORY) hist.removeLast();
-        }
+        history.computeIfAbsent(run.job(), k -> new BoundedHistory<>(MAX_HISTORY)).add(run);
     }
 
     // ── Control API surface ──────────────────────────────────────────────────────
@@ -209,11 +221,8 @@ public final class JobService implements AutoCloseable {
 
     /** Recent run history (newest first) for one job; empty if unknown or never run. */
     public List<JobRun> runsFor(String name) {
-        Deque<JobRun> hist = history.get(name);
-        if (hist == null) return List.of();
-        synchronized (hist) {
-            return new ArrayList<>(hist);
-        }
+        BoundedHistory<JobRun> hist = history.get(name);
+        return hist == null ? List.of() : hist.all();
     }
 
     /** The most recent run of a job, if any. */
@@ -222,11 +231,8 @@ public final class JobService implements AutoCloseable {
     }
 
     private JobRun lastRun(String name) {
-        Deque<JobRun> hist = history.get(name);
-        if (hist == null) return null;
-        synchronized (hist) {
-            return hist.peekFirst();
-        }
+        BoundedHistory<JobRun> hist = history.get(name);
+        return hist == null ? null : hist.latest().orElse(null);
     }
 
     /** Whether any job by this name is registered and enabled. */

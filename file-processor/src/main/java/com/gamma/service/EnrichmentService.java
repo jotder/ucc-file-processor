@@ -8,6 +8,7 @@ import com.gamma.enrich.EnrichmentEngine;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.PartitionOutput;
 import com.gamma.metrics.MetricRegistry;
+import com.gamma.util.LockingRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Orchestrates Stage-2 {@link EnrichmentEngine} runs against the platform's two
@@ -67,7 +67,7 @@ public final class EnrichmentService implements AutoCloseable {
     private final BatchEventBus bus;
     private final Scheduler scheduler;
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
-    private final Map<String, ReentrantLock> locks = new ConcurrentHashMap<>();
+    private final LockingRunner runner = new LockingRunner();
     private final Map<String, EnrichmentAuditWriter> auditWriters = new ConcurrentHashMap<>();
     private final AtomicLong seq = new AtomicLong();
 
@@ -114,8 +114,11 @@ public final class EnrichmentService implements AutoCloseable {
      * then announce it on the bus so downstream chained jobs can react. Serialised per job.
      */
     private void recompute(EnrichmentConfig job, List<Map<String, String>> filter, String reason) {
-        ReentrantLock lock = locks.computeIfAbsent(job.name(), k -> new ReentrantLock());
-        lock.lock();
+        runner.runExclusive(job.name(), () -> doRecompute(job, filter, reason));
+    }
+
+    /** The recompute body, already serialised per job by {@link #recompute}. */
+    private void doRecompute(EnrichmentConfig job, List<Map<String, String>> filter, String reason) {
         boolean full = (filter == null || filter.isEmpty());
         int inputParts = full ? 0 : filter.size();
         String scope   = full ? "full" : inputParts + " input partition(s)";
@@ -161,8 +164,6 @@ public final class EnrichmentService implements AutoCloseable {
             } catch (Exception ae) {
                 log.warn("[ENRICH] could not write audit for failed run {}: {}", job.name(), ae.getMessage());
             }
-        } finally {
-            lock.unlock();
         }
     }
 

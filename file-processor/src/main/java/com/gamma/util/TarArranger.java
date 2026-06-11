@@ -88,25 +88,18 @@ public class TarArranger {
                 System.err.println("[WARN] Base dir not found, skipping: " + base);
                 continue;
             }
-            VirtualThreadRunner.submit(exec, ph, () -> walkForTars(exec, ph, base));
+            VirtualThreadRunner.submit(exec, ph, () -> FileWalker.walk(exec, ph, base,
+                    entry -> {
+                        if (TarUtil.isTar(entry))
+                            VirtualThreadRunner.submit(exec, ph, () -> copyOneTar(entry));
+                    },
+                    (dir, e) -> System.err.println(
+                            "[WARN] Cannot scan dir: " + dir + " — " + e.getMessage())));
         }
 
         ph.arriveAndAwaitAdvance();
         exec.shutdown();
         System.out.println("[COPY-TARS] Done.");
-    }
-
-    private void walkForTars(ExecutorService exec, Phaser ph, Path dir) {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-            for (Path entry : stream) {
-                if (Files.isDirectory(entry))
-                    VirtualThreadRunner.submit(exec, ph, () -> walkForTars(exec, ph, entry));
-                else if (TarUtil.isTar(entry))
-                    VirtualThreadRunner.submit(exec, ph, () -> copyOneTar(entry));
-            }
-        } catch (IOException e) {
-            System.err.println("[WARN] Cannot scan dir: " + dir + " — " + e.getMessage());
-        }
     }
 
     private void copyOneTar(Path src) {

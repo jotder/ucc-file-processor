@@ -1,9 +1,7 @@
 package com.gamma.etl;
 
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.UncheckedIOException;
+import com.gamma.util.CsvLedger;
+
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -17,16 +15,17 @@ import java.util.stream.Collectors;
  *   <li><b>lineage</b>: the (input → output) count matrix</li>
  * </ul>
  *
- * <p>{@link #flush} is {@code synchronized} so each batch's rows are written
- * contiguously even when multiple batches finish concurrently.
+ * <p>Each CSV is a {@link CsvLedger} whose codec preserves this writer's exact column
+ * order and quoting. {@link #flush} is {@code synchronized} so each batch's rows are
+ * written contiguously even when multiple batches finish concurrently.
  */
 public final class BatchAuditWriter {
 
-    private final String statusPath;
-    private final String batchesPath;
-    private final String lineagePath;
-    private final CommitLog commitLog;   // null when no commit-log path is configured
-    private Consumer<BatchEvent> commitListener;   // null = no event emission
+    private final CsvLedger<FileRow> status;     // null when no status path configured
+    private final CsvLedger<BatchRow> batches;   // null when no batches path configured
+    private final CsvLedger<LineageRow> lineage; // null when no lineage path configured
+    private final CommitLog commitLog;           // null when no commit-log path is configured
+    private Consumer<BatchEvent> commitListener; // null = no event emission
 
     /** Back-compat: audit CSVs only, no durable commit log. */
     public BatchAuditWriter(String statusPath, String batchesPath, String lineagePath) {
@@ -39,10 +38,19 @@ public final class BatchAuditWriter {
      */
     public BatchAuditWriter(String statusPath, String batchesPath, String lineagePath,
                             String commitLogPath) {
-        this.statusPath  = statusPath;
-        this.batchesPath = batchesPath;
-        this.lineagePath = lineagePath;
-        this.commitLog   = (commitLogPath != null && !commitLogPath.isBlank())
+        this.status = statusPath == null ? null : new CsvLedger<>(statusPath,
+                "start_time,end_time,filename,status,parsed_rows,error_rows," +
+                        "output_paths,output_sizes_bytes,duration_ms,error,batch_id",
+                BatchAuditWriter::statusLine);
+        this.batches = batchesPath == null ? null : new CsvLedger<>(batchesPath,
+                "batch_id,pipeline,schema_name,output_table,start_time,end_time,status," +
+                        "member_count,rejected_count,total_input_rows,total_output_rows," +
+                        "output_file_count,total_output_bytes,duration_ms,error",
+                BatchAuditWriter::batchLine);
+        this.lineage = lineagePath == null ? null : new CsvLedger<>(lineagePath,
+                "batch_id,src_id,input_file,output_file,partition,row_count",
+                BatchAuditWriter::lineageLine);
+        this.commitLog = (commitLogPath != null && !commitLogPath.isBlank())
                 ? new CommitLog(commitLogPath) : null;
     }
 
@@ -73,10 +81,10 @@ public final class BatchAuditWriter {
      * the durable commit log (fsync'd). The commit-log write is last so a line
      * there means the audit rows are also written.
      */
-    public synchronized void flush(BatchRow batch, List<FileRow> files, List<LineageRow> lineage) {
-        appendStatus(files);
-        appendBatch(batch);
-        appendLineage(lineage);
+    public synchronized void flush(BatchRow batch, List<FileRow> files, List<LineageRow> lineageRows) {
+        if (status  != null) status.appendAll(files);
+        if (batches != null) batches.append(batch);
+        if (lineage != null) lineage.appendAll(lineageRows);
         if (commitLog != null) {
             commitLog.record(batch.endTime(), batch.batchId(), batch.pipeline(), batch.status(),
                     batch.memberCount(), batch.outputFileCount(),
@@ -88,7 +96,7 @@ public final class BatchAuditWriter {
         // (error/offendingFile/errorRows) lets the assist agent's failure reactor (M7) diagnose a
         // FAILED batch; it is operational metadata derived from the audit rows, never row content.
         if (commitListener != null) {
-            List<String> partitions = lineage.stream()
+            List<String> partitions = lineageRows.stream()
                     .map(LineageRow::partition).distinct().collect(Collectors.toList());
             String offendingFile = files.stream()
                     .filter(f -> f.error() != null && !f.error().isBlank())
@@ -101,60 +109,31 @@ public final class BatchAuditWriter {
         }
     }
 
-    private void appendStatus(List<FileRow> files) {
-        if (statusPath == null) return;
-        boolean exists = new java.io.File(statusPath).exists();
-        try (PrintWriter pw = new PrintWriter(new FileWriter(statusPath, true))) {
-            if (!exists)
-                pw.println("start_time,end_time,filename,status,parsed_rows,error_rows," +
-                        "output_paths,output_sizes_bytes,duration_ms,error,batch_id");
-            for (FileRow f : files) {
-                String paths = String.join(";", f.outputPaths()).replace('"', '\'');
-                String sizes = f.outputSizes().stream().map(String::valueOf)
-                        .collect(Collectors.joining(";"));
-                pw.printf("%s,%s,%s,%s,%d,%d,\"%s\",\"%s\",%d,\"%s\",%s%n",
-                        f.startTime(), f.endTime(), f.filename(), f.status(),
-                        f.parsedRows(), f.errorRows(), paths, sizes, f.durationMs(),
-                        f.error() == null ? "" : f.error().replace('"', '\''), f.batchId());
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    // ── row codecs (column order + quoting identical to the pre-CsvLedger writers) ──
+
+    private static String statusLine(FileRow f) {
+        String paths = String.join(";", f.outputPaths()).replace('"', '\'');
+        String sizes = f.outputSizes().stream().map(String::valueOf)
+                .collect(Collectors.joining(";"));
+        return String.format("%s,%s,%s,%s,%d,%d,\"%s\",\"%s\",%d,\"%s\",%s",
+                f.startTime(), f.endTime(), f.filename(), f.status(),
+                f.parsedRows(), f.errorRows(), paths, sizes, f.durationMs(),
+                CsvLedger.q(f.error()), f.batchId());
     }
 
-    private void appendBatch(BatchRow b) {
-        if (batchesPath == null) return;
-        boolean exists = new java.io.File(batchesPath).exists();
-        try (PrintWriter pw = new PrintWriter(new FileWriter(batchesPath, true))) {
-            if (!exists)
-                pw.println("batch_id,pipeline,schema_name,output_table,start_time,end_time,status," +
-                        "member_count,rejected_count,total_input_rows,total_output_rows," +
-                        "output_file_count,total_output_bytes,duration_ms,error");
-            pw.printf("%s,%s,%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,\"%s\"%n",
-                    b.batchId(), b.pipeline(), b.schemaName(),
-                    b.outputTable() == null ? "" : b.outputTable(),
-                    b.startTime(), b.endTime(), b.status(),
-                    b.memberCount(), b.rejectedCount(), b.totalInputRows(), b.totalOutputRows(),
-                    b.outputFileCount(), b.totalOutputBytes(), b.durationMs(),
-                    b.error() == null ? "" : b.error().replace('"', '\''));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    private static String batchLine(BatchRow b) {
+        return String.format("%s,%s,%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,\"%s\"",
+                b.batchId(), b.pipeline(), b.schemaName(),
+                b.outputTable() == null ? "" : b.outputTable(),
+                b.startTime(), b.endTime(), b.status(),
+                b.memberCount(), b.rejectedCount(), b.totalInputRows(), b.totalOutputRows(),
+                b.outputFileCount(), b.totalOutputBytes(), b.durationMs(),
+                CsvLedger.q(b.error()));
     }
 
-    private void appendLineage(List<LineageRow> rows) {
-        if (lineagePath == null) return;
-        boolean exists = new java.io.File(lineagePath).exists();
-        try (PrintWriter pw = new PrintWriter(new FileWriter(lineagePath, true))) {
-            if (!exists)
-                pw.println("batch_id,src_id,input_file,output_file,partition,row_count");
-            for (LineageRow r : rows) {
-                pw.printf("%s,%d,%s,\"%s\",%s,%d%n",
-                        r.batchId(), r.srcId(), r.inputFile(),
-                        r.outputFile().replace('"', '\''), r.partition(), r.rowCount());
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    private static String lineageLine(LineageRow r) {
+        return String.format("%s,%d,%s,\"%s\",%s,%d",
+                r.batchId(), r.srcId(), r.inputFile(),
+                CsvLedger.q(r.outputFile()), r.partition(), r.rowCount());
     }
 }

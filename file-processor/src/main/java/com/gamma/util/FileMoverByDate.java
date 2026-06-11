@@ -38,36 +38,16 @@ public class FileMoverByDate {
 
         if (!dryRun) Files.createDirectories(baseDir);
 
-        submitTask(() -> walkParallel(Paths.get(".")));
+        VirtualThreadRunner.submit(executor, phaser, () -> FileWalker.walk(
+                executor, phaser, Paths.get("."),
+                dir -> !dir.toAbsolutePath().startsWith(baseDir),   // never recurse into the target
+                this::processFile,
+                (dir, e) -> System.err.println("[ERR] Access Denied: " + dir)));
         System.out.println("Processing... please wait.");
         phaser.arriveAndAwaitAdvance();
-        
+
         executor.shutdown();
         System.out.println("\nOperation completed (" + (dryRun ? "DRY-RUN" : "LIVE") + ").");
-    }
-
-    private void submitTask(Runnable task) {
-        phaser.register();
-        executor.submit(() -> {
-            try { task.run(); } finally { phaser.arriveAndDeregister(); }
-        });
-    }
-
-    private void walkParallel(Path dir) {
-        Path absDir = dir.toAbsolutePath();
-        if (absDir.startsWith(baseDir)) return;
-
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-            for (Path entry : stream) {
-                if (Files.isDirectory(entry)) {
-                    submitTask(() -> walkParallel(entry));
-                } else {
-                    processFile(entry);
-                }
-            }
-        } catch (IOException e) {
-            System.err.println("[ERR] Access Denied: " + dir);
-        }
     }
 
     private void processFile(Path file) {
@@ -78,7 +58,7 @@ public class FileMoverByDate {
             String dateStr = matcher.group(1);
             Path targetDateDir = baseDir.resolve(dateStr);
             
-            submitTask(() -> {
+            VirtualThreadRunner.submit(executor, phaser, () -> {
                 try {
                     Path targetFile = targetDateDir.resolve(filename);
                     if (Files.exists(targetFile)) {

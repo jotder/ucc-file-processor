@@ -1,9 +1,7 @@
 package com.gamma.util;
 
 import com.opencsv.CSVReader;
-import com.opencsv.CSVReaderBuilder;
 import com.opencsv.CSVWriter;
-import com.opencsv.RFC4180ParserBuilder;
 
 import java.io.*;
 import java.nio.file.*;
@@ -143,11 +141,7 @@ public class FileOrganizer {
     // ── walk + match ───────────────────────────────────────────────────────────
 
     private void loadWantedFiles() throws Exception {
-        // RFC4180 parser: backslashes are literal, matching the rest of the codebase's CSV readers.
-        // The default CSVParser treats '\' as an escape char and would strip it from any
-        // backslash-bearing value in the external manifest.
-        try (CSVReader reader = new CSVReaderBuilder(new FileReader(csvInput))
-                .withCSVParser(new RFC4180ParserBuilder().build()).build()) {
+        try (CSVReader reader = Csv.reader(new FileReader(csvInput))) {
             reader.readNext(); // skip header
             String[] row;
             while ((row = reader.readNext()) != null) {
@@ -166,25 +160,14 @@ public class FileOrganizer {
     private void walkAllBaseDirs() {
         for (Path dir : baseDirs) {
             if (Files.exists(dir)) {
-                VirtualThreadRunner.submit(executor, phaser, () -> walkParallel(dir));
+                VirtualThreadRunner.submit(executor, phaser, () -> FileWalker.walk(
+                        executor, phaser, dir,
+                        d -> { System.out.println("[DIR] Scanning: " + d); return true; },
+                        this::checkAndProcessFile,
+                        (d, e) -> logError(d.toString(), e.getMessage())));
             } else {
                 logError(dir.toString(), "Base directory does not exist.");
             }
-        }
-    }
-
-    private void walkParallel(Path dir) {
-        System.out.println("[DIR] Scanning: " + dir);
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-            for (Path entry : stream) {
-                if (Files.isDirectory(entry)) {
-                    VirtualThreadRunner.submit(executor, phaser, () -> walkParallel(entry));
-                } else {
-                    checkAndProcessFile(entry);
-                }
-            }
-        } catch (IOException e) {
-            logError(dir.toString(), e.getMessage());
         }
     }
 

@@ -184,20 +184,11 @@ public final class DuckDbCsvIngester {
 
     /** Build the {@code read_csv} relation + selector projection shared by {@link #ingest} and
      *  {@link #createRawInputView}. Pure string assembly — no DB contact. */
-    @SuppressWarnings("unchecked")
     private static ReadSpec buildReadSpec(File file, Map<String, Object> schemaConfig, PipelineConfig cfg) {
-        List<Map<String, Object>> fields =
-                (List<Map<String, Object>>) ((Map<String, Object>) schemaConfig.get("raw")).get("fields");
-
-        // Selector indices + width of the physical column set we declare to DuckDB.
-        int[] selectorIdx = new int[fields.size()];
-        int maxSelector = 0;
-        for (int i = 0; i < fields.size(); i++) {
-            int sel = Integer.parseInt(String.valueOf(fields.get(i).get("selector")));
-            selectorIdx[i] = sel;
-            if (sel > maxSelector) maxSelector = sel;
-        }
-        int physicalCols = maxSelector + 1;
+        ParserSpec spec = ParserSpec.fromSchema(schemaConfig);
+        List<Map<String, Object>> fields = spec.fields();
+        int[] selectorIdx = spec.selectorIdx();
+        int physicalCols  = spec.physicalCols();
 
         String delim     = (cfg.csv().delimiter() != null && !cfg.csv().delimiter().isEmpty()) ? cfg.csv().delimiter() : ",";
         int    skipLines = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
@@ -271,9 +262,8 @@ public final class DuckDbCsvIngester {
                 "FROM reject_errors e JOIN reject_scans s USING (scan_id) " +
                 "WHERE s.file_path = '" + escapeSql(filePath) + "' ORDER BY e.line";
 
-        Path errorDir      = Paths.get(cfg.dirs().errors()).toAbsolutePath();
-        String baseName    = CsvIngester.stripExtensions(file.getName());
-        Path errorFilePath = errorDir.resolve(baseName + "_errors.csv");
+        Path errorFilePath = ParserSpec.errorFile(file, cfg);
+        Path errorDir      = errorFilePath.getParent();
 
         long count = 0;
         PrintWriter errOut = null;

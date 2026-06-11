@@ -30,12 +30,12 @@ public final class ConfigLoader {
     private final ResourceLoader resourceLoader;
 
     public ConfigLoader(ResourceLoader resourceLoader) {
-        this.resourceLoader = resourceLoader == null ? new FilesystemResourceLoader() : resourceLoader;
+        this.resourceLoader = resourceLoader == null ? ResourceLoader.filesystem() : resourceLoader;
     }
 
     /** A loader backed by the filesystem (the production default). */
     public static ConfigLoader filesystem() {
-        return new ConfigLoader(new FilesystemResourceLoader());
+        return new ConfigLoader(ResourceLoader.filesystem());
     }
 
     // ── decode (no side effects) ─────────────────────────────────────────────────
