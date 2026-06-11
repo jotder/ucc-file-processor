@@ -74,9 +74,10 @@ src/app/
 
 ## Scope & follow-ups
 
-- **Config authoring** in the UI is draft → validate → copy. The backend offers
-  `POST /config/write` + `POST /pipelines` (v4.1: persist a draft and register it live, gated on
-  `-Dassist.write.root`); wiring save/register buttons into the console is a follow-up.
+- **Config authoring** closes the loop: draft → validate → **Save to server**
+  (`POST /config/write`, `assist.write` scope, 409→overwrite prompt, 422→findings shown) →
+  **Register pipeline** (`POST /pipelines`, `CONTROL`). Both need `-Dassist.write.root` on the
+  server; without it, saving errors cleanly and the copy-the-preview path still works.
 - The **catalog graph** renders as an interactive read-only `dxDiagram` with a per-kind legend;
   clicking a node opens its detail popup.
 - **Lint** (`pnpm lint`) — angular-eslint + typescript-eslint. First-party code follows the strict

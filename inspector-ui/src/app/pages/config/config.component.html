@@ -65,7 +65,7 @@
         <ul>
           @for (r of spec.rules; track r) {
             <li>{{ r.description }}
-              <span class="rule-fields">[{{ r.affectedFields.join(', ') }}]</span></li>
+              <span class="rule-fields">[{{ (r.affectedPaths ?? []).join(', ') }}]</span></li>
             }
           </ul>
         </div>
@@ -73,10 +73,25 @@
       <div class="popup-actions config-actions">
         <dx-button text="Copy config" icon="copy" (onClick)="copyPreview()"></dx-button>
         <dx-button text="Validate draft" type="default" [disabled]="validating" (onClick)="validateDraft()"></dx-button>
+        <dx-button text="Save to server" icon="save" type="success" [disabled]="saving || !canSave"
+          [hint]="canSave ? 'Persist as .toon under the server\'s config write root'
+                          : 'Needs an assist or control token'"
+          (onClick)="saveDraft()"></dx-button>
+        @if (saved && type === 'pipeline') {
+          <dx-button text="Register pipeline" icon="plus" type="default"
+            [disabled]="registering || !canControl"
+            [hint]="canControl ? 'Make the saved config a live pipeline (no restart)'
+                               : 'Needs a control token'"
+            (onClick)="registerPipeline()"></dx-button>
+        }
       </div>
+      @if (saved) {
+        <p class="saved-banner">✓ Saved as <code>{{ saved.path }}</code>
+          ({{ saved.bytes }} bytes{{ saved.overwritten ? ', replaced existing' : '' }})</p>
+      }
     </div>
     <div class="dx-card responsive-paddings preview-card">
-      <h5>Assembled config (preview — copy &amp; commit the .toon manually)</h5>
+      <h5>Assembled config (preview — copy, or save to the server with an assist-write token)</h5>
       <pre class="preview">{{ assembledPreview }}</pre>
     </div>
   </div>

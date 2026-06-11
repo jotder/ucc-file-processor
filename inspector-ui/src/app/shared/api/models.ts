@@ -237,7 +237,8 @@ export interface FieldSpec {
 
 export interface CrossFieldRule {
   description: string;
-  affectedFields: string[];
+  /** Field paths the rule reasons about (backend field name: {@code affectedPaths}). */
+  affectedPaths: string[];
   condition: string;
 }
 
@@ -260,6 +261,27 @@ export interface ValidateResult {
   findings: Finding[];
   safetyChecked?: boolean;
   clean: boolean;
+}
+
+/** POST /config/write — persist a validated draft under the server's write root (v4.1). */
+export interface WriteConfigResult {
+  type: string;
+  written: boolean;
+  /** Root-relative path of the written .toon (also the configPath for POST /pipelines). */
+  path: string;
+  name: string;
+  bytes: number;
+  overwritten: boolean;
+  findings: Finding[];
+}
+
+/** POST /pipelines — register a saved config as a live pipeline, no restart (v4.1). */
+export interface RegisterPipelineResult {
+  registered: boolean;
+  id: string;
+  path: string;
+  pipeline?: PipelineView;
+  findings: Finding[];
 }
 
 // ── diagnoses + assist ───────────────────────────────────────────────────────

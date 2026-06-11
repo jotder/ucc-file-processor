@@ -71,7 +71,7 @@ server-side via system properties:
 |---|---|---|
 | `control.token` / `CONTROL_TOKEN` | `CONTROL` | Everything — list/trigger/pause/reprocess pipelines, run jobs, plus all read + assist routes (superuser). |
 | `assist.read.token` / `ASSIST_TOKEN` | `ASSIST_READ` | Read-only: catalog, config specs, diagnoses, and running assist skills. |
-| `assist.write.token` | `ASSIST_WRITE` | Persisting authored configs to disk (`POST /config/write`, jailed under the server's `-Dassist.write.root`). API-only today — the console itself doesn't call it yet. |
+| `assist.write.token` | `ASSIST_WRITE` | Persisting authored configs to disk — the Config screen's **Save to server** button (`POST /config/write`, jailed under the server's `-Dassist.write.root`). |
 
 On the **Connect** screen, paste the token(s) you were issued. They're held in the browser session
 (`sessionStorage`) and attached to every request as `Authorization: Bearer …`. The console is
@@ -162,11 +162,12 @@ Author or validate configuration without hand-editing `.toon`:
 - **Validate** — check a draft (or a config file by path). Findings render with severity, field path,
   and message; a clean config reports ✓.
 
-> The console **validates and previews** configs; from the UI you copy the generated `.toon` and
-> commit it yourself. Since v4.1 the backend also offers `POST /config/write` (persist a validated
-> draft under `-Dassist.write.root`, `assist.write` scope) and `POST /pipelines` (register the
-> saved config live, no restart) — usable via `curl`/the API today, not yet wired into the console.
-> The `suggest-config` assist skill can pre-fill a draft from a sample.
+> Closing the loop: **Save to server** persists the draft as a `.toon` under the server's
+> `-Dassist.write.root` (`assist.write` scope; an existing file prompts before overwriting, and
+> ERROR-level findings block the save with the findings shown). For a saved **pipeline** config,
+> **Register pipeline** then makes it live (`CONTROL` scope) — picked up on the next poll cycle,
+> no restart. When the server has no write root configured, saving returns a clear error and the
+> copy-the-preview path still works. The `suggest-config` assist skill can pre-fill a draft.
 
 ### Diagnoses
 
@@ -235,9 +236,9 @@ have a *"include sample rows"* toggle.
 
 Called out so expectations are honest:
 
-- **No save/register buttons for configs.** Authoring in the UI is draft → validate → copy. The
-  backend endpoints exist since v4.1 (`POST /config/write` to persist under the write root,
-  `POST /pipelines` to register the saved config live) but the console doesn't call them yet —
-  use the API directly, or commit the `.toon` manually.
+- **Save/register needs a server-side write root.** The Config screen's Save/Register buttons
+  require `-Dassist.write.root` on the server (fail-closed `503` otherwise) — and Register only
+  accepts configs that pass full pipeline validation, so a draft missing required sections (e.g.
+  a schema file the spec form doesn't cover) must still be completed on disk.
 - **No per-file in-flight tracking** (backend limit). "Processing" is a pipeline-level flag; there
   is no durable per-file in-flight counter (it only matters for very large or stuck files).

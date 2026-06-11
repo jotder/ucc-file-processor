@@ -40,6 +40,19 @@
   margin-top: 20px;
 }
 
+.saved-banner {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #4caf50;
+
+  code {
+    background: rgba(127, 127, 127, 0.12);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: inherit;
+  }
+}
+
 .preview-card {
   margin-top: 16px;
 
