@@ -74,18 +74,20 @@ src/app/
 
 ## Scope & follow-ups
 
-- **Config authoring** is draft → validate → copy: there is no write-to-disk endpoint, so the
-  operator commits the generated `.toon` manually.
-- The **catalog graph** is rendered as nodes/edges grids; an interactive `dxDiagram` is a future
-  enhancement.
+- **Config authoring** in the UI is draft → validate → copy. The backend offers
+  `POST /config/write` + `POST /pipelines` (v4.1: persist a draft and register it live, gated on
+  `-Dassist.write.root`); wiring save/register buttons into the console is a follow-up.
+- The **catalog graph** renders as an interactive read-only `dxDiagram` with a per-kind legend;
+  clicking a node opens its detail popup.
 - **Lint** (`pnpm lint`) — angular-eslint + typescript-eslint. First-party code follows the strict
-  recommended rules; files vendored from the DevExtreme template are scoped to a looser bar, and the
-  `*ngIf`/`*ngFor` → built-in control-flow migration is deferred (documented in `eslint.config.js`).
+  recommended rules; files vendored from the DevExtreme template are scoped to a looser bar. All
+  templates use the built-in `@if`/`@for` control flow (migrated; `prefer-control-flow` is enforced).
 - **Unit tests** (`pnpm test`, or `pnpm test:ci` for a single run) — Vitest via the
-  `@angular/build:unit-test` builder (jsdom). The starter suite covers the API/auth layer
-  (`api-base`, `token-store`, `auth.service`, `auth.interceptor`, `pipelines.service`, `auto-refresh`);
-  component-level specs are a follow-up.
-- **e2e** is not yet wired (a thin smoke against a running backend is a follow-up).
+  `@angular/build:unit-test` builder (jsdom). The suite covers the API/auth layer (`api-base`,
+  `token-store`, `auth.service`, `auth.interceptor`, `pipelines.service`, `auto-refresh`) plus
+  component/graph specs (`catalog.component`, `catalog-graph`, `config.component`).
+- **e2e** — a thin backend smoke (`src/e2e/backend-smoke.spec.ts`), skipped unless `E2E_BASE_URL`
+  is set: `E2E_BASE_URL=http://localhost:8080 E2E_TOKEN=dev pnpm test:ci`.
 - CI (`.github/workflows/ui.yml`) gates on **lint → unit tests → production build → development build**.
 
 ## Testing & linting

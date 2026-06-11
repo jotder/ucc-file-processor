@@ -71,7 +71,7 @@ server-side via system properties:
 |---|---|---|
 | `control.token` / `CONTROL_TOKEN` | `CONTROL` | Everything — list/trigger/pause/reprocess pipelines, run jobs, plus all read + assist routes (superuser). |
 | `assist.read.token` / `ASSIST_TOKEN` | `ASSIST_READ` | Read-only: catalog, config specs, diagnoses, and running assist skills. |
-| `assist.write.token` | `ASSIST_WRITE` | Assist actions that would write (reserved; drafts are confirm-first today). |
+| `assist.write.token` | `ASSIST_WRITE` | Persisting authored configs to disk (`POST /config/write`, jailed under the server's `-Dassist.write.root`). API-only today — the console itself doesn't call it yet. |
 
 On the **Connect** screen, paste the token(s) you were issued. They're held in the browser session
 (`sessionStorage`) and attached to every request as `Authorization: Bearer …`. The console is
@@ -148,7 +148,9 @@ The metadata graph, in three tabs:
   Click a node for a detail popup (attributes + neighbours, click-through). The detail popup also
   embeds an **explain-entity** assist panel — ask a grounded question about that node.
 - **KPIs** — KPI definitions (grain, join keys, inputs).
-- **Graph** — traverse from a node by depth/direction/kinds; results render as Nodes + Edges grids.
+- **Graph** — traverse from a node by depth/direction/kinds; the subgraph renders as an
+  **interactive diagram** (read-only `dxDiagram`) with a colour-coded legend per node kind — click
+  a node in the diagram to open its detail popup and walk the graph from there.
 
 ### Config authoring
 
@@ -160,9 +162,11 @@ Author or validate configuration without hand-editing `.toon`:
 - **Validate** — check a draft (or a config file by path). Findings render with severity, field path,
   and message; a clean config reports ✓.
 
-> The console **validates and previews** configs; there is no write-to-disk endpoint, so you commit
-> the generated `.toon` to the config directory yourself. The `suggest-config` assist skill can
-> pre-fill a draft from a sample.
+> The console **validates and previews** configs; from the UI you copy the generated `.toon` and
+> commit it yourself. Since v4.1 the backend also offers `POST /config/write` (persist a validated
+> draft under `-Dassist.write.root`, `assist.write` scope) and `POST /pipelines` (register the
+> saved config live, no restart) — usable via `curl`/the API today, not yet wired into the console.
+> The `suggest-config` assist skill can pre-fill a draft from a sample.
 
 ### Diagnoses
 
@@ -229,13 +233,11 @@ have a *"include sample rows"* toggle.
 
 ## What the console can't do (yet)
 
-These reflect current backend limits, not UI gaps — they're called out so expectations are honest:
+Called out so expectations are honest:
 
-- **No write-to-disk for configs/schedules/alerts.** Authoring is draft → validate → copy; you
-  commit the `.toon` manually.
-- **No live pipeline registration.** Pipelines are discovered from on-disk `.toon`; you can author +
-  validate one but not register it from the UI.
-- **No per-file in-flight tracking.** "Processing" is a pipeline-level flag; there is no durable
-  per-file in-flight counter (it only matters for very large or stuck files).
-- **Catalog graph is grids, not an interactive diagram.** Nodes/edges are shown as grids; an
-  interactive `dxDiagram` is a future enhancement.
+- **No save/register buttons for configs.** Authoring in the UI is draft → validate → copy. The
+  backend endpoints exist since v4.1 (`POST /config/write` to persist under the write root,
+  `POST /pipelines` to register the saved config live) but the console doesn't call them yet —
+  use the API directly, or commit the `.toon` manually.
+- **No per-file in-flight tracking** (backend limit). "Processing" is a pipeline-level flag; there
+  is no durable per-file in-flight counter (it only matters for very large or stuck files).

@@ -237,7 +237,7 @@ sandbox-root/                ← working directory for local runs
         test_pipeline.toon         ← lightweight CSV test pipeline
     src/                     ← Java source
     target/
-      file-processor-1.3.0.jar   ← fat JAR (built by mvn package)
+      file-processor-<version>.jar   ← fat JAR (built by mvn package)
     pom.xml
     package.ps1              ← builds + bundles a deployment zip
     README.md

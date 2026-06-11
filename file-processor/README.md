@@ -271,6 +271,7 @@ GET  /metrics                             Prometheus exposition
 **`control` scope (bearer token):**
 ```
 GET  /pipelines                           list pipelines + state
+POST /pipelines                           body {"configPath":…} — register a new pipeline live (v4.1, needs -Dassist.write.root)
 POST /pipelines/{name}/trigger            run one pipeline once
 POST /pipelines/{name}/pause | /resume    pause/resume in the poll cycle
 GET  /pipelines/{name}/commits            committed batch ids
@@ -297,9 +298,17 @@ GET  /assist/diagnoses                    recent event-driven failure diagnoses
 POST /assist/{intent}                     run an assist skill (delegates to the agent module)
 ```
 
+**`assist.write` scope (satisfied by `control`):**
+```
+POST /config/write                        body {type, config, subdir?, overwrite?} — persist a
+                                          validated draft as .toon under -Dassist.write.root (v4.1)
+```
+
 Security is **fail-closed**: a scope with no configured token returns `401` (locked) rather than
 running open. `/assist/*` returns `503` if the optional agent module isn't on the classpath,
 leaving the core unchanged. Token tiers are `control` (superuser) / `assist.read` / `assist.write`.
+Config writes and live pipeline registration are additionally gated on `-Dassist.write.root=<dir>`
+(unset ⇒ `503`); all written/registered paths are jailed under that root.
 
 The same host also **serves the operator web console** (below): point `-Dui.dir` at a built SPA
 bundle and `ControlApi` serves it as static files with an `index.html` deep-link fallback (API

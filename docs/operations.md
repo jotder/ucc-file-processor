@@ -303,12 +303,13 @@ java -cp file-processor.jar com.gamma.control.ControlApi \
      -Dservice.poll.seconds=60 config/
 ```
 
-A bearer token guards every route except the public `/health`, `/ready`, and `/metrics` (present it as `Authorization: Bearer <token>` or `X-Api-Token`). **As of v3.0 the API is fail-closed and scoped** — there is no open-by-default mode. Routes carry a scope; current control routes require the `CONTROL` scope (`-Dcontrol.token`). If a scope has no token configured, its routes return `401` (locked) rather than running open. Scopes are hierarchical — `CONTROL` satisfies everything; the `assist.read`/`assist.write` scopes (`-Dassist.read.token` / `-Dassist.write.token`) back the `/assist/*` routes arriving in v3 milestone M2. Token comparison is constant-time.
+A bearer token guards every route except the public `/health`, `/ready`, and `/metrics` (present it as `Authorization: Bearer <token>` or `X-Api-Token`). **As of v3.0 the API is fail-closed and scoped** — there is no open-by-default mode. Routes carry a scope; current control routes require the `CONTROL` scope (`-Dcontrol.token`). If a scope has no token configured, its routes return `401` (locked) rather than running open. Scopes are hierarchical — `CONTROL` satisfies everything; `assist.write` satisfies `assist.read`. The `assist.read` scope (`-Dassist.read.token`) backs the read-only `/catalog*`, `/config/spec/*` and `/assist/*` routes; `assist.write` (`-Dassist.write.token`) backs `POST /config/write`. Token comparison is constant-time.
 
 | Method & path | Purpose |
 |---|---|
 | `GET /health`, `GET /ready` | liveness / readiness (open) |
 | `GET /pipelines` | list pipelines + paused state + commit count |
+| `POST /pipelines` | body `{"configPath":"…"}` — register a new pipeline live from a config under `-Dassist.write.root`, no restart (v4.1) |
 | `POST /pipelines/{name}/trigger` | run one pipeline once |
 | `POST /pipelines/{name}/pause` · `/resume` | pause (poll cycle skips it) / resume |
 | `GET /pipelines/{name}/commits` | committed batch ids |
@@ -317,7 +318,7 @@ A bearer token guards every route except the public `/health`, `/ready`, and `/m
 | `GET /pipelines/{name}/pending` | inbox scan — files awaiting processing (`pending`) + an under-processing flag (`running`); read-only, no audit side effects (v4.1) |
 | `POST /pipelines/{name}/reprocess` | body `{"batchId":"…"}` — replay a batch |
 | `POST /trigger` | run all pipelines once |
-| `POST /validate` | body `{"configPath":"…"}` — config warnings |
+| `POST /validate` | body `{"configPath":"…"}` (saved file) or `{"type":…,"config":{…}[, "safety":true]}` (unsaved draft) — structured findings |
 | `GET /status` | live status snapshot — all pipelines + rollup (v2.8.0) |
 | `GET /report[?from=&to=]` | service-wide batch-audit report; optional date range (v2.8.0; range v2.10.0) |
 | `GET /pipelines/{name}/report[?from=&to=]` | batch-audit report for one pipeline; optional date range (v2.8.0; range v2.10.0) |
@@ -328,11 +329,24 @@ A bearer token guards every route except the public `/health`, `/ready`, and `/m
 | `GET /enrichment/{job}/runs` | enrichment run-audit rows (v2.9.0) |
 | `GET /enrichment/{job}/lineage[?runId=]` | enrichment output lineage rows (v2.9.0) |
 | `GET /enrichment/{job}/report[?from=&to=]` | run-audit rollup for one enrichment job; optional date range (v2.9.0; range v2.10.0) |
+| `GET /catalog` · `/catalog/tables/{id}` · `/catalog/kpis` · `/catalog/graph` | metadata graph (`assist.read` scope; v3.2.0) |
+| `GET /config/spec/{type}` | declarative config spec for UI form rendering (`assist.read`; v3.2.0) |
+| `GET /assist/diagnoses` | recent event-driven failure diagnoses (`assist.read`; v3.7.0) |
+| `POST /assist/{intent}` | run an assist skill; `503` when the agent module is absent (`assist.read`; v3.3.0) |
+| `POST /config/write` | body `{type, config, subdir?, overwrite?}` — persist a validated draft as `.toon` under `-Dassist.write.root` (`assist.write` scope; v4.1) |
 
 ```bash
 curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines
 curl -s -X POST -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/trigger
 ```
+
+**Authoring → save → register (v4.1).** With `-Dassist.write.root=<dir>` set, a validated config
+draft can be persisted (`POST /config/write`, `assist.write` scope) and then registered as a live
+pipeline (`POST /pipelines`, `CONTROL` scope) without a restart — the running service picks it up
+on the next poll cycle. Both routes are fail-closed: unset write root ⇒ `503`; paths are jailed
+under the root; drafts with ERROR-level findings (spec or hard-fail safety validator) ⇒ `422`;
+an existing file ⇒ `409` unless `overwrite:true`. Registration is in-memory — keep the write root
+inside the config tree the service was launched with so the pipeline also survives a restart.
 
 **Serving the operator web console (Inspector).** The same `ControlApi` host can serve a built
 Angular SPA as static files, so one process hosts both the API and the UI (v4.1):
@@ -753,7 +767,7 @@ Note: the 20200117 <data_source> file is ~4.3 GB uncompressed (~2.97 M rows) due
    bash run.sh mysource      # after adding mysource to run.sh
    # or directly:
    java --enable-native-access=ALL-UNNAMED \
-        -jar target/file-processor-1.3.0.jar \
+        -jar target/file-processor-<version>.jar \
         config/mysource/mysource_pipeline.toon
    ```
 
