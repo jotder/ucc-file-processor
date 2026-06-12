@@ -1,12 +1,12 @@
 # Configuration Reference
 
-> Part of the [Inspecto](../file-processor/README.md) documentation. See the [docs index](../file-processor/README.md#documentation).
+> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
 
 ## Configuration Reference
 
 The framework uses three config files in `.toon` format (JToon). Only the generation config is hand-authored; the other two are machine-generated and then maintained.
 
-Config files live under `file-processor/config/<adapter>/`.  All `dirs.*` and `schema_file` paths are relative to the **sandbox root** (the JVM working directory).
+Config files live under `inspecto/config/<adapter>/`.  All `dirs.*` and `schema_file` paths are relative to the **sandbox root** (the JVM working directory).
 
 ### Configuration by source format
 
@@ -245,7 +245,7 @@ processing:
     enabled: true
     marker_extension: .processed
     retention_days: 90
-  schema_file: "file-processor/config/<data_source>/<data_source>_schema.toon"
+  schema_file: "inspecto/config/<data_source>/<data_source>_schema.toon"
   csv_settings:
     delimiter: ","
     skip_header_lines: 0

@@ -1,6 +1,6 @@
 # Plugin Ingester
 
-> Part of the [Inspecto](../file-processor/README.md) documentation. See the [docs index](../file-processor/README.md#documentation).
+> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
 
 ## Plugin Ingester
 
@@ -57,7 +57,7 @@ public class MyCdrIngester implements StreamingFileIngester {
 
 ### Execution modes — the framework picks by file size
 
-The same ingester serves both ingestion shapes; the [`StreamingPluginBatchStrategy`](../file-processor/src/main/java/com/gamma/inspector/StreamingPluginBatchStrategy.java) chooses one **per batch** with zero extra I/O (member sizes are already known):
+The same ingester serves both ingestion shapes; the [`StreamingPluginBatchStrategy`](../inspecto/src/main/java/com/gamma/inspector/StreamingPluginBatchStrategy.java) chooses one **per batch** with zero extra I/O (member sizes are already known):
 
 | Mode | When | What it does | Output |
 |---|---|---|---|

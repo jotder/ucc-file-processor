@@ -186,7 +186,7 @@ same suffix-scan), grounding generation for the SQL skills:
 Without it the SQL generator is guessing; with it + the DuckDB oracle it is translating.
 
 ### P6 — Build restructure (prerequisite, surfaced by review)
-Today: single flat `file-processor/pom.xml` + one shaded fat-JAR. The optional in-JVM
+Today: single flat `inspecto/pom.xml` + one shaded fat-JAR. The optional in-JVM
 module needs: a **parent POM + two modules**, an **agent SPI interface** in the core
 module, **`ServiceLoader`/reflection** load (precedent exists), an **injection point** on
 `SourceService`/`ControlApi` (before `start()`), and **shade changes** so the lean JAR

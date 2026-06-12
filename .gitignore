@@ -5,7 +5,7 @@
 /database/
 /errors/
 /target/
-/file-processor/target/
+/inspecto/target/
 /inspecto-agent/target/
 /inbox/
 /markers/
@@ -17,7 +17,7 @@
 
 # IDE files (IntelliJ)
 *.iml
-/file-processor/.idea/
+/inspecto/.idea/
 
 # Local build / deploy artifacts and ad-hoc run output
 /file-processor-deploy.zip
@@ -25,8 +25,8 @@
 /data/
 
 # Dry-run and audit outputs produced by ad-hoc local runs in the module root
-/file-processor/available_files.csv*
-/file-processor/missing_files.csv*
-/file-processor/error_log.csv*
-/file-processor/status_unknown.csv*
+/inspecto/available_files.csv*
+/inspecto/missing_files.csv*
+/inspecto/error_log.csv*
+/inspecto/status_unknown.csv*
 /inspecto-agent-hosted/target/

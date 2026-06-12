@@ -1,7 +1,7 @@
 @echo off
 rem URA File Management Suite ? development CLI runner
 rem
-rem Usage (from the file-processor\ directory after 'mvn clean package'):
+rem Usage (from the inspecto\ directory after 'mvn clean package'):
 rem   ura.bat [--dry-run] <command> <pipeline.toon> [args...]
 rem
 rem Examples:

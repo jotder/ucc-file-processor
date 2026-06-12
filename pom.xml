@@ -12,10 +12,10 @@
     <name>Inspecto (parent)</name>
     <description>
         Aggregator for the v3.x line. Two modules:
-        - file-processor       : the lean ETL engine + control plane (the deployable fat-JAR;
+        - inspecto              : the lean ETL engine + control plane (the deployable fat-JAR;
                                  stays zero-new-dependency). Plays the "core" role in the v3
-                                 redesign; the directory/artifactId are kept as "file-processor"
-                                 so CI, package.ps1, and the release flow remain unchanged.
+                                 redesign (artifactId stays "file-processor" so the jar name,
+                                 CI guard, and the release flow remain unchanged).
         - inspecto-agent        : OPTIONAL embedded assist agent. All AI/LLM dependencies live
                                  here only; loaded in-process by SourceService when present
                                  (artifactId stays "file-processor-agent").
@@ -27,11 +27,11 @@
 
     <!--
         Build the whole reactor from here:  mvn test   (root)
-        CI and package.ps1 still build the core alone from file-processor/ via the
+        CI and package.ps1 still build the core alone from inspecto/ via the
         <parent> relativePath below, so neither needed to change for the v3 module split.
     -->
     <modules>
-        <module>file-processor</module>
+        <module>inspecto</module>
         <module>inspecto-agent</module>
         <module>inspecto-agent-hosted</module>
     </modules>

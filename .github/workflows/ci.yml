@@ -82,10 +82,10 @@ jobs:
       # reference ever leaks into the lean core's sources or its resolved dependency tree.
       - name: Guard — lean core stays kernel-free
         run: |
-          if grep -rEl "com\.gamma\.agentkernel" file-processor/src; then
+          if grep -rEl "com\.gamma\.agentkernel" inspecto/src; then
             echo "::error::lean core (file-processor) must not reference com.gamma.agentkernel"; exit 1
           fi
-          if mvn --batch-mode --no-transfer-progress -pl file-processor dependency:tree | grep -E "com\.gamma\.agentkernel"; then
+          if mvn --batch-mode --no-transfer-progress -pl inspecto dependency:tree | grep -E "com\.gamma\.agentkernel"; then
             echo "::error::lean core (file-processor) must not depend on agent-kernel"; exit 1
           fi
           echo "OK: file-processor is kernel-free (sources + dependency tree)"

@@ -1,24 +1,24 @@
 name: UI
 
-# Builds the Inspector operator console (inspector-ui/, the gamma-template Angular SPA:
+# Builds the Inspector operator console (inspecto-ui/, the gamma-template Angular SPA:
 # ag-Grid / Chart.js / AntV G6). Kept fully separate from the Java ci.yml: the Node toolchain
-# never enters the Maven reactor. Path-filtered to inspector-ui/** so backend-only changes
+# never enters the Maven reactor. Path-filtered to inspecto-ui/** so backend-only changes
 # don't trigger a frontend build (and vice-versa).
 
 on:
   push:
     branches: [master, main, 3.x, 4.x]
-    paths: ['inspector-ui/**', '.github/workflows/ui.yml']
+    paths: ['inspecto-ui/**', '.github/workflows/ui.yml']
   pull_request:
     branches: [master, main, 3.x, 4.x]
-    paths: ['inspector-ui/**', '.github/workflows/ui.yml']
+    paths: ['inspecto-ui/**', '.github/workflows/ui.yml']
 
 permissions:
   contents: read
 
 defaults:
   run:
-    working-directory: inspector-ui
+    working-directory: inspecto-ui
 
 jobs:
   build:
@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-          cache-dependency-path: inspector-ui/package-lock.json
+          cache-dependency-path: inspecto-ui/package-lock.json
 
       # npm ci fails if package-lock.json is out of sync with package.json.
       - name: Install dependencies

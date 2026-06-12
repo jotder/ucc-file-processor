@@ -209,7 +209,7 @@ public class MainApp {
         System.out.println("  ura [--dry-run] <command> <pipeline.toon> [args...]");
         System.out.println();
         System.out.println("  (ura = ura.sh on Linux/Mac, ura.bat on Windows — shipped alongside file-processor.jar)");
-        System.out.println("  (dev: ./ura.sh or ura.bat from the file-processor/ source directory)");
+        System.out.println("  (dev: ./ura.sh or ura.bat from the inspecto/ source directory)");
         System.out.println("  (raw: java --enable-native-access=ALL-UNNAMED -cp file-processor.jar com.gamma.util.MainApp ...)");
         System.out.println();
         System.out.println("Pre-ETL commands (all read from pipeline.toon sections):");

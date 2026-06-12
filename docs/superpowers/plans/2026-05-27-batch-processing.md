@@ -11,10 +11,10 @@
 **Spec:** `docs/superpowers/specs/2026-05-27-batch-processing-design.md`
 
 **Conventions for every task below:**
-- All paths are relative to repo root `C:\sandbox\URA\sandbox`. The Maven module is `file-processor/`.
-- Run Maven from the module dir: `cd file-processor` first, or use `mvn -f file-processor/pom.xml`.
-- Run a single test class: `mvn -f file-processor/pom.xml -q -Dtest=<ClassName> test`
-- Run all tests: `mvn -f file-processor/pom.xml -q test`
+- All paths are relative to repo root `C:\sandbox\URA\sandbox`. The Maven module is `inspecto/`.
+- Run Maven from the module dir: `cd file-processor` first, or use `mvn -f inspecto/pom.xml`.
+- Run a single test class: `mvn -f inspecto/pom.xml -q -Dtest=<ClassName> test`
+- Run all tests: `mvn -f inspecto/pom.xml -q test`
 - Commit only the files listed in each task's `git add`.
 
 ---
@@ -22,8 +22,8 @@
 ### Task 1: Add JUnit 5 test harness
 
 **Files:**
-- Modify: `file-processor/pom.xml`
-- Test: `file-processor/src/test/java/com/gamma/SmokeTest.java`
+- Modify: `inspecto/pom.xml`
+- Test: `inspecto/src/test/java/com/gamma/SmokeTest.java`
 
 - [ ] **Step 1: Add JUnit dependencies and surefire to `pom.xml`**
 
@@ -55,7 +55,7 @@ Add this `<plugin>` block inside `<build><plugins>` (after the maven-shade-plugi
 
 - [ ] **Step 2: Write the smoke test**
 
-`file-processor/src/test/java/com/gamma/SmokeTest.java`:
+`inspecto/src/test/java/com/gamma/SmokeTest.java`:
 
 ```java
 package com.gamma;
@@ -73,13 +73,13 @@ class SmokeTest {
 
 - [ ] **Step 3: Run it to verify the harness works**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=SmokeTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=SmokeTest test`
 Expected: `BUILD SUCCESS`, 1 test run, 0 failures.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add file-processor/pom.xml file-processor/src/test/java/com/gamma/SmokeTest.java
+git add inspecto/pom.xml inspecto/src/test/java/com/gamma/SmokeTest.java
 git commit -m "test: add JUnit 5 harness with surefire"
 ```
 
@@ -88,13 +88,13 @@ git commit -m "test: add JUnit 5 harness with surefire"
 ### Task 2: Config — batch caps and audit/manifest paths in `PipelineConfig`
 
 **Files:**
-- Modify: `file-processor/src/main/java/com/gamma/etl/PipelineConfig.java`
-- Test: `file-processor/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java`
+- Modify: `inspecto/src/main/java/com/gamma/etl/PipelineConfig.java`
+- Test: `inspecto/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java`
 - Test resource (written by the test at runtime — no static file needed)
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java`:
+`inspecto/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java`:
 
 ```java
 package com.gamma.etl;
@@ -204,7 +204,7 @@ class PipelineConfigBatchTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=PipelineConfigBatchTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=PipelineConfigBatchTest test`
 Expected: COMPILE FAILURE — `cfg.batchMaxFiles`, `batchMaxBytes`, `batchesFilePath`, `lineageFilePath`, `manifestsDir` do not exist.
 
 - [ ] **Step 3: Add the fields**
@@ -282,13 +282,13 @@ Then, in the same method, immediately after the block that sets `b.statusFilePat
 
 - [ ] **Step 7: Run to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=PipelineConfigBatchTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=PipelineConfigBatchTest test`
 Expected: PASS, 3 tests.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/etl/PipelineConfig.java file-processor/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java
+git add inspecto/src/main/java/com/gamma/etl/PipelineConfig.java inspecto/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java
 git commit -m "feat: parse processing.batch caps and derive audit/manifest paths"
 ```
 
@@ -297,16 +297,16 @@ git commit -m "feat: parse processing.batch caps and derive audit/manifest paths
 ### Task 3: Data records — `PartitionOutput`, `LineageRow`, `Batch`/`Member`
 
 **Files:**
-- Create: `file-processor/src/main/java/com/gamma/etl/PartitionOutput.java`
-- Create: `file-processor/src/main/java/com/gamma/etl/LineageRow.java`
-- Create: `file-processor/src/main/java/com/gamma/etl/Batch.java`
-- Test: `file-processor/src/test/java/com/gamma/etl/BatchRecordsTest.java`
+- Create: `inspecto/src/main/java/com/gamma/etl/PartitionOutput.java`
+- Create: `inspecto/src/main/java/com/gamma/etl/LineageRow.java`
+- Create: `inspecto/src/main/java/com/gamma/etl/Batch.java`
+- Test: `inspecto/src/test/java/com/gamma/etl/BatchRecordsTest.java`
 
 These are simple immutable carriers; one test confirms they compile and hold values.
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/etl/BatchRecordsTest.java`:
+`inspecto/src/test/java/com/gamma/etl/BatchRecordsTest.java`:
 
 ```java
 package com.gamma.etl;
@@ -342,12 +342,12 @@ class BatchRecordsTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=BatchRecordsTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=BatchRecordsTest test`
 Expected: COMPILE FAILURE — types do not exist.
 
 - [ ] **Step 3: Create the records**
 
-`file-processor/src/main/java/com/gamma/etl/PartitionOutput.java`:
+`inspecto/src/main/java/com/gamma/etl/PartitionOutput.java`:
 
 ```java
 package com.gamma.etl;
@@ -362,7 +362,7 @@ package com.gamma.etl;
 public record PartitionOutput(String partition, String outputFile, long bytes) {}
 ```
 
-`file-processor/src/main/java/com/gamma/etl/LineageRow.java`:
+`inspecto/src/main/java/com/gamma/etl/LineageRow.java`:
 
 ```java
 package com.gamma.etl;
@@ -382,7 +382,7 @@ public record LineageRow(String batchId, int srcId, String inputFile,
                          String outputFile, String partition, long rowCount) {}
 ```
 
-`file-processor/src/main/java/com/gamma/etl/Batch.java`:
+`inspecto/src/main/java/com/gamma/etl/Batch.java`:
 
 ```java
 package com.gamma.etl;
@@ -413,13 +413,13 @@ public record Batch(String batchId, String schemaName, String table, List<Member
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=BatchRecordsTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=BatchRecordsTest test`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/etl/PartitionOutput.java file-processor/src/main/java/com/gamma/etl/LineageRow.java file-processor/src/main/java/com/gamma/etl/Batch.java file-processor/src/test/java/com/gamma/etl/BatchRecordsTest.java
+git add inspecto/src/main/java/com/gamma/etl/PartitionOutput.java inspecto/src/main/java/com/gamma/etl/LineageRow.java inspecto/src/main/java/com/gamma/etl/Batch.java inspecto/src/test/java/com/gamma/etl/BatchRecordsTest.java
 git commit -m "feat: add Batch, Member, PartitionOutput, LineageRow records"
 ```
 
@@ -428,14 +428,14 @@ git commit -m "feat: add Batch, Member, PartitionOutput, LineageRow records"
 ### Task 4: `BatchPlanner` — group by schema, pack by count OR bytes
 
 **Files:**
-- Create: `file-processor/src/main/java/com/gamma/etl/BatchPlanner.java`
-- Test: `file-processor/src/test/java/com/gamma/etl/BatchPlannerTest.java`
+- Create: `inspecto/src/main/java/com/gamma/etl/BatchPlanner.java`
+- Test: `inspecto/src/test/java/com/gamma/etl/BatchPlannerTest.java`
 
 `BatchPlanner` is pure: it takes files, a `SchemaResolver` (so tests can stub schema resolution), the caps, and the run timestamp; it returns `List<Batch>`.
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/etl/BatchPlannerTest.java`:
+`inspecto/src/test/java/com/gamma/etl/BatchPlannerTest.java`:
 
 ```java
 package com.gamma.etl;
@@ -521,12 +521,12 @@ class BatchPlannerTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=BatchPlannerTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=BatchPlannerTest test`
 Expected: COMPILE FAILURE — `BatchPlanner` does not exist.
 
 - [ ] **Step 3: Implement `BatchPlanner`**
 
-`file-processor/src/main/java/com/gamma/etl/BatchPlanner.java`:
+`inspecto/src/main/java/com/gamma/etl/BatchPlanner.java`:
 
 ```java
 package com.gamma.etl;
@@ -635,13 +635,13 @@ public final class BatchPlanner {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=BatchPlannerTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=BatchPlannerTest test`
 Expected: PASS, 4 tests.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/etl/BatchPlanner.java file-processor/src/test/java/com/gamma/etl/BatchPlannerTest.java
+git add inspecto/src/main/java/com/gamma/etl/BatchPlanner.java inspecto/src/test/java/com/gamma/etl/BatchPlannerTest.java
 git commit -m "feat: add BatchPlanner (group by schema, pack by count/bytes)"
 ```
 
@@ -650,14 +650,14 @@ git commit -m "feat: add BatchPlanner (group by schema, pack by count/bytes)"
 ### Task 5: `CsvIngester` — target-table overload
 
 **Files:**
-- Modify: `file-processor/src/main/java/com/gamma/etl/CsvIngester.java`
-- Test: `file-processor/src/test/java/com/gamma/etl/CsvIngesterTargetTableTest.java`
+- Modify: `inspecto/src/main/java/com/gamma/etl/CsvIngester.java`
+- Test: `inspecto/src/test/java/com/gamma/etl/CsvIngesterTargetTableTest.java`
 
 Currently `ingest(...)` hardcodes the table name `raw_input` in the DDL and the appender. Parameterize it via an overload so each batch member can ingest into its own temp table.
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/etl/CsvIngesterTargetTableTest.java`:
+`inspecto/src/test/java/com/gamma/etl/CsvIngesterTargetTableTest.java`:
 
 ```java
 package com.gamma.etl;
@@ -703,7 +703,7 @@ class CsvIngesterTargetTableTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=CsvIngesterTargetTableTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=CsvIngesterTargetTableTest test`
 Expected: COMPILE FAILURE — no 5-arg `ingest` overload.
 
 - [ ] **Step 3: Add the overload and parameterize the table name**
@@ -769,13 +769,13 @@ with:
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=CsvIngesterTargetTableTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=CsvIngesterTargetTableTest test`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/etl/CsvIngester.java file-processor/src/test/java/com/gamma/etl/CsvIngesterTargetTableTest.java
+git add inspecto/src/main/java/com/gamma/etl/CsvIngester.java inspecto/src/test/java/com/gamma/etl/CsvIngesterTargetTableTest.java
 git commit -m "feat: add target-table overload to CsvIngester"
 ```
 
@@ -784,15 +784,15 @@ git commit -m "feat: add target-table overload to CsvIngester"
 ### Task 6: `DataTransformer.materialize` + `PartitionWriter`
 
 **Files:**
-- Modify: `file-processor/src/main/java/com/gamma/etl/DataTransformer.java`
-- Create: `file-processor/src/main/java/com/gamma/etl/PartitionWriter.java`
-- Test: `file-processor/src/test/java/com/gamma/etl/PartitionWriterTest.java`
+- Modify: `inspecto/src/main/java/com/gamma/etl/DataTransformer.java`
+- Create: `inspecto/src/main/java/com/gamma/etl/PartitionWriter.java`
+- Test: `inspecto/src/test/java/com/gamma/etl/PartitionWriterTest.java`
 
 Split the COPY/rename out of `DataTransformer` into `PartitionWriter`, make `DataTransformer` produce a `transformed` table that carries `__src_id`, and have the COPY exclude `__src_id`.
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/etl/PartitionWriterTest.java`:
+`inspecto/src/test/java/com/gamma/etl/PartitionWriterTest.java`:
 
 ```java
 package com.gamma.etl;
@@ -846,12 +846,12 @@ class PartitionWriterTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=PartitionWriterTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=PartitionWriterTest test`
 Expected: COMPILE FAILURE — `PartitionWriter` does not exist.
 
 - [ ] **Step 3: Create `PartitionWriter`**
 
-`file-processor/src/main/java/com/gamma/etl/PartitionWriter.java`:
+`inspecto/src/main/java/com/gamma/etl/PartitionWriter.java`:
 
 ```java
 package com.gamma.etl;
@@ -949,7 +949,7 @@ public final class PartitionWriter {
 
 - [ ] **Step 4: Run the PartitionWriter test to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=PartitionWriterTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=PartitionWriterTest test`
 Expected: PASS.
 
 - [ ] **Step 5: Refactor `DataTransformer` to `materialize` (carries `__src_id`, no COPY)**
@@ -1061,10 +1061,10 @@ public final class DataTransformer {
 
 - [ ] **Step 6: Build the whole module to confirm nothing else references the old `transform` signature**
 
-Run: `mvn -f file-processor/pom.xml -q -DskipTests compile`
+Run: `mvn -f inspecto/pom.xml -q -DskipTests compile`
 Expected: COMPILE FAILURE in `SourceProcessor.java` (it still calls `DataTransformer.transform`). This is expected — `SourceProcessor` is rewritten in Task 11. To keep the build green until then, temporarily comment out the body of `SourceProcessor.processFile` is **not** needed because Task 11 replaces the file wholesale; instead, verify only the two new units compile in isolation by running their tests:
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=PartitionWriterTest,BatchPlannerTest,BatchRecordsTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=PartitionWriterTest,BatchPlannerTest,BatchRecordsTest test`
 
 > **Note for the implementer:** `SourceProcessor.java` will not compile from this task until Task 11 replaces it. Surefire compiles test sources against main sources, so the test command above will also fail to compile the module. To keep tasks independently runnable, do Step 7 now: stub `SourceProcessor` so the module compiles.
 
@@ -1096,13 +1096,13 @@ with a temporary shim (removed in Task 11):
 
 > This shim also requires `raw_input` to carry `__src_id`. The legacy `CsvIngester.ingest` does not add it, so the shimmed `SourceProcessor` path will throw at runtime — that is acceptable: it is exercised by no test and is deleted in Task 11. The shim exists only so `mvn compile` succeeds for Tasks 6–10.
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=PartitionWriterTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=PartitionWriterTest test`
 Expected: PASS (module compiles, PartitionWriter test green).
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/etl/DataTransformer.java file-processor/src/main/java/com/gamma/etl/PartitionWriter.java file-processor/src/main/java/com/gamma/inspector/SourceProcessor.java file-processor/src/test/java/com/gamma/etl/PartitionWriterTest.java
+git add inspecto/src/main/java/com/gamma/etl/DataTransformer.java inspecto/src/main/java/com/gamma/etl/PartitionWriter.java inspecto/src/main/java/com/gamma/inspector/SourceProcessor.java inspecto/src/test/java/com/gamma/etl/PartitionWriterTest.java
 git commit -m "refactor: split PartitionWriter from DataTransformer; carry __src_id"
 ```
 
@@ -1111,12 +1111,12 @@ git commit -m "refactor: split PartitionWriter from DataTransformer; carry __src
 ### Task 7: `LineageCollector` — the count matrix
 
 **Files:**
-- Create: `file-processor/src/main/java/com/gamma/etl/LineageCollector.java`
-- Test: `file-processor/src/test/java/com/gamma/etl/LineageCollectorTest.java`
+- Create: `inspecto/src/main/java/com/gamma/etl/LineageCollector.java`
+- Test: `inspecto/src/test/java/com/gamma/etl/LineageCollectorTest.java`
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/etl/LineageCollectorTest.java`:
+`inspecto/src/test/java/com/gamma/etl/LineageCollectorTest.java`:
 
 ```java
 package com.gamma.etl;
@@ -1170,12 +1170,12 @@ class LineageCollectorTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=LineageCollectorTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=LineageCollectorTest test`
 Expected: COMPILE FAILURE — `LineageCollector` does not exist.
 
 - [ ] **Step 3: Implement `LineageCollector`**
 
-`file-processor/src/main/java/com/gamma/etl/LineageCollector.java`:
+`inspecto/src/main/java/com/gamma/etl/LineageCollector.java`:
 
 ```java
 package com.gamma.etl;
@@ -1233,13 +1233,13 @@ public final class LineageCollector {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=LineageCollectorTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=LineageCollectorTest test`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/etl/LineageCollector.java file-processor/src/test/java/com/gamma/etl/LineageCollectorTest.java
+git add inspecto/src/main/java/com/gamma/etl/LineageCollector.java inspecto/src/test/java/com/gamma/etl/LineageCollectorTest.java
 git commit -m "feat: add LineageCollector (input->output count matrix)"
 ```
 
@@ -1248,13 +1248,13 @@ git commit -m "feat: add LineageCollector (input->output count matrix)"
 ### Task 8: `BatchManifest` + `ManifestStore` (Gson JSON)
 
 **Files:**
-- Create: `file-processor/src/main/java/com/gamma/etl/BatchManifest.java`
-- Create: `file-processor/src/main/java/com/gamma/etl/ManifestStore.java`
-- Test: `file-processor/src/test/java/com/gamma/etl/ManifestStoreTest.java`
+- Create: `inspecto/src/main/java/com/gamma/etl/BatchManifest.java`
+- Create: `inspecto/src/main/java/com/gamma/etl/ManifestStore.java`
+- Test: `inspecto/src/test/java/com/gamma/etl/ManifestStoreTest.java`
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/etl/ManifestStoreTest.java`:
+`inspecto/src/test/java/com/gamma/etl/ManifestStoreTest.java`:
 
 ```java
 package com.gamma.etl;
@@ -1302,12 +1302,12 @@ class ManifestStoreTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=ManifestStoreTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=ManifestStoreTest test`
 Expected: COMPILE FAILURE — types do not exist.
 
 - [ ] **Step 3: Create `BatchManifest`**
 
-`file-processor/src/main/java/com/gamma/etl/BatchManifest.java`:
+`inspecto/src/main/java/com/gamma/etl/BatchManifest.java`:
 
 ```java
 package com.gamma.etl;
@@ -1350,7 +1350,7 @@ public final class BatchManifest {
 
 - [ ] **Step 4: Create `ManifestStore`**
 
-`file-processor/src/main/java/com/gamma/etl/ManifestStore.java`:
+`inspecto/src/main/java/com/gamma/etl/ManifestStore.java`:
 
 ```java
 package com.gamma.etl;
@@ -1400,13 +1400,13 @@ public final class ManifestStore {
 
 - [ ] **Step 5: Run to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=ManifestStoreTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=ManifestStoreTest test`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/etl/BatchManifest.java file-processor/src/main/java/com/gamma/etl/ManifestStore.java file-processor/src/test/java/com/gamma/etl/ManifestStoreTest.java
+git add inspecto/src/main/java/com/gamma/etl/BatchManifest.java inspecto/src/main/java/com/gamma/etl/ManifestStore.java inspecto/src/test/java/com/gamma/etl/ManifestStoreTest.java
 git commit -m "feat: add BatchManifest + ManifestStore (Gson JSON)"
 ```
 
@@ -1415,14 +1415,14 @@ git commit -m "feat: add BatchManifest + ManifestStore (Gson JSON)"
 ### Task 9: `BatchAuditWriter` — three append-only CSVs
 
 **Files:**
-- Create: `file-processor/src/main/java/com/gamma/etl/BatchAuditWriter.java`
-- Test: `file-processor/src/test/java/com/gamma/etl/BatchAuditWriterTest.java`
+- Create: `inspecto/src/main/java/com/gamma/etl/BatchAuditWriter.java`
+- Test: `inspecto/src/test/java/com/gamma/etl/BatchAuditWriterTest.java`
 
 `BatchAuditWriter` owns all three audit CSVs (batch_file = the evolved status CSV, batches, lineage). It is constructed with the three paths and exposes `flush(...)` which writes one batch's rows under a per-file lock, creating headers on first write.
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/etl/BatchAuditWriterTest.java`:
+`inspecto/src/test/java/com/gamma/etl/BatchAuditWriterTest.java`:
 
 ```java
 package com.gamma.etl;
@@ -1474,12 +1474,12 @@ class BatchAuditWriterTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=BatchAuditWriterTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=BatchAuditWriterTest test`
 Expected: COMPILE FAILURE — `BatchAuditWriter` does not exist.
 
 - [ ] **Step 3: Implement `BatchAuditWriter`**
 
-`file-processor/src/main/java/com/gamma/etl/BatchAuditWriter.java`:
+`inspecto/src/main/java/com/gamma/etl/BatchAuditWriter.java`:
 
 ```java
 package com.gamma.etl;
@@ -1595,13 +1595,13 @@ public final class BatchAuditWriter {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=BatchAuditWriterTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=BatchAuditWriterTest test`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/etl/BatchAuditWriter.java file-processor/src/test/java/com/gamma/etl/BatchAuditWriterTest.java
+git add inspecto/src/main/java/com/gamma/etl/BatchAuditWriter.java inspecto/src/test/java/com/gamma/etl/BatchAuditWriterTest.java
 git commit -m "feat: add BatchAuditWriter (status/batches/lineage CSVs)"
 ```
 
@@ -1610,14 +1610,14 @@ git commit -m "feat: add BatchAuditWriter (status/batches/lineage CSVs)"
 ### Task 10: `BatchProcessor` — ingest, transform, lineage, commit
 
 **Files:**
-- Create: `file-processor/src/main/java/com/gamma/inspector/BatchProcessor.java`
-- Test: `file-processor/src/test/java/com/gamma/inspector/BatchProcessorTest.java`
+- Create: `inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java`
+- Test: `inspecto/src/test/java/com/gamma/inspector/BatchProcessorTest.java`
 
 This is the orchestration core. The test drives a real batch of two good files plus one malformed file through `process(...)` and asserts: consolidated output, lineage rows, markers created, sources backed up, the bad file quarantined, and audit CSVs written.
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/inspector/BatchProcessorTest.java`:
+`inspecto/src/test/java/com/gamma/inspector/BatchProcessorTest.java`:
 
 ```java
 package com.gamma.inspector;
@@ -1728,7 +1728,7 @@ class BatchProcessorTest {
 
 - [ ] **Step 2: Add a shared test helper for fixtures**
 
-Create `file-processor/src/test/java/com/gamma/inspector/PipelineConfigBatchTestRef.java`:
+Create `inspecto/src/test/java/com/gamma/inspector/PipelineConfigBatchTestRef.java`:
 
 ```java
 package com.gamma.inspector;
@@ -1743,16 +1743,16 @@ final class PipelineConfigBatchTestRef {
 }
 ```
 
-Make the two helpers in `PipelineConfigBatchTest` callable cross-package: change `static String miniSchema()` to `public static String miniSchema()` and `static Path writePipeline(...)` to `public static Path writePipeline(...)` in `file-processor/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java`.
+Make the two helpers in `PipelineConfigBatchTest` callable cross-package: change `static String miniSchema()` to `public static String miniSchema()` and `static Path writePipeline(...)` to `public static Path writePipeline(...)` in `inspecto/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java`.
 
 - [ ] **Step 3: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=BatchProcessorTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=BatchProcessorTest test`
 Expected: COMPILE FAILURE — `BatchProcessor` does not exist.
 
 - [ ] **Step 4: Implement `BatchProcessor`**
 
-`file-processor/src/main/java/com/gamma/inspector/BatchProcessor.java`:
+`inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java`:
 
 ```java
 package com.gamma.inspector;
@@ -2008,13 +2008,13 @@ public final class BatchProcessor {
 
 - [ ] **Step 5: Run to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=BatchProcessorTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=BatchProcessorTest test`
 Expected: PASS, 2 tests.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/inspector/BatchProcessor.java file-processor/src/test/java/com/gamma/inspector/BatchProcessorTest.java file-processor/src/test/java/com/gamma/inspector/PipelineConfigBatchTestRef.java file-processor/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java
+git add inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java inspecto/src/test/java/com/gamma/inspector/BatchProcessorTest.java inspecto/src/test/java/com/gamma/inspector/PipelineConfigBatchTestRef.java inspecto/src/test/java/com/gamma/etl/PipelineConfigBatchTest.java
 git commit -m "feat: add BatchProcessor (single-pass ingest, transform, lineage, commit)"
 ```
 
@@ -2023,14 +2023,14 @@ git commit -m "feat: add BatchProcessor (single-pass ingest, transform, lineage,
 ### Task 11: Rewrite `SourceProcessor.pollInbox` to plan and submit batches
 
 **Files:**
-- Modify: `file-processor/src/main/java/com/gamma/inspector/SourceProcessor.java`
-- Test: `file-processor/src/test/java/com/gamma/inspector/SourceProcessorPollTest.java`
+- Modify: `inspecto/src/main/java/com/gamma/inspector/SourceProcessor.java`
+- Test: `inspecto/src/test/java/com/gamma/inspector/SourceProcessorPollTest.java`
 
 Replace the per-file polling/processing with: collect candidates, drop already-marked files, plan batches, submit each batch to the thread pool. Remove `processFile`, `backupFile`, and the Task 6 shim. Expose a public `run(PipelineConfig)` for `reprocess` (Task 12).
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/inspector/SourceProcessorPollTest.java`:
+`inspecto/src/test/java/com/gamma/inspector/SourceProcessorPollTest.java`:
 
 ```java
 package com.gamma.inspector;
@@ -2084,12 +2084,12 @@ class SourceProcessorPollTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=SourceProcessorPollTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=SourceProcessorPollTest test`
 Expected: COMPILE FAILURE — `SourceProcessor.run` does not exist.
 
 - [ ] **Step 3: Replace `SourceProcessor.java`**
 
-Replace the entire file `file-processor/src/main/java/com/gamma/inspector/SourceProcessor.java` with:
+Replace the entire file `inspecto/src/main/java/com/gamma/inspector/SourceProcessor.java` with:
 
 ```java
 package com.gamma.inspector;
@@ -2186,18 +2186,18 @@ public class SourceProcessor {
 
 - [ ] **Step 4: Run the poll test**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=SourceProcessorPollTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=SourceProcessorPollTest test`
 Expected: PASS.
 
 - [ ] **Step 5: Run the full suite to confirm no regressions**
 
-Run: `mvn -f file-processor/pom.xml -q test`
+Run: `mvn -f inspecto/pom.xml -q test`
 Expected: PASS (all test classes from Tasks 1–11).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/inspector/SourceProcessor.java file-processor/src/test/java/com/gamma/inspector/SourceProcessorPollTest.java
+git add inspecto/src/main/java/com/gamma/inspector/SourceProcessor.java inspecto/src/test/java/com/gamma/inspector/SourceProcessorPollTest.java
 git commit -m "feat: batch-based polling in SourceProcessor; expose run(cfg)"
 ```
 
@@ -2206,13 +2206,13 @@ git commit -m "feat: batch-based polling in SourceProcessor; expose run(cfg)"
 ### Task 12: `reprocess` command — delete outputs/markers, restore, re-run
 
 **Files:**
-- Create: `file-processor/src/main/java/com/gamma/inspector/ReprocessCommand.java`
-- Modify: `file-processor/src/main/java/com/gamma/util/MainApp.java`
-- Test: `file-processor/src/test/java/com/gamma/inspector/ReprocessCommandTest.java`
+- Create: `inspecto/src/main/java/com/gamma/inspector/ReprocessCommand.java`
+- Modify: `inspecto/src/main/java/com/gamma/util/MainApp.java`
+- Test: `inspecto/src/test/java/com/gamma/inspector/ReprocessCommandTest.java`
 
 - [ ] **Step 1: Write the failing test**
 
-`file-processor/src/test/java/com/gamma/inspector/ReprocessCommandTest.java`:
+`inspecto/src/test/java/com/gamma/inspector/ReprocessCommandTest.java`:
 
 ```java
 package com.gamma.inspector;
@@ -2272,12 +2272,12 @@ class ReprocessCommandTest {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=ReprocessCommandTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=ReprocessCommandTest test`
 Expected: COMPILE FAILURE — `ReprocessCommand` does not exist.
 
 - [ ] **Step 3: Implement `ReprocessCommand`**
 
-`file-processor/src/main/java/com/gamma/inspector/ReprocessCommand.java`:
+`inspecto/src/main/java/com/gamma/inspector/ReprocessCommand.java`:
 
 ```java
 package com.gamma.inspector;
@@ -2367,13 +2367,13 @@ And add a usage line in `printUsage()`, after the `prepare-inbox` block:
 
 - [ ] **Step 5: Run to verify it passes**
 
-Run: `mvn -f file-processor/pom.xml -q -Dtest=ReprocessCommandTest test`
+Run: `mvn -f inspecto/pom.xml -q -Dtest=ReprocessCommandTest test`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/inspector/ReprocessCommand.java file-processor/src/main/java/com/gamma/util/MainApp.java file-processor/src/test/java/com/gamma/inspector/ReprocessCommandTest.java
+git add inspecto/src/main/java/com/gamma/inspector/ReprocessCommand.java inspecto/src/main/java/com/gamma/util/MainApp.java inspecto/src/test/java/com/gamma/inspector/ReprocessCommandTest.java
 git commit -m "feat: add reprocess command (delete outputs/markers, restore, re-run)"
 ```
 
@@ -2382,31 +2382,31 @@ git commit -m "feat: add reprocess command (delete outputs/markers, restore, re-
 ### Task 13: Cleanup — remove dead code, update config + docs
 
 **Files:**
-- Delete: `file-processor/src/main/java/com/gamma/etl/StatusWriter.java` (superseded by `BatchAuditWriter`)
-- Delete: `file-processor/src/main/java/com/gamma/etl/TransformResult.java` (no longer referenced after Task 11)
-- Modify: `file-processor/config/adjustment/adjustment_pipeline.toon` (document the optional `batch` section)
-- Modify: `file-processor/config/voucher/voucher_unknown_pipeline.toon` (document the optional `batch` section)
-- Modify: `file-processor/README.md`
+- Delete: `inspecto/src/main/java/com/gamma/etl/StatusWriter.java` (superseded by `BatchAuditWriter`)
+- Delete: `inspecto/src/main/java/com/gamma/etl/TransformResult.java` (no longer referenced after Task 11)
+- Modify: `inspecto/config/adjustment/adjustment_pipeline.toon` (document the optional `batch` section)
+- Modify: `inspecto/config/voucher/voucher_unknown_pipeline.toon` (document the optional `batch` section)
+- Modify: `inspecto/README.md`
 
 - [ ] **Step 1: Confirm `StatusWriter` and `TransformResult` are unreferenced**
 
-Run: `grep -rn "StatusWriter\|TransformResult" file-processor/src/main`
+Run: `grep -rn "StatusWriter\|TransformResult" inspecto/src/main`
 Expected: no matches (both were only used by the old `SourceProcessor.processFile`, removed in Task 11). If `TransformResult` still appears, it is in the Task 6 shim — confirm Task 11 deleted that shim. If any match remains, stop and resolve the reference before deleting.
 
 - [ ] **Step 2: Delete the dead files**
 
 ```bash
-git rm file-processor/src/main/java/com/gamma/etl/StatusWriter.java file-processor/src/main/java/com/gamma/etl/TransformResult.java
+git rm inspecto/src/main/java/com/gamma/etl/StatusWriter.java inspecto/src/main/java/com/gamma/etl/TransformResult.java
 ```
 
 - [ ] **Step 3: Build + full test to confirm nothing breaks**
 
-Run: `mvn -f file-processor/pom.xml -q clean test`
+Run: `mvn -f inspecto/pom.xml -q clean test`
 Expected: PASS, all tests.
 
 - [ ] **Step 4: Document the optional `batch` section in the two production pipeline toons**
 
-Add the following block under `processing:` in `file-processor/config/adjustment/adjustment_pipeline.toon` and `file-processor/config/voucher/voucher_unknown_pipeline.toon` (indent two spaces under `processing:`, place it adjacent to `file_pattern`):
+Add the following block under `processing:` in `inspecto/config/adjustment/adjustment_pipeline.toon` and `inspecto/config/voucher/voucher_unknown_pipeline.toon` (indent two spaces under `processing:`, place it adjacent to `file_pattern`):
 
 ```
   batch:
@@ -2423,7 +2423,7 @@ Add a "Batch processing" subsection to `README.md` documenting: the `processing.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add file-processor/src/main/java/com/gamma/etl/ file-processor/config/adjustment/adjustment_pipeline.toon file-processor/config/voucher/voucher_unknown_pipeline.toon file-processor/README.md
+git add inspecto/src/main/java/com/gamma/etl/ inspecto/config/adjustment/adjustment_pipeline.toon inspecto/config/voucher/voucher_unknown_pipeline.toon inspecto/README.md
 git commit -m "chore: remove StatusWriter/TransformResult; document batch config + reprocess"
 ```
 
@@ -2435,13 +2435,13 @@ git commit -m "chore: remove StatusWriter/TransformResult; document batch config
 
 - [ ] **Step 1: Full clean build + test**
 
-Run: `mvn -f file-processor/pom.xml -q clean test`
+Run: `mvn -f inspecto/pom.xml -q clean test`
 Expected: `BUILD SUCCESS`, all test classes green.
 
 - [ ] **Step 2: Build the fat JAR**
 
-Run: `mvn -f file-processor/pom.xml -q clean package`
-Expected: `BUILD SUCCESS`, `file-processor/target/file-processor-1.0.jar` produced.
+Run: `mvn -f inspecto/pom.xml -q clean package`
+Expected: `BUILD SUCCESS`, `inspecto/target/file-processor-1.0.jar` produced.
 
 - [ ] **Step 3: Confirm the lineage reconciles (manual sanity using the integration test fixtures)**
 

@@ -1,6 +1,6 @@
 # Operations: Utilities, Batching, Output & Deployment
 
-> Part of the [Inspecto](../file-processor/README.md) documentation. See the [docs index](../file-processor/README.md#documentation).
+> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
 
 ## Pre-ETL Utility Suite
 
@@ -11,7 +11,7 @@ All pre-ETL utilities are invoked through the `ura` script (shipped alongside th
 bash ura.sh [--dry-run] <command> <pipeline.toon>   # Linux / Mac
 ura.bat     [--dry-run] <command> <pipeline.toon>   # Windows
 
-# Local development (from file-processor/ directory)
+# Local development (from inspecto/ directory)
 ./ura.sh    [--dry-run] <command> <pipeline.toon>   # Linux / Mac
 ura.bat     [--dry-run] <command> <pipeline.toon>   # Windows (uses target/ JAR)
 ```
@@ -630,16 +630,16 @@ The fat JAR bundles all dependencies — no JVM classpath setup needed on the ta
 ### Build the deployment bundle
 
 ```powershell
-# From the sandbox root or from inside file-processor/:
-powershell -ExecutionPolicy Bypass -File file-processor\package.ps1
+# From the sandbox root or from inside inspecto/:
+powershell -ExecutionPolicy Bypass -File inspecto\package.ps1
 
 # Skip the Maven build if the JAR is already current:
-powershell -ExecutionPolicy Bypass -File file-processor\package.ps1 -NoBuild
+powershell -ExecutionPolicy Bypass -File inspecto\package.ps1 -NoBuild
 ```
 
 This produces **`file-processor-deploy.zip`** in the sandbox root. The script:
 1. Runs `mvn clean package` to build a fresh fat JAR
-2. Builds the optional operator UI (`inspector-ui/` via npm) and bundles its `dist/` as `ui/` — skip with `-NoUi`, or omitted automatically when `inspector-ui/` is absent
+2. Builds the optional operator UI (`inspecto-ui/` via npm) and bundles its `dist/` as `ui/` — skip with `-NoUi`, or omitted automatically when `inspecto-ui/` is absent
 3. Assembles a self-contained bundle with the JAR, config files, and run/serve scripts
 4. Rewrites `schema_file` paths in the bundled configs so they are relative to the bundle root
 5. Creates all placeholder directories (inbox, database, backup, temp, errors, quarantine)
@@ -663,7 +663,7 @@ file-processor-deploy/
   errors/<data_source>/               ← per-file error CSVs
   quarantine/<data_source>/               ← quarantined files
   markers/<data_source>/               ← .processed sentinel files (auto-pruned; mirrors inbox tree)
-  ui/                         ← built Inspector SPA (present only when inspector-ui/ was built); served via -Dui.dir=./ui
+  ui/                         ← built Inspector SPA (present only when inspecto-ui/ was built); served via -Dui.dir=./ui
   run.sh                      ← Linux/Mac ETL launcher  (java -jar ... <adapter>_pipeline.toon)
   run.bat                     ← Windows ETL launcher
   serve.sh                    ← Linux/Mac control-plane + UI launcher (ControlApi; reads CONTROL_TOKEN/ASSIST_TOKEN/PORT/CORS_ORIGIN)
@@ -733,7 +733,7 @@ Note: the 20200117 <data_source> file is ~4.3 GB uncompressed (~2.97 M rows) due
 
 2. **Run `create-schema`** against a representative sample file:
    ```bash
-   # From the file-processor/ directory
+   # From the inspecto/ directory
    ./ura.sh create-schema mySource path/to/sample.csv config/mysource/mysource_gen.toon
    # Windows:
    ura.bat create-schema mySource path\to\sample.csv config\mysource\mysource_gen.toon

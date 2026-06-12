@@ -4,7 +4,7 @@ Measured with JaCoCo 0.8.13 on **v3.9.0** (2026-06-01). Reproduce with:
 
 ```
 mvn -Pcoverage test
-# reports: file-processor/target/site/jacoco/index.html
+# reports: inspecto/target/site/jacoco/index.html
 #          inspecto-agent/target/site/jacoco/index.html   (and jacoco.csv for parsing)
 ```
 
@@ -69,7 +69,7 @@ This is a **conscious tradeoff, not an oversight**:
 - They are a **self-contained cluster**: they call each other and the in-package helpers (`TarUtil`,
   `ToonHelper`, `VirtualThreadRunner`, `DuckDbUtil`), but **nothing in the v3 engine** (`etl`,
   `inspector`, `service`, `catalog`, `enrich`, `job`, `sql`) references any of them. The only
-  entrypoint is `MainApp`, which is wired into `file-processor/package.ps1`, `ura.bat`, `ura.sh`,
+  entrypoint is `MainApp`, which is wired into `inspecto/package.ps1`, `ura.bat`, `ura.sh`,
   and the operations docs — so they are *shipped and supported*, just decoupled.
 - They are lower-risk (operator-supervised, idempotent file moves) and high-churn.
 

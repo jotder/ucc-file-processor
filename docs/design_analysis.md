@@ -17,9 +17,9 @@ The UCC File Processor is a remarkably clean, high-performance, single-instance 
 ### Current 3.x State (Milestone M0 / Foundation)
 The codebase has successfully completed the prerequisite foundation for `3.x`:
 1. **Module Separation:** Structured into a multi-module Maven reactor (`file-processor-parent` POM) with `file-processor` (the zero-new-dep core ETL engine & control plane) and `file-processor-agent` (an optional in-process agent container).
-2. **Agent SPI:** Defined the `AssistAgent` SPI ([AssistAgent.java](file:///c:/sandbox/ucc-file-processor/file-processor/src/main/java/com/gamma/assist/spi/AssistAgent.java)) in core, with an auto-discovery and lifecycle mechanism in `SourceService` using `ServiceLoader`.
-3. **Noop implementation:** Added [NoopAssistAgent.java](file:///c:/sandbox/ucc-file-processor/inspecto-agent/src/main/java/com/gamma/agent/NoopAssistAgent.java) to prove wiring and classpath isolation.
-4. **Security Hardening:** Secured `ControlApi` ([ControlApi.java](file:///c:/sandbox/ucc-file-processor/file-processor/src/main/java/com/gamma/control/ControlApi.java)) with hierarchical scoped API tokens (`CONTROL`, `assist.write`, `assist.read`), constant-time token comparison, and a strict **fail-closed** mode (no open-by-default behavior if tokens are omitted).
+2. **Agent SPI:** Defined the `AssistAgent` SPI ([AssistAgent.java](file:///c:/sandbox/ucc-inspecto/inspecto/src/main/java/com/gamma/assist/spi/AssistAgent.java)) in core, with an auto-discovery and lifecycle mechanism in `SourceService` using `ServiceLoader`.
+3. **Noop implementation:** Added [NoopAssistAgent.java](file:///c:/sandbox/ucc-inspecto/inspecto-agent/src/main/java/com/gamma/agent/NoopAssistAgent.java) to prove wiring and classpath isolation.
+4. **Security Hardening:** Secured `ControlApi` ([ControlApi.java](file:///c:/sandbox/ucc-inspecto/inspecto/src/main/java/com/gamma/control/ControlApi.java)) with hierarchical scoped API tokens (`CONTROL`, `assist.write`, `assist.read`), constant-time token comparison, and a strict **fail-closed** mode (no open-by-default behavior if tokens are omitted).
 
 > **✅ Shipped since this analysis:** **M1** Metadata Graph (data keystone, v3.1.0), **M2** Smart Config
 > (config keystone, v3.2.0 — see §4.A), and **M3** Assist platform + `explain-entity` (v3.3.0). M3 deltas
@@ -103,7 +103,7 @@ While the `2.x` line is solid, there are several structural limitations that mus
 
 ## 3. Review of the Proposed v3.x Roadmap
 
-The proposed [v3-plan.md](file:///c:/sandbox/ucc-file-processor/docs/v3-plan.md) and [v3-architecture.md](file:///c:/sandbox/ucc-file-processor/docs/v3-architecture.md) present a highly strategic approach to resolving these gaps.
+The proposed [v3-plan.md](file:///c:/sandbox/ucc-inspecto/docs/v3-plan.md) and [v3-architecture.md](file:///c:/sandbox/ucc-inspecto/docs/v3-architecture.md) present a highly strategic approach to resolving these gaps.
 
 ```mermaid
 graph TD

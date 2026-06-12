@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * <p>Gated on {@code -Dbench.run=true} like {@link PipelineBenchmark}. Run:
  * <pre>
- *   mvn -pl file-processor -Dtest=PluginIngestBenchmark -DfailIfNoTests=false \
+ *   mvn -pl inspecto -Dtest=PluginIngestBenchmark -DfailIfNoTests=false \
  *       -Dbench.run=true -Dbench.rows=2000000 -Dbench.days=30 -Dbench.format=PARQUET test
  * </pre>
  */

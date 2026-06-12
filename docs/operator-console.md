@@ -6,7 +6,7 @@ trigger and reprocess batches, schedule jobs, watch enrichment, browse the data 
 validate configs, and review failure diagnoses without touching `curl`.
 
 This guide is for **operators** (the people using the console). For building/serving the SPA and its
-project layout, see [`inspector-ui/README.md`](../inspector-ui/README.md); for the underlying HTTP
+project layout, see [`inspecto-ui/README.md`](../inspecto-ui/README.md); for the underlying HTTP
 routes, see [Operations → Control API](operations.md#control-api--rest-control-plane-controlapi).
 
 ---
@@ -54,7 +54,7 @@ the SPA on `:4200`:
 ```bash
 java -Dcontrol.token=dev -Dassist.read.token=dev -Dcontrol.cors=http://localhost:4204 \
      -cp file-processor.jar com.gamma.control.ControlApi config/
-cd inspector-ui && npm install && npm start    # ng serve on :4204, /api proxied to :8080
+cd inspecto-ui && npm install && npm start    # ng serve on :4204, /api proxied to :8080
 ```
 
 Open `http://localhost:4204/`. The dev proxy forwards `/api/*` → `:8080`, so browser calls stay

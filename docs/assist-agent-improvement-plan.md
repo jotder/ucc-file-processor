@@ -4,7 +4,7 @@
 **Status 2026-06-12**: Workstream R (tiers 1+2) and Workstream A **implemented and
 smoke-tested** (settings persisted as `assist-settings.properties` — a pragmatic deviation
 from the `assist.toon` spec idea; endpoints `GET/POST /assist/settings` +
-`POST /assist/settings/test` live; hosted module `inspecto-agent` built;
+`POST /assist/settings/test` live; hosted module `inspecto-agent-hosted` built;
 settings screen at `/settings/models`). Workstream B: **B1 done** (SkillInputs extraction,
 AssistTunables knobs incl. reactor queue + confidence threshold, TimeoutModelProvider hard
 deadline, doc-RAG failure guard) + **B3 partial** (tunables, timeout, diagnoser-fallback
@@ -16,9 +16,12 @@ construction (`Window.of` is lenient — null ⇒ unbounded, inverted ⇒ empty)
 diagnose-and-alert pipeline grounding was already sound (validator checks against
 catalog-resolved names at request time) — both review "gaps" overstated.
 OperationalTables now warns once per table on ledger/schema drift instead of silent
-NULLs. Intent-ID registry skipped deliberately (churn > value). **Workstream B complete**;
-the only remaining arc is the deferred alert execution engine (B5).
-**Modules touched**: `file-processor-agent`, new `inspecto-agent`, `file-processor` (ControlApi seam only), `inspector-ui`.
+NULLs. Intent-ID registry skipped deliberately (churn > value). **Workstream B complete**,
+**B5 shipped too** (the alert execution engine landed in the `18d1696`→`30a8d62` alerts arc:
+`AlertRule`/`AlertService` evaluate armed rules with `GET /alerts` + rules summary live).
+Nothing in this plan remains open.
+**Modules touched**: `inspecto-agent` (dir renamed from `file-processor-agent`, artifactId
+unchanged), new `inspecto-agent-hosted`, `file-processor` (ControlApi seam only), `inspecto-ui`.
 
 ---
 
@@ -30,7 +33,7 @@ Product rename ahead of the feature work so all new code/config lands under the 
 
 1. **Display-name tier (low risk, do first)**
    - Inspector UI: app title, header/sidebar branding, page `<title>`, manifest,
-     login/about strings in `inspector-ui/` (template logo slot is currently empty —
+     login/about strings in `inspecto-ui/` (template logo slot is currently empty —
      drop an Inspecto logo into `public/images/logo/`, which also fixes the known
      broken-logo note for the dense rail).
    - Docs: `README`, `docs/**`, packaging script banners (`package.ps1`), CLI `--help` /
@@ -40,7 +43,7 @@ Product rename ahead of the feature work so all new code/config lands under the 
    - Maven: rename artifactIds (`file-processor` → `inspecto-core` or keep module dirs
      and change `<name>`/`<description>` only — **decision below**), fat-JAR final name,
      version stays `4.1.0-SNAPSHOT`.
-   - npm package name in `inspector-ui/package.json`.
+   - npm package name in `inspecto-ui/package.json`.
 3. **Identifier tier (high churn — recommend deferring)**
    - Java package `com.gamma.*` namespaces, `ucc`-prefixed env vars
      (`UCC_ASSIST_PROVIDER` → `INSPECTO_*`), class names like `UccAssistAgent`,
@@ -57,7 +60,7 @@ written in Workstreams A/B uses Inspecto-neutral naming (env vars get `INSPECTO_
 ### R3. Open decisions
 
 - Confirm spelling: **Inspecto** (as given) vs *Inspekto*/*Inspector*.
-- Naming collision: the UI module is already `inspector-ui` and the console is called
+- Naming collision: the UI module is already `inspecto-ui` and the console is called
   "Inspector operator console" — under the rebrand the *product* is Inspecto and the
   console screen keeps "Inspector" or becomes "Inspecto Console"? (Plan assumes
   **Inspecto Console**.)
@@ -126,7 +129,7 @@ keys (masked `set/unset` flag only). No plaintext keys on disk, in logs, or in a
   - `OLLAMA` → existing `agent-provider-ollama`.
   - Everything else → resolved via **ServiceLoader SPI** `HostedProviderPlugin`
     (provider enum → langchain4j builder), implemented in the new module.
-- New Maven module **`inspecto-agent`** (keeps the air-gap guarantee:
+- New Maven module **`inspecto-agent-hosted`** (keeps the air-gap guarantee:
   default packaging excludes it; hosted options only light up when the jar is present):
   - deps: `langchain4j-anthropic`, `langchain4j-open-ai`, `langchain4j-google-ai-gemini`.
   - One adapter class `LangChain4jModelProvider implements ModelProvider` wrapping a
@@ -156,7 +159,7 @@ Follows the existing config-save + live-registration pattern from `1a1c6b5`.
 
 ### A5. Inspector UI settings screen
 
-New route `Assist → Model Settings` in `inspector-ui` (gamma shell, Material/Tailwind):
+New route `Assist → Model Settings` in `inspecto-ui` (gamma shell, Material/Tailwind):
 1. **Provider** dropdown, grouped *Hosted* (Claude, Gemini, ChatGPT) / *Local*
    (Ollama, llama.cpp); hosted entries disabled with tooltip when hosted jar absent.
 2. **Dynamic credential field**: masked *API Key* (hosted, with show/hide toggle,
@@ -231,11 +234,11 @@ New route `Assist → Model Settings` in `inspector-ui` (gamma shell, Material/T
 
 0. **R** rebrand (tier 1 + tier 2 names) — first, so A/B code lands under the new name.
 1. **A1–A4** backend: settings model, factory, hosted module, endpoints (+ tests).
-2. **A5** inspector-ui settings screen (+ Vitest).
+2. **A5** inspecto-ui settings screen (+ Vitest).
 3. **A6** verify hosted-first E2E (Claude) — this is the user's primary test path.
 4. **B1** hardening pass → **B3** tests → **B2** observability → **B4** small fixes,
    in that order, as session time allows.
 
-**Standing guardrails**: `file-processor/pom.xml` never staged; no commit/push without
+**Standing guardrails**: `inspecto/pom.xml` never staged; no commit/push without
 explicit ask; core module stays lean (all new deps confined to agent / agent-hosted
 modules); never stage `run-adjustment.bat`.

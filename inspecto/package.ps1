@@ -1,7 +1,7 @@
 # package.ps1 — Build and bundle file-processor for remote server deployment.
 #
-# Usage (run from inside file-processor/ or from the sandbox root):
-#   powershell -ExecutionPolicy Bypass -File file-processor\package.ps1 [-NoBuild]
+# Usage (run from inside inspecto/ or from the sandbox root):
+#   powershell -ExecutionPolicy Bypass -File inspecto\package.ps1 [-NoBuild]
 #
 # Output:
 #   file-processor-deploy.zip  (in the sandbox root, alongside inbox/ and database/)
@@ -14,16 +14,16 @@
 #
 param(
     [switch]$NoBuild,  # skip mvn build; use existing JAR in target/
-    [switch]$NoUi      # skip the Angular UI build/bundle (inspector-ui/ is optional)
+    [switch]$NoUi      # skip the Angular UI build/bundle (inspecto-ui/ is optional)
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# ── locate repo root (works whether called from file-processor/ or sandbox root) ──
+# ── locate repo root (works whether called from inspecto/ or sandbox root) ──
 $scriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
-$adjParserDir = if ((Split-Path -Leaf $scriptDir) -eq 'file-processor') { $scriptDir }
-               else { Join-Path $scriptDir 'file-processor' }
+$adjParserDir = if ((Split-Path -Leaf $scriptDir) -eq 'inspecto') { $scriptDir }
+               else { Join-Path $scriptDir 'inspecto' }
 $sandboxRoot  = Split-Path -Parent $adjParserDir
 $targetDir    = Join-Path $adjParserDir 'target'
 $outZip       = Join-Path $sandboxRoot  'file-processor-deploy.zip'
@@ -39,25 +39,25 @@ if (-not $NoBuild) {
     Write-Host "Build complete." -ForegroundColor Green
 }
 
-# ── step 1b: build the operator UI (optional; guarded so a checkout without inspector-ui/ still bundles) ──
-# The Angular SPA (Inspecto console) lives in the monorepo's top-level inspector-ui/ (sibling of file-processor/).
+# ── step 1b: build the operator UI (optional; guarded so a checkout without inspecto-ui/ still bundles) ──
+# The Angular SPA (Inspecto console) lives in the monorepo's top-level inspecto-ui/ (sibling of inspecto/).
 # Its toolchain (Node/pnpm) is intentionally NOT part of the Maven reactor — invoked here only for the bundle.
-$uiDir    = Join-Path $sandboxRoot 'inspector-ui'
+$uiDir    = Join-Path $sandboxRoot 'inspecto-ui'
 $uiDistRoot = Join-Path $uiDir 'dist'
 $uiBuilt  = $false
 if (-not $NoUi -and (Test-Path (Join-Path $uiDir 'package.json'))) {
-    Write-Host "Building operator UI (inspector-ui/)..." -ForegroundColor Cyan
+    Write-Host "Building operator UI (inspecto-ui/)..." -ForegroundColor Cyan
     Push-Location $uiDir
     try {
         & npm ci
-        if ($LASTEXITCODE -ne 0) { throw "npm ci failed in inspector-ui/" }
+        if ($LASTEXITCODE -ne 0) { throw "npm ci failed in inspecto-ui/" }
         & npm run build
-        if ($LASTEXITCODE -ne 0) { throw "ng build failed in inspector-ui/" }
+        if ($LASTEXITCODE -ne 0) { throw "ng build failed in inspecto-ui/" }
         $uiBuilt = $true
         Write-Host "UI build complete." -ForegroundColor Green
     } finally { Pop-Location }
 } elseif (-not (Test-Path (Join-Path $uiDir 'package.json'))) {
-    Write-Host "  (no inspector-ui/ project found — bundling API only; UI hosting will be inactive)" -ForegroundColor Yellow
+    Write-Host "  (no inspecto-ui/ project found — bundling API only; UI hosting will be inactive)" -ForegroundColor Yellow
 }
 
 # Discover the shaded JAR by pattern so we don't pin to a specific version number.
@@ -111,11 +111,11 @@ if ($uiBuilt -and (Test-Path $uiDistRoot)) {
 }
 
 # ── step 4: copy configs — rewrite schema_file paths for bundle-root CWD ──────
-# Local configs use  "file-processor/config/<adapter>/..."  (relative to sandbox root).
+# Local configs use  "inspecto/config/<adapter>/..."  (relative to sandbox root).
 # Deployed configs use  "config/<adapter>/..."          (relative to bundle root).
 function Copy-Config([string]$src, [string]$dst) {
     $content = Get-Content $src -Raw
-    $content = $content -replace 'file-processor/config/', 'config/'
+    $content = $content -replace 'inspecto/config/', 'config/'
     Set-Content -Path $dst -Value $content -NoNewline
 }
 # adjustment_schema.toon / adj_gen.toon are generated per-source (`ura create-schema`) and may be
@@ -286,7 +286,7 @@ java %OPTS% -cp file-processor.jar com.gamma.control.ControlApi %ARGS%
 )
 
 # ── step 7: copy README + docs tree ─────────────────────────────────────────────
-# In the repo the README lives in file-processor/ and links to ../docs/. In the
+# In the repo the README lives in inspecto/ and links to ../docs/. In the
 # bundle the README sits at the root, so rewrite ../docs/ → docs/ and ship the
 # docs tree alongside it so the links resolve.
 $readme = Get-Content "$adjParserDir\README.md" -Raw

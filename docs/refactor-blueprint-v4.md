@@ -40,7 +40,7 @@
 > #11 (catalog records) and #12 (job records) were **dropped** — on inspection those types sit on
 > `@PublicApi`/SPI surfaces (`Description` is in the `DescriptionProvider` SPI signature,
 > `JobRun` is returned by `JobService`, `IngestOutcome`/`MemberAudit` are in the strategy SPI),
-> so nesting them violates the API-stability invariant below. Phases 2–3 not started. Grounded in a code audit of `file-processor/src/main/java`
+> so nesting them violates the API-stability invariant below. Phases 2–3 not started. Grounded in a code audit of `inspecto/src/main/java`
 > on branch `4.x` (~128 classes). Constraints honored throughout: **core stays zero-new-dependency**
 > (no Spring, no DI framework — JDK functional interfaces only), `@PublicApi` surfaces and on-disk
 > audit/CSV formats are **byte-compatible**, and the v3.9/v3.11 seams (`OutputFormat`,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # URA File Management Suite — development CLI runner
 #
-# Usage (from the file-processor/ directory after 'mvn clean package'):
+# Usage (from the inspecto/ directory after 'mvn clean package'):
 #   ./ura.sh [--dry-run] <command> <pipeline.toon> [args...]
 #
 # Examples:

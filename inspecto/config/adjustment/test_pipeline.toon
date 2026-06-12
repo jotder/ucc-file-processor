@@ -17,7 +17,7 @@ processing:
   duplicate_check:
     enabled: true
     marker_extension: .processed
-  schema_file: "file-processor/config/adjustment/adjustment_schema.toon"
+  schema_file: "inspecto/config/adjustment/adjustment_schema.toon"
   csv_settings:
     delimiter: ","
     skip_header_lines: 0

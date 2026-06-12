@@ -40,4 +40,4 @@ E2E_BASE_URL=http://localhost:8080 E2E_TOKEN=dev npm run test:ci
 ```
 
 In production the SPA is served same-origin by `ControlApi` (`-Dui.dir`); the deploy bundle is
-assembled by `file-processor/package.ps1`. CI: `.github/workflows/ui.yml`.
+assembled by `inspecto/package.ps1`. CI: `.github/workflows/ui.yml`.

@@ -77,9 +77,9 @@ A two-module Maven reactor (parent POM at the repo root) plus a standalone web U
 
 | Module | Role |
 |---|---|
-| `file-processor/` | The lean, deployable ETL engine + control plane (this README). The fat-JAR; **stays zero-new-dependency**. |
+| `inspecto/` | The lean, deployable ETL engine + control plane (this README). The fat-JAR; **stays zero-new-dependency**. |
 | `inspecto-agent/` | **Optional** embedded assist agent. All AI/LLM dependencies (LangChain4j, Ollama, hosted SDKs) live here only. Loaded in-process by `SourceService` via `ServiceLoader` when present. |
-| `inspector-ui/` | **Optional** operator web console — *Inspector* (Angular + Material/Tailwind SPA: ag-Grid, Chart.js, AntV G6). Its Node/npm toolchain is **not** part of the Maven reactor; `package.ps1` builds it and bundles `dist/` next to the JAR, served by `ControlApi` from `-Dui.dir`. See the [Operator Console guide](../docs/operator-console.md) and [`inspector-ui/README.md`](../inspector-ui/README.md). |
+| `inspecto-ui/` | **Optional** operator web console — *Inspector* (Angular + Material/Tailwind SPA: ag-Grid, Chart.js, AntV G6). Its Node/npm toolchain is **not** part of the Maven reactor; `package.ps1` builds it and bundles `dist/` next to the JAR, served by `ControlApi` from `-Dui.dir`. See the [Operator Console guide](../docs/operator-console.md) and [`inspecto-ui/README.md`](../inspecto-ui/README.md). |
 
 ```powershell
 cd file-processor && mvn clean package   # builds just the lean core (parent resolved by relativePath)
@@ -165,7 +165,7 @@ from the repository root instead.
 
 ## 2. Onboard a new source
 
-A source is described by **three config files** under `file-processor/config/<source>/`. Only the
+A source is described by **three config files** under `inspecto/config/<source>/`. Only the
 first is hand-authored; the other two are generated and then tuned.
 
 | File | Authored | Purpose |
@@ -177,7 +177,7 @@ first is hand-authored; the other two are generated and then tuned.
 Generate the schema + pipeline from a sample file:
 
 ```powershell
-# Windows (from file-processor/)
+# Windows (from inspecto/)
 ura.bat create-schema <source> path\to\sample.csv config\<source>\<source>_gen.toon
 
 # Linux / Mac
@@ -206,7 +206,7 @@ bash run-adjustment.sh   # Linux / Mac
 Or run any pipeline config directly (the scripts just wrap this):
 
 ```powershell
-java -jar file-processor/target/file-processor-<version>.jar config/<source>/<source>_pipeline.toon
+java -jar inspecto/target/file-processor-<version>.jar config/<source>/<source>_pipeline.toon
 ```
 
 > The deploy bundle produced by `package.ps1` ships a generic `run.sh <adapter>` /
@@ -320,7 +320,7 @@ unset, behaviour is byte-for-byte identical to a headless control plane.
 
 **Inspector** is an optional web console (Angular + Material/Tailwind, with ag-Grid, Chart.js and
 AntV G6) that drives every Control API route
-and all 7 assist skills from a browser — no `curl` required. It lives in `inspector-ui/` and is
+and all 7 assist skills from a browser — no `curl` required. It lives in `inspecto-ui/` and is
 served same-origin by `ControlApi`, so one process hosts both the API and the UI.
 
 ```bash
@@ -331,7 +331,7 @@ set CONTROL_TOKEN=secret && serve.bat         # Windows
 # Dev: run the SPA on :4204 with a live backend (CORS + proxy)
 java -Dcontrol.token=dev -Dassist.read.token=dev -Dcontrol.cors=http://localhost:4204 \
      -cp file-processor.jar com.gamma.control.ControlApi config/
-cd inspector-ui && npm install && npm start  # ng serve, /api proxied to :8080
+cd inspecto-ui && npm install && npm start  # ng serve, /api proxied to :8080
 ```
 
 There is **no login endpoint** — on the *Connect* screen the operator pastes their scoped bearer
@@ -341,7 +341,7 @@ lineage / quarantine / inbox-pending status), scheduling & enrichment, the catal
 spec-driven config authoring, failure diagnoses, and a reusable AI-assist console (which degrades
 gracefully when the agent module is absent). Full screen-by-screen walkthrough:
 **[Operator Console (Inspector) guide](../docs/operator-console.md)**. Build/dev details:
-[`inspector-ui/README.md`](../inspector-ui/README.md).
+[`inspecto-ui/README.md`](../inspecto-ui/README.md).
 
 ## 10. Explore the Metadata Catalog
 

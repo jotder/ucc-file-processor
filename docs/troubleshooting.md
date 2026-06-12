@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> Part of the [Inspecto](../file-processor/README.md) documentation. See the [docs index](../file-processor/README.md#documentation).
+> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
 
 ## Troubleshooting
 

@@ -1,6 +1,6 @@
 # Architecture & Design
 
-> Part of the [Inspecto](../file-processor/README.md) documentation. See the [docs index](../file-processor/README.md#documentation).
+> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
 
 ## Design Philosophy & Scope
 
@@ -228,7 +228,7 @@ These keep the data path lean while making formats, ingest paths, transforms, an
 
 ```
 sandbox-root/                ← working directory for local runs
-  file-processor/
+  inspecto/
     config/
       <data_source>/
         adj_gen.toon               ← generation profile (hand-authored)
