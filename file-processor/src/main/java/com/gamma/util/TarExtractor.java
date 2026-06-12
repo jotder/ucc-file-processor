@@ -39,20 +39,28 @@ public class TarExtractor {
     private final Set<String> seenStems = ConcurrentHashMap.newKeySet();
     private final AtomicInteger foundCount = new AtomicInteger(0);
 
+    /** Report + event log land in the current working directory (the historical CLI behaviour). */
     public TarExtractor(String base, String temp, boolean dryRun) throws IOException {
+        this(base, temp, ".", dryRun);
+    }
+
+    public TarExtractor(String base, String temp, String reportDir, boolean dryRun) throws IOException {
         this.baseDir = Paths.get(base).toAbsolutePath();
         this.tempDir = Paths.get(temp).toAbsolutePath();
         this.dryRun  = dryRun;
 
         String suffix = dryRun ? ".dryrun" : "";
-        this.reportPath = Paths.get("extract_report.csv" + suffix);
-        this.logPath    = Paths.get("extract.log" + suffix);
+        this.reportPath = Paths.get(reportDir, "extract_report.csv" + suffix);
+        this.logPath    = Paths.get(reportDir, "extract.log" + suffix);
 
         if (!dryRun) Files.createDirectories(tempDir);
-        this.eventLogger = new PrintWriter(new BufferedWriter(new FileWriter(logPath.toFile(), true)));
     }
 
     public void run() throws Exception {
+        if (!Files.isDirectory(baseDir))
+            throw new IllegalArgumentException("base directory does not exist: " + baseDir);
+        // Opened only after validation so a failed run never leaves a locked log file behind.
+        this.eventLogger = new PrintWriter(new BufferedWriter(new FileWriter(logPath.toFile(), true)));
         if (dryRun) System.out.println("!!! DRY-RUN MODE ENABLED - No files will be extracted !!!");
         logEvent("run_start", "-", "-", "base=" + baseDir, "temp=" + tempDir);
 
@@ -195,7 +203,11 @@ public class TarExtractor {
             List<String> rem = new ArrayList<>();
             for (String a : args)
                 if (a.equalsIgnoreCase("--dry-run")) dry = true;
-                else rem.add(a);
+                else if (a.startsWith("--")) {
+                    System.err.println("Unknown flag: " + a);
+                    System.err.println("Usage: TarExtractor [--dry-run] [base_dir [temp_dir]]");
+                    return;
+                } else rem.add(a);
             String b = rem.size() > 0 ? rem.get(0) : ".";
             String t = rem.size() > 1 ? rem.get(1) : "./temp";
             new TarExtractor(b, t, dry).run();

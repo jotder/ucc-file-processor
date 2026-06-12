@@ -51,6 +51,8 @@ public class IntegratedProcessor {
     }
 
     public void run() throws Exception {
+        if (!Files.isDirectory(walkRoot))
+            throw new IllegalArgumentException("walk root does not exist: " + walkRoot);
         if (dryRun) System.out.println("!!! DRY-RUN MODE ENABLED - No files will be moved or extracted !!!");
         System.out.println("--- Starting Integrated Extract & Move ---");
         VirtualThreadRunner.submit(executor, phaser, () -> FileWalker.walk(executor, phaser, walkRoot,
@@ -177,7 +179,11 @@ public class IntegratedProcessor {
         List<String> rem = new ArrayList<>();
         for (String a : args)
             if (a.equalsIgnoreCase("--dry-run")) dry = true;
-            else rem.add(a);
+            else if (a.startsWith("--")) {
+                System.err.println("Unknown flag: " + a);
+                System.err.println("Usage: IntegratedProcessor [--dry-run] <walk_root> <temp_dir> <target_base_dir>");
+                return;
+            } else rem.add(a);
         if (rem.size() < 3) {
             System.err.println("Usage: IntegratedProcessor [--dry-run] <walk_root> <temp_dir> <target_base_dir>");
             return;

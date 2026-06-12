@@ -21,26 +21,35 @@ public class FileMoverByDate {
 
     /** Shared with {@link IntegratedProcessor} — one definition of the CBS delivery pattern. */
     private static final Pattern DATE_PATTERN = IntegratedProcessor.CBS_ADJ_DATE_PATTERN;
+    private final Path sourceDir;
     private final Path baseDir;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final Phaser phaser = new Phaser(1);
     private final boolean dryRun;
 
+    /** Scans the current working directory (the historical CLI behaviour). */
     public FileMoverByDate(String baseDirPath, boolean dryRun) {
+        this(".", baseDirPath, dryRun);
+    }
+
+    public FileMoverByDate(String sourceDirPath, String baseDirPath, boolean dryRun) {
+        this.sourceDir = Paths.get(sourceDirPath).toAbsolutePath();
         this.baseDir = Paths.get(baseDirPath).toAbsolutePath();
         this.dryRun = dryRun;
     }
 
     public void run() throws Exception {
+        if (!Files.isDirectory(sourceDir))
+            throw new IllegalArgumentException("source directory does not exist: " + sourceDir);
         if (dryRun) System.out.println("!!! DRY-RUN MODE ENABLED - No files will be moved !!!");
         System.out.println("--- Starting Pattern-Based File Mover ---");
-        System.out.println("Source Dir: " + Paths.get(".").toAbsolutePath());
+        System.out.println("Source Dir: " + sourceDir);
         System.out.println("Base Dir  : " + baseDir);
 
         if (!dryRun) Files.createDirectories(baseDir);
 
         VirtualThreadRunner.submit(executor, phaser, () -> FileWalker.walk(
-                executor, phaser, Paths.get("."),
+                executor, phaser, sourceDir,
                 dir -> !dir.toAbsolutePath().startsWith(baseDir),   // never recurse into the target
                 this::processFile,
                 (dir, e) -> System.err.println("[ERR] Access Denied: " + dir)));
@@ -83,18 +92,24 @@ public class FileMoverByDate {
 
     public static void main(String[] args) {
         String base = "../adj_org/";
+        String source = ".";
         boolean dry = false;
-        
+
         List<String> remaining = new ArrayList<>();
         for (String arg : args) {
             if (arg.equalsIgnoreCase("--dry-run")) dry = true;
-            else remaining.add(arg);
+            else if (arg.startsWith("--")) {
+                System.err.println("Unknown flag: " + arg);
+                System.err.println("Usage: FileMoverByDate [--dry-run] [target_base_dir [source_dir]]");
+                return;
+            } else remaining.add(arg);
         }
-        
+
         if (!remaining.isEmpty()) base = remaining.get(0);
+        if (remaining.size() > 1) source = remaining.get(1);
 
         try {
-            new FileMoverByDate(base, dry).run();
+            new FileMoverByDate(source, base, dry).run();
         } catch (Exception e) { e.printStackTrace(); }
     }
 }
