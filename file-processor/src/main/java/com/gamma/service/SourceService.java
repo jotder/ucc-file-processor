@@ -166,6 +166,21 @@ public final class SourceService implements AutoCloseable {
     public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          List<JobConfig> jobConfigs, List<SemanticModel> semanticModels,
                          long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
+        this(registry, enrichJobs, jobConfigs, semanticModels, List.of(), pollSeconds,
+                maxConcurrentRuns, statusStore);
+    }
+
+    /**
+     * Full constructor (v4.1, B5). Adds operator-saved {@code *_alert.toon} rules, executed by a
+     * deterministic {@link com.gamma.alert.AlertService} on this service's bus (the runtime half of
+     * the agent's draft-only {@code diagnose-and-alert}); empty disables the alert layer.
+     *
+     * @param alertRules loaded alert rules; empty is fine
+     */
+    public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+                         List<JobConfig> jobConfigs, List<SemanticModel> semanticModels,
+                         List<com.gamma.alert.AlertRule> alertRules,
+                         long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
         this.registry          = new CopyOnWriteArrayList<>(registry);
         this.pollSeconds       = Math.max(1, pollSeconds);
         this.maxConcurrentRuns = Math.max(1, maxConcurrentRuns);
@@ -193,6 +208,14 @@ public final class SourceService implements AutoCloseable {
             public List<SemanticModel> semantics() { return SourceService.this.semanticModels; }
         };
         this.configSource = configSource;
+        // Alert engine (v4.1, B5): deterministic, lean-core, event-driven. Subscribed here (before
+        // start()) so it sees the first terminal batch; null when no *_alert.toon was loaded.
+        this.alerting = alertRules.isEmpty() ? null
+                : new com.gamma.alert.AlertService(alertRules, configSource, this.status);
+        if (alerting != null) {
+            bus.subscribe(alerting::onEvent);
+            log.info("Alert engine armed with {} rule(s)", alertRules.size());
+        }
         CatalogOverlay.Stage2Reads stage2 = enrichment == null ? null : new CatalogOverlay.Stage2Reads() {
             public boolean hosts(String job) { return enrichment.config(job).isPresent(); }
             public List<Map<String, String>> runs(String job) { return enrichment.runs(job); }
@@ -212,6 +235,14 @@ public final class SourceService implements AutoCloseable {
         if (catalog != null) {
             catalog.invalidate();
         }
+    }
+
+    /** The alert execution engine (v4.1, B5), or {@code null} when no {@code *_alert.toon} loaded. */
+    private final com.gamma.alert.AlertService alerting;
+
+    /** The alert engine, when any {@code *_alert.toon} rules are armed — backs {@code /alerts}. */
+    public java.util.Optional<com.gamma.alert.AlertService> alertService() {
+        return java.util.Optional.ofNullable(alerting);
     }
 
     /** The bus carrying committed-batch events; subscribe before {@link #start()}. */
@@ -547,6 +578,7 @@ public final class SourceService implements AutoCloseable {
         List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(args, "_enrich.toon"));
         List<JobConfig> jobConfigs = loadJobs(resolveBySuffix(args, "_job.toon"));
         List<SemanticModel> semantics = loadSemantics(resolveBySuffix(args, "_meta.toon"));
+        List<com.gamma.alert.AlertRule> alertRules = loadAlerts(resolveBySuffix(args, "_alert.toon"));
         if (registry.isEmpty() && enrichJobs.isEmpty() && jobConfigs.isEmpty()) {
             System.err.println("No *_pipeline.toon / *_enrich.toon / *_job.toon files found in: "
                     + String.join(", ", args));
@@ -554,7 +586,8 @@ public final class SourceService implements AutoCloseable {
         }
         long pollSeconds = Long.getLong("service.poll.seconds", 60L);
         int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
-        return new SourceService(registry, enrichJobs, jobConfigs, semantics, pollSeconds, maxRuns, buildStatusStore());
+        return new SourceService(registry, enrichJobs, jobConfigs, semantics, alertRules,
+                pollSeconds, maxRuns, buildStatusStore());
     }
 
     /** Default DuckDB status database file when {@code status.backend=db} and no URL is given. */
@@ -627,6 +660,22 @@ public final class SourceService implements AutoCloseable {
             }
         }
         return models;
+    }
+
+    /** Load each {@code *_alert.toon}; a bad one is warned and skipped (others still arm). */
+    private static List<com.gamma.alert.AlertRule> loadAlerts(List<Path> paths) {
+        List<com.gamma.alert.AlertRule> rules = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                com.gamma.alert.AlertRule r = com.gamma.alert.AlertRule.load(p);
+                rules.add(r);
+                log.info("Armed alert rule '{}' ({} {} {} over {}) from {}",
+                        r.name(), r.metric(), r.comparator(), r.threshold(), r.window(), p);
+            } catch (Exception e) {
+                log.warn("Could not load alert rule {}: {}", p, e.getMessage());
+            }
+        }
+        return rules;
     }
 
     /** Load each {@code *_job.toon}; a bad one is warned and skipped (others still host). */

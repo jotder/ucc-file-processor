@@ -1,0 +1,51 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="text-3xl font-extrabold leading-tight tracking-tight">Alerts</div>
+            <div class="text-secondary mt-1">
+                Fired alert-rule breaches over the batch ledger. Rules are armed by saving a
+                reviewed <code>*_alert.toon</code> (draft one from the Assistant's
+                diagnose-and-alert skill).
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading || evaluating) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-stroked-button (click)="evaluate()" [disabled]="evaluating">
+                Evaluate now
+            </button>
+            <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
+                <mat-icon [svgIcon]="'heroicons_outline:arrow-path'"></mat-icon>
+            </button>
+        </div>
+    </div>
+
+    <!-- Armed rules summary -->
+    <div class="text-secondary mt-3 text-sm">
+        @if (rules.length === 0) {
+            No alert rules are armed.
+        } @else {
+            {{ rules.length }} rule(s) armed:
+            @for (r of rules; track r.name) {
+                <span class="mr-2 inline-block rounded bg-gray-200 px-2 py-0.5 font-mono text-xs dark:bg-gray-700">
+                    {{ r.name }} ({{ r.metric }} {{ r.comparator }} {{ r.threshold }} / {{ r.window }})
+                </span>
+            }
+        }
+    </div>
+
+    <!-- Fired alerts grid -->
+    <div class="mt-4 flex-auto">
+        <ag-grid-angular
+            class="h-160 w-full"
+            [theme]="themeSvc.theme()"
+            [rowData]="alerts"
+            [columnDefs]="columnDefs"
+            [defaultColDef]="defaultColDef"
+            [pagination]="true"
+            [paginationPageSize]="25"
+        ></ag-grid-angular>
+    </div>
+</div>

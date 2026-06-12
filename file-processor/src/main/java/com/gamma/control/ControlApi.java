@@ -364,6 +364,20 @@ public final class ControlApi implements AutoCloseable {
                 service.assistAgent()
                         .map(a -> (Object) a.recentDiagnoses(parseIntOr(query(e, "limit"), 50)))
                         .orElse(List.of()));
+        // ── v4.1 (B5): alert execution engine — operator-saved *_alert.toon rules evaluated against
+        // the batches ledger. Read-only listings + a manual evaluation sweep; the engine itself is
+        // event-driven off the batch bus and lives in the lean core (no agent required). ──
+        get("/alerts", true, (e, m) -> service.alertService()
+                .map(a -> (Object) a.recent(parseIntOr(query(e, "limit"), 50)))
+                .orElse(List.of()));
+        get("/alerts/rules", true, (e, m) -> service.alertService()
+                .map(a -> (Object) a.rules())
+                .orElse(List.of()));
+        post("/alerts/evaluate", true, (e, m) -> service.alertService()
+                .map(a -> (Object) a.evaluateAll())
+                .orElseThrow(() -> new ApiException(503,
+                        "alert engine not armed (no *_alert.toon rules loaded)")));
+
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
         get("/assist/settings", Scope.ASSIST_READ, (e, m) -> assistAgentOr503().settings());

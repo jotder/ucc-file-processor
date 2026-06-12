@@ -12,3 +12,4 @@ export * from './enrichment.service';
 export * from './catalog.service';
 export * from './config.service';
 export * from './assist.service';
+export * from './alerts.service';

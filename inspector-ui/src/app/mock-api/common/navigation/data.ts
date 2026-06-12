@@ -45,6 +45,13 @@ export const defaultNavigation: GammaNavigationItem[] = [
         link : '/diagnoses'
     },
     {
+        id   : 'alerts',
+        title: 'Alerts',
+        type : 'basic',
+        icon : 'heroicons_outline:bell-alert',
+        link : '/alerts'
+    },
+    {
         id   : 'config',
         title: 'Config',
         type : 'basic',

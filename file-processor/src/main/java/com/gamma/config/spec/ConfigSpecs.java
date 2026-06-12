@@ -26,7 +26,7 @@ public final class ConfigSpecs {
 
     /** Spec types in canonical order — also the set accepted by {@code GET /config/spec/{type}}. */
     public static final List<String> TYPES =
-            List.of("pipeline", "enrichment", "job", "schema", "meta");
+            List.of("pipeline", "enrichment", "job", "schema", "meta", "alert");
 
     /** The {@link ConfigSpec} for {@code type}, or {@code null} if {@code type} is unknown. */
     public static ConfigSpec forType(String type) {
@@ -39,6 +39,7 @@ public final class ConfigSpecs {
             case "job"        -> job();
             case "schema"     -> schema();
             case "meta"       -> meta();
+            case "alert"      -> alert();
             default           -> null;
         };
     }
@@ -265,6 +266,57 @@ public final class ConfigSpecs {
                         })
         );
         return new ConfigSpec("job", fields, rules);
+    }
+
+    // ── alert (v4.1, B5) ─────────────────────────────────────────────────────────
+
+    /** The {@code *_alert.toon} rule executed by the core alert engine (drafted by diagnose-and-alert). */
+    public static ConfigSpec alert() {
+        List<FieldSpec> fields = List.of(
+                FieldSpec.required("alert.name", "Rule name", FieldType.STRING,
+                        "Unique, kebab-case alert rule name."),
+                FieldSpec.enumField("alert.metric", "Metric",
+                        List.of("error_rate", "failed_batches", "rejected_files", "duration_ms"), null,
+                        "The batches-ledger metric the rule watches."),
+                FieldSpec.enumField("alert.comparator", "Comparator",
+                        List.of("gt", "gte", "lt", "lte"), "gt", "How the value meets the threshold."),
+                FieldSpec.required("alert.threshold", "Threshold", FieldType.STRING,
+                        "Positive number; error_rate is a fraction in (0, 1]."),
+                FieldSpec.required("alert.window", "Window", FieldType.STRING,
+                        "Ns/Nm/Nh/Nd elapsed time, or Nb = the last N batches (e.g. 1h, 30m, 20b)."),
+                FieldSpec.enumField("alert.severity", "Severity",
+                        List.of("INFO", "WARNING", "CRITICAL"), "WARNING", "Operator-facing severity."),
+                FieldSpec.of("alert.onPipeline", "Pipeline", FieldType.STRING,
+                        "Restrict to one pipeline (display or normalized name); blank = every pipeline.")
+        );
+        List<CrossFieldRule> rules = List.of(
+                new CrossFieldRule(
+                        "alert-threshold-positive",
+                        "alert.threshold must be a positive number.",
+                        Severity.ERROR,
+                        List.of("alert.threshold"),
+                        raw -> {
+                            String t = str(raw, "alert.threshold");
+                            if (t == null) {
+                                return false;
+                            }
+                            try {
+                                return Double.parseDouble(t.trim()) > 0;
+                            } catch (NumberFormatException e) {
+                                return false;
+                            }
+                        }),
+                new CrossFieldRule(
+                        "alert-window-shape",
+                        "alert.window must match \\d+[smhdb] (e.g. 1h, 30m, 20b).",
+                        Severity.ERROR,
+                        List.of("alert.window"),
+                        raw -> {
+                            String w = str(raw, "alert.window");
+                            return w != null && w.trim().toLowerCase().matches("\\d+[smhdb]");
+                        })
+        );
+        return new ConfigSpec("alert", fields, rules);
     }
 
     // ── schema ──────────────────────────────────────────────────────────────────
