@@ -28,7 +28,13 @@ describe('PipelinesService', () => {
   });
 
   it('GET /pipelines/{n}/pending and returns the InboxStatus', () => {
-    const body: InboxStatus = { pipeline: 'mini_etl', inbox: '/in', pending: 3, running: false };
+    const body: InboxStatus = {
+      pipeline: 'mini_etl',
+      inbox: '/in',
+      pending: 3,
+      running: true,
+      current: { batchId: 'B1', file: 'a.csv.gz', index: 2, total: 5, startedAt: '2026-06-12 10:00:00' },
+    };
     let received: InboxStatus | undefined;
     svc.pending('mini_etl').subscribe((s) => (received = s));
     const req = httpMock.expectOne(`${base}/pipelines/mini_etl/pending`);

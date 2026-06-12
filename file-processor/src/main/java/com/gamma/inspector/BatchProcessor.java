@@ -44,7 +44,13 @@ public final class BatchProcessor {
                 ? new CsvBatchStrategy()
                 : new StreamingPluginBatchStrategy();
 
-        IngestOutcome outcome = strategy.ingest(batch, cfg);
+        IngestOutcome outcome;
+        try {
+            outcome = strategy.ingest(batch, cfg);
+        } finally {
+            // The strategies report per-member progress; the snapshot must never outlive the batch.
+            IngestProgress.clear(cfg.identity().pipelineName());
+        }
 
         String status = outcome.status();
         String error  = outcome.error();

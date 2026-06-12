@@ -87,10 +87,16 @@
                     <div class="text-xl font-bold">{{ inbox ? (inbox.pending < 0 ? '—' : inbox.pending) : '…' }}</div>
                     <div class="text-secondary text-xs">Pending</div>
                 </div>
-                <div class="rounded-xl border px-4 py-2 text-center">
+                <div class="rounded-xl border px-4 py-2 text-center" [class.border-blue-500]="inbox?.running">
                     <div class="text-xl font-bold">{{ inbox ? (inbox.running ? 'Yes' : 'No') : '…' }}</div>
                     <div class="text-secondary text-xs">Processing</div>
                 </div>
+                @if (inbox?.current; as cur) {
+                    <div class="rounded-xl border border-blue-500 px-4 py-2" [matTooltip]="'batch ' + cur.batchId + ' · started ' + cur.startedAt">
+                        <div class="font-mono text-sm font-bold">{{ cur.file }}</div>
+                        <div class="text-secondary text-xs">Current file ({{ cur.index }} of {{ cur.total }})</div>
+                    </div>
+                }
                 <div class="mx-2 h-10 w-px bg-gray-300 dark:bg-gray-600"></div>
                 <button class="rounded-xl border px-4 py-2 text-center" [class.ring-2]="fileStatus === 'ALL'" (click)="fileStatus = 'ALL'">
                     <div class="text-xl font-bold">{{ fileStats.total }}</div>

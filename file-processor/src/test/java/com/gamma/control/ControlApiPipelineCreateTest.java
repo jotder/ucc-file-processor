@@ -170,6 +170,31 @@ class ControlApiPipelineCreateTest {
     }
 
     @Test
+    void unresolvableSchemaFileIs422WithFieldAnchoredFinding(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            // A structurally valid pipeline whose schema_file points at nothing on this host:
+            // pre-flight must block with a finding anchored to the field, not an opaque load error.
+            Path fixture = PipelineConfigBatchTest.writePipeline(root, "");
+            String ghost = root.resolve("ghost_schema.toon").toString().replace('\\', '/');
+            String toon = Files.readString(fixture)
+                    .replace("name: MINI_ETL", "name: GHOSTED")
+                    .replaceAll("schema_file: \"[^\"]*\"", "schema_file: \"" + ghost + "\"");
+            Files.writeString(root.resolve("ghosted.toon"), toon);
+
+            HttpResponse<String> r = post(c.port, "/pipelines", TOKEN, body("ghosted.toon"));
+            assertEquals(422, r.statusCode(), r.body());
+            JsonNode out = JSON.readTree(r.body());
+            assertFalse(out.get("registered").asBoolean());
+            boolean anchored = false;
+            for (JsonNode f : out.get("findings"))
+                if ("processing.schema_file".equals(f.get("fieldPath").asText())
+                        && f.get("message").asText().contains("ghost_schema.toon")) anchored = true;
+            assertTrue(anchored, "expected a processing.schema_file finding: " + r.body());
+            assertEquals(1, c.svc.pipelines().size(), "nothing registered");
+        }
+    }
+
+    @Test
     void scopeIsControlNotAssistRead(@TempDir Path cfg, @TempDir Path root) throws Exception {
         // control=null ⇒ control routes locked; an assist.read token must NOT satisfy them.
         ControlApi.Tokens tokens = new ControlApi.Tokens(null, "read-only", "write-tok");

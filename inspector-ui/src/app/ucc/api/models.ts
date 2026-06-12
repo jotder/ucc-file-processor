@@ -20,12 +20,22 @@ export interface PipelineRunResult {
   [k: string]: unknown;
 }
 
+/** The file a pipeline is ingesting right now ("file index of total" within a batch). */
+export interface IngestSnapshot {
+  batchId: string;
+  file: string;
+  index: number;     // 1-based position within the batch
+  total: number;     // batch member count
+  startedAt: string;
+}
+
 /** Inbox/processing status (GET /pipelines/{n}/pending). */
 export interface InboxStatus {
   pipeline: string;
   inbox: string;
   pending: number;   // files matched but not yet processed; -1 if the scan failed
   running: boolean;  // pipeline currently mid-ingest ("under processing")
+  current?: IngestSnapshot | null; // live per-file progress; absent when not mid-file
 }
 
 // ── status + reports ───────────────────────────────────────────────────────────

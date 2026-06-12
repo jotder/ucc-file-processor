@@ -110,7 +110,10 @@ final class StreamingPluginBatchStrategy implements BatchIngestStrategy {
             try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
                 configure(conn, cfg);
 
+                int memberIdx = 0;
                 for (Batch.Member m : batch.members()) {
+                    IngestProgress.track(cfg.identity().pipelineName(), batch.batchId(),
+                            m.file().getName(), ++memberIdx, batch.members().size());
                     LocalDateTime mStart = LocalDateTime.now();
                     String stem = CsvIngester.stripExtensions(m.file().getName());
                     try (DuckDbRecordSink sink = new DuckDbRecordSink(
@@ -189,7 +192,10 @@ final class StreamingPluginBatchStrategy implements BatchIngestStrategy {
                 configure(conn, cfg);
 
                 // ── ingest every member into its own raw tables ──────────────────
+                int memberIdx = 0;
                 for (Batch.Member m : batch.members()) {
+                    IngestProgress.track(cfg.identity().pipelineName(), batch.batchId(),
+                            m.file().getName(), ++memberIdx, batch.members().size());
                     LocalDateTime mStart = LocalDateTime.now();
                     String stem = CsvIngester.stripExtensions(m.file().getName());
                     long memberParsed = 0, memberErrors = 0;

@@ -119,10 +119,13 @@ Tabs over one pipeline's operational data:
   duration). Each row has **Lineage & details** (opens a drawer with the batch summary, its member
   files, and the input→output lineage matrix) and **Reprocess**.
 - **Files** — per-file audit with a **processing-status strip**: live **Pending** (files sitting in
-  the inbox, not yet processed) and **Processing** (whether the pipeline is mid-ingest) cards, plus
-  audit-derived **Processed / Succeeded / Rejected / With-errors** cards that double as filters, a
-  **filename search**, and a status filter. *Pending* comes from a read-only inbox scan; *Processing*
-  is a pipeline-level flag (ingest is synchronous per cycle — there is no per-file in-flight count).
+  the inbox, not yet processed) and **Processing** (whether the pipeline is mid-ingest) cards — and,
+  while a batch is live, a **Current file** card showing exactly which file is being ingested
+  ("file *n* of *m*", with the batch id and start time on hover). Audit-derived
+  **Processed / Succeeded / Rejected / With-errors** cards double as filters, plus a
+  **filename search** and a status filter. *Pending* comes from a read-only inbox scan;
+  *Current file* is live in-memory progress reported by the ingest loop (it clears when the batch
+  finishes and is not persisted across a restart).
 - **Lineage** — input→output rows; filter by batch id.
 - **Quarantine** — files isolated as wrong-schema/unreadable, with the reason.
 - **Commits** — the durable committed-batch ledger.
@@ -237,8 +240,10 @@ have a *"include sample rows"* toggle.
 Called out so expectations are honest:
 
 - **Save/register needs a server-side write root.** The Config screen's Save/Register buttons
-  require `-Dassist.write.root` on the server (fail-closed `503` otherwise) — and Register only
-  accepts configs that pass full pipeline validation (including a resolvable
-  `processing.schema_file` path on the **server's** filesystem).
-- **No per-file in-flight tracking** (backend limit). "Processing" is a pipeline-level flag; there
-  is no durable per-file in-flight counter (it only matters for very large or stuck files).
+  require `-Dassist.write.root` on the server (fail-closed `503` otherwise). A pipeline draft whose
+  `processing.schema_file` doesn't resolve on the **server's** filesystem is flagged early: Validate
+  and Save surface a field-anchored **warning** (the save still succeeds — the schema file can be
+  created afterwards), and Register blocks with a structured **error** finding naming the path.
+- **Per-file progress is live-only, not durable.** The Files tab's *Current file* card comes from
+  an in-memory snapshot in the ingest loop — it disappears when the batch finishes (the durable
+  record is the per-file audit) and is not preserved across a server restart.

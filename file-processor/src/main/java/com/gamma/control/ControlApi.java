@@ -470,6 +470,9 @@ public final class ControlApi implements AutoCloseable {
         @SuppressWarnings("unchecked")
         Map<String, Object> draft = (Map<String, Object>) cfgObj;
         List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(spec, draft));
+        // Pre-flight: warn when a pipeline draft's schema_file won't resolve on this server —
+        // registration would otherwise fail later with an opaque error (v4.1.0).
+        findings.addAll(schemaFileFindings(type, draft, Severity.WARNING));
         // Opt-in hard-fail safety gate (R6): merged in only when the caller asks, so the default
         // /validate response is byte-for-byte unchanged for existing callers.
         boolean safety = "true".equalsIgnoreCase(String.valueOf(body.get("safety")));
@@ -522,6 +525,9 @@ public final class ControlApi implements AutoCloseable {
         // Gate: spec validation + the hard-fail safety check (R6). Block on ERRORs; warnings pass.
         List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(spec, draft));
         findings.addAll(ConfigSafetyValidator.check(type, draft, SafetyPolicy.defaultPolicy()));
+        // Warning only: the save still succeeds (the schema file may be created afterwards), but
+        // the operator learns now that Register would fail on this host.
+        findings.addAll(schemaFileFindings(type, draft, Severity.WARNING));
         if (findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
             respond(ex, 422, Map.of("type", type, "written", false,
                     "error", "config has ERROR-level findings; not written", "findings", findings));
@@ -624,6 +630,10 @@ public final class ControlApi implements AutoCloseable {
         }
         List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(ConfigSpecs.pipeline(), raw));
         findings.addAll(ConfigSafetyValidator.check("pipeline", raw, SafetyPolicy.defaultPolicy()));
+        // ERROR here: registration loads the config for real, so an unresolvable schema_file is a
+        // guaranteed failure — block with a structured, field-anchored finding instead of letting
+        // PipelineConfig.load() surface it as an opaque "config is not a valid pipeline" 422.
+        findings.addAll(schemaFileFindings("pipeline", raw, Severity.ERROR));
         if (findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
             respond(ex, 422, Map.of("registered", false,
                     "error", "config has ERROR-level findings; not registered", "findings", findings));
@@ -648,6 +658,42 @@ public final class ControlApi implements AutoCloseable {
         r.put("pipeline", view);
         r.put("findings", findings);   // warnings only at this point
         return r;
+    }
+
+    /**
+     * Pre-flight check that a pipeline draft's schema reference(s) resolve on <em>this server's</em>
+     * filesystem (v4.1.0). {@link PipelineConfig} resolves {@code schema_file} relative to the
+     * process working directory, so a draft that validates clean can still fail at registration
+     * with an opaque 422 — this surfaces it early, as a structured finding anchored to the field.
+     * Checks both the legacy {@code processing.schema_file} and the multi-schema
+     * {@code processing.schemas[].schema_file}. No-op for non-pipeline types.
+     *
+     * @param severity WARNING at validate/save time (the file may be created later, or the config
+     *                 may be destined for another host); ERROR at register time (it will fail)
+     */
+    static List<Finding> schemaFileFindings(String type, Map<String, Object> draft, Severity severity) {
+        if (!"pipeline".equals(type)) return List.of();
+        Object procObj = draft.get("processing");
+        if (!(procObj instanceof Map<?, ?> proc)) return List.of();
+        List<Finding> out = new ArrayList<>();
+        if (proc.get("schema_file") instanceof String s && !s.isBlank() && !Files.isRegularFile(Path.of(s)))
+            out.add(new Finding(severity, "processing.schema_file", unresolvable(s)));
+        if (proc.get("schemas") instanceof List<?> defs) {
+            for (int i = 0; i < defs.size(); i++) {
+                if (defs.get(i) instanceof Map<?, ?> def
+                        && def.get("schema_file") instanceof String s && !s.isBlank()
+                        && !Files.isRegularFile(Path.of(s)))
+                    out.add(new Finding(severity, "processing.schemas[" + i + "].schema_file",
+                            unresolvable(s)));
+            }
+        }
+        return out;
+    }
+
+    private static String unresolvable(String schemaPath) {
+        return "schema file does not resolve on the server: '" + schemaPath
+                + "' (relative paths resolve against the server's working directory: "
+                + Path.of("").toAbsolutePath() + ")";
     }
 
     /** Dotted path into the config map that holds a config's stable identity (its filename source). */

@@ -90,7 +90,10 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
                 }
 
                 boolean rawCreated = false;
+                int memberIdx = 0;
                 for (Batch.Member m : batch.members()) {
+                    IngestProgress.track(cfg.identity().pipelineName(), batch.batchId(),
+                            m.file().getName(), ++memberIdx, batch.members().size());
                     LocalDateTime mStart = LocalDateTime.now();
                     String tempTable = "raw_f" + m.srcId();
                     IngestResult ing;
@@ -194,7 +197,10 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
         List<String>         memberViews  = new ArrayList<>();
         long totalInputRows = 0;
 
+        int memberIdx = 0;
         for (Batch.Member m : batch.members()) {
+            IngestProgress.track(cfg.identity().pipelineName(), batch.batchId(),
+                    m.file().getName(), ++memberIdx, batch.members().size());
             LocalDateTime mStart = LocalDateTime.now();
             String view = "raw_m" + m.srcId();
 
@@ -279,6 +285,8 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
         String dbDir = databaseDir(batch, cfg);
         List<String> partCols = partitionColumns(schema);
         String baseName = CsvIngester.stripExtensions(m.file().getName());
+        IngestProgress.track(cfg.identity().pipelineName(), batch.batchId(),
+                m.file().getName(), 1, 1);
 
         Streamed s;
         try {
@@ -309,6 +317,8 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
         String dbDir = databaseDir(batch, cfg);
         List<String> partCols = partitionColumns(schema);
         String baseName = CsvIngester.stripExtensions(m.file().getName());
+        IngestProgress.track(cfg.identity().pipelineName(), batch.batchId(),
+                m.file().getName(), 1, 1);
 
         String scratch = scratchDir(cfg);
         Path chunkDir = Paths.get(scratch != null ? scratch : System.getProperty("java.io.tmpdir"));

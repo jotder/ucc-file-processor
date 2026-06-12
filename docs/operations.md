@@ -315,7 +315,7 @@ A bearer token guards every route except the public `/health`, `/ready`, and `/m
 | `GET /pipelines/{name}/commits` | committed batch ids |
 | `GET /pipelines/{name}/batches` · `/files` · `/lineage[?batchId=]` | audit queries (via `StatusStore`) |
 | `GET /pipelines/{name}/quarantine` | quarantined inputs + reason |
-| `GET /pipelines/{name}/pending` | inbox scan — files awaiting processing (`pending`) + an under-processing flag (`running`); read-only, no audit side effects (v4.1) |
+| `GET /pipelines/{name}/pending` | inbox scan — files awaiting processing (`pending`), an under-processing flag (`running`), and live per-file progress (`current`: batch id, file, index/total, started-at; `null` when not mid-file); read-only, no audit side effects (v4.1) |
 | `POST /pipelines/{name}/reprocess` | body `{"batchId":"…"}` — replay a batch |
 | `POST /trigger` | run all pipelines once |
 | `POST /validate` | body `{"configPath":"…"}` (saved file) or `{"type":…,"config":{…}[, "safety":true]}` (unsaved draft) — structured findings |

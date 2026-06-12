@@ -7,6 +7,7 @@ import com.gamma.catalog.ConfigSource;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.SemanticModel;
 import com.gamma.enrich.EnrichmentConfig;
+import com.gamma.etl.IngestProgress;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.SourceProcessor;
@@ -451,8 +452,11 @@ public final class SourceService implements AutoCloseable {
      * @param pending  files matching {@code processing.file_pattern} not yet processed (the candidate
      *                 set a poll cycle would pick up); {@code -1} if the scan failed
      * @param running  whether this pipeline is mid-ingest right now ("under processing")
+     * @param current  the file being ingested right now ("file index of total"); {@code null}
+     *                 when the pipeline is not mid-file (v4.1.0, per-file in-flight visibility)
      */
-    public record InboxStatus(String pipeline, String inbox, int pending, boolean running) {}
+    public record InboxStatus(String pipeline, String inbox, int pending, boolean running,
+                              IngestProgress.Snapshot current) {}
 
     /** Inbox/processing status for one registered pipeline; empty if no pipeline by that name. */
     public Optional<InboxStatus> inboxStatus(String pipelineName) {
@@ -460,7 +464,8 @@ public final class SourceService implements AutoCloseable {
                 pipelineName,
                 java.nio.file.Paths.get(cfg.dirs().poll()).toAbsolutePath().toString(),
                 SourceProcessor.countPending(cfg),
-                running.contains(pipelineName)));
+                running.contains(pipelineName),
+                IngestProgress.current(cfg.identity().pipelineName())));
     }
 
     /** The pipeline names for a set of active registry paths (skips paths with no indexed identity). */
