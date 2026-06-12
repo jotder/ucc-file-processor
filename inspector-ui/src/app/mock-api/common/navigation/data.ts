@@ -57,6 +57,13 @@ export const defaultNavigation: GammaNavigationItem[] = [
         type : 'basic',
         icon : 'heroicons_outline:sparkles',
         link : '/assist'
+    },
+    {
+        id   : 'model-settings',
+        title: 'Model Settings',
+        type : 'basic',
+        icon : 'heroicons_outline:cpu-chip',
+        link : '/settings/models'
     }
 ];
 // The alternate layouts reuse the same UCC navigation.

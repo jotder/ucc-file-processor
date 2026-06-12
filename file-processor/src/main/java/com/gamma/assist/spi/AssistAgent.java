@@ -7,6 +7,7 @@ import com.gamma.assist.Diagnosis;
 import com.gamma.service.SourceService;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Service-provider interface for the optional embedded assist agent (v3.0, milestone M0).
@@ -80,6 +81,41 @@ public interface AssistAgent extends AutoCloseable {
      */
     default List<Diagnosis> recentDiagnoses(int limit) {
         return List.of();
+    }
+
+    /**
+     * The agent's model-provider settings as a masked, JSON-ready view (v4.1) — current provider,
+     * tier→model map, key <em>presence</em> (never the key itself), and the providers selectable on
+     * this classpath. Backs the read-only {@code GET /assist/settings} route.
+     *
+     * <p>Additive default: an agent without configurable model routing reports
+     * {@code {"supported": false}} and the settings screen disables itself.
+     *
+     * @since 4.1.0
+     */
+    default Map<String, Object> settings() {
+        return Map.of("supported", false);
+    }
+
+    /**
+     * Apply new model-provider settings (v4.1): validate, persist (never persisting a raw API key),
+     * and re-route live. Backs {@code POST /assist/settings} (scope {@code assist.write}).
+     * Implementations signal a bad request with {@link IllegalArgumentException} (mapped to 400).
+     *
+     * @since 4.1.0
+     */
+    default Map<String, Object> updateSettings(Map<String, Object> changes) {
+        return Map.of("supported", false);
+    }
+
+    /**
+     * Verify the configured providers with a minimal round-trip per model tier (v4.1) and report
+     * per-tier {@code ok}/{@code latencyMs}/{@code error}. Backs {@code POST /assist/settings/test}.
+     *
+     * @since 4.1.0
+     */
+    default Map<String, Object> testSettings() {
+        return Map.of("supported", false);
     }
 
     /** Released on service shutdown. Default no-op. */

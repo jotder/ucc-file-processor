@@ -364,6 +364,17 @@ public final class ControlApi implements AutoCloseable {
                 service.assistAgent()
                         .map(a -> (Object) a.recentDiagnoses(parseIntOr(query(e, "limit"), 50)))
                         .orElse(List.of()));
+        // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
+        // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
+        get("/assist/settings", Scope.ASSIST_READ, (e, m) -> assistAgentOr503().settings());
+        post("/assist/settings/test", Scope.ASSIST_WRITE, (e, m) -> assistAgentOr503().testSettings());
+        post("/assist/settings", Scope.ASSIST_WRITE, (e, m) -> {
+            try {
+                return assistAgentOr503().updateSettings(body(e));
+            } catch (IllegalArgumentException ex) {
+                throw new ApiException(400, ex.getMessage());
+            }
+        });
         post("/assist/(.+)", Scope.ASSIST_READ, (e, m) -> assist(name(m), body(e)));
     }
 
@@ -378,6 +389,12 @@ public final class ControlApi implements AutoCloseable {
      * unavailable ({@link AssistResult.Status#UNAVAILABLE}) → 503 with its message; otherwise the
      * {@link AssistResult} is returned as JSON (200).
      */
+    /** The in-process assist agent, or 503 when the optional module is absent (v4.1 settings routes). */
+    private AssistAgent assistAgentOr503() {
+        return service.assistAgent().orElseThrow(() -> new ApiException(503,
+                "assist agent not available (file-processor-agent not on classpath)"));
+    }
+
     private Object assist(String intent, Map<String, Object> body) {
         Optional<AssistAgent> agent = service.assistAgent();
         if (agent.isEmpty())

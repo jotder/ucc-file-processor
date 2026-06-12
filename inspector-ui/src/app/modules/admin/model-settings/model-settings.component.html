@@ -1,0 +1,142 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="text-3xl font-extrabold leading-tight tracking-tight">Model Settings</div>
+            <div class="text-secondary mt-1">
+                Choose the AI provider behind the assist skills — hosted API or local model — and the
+                model serving each tier.
+            </div>
+        </div>
+        @if (loading) {
+            <mat-spinner diameter="28"></mat-spinner>
+        }
+    </div>
+
+    @if (settings && !settings.supported) {
+        <div class="bg-card mt-6 max-w-160 rounded-2xl p-6 shadow">
+            <div class="font-semibold">Settings not supported</div>
+            <p class="text-secondary mt-1 text-sm">
+                The running assist agent does not expose model-provider settings (older
+                file-processor-agent build, or no agent on the classpath).
+            </p>
+        </div>
+    }
+
+    @if (settings?.supported) {
+        <div class="bg-card mt-6 max-w-160 rounded-2xl p-6 shadow sm:p-8">
+            @if (hostedJarMissing) {
+                <div class="mb-6 rounded-lg border border-amber-400 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                    Hosted providers are greyed out because the
+                    <code>file-processor-agent-hosted</code> jar is not on the server classpath
+                    (air-gapped build).
+                </div>
+            }
+
+            <!-- Provider -->
+            <mat-form-field class="w-full">
+                <mat-label>Model provider</mat-label>
+                <mat-select [ngModel]="provider" (ngModelChange)="onProviderChange($event)" name="provider">
+                    <mat-optgroup label="Hosted">
+                        @for (p of hostedProviders; track p) {
+                            <mat-option [value]="p" [disabled]="!isSelectable(p)">{{ label(p) }}</mat-option>
+                        }
+                    </mat-optgroup>
+                    <mat-optgroup label="Local">
+                        @for (p of localProviders; track p) {
+                            <mat-option [value]="p">{{ label(p) }}</mat-option>
+                        }
+                    </mat-optgroup>
+                </mat-select>
+            </mat-form-field>
+
+            <!-- Credential / endpoint (dynamic) -->
+            @if (currentIsLocal) {
+                <mat-form-field class="w-full">
+                    <mat-label>Local base URL</mat-label>
+                    <input matInput name="baseUrl" [(ngModel)]="baseUrl"
+                           placeholder="http://localhost:11434" />
+                    <mat-hint>The local server endpoint (Ollama / llama.cpp). No API key needed.</mat-hint>
+                </mat-form-field>
+            } @else {
+                <mat-form-field class="w-full">
+                    <mat-label>API key</mat-label>
+                    <input matInput name="apiKey" [type]="showKey ? 'text' : 'password'"
+                           [(ngModel)]="apiKey" autocomplete="off"
+                           [placeholder]="settings?.apiKeySet ? '••••••••  (a key is configured)' : 'Paste the provider API key'" />
+                    <button mat-icon-button matSuffix type="button" (click)="showKey = !showKey"
+                            [attr.aria-label]="'Toggle key visibility'">
+                        <mat-icon [svgIcon]="showKey ? 'heroicons_outline:eye-slash' : 'heroicons_outline:eye'"></mat-icon>
+                    </button>
+                    <mat-hint>
+                        Write-only: kept in server memory for this process. For restarts, export it as
+                        the env var below instead.
+                    </mat-hint>
+                </mat-form-field>
+
+                <mat-form-field class="mt-2 w-full">
+                    <mat-label>API key environment variable</mat-label>
+                    <input matInput name="apiKeyRef" [(ngModel)]="apiKeyRef"
+                           placeholder="ANTHROPIC_API_KEY" />
+                    <mat-hint>The variable the server reads the key from — only this name is persisted.</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field class="mt-2 w-full">
+                    <mat-label>Base URL (optional)</mat-label>
+                    <input matInput name="baseUrlHosted" [(ngModel)]="baseUrl"
+                           placeholder="provider default" />
+                </mat-form-field>
+            }
+
+            <!-- Tier → model map -->
+            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                @for (t of tiers; track t) {
+                    <mat-form-field>
+                        <mat-label>{{ t | uppercase }} tier model</mat-label>
+                        <input matInput [name]="'model-' + t" [(ngModel)]="models[t]" />
+                    </mat-form-field>
+                }
+            </div>
+
+            <mat-form-field class="mt-2 w-40">
+                <mat-label>Timeout (s)</mat-label>
+                <input matInput type="number" name="timeout" [(ngModel)]="timeoutSeconds" min="5" />
+            </mat-form-field>
+
+            <!-- Actions -->
+            <div class="mt-6 flex items-center gap-3">
+                <button mat-flat-button color="primary" (click)="save()" [disabled]="saving || testing">
+                    @if (saving) { Saving… } @else { Save &amp; apply }
+                </button>
+                <button mat-stroked-button (click)="test()" [disabled]="saving || testing">
+                    @if (testing) { Testing… } @else { Test connection }
+                </button>
+                @if (testing) {
+                    <mat-spinner diameter="22"></mat-spinner>
+                }
+            </div>
+
+            <!-- Test results -->
+            @if (testResult) {
+                <div class="mt-5 flex flex-col gap-2">
+                    @for (t of tiers; track t) {
+                        @if (testResult[t]; as r) {
+                            <div class="flex items-center gap-2 rounded-lg border p-2 text-sm"
+                                 [class.border-green-500]="r.ok" [class.border-red-400]="!r.ok">
+                                <mat-icon class="icon-size-5"
+                                          [svgIcon]="r.ok ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"></mat-icon>
+                                <span class="font-mono font-medium uppercase">{{ t }}</span>
+                                <span class="text-secondary">{{ r.provider }}</span>
+                                @if (r.ok) {
+                                    <span class="ml-auto">{{ r.latencyMs }} ms</span>
+                                } @else {
+                                    <span class="text-warn ml-auto max-w-100 truncate" [title]="r.error">{{ r.error }}</span>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>

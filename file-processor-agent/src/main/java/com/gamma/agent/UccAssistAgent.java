@@ -10,7 +10,13 @@ import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.observe.AgentCompleted;
 import com.gamma.agentkernel.observe.AuditSink;
 import com.gamma.agentkernel.orchestrate.SyncOrchestrator;
-import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
+import com.gamma.agent.model.AssistModelSettings;
+import com.gamma.agent.model.DelegatingModelRouter;
+import com.gamma.agent.model.ModelProviderFactory;
+import com.gamma.agent.model.ProviderSettings;
+import com.gamma.agentkernel.model.ModelProvider;
+import com.gamma.agentkernel.model.ModelRequest;
+import com.gamma.agentkernel.model.ModelTier;
 import com.gamma.agentkernel.reason.ConfidenceEstimator;
 import com.gamma.agentkernel.reason.EscalationPolicy;
 import com.gamma.agentkernel.reason.EscalationRung;
@@ -76,9 +82,14 @@ public final class UccAssistAgent implements AssistAgent {
     private volatile DiagnosisStore diagnoses;
     private volatile FailureReactor reactor;
 
-    /** {@code ServiceLoader} entry point: model router resolved from the environment (abstain-safe). */
+    /**
+     * {@code ServiceLoader} entry point (abstain-safe): the router is a hot-swappable delegate over
+     * the persisted {@code assist-settings} provider (v4.1), falling back to the legacy
+     * environment-resolved Ollama wiring when no settings file exists. Live reconfiguration via
+     * {@code POST /assist/settings} swaps the delegate; skills re-route on their next call.
+     */
     public UccAssistAgent() {
-        this(OllamaModelProvider.fromEnvironment());
+        this(new DelegatingModelRouter(ModelProviderFactory.fromPersisted()));
     }
 
     /** Test/embedder entry point: inject a router (e.g. a fake-backed one) for deterministic runs. */
@@ -181,6 +192,139 @@ public final class UccAssistAgent implements AssistAgent {
                 event.capabilityId(), d.batchId(), d.pipeline(), d.severity(), d.heuristicOnly(),
                 event.evidenceCount());
         audit.emit(event);
+    }
+
+    /**
+     * The masked settings view backing {@code GET /assist/settings} (v4.1): current provider config
+     * (key <b>presence</b> only — never the key), per-provider defaults for the UI to seed forms,
+     * and the provider ids selectable on this classpath.
+     */
+    @Override
+    public java.util.Map<String, Object> settings() {
+        ProviderSettings s = AssistModelSettings.load().orElseGet(() -> ProviderSettings.defaults("ollama"));
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("supported", true);
+        out.put("provider", s.provider());
+        out.put("baseUrl", s.baseUrl());
+        out.put("apiKeyRef", s.apiKeyRef());
+        out.put("apiKeySet", AssistModelSettings.resolveApiKey(s) != null);
+        out.put("models", modelMap(s.models()));
+        out.put("timeoutSeconds", s.timeoutSeconds());
+        out.put("availableProviders", ModelProviderFactory.availableProviders());
+        out.put("knownProviders", ProviderSettings.knownProviders());
+        out.put("modelAvailable", router.anyAvailable());
+        java.util.Map<String, Object> defaults = new java.util.LinkedHashMap<>();
+        for (String p : ProviderSettings.knownProviders()) {
+            ProviderSettings d = ProviderSettings.defaults(p);
+            defaults.put(p, java.util.Map.of(
+                    "baseUrl", d.baseUrl() == null ? "" : d.baseUrl(),
+                    "apiKeyRef", d.apiKeyRef() == null ? "" : d.apiKeyRef(),
+                    "models", modelMap(d.models()),
+                    "local", d.local()));
+        }
+        out.put("defaults", defaults);
+        return out;
+    }
+
+    /**
+     * Apply new provider settings (v4.1, {@code POST /assist/settings}, scope {@code assist.write}):
+     * validate → persist (never the key — a submitted {@code apiKey} goes to the in-memory session
+     * store only) → hot-swap the router delegate. Returns the fresh masked view.
+     *
+     * @throws IllegalArgumentException on an unknown provider or a provider whose backing module is
+     *         absent (mapped to HTTP 400 by the control plane)
+     */
+    @Override
+    public java.util.Map<String, Object> updateSettings(java.util.Map<String, Object> body) {
+        String provider = str(body.get("provider"));
+        if (provider == null) throw new IllegalArgumentException("'provider' is required");
+        provider = provider.trim().toLowerCase(Locale.ROOT);
+        if (!ProviderSettings.knownProviders().contains(provider))
+            throw new IllegalArgumentException("unknown provider '" + provider + "'; known: "
+                    + ProviderSettings.knownProviders());
+        if (!ModelProviderFactory.availableProviders().contains(provider))
+            throw new IllegalArgumentException("provider '" + provider + "' requires the "
+                    + "file-processor-agent-hosted jar on the classpath");
+
+        ProviderSettings defaults = ProviderSettings.defaults(provider);
+        java.util.EnumMap<ModelTier, String> models = new java.util.EnumMap<>(ModelTier.class);
+        Object modelsBody = body.get("models");
+        for (ModelTier t : ModelTier.values()) {
+            String fromBody = (modelsBody instanceof java.util.Map<?, ?> m)
+                    ? str(m.get(t.name().toLowerCase(Locale.ROOT))) : null;
+            String v = fromBody != null ? fromBody : defaults.model(t);
+            if (v != null && !v.isBlank()) models.put(t, v.trim());
+        }
+        String baseUrl = str(body.get("baseUrl"));
+        String apiKeyRef = str(body.get("apiKeyRef"));
+        int timeout = (body.get("timeoutSeconds") instanceof Number n)
+                ? n.intValue() : defaults.timeoutSeconds();
+        ProviderSettings s = new ProviderSettings(provider,
+                baseUrl != null ? baseUrl : defaults.baseUrl(),
+                apiKeyRef != null ? apiKeyRef : defaults.apiKeyRef(),
+                models, timeout);
+
+        // A raw key rides the request once, lands in the in-memory session store, and is never
+        // persisted or echoed. Restarts resolve the key from the env var named by apiKeyRef.
+        String apiKey = str(body.get("apiKey"));
+        if (apiKey != null) AssistModelSettings.setSessionKey(provider, apiKey);
+
+        AssistModelSettings.save(s);
+        if (router instanceof DelegatingModelRouter d) {
+            d.set(ModelProviderFactory.create(s));
+        }
+        log.info("[ASSIST] settings updated: provider={} models={} keySet={} (file={})", provider,
+                modelMap(s.models()), AssistModelSettings.resolveApiKey(s) != null,
+                AssistModelSettings.path());
+        return settings();
+    }
+
+    /**
+     * Round-trip each tier's provider with a one-word prompt (v4.1,
+     * {@code POST /assist/settings/test}): per-tier {@code ok}/{@code latencyMs}/{@code error} so the
+     * settings screen can verify a configuration before relying on it.
+     */
+    @Override
+    public java.util.Map<String, Object> testSettings() {
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("supported", true);
+        for (ModelTier t : ModelTier.values()) {
+            java.util.Map<String, Object> r = new java.util.LinkedHashMap<>();
+            ModelProvider p = router.providerFor(t);
+            r.put("provider", p.name());
+            if (!p.available()) {
+                r.put("ok", false);
+                r.put("error", "not configured (provider unavailable)");
+            } else {
+                long start = System.nanoTime();
+                try {
+                    p.generate(ModelRequest.text(t, null, "Reply with the single word: OK"));
+                    r.put("ok", true);
+                    r.put("latencyMs", (System.nanoTime() - start) / 1_000_000);
+                } catch (RuntimeException e) {
+                    r.put("ok", false);
+                    r.put("latencyMs", (System.nanoTime() - start) / 1_000_000);
+                    r.put("error", e.getMessage());
+                }
+            }
+            out.put(t.name().toLowerCase(Locale.ROOT), r);
+        }
+        return out;
+    }
+
+    private static java.util.Map<String, String> modelMap(java.util.Map<ModelTier, String> models) {
+        java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
+        for (ModelTier t : ModelTier.values()) {
+            String v = models.get(t);
+            if (v != null) m.put(t.name().toLowerCase(Locale.ROOT), v);
+        }
+        return m;
+    }
+
+    private static String str(Object v) {
+        if (v == null) return null;
+        String s = String.valueOf(v).trim();
+        return s.isEmpty() ? null : s;
     }
 
     /** The agent's recent failure diagnoses (M7), newest first — backs {@code GET /assist/diagnoses}. */

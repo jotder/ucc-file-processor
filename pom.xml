@@ -9,7 +9,7 @@
     <version>4.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>UCC File Processor (parent)</name>
+    <name>Inspecto (parent)</name>
     <description>
         Aggregator for the v3.x line. Two modules:
         - file-processor       : the lean ETL engine + control plane (the deployable fat-JAR;
@@ -18,6 +18,9 @@
                                  so CI, package.ps1, and the release flow remain unchanged.
         - file-processor-agent : OPTIONAL embedded assist agent. All AI/LLM dependencies live
                                  here only; loaded in-process by SourceService when present.
+        - file-processor-agent-hosted : OPTIONAL hosted-model providers (Claude/ChatGPT/Gemini/
+                                 Grok/llama.cpp) behind the agent's HostedProviderPlugin SPI; the
+                                 default (air-gapped) packaging omits this jar.
     </description>
 
     <!--
@@ -28,6 +31,7 @@
     <modules>
         <module>file-processor</module>
         <module>file-processor-agent</module>
+        <module>file-processor-agent-hosted</module>
     </modules>
 
     <properties>

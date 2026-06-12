@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>file-processor-agent-hosted</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Inspecto — Assist Agent hosted providers (optional)</name>
+    <description>
+        OPTIONAL hosted-model providers for the assist agent (v4.1): Anthropic Claude, OpenAI
+        ChatGPT, Google Gemini, xAI Grok, and the OpenAI-compatible llama.cpp server — one
+        LangChain4j-backed adapter behind the agent module's HostedProviderPlugin ServiceLoader
+        seam.
+
+        This module exists so the AIR-GAPPED GUARANTEE stays a packaging fact: the default build
+        ships file-processor-agent with local Ollama only; dropping THIS jar on the classpath is
+        what lights up the hosted options in the settings screen. No core or agent code changes
+        either way.
+    </description>
+
+    <properties>
+        <langchain4j.version>1.15.1</langchain4j.version>
+    </properties>
+
+    <dependencies>
+        <!-- The agent module: HostedProviderPlugin SPI, ProviderSettings, and (transitively) the
+             agent-kernel ModelProvider seam this module implements. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Hosted SDK adapters (LangChain4j). Grok and llama.cpp ride the OpenAI-compatible
+             client, so three artifacts cover all five hosted/local-server providers. -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-anthropic</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-google-ai-gemini</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

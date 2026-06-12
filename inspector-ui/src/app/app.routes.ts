@@ -79,6 +79,7 @@ export const appRoutes: Route[] = [
             { path: 'catalog', loadChildren: () => import('app/modules/admin/catalog/catalog.routes') },
             { path: 'config', loadChildren: () => import('app/modules/admin/config/config.routes') },
             { path: 'assist', loadChildren: () => import('app/modules/admin/assist/assist.routes') },
+            { path: 'settings/models', loadChildren: () => import('app/modules/admin/model-settings/model-settings.routes') },
         ]
     }
 ];
