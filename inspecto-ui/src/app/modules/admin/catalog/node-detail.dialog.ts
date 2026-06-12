@@ -4,9 +4,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, RowClickedEvent } from 'ag-grid-community';
-import { CatalogService, MetadataNode, NodeDetail } from 'app/ucc/api';
-import { UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
-import { AssistPanelComponent } from 'app/ucc/components/assist-panel.component';
+import { CatalogService, MetadataNode, NodeDetail } from 'app/inspecto/api';
+import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
+import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.component';
 
 /**
  * Catalog node inspector: node facts + attrs, neighbour grid (click to walk the graph
@@ -71,8 +71,8 @@ import { AssistPanelComponent } from 'app/ucc/components/assist-panel.component'
 })
 export class NodeDetailDialog {
     private api = inject(CatalogService);
-    readonly gridTheme = inject(UccGridThemeService);
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly gridTheme = inject(InspectoGridThemeService);
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     loading = false;
     detail: NodeDetail | null = null;

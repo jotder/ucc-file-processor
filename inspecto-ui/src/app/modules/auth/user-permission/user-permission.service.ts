@@ -1,7 +1,7 @@
 // import { Injectable } from '@angular/core';
 // import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from '@angular/router';
 // import { AppProperties } from 'app/modules/commons/app.properties';
-// import { AppUtils } from 'app/modules/commons/app.utils';
+// import { AppUtils } from 'app/modules/commons/app-utils';
 // import { PageManager } from 'app/modules/commons/page.manager';
 // import { SecurityPrincipal } from 'app/modules/commons/security-principal';
 
@@ -31,7 +31,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn } from '@angular/router';
 import { AppProperties } from 'app/modules/commons/app.properties';
-import { AppUtils } from 'app/modules/commons/app.utils';
+import { AppUtils } from 'app/modules/commons/app-utils';
 import { PageManager } from 'app/modules/commons/page.manager';
 import { SecurityPrincipal } from 'app/modules/commons/security-principal';
 

@@ -2,8 +2,8 @@ import { Component, ViewEncapsulation } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
-import { AssistIntent } from 'app/ucc/api';
-import { AssistPanelComponent } from 'app/ucc/components/assist-panel.component';
+import { AssistIntent } from 'app/inspecto/api';
+import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.component';
 
 interface IntentMeta {
     id: AssistIntent;

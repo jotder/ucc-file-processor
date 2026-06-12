@@ -18,9 +18,10 @@ import {
     ServiceReport,
     StatusReport,
     visibleInterval,
-} from 'app/ucc/api';
-import { UccChartComponent } from 'app/ucc/components/chart.component';
-import { UCC_DEFAULT_COL_DEF, UccGridThemeService, fmtDateTime } from 'app/ucc/grid';
+} from 'app/inspecto/api';
+import { InspectoChartComponent } from 'app/inspecto/components/chart.component';
+import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, fmtDateTime } from 'app/inspecto/grid';
+import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
 
 /**
  * Inspector dashboard — service health, throughput and error-rate overview.
@@ -36,7 +37,7 @@ import { UCC_DEFAULT_COL_DEF, UccGridThemeService, fmtDateTime } from 'app/ucc/g
         MatSlideToggleModule,
         MatTooltipModule,
         AgGridAngular,
-        UccChartComponent,
+        InspectoChartComponent,
     ],
     templateUrl: './dashboard.component.html',
 })
@@ -44,8 +45,8 @@ export class DashboardComponent implements OnInit {
     private health = inject(HealthService);
     private reports = inject(ReportsService);
     private destroyRef = inject(DestroyRef);
-    readonly gridTheme = inject(UccGridThemeService);
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly gridTheme = inject(InspectoGridThemeService);
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     autoRefresh = true;
     loading = true;
@@ -96,7 +97,7 @@ export class DashboardComponent implements OnInit {
                         {
                             label: 'duration (ms)',
                             data: [report.p50DurationMs, report.p95DurationMs, report.p99DurationMs],
-                            backgroundColor: '#4f46e5',
+                            backgroundColor: CHART_SERIES.primary,
                         },
                     ],
                 };
@@ -105,7 +106,7 @@ export class DashboardComponent implements OnInit {
                     datasets: [
                         {
                             data: [report.success, report.failed],
-                            backgroundColor: ['#22c55e', '#ef4444'],
+                            backgroundColor: [CHART_SERIES.success, CHART_SERIES.error],
                         },
                     ],
                 };

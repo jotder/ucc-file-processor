@@ -13,7 +13,7 @@ import {
     AssistSettings,
     AssistSettingsTest,
     AssistSettingsUpdate,
-} from 'app/ucc/api';
+} from 'app/inspecto/api';
 
 /** Display names for the provider dropdown. */
 const PROVIDER_LABELS: Record<string, string> = {

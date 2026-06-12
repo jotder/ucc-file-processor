@@ -1,4 +1,4 @@
-# Inspector — operator console for the UCC file-processing platform
+# Inspecto — operator console for the Inspecto file-processing platform
 
 Angular SPA on the gamma-analytics admin template (Angular 21 + Angular Material + Tailwind),
 with **ag-Grid Community** for grids, **Chart.js** for the dashboard charts and **AntV G6** for
@@ -12,7 +12,7 @@ port is documented in [`docs/devextreme-migration-plan.md`](docs/devextreme-migr
 
 ```
 src/@gamma/            template core library (layouts, components, theming) — avoid editing
-src/app/ucc/           UCC layer: API services + interceptors, auth, grid kit, assist panel, chart host
+src/app/inspecto/      Inspecto layer: API services + interceptors, auth, grid kit, assist panel, chart host
 src/app/modules/admin/ one folder per screen: dashboard, pipelines, pipeline-detail, jobs,
                        enrichment, catalog, diagnoses, config, assist, connect
 src/e2e/               guarded backend-smoke spec (runs only when E2E_BASE_URL is set)

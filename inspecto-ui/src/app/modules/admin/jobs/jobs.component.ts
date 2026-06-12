@@ -9,11 +9,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { JobsService, JobView } from 'app/ucc/api';
-import { UccAuthService } from 'app/ucc/auth.service';
-import { UccConfirmService } from 'app/ucc/confirm.service';
-import { AssistDialog } from 'app/ucc/components/assist.dialog';
-import { actionsColumn, fmtDateTime, refreshActionsCells, UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
+import { JobsService, JobView } from 'app/inspecto/api';
+import { InspectoAuthService } from 'app/inspecto/auth.service';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { AssistDialog } from 'app/inspecto/components/assist.dialog';
+import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { actionsColumn, fmtDateTime, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
 import { JobRunsDialog } from './job-runs.dialog';
 
 /**
@@ -32,17 +33,18 @@ import { JobRunsDialog } from './job-runs.dialog';
         MatInputModule,
         MatTooltipModule,
         AgGridAngular,
+        InspectoEmptyStateComponent,
     ],
     templateUrl: './jobs.component.html',
     encapsulation: ViewEncapsulation.None,
 })
 export class JobsComponent implements OnInit {
     private api = inject(JobsService);
-    private auth = inject(UccAuthService);
+    private auth = inject(InspectoAuthService);
     private dialog = inject(MatDialog);
-    private confirm = inject(UccConfirmService);
+    private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(UccGridThemeService);
+    readonly themeSvc = inject(InspectoGridThemeService);
 
     jobs: JobView[] = [];
     loading = false;
@@ -69,7 +71,7 @@ export class JobsComponent implements OnInit {
         });
     }
 
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<JobView>[] = [
         { field: 'name', headerName: 'Job', flex: 1 },
         { field: 'type', headerName: 'Type', width: 110 },

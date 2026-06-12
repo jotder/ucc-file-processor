@@ -43,7 +43,7 @@ import { AppComponentService } from './app-component.service';
 import { Title } from '@angular/platform-browser';
 import moment from 'moment';
 import { defaultNavigation } from './mock-api/common/navigation/data';
-import { User } from './modules/auth/model.user';
+import { User } from './modules/auth/user.types';
 import { AuthService } from './modules/auth/auth-service';
 
 import { LoaderService } from './modules/commons/loader/loader.service';
@@ -51,7 +51,7 @@ import { SecurityPrincipal } from './modules/commons/security-principal';
 import { PageManager } from './modules/commons/page.manager';
 import { AppProperties } from './modules/commons/app.properties';
 import { PermissionUtils } from './modules/auth/user-permission/permission-utils';
-import { AppUtils } from './modules/commons/app.utils';
+import { AppUtils } from './modules/commons/app-utils';
 import { environment } from 'environments/environment';
 
 @Component({

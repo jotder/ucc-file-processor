@@ -9,7 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ToastrService } from 'ngx-toastr';
-import { ConfigService, ConfigSpec, ConfigType, FieldSpec, ValidateResult } from 'app/ucc/api';
+import { ConfigService, ConfigSpec, ConfigType, FieldSpec, ValidateResult } from 'app/inspecto/api';
 
 const CONFIG_TYPES: ConfigType[] = ['pipeline', 'enrichment', 'job', 'schema', 'meta'];
 

@@ -146,6 +146,7 @@ const config = {
 
                 // Bigger values
                 100: '25rem',
+                112: '28rem',
                 120: '30rem',
                 128: '32rem',
                 140: '35rem',

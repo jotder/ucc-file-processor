@@ -6,8 +6,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { AlertRule, AlertsService, FiredAlert } from 'app/ucc/api';
-import { UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
+import { AlertRule, AlertsService, FiredAlert } from 'app/inspecto/api';
+import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
 
 /**
  * Alerts — the core alert engine's surface (v4.1, B5): recent fired alerts (GET /alerts) over the
@@ -31,7 +31,7 @@ import { UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
 export class AlertsComponent implements OnInit {
     private api = inject(AlertsService);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(UccGridThemeService);
+    readonly themeSvc = inject(InspectoGridThemeService);
 
     alerts: FiredAlert[] = [];
     rules: AlertRule[] = [];
@@ -54,7 +54,7 @@ export class AlertsComponent implements OnInit {
         { field: 'message', headerName: 'Message', flex: 3, wrapText: true, autoHeight: true },
     ];
 
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     ngOnInit(): void {
         this.load();

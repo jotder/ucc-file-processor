@@ -3,8 +3,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { ToastrService } from 'ngx-toastr';
-import { Diagnosis } from 'app/ucc/api';
-import { AssistPanelComponent } from 'app/ucc/components/assist-panel.component';
+import { Diagnosis } from 'app/inspecto/api';
+import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.component';
 
 /** Detail view for one diagnosis — replaces inspector-ui's dx-popup drawer. */
 @Component({

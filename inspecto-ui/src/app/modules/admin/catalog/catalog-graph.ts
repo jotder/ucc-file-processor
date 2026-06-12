@@ -1,4 +1,5 @@
-import { MetadataEdge, MetadataNode, NodeKind } from 'app/ucc/api';
+import { MetadataEdge, MetadataNode, NodeKind } from 'app/inspecto/api';
+import { NODE_KIND_COLORS, NODE_KIND_FALLBACK } from 'app/inspecto/theme/chart-tokens';
 
 /**
  * Pure mappers that turn a {@link MetadataGraph} into AntV G6 v5 graph data.
@@ -39,16 +40,7 @@ export function nodeShape(kind: NodeKind): string {
 
 /** Accent colour per node kind — drives the legend and the node outline. */
 export function nodeColor(kind: NodeKind): string {
-    switch (kind) {
-        case 'SOURCE':     return '#5B8FF9';
-        case 'SCHEMA':     return '#61DDAA';
-        case 'TABLE':      return '#65789B';
-        case 'COLUMN':     return '#F6BD16';
-        case 'KPI':        return '#7262FD';
-        case 'REPORT':     return '#78D3F8';
-        case 'ENRICHMENT': return '#F6903D';
-        default:           return '#9AA0A6';
-    }
+    return NODE_KIND_COLORS[kind] ?? NODE_KIND_FALLBACK;
 }
 
 /**

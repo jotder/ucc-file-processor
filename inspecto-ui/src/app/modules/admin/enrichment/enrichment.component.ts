@@ -9,8 +9,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, RowClickedEvent } from 'ag-grid-community';
-import { AuditRow, EnrichmentJobView, EnrichmentRunReport, EnrichmentService } from 'app/ucc/api';
-import { autoColumns, fmtDateTime, UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
+import { AuditRow, EnrichmentJobView, EnrichmentRunReport, EnrichmentService } from 'app/inspecto/api';
+import { autoColumns, fmtDateTime, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
 
 type EnrTab = 'runs' | 'lineage' | 'report';
 
@@ -38,7 +38,7 @@ type EnrTab = 'runs' | 'lineage' | 'report';
 })
 export class EnrichmentComponent implements OnInit {
     private api = inject(EnrichmentService);
-    readonly themeSvc = inject(UccGridThemeService);
+    readonly themeSvc = inject(InspectoGridThemeService);
 
     jobs: EnrichmentJobView[] = [];
     loading = false;
@@ -65,7 +65,7 @@ export class EnrichmentComponent implements OnInit {
     to: Date | null = null;
     report: EnrichmentRunReport | null = null;
 
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly jobColumns: ColDef<EnrichmentJobView>[] = [
         { field: 'name', headerName: 'Job', flex: 1 },
         { field: 'onPipeline', headerName: 'On pipeline', flex: 1 },

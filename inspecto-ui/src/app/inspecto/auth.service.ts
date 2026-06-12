@@ -9,7 +9,7 @@ import { TokenStore } from './api/token-store.service';
  * sessionStorage and the auth interceptor attaches them. "Logged in" = at least one token held.
  */
 @Injectable({ providedIn: 'root' })
-export class UccAuthService {
+export class InspectoAuthService {
     private tokens = inject(TokenStore);
     private router = inject(Router);
 
@@ -48,9 +48,9 @@ export class UccAuthService {
     }
 }
 
-/** Route guard: UCC screens require a token; otherwise bounce to the Connect screen. */
-export const uccAuthGuard: CanActivateFn = (route, state) => {
-    const auth = inject(UccAuthService);
+/** Route guard: Inspecto screens require a token; otherwise bounce to the Connect screen. */
+export const inspectoAuthGuard: CanActivateFn = (route, state) => {
+    const auth = inject(InspectoAuthService);
     const router = inject(Router);
     if (!auth.loggedIn) {
         return router.parseUrl('/connect');

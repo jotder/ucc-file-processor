@@ -73,7 +73,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
         link : '/settings/models'
     }
 ];
-// The alternate layouts reuse the same UCC navigation.
+// The alternate layouts reuse the same Inspecto navigation.
 export const compactNavigation: GammaNavigationItem[] = defaultNavigation;
 export const futuristicNavigation: GammaNavigationItem[] = defaultNavigation;
 export const horizontalNavigation: GammaNavigationItem[] = defaultNavigation;

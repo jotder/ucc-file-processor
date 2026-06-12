@@ -15,8 +15,8 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin, Observable } from 'rxjs';
-import { AuditRow, BatchAuditReport, InboxStatus, PipelinesService } from 'app/ucc/api';
-import { actionsColumn, autoColumns, refreshActionsCells, UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
+import { AuditRow, BatchAuditReport, InboxStatus, PipelinesService } from 'app/inspecto/api';
+import { actionsColumn, autoColumns, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
 import { BatchDetailDialog } from './batch-detail.dialog';
 
 type TabKey = 'batches' | 'files' | 'lineage' | 'quarantine' | 'commits' | 'report';
@@ -53,7 +53,7 @@ export class PipelineDetailComponent implements OnInit {
     private router = inject(Router);
     private dialog = inject(MatDialog);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(UccGridThemeService);
+    readonly themeSvc = inject(InspectoGridThemeService);
 
     name = '';
     loading = false;
@@ -87,7 +87,7 @@ export class PipelineDetailComponent implements OnInit {
     to: Date | null = null;
     report: BatchAuditReport | null = null;
 
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly refreshActions = refreshActionsCells;
 
     ngOnInit(): void {

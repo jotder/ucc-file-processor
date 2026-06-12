@@ -30,9 +30,10 @@
     <!-- Main -->
     <div class="flex flex-auto flex-col p-6 sm:p-10">
         @if (unavailable) {
-            <div class="text-secondary rounded-2xl border-2 border-dashed border-gray-300 p-8 dark:border-gray-600">
-                No jobs are registered (the scheduler has no configured jobs).
-            </div>
+            <inspecto-empty-state
+                icon="heroicons_outline:clock"
+                message="No jobs are registered (the scheduler has no configured jobs)."
+            ></inspecto-empty-state>
         } @else {
             <ag-grid-angular
                 class="h-[42rem] w-full"

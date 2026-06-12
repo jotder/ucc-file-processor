@@ -4,7 +4,7 @@
 
 export const environment = {
     production: false,
-    // UCC inspector backend (ControlApi). '/api' is proxied to :8080 by ng serve (proxy.conf.json);
+    // Inspecto inspector backend (ControlApi). '/api' is proxied to :8080 by ng serve (proxy.conf.json);
     // in production the SPA is served by ControlApi itself, so this becomes '' (same-origin).
     apiBaseUrl: '/api',
     hmr: false,

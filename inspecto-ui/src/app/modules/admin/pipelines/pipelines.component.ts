@@ -11,10 +11,10 @@ import { Router } from '@angular/router';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { DEFAULT_REFRESH_MS, PipelinesService, PipelineView, visibleInterval } from 'app/ucc/api';
-import { UccAuthService } from 'app/ucc/auth.service';
-import { UccConfirmService } from 'app/ucc/confirm.service';
-import { actionsColumn, refreshActionsCells, UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
+import { DEFAULT_REFRESH_MS, PipelinesService, PipelineView, visibleInterval } from 'app/inspecto/api';
+import { InspectoAuthService } from 'app/inspecto/auth.service';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { actionsColumn, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
 import { ReprocessDialog } from './reprocess.dialog';
 
 /**
@@ -39,13 +39,13 @@ import { ReprocessDialog } from './reprocess.dialog';
 })
 export class PipelinesComponent implements OnInit {
     private api = inject(PipelinesService);
-    private auth = inject(UccAuthService);
+    private auth = inject(InspectoAuthService);
     private router = inject(Router);
     private dialog = inject(MatDialog);
-    private confirm = inject(UccConfirmService);
+    private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     private destroyRef = inject(DestroyRef);
-    readonly themeSvc = inject(UccGridThemeService);
+    readonly themeSvc = inject(InspectoGridThemeService);
 
     pipelines: PipelineView[] = [];
     loading = false;
@@ -57,7 +57,7 @@ export class PipelinesComponent implements OnInit {
         return this.auth.hasControl();
     }
 
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<PipelineView>[] = [
         { field: 'name', headerName: 'Pipeline', flex: 1 },
         { field: 'configPath', headerName: 'Config', flex: 2 },

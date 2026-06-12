@@ -92,7 +92,7 @@
                         <div class="text-secondary mb-2 text-sm">
                             {{ graph.nodes.length }} nodes, {{ graph.edges.length }} edges — click a node to inspect
                         </div>
-                        <ucc-graph-view [data]="g6Data" (nodeClick)="openNode($event)"></ucc-graph-view>
+                        <inspecto-graph-view [data]="g6Data" (nodeClick)="openNode($event)"></inspecto-graph-view>
                         <div class="mt-3 flex flex-wrap gap-4">
                             @for (l of legend; track l.kind) {
                                 <span class="flex items-center gap-1.5 text-sm">

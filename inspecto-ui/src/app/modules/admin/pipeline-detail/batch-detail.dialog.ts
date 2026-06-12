@@ -4,8 +4,8 @@ import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AgGridAngular } from 'ag-grid-angular';
 import { forkJoin } from 'rxjs';
-import { AuditRow, PipelinesService } from 'app/ucc/api';
-import { autoColumns, UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
+import { AuditRow, PipelinesService } from 'app/inspecto/api';
+import { autoColumns, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
 
 /** Batch detail — summary + member files + input→output lineage for one batch. */
 @Component({
@@ -61,14 +61,14 @@ import { autoColumns, UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/g
 export class BatchDetailDialog implements OnInit {
     readonly data = inject<{ pipeline: string; batchId: string }>(MAT_DIALOG_DATA);
     private api = inject(PipelinesService);
-    readonly themeSvc = inject(UccGridThemeService);
+    readonly themeSvc = inject(InspectoGridThemeService);
 
     loading = true;
     batchRow: AuditRow | null = null;
     batchFiles: AuditRow[] = [];
     batchLineage: AuditRow[] = [];
 
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     get fileCols() { return autoColumns(this.batchFiles); }
     get lineageCols() { return autoColumns(this.batchLineage); }
 

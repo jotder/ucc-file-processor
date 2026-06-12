@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { ToastrService } from 'ngx-toastr';
-import { UccAuthService } from 'app/ucc/auth.service';
+import { InspectoAuthService } from 'app/inspecto/auth.service';
 
 /**
  * Connect screen — the inspector's "login" (ported from inspector-ui's connect-form). The operator
@@ -47,7 +47,7 @@ import { UccAuthService } from 'app/ucc/auth.service';
     `,
 })
 export class ConnectComponent {
-    private auth = inject(UccAuthService);
+    private auth = inject(InspectoAuthService);
     private toastr = inject(ToastrService);
 
     controlToken = '';

@@ -4,7 +4,7 @@ import { AppProperties } from 'app/modules/commons/app.properties';
 import { PageManager } from 'app/modules/commons/page.manager';
 import { SecurityPrincipal } from 'app/modules/commons/security-principal';
 import { AuthService } from '../auth-service';
-import { AppUtils } from 'app/modules/commons/app.utils';
+import { AppUtils } from 'app/modules/commons/app-utils';
 
 @Component({
     selector: 'default-redirect',

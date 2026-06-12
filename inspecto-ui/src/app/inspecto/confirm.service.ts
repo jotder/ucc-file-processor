@@ -4,7 +4,7 @@ import { MAT_DIALOG_DATA, MatDialog, MatDialogModule } from '@angular/material/d
 import { firstValueFrom } from 'rxjs';
 
 @Component({
-    selector: 'app-ucc-confirm-dialog',
+    selector: 'inspecto-confirm-dialog',
     standalone: true,
     imports: [MatDialogModule, MatButtonModule],
     template: `
@@ -16,17 +16,17 @@ import { firstValueFrom } from 'rxjs';
         </mat-dialog-actions>
     `,
 })
-export class UccConfirmDialog {
+export class InspectoConfirmDialog {
     readonly data = inject<{ title: string; message: string }>(MAT_DIALOG_DATA);
 }
 
 /** Promise-based confirm — replaces DevExtreme's `confirm()` for the ported screens. */
 @Injectable({ providedIn: 'root' })
-export class UccConfirmService {
+export class InspectoConfirmService {
     private dialog = inject(MatDialog);
 
     async confirm(message: string, title = 'Confirm'): Promise<boolean> {
-        const ref = this.dialog.open(UccConfirmDialog, { data: { title, message }, width: '400px' });
+        const ref = this.dialog.open(InspectoConfirmDialog, { data: { title, message }, width: '400px' });
         return !!(await firstValueFrom(ref.afterClosed()));
     }
 }

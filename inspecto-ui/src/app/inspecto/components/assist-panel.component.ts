@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ToastrService } from 'ngx-toastr';
-import { AssistIntent, AssistResult, AssistService } from 'app/ucc/api';
+import { AssistIntent, AssistResult, AssistService } from 'app/inspecto/api';
 
 /** SQL-producing intents that can return a sampleRows preview. */
 const SQL_INTENTS = ['kpi-to-sql', 'report-sql'];

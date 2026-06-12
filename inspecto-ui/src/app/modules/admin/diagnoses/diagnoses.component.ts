@@ -9,8 +9,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, RowClickedEvent } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { AssistService, Diagnosis } from 'app/ucc/api';
-import { UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
+import { AssistService, Diagnosis } from 'app/inspecto/api';
+import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
 import { DiagnosisDetailDialog } from './diagnosis-detail.dialog';
 
 /**
@@ -36,7 +36,7 @@ export class DiagnosesComponent implements OnInit {
     private api = inject(AssistService);
     private dialog = inject(MatDialog);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(UccGridThemeService);
+    readonly themeSvc = inject(InspectoGridThemeService);
 
     diagnoses: Diagnosis[] = [];
     loading = false;
@@ -58,7 +58,7 @@ export class DiagnosesComponent implements OnInit {
         { field: 'heuristicOnly', headerName: 'Heuristic', width: 110 },
     ];
 
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     ngOnInit(): void {
         this.load();

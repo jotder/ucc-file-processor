@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MetadataEdge, MetadataNode, NodeKind } from 'app/ucc/api';
+import { MetadataEdge, MetadataNode, NodeKind } from 'app/inspecto/api';
 import { legendFor, nodeColor, nodeShape, toG6Data } from './catalog-graph';
 
 const node = (id: string, kind: string, label = id): MetadataNode =>

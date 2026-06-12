@@ -12,6 +12,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { GammaConfigService } from '@gamma/services/config';
 import { Chart, ChartConfiguration, ChartData, ChartOptions, ChartType, registerables } from 'chart.js';
+import { canvasTheme } from 'app/inspecto/theme/chart-tokens';
 
 Chart.register(...registerables);
 
@@ -20,12 +21,12 @@ Chart.register(...registerables);
  * restyles axis/legend colors when the gamma scheme flips between light/dark.
  */
 @Component({
-    selector: 'ucc-chart',
+    selector: 'inspecto-chart',
     standalone: true,
     template: '<canvas #canvas></canvas>',
     host: { class: 'block relative h-64 w-full' },
 })
-export class UccChartComponent implements AfterViewInit, OnChanges, OnDestroy {
+export class InspectoChartComponent implements AfterViewInit, OnChanges, OnDestroy {
     @Input({ required: true }) type: ChartType = 'bar';
     @Input({ required: true }) data: ChartData | null = null;
     @Input() options: ChartOptions = {};
@@ -65,8 +66,7 @@ export class UccChartComponent implements AfterViewInit, OnChanges, OnDestroy {
         this.chart?.destroy();
         this.chart = null;
         if (!this.data) return;
-        const fg = this.dark ? '#cbd5e1' : '#475569';
-        const grid = this.dark ? 'rgba(148,163,184,0.15)' : 'rgba(100,116,139,0.15)';
+        const { fg, grid } = canvasTheme(this.dark);
         const config: ChartConfiguration = {
             type: this.type,
             data: this.data,

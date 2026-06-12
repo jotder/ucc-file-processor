@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { uccAuthGuard } from 'app/ucc/auth.service';
+import { inspectoAuthGuard } from 'app/inspecto/auth.service';
 import { initialDataResolver } from 'app/app.resolvers';
 import { LayoutComponent } from 'app/layout/layout.component';
 import { DefaultCallbackComponent } from './modules/auth/default-callback/default-callback.component';
@@ -13,7 +13,7 @@ export const appRoutes: Route[] = [
     // Default to the dashboard overview
     { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
 
-    // Template OAuth flow, kept for reference (UCC uses operator tokens instead):
+    // Template OAuth flow, kept for reference (Inspecto uses operator tokens instead):
     // { path: 'signed-in-redirect', pathMatch: 'full', redirectTo: 'dashboard' },
     // {
     //     path: 'redirect/oauth/pronto',
@@ -53,8 +53,8 @@ export const appRoutes: Route[] = [
         ]
     },
 
-    // UCC inspector routes. ControlApi uses operator tokens (X-Api-Token), not the Pronto OAuth
-    // flow the template's guard redirects to — so these use the UCC token guard instead.
+    // Inspecto inspector routes. ControlApi uses operator tokens (X-Api-Token), not the Pronto OAuth
+    // flow the template's guard redirects to — so these use the Inspecto token guard instead.
     {
         path: 'connect',
         component: LayoutComponent,
@@ -63,8 +63,8 @@ export const appRoutes: Route[] = [
     },
     {
         path: '',
-        canActivate: [uccAuthGuard],
-        canActivateChild: [uccAuthGuard],
+        canActivate: [inspectoAuthGuard],
+        canActivateChild: [inspectoAuthGuard],
         component: LayoutComponent,
         resolve: {
             initialData: initialDataResolver

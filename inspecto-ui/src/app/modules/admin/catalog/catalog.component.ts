@@ -18,8 +18,8 @@ import {
     MetadataGraph,
     MetadataNode,
     NodeKind,
-} from 'app/ucc/api';
-import { UCC_DEFAULT_COL_DEF, UccGridThemeService, fmtDateTime } from 'app/ucc/grid';
+} from 'app/inspecto/api';
+import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, fmtDateTime } from 'app/inspecto/grid';
 import { G6GraphData, legendFor, toG6Data } from './catalog-graph';
 import { GraphViewComponent } from './graph-view.component';
 import { NodeDetailDialog } from './node-detail.dialog';
@@ -51,8 +51,8 @@ type CatTab = 'tables' | 'kpis' | 'graph';
 export class CatalogComponent implements OnInit {
     private api = inject(CatalogService);
     private dialog = inject(MatDialog);
-    readonly gridTheme = inject(UccGridThemeService);
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly gridTheme = inject(InspectoGridThemeService);
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     readonly tabs: { id: CatTab; label: string }[] = [
         { id: 'tables', label: 'Tables' },

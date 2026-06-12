@@ -15,7 +15,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { GammaConfigService } from '@gamma/services/config';
 import { Graph, GraphData, NodeData, NodeEvent } from '@antv/g6';
 import { G6GraphData, nodeColor, nodeShape } from './catalog-graph';
-import { NodeKind } from 'app/ucc/api';
+import { NodeKind } from 'app/inspecto/api';
+import { canvasTheme } from 'app/inspecto/theme/chart-tokens';
 
 /**
  * Read-only AntV G6 host for the catalog metadata graph: layered (dagre) layout,
@@ -23,7 +24,7 @@ import { NodeKind } from 'app/ucc/api';
  * Recreated when the data or the gamma colour scheme changes.
  */
 @Component({
-    selector: 'ucc-graph-view',
+    selector: 'inspecto-graph-view',
     standalone: true,
     template: '<div #host class="h-full w-full"></div>',
     host: { class: 'block h-160 w-full' },
@@ -67,9 +68,7 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         this.graph?.destroy();
         this.graph = null;
         if (!this.data?.nodes.length) return;
-        const fg = this.dark ? '#cbd5e1' : '#334155';
-        const nodeFill = this.dark ? '#1e293b' : '#ffffff';
-        const edge = this.dark ? '#64748b' : '#94a3b8';
+        const { fg, surface: nodeFill, edge } = canvasTheme(this.dark);
         const kindOf = (d: NodeData): NodeKind => (d.data as { kind: NodeKind }).kind;
         const graph = new Graph({
             container: this.hostEl.nativeElement,

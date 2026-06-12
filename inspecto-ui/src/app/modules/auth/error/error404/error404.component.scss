@@ -20,7 +20,7 @@
             .message {
                 font-size: 24px;
                 text-align: center;
-                color: rgba(0, 0, 0, 0.54);
+                color: rgba(var(--gamma-text-secondary-rgb), 1);
             }
 
             .search {

@@ -16,14 +16,14 @@ import {
     themeQuartz,
 } from 'ag-grid-community';
 
-// One-time community-module registration for every UCC grid.
+// One-time community-module registration for every Inspecto grid.
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-export const UCC_GRID_LIGHT: Theme = themeQuartz;
-export const UCC_GRID_DARK: Theme = themeQuartz.withPart(colorSchemeDark);
+export const INSPECTO_GRID_LIGHT: Theme = themeQuartz;
+export const INSPECTO_GRID_DARK: Theme = themeQuartz.withPart(colorSchemeDark);
 
-/** Shared column defaults for UCC grids. */
-export const UCC_DEFAULT_COL_DEF: ColDef = { sortable: true, resizable: true };
+/** Shared column defaults for Inspecto grids. */
+export const INSPECTO_DEFAULT_COL_DEF: ColDef = { sortable: true, resizable: true };
 
 /** Grid date-time column formatter (epoch millis or ISO string). */
 export function fmtDateTime(value: unknown): string {
@@ -34,8 +34,8 @@ export function fmtDateTime(value: unknown): string {
 
 /** ag-Grid theme that follows the gamma scheme (light/dark/auto) — bind `[theme]="themeSvc.theme()"`. */
 @Injectable({ providedIn: 'root' })
-export class UccGridThemeService {
-    readonly theme = signal<Theme>(UCC_GRID_DARK);
+export class InspectoGridThemeService {
+    readonly theme = signal<Theme>(INSPECTO_GRID_DARK);
 
     constructor() {
         inject(GammaConfigService)
@@ -45,13 +45,13 @@ export class UccGridThemeService {
                     config?.scheme === 'dark' ||
                     (config?.scheme === 'auto' &&
                         window.matchMedia('(prefers-color-scheme: dark)').matches);
-                this.theme.set(dark ? UCC_GRID_DARK : UCC_GRID_LIGHT);
+                this.theme.set(dark ? INSPECTO_GRID_DARK : INSPECTO_GRID_LIGHT);
             });
     }
 }
 
-/** One row action in a {@link UccActionsCell} column. */
-export interface UccRowAction<T = unknown> {
+/** One row action in a {@link InspectoActionsCell} column. */
+export interface InspectoRowAction<T = unknown> {
     /** gamma svg icon name, e.g. 'heroicons_outline:play'. */
     icon: string | ((row: T) => string);
     hint: string | ((row: T) => string);
@@ -62,17 +62,17 @@ export interface UccRowAction<T = unknown> {
 
 /**
  * Actions cell renderer — icon buttons per row, replaces dx-data-grid's `type="buttons"` column.
- * Configure via `cellRendererParams: { actions: UccRowAction<T>[] }`.
+ * Configure via `cellRendererParams: { actions: InspectoRowAction<T>[] }`.
  */
 @Component({
-    selector: 'app-ucc-actions-cell',
+    selector: 'inspecto-actions-cell',
     standalone: true,
     imports: [MatButtonModule, MatIconModule, MatTooltipModule],
     template: `
         @for (a of shown; track $index) {
             <button
                 mat-icon-button
-                class="ucc-row-action"
+                class="inspecto-row-action"
                 [matTooltip]="resolve(a.hint)"
                 [disabled]="a.disabled?.(row)"
                 (click)="$event.stopPropagation(); a.onClick(row)"
@@ -82,11 +82,11 @@ export interface UccRowAction<T = unknown> {
         }
     `,
 })
-export class UccActionsCell implements ICellRendererAngularComp {
+export class InspectoActionsCell implements ICellRendererAngularComp {
     row!: unknown;
-    shown: UccRowAction[] = [];
+    shown: InspectoRowAction[] = [];
 
-    agInit(params: ICellRendererParams & { actions?: UccRowAction[] }): void {
+    agInit(params: ICellRendererParams & { actions?: InspectoRowAction[] }): void {
         this.row = params.data;
         this.shown = (params.actions ?? []).filter((a) => !a.visible || a.visible(this.row));
     }
@@ -117,11 +117,11 @@ export function autoColumns(rows: Record<string, unknown>[]): ColDef[] {
 }
 
 /** Convenience builder for an actions column. */
-export function actionsColumn<T>(actions: UccRowAction<T>[], width = 160): ColDef<T> {
+export function actionsColumn<T>(actions: InspectoRowAction<T>[], width = 160): ColDef<T> {
     return {
         colId: 'actions',
         headerName: 'Actions',
-        cellRenderer: UccActionsCell,
+        cellRenderer: InspectoActionsCell,
         cellRendererParams: { actions },
         width,
         sortable: false,

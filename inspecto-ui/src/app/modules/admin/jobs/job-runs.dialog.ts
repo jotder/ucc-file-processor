@@ -4,8 +4,8 @@ import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
-import { JobRun, JobsService } from 'app/ucc/api';
-import { fmtDateTime, UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/grid';
+import { JobRun, JobsService } from 'app/inspecto/api';
+import { fmtDateTime, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
 
 /** Run-history dialog for one job. */
 @Component({
@@ -35,12 +35,12 @@ import { fmtDateTime, UCC_DEFAULT_COL_DEF, UccGridThemeService } from 'app/ucc/g
 export class JobRunsDialog implements OnInit {
     readonly data = inject<{ job: string }>(MAT_DIALOG_DATA);
     private api = inject(JobsService);
-    readonly themeSvc = inject(UccGridThemeService);
+    readonly themeSvc = inject(InspectoGridThemeService);
 
     runs: JobRun[] = [];
     loading = true;
 
-    readonly defaultColDef = UCC_DEFAULT_COL_DEF;
+    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<JobRun>[] = [
         { field: 'runId', headerName: 'Run', flex: 1 },
         { field: 'status', headerName: 'Status', width: 100 },
