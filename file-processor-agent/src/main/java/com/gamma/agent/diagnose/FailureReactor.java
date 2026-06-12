@@ -64,6 +64,12 @@ public final class FailureReactor implements AutoCloseable {
         this(newDaemonVirtualThreadPool(), DEFAULT_QUEUE_CAPACITY, diagnoser, store, onDiagnosed, true);
     }
 
+    /** Production reactor with an explicit queue capacity (v4.1 tunable: {@code assist.reactor.queue}). */
+    public FailureReactor(Diagnoser diagnoser, DiagnosisStore store, Consumer<Diagnosis> onDiagnosed,
+                          int queueCapacity) {
+        this(newDaemonVirtualThreadPool(), queueCapacity, diagnoser, store, onDiagnosed, true);
+    }
+
     /**
      * Test/seam constructor: inject an {@link Executor} (e.g. {@code Runnable::run} to drain
      * synchronously for deterministic tests) and a queue capacity. The executor is <b>not</b> owned —

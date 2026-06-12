@@ -121,6 +121,22 @@ public final class AssistModelSettings {
         return (v == null || v.isBlank()) ? null : v;
     }
 
+    /**
+     * A free-form extra key from the settings file (tunables ride the same file — see
+     * {@link AssistTunables}), or {@code null} when absent/no file. Reads the small file on demand.
+     */
+    public static String extraProperty(String key) {
+        Path file = path();
+        if (!Files.isRegularFile(file)) return null;
+        Properties props = new Properties();
+        try (InputStream in = Files.newInputStream(file)) {
+            props.load(in);
+        } catch (IOException e) {
+            return null;
+        }
+        return blankToNull(props.getProperty(key));
+    }
+
     private static String blankToNull(String v) {
         return (v == null || v.isBlank()) ? null : v.trim();
     }

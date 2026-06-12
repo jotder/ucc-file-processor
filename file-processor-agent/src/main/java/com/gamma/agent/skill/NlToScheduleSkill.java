@@ -1,5 +1,7 @@
 package com.gamma.agent.skill;
 
+import static com.gamma.agent.skill.SkillInputs.orDefault;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.agentkernel.agent.AgentContext;
@@ -64,10 +66,10 @@ public final class NlToScheduleSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Translate a natural-language scheduling request into a validated JobConfig draft.",
-            ModelTier.SMALL, 0.5, java.time.Duration.ofSeconds(60),
+            ModelTier.SMALL, com.gamma.agent.model.AssistTunables.confidenceThreshold(0.5), java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of());
 
-    private static final int MAX_REPAIR_ROUNDS = 3;
+    private static final int MAX_REPAIR_ROUNDS = com.gamma.agent.model.AssistTunables.repairRounds(3);
     private static final int NEXT_RUNS = 5;
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -287,7 +289,4 @@ public final class NlToScheduleSkill implements Capability {
         return (s == null || s.isBlank() || "null".equalsIgnoreCase(s)) ? null : s.trim();
     }
 
-    private static String orDefault(String v, String fallback) {
-        return (v == null || v.isBlank()) ? fallback : v;
-    }
 }

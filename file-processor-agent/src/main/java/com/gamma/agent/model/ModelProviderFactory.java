@@ -5,6 +5,7 @@ import com.gamma.agentkernel.model.ModelRouter;
 import com.gamma.agentkernel.provider.ollama.ModelProfile;
 import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
 
+import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -42,17 +43,30 @@ public final class ModelProviderFactory {
             var models = settings.models().isEmpty()
                     ? ProviderSettings.defaultModels("ollama") : settings.models();
             // enabled=true: choosing ollama in the settings IS the explicit opt-in.
-            return OllamaModelProvider.routerFor(new ModelProfile("settings", baseUrl, true, models));
+            return withDeadline(
+                    OllamaModelProvider.routerFor(new ModelProfile("settings", baseUrl, true, models)),
+                    settings);
         }
         for (HostedProviderPlugin plugin : ServiceLoader.load(HostedProviderPlugin.class)) {
             if (plugin.providers().contains(id)) {
-                return plugin.createRouter(settings, AssistModelSettings.resolveApiKey(settings));
+                return withDeadline(
+                        plugin.createRouter(settings, AssistModelSettings.resolveApiKey(settings)),
+                        settings);
             }
         }
         String why = ProviderSettings.knownProviders().contains(id)
                 ? "provider '" + id + "' requires the file-processor-agent-hosted jar on the classpath"
                 : "unknown model provider '" + id + "'";
         return tier -> ModelProvider.unavailable(why);
+    }
+
+    /**
+     * Enforce the settings' per-request timeout as a hard deadline around every provider (B1: the
+     * declared timeout previously had no enforcement — a hung provider stalled the assist call).
+     */
+    private static ModelRouter withDeadline(ModelRouter router, ProviderSettings settings) {
+        Duration deadline = Duration.ofSeconds(settings.timeoutSeconds());
+        return tier -> TimeoutModelProvider.wrap(router.providerFor(tier), deadline);
     }
 
     /** Provider ids selectable in this deployment: always ollama, plus whatever plugins contribute. */

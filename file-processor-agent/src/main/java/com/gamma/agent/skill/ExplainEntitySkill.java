@@ -1,5 +1,7 @@
 package com.gamma.agent.skill;
 
+import static com.gamma.agent.skill.SkillInputs.firstNonBlank;
+
 import com.gamma.agentkernel.agent.AgentContext;
 import com.gamma.agentkernel.agent.AgentRequest;
 import com.gamma.agentkernel.agent.AgentResult;
@@ -42,12 +44,12 @@ import java.util.Map;
 public final class ExplainEntitySkill implements Capability {
 
     public static final String ID = "explain-entity";
-    private static final int MAX_NEIGHBOURS = 8;
-    private static final int MAX_DOC_SNIPPETS = 3;
+    private static final int MAX_NEIGHBOURS = com.gamma.agent.model.AssistTunables.explainNeighbours(8);
+    private static final int MAX_DOC_SNIPPETS = com.gamma.agent.model.AssistTunables.explainDocSnippets(3);
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Explain a catalog entity grounded on the metadata graph and bundled docs.",
-            ModelTier.MEDIUM, 0.5, java.time.Duration.ofSeconds(60),
+            ModelTier.MEDIUM, com.gamma.agent.model.AssistTunables.confidenceThreshold(0.5), java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of());
 
     private static final String SYSTEM = """
@@ -106,12 +108,17 @@ public final class ExplainEntitySkill implements Capability {
             evidence.add(new Evidence("domain", CredibilityTier.AUTHORITATIVE, "catalog", "domain", 1.0, null));
         }
 
-        // ── Docs RAG (optional grounding) ──
-        for (Evidence ev : ctx.docs().retrieve(question + " " + headline,
-                new ContextBudget(0, MAX_DOC_SNIPPETS * 200, 0))) {
-            context.append("DOC[").append(ev.sourceRef()).append("]: ").append(ev.value()).append('\n');
-            evidence.add(new Evidence(ev.value(), CredibilityTier.INDICATIVE, "doc", ev.sourceRef(),
-                    ev.confidence(), null));
+        // ── Docs RAG (optional grounding). A retrieval failure must not sink the whole answer —
+        // degrade to catalog-only grounding (B1 hardening, v4.1). ──
+        try {
+            for (Evidence ev : ctx.docs().retrieve(question + " " + headline,
+                    new ContextBudget(0, MAX_DOC_SNIPPETS * 200, 0))) {
+                context.append("DOC[").append(ev.sourceRef()).append("]: ").append(ev.value()).append('\n');
+                evidence.add(new Evidence(ev.value(), CredibilityTier.INDICATIVE, "doc", ev.sourceRef(),
+                        ev.confidence(), null));
+            }
+        } catch (RuntimeException e) {
+            context.append("(doc retrieval unavailable: ").append(e.getMessage()).append(")\n");
         }
 
         String prompt = "QUESTION: " + question + "\n\nCONTEXT:\n" + context;
@@ -185,8 +192,4 @@ public final class ExplainEntitySkill implements Capability {
         if (n > 0) ctx.append("RELATED: ").append(line).append('\n');
     }
 
-    private static String firstNonBlank(String a, String b) {
-        if (a != null && !a.isBlank()) return a;
-        return (b != null && !b.isBlank()) ? b : null;
-    }
 }

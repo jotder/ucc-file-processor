@@ -1,5 +1,9 @@
 package com.gamma.agent.skill;
 
+import static com.gamma.agent.skill.SkillInputs.firstNonBlank;
+import static com.gamma.agent.skill.SkillInputs.orDefault;
+import static com.gamma.agent.skill.SkillInputs.str;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.agentkernel.agent.AgentContext;
@@ -50,10 +54,10 @@ public final class ReportNarrativeSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Narrate a structured pipeline report in plain language, grounded to the report's own figures.",
-            ModelTier.SMALL, 0.5, java.time.Duration.ofSeconds(60),
+            ModelTier.SMALL, com.gamma.agent.model.AssistTunables.confidenceThreshold(0.5), java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of());
 
-    private static final int MAX_REPAIR_ROUNDS = 2;
+    private static final int MAX_REPAIR_ROUNDS = com.gamma.agent.model.AssistTunables.repairRounds(2);
 
     private static final String SYSTEM = """
             You write a short (2-4 sentence) plain-language narrative summarising a data-pipeline report.
@@ -220,16 +224,4 @@ public final class ReportNarrativeSkill implements Capability {
         return out;
     }
 
-    private static String str(Object o) {
-        return o == null ? null : o.toString();
-    }
-
-    private static String orDefault(String v, String fallback) {
-        return (v == null || v.isBlank()) ? fallback : v;
-    }
-
-    private static String firstNonBlank(String... vals) {
-        for (String v : vals) if (v != null && !v.isBlank()) return v;
-        return null;
-    }
 }

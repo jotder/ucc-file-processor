@@ -1,5 +1,10 @@
 package com.gamma.agent.skill;
 
+import static com.gamma.agent.skill.SkillInputs.asBool;
+import static com.gamma.agent.skill.SkillInputs.firstNonBlank;
+import static com.gamma.agent.skill.SkillInputs.orDefault;
+import static com.gamma.agent.skill.SkillInputs.str;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.agentkernel.agent.AgentContext;
@@ -60,10 +65,10 @@ public final class ReportSqlSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Write a validated read-only SQL query over the platform's operational audit/status tables.",
-            ModelTier.MEDIUM, 0.5, java.time.Duration.ofSeconds(60),
+            ModelTier.MEDIUM, com.gamma.agent.model.AssistTunables.confidenceThreshold(0.5), java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of("sql-oracle"));
 
-    private static final int MAX_REPAIR_ROUNDS = 3;
+    private static final int MAX_REPAIR_ROUNDS = com.gamma.agent.model.AssistTunables.repairRounds(3);
 
     private static final String SYSTEM = """
             You write a single, read-only DuckDB SQL query that answers a question about a data
@@ -238,10 +243,6 @@ public final class ReportSqlSkill implements Capability {
                 + (jobs.isEmpty() ? "" : "; jobs: " + String.join(", ", jobs));
     }
 
-    private static boolean asBool(String v) {
-        return v != null && (v.equalsIgnoreCase("true") || v.equals("1") || v.equalsIgnoreCase("yes"));
-    }
-
     private static String text(JsonNode root, String field) {
         JsonNode v = root.get(field);
         if (v == null || v.isNull()) return null;
@@ -249,16 +250,4 @@ public final class ReportSqlSkill implements Capability {
         return (s == null || s.isBlank()) ? null : s.trim();
     }
 
-    private static String str(Object o) {
-        return o == null ? null : o.toString();
-    }
-
-    private static String orDefault(String v, String fallback) {
-        return (v == null || v.isBlank()) ? fallback : v;
-    }
-
-    private static String firstNonBlank(String... vals) {
-        for (String v : vals) if (v != null && !v.isBlank()) return v;
-        return null;
-    }
 }

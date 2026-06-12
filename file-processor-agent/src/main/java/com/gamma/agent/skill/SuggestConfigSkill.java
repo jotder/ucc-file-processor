@@ -1,5 +1,9 @@
 package com.gamma.agent.skill;
 
+import static com.gamma.agent.skill.SkillInputs.firstNonBlank;
+import static com.gamma.agent.skill.SkillInputs.orDefault;
+import static com.gamma.agent.skill.SkillInputs.str;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.agentkernel.agent.AgentContext;
@@ -64,10 +68,10 @@ public final class SuggestConfigSkill implements Capability {
 
     private static final CapabilitySpec SPEC = new CapabilitySpec(ID, 1,
             "Suggest config field values with rationale and return a validated, safety-checked draft.",
-            ModelTier.MEDIUM, 0.5, java.time.Duration.ofSeconds(60),
+            ModelTier.MEDIUM, com.gamma.agent.model.AssistTunables.confidenceThreshold(0.5), java.time.Duration.ofSeconds(60),
             java.util.Set.of(), java.util.Set.of());
 
-    private static final int MAX_REPAIR_ROUNDS = 3;
+    private static final int MAX_REPAIR_ROUNDS = com.gamma.agent.model.AssistTunables.repairRounds(3);
 
     private static final ConfigLoader LOADER = ConfigLoader.filesystem(); // pure validate(spec, map)
 
@@ -322,16 +326,4 @@ public final class SuggestConfigSkill implements Capability {
         return (s == null || s.isBlank()) ? null : s.trim();
     }
 
-    private static String str(Object o) {
-        return o == null ? null : o.toString();
-    }
-
-    private static String orDefault(String v, String fallback) {
-        return (v == null || v.isBlank()) ? fallback : v;
-    }
-
-    private static String firstNonBlank(String a, String b) {
-        if (a != null && !a.isBlank()) return a;
-        return (b != null && !b.isBlank()) ? b : null;
-    }
 }

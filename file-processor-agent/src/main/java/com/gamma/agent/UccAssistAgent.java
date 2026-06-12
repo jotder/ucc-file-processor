@@ -132,7 +132,8 @@ public final class UccAssistAgent implements AssistAgent {
         // ingest thread is never blocked; with no model it still records a deterministic heuristic. ──
         this.diagnoses = new DiagnosisStore();
         this.reactor = new FailureReactor(
-                new ModelDiagnoser(router, service.catalog()), diagnoses, this::auditDiagnosis);
+                new ModelDiagnoser(router, service.catalog()), diagnoses, this::auditDiagnosis,
+                com.gamma.agent.model.AssistTunables.reactorQueueCapacity(FailureReactor.DEFAULT_QUEUE_CAPACITY));
         service.eventBus().subscribe(reactor::onEvent);
 
         log.info("Assist agent '{}' initialised: skills={}, docs={}, modelAvailable={}, failureReactor=on",

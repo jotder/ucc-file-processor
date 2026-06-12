@@ -67,4 +67,22 @@ class ModelDiagnoserTest {
                     "pipeline SOURCE node cited (derived, not fabricated): " + d.citations());
         }
     }
+
+    @Test
+    void modelThrowingFallsBackToHeuristic(@TempDir Path dir) throws Exception {
+        Path pipe = AgentTestConfigs.writePipeline(dir);
+        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+            // Available-but-broken model (network flake, provider 500): the deterministic
+            // heuristic diagnosis must still be recorded, flagged heuristicOnly (B3 gap test, v4.1).
+            ModelRouter router = ModelRouter.of(FakeModelProvider.responding(r -> {
+                throw new RuntimeException("simulated provider outage");
+            }));
+            ModelDiagnoser diag = new ModelDiagnoser(router, svc.catalog(), () -> EPOCH);
+
+            Diagnosis d = diag.diagnose(failed(svc.catalog().nodesOfKind(NodeKind.SOURCE).get(0).label()));
+            assertTrue(d.heuristicOnly(), "model failure must degrade to the heuristic");
+            assertEquals(Diagnosis.Severity.CRITICAL, d.severity());
+            assertTrue(d.rootCause().toLowerCase().contains("schema/selector mismatch"));
+        }
+    }
 }

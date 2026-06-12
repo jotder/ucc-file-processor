@@ -5,7 +5,12 @@
 smoke-tested** (settings persisted as `assist-settings.properties` — a pragmatic deviation
 from the `assist.toon` spec idea; endpoints `GET/POST /assist/settings` +
 `POST /assist/settings/test` live; hosted module `file-processor-agent-hosted` built;
-settings screen at `/settings/models`). Workstream B not started — next up.
+settings screen at `/settings/models`). Workstream B: **B1 done** (SkillInputs extraction,
+AssistTunables knobs incl. reactor queue + confidence threshold, TimeoutModelProvider hard
+deadline, doc-RAG failure guard) + **B3 partial** (tunables, timeout, diagnoser-fallback
+tests; FailureReactor overflow was already covered). Remaining: B2 (repair/abstain audit
+trail — abstentions already surface as UNAVAILABLE AgentCompleted events, so this is the
+per-round repair trail), B3 leftovers (abstention E2E, narrative window edges), B4.
 **Modules touched**: `file-processor-agent`, new `file-processor-agent-hosted`, `file-processor` (ControlApi seam only), `inspector-ui`.
 
 ---
