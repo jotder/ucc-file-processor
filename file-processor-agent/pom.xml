@@ -35,10 +35,10 @@
              (SBOM) — it never reaches the lean core fat-JAR. -->
         <langchain4j.version>1.15.1</langchain4j.version>
         <!-- agent-kernel: the reusable agent core. Consumed ONLY by this module — the lean core
-             (file-processor) takes no kernel dependency. Pinned to the stable 1.0.0 release (the freeze
-             R1 drove to; no breaking changes from the 0.x this module consumed). Resolved from local .m2;
-             CI builds the kernel from source at the v1.0.0 tag. -->
-        <agentkernel.version>1.0.0</agentkernel.version>
+             (file-processor) takes no kernel dependency. Pinned to the 1.1.0 release (additive over
+             1.0.0 — UCC's Abstain-only usage sees no behavior change). Resolved from local .m2;
+             CI resolves it from GitHub Packages (see ci.yml settings.xml). -->
+        <agentkernel.version>1.1.0</agentkernel.version>
     </properties>
 
     <dependencies>
