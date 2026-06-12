@@ -104,10 +104,22 @@ final class OperationalTables {
     /** Build a fixed-schema table from header→value row maps, pulling each canonical column by key. */
     static SqlOracle.TableData toTable(String name, List<String> columns, List<Map<String, String>> rows) {
         List<List<String>> data = new ArrayList<>(rows.size());
+        boolean warned = false;
         for (Map<String, String> r : rows) {
             List<String> row = new ArrayList<>(columns.size());
             for (String col : columns) row.add(r.get(col));   // null when the ledger omits it
             data.add(row);
+            // A ledger header drifting from the canonical schema previously coerced to silent NULLs
+            // (B4, v4.1) — flag it once per table so the drift is visible to operators.
+            if (!warned && !columns.containsAll(r.keySet())) {
+                List<String> extra = new ArrayList<>(r.keySet());
+                extra.removeAll(columns);
+                org.slf4j.LoggerFactory.getLogger(OperationalTables.class).warn(
+                        "operational table '{}' has ledger column(s) {} not in the canonical schema; "
+                                + "they are not queryable until the schema constant is updated",
+                        name, extra);
+                warned = true;
+            }
         }
         return new SqlOracle.TableData(name, columns, data);
     }

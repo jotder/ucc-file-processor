@@ -11,9 +11,13 @@ deadline, doc-RAG failure guard) + **B3 partial** (tunables, timeout, diagnoser-
 tests; FailureReactor overflow was already covered). **B2 done**: AssistMetrics audit-sink decorator
 (per-intent calls/ok/unavailable/repaired/avgMs/lastConfidence) behind
 `GET /assist/metrics`; the `[ASSIST]` log line now carries `repaired=` and `tier=`.
-Remaining: B3 leftovers (abstention E2E, narrative window edges), B4 small fixes
-(diagnose-and-alert pipeline re-resolution, OperationalTables misalignment warning,
-intent-ID registry), and the deferred alert execution engine.
+**B3/B4 closed with findings**: narrative window edges are benign by
+construction (`Window.of` is lenient — null ⇒ unbounded, inverted ⇒ empty);
+diagnose-and-alert pipeline grounding was already sound (validator checks against
+catalog-resolved names at request time) — both review "gaps" overstated.
+OperationalTables now warns once per table on ledger/schema drift instead of silent
+NULLs. Intent-ID registry skipped deliberately (churn > value). **Workstream B complete**;
+the only remaining arc is the deferred alert execution engine (B5).
 **Modules touched**: `file-processor-agent`, new `file-processor-agent-hosted`, `file-processor` (ControlApi seam only), `inspector-ui`.
 
 ---
