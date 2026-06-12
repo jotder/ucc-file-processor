@@ -1,27 +1,31 @@
 name: UI
 
-# Builds the Inspector operator console (inspector-ui/, an Angular + DevExtreme SPA). Kept fully
-# separate from the Java ci.yml: the Node toolchain never enters the Maven reactor. Path-filtered to
-# inspector-ui/** so backend-only changes don't trigger a frontend build (and vice-versa).
+# Builds the Inspector operator console SPAs. Kept fully separate from the Java ci.yml: the Node
+# toolchain never enters the Maven reactor. Path-filtered so backend-only changes don't trigger a
+# frontend build (and vice-versa).
+#
+# Two apps during the DevExtreme→OSS transition:
+#   - inspector-ui/  — the old Angular + DevExtreme SPA (pnpm)
+#   - inspector-ui2/ — the new gamma-template SPA: ag-Grid / Chart.js / AntV G6 (npm)
+# The old app's job goes away when inspector-ui2 formally replaces it.
 
 on:
   push:
     branches: [master, main, 3.x, 4.x]
-    paths: ['inspector-ui/**', '.github/workflows/ui.yml']
+    paths: ['inspector-ui/**', 'inspector-ui2/**', '.github/workflows/ui.yml']
   pull_request:
     branches: [master, main, 3.x, 4.x]
-    paths: ['inspector-ui/**', '.github/workflows/ui.yml']
+    paths: ['inspector-ui/**', 'inspector-ui2/**', '.github/workflows/ui.yml']
 
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: inspector-ui
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: inspector-ui
     steps:
       - uses: actions/checkout@v4
 
@@ -58,3 +62,31 @@ jobs:
       # dev-only regression can't slip through.
       - name: Build (development)
         run: pnpm exec ng build --configuration development
+
+  build-ui2:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: inspector-ui2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: inspector-ui2/package-lock.json
+
+      # npm ci fails if package-lock.json is out of sync with package.json.
+      - name: Install dependencies
+        run: npm ci
+
+      # Unit tests (Vitest via @angular/build:unit-test, jsdom); single run, no watch.
+      - name: Unit tests
+        run: npm run test:ci
+
+      # Production build is the green gate (AOT type-check + bundle + budgets). Unlike the old
+      # app there are no dev-only fileReplacements, so one configuration covers both.
+      - name: Build (production)
+        run: npm run build
