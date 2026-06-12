@@ -49,9 +49,9 @@ if (-not $NoUi -and (Test-Path (Join-Path $uiDir 'package.json'))) {
     Write-Host "Building operator UI (inspector-ui/)..." -ForegroundColor Cyan
     Push-Location $uiDir
     try {
-        & pnpm install --frozen-lockfile
-        if ($LASTEXITCODE -ne 0) { throw "pnpm install failed in inspector-ui/" }
-        & pnpm run build
+        & npm ci
+        if ($LASTEXITCODE -ne 0) { throw "npm ci failed in inspector-ui/" }
+        & npm run build
         if ($LASTEXITCODE -ne 0) { throw "ng build failed in inspector-ui/" }
         $uiBuilt = $true
         Write-Host "UI build complete." -ForegroundColor Green

@@ -52,12 +52,12 @@ still return JSON.
 the SPA on `:4200`:
 
 ```bash
-java -Dcontrol.token=dev -Dassist.read.token=dev -Dcontrol.cors=http://localhost:4200 \
+java -Dcontrol.token=dev -Dassist.read.token=dev -Dcontrol.cors=http://localhost:4204 \
      -cp file-processor.jar com.gamma.control.ControlApi config/
-cd inspector-ui && pnpm install && pnpm start    # ng serve on :4200, /api proxied to :8080
+cd inspector-ui && npm install && npm start    # ng serve on :4204, /api proxied to :8080
 ```
 
-Open `http://localhost:4200/`. The dev proxy forwards `/api/*` → `:8080`, so browser calls stay
+Open `http://localhost:4204/`. The dev proxy forwards `/api/*` → `:8080`, so browser calls stay
 same-origin.
 
 ---

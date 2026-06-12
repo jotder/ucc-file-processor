@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
  * skipped (CI is green with no backend). To run it locally, start the backend and point this at it:
  *
  *   # build the SPA, then launch ControlApi serving it (see SESSION_STATUS "Live run")
- *   E2E_BASE_URL=http://localhost:8080 E2E_TOKEN=dev pnpm test:ci
+ *   E2E_BASE_URL=http://localhost:8080 E2E_TOKEN=dev npm run test:ci
  *
  * Optional env: {@code E2E_TOKEN} (a CONTROL or assist token; enables the authorized checks).
  */
@@ -44,7 +44,7 @@ describe.skipIf(!BASE)('backend smoke (e2e)', () => {
   it('serves the SPA shell at / (text/html)', async () => {
     const res = await fetch(url('/'));
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type') ?? '').toContain('text/html');
+    expect((res.headers.get('content-type') ?? '')).toContain('text/html');
   });
 
   it.skipIf(!TOKEN)('GET /pipelines returns a list with a valid token', async () => {

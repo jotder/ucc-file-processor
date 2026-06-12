@@ -639,7 +639,7 @@ powershell -ExecutionPolicy Bypass -File file-processor\package.ps1 -NoBuild
 
 This produces **`file-processor-deploy.zip`** in the sandbox root. The script:
 1. Runs `mvn clean package` to build a fresh fat JAR
-2. Builds the optional operator UI (`inspector-ui/` via pnpm) and bundles its `dist/` as `ui/` — skip with `-NoUi`, or omitted automatically when `inspector-ui/` is absent
+2. Builds the optional operator UI (`inspector-ui/` via npm) and bundles its `dist/` as `ui/` — skip with `-NoUi`, or omitted automatically when `inspector-ui/` is absent
 3. Assembles a self-contained bundle with the JAR, config files, and run/serve scripts
 4. Rewrites `schema_file` paths in the bundled configs so they are relative to the bundle root
 5. Creates all placeholder directories (inbox, database, backup, temp, errors, quarantine)

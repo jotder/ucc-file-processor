@@ -79,7 +79,7 @@ A two-module Maven reactor (parent POM at the repo root) plus a standalone web U
 |---|---|
 | `file-processor/` | The lean, deployable ETL engine + control plane (this README). The fat-JAR; **stays zero-new-dependency**. |
 | `file-processor-agent/` | **Optional** embedded assist agent. All AI/LLM dependencies (LangChain4j, Ollama, hosted SDKs) live here only. Loaded in-process by `SourceService` via `ServiceLoader` when present. |
-| `inspector-ui/` | **Optional** operator web console — *Inspector* (Angular + DevExtreme SPA). Its Node/pnpm toolchain is **not** part of the Maven reactor; `package.ps1` builds it and bundles `dist/` next to the JAR, served by `ControlApi` from `-Dui.dir`. See the [Operator Console guide](../docs/operator-console.md) and [`inspector-ui/README.md`](../inspector-ui/README.md). |
+| `inspector-ui/` | **Optional** operator web console — *Inspector* (Angular + Material/Tailwind SPA: ag-Grid, Chart.js, AntV G6). Its Node/npm toolchain is **not** part of the Maven reactor; `package.ps1` builds it and bundles `dist/` next to the JAR, served by `ControlApi` from `-Dui.dir`. See the [Operator Console guide](../docs/operator-console.md) and [`inspector-ui/README.md`](../inspector-ui/README.md). |
 
 ```powershell
 cd file-processor && mvn clean package   # builds just the lean core (parent resolved by relativePath)
@@ -125,7 +125,7 @@ is the job of **Stage-2 enrichment**, which runs over the committed Parquet outp
 | **Stage-2 enrichment** | DuckDB-backed joins/aggregations over Stage-1 output; event- and schedule-driven, idempotent, self-chaining |
 | **Scheduler & jobs** | Cron + fixed-delay job runner with per-job locking and run history |
 | **Control API** | ~30-route JDK HTTP server: lifecycle, audit, reports, enrichment, catalog, config-spec, validate, assist; also serves the operator SPA as static files and supports prop-gated CORS for dev |
-| **Operator console (Inspector)** | Optional Angular + DevExtreme web UI over every Control API route + all 7 assist skills: dashboard, pipelines + detail (batches/files/lineage/quarantine), inbox-pending status, jobs, enrichment, catalog graph, spec-driven config authoring, diagnoses, AI assist. Served same-origin by `ControlApi`; token-based connect |
+| **Operator console (Inspector)** | Optional Angular web UI (Material/Tailwind, ag-Grid, Chart.js, AntV G6) over every Control API route + all 7 assist skills: dashboard, pipelines + detail (batches/files/lineage/quarantine), inbox-pending status, jobs, enrichment, catalog graph, spec-driven config authoring, diagnoses, AI assist. Served same-origin by `ControlApi`; token-based connect |
 | **Metadata Graph** | Queryable catalog of sources → tables → columns → KPIs with a lazy operational overlay (`/catalog*`) |
 | **Embedded AI assist** | Optional in-JVM agent with 7 skills (NL→cron, NL→SQL, config suggest, diagnose, explain, report) — local-first, confirm-first, sandboxed |
 | **Full audit log** | Per-file status CSV, per-batch summary, and an input→output lineage matrix |
@@ -318,7 +318,8 @@ unset, behaviour is byte-for-byte identical to a headless control plane.
 
 ## 9b. Operate via the Inspector web console
 
-**Inspector** is an optional web console (Angular + DevExtreme) that drives every Control API route
+**Inspector** is an optional web console (Angular + Material/Tailwind, with ag-Grid, Chart.js and
+AntV G6) that drives every Control API route
 and all 7 assist skills from a browser — no `curl` required. It lives in `inspector-ui/` and is
 served same-origin by `ControlApi`, so one process hosts both the API and the UI.
 
@@ -327,10 +328,10 @@ served same-origin by `ControlApi`, so one process hosts both the API and the UI
 CONTROL_TOKEN=secret bash serve.sh            # → http://localhost:8080/  (Linux)
 set CONTROL_TOKEN=secret && serve.bat         # Windows
 
-# Dev: run the SPA on :4200 with a live backend (CORS + proxy)
-java -Dcontrol.token=dev -Dassist.read.token=dev -Dcontrol.cors=http://localhost:4200 \
+# Dev: run the SPA on :4204 with a live backend (CORS + proxy)
+java -Dcontrol.token=dev -Dassist.read.token=dev -Dcontrol.cors=http://localhost:4204 \
      -cp file-processor.jar com.gamma.control.ControlApi config/
-cd inspector-ui && pnpm install && pnpm start  # ng serve, /api proxied to :8080
+cd inspector-ui && npm install && npm start  # ng serve, /api proxied to :8080
 ```
 
 There is **no login endpoint** — on the *Connect* screen the operator pastes their scoped bearer
