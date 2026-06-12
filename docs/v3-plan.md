@@ -22,7 +22,7 @@ cruft removal, CI reactor coverage.
 
 > **4.0 (next major, shipped 2026-06-05 as `v4.0.0` off the `4.x` branch).** The whole `3.x`
 > assist surface above is preserved; 4.0 is the **`agent-kernel` migration** (see
-> [`file-processor-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md`](../file-processor-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md),
+> [`inspecto-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md`](../inspecto-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md),
 > now **SHIPPED**): the 7 skills are reshaped onto the reusable kernel's `Capability`/`Tool` SPI,
 > the model/repair/retrieval layers are consumed from the kernel, and the lean ETL core stays
 > **kernel-free** (CI-guarded). The one deliberate breaking change — legitimate only because assist

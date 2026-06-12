@@ -78,7 +78,7 @@ A two-module Maven reactor (parent POM at the repo root) plus a standalone web U
 | Module | Role |
 |---|---|
 | `file-processor/` | The lean, deployable ETL engine + control plane (this README). The fat-JAR; **stays zero-new-dependency**. |
-| `file-processor-agent/` | **Optional** embedded assist agent. All AI/LLM dependencies (LangChain4j, Ollama, hosted SDKs) live here only. Loaded in-process by `SourceService` via `ServiceLoader` when present. |
+| `inspecto-agent/` | **Optional** embedded assist agent. All AI/LLM dependencies (LangChain4j, Ollama, hosted SDKs) live here only. Loaded in-process by `SourceService` via `ServiceLoader` when present. |
 | `inspector-ui/` | **Optional** operator web console — *Inspector* (Angular + Material/Tailwind SPA: ag-Grid, Chart.js, AntV G6). Its Node/npm toolchain is **not** part of the Maven reactor; `package.ps1` builds it and bundles `dist/` next to the JAR, served by `ControlApi` from `-Dui.dir`. See the [Operator Console guide](../docs/operator-console.md) and [`inspector-ui/README.md`](../inspector-ui/README.md). |
 
 ```powershell

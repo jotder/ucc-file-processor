@@ -16,9 +16,10 @@
                                  stays zero-new-dependency). Plays the "core" role in the v3
                                  redesign; the directory/artifactId are kept as "file-processor"
                                  so CI, package.ps1, and the release flow remain unchanged.
-        - file-processor-agent : OPTIONAL embedded assist agent. All AI/LLM dependencies live
-                                 here only; loaded in-process by SourceService when present.
-        - inspecto-agent       : OPTIONAL hosted-model providers (Claude/ChatGPT/Gemini/
+        - inspecto-agent        : OPTIONAL embedded assist agent. All AI/LLM dependencies live
+                                 here only; loaded in-process by SourceService when present
+                                 (artifactId stays "file-processor-agent").
+        - inspecto-agent-hosted : OPTIONAL hosted-model providers (Claude/ChatGPT/Gemini/
                                  Grok/llama.cpp) behind the agent's HostedProviderPlugin SPI; the
                                  default (air-gapped) packaging omits this jar (artifactId stays
                                  "file-processor-agent-hosted"; "Inspecto" is the display tier).
@@ -31,8 +32,8 @@
     -->
     <modules>
         <module>file-processor</module>
-        <module>file-processor-agent</module>
         <module>inspecto-agent</module>
+        <module>inspecto-agent-hosted</module>
     </modules>
 
     <properties>
@@ -41,7 +42,7 @@
              optional file-processor-agent module depends on agent-kernel 1.0.0, whose bytecode is
              Java 25 (class-file v69) — those classes cannot LOAD on a JDK 24 runtime
              (UnsupportedClassVersionError). The agent module therefore requires a JDK 25+ runtime
-             until the kernel is rebuilt for 24; see file-processor-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md §2.1. -->
+             until the kernel is rebuilt for 24; see inspecto-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md §2.1. -->
         <maven.compiler.release>24</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.10.2</junit.version>

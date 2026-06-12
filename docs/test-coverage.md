@@ -5,7 +5,7 @@ Measured with JaCoCo 0.8.13 on **v3.9.0** (2026-06-01). Reproduce with:
 ```
 mvn -Pcoverage test
 # reports: file-processor/target/site/jacoco/index.html
-#          file-processor-agent/target/site/jacoco/index.html   (and jacoco.csv for parsing)
+#          inspecto-agent/target/site/jacoco/index.html   (and jacoco.csv for parsing)
 ```
 
 Since v3.9.0 the `coverage` profile is declared in **both** reactor modules, so a single

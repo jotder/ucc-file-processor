@@ -6,7 +6,7 @@
 /errors/
 /target/
 /file-processor/target/
-/file-processor-agent/target/
+/inspecto-agent/target/
 /inbox/
 /markers/
 
@@ -29,4 +29,4 @@
 /file-processor/missing_files.csv*
 /file-processor/error_log.csv*
 /file-processor/status_unknown.csv*
-/inspecto-agent/target/
+/inspecto-agent-hosted/target/

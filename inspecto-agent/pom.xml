@@ -11,50 +11,73 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>file-processor-agent-hosted</artifactId>
+    <artifactId>file-processor-agent</artifactId>
     <packaging>jar</packaging>
 
-    <name>Inspecto — Assist Agent hosted providers (optional)</name>
+    <name>Inspecto — Assist Agent (optional)</name>
     <description>
-        OPTIONAL hosted-model providers for the assist agent (v4.1): Anthropic Claude, OpenAI
-        ChatGPT, Google Gemini, xAI Grok, and the OpenAI-compatible llama.cpp server — one
-        LangChain4j-backed adapter behind the agent module's HostedProviderPlugin ServiceLoader
-        seam.
+        Optional embedded AI assist agent (v3.0). Implements the AssistAgent SPI from the
+        core module and is loaded in-process by SourceService when present on the classpath.
 
-        This module exists so the AIR-GAPPED GUARANTEE stays a packaging fact: the default build
-        ships file-processor-agent with local Ollama only; dropping THIS jar on the classpath is
-        what lights up the hosted options in the settings screen. No core or agent code changes
-        either way.
+        ALL AI/LLM dependencies (LangChain4j, the Ollama client, and — in connected builds —
+        hosted-model SDKs for Gemini/Claude/ChatGPT) belong ONLY in this module, so the core
+        fat-JAR stays lean. The air-gapped build omits hosted SDKs, making "local-only" a
+        packaging guarantee rather than a config flag.
+
+        M3 status (v3.3.0): the assist platform goes live — LangChain4j + Ollama behind a
+        ModelProvider seam, a skill registry, the explain-entity skill, and an AI-backed
+        DescriptionProvider. These deps live ONLY here; the core fat-JAR remains zero-new-dep.
+        No hosted-model SDK ships in M3, so "local-only" is guaranteed by packaging.
     </description>
 
     <properties>
+        <!-- All AI/LLM deps are pinned here, in the optional module only. CVE-scan this tree
+             (SBOM) — it never reaches the lean core fat-JAR. -->
         <langchain4j.version>1.15.1</langchain4j.version>
+        <!-- agent-kernel: the reusable agent core. Consumed ONLY by this module — the lean core
+             (file-processor) takes no kernel dependency. Pinned to the 1.1.0 release (additive over
+             1.0.0 — UCC's Abstain-only usage sees no behavior change). Resolved from local .m2;
+             CI resolves it from GitHub Packages (see ci.yml settings.xml). -->
+        <agentkernel.version>1.1.0</agentkernel.version>
     </properties>
 
     <dependencies>
-        <!-- The agent module: HostedProviderPlugin SPI, ProviderSettings, and (transitively) the
-             agent-kernel ModelProvider seam this module implements. -->
         <dependency>
             <groupId>com.gamma.inspector</groupId>
-            <artifactId>file-processor-agent</artifactId>
+            <artifactId>file-processor</artifactId>
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Hosted SDK adapters (LangChain4j). Grok and llama.cpp ride the OpenAI-compatible
-             client, so three artifacts cover all five hosted/local-server providers. -->
+        <!-- agent-kernel: ring-1 core + the Ollama provider companion (U1). Kernel types live ONLY
+             in this module, behind the AssistAgent SPI; the lean core never sees them. -->
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-kernel-core</artifactId>
+            <version>${agentkernel.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-provider-ollama</artifactId>
+            <version>${agentkernel.version}</version>
+        </dependency>
+
+        <!-- agent-orchestration (R1): the assembled SYNC orchestrator. UCC swaps its hand-rolled
+             resolve→escalate→audit dispatch in UccAssistAgent for this shared ring-2 pipeline. -->
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-orchestration</artifactId>
+            <version>${agentkernel.version}</version>
+        </dependency>
+
+        <!-- LangChain4j + Ollama: local-first model access behind the ModelProvider seam. -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-anthropic</artifactId>
+            <artifactId>langchain4j-core</artifactId>
             <version>${langchain4j.version}</version>
         </dependency>
         <dependency>
             <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-open-ai</artifactId>
-            <version>${langchain4j.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>dev.langchain4j</groupId>
-            <artifactId>langchain4j-google-ai-gemini</artifactId>
+            <artifactId>langchain4j-ollama</artifactId>
             <version>${langchain4j.version}</version>
         </dependency>
 
@@ -64,5 +87,55 @@
             <version>${junit.version}</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- agent-eval (U1.6): the kernel's golden-eval harness — FakeModelProvider, EvalCase/Expect,
+             EvalCaseLoader, EvalRunner (the jar) + the Evals @TestFactory glue (the test-jar). Test-scope
+             only; never reaches the lean core fat-JAR. The UCC fixtures run the reshaped Capability SPI
+             through this runner, proving the migration preserved observable behavior. -->
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-eval</artifactId>
+            <version>${agentkernel.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.gamma.agentkernel</groupId>
+            <artifactId>agent-eval</artifactId>
+            <version>${agentkernel.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
+
+    <!-- Build config (compiler + surefire native-access flag) is inherited from the parent
+         POM's <pluginManagement>. No module-specific plugins here. -->
+
+    <!-- Coverage parity with the core module: a normal 'mvn test' is unaffected; run
+         'mvn -Pcoverage test' to instrument BOTH modules in one reactor pass. JaCoCo (and
+         all other AI deps) only ever build here, never in the lean core fat-JAR. -->
+    <profiles>
+        <profile>
+            <id>coverage</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.13</version>
+                        <executions>
+                            <execution>
+                                <id>prepare-agent</id>
+                                <goals><goal>prepare-agent</goal></goals>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <phase>test</phase>
+                                <goals><goal>report</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
