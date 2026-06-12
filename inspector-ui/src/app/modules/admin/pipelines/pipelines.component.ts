@@ -120,6 +120,7 @@ export class PipelinesComponent implements OnInit {
                 r.failed ? this.toastr.warning(msg) : this.toastr.success(msg);
                 this.load();
             },
+            error: (e) => this.toastr.error(e?.error?.error ?? `Trigger failed for ${name}`),
         });
     }
 
@@ -134,8 +135,9 @@ export class PipelinesComponent implements OnInit {
                 failed ? this.toastr.warning(msg) : this.toastr.success(msg);
                 this.load();
             },
-            error: () => {
+            error: (e) => {
                 this.loading = false;
+                this.toastr.error(e?.error?.error ?? 'Run all failed');
             },
         });
     }
@@ -149,6 +151,7 @@ export class PipelinesComponent implements OnInit {
                 this.toastr.success(`${p.name} ${r.paused ? 'paused' : 'resumed'}`);
                 this.load();
             },
+            error: (e) => this.toastr.error(e?.error?.error ?? `${verb} failed for ${p.name}`),
         });
     }
 
@@ -163,6 +166,7 @@ export class PipelinesComponent implements OnInit {
                     this.toastr.success(`Reprocess requested for ${name} / ${batchId.trim()}`);
                     this.load();
                 },
+                error: (e) => this.toastr.error(e?.error?.error ?? `Reprocess failed for ${name}`),
             });
         });
     }

@@ -256,6 +256,7 @@ export class PipelineDetailComponent implements OnInit {
         }
         this.api.reprocess(this.name, id).subscribe({
             next: () => this.toastr.success(`Reprocess requested for ${id}`),
+            error: (e) => this.toastr.error(e?.error?.error ?? `Reprocess failed for ${id}`),
         });
     }
 

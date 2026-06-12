@@ -121,6 +121,7 @@ export class JobsComponent implements OnInit {
                 this.toastr.success(`${job.name}: ${r.status}`);
                 this.load();
             },
+            error: (e) => this.toastr.error(e?.error?.error ?? `Run failed for ${job.name}`),
         });
     }
 

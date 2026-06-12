@@ -15,7 +15,7 @@
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
                 <span class="ml-2">Refresh</span>
             </button>
-            <button mat-flat-button color="primary" [disabled]="!canControl" (click)="runAll()">
+            <button mat-flat-button color="primary" [disabled]="!canControl || loading" (click)="runAll()">
                 <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
                 <span class="ml-2">Run all</span>
             </button>
