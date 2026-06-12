@@ -8,9 +8,12 @@ from the `assist.toon` spec idea; endpoints `GET/POST /assist/settings` +
 settings screen at `/settings/models`). Workstream B: **B1 done** (SkillInputs extraction,
 AssistTunables knobs incl. reactor queue + confidence threshold, TimeoutModelProvider hard
 deadline, doc-RAG failure guard) + **B3 partial** (tunables, timeout, diagnoser-fallback
-tests; FailureReactor overflow was already covered). Remaining: B2 (repair/abstain audit
-trail — abstentions already surface as UNAVAILABLE AgentCompleted events, so this is the
-per-round repair trail), B3 leftovers (abstention E2E, narrative window edges), B4.
+tests; FailureReactor overflow was already covered). **B2 done**: AssistMetrics audit-sink decorator
+(per-intent calls/ok/unavailable/repaired/avgMs/lastConfidence) behind
+`GET /assist/metrics`; the `[ASSIST]` log line now carries `repaired=` and `tier=`.
+Remaining: B3 leftovers (abstention E2E, narrative window edges), B4 small fixes
+(diagnose-and-alert pipeline re-resolution, OperationalTables misalignment warning,
+intent-ID registry), and the deferred alert execution engine.
 **Modules touched**: `file-processor-agent`, new `file-processor-agent-hosted`, `file-processor` (ControlApi seam only), `inspector-ui`.
 
 ---

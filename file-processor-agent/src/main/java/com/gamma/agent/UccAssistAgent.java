@@ -81,6 +81,7 @@ public final class UccAssistAgent implements AssistAgent {
     private volatile UccAgentContext context;
     private volatile DiagnosisStore diagnoses;
     private volatile FailureReactor reactor;
+    private volatile AssistMetrics metrics;
 
     /**
      * {@code ServiceLoader} entry point (abstain-safe): the router is a hot-swappable delegate over
@@ -113,8 +114,10 @@ public final class UccAssistAgent implements AssistAgent {
         DocRetriever docs = DocRetriever.fromDir(docsDir());
         // The orchestrator emits the per-call AgentCompleted via ctx.audit(); wrap the injected sink so
         // the familiar [ASSIST] operator log is preserved, then delegate to the embedder's sink.
+        // Audit chain: operator log line → per-intent counters (B2) → the embedder's sink.
+        this.metrics = new AssistMetrics(audit);
         this.context = new UccAgentContext(service.catalog(), service.reports(),
-                service.statusStore(), docs, router, service.configSource(), new LoggingAuditSink(audit));
+                service.statusStore(), docs, router, service.configSource(), new LoggingAuditSink(metrics));
         this.registry = CapabilityRegistry.of(List.of(
                 new ExplainEntitySkill(),
                 new NlToScheduleSkill(),
@@ -326,6 +329,21 @@ public final class UccAssistAgent implements AssistAgent {
         if (v == null) return null;
         String s = String.valueOf(v).trim();
         return s.isEmpty() ? null : s;
+    }
+
+    /**
+     * Per-intent call/ok/unavailable/repaired counters (v4.1, B2) — the operator's surface for tuning
+     * the B1 knobs (confidence threshold, repair rounds) against real traffic. Backs
+     * {@code GET /assist/metrics}; counts only, never data-plane values.
+     */
+    @Override
+    public java.util.Map<String, Object> metrics() {
+        AssistMetrics m = metrics;
+        if (m == null) return java.util.Map.of("supported", false);
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("supported", true);
+        out.put("intents", m.snapshot());
+        return out;
     }
 
     /** The agent's recent failure diagnoses (M7), newest first — backs {@code GET /assist/diagnoses}. */

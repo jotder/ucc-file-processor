@@ -33,9 +33,10 @@ public final class LoggingAuditSink implements AuditSink {
     @Override
     public void emit(AgentEvent event) {
         if (event instanceof AgentCompleted e) {
-            log.info("[ASSIST] intent={} status={} evidence={} ms={} confidence={} ctxKeys={}",
+            log.info("[ASSIST] intent={} status={} evidence={} ms={} confidence={} repaired={} tier={} ctxKeys={}",
                     e.capabilityId(), e.status(), e.evidenceCount(), e.durationMs(),
-                    String.format(Locale.ROOT, "%.2f", e.confidence()), e.contextKeys());
+                    String.format(Locale.ROOT, "%.2f", e.confidence()), e.repairRounds() > 0,
+                    e.servedBy(), e.contextKeys());
         }
         delegate.emit(event);
     }

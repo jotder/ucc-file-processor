@@ -367,6 +367,7 @@ public final class ControlApi implements AutoCloseable {
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
         get("/assist/settings", Scope.ASSIST_READ, (e, m) -> assistAgentOr503().settings());
+        get("/assist/metrics", Scope.ASSIST_READ, (e, m) -> assistAgentOr503().metrics());
         post("/assist/settings/test", Scope.ASSIST_WRITE, (e, m) -> assistAgentOr503().testSettings());
         post("/assist/settings", Scope.ASSIST_WRITE, (e, m) -> {
             try {

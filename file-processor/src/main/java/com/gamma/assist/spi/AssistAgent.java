@@ -118,6 +118,19 @@ public interface AssistAgent extends AutoCloseable {
         return Map.of("supported", false);
     }
 
+    /**
+     * Per-intent call/outcome counters as a JSON-ready, keys-only snapshot (v4.1, B2 observability):
+     * calls, ok/unavailable/unsupported, repair rate, average latency, last confidence. Backs the
+     * read-only {@code GET /assist/metrics} route. Counts only — never data-plane values.
+     *
+     * <p>Additive default: an agent without metrics reports {@code {"supported": false}}.
+     *
+     * @since 4.1.0
+     */
+    default Map<String, Object> metrics() {
+        return Map.of("supported", false);
+    }
+
     /** Released on service shutdown. Default no-op. */
     @Override default void close() {}
 }
