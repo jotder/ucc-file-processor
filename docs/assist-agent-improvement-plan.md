@@ -4,7 +4,7 @@
 **Status 2026-06-12**: Workstream R (tiers 1+2) and Workstream A **implemented and
 smoke-tested** (settings persisted as `assist-settings.properties` — a pragmatic deviation
 from the `assist.toon` spec idea; endpoints `GET/POST /assist/settings` +
-`POST /assist/settings/test` live; hosted module `file-processor-agent-hosted` built;
+`POST /assist/settings/test` live; hosted module `inspecto-agent` built;
 settings screen at `/settings/models`). Workstream B: **B1 done** (SkillInputs extraction,
 AssistTunables knobs incl. reactor queue + confidence threshold, TimeoutModelProvider hard
 deadline, doc-RAG failure guard) + **B3 partial** (tunables, timeout, diagnoser-fallback
@@ -18,7 +18,7 @@ catalog-resolved names at request time) — both review "gaps" overstated.
 OperationalTables now warns once per table on ledger/schema drift instead of silent
 NULLs. Intent-ID registry skipped deliberately (churn > value). **Workstream B complete**;
 the only remaining arc is the deferred alert execution engine (B5).
-**Modules touched**: `file-processor-agent`, new `file-processor-agent-hosted`, `file-processor` (ControlApi seam only), `inspector-ui`.
+**Modules touched**: `file-processor-agent`, new `inspecto-agent`, `file-processor` (ControlApi seam only), `inspector-ui`.
 
 ---
 
@@ -126,7 +126,7 @@ keys (masked `set/unset` flag only). No plaintext keys on disk, in logs, or in a
   - `OLLAMA` → existing `agent-provider-ollama`.
   - Everything else → resolved via **ServiceLoader SPI** `HostedProviderPlugin`
     (provider enum → langchain4j builder), implemented in the new module.
-- New Maven module **`file-processor-agent-hosted`** (keeps the air-gap guarantee:
+- New Maven module **`inspecto-agent`** (keeps the air-gap guarantee:
   default packaging excludes it; hosted options only light up when the jar is present):
   - deps: `langchain4j-anthropic`, `langchain4j-open-ai`, `langchain4j-google-ai-gemini`.
   - One adapter class `LangChain4jModelProvider implements ModelProvider` wrapping a

@@ -29,4 +29,4 @@
 /file-processor/missing_files.csv*
 /file-processor/error_log.csv*
 /file-processor/status_unknown.csv*
-/file-processor-agent-hosted/target/
+/inspecto-agent/target/
