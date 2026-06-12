@@ -30,3 +30,13 @@
 /inspecto/error_log.csv*
 /inspecto/status_unknown.csv*
 /inspecto-agent-hosted/target/
+
+# Editor-local config (VS Code)
+/.vscode/
+
+# Session-local working notes (*.local.* files are intentionally never committed)
+*.local.md
+
+# Stray npm lockfile at the repo root (no root package.json; the UI's lockfile
+# lives in inspecto-ui/ and IS tracked)
+/package-lock.json
