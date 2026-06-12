@@ -1,6 +1,6 @@
 # Operations: Utilities, Batching, Output & Deployment
 
-> Part of the [UCC File Processor](../file-processor/README.md) documentation. See the [docs index](../file-processor/README.md#documentation).
+> Part of the [Inspecto](../file-processor/README.md) documentation. See the [docs index](../file-processor/README.md#documentation).
 
 ## Pre-ETL Utility Suite
 

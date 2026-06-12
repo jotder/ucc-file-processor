@@ -72,7 +72,7 @@ public final class SuggestConfigSkill implements Capability {
     private static final ConfigLoader LOADER = ConfigLoader.filesystem(); // pure validate(spec, map)
 
     private static final String SYSTEM = """
-            You complete configuration for the UCC File Processor. Given the config type, a sample of
+            You complete configuration for Inspecto. Given the config type, a sample of
             the source data, the fields already filled in, and the field catalog, suggest values for
             the MISSING or improvable fields. Reply with ONLY a JSON object (no prose, no markdown):
               {"fields":[{"name":"<dotted.field.path>","value":<value>,

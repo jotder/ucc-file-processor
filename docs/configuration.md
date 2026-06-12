@@ -1,6 +1,6 @@
 # Configuration Reference
 
-> Part of the [UCC File Processor](../file-processor/README.md) documentation. See the [docs index](../file-processor/README.md#documentation).
+> Part of the [Inspecto](../file-processor/README.md) documentation. See the [docs index](../file-processor/README.md#documentation).
 
 ## Configuration Reference
 

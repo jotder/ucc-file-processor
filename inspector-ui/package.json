@@ -1,7 +1,7 @@
 {
-    "name": "gamma-analytics-angular",
+    "name": "inspecto-ui",
     "version": "21.0.0",
-    "description": "gamma-analytics",
+    "description": "Inspecto operator console",
     "author": "https://themeforest.net/user/srcn",
     "license": "https://themeforest.net/licenses/standard",
     "private": true,

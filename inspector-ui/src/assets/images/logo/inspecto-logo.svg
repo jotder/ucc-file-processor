@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 260" role="img" aria-label="Inspecto logo">
+  <defs>
+    <clipPath id="emblemClip">
+      <rect x="5" y="5" width="250" height="250" rx="42"/>
+    </clipPath>
+  </defs>
+
+  <!-- Emblem: red / grey split with white swoosh, bold "i" -->
+  <g clip-path="url(#emblemClip)">
+    <rect x="5" y="5" width="250" height="250" fill="#58595B"/>
+    <path d="M5 5 H205 C150 60 70 150 5 235 Z" fill="#D62027"/>
+    <path d="M-20 250 C 90 130 170 60 270 -10 L 300 20 C 190 80 110 160 10 280 Z" fill="#FFFFFF" opacity="0.92"/>
+    <rect x="113" y="112" width="36" height="102" rx="6" fill="#FFFFFF"/>
+    <circle cx="131" cy="76" r="23" fill="#D62027" stroke="#FFFFFF" stroke-width="5"/>
+  </g>
+
+  <!-- Wordmark: i with red dot + NSPECTO -->
+  <g>
+    <rect x="318" y="92" width="42" height="128" rx="4" fill="#F7F6F6"/>
+    <circle cx="339" cy="52" r="27" fill="#D62027"/>
+    <text x="392" y="220" font-family="'Arial Black','Segoe UI Black',Arial,sans-serif"
+          font-weight="900" font-size="170" letter-spacing="6" fill="#F7F6F6">NSPECTO</text>
+  </g>
+</svg>

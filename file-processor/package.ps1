@@ -40,7 +40,7 @@ if (-not $NoBuild) {
 }
 
 # ── step 1b: build the operator UI (optional; guarded so a checkout without inspector-ui/ still bundles) ──
-# The Angular SPA (Inspector) lives in the monorepo's top-level inspector-ui/ (sibling of file-processor/).
+# The Angular SPA (Inspecto console) lives in the monorepo's top-level inspector-ui/ (sibling of file-processor/).
 # Its toolchain (Node/pnpm) is intentionally NOT part of the Maven reactor — invoked here only for the bundle.
 $uiDir    = Join-Path $sandboxRoot 'inspector-ui'
 $uiDistRoot = Join-Path $uiDir 'dist'

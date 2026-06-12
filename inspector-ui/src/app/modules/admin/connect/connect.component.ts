@@ -17,7 +17,7 @@ import { UccAuthService } from 'app/ucc/auth.service';
     template: `
         <div class="flex min-w-0 flex-auto flex-col items-center justify-center p-6">
             <div class="bg-card w-full max-w-100 rounded-2xl p-8 shadow sm:p-10">
-                <div class="text-3xl font-extrabold leading-tight tracking-tight">UCC Inspector</div>
+                <div class="text-3xl font-extrabold leading-tight tracking-tight">Inspecto</div>
                 <div class="text-secondary mt-1">Connect with your operator token(s)</div>
 
                 <form class="mt-6 flex flex-col" (submit)="onSubmit($event)">

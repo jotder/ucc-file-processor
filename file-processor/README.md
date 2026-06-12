@@ -1,4 +1,4 @@
-# UCC File Processor
+# Inspecto
 
 A small, high-throughput, **configuration-driven ETL platform** built on an embedded DuckDB
 engine. Its core is an **M..N multiplexer**: it ingests **M** input files, applies light per-record transformations, and demultiplexes them into **N** Hive-partitioned

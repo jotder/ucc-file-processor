@@ -51,7 +51,7 @@ public final class ExplainEntitySkill implements Capability {
             java.util.Set.of(), java.util.Set.of());
 
     private static final String SYSTEM = """
-            You are the UCC File Processor assist agent. Explain the entity to a data-platform
+            You are Inspecto assist agent. Explain the entity to a data-platform
             operator using ONLY the CONTEXT provided below. Be concise, concrete, and accurate.
             Do not invent pipelines, tables, columns, metrics, or numbers that are not in the
             context. If the context is insufficient to answer, say so plainly.""";

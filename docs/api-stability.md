@@ -1,6 +1,6 @@
 # API Stability Policy
 
-> Part of the [UCC File Processor](../file-processor/README.md) documentation.
+> Part of the [Inspecto](../file-processor/README.md) documentation.
 
 The framework distinguishes its **stable public API** from internal implementation.
 Types, methods, and constructors marked [`@com.gamma.api.PublicApi`](../file-processor/src/main/java/com/gamma/api/PublicApi.java)

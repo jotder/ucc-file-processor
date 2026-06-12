@@ -1,6 +1,6 @@
 # Operator Console (Inspector) — User Guide
 
-**Inspector** is the web console for operating the UCC File Processor. It puts every Control API
+**Inspector** is the web console for operating the Inspecto. It puts every Control API
 operation — and all seven AI assist skills — behind a browser UI, so you can monitor pipelines,
 trigger and reprocess batches, schedule jobs, watch enrichment, browse the data catalog, author and
 validate configs, and review failure diagnoses without touching `curl`.

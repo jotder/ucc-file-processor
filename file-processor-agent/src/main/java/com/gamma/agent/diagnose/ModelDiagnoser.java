@@ -36,7 +36,7 @@ public final class ModelDiagnoser implements FailureReactor.Diagnoser {
     static final ModelTier TIER = ModelTier.MEDIUM;
 
     private static final String SYSTEM = """
-            You are a data-pipeline failure analyst for the UCC File Processor. Given a failed batch's
+            You are a data-pipeline failure analyst for Inspecto. Given a failed batch's
             details and a heuristic first guess, write ONE short paragraph (2-3 sentences, plain text,
             no markdown) explaining the most likely root cause and the next step an operator should
             take. Be concrete and use only the facts provided — do not invent file names, table names,

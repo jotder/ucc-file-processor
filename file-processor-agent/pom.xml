@@ -14,7 +14,7 @@
     <artifactId>file-processor-agent</artifactId>
     <packaging>jar</packaging>
 
-    <name>UCC File Processor — Assist Agent (optional)</name>
+    <name>Inspecto — Assist Agent (optional)</name>
     <description>
         Optional embedded AI assist agent (v3.0). Implements the AssistAgent SPI from the
         core module and is loaded in-process by SourceService when present on the classpath.
