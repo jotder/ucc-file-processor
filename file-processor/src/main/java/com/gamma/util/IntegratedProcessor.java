@@ -1,8 +1,5 @@
 package com.gamma.util;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
 import java.io.*;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -23,9 +20,10 @@ import java.util.regex.Pattern;
  */
 public class IntegratedProcessor {
 
-    private static final Pattern DATE_PATTERN =
+    /** CBS CDR adjustment delivery pattern (group 1 = YYYYMMDD). The single definition —
+     *  {@link FileMoverByDate} shares it rather than keeping its own copy. */
+    static final Pattern CBS_ADJ_DATE_PATTERN =
             Pattern.compile("cbs_cdr_adj_(\\d{8})_.*\\.add\\.gz");
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private final Path walkRoot;
     private final Path tempDir;
@@ -80,7 +78,7 @@ public class IntegratedProcessor {
 
         try {
             long size = Files.size(src);
-            if (isAlreadyDone(extractTarget, size)) {
+            if (TarUtil.isAlreadyExtracted(extractTarget, size)) {
                 System.out.println("[SKIP] Already extracted: " + filename);
                 if (!dryRun) scanAndMove(extractTarget);
                 return;
@@ -113,7 +111,7 @@ public class IntegratedProcessor {
             org.apache.commons.compress.archivers.tar.TarArchiveEntry entry;
             while ((entry = ti.getNextEntry()) != null) {
                 String innerName = entry.getName();
-                Matcher m = DATE_PATTERN.matcher(innerName);
+                Matcher m = CBS_ADJ_DATE_PATTERN.matcher(innerName);
                 if (m.find()) {
                     String date = m.group(1);
                     System.out.println("[DRY-RUN] Would extract and move: " + innerName
@@ -137,7 +135,7 @@ public class IntegratedProcessor {
 
     private void handleExtractedFile(Path file) {
         String filename = file.getFileName().toString();
-        Matcher matcher = DATE_PATTERN.matcher(filename);
+        Matcher matcher = CBS_ADJ_DATE_PATTERN.matcher(filename);
         if (matcher.matches()) {
             String dateStr  = matcher.group(1);
             Path finalDir   = targetBaseDir.resolve(dateStr);
@@ -159,21 +157,11 @@ public class IntegratedProcessor {
         }
     }
 
-    private boolean isAlreadyDone(Path target, long currentSize) {
-        Path sentinel = target.resolve(".extracted.json");
-        if (!Files.exists(sentinel)) return false;
-        try {
-            @SuppressWarnings("rawtypes")
-            Map data = GSON.fromJson(Files.readString(sentinel), Map.class);
-            return data != null && ((Double) data.get("src_size")).longValue() == currentSize;
-        } catch (Exception e) { return false; }
-    }
-
     private void writeSentinel(Path target, Path src, long size, int count) throws IOException {
         Map<String, Object> data = new HashMap<>();
         data.put("src_size", size);
         data.put("members",  count);
-        Files.writeString(target.resolve(".extracted.json"), GSON.toJson(data));
+        TarUtil.writeExtractedSentinel(target, data);
     }
 
     private void printSummary() {

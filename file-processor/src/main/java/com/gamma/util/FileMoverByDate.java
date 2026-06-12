@@ -19,7 +19,8 @@ import java.util.regex.Pattern;
  */
 public class FileMoverByDate {
 
-    private static final Pattern DATE_PATTERN = Pattern.compile("cbs_cdr_adj_(\\d{8})_.*\\.add\\.gz");
+    /** Shared with {@link IntegratedProcessor} — one definition of the CBS delivery pattern. */
+    private static final Pattern DATE_PATTERN = IntegratedProcessor.CBS_ADJ_DATE_PATTERN;
     private final Path baseDir;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final Phaser phaser = new Phaser(1);

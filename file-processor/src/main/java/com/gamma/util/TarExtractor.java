@@ -1,7 +1,5 @@
 package com.gamma.util;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.opencsv.CSVWriter;
 
 import java.io.*;
@@ -25,7 +23,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class TarExtractor {
 
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_INSTANT;
 
     private final Path baseDir;
@@ -96,7 +93,7 @@ public class TarExtractor {
             long size = Files.size(src);
             row.put("bytes", size);
 
-            if (isAlreadyDone(target, size)) {
+            if (TarUtil.isAlreadyExtracted(target, size)) {
                 row.put("status", "already_done");
                 logEvent("skip", filename, target.toString(), "reason=sentinel_match");
                 reportRows.add(row);
@@ -128,16 +125,6 @@ public class TarExtractor {
         reportRows.add(row);
     }
 
-    private boolean isAlreadyDone(Path target, long currentSize) {
-        Path sentinel = target.resolve(".extracted.json");
-        if (!Files.exists(sentinel)) return false;
-        try {
-            @SuppressWarnings("rawtypes")
-            Map data = GSON.fromJson(Files.readString(sentinel), Map.class);
-            return data != null && ((Double) data.get("src_size")).longValue() == currentSize;
-        } catch (Exception e) { return false; }
-    }
-
     private void writeSentinel(Path target, Path src, long size, int members, String at)
             throws IOException {
         Map<String, Object> data = new HashMap<>();
@@ -145,7 +132,7 @@ public class TarExtractor {
         data.put("src_size",     size);
         data.put("members",      members);
         data.put("extracted_at", at);
-        Files.writeString(target.resolve(".extracted.json"), GSON.toJson(data));
+        TarUtil.writeExtractedSentinel(target, data);
     }
 
     private String identifySource(Path file) {

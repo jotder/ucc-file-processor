@@ -26,6 +26,16 @@
 > blueprint's three-service claim was wrong; only the two per-name services share the mechanics.
 > §3.1's appender batching was not pursued: the DuckDB `Appender` API is inherently per-cell, and
 > the selector hoist (already present) removed the measured cost. **All phases complete.**
+>
+> **Post-phase follow-up** (2026-06-12): direct unit tests added for the five new utilities
+> (`CsvLedgerTest`, `CsvTest`, `BoundedHistoryTest`, `LockingRunnerTest`, `FileWalkerTest`).
+> §4 items #3/#4 (wholesale CLI-tool merges) **revised to surgical dedup**: after the
+> `FileWalker` extraction the remaining class bodies are distinct domain flows, so merging would
+> parameterize differences rather than remove duplication. Instead, the `.extracted.json`
+> sentinel pair (`isAlreadyDone`/`writeSentinel`, duplicated verbatim in `TarExtractor` +
+> `IntegratedProcessor`) moved to `TarUtil.isAlreadyExtracted`/`writeExtractedSentinel`, and the
+> CBS delivery regex now has one definition (`IntegratedProcessor.CBS_ADJ_DATE_PATTERN`, shared
+> by `FileMoverByDate`). The five `ura`/`MainApp` CLI commands are unchanged.
 > **Phase-1 deviations:** the §4 nested-type folds for #8 (inspector micro-types),
 > #11 (catalog records) and #12 (job records) were **dropped** — on inspection those types sit on
 > `@PublicApi`/SPI surfaces (`Description` is in the `DescriptionProvider` SPI signature,

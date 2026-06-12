@@ -238,7 +238,7 @@ Called out so expectations are honest:
 
 - **Save/register needs a server-side write root.** The Config screen's Save/Register buttons
   require `-Dassist.write.root` on the server (fail-closed `503` otherwise) — and Register only
-  accepts configs that pass full pipeline validation, so a draft missing required sections (e.g.
-  a schema file the spec form doesn't cover) must still be completed on disk.
+  accepts configs that pass full pipeline validation (including a resolvable
+  `processing.schema_file` path on the **server's** filesystem).
 - **No per-file in-flight tracking** (backend limit). "Processing" is a pipeline-level flag; there
   is no durable per-file in-flight counter (it only matters for very large or stuck files).

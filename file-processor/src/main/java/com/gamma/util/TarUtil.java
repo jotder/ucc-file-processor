@@ -133,6 +133,41 @@ public final class TarUtil {
         return count;
     }
 
+    // ── extraction sentinel (.extracted.json) ─────────────────────────────────
+
+    /** Sentinel file marking a completed extraction (idempotency across reruns). */
+    public static final String SENTINEL = ".extracted.json";
+
+    private static final com.google.gson.Gson GSON =
+            new com.google.gson.GsonBuilder().setPrettyPrinting().create();
+
+    /**
+     * True when {@code target} holds a {@link #SENTINEL} whose recorded {@code src_size}
+     * matches {@code currentSrcSize} — i.e. this archive was already fully extracted and
+     * has not changed since. Any unreadable/contentless sentinel reads as "not done".
+     */
+    public static boolean isAlreadyExtracted(Path target, long currentSrcSize) {
+        Path sentinel = target.resolve(SENTINEL);
+        if (!Files.exists(sentinel)) return false;
+        try {
+            @SuppressWarnings("rawtypes")
+            java.util.Map data = GSON.fromJson(Files.readString(sentinel), java.util.Map.class);
+            return data != null && ((Double) data.get("src_size")).longValue() == currentSrcSize;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Write the {@link #SENTINEL} under {@code target}. {@code data} must include
+     * {@code src_size} (what {@link #isAlreadyExtracted} matches on); callers add their
+     * own extra keys (members, source path, timestamp).
+     */
+    public static void writeExtractedSentinel(Path target, java.util.Map<String, Object> data)
+            throws IOException {
+        Files.writeString(target.resolve(SENTINEL), GSON.toJson(data));
+    }
+
     // ── directory cleanup ─────────────────────────────────────────────────────
 
     /**

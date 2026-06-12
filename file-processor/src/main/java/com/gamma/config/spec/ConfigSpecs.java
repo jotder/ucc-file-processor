@@ -65,6 +65,9 @@ public final class ConfigSpecs {
                                 + "oversubscription), -1 = DuckDB default (all cores per batch), N = exactly N."),
                 FieldSpec.withDefault("processing.file_pattern", "File pattern", FieldType.STRING,
                         "glob:**/*.{csv,csv.gz}", "Glob selecting source files under the poll dir."),
+                FieldSpec.of("processing.schema_file", "Schema file", FieldType.FILEPATH,
+                        "Path to the *_schema.toon holding field selectors/types/partition keys. A runnable "
+                                + "pipeline needs this, a schemas[] dispatch list, or a plugin ingester."),
                 FieldSpec.of("processing.ingester", "Plugin ingester class", FieldType.STRING,
                         "FQCN of a plugin ingester; when set, processing.segments must be non-empty."),
                 FieldSpec.of("processing.grammar", "Delimited grammar file", FieldType.FILEPATH,
