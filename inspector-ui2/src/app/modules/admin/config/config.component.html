@@ -1,0 +1,163 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+        <div class="text-3xl font-extrabold leading-none tracking-tight">Configuration</div>
+        <div class="text-secondary mt-1.5">Spec-driven authoring: draft → validate → copy the .toon</div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        <mat-tab-group [(selectedIndex)]="modeIndex">
+            <mat-tab label="Author draft"></mat-tab>
+            <mat-tab label="Validate file"></mat-tab>
+        </mat-tab-group>
+
+        <!-- Author draft -->
+        @if (mode === 'draft') {
+            <div class="mt-6 flex flex-col gap-6 lg:flex-row">
+                <div class="min-w-0 flex-auto">
+                    <div class="flex items-center gap-4">
+                        <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                            <mat-label>Config type</mat-label>
+                            <mat-select [(ngModel)]="type" (selectionChange)="loadSpec()">
+                                @for (t of types; track t) {
+                                    <mat-option [value]="t">{{ t }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                        <mat-checkbox [(ngModel)]="safety">safety gate (hard-fail)</mat-checkbox>
+                    </div>
+
+                    @if (specLoading) {
+                        <div class="mt-4 flex items-center gap-3">
+                            <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+                            <span class="text-secondary">Loading spec…</span>
+                        </div>
+                    }
+
+                    @if (spec && !specLoading) {
+                        <div class="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+                            @for (f of spec.fields; track f.path) {
+                                <div>
+                                    <div class="text-sm font-medium" [title]="f.description || ''">
+                                        {{ f.path }}@if (f.required) {<span class="text-red-500">*</span>}
+                                    </div>
+                                    @switch (editorType(f)) {
+                                        @case ('select') {
+                                            <mat-form-field class="gamma-mat-dense w-full" subscriptSizing="dynamic">
+                                                <mat-select [(ngModel)]="model[f.path]">
+                                                    <mat-option [value]="undefined">—</mat-option>
+                                                    @for (o of f.options || []; track o) {
+                                                        <mat-option [value]="o">{{ o }}</mat-option>
+                                                    }
+                                                </mat-select>
+                                            </mat-form-field>
+                                        }
+                                        @case ('tags') {
+                                            <mat-form-field class="gamma-mat-dense w-full" subscriptSizing="dynamic">
+                                                <input matInput [ngModel]="tagsText(f.path)"
+                                                       (ngModelChange)="setTags(f.path, $event)"
+                                                       placeholder="comma-separated values…" />
+                                            </mat-form-field>
+                                        }
+                                        @case ('number') {
+                                            <mat-form-field class="gamma-mat-dense w-full" subscriptSizing="dynamic">
+                                                <input matInput type="number" [(ngModel)]="model[f.path]"
+                                                       [min]="f.minValue ?? null" [max]="f.maxValue ?? null" />
+                                            </mat-form-field>
+                                        }
+                                        @case ('boolean') {
+                                            <mat-checkbox [(ngModel)]="model[f.path]"></mat-checkbox>
+                                        }
+                                        @default {
+                                            <mat-form-field class="gamma-mat-dense w-full" subscriptSizing="dynamic">
+                                                <input matInput [(ngModel)]="model[f.path]" />
+                                            </mat-form-field>
+                                        }
+                                    }
+                                    @if (f.description) {
+                                        <div class="text-secondary text-xs">{{ f.description }}</div>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        @if (spec.rules.length) {
+                            <div class="mt-6">
+                                <div class="font-semibold">Cross-field rules</div>
+                                <ul class="mt-1 list-inside list-disc text-sm">
+                                    @for (r of spec.rules; track r.description) {
+                                        <li>
+                                            {{ r.description }}
+                                            <span class="text-secondary">[{{ (r.affectedFields || []).join(', ') }}]</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+
+                        <div class="mt-6 flex justify-end gap-3">
+                            <button mat-stroked-button (click)="copyPreview()">
+                                <mat-icon svgIcon="heroicons_outline:clipboard-document"></mat-icon>
+                                <span class="ml-2">Copy config</span>
+                            </button>
+                            <button mat-flat-button color="primary" [disabled]="validating" (click)="validateDraft()">
+                                Validate draft
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                <div class="w-full lg:w-100">
+                    <div class="font-semibold">Assembled config (preview — copy &amp; commit the .toon manually)</div>
+                    <pre class="mt-2 overflow-auto rounded bg-gray-100 p-3 text-xs dark:bg-gray-800">{{ assembledPreview }}</pre>
+                </div>
+            </div>
+        }
+
+        <!-- Validate file -->
+        @if (mode === 'file') {
+            <div class="mt-6 flex items-center gap-3">
+                <mat-form-field class="gamma-mat-dense w-[28rem]" subscriptSizing="dynamic">
+                    <mat-label>Config path</mat-label>
+                    <input matInput [(ngModel)]="configPath" placeholder="path to a saved .toon config" />
+                </mat-form-field>
+                <button mat-flat-button color="primary" [disabled]="validating" (click)="validateFile()">
+                    Validate file
+                </button>
+            </div>
+        }
+
+        <!-- Findings -->
+        @if (result) {
+            <div class="mt-8">
+                <p class="font-semibold" [class.text-green-600]="result.clean" [class.text-red-600]="!result.clean">
+                    {{ result.clean ? '✓ Clean' : '✗ ' + result.findings.length + ' finding(s)' }}
+                    @if (result.safetyChecked) {
+                        <span class="text-secondary ml-2 text-sm font-normal">safety checked</span>
+                    }
+                </p>
+                @if (result.findings.length) {
+                    <table class="mt-2 w-full text-sm">
+                        <thead>
+                            <tr>
+                                <th class="border-b px-2 py-1 text-left">Severity</th>
+                                <th class="border-b px-2 py-1 text-left">Field</th>
+                                <th class="border-b px-2 py-1 text-left">Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (f of result.findings; track $index) {
+                                <tr>
+                                    <td class="border-b px-2 py-1">{{ f.severity }}</td>
+                                    <td class="border-b px-2 py-1">{{ f.fieldPath }}</td>
+                                    <td class="border-b px-2 py-1">{{ f.message }}</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+    </div>
+</div>

@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Prepaid Fraud",
+    "value": "PrepaidFraud"
+  },
+  {
+    "name": "GPRS Fraud",
+    "value": "GPRSFraud"
+  },
+  {
+    "name": "Internal Fraud",
+    "value": "InternalFraud"
+  },
+  {
+    "name": "Voucher Fraud",
+    "value": "VoucherFraud"
+  },
+  {
+    "name": "Dealer Fraud",
+    "value": "DealerFraud"
+  },
+  {
+    "name": "Roaming Fraud",
+    "value": "RoamingFraud"
+  },
+  {
+    "name": "Blacklist Fraud",
+    "value": "BlacklistFraud"
+  },
+  {
+    "name": "Usage Fraud",
+    "value": "UsageFraud"
+  },
+  {
+    "name": "Bypass Fraud",
+    "value": "BypassFraud"
+  },
+  {
+    "name": "Partners Fraud",
+    "value": "PartnersFraud"
+  }
+]

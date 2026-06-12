@@ -1,0 +1,46 @@
+[
+    {
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "alertCount": 161,
+        "moduleName": "UsageFraud"
+    }
+]

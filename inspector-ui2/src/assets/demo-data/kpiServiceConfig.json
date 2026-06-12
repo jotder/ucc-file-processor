@@ -1,0 +1,2587 @@
+[
+    {
+        "_id": {
+            "timestamp": 1708095983,
+            "counter": 6398423,
+            "time": 1708095983000,
+            "date": 1708095983000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708095983
+        },
+        "name": "CBS SMS Trends",
+        "id": "cbs-1002",
+        "direction": [
+            "srvType",
+            "nw_call_type",
+            "direction",
+            "served_msisdn"
+        ],
+        "api": [
+            {
+                "type": "hourly",
+                "api": "/kpi/trends/cbs-sms/get-stats-by-hourly",
+                "requestId": "trends/cbs-sms/get-stats-by-hourly",
+                "columns": [
+                    "hour",
+                    "count",
+                    "charge",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "daily",
+                "api": "/kpi/trends/cbs-sms/get-stats-by-daily",
+                "requestId": "trends/cbs-sms/get-stats-by-daily",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "charge",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/trends/cbs-sms/get-stats-by-srv-type",
+                "requestId": "trends/cbs-sms/get-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "count",
+                    "charge",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "direction",
+                "api": "/kpi/trends/cbs-sms/get-stats-by-direction-type",
+                "requestId": "trends/cbs-sms/get-stats-by-direction-type",
+                "columns": [
+                    "eventDirectionDisplayName",
+                    "direction",
+                    "count",
+                    "charge",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "nw_call_type",
+                "api": "/kpi/trends/cbs-sms/get-stats-by-nw-call-type",
+                "requestId": "trends/cbs-sms/get-stats-by-nw-call-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "count",
+                    "charge",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "MSISDN",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "served_msisdn",
+                    "event_date",
+                    "srv_type_key",
+                    "original_dur",
+                    "count",
+                    "servedMsisdn",
+                    "pageNumber",
+                    "pageSize",
+                    "served_msisdn",
+                    "event_type_key",
+                    "event_direction_key",
+                    "other_party_nw_ind_key",
+                    "event_date"
+                ]
+            },
+            {
+                "type": "CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "served_msisdn",
+                    "event_date",
+                    "srv_type_key",
+                    "xdr_date"
+                ]
+            }
+        ],
+        "columns": []
+    },
+    {
+        "_id": {
+            "timestamp": 1708097082,
+            "counter": 6398424,
+            "time": 1708097082000,
+            "date": 1708097082000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097082
+        },
+        "name": "MSC Voice Trends",
+        "id": "msc-1001",
+        "direction": [
+            "srvType",
+            "nw_call_type",
+            "direction",
+            "served_msisdn"
+        ],
+        "api": [
+            {
+                "type": "hourly",
+                "api": "/kpi/trends/msc/get-stats-by-hourly",
+                "requestId": "getMScOverallCountMouHourlyTrend",
+                "columns": [
+                    "hour",
+                    "mou",
+                    "count",
+                    "pulse"
+                ]
+            },
+            {
+                "type": "daily",
+                "api": "/kpi/trends/msc/get-stats-by-daily",
+                "requestId": "getMscDailyStats",
+                "columns": [
+                    "recordDate",
+                    "mou",
+                    "count",
+                    "pulse"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/trends/msc/get-stats-by-srv-type",
+                "requestId": "getMscDailyStatsBySrvType",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "mou",
+                    "count",
+                    "pulse"
+                ]
+            },
+            {
+                "type": "nw_call_type",
+                "api": "/kpi/trends/msc/get-stats-by-network-type",
+                "requestId": "trends/msc/get-stats-by-network-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "mou",
+                    "count",
+                    "pulse"
+                ]
+            },
+            {
+                "type": "direction",
+                "api": "/kpi/trends/msc/get-stats-by-call-direction",
+                "requestId": "getMscDailyStatsByDirectionType",
+                "columns": [
+                    "eventDirectionDisplayName",
+                    "direction",
+                    "mou",
+                    "count",
+                    "pulse"
+                ]
+            },
+            {
+                "type": "servedMsisdn",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "served_msisdn",
+                    "event_date",
+                    "srv_type_key",
+                    "original_dur",
+                    "mMou",
+                    "count",
+                    "servedMsisdn",
+                    "pageNumber",
+                    "pageSize",
+                    "served_msisdn",
+                    "event_type_key",
+                    "event_direction_key",
+                    "other_party_nw_ind_key",
+                    "event_date"
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "served_msisdn",
+                    "event_date",
+                    "srv_type_key",
+                    "xdr_date"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097130,
+            "counter": 6398425,
+            "time": 1708097130000,
+            "date": 1708097130000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097130
+        },
+        "name": "MSC SMS Trends",
+        "id": "msc-1002",
+        "direction": [
+            "srvType",
+            "nw_call_type",
+            "direction",
+            "served_msisdn"
+        ],
+        "api": [
+            {
+                "type": "hourly",
+                "api": "/kpi/trends/msc/get-stats-by-hourly",
+                "requestId": "getMScOverallCountMouHourlyTrend",
+                "columns": [
+                    "hour",
+                    "mou",
+                    "count"
+                ]
+            },
+            {
+                "type": "daily",
+                "api": "/kpi/trends/msc/get-stats-by-daily",
+                "requestId": "getMscDailyStats",
+                "columns": [
+                    "recordDate",
+                    "mou",
+                    "count"
+                ]
+            },
+            {
+                "type": "srvtype",
+                "api": "/kpi/trends/msc/get-stats-by-srv-type",
+                "requestId": "getMscDailyStatsBySrvType",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "mou",
+                    "count"
+                ]
+            },
+            {
+                "type": "nw_call_type",
+                "api": "/kpi/trends/msc/get-stats-by-network-type",
+                "requestId": "trends/msc/get-stats-by-network-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "mou",
+                    "count"
+                ]
+            },
+            {
+                "type": "direction",
+                "api": "/kpi/trends/msc/get-stats-by-call-direction",
+                "requestId": "getMscDailyStatsByDirectionType",
+                "columns": [
+                    "eventDirectionDisplayName",
+                    "direction",
+                    "mou",
+                    "count"
+                ]
+            },
+            {
+                "type": "servedMsisdn",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "served_msisdn",
+                    "event_date",
+                    "srv_type_key",
+                    "count",
+                    "servedMsisdn",
+                    "pageNumber",
+                    "pageSize",
+                    "served_msisdn",
+                    "event_type_key",
+                    "event_direction_key",
+                    "other_party_nw_ind_key",
+                    "event_date "
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "served_msisdn",
+                    "event_date",
+                    "srv_type_key",
+                    "xdr_date"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097151,
+            "counter": 6398426,
+            "time": 1708097151000,
+            "date": 1708097151000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097151
+        },
+        "name": "MSC Zero Duration",
+        "id": "msc-1003",
+        "direction": [
+            "srvType",
+            "nw_call_type",
+            "served_msisdn"
+        ],
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/msc/zero-duration-daily",
+                "requestId": "trends/msc/zero-duration-daily",
+                "columns": [
+                    "recordDate",
+                    "count"
+                ]
+            },
+            {
+                "type": "By SRV type",
+                "api": "/kpi/trends/msc/zero-duration-daily-by-srv-type",
+                "requestId": "trends/msc/zero-duration-daily-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "count"
+                ]
+            },
+            {
+                "type": "MSISDN",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "recordDate",
+                    "event_date",
+                    "srv_type_key",
+                    "served_msisdn",
+                    "event_type_key",
+                    "zero_duration_ind",
+                    "event_direction_key"
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "recordDate",
+                    "event_date",
+                    "srv_type_key",
+                    "served_msisdn",
+                    "event_type_key",
+                    "zero_duration_ind",
+                    "event_direction_key"
+                ]
+            },
+            {
+                "type": "By Nw Call type",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/msc/zero-duration-daily-by-call-type",
+                "columns": [
+                    "nw_call_type",
+                    "nwCallTypeDisplayName",
+                    "count"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097171,
+            "counter": 6398427,
+            "time": 1708097171000,
+            "date": 1708097171000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097171
+        },
+        "name": "CBS Voice Trends",
+        "id": "cbs-1001",
+        "direction": [
+            "srvType",
+            "direction",
+            "nw_call_type",
+            "served_msisdn"
+        ],
+        "api": [
+            {
+                "type": "hourly",
+                "api": "/kpi/trends/cbs-voice/get-stats-by-hourly",
+                "requestId": "trends/cbs-voice/get-stats-by-hourly",
+                "columns": [
+                    "hour",
+                    "divCharge",
+                    "count",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "daily",
+                "api": "/kpi/trends/cbs-voice/get-stats-by-daily",
+                "requestId": "trends/cbs-voice/get-stats-by-daily",
+                "columns": [
+                    "recordDate",
+                    "divCharge",
+                    "count",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/trends/cbs-voice/get-stats-by-srv-type",
+                "requestId": "trends/cbs-voice/get-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "divCharge",
+                    "count",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "direction",
+                "api": "/kpi/trends/cbs-voice/get-stats-by-direction-type",
+                "requestId": "trends/cbs-voice/get-stats-by-direction-type",
+                "columns": [
+                    "eventDirectionDisplayName",
+                    "direction",
+                    "divCharge",
+                    "count",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "nw_call_type",
+                "api": "/kpi/trends/cbs-voice/get-stats-by-nw-call-type",
+                "requestId": "trends/cbs-voice/get-stats-by-nw-call-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "divCharge",
+                    "count",
+                    "actualUsage",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "rateUsage"
+                ]
+            },
+            {
+                "type": "MSISDN",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "served_msisdn",
+                    "event_date",
+                    "srv_type_key",
+                    "original_dur",
+                    "charge",
+                    "count",
+                    "servedMsisdn",
+                    "pageNumber",
+                    "pageSize",
+                    "served_msisdn",
+                    "event_type_key",
+                    "event_direction_key",
+                    "other_party_nw_ind_key",
+                    "event_date"
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "served_msisdn",
+                    "event_date",
+                    "srv_type_key",
+                    "xdr_date"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097206,
+            "counter": 6398428,
+            "time": 1708097206000,
+            "date": 1708097206000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097206
+        },
+        "name": "CBS GPRS Trends",
+        "id": "cbs-1003",
+        "direction": [
+            "srvType",
+            "ratingGroup",
+            "apn",
+            "served_msisdn"
+        ],
+        "api": [
+            {
+                "type": "hourly",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/cbs-gprs/get-stats-by-hourly",
+                "columns": [
+                    "hour",
+                    "charge",
+                    "count",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "totalVolume"
+                ]
+            },
+            {
+                "type": "daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/cbs-gprs/get-stats-by-daily",
+                "columns": [
+                    "recordDate",
+                    "charge",
+                    "count",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "totalVolume"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/cbs-gprs/get-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "charge",
+                    "count",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "totalVolume"
+                ]
+            },
+            {
+                "type": "ratingGroup",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/cbs-gprs/get-data-daily-stats-by-rating-group",
+                "columns": [
+                    "ratingGroup",
+                    "charge",
+                    "count",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "totalVolume"
+                ]
+            },
+            {
+                "type": "By APN",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/cbs-gprs/get-data-daily-stats-by-apn",
+                "columns": [
+                    "apn",
+                    "charge",
+                    "count",
+                    "actualUsageAllowance",
+                    "actualUsageBonus",
+                    "actualUsagePayg",
+                    "totalVolume"
+                ]
+            },
+            {
+                "type": "By Subscriber",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "served_msisdn",
+                    "rating_group",
+                    "apn",
+                    "served_type",
+                    "xdr_date",
+                    "event_type_key",
+                    "event_date",
+                    "recordDate",
+                    "computed_total_vol",
+                    "charge",
+                    "actual_usage_allowance",
+                    "",
+                    "actual_usage_bonus",
+                    "actual_usage_payg",
+                    "recordDate"
+                ]
+            },
+            {
+                "type": "CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "xdr_date"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097248,
+            "counter": 6398429,
+            "time": 1708097248000,
+            "date": 1708097248000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097248
+        },
+        "name": "CBS Zero Duration",
+        "id": "cbs-1004",
+        "direction": [
+            "srvType",
+            "nw_call_type"
+        ],
+        "api": [
+            {
+                "type": "daily",
+                "api": "/kpi/trends/cbs/zero-duration-voice-daily",
+                "requestId": "trends/cbs/zero-duration-voice-daily",
+                "columns": [
+                    "recordDate",
+                    "charge",
+                    "count"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/trends/cbs/zero-duration-voice-by-srv-type",
+                "requestId": "trends/cbs/zero-duration-voice-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "mou",
+                    "charge"
+                ]
+            },
+            {
+                "type": "nw_call_type",
+                "api": "/kpi/trends/cbs/zero-duration-voice-by-network-type",
+                "requestId": "trends/cbs/zero-duration-voice-by-network-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "count",
+                    "charge"
+                ]
+            },
+            {
+                "type": "msisdn",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "recordDate",
+                    "event_date",
+                    "served_type",
+                    "served_msisdn",
+                    "event_type_key",
+                    "zero_duration_ind",
+                    "event_direction_key",
+                    "nw_call_type",
+                    "actual_usage",
+                    "other_party_nw_ind_key"
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "xdr_date"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097270,
+            "counter": 6398430,
+            "time": 1708097270000,
+            "date": 1708097270000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097270
+        },
+        "name": "CBS Zero Charge",
+        "id": "cbs-1006",
+        "direction": [
+            "srvType",
+            "nw_call_type",
+            "served_msisdn"
+        ],
+        "api": [
+            {
+                "type": "daily",
+                "api": "/kpi/trends/cbs/zero-charge-voice-daily",
+                "requestId": "trends/cbs/zero-charge-voice-daily",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "mou",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "by SRV type",
+                "api": "/kpi/trends/cbs/zero-charge-voice-by-srv-type",
+                "requestId": "trends/cbs/zero-charge-voice-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "count",
+                    "mou",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "By Nwtwork Type",
+                "api": "/kpi/trends/cbs/zero-charge-voice-by-network-type",
+                "requestId": "trends/cbs/zero-charge-voice-by-network-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "count",
+                    "mou",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "By Direction Type",
+                "api": "/kpi/trends/cbs/zero-charge-voice-by-direction-type",
+                "requestId": "trends/cbs/zero-charge-voice-by-direction-type",
+                "columns": [
+                    "eventDirectionDisplayName",
+                    "direction",
+                    "count",
+                    "mou",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "By Subscriber",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "recordDate",
+                    "event_date",
+                    "served_type",
+                    "served_msisdn",
+                    "event_type_key",
+                    "zero_duration_ind",
+                    "event_direction_key",
+                    "nw_call_type",
+                    "actual_usage",
+                    "other_party_nw_ind_key",
+                    "actual_usage",
+                    "rate_usage",
+                    "debit_amount"
+                ]
+            },
+            {
+                "type": "CDRs",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "xdr_date"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097320,
+            "counter": 6398431,
+            "time": 1708097320000,
+            "date": 1708097320000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097320
+        },
+        "name": "CBS Zero Charge (voice)",
+        "id": "cbs-1005",
+        "direction": [
+            "srvType",
+            "nw_call_type",
+            "direction"
+        ],
+        "api": [
+            {
+                "type": "daily",
+                "api": "/kpi/trends/cbs/zero-charge-voice-daily",
+                "requestId": "trends/cbs/zero-charge-voice-daily",
+                "columns": [
+                    "recordDate",
+                    "count"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/trends/cbs/zero-charge-voice-by-srv-type",
+                "requestId": "trends/cbs/zero-charge-voice-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "count"
+                ]
+            },
+            {
+                "type": "nw_call_type",
+                "api": "/kpi/trends/cbs/zero-charge-voice-by-network-type",
+                "requestId": "trends/cbs/zero-charge-voice-by-network-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "count"
+                ]
+            },
+            {
+                "type": "direction",
+                "api": "/kpi/trends/cbs/zero-charge-voice-by-direction-type",
+                "requestId": "trends/cbs/zero-charge-voice-by-direction-type",
+                "columns": [
+                    "eventDirectionDisplayName",
+                    "direction",
+                    "count"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097349,
+            "counter": 6398432,
+            "time": 1708097349000,
+            "date": 1708097349000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097349
+        },
+        "name": "CBS Zero Charge Excluding Toll Free",
+        "id": "cbs-1009",
+        "direction": [
+            "srvType",
+            "nw_call_type",
+            "direction"
+        ],
+        "api": [
+            {
+                "type": "daily",
+                "api": "/kpi/trends/cbs-voice/zero-charge-excluding-toll-free-daily",
+                "requestId": "trends/cbs-voice/zero-charge-excluding-toll-free-daily",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "mou",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/trends/cbs-voice/zero-charge-excluding-toll-free-by-srv-type",
+                "requestId": "trends/cbs-voice/zero-charge-excluding-toll-free-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "count",
+                    "mou",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "nw_call_type",
+                "api": "/kpi/trends/cbs-voice/zero-charge-excluding-toll-free-by-network-type",
+                "requestId": "trends/cbs-voice/zero-charge-excluding-toll-free-by-network-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "count",
+                    "mou",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "direction",
+                "api": "/kpi/trends/cbs-voice/zero-charge-excluding-toll-free-by-direction-type",
+                "requestId": "trends/cbs-voice/zero-charge-excluding-toll-free-by-direction-type",
+                "columns": [
+                    "eventDirectionDisplayName",
+                    "direction",
+                    "count",
+                    "mou",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "By Subscriber",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "recordDate",
+                    "event_date",
+                    "served_type",
+                    "served_msisdn",
+                    "event_type_key",
+                    "zero_duration_ind",
+                    "event_direction_key",
+                    "nw_call_type",
+                    "actual_usage",
+                    "other_party_nw_ind_key",
+                    "actual_usage",
+                    "rate_usage",
+                    "debit_amount",
+                    "other_party_operator"
+                ]
+            },
+            {
+                "type": "CDRs",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "xdr_date"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097380,
+            "counter": 6398433,
+            "time": 1708097380000,
+            "date": 1708097380000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097380
+        },
+        "name": "CBS zero charge nonzero duration voice",
+        "id": "cbs-1008",
+        "direction": [
+            "srvType",
+            "nw_call_type"
+        ],
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/cbs/zero-charge-nonzero-duration-voice-daily",
+                "requestId": "trends/cbs/zero-charge-nonzero-duration-voice-daily",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "mou",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "By SRV type",
+                "api": "/kpi/trends/cbs/zero-charge-nonzero-duration-voice-by-srv-type",
+                "requestId": "trends/cbs/zero-charge-nonzero-duration-voice-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "count",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "By Network type",
+                "api": "/kpi/trends/cbs/zero-charge-nonzero-duration-voice-by-network-type",
+                "requestId": "trends/cbs/zero-charge-nonzero-duration-voice-by-network-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "count",
+                    "rateMou"
+                ]
+            },
+            {
+                "type": "By Subscriber",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "recordDate",
+                    "event_date",
+                    "served_type",
+                    "served_msisdn",
+                    "event_type_key",
+                    "zero_duration_ind",
+                    "event_direction_key",
+                    "nw_call_type",
+                    "actual_usage",
+                    "other_party_nw_ind_key",
+                    "actual_usage",
+                    "rate_usage",
+                    "debit_amount",
+                    "other_party_operator"
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "xdr_date"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097399,
+            "counter": 6398434,
+            "time": 1708097399000,
+            "date": 1708097399000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097399
+        },
+        "name": "CBS zero Duration nonzero Charge voice",
+        "id": "cbs-1010",
+        "direction": [
+            "srvType",
+            "nw_call_type"
+        ],
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/cbs/zero-duration-nonzero-charge-daily",
+                "requestId": "trends/cbs/zero-duration-nonzero-charge-daily",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "charge"
+                ]
+            },
+            {
+                "type": "By SRV type",
+                "api": "/kpi/trends/cbs/zero-duration-nonzero-charge-by-srv-type",
+                "requestId": "trends/cbs/zero-duration-nonzero-charge-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "count",
+                    "charge"
+                ]
+            },
+            {
+                "type": "By Network type",
+                "api": "/kpi/trends/cbs/zero-duration-nonzero-charge-by-network-type",
+                "requestId": "trends/cbs/zero-duration-nonzero-charge-by-network-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "count",
+                    "charge"
+                ]
+            },
+            {
+                "type": "By Subscriber",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "recordDate",
+                    "event_date",
+                    "served_type",
+                    "served_msisdn",
+                    "event_type_key",
+                    "zero_duration_ind",
+                    "event_direction_key",
+                    "nw_call_type",
+                    "actual_usage",
+                    "other_party_nw_ind_key",
+                    "actual_usage",
+                    "rate_usage",
+                    "debit_amount",
+                    "other_party_operator"
+                ]
+            },
+            {
+                "type": "CDRs",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "xdr_date"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097424,
+            "counter": 6398435,
+            "time": 1708097424000,
+            "date": 1708097424000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097424
+        },
+        "name": "Accumulators’ utilization",
+        "id": "cbs-1011",
+        "direction": [
+            "srvType",
+            "offerName"
+        ],
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/cbs-accumulators-utilization/get-daily-stats",
+                "requestId": "trends/cbs-accumulators-utilization/get-daily-stats",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "currentBalance"
+                ]
+            },
+            {
+                "type": "By SRV type",
+                "api": "/kpi/trends/cbs-accumulators-utilization/get-stats-by-srv-type",
+                "requestId": "trends/cbs-accumulators-utilization/get-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "count",
+                    "currentBalance"
+                ]
+            },
+            {
+                "type": "By Offer Name",
+                "api": "/kpi/trends/cbs-accumulators-utilization/get-stats-by-offer-name",
+                "requestId": "trends/cbs-accumulators-utilization/get-stats-by-offer-name",
+                "columns": [
+                    "offerName",
+                    "count",
+                    "currentBalance"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097443,
+            "counter": 6398436,
+            "time": 1708097443000,
+            "date": 1708097443000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097443
+        },
+        "name": "Dedicated account",
+        "id": "cbs-1012",
+        "direction": [
+            "srvType",
+            "offerName",
+            "balanceTypeId"
+        ],
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/cbs-dedicated-account/get-daily-stats",
+                "requestId": "trends/cbs-dedicated-account/get-daily-stats",
+                "columns": [
+                    "divAmount",
+                    "recordDate",
+                    "count",
+                    "amount"
+                ]
+            },
+            {
+                "type": "By SRV type",
+                "api": "/kpi/trends/cbs-dedicated-account/get-stats-by-srv-type",
+                "requestId": "trends/cbs-dedicated-account/get-stats-by-srv-type",
+                "columns": [
+                    "divAmount",
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "count",
+                    "amount"
+                ]
+            },
+            {
+                "type": "By Offer Name",
+                "api": "/kpi/trends/cbs-dedicated-account/get-stats-by-offer-name",
+                "requestId": "trends/cbs-dedicated-account/get-stats-by-offer-name",
+                "columns": [
+                    "divAmount",
+                    "offerName",
+                    "count",
+                    "amount"
+                ]
+            },
+            {
+                "type": "By Balance Type",
+                "api": "/kpi/trends/cbs-dedicated-account/get-stats-by-balance-id",
+                "requestId": "trends/cbs-dedicated-account/get-stats-by-balance-id",
+                "columns": [
+                    "divAmount",
+                    "balanceTypeId",
+                    "count",
+                    "amount"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097468,
+            "counter": 6398437,
+            "time": 1708097468000,
+            "date": 1708097468000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097468
+        },
+        "name": "MSC Vs CBS Voice",
+        "id": "recon-1001",
+        "direction": [
+            "srvType",
+            "nw_call_type",
+            "direction"
+        ],
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/recon/cbs-msc-voice/get-stats-by-daily",
+                "requestId": "recon/cbs-msc-voice/get-stats-by-daily",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "cbsCount",
+                    "cbsMou",
+                    "mscMou",
+                    "mscCount",
+                    "mouDifference",
+                    "countDifference",
+                    "mouPercentage",
+                    "countPercentage",
+                    "charge"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/recon/cbs-msc-voice/get-stats-by-srv-type",
+                "requestId": "recon/cbs-msc-voice/get-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "cbsCount",
+                    "cbsMou",
+                    "mscMou",
+                    "mscCount",
+                    "mouDifference",
+                    "countDifference",
+                    "mouPercentage",
+                    "countPercentage",
+                    "charge"
+                ]
+            },
+            {
+                "type": "nw_call_type",
+                "api": "/kpi/recon/cbs-msc-voice/get-stats-by-nw-type",
+                "requestId": "recon/cbs-msc-voice/get-stats-by-nw-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "cbsCount",
+                    "cbsMou",
+                    "mscMou",
+                    "mscCount",
+                    "mouDifference",
+                    "countDifference",
+                    "mouPercentage",
+                    "countPercentage",
+                    "charge"
+                ]
+            },
+            {
+                "type": "By MSISDN",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "recon/cbs-msc-voice/get-stats-by-msisdn",
+                "columns": [
+                    "servedMsisdn",
+                    "cbsCount",
+                    "cbsMou",
+                    "mscMou",
+                    "mscCount",
+                    "mouDifference",
+                    "countDifference",
+                    "mouPercentage",
+                    "countPercentage",
+                    "charge"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1708097500,
+            "counter": 6398438,
+            "time": 1708097500000,
+            "date": 1708097500000,
+            "machineIdentifier": 5576347,
+            "processIdentifier": -6480,
+            "timeSecond": 1708097500
+        },
+        "name": "MSC Vs CBS SMS",
+        "id": "recon-1002",
+        "direction": [
+            "srvType",
+            "nw_call_type",
+            "servedMsisdn"
+        ],
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/recon/cbs-msc-sms/get-stats-by-daily",
+                "requestId": "recon/cbs-msc-sms/get-stats-by-daily",
+                "columns": [
+                    "recordDate",
+                    "cbsCount",
+                    "cbsMou",
+                    "mscMou",
+                    "mscCount",
+                    "mouDifference",
+                    "countDifference",
+                    "mouPercentage",
+                    "countPercentage",
+                    "charge"
+                ]
+            },
+            {
+                "type": "By SRV type",
+                "api": "/kpi/recon/cbs-msc-sms/get-stats-by-srv-type",
+                "requestId": "recon/cbs-msc-sms/get-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "cbsCount",
+                    "cbsMou",
+                    "mscMou",
+                    "mscCount",
+                    "mouDifference",
+                    "countDifference",
+                    "mouPercentage",
+                    "countPercentage",
+                    "charge"
+                ]
+            },
+            {
+                "type": "By Network Type",
+                "api": "/kpi/recon/cbs-msc-sms/get-stats-by-nw-type",
+                "requestId": "recon/cbs-msc-sms/get-stats-by-nw-type",
+                "columns": [
+                    "nwCallTypeDisplayName",
+                    "nw_call_type",
+                    "cbsCount",
+                    "cbsMou",
+                    "mscMou",
+                    "mscCount",
+                    "mouDifference",
+                    "countDifference",
+                    "mouPercentage",
+                    "countPercentage",
+                    "charge"
+                ]
+            },
+            {
+                "type": "By MSISDN",
+                "api": "/kpi/recon/msc-cbs-sms/get-stats-by-msisdn",
+                "requestId": "recon/msc-cbs-sms/get-stats-by-msisdn",
+                "columns": [
+                    "servedMsisdn",
+                    "cbsCount",
+                    "cbsMou",
+                    "mscMou",
+                    "mscCount",
+                    "mouDifference",
+                    "countDifference",
+                    "mouPercentage",
+                    "countPercentage",
+                    "charge"
+                ]
+            }
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709720187,
+            "counter": 11814647,
+            "time": 1709720187000,
+            "date": 1709720187000,
+            "machineIdentifier": 10654237,
+            "processIdentifier": 21972,
+            "timeSecond": 1709720187
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/ggsn/get-data-daily-stats-by-day",
+                "requestId": "trends/ggsn/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "billableVolume",
+                    "download",
+                    "totalVolume",
+                    "upload"
+                ]
+            },
+            {
+                "type": "By SRV Type",
+                "api": "/kpi/trends/ggsn/get-data-daily-stats-by-srv-type",
+                "requestId": "trends/ggsn/get-data-daily-stats-by-srv-type",
+                "columns": [
+                    "srvType",
+                    "srvTypeDisplayName",
+                    "billableVolume",
+                    "download",
+                    "totalVolume",
+                    "upload"
+                ]
+            },
+            {
+                "type": "By Rating Group",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/ggsn/get-data-daily-stats-by-rating-group",
+                "columns": [
+                    "ratingGroup",
+                    "billableVolume",
+                    "download",
+                    "totalVolume",
+                    "upload"
+                ]
+            },
+            {
+                "type": "By Subscriber",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "recordDate",
+                    "srvType",
+                    "ratingGroup",
+                    "event_date",
+                    "srv_type_key",
+                    "rating_group",
+                    "total_volume",
+                    "download",
+                    "",
+                    "upload",
+                    "billable_volume",
+                    "served_msisdn",
+                    "data_volume_fbc_downlink",
+                    "data_volume_fbc_uplink"
+                ]
+            },
+            {
+                "type": "CDRs",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "xdr_date",
+                    "billablevolume",
+                    "totalvolume"
+                ]
+            }
+        ],
+        "name": "GGSN Trends",
+        "id": "ggsn-1001",
+        "direction": [
+            "ratingGroup",
+            "srvType",
+            "served_msisdn"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709726143,
+            "counter": 15349261,
+            "time": 1709726143000,
+            "date": 1709726143000,
+            "machineIdentifier": 15948841,
+            "processIdentifier": 71,
+            "timeSecond": 1709726143
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/main-account-balance/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "divAmount",
+                    "count"
+                ]
+            },
+            {
+                "type": "By Balance Name",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/main-account-balance/get-stats-by-balance-name",
+                "columns": [
+                    "balanceTypeName",
+                    "divAmount",
+                    "count"
+                ]
+            },
+            {
+                "type": "By SRV Type",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/main-account-balance/get-data-daily-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "divAmount",
+                    "count"
+                ]
+            }
+        ],
+        "name": "Main Account Balance Trends",
+        "id": "main-1001",
+        "direction": [
+            "balanceTypeName",
+            "srvType"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709729684,
+            "counter": 5263427,
+            "time": 1709729684000,
+            "date": 1709729684000,
+            "machineIdentifier": 7934397,
+            "processIdentifier": 9507,
+            "timeSecond": 1709729684
+        },
+        "api": [
+            {
+                "type": "hourly",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/rbt/get-stats-by-hourly",
+                "columns": [
+                    "hour",
+                    "count",
+                    "divAmount"
+                ]
+            },
+            {
+                "type": "daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/rbt/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "divAmount"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/rbt/get-data-daily-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "divAmount",
+                    "count"
+                ]
+            },
+            {
+                "type": "servedMsisdn",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/rbt/get-data-daily-stats-by-msisdn",
+                "columns": [
+                    "servedMsisdn",
+                    "divAmount",
+                    "count"
+                ]
+            }
+        ],
+        "name": "RBT Trends",
+        "id": "rbt-1001",
+        "direction": [
+            "srvType"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709814456,
+            "counter": 8867607,
+            "time": 1709814456000,
+            "date": 1709814456000,
+            "machineIdentifier": 9821519,
+            "processIdentifier": 1514,
+            "timeSecond": 1709814456
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/transfer/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "divAmount"
+                ]
+            },
+            {
+                "type": "Transfer Type",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/transfer/get-data-daily-stats-by-transfer-type",
+                "columns": [
+                    "transferType",
+                    "count",
+                    "divAmount"
+                ]
+            },
+            {
+                "type": "Served Msisdn",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/transfer/get-data-daily-stats-by-served_msisdn",
+                "columns": [
+                    "servedMsisdn",
+                    "count",
+                    "divAmount"
+                ]
+            }
+        ],
+        "name": "CBS Transfer Trends",
+        "id": "cbs-1013",
+        "direction": [
+            "servedMsisdn",
+            "transferType"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709823213,
+            "counter": 6526034,
+            "time": 1709823213000,
+            "date": 1709823213000,
+            "machineIdentifier": 10110592,
+            "processIdentifier": 24,
+            "timeSecond": 1709823213
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/transfer/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "transferInCount",
+                    "transferOutCount",
+                    "transferInAmt",
+                    "transferOutAmt",
+                    "transferInAmtVariance"
+                ]
+            },
+            {
+                "type": "By Transfar Id",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/transfer/get-data-daily-stats-by-transfer-trans-id",
+                "columns": [
+                    "transferTransId",
+                    "transferInCount",
+                    "transferOutCount",
+                    "transferInAmt",
+                    "transferOutAmt",
+                    "transferInAmtVariance"
+                ]
+            },
+            {
+                "type": "By MSISDN",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/transfer/get-data-daily-stats-by-served_msisdn",
+                "columns": [
+                    "servedMsisdn",
+                    "otherMsisdn",
+                    "transferInCount",
+                    "transferOutCount",
+                    "transferInAmt",
+                    "transferOutAmt",
+                    "transferInAmtVariance"
+                ]
+            }
+        ],
+        "name": "CBS Transfer Recon",
+        "id": "recon-1003",
+        "direction": [
+            "transferTransId",
+            "servedMsisdn"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709883242,
+            "counter": 651624,
+            "time": 1709883242000,
+            "date": 1709883242000,
+            "machineIdentifier": 11306414,
+            "processIdentifier": 14279,
+            "timeSecond": 1709883242
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-balance-movement-daily-payg/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "adjAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "osingBal",
+                    "gprsAmt",
+                    "monAmt",
+                    "monBonusAmt",
+                    "openBalance",
+                    "rechAmt",
+                    "rechBonusAmt",
+                    "openBalance",
+                    "smsAmt",
+                    "subsCmAmt",
+                    "subsComAmt",
+                    "subscribers",
+                    "transferInAmt",
+                    "transferOutAmt",
+                    "voiceAmt",
+                    "voiceBonusAmt"
+                ]
+            },
+            {
+                "type": "By Balance Id",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-balance-movement-daily-payg/get-data-daily-stats-by-balance-id",
+                "columns": [
+                    "balanceTypeId",
+                    "balanceTypeName",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "adjAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "osingBal",
+                    "gprsAmt",
+                    "monAmt",
+                    "monBonusAmt",
+                    "openBalance",
+                    "rechAmt",
+                    "rechBonusAmt",
+                    "openBalance",
+                    "smsAmt",
+                    "subsCmAmt",
+                    "subsComAmt",
+                    "subscribers",
+                    "transferInAmt",
+                    "transferOutAmt",
+                    "voiceAmt",
+                    "voiceBonusAmt"
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kpi/trends/prepaid-subscriber-balance-movement-daily/by-cdr",
+                "requestId": "trends/prepaid-subscriber-balance-movement-daily/by-cdr",
+                "columns": [
+                    "limit"
+                ]
+            }
+        ],
+        "name": "Prepaid subscriber balance Movement (PAYG) ",
+        "id": "bm-1001",
+        "direction": [
+            "balanceTypeId",
+            "cdr"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709895645,
+            "counter": 6526052,
+            "time": 1709895645000,
+            "date": 1709895645000,
+            "machineIdentifier": 10110592,
+            "processIdentifier": 24,
+            "timeSecond": 1709895645
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-balance-movement-daily-bonus/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "adjAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "osingBal",
+                    "gprsAmt",
+                    "monAmt",
+                    "monBonusAmt",
+                    "openBalance",
+                    "rechAmt",
+                    "rechBonusAmt",
+                    "openBalance",
+                    "smsAmt",
+                    "subsCmAmt",
+                    "subsComAmt",
+                    "subscribers",
+                    "transferInAmt",
+                    "transferOutAmt",
+                    "voiceAmt",
+                    "voiceBonusAmt"
+                ]
+            },
+            {
+                "type": "By Balance Type ID",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-balance-movement-daily-bonus/get-data-daily-stats-by-balance-id",
+                "columns": [
+                    "balanceTypeId",
+                    "balanceTypeName",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "adjAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "osingBal",
+                    "gprsAmt",
+                    "monAmt",
+                    "monBonusAmt",
+                    "openBalance",
+                    "rechAmt",
+                    "rechBonusAmt",
+                    "openBalance",
+                    "smsAmt",
+                    "subsCmAmt",
+                    "subsComAmt",
+                    "subscribers",
+                    "transferInAmt",
+                    "transferOutAmt",
+                    "voiceAmt",
+                    "voiceBonusAmt"
+                ]
+            },
+            {
+                "type": "CDR",
+                "api": "/kpi/trends/prepaid-subscriber-balance-movement-daily/by-cdr",
+                "requestId": "trends/prepaid-subscriber-balance-movement-daily/by-cdr",
+                "columns": [
+                    "limit"
+                ]
+            }
+        ],
+        "name": "Prepaid subscriber balance Movement (bonus) ",
+        "id": "bm-1002",
+        "direction": [
+            "balanceTypeId",
+            "cdr"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709901103,
+            "counter": 6601628,
+            "time": 1709901103000,
+            "date": 1709901103000,
+            "machineIdentifier": 9004302,
+            "processIdentifier": 30457,
+            "timeSecond": 1709901103
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-allowance-movement-daily/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "gprsUsage",
+                    "monAllowance",
+                    "openBalance",
+                    "rechAllowance",
+                    "smsUsage",
+                    "voiceAllowance",
+                    "voiceUsage"
+                ]
+            },
+            {
+                "type": "By Measurement Name",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-allowance-movement-daily/get-data-daily-stats-by-allowance-id",
+                "columns": [
+                    "freeUnitTypeName",
+                    "freeUnitTypeId",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "gprsUsage",
+                    "monAllowance",
+                    "openBalance",
+                    "rechAllowance",
+                    "smsUsage",
+                    "voiceAllowance",
+                    "voiceUsage"
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kpi/trends/prepaid-subscriber-allowance-movement-daily/by-cdr",
+                "requestId": "trends/prepaid-subscriber-allowance-movement-daily/by-cdr",
+                "columns": [
+                    "limit"
+                ]
+            }
+        ],
+        "name": "Balance Movement Allowances GPRS",
+        "id": "bm-1003",
+        "direction": [
+            "freeUnitTypeId",
+            "cdr"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709901539,
+            "counter": 6601629,
+            "time": 1709901539000,
+            "date": 1709901539000,
+            "machineIdentifier": 9004302,
+            "processIdentifier": 30457,
+            "timeSecond": 1709901539
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-allowance-movement-daily/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "gprsUsage",
+                    "monAllowance",
+                    "openBalance",
+                    "rechAllowance",
+                    "smsUsage",
+                    "voiceAllowance",
+                    "voiceUsage"
+                ]
+            },
+            {
+                "type": "By Measurement Name",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-allowance-movement-daily/get-data-daily-stats-by-allowance-id",
+                "columns": [
+                    "freeUnitTypeId",
+                    "freeUnitTypeName",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "gprsUsage",
+                    "monAllowance",
+                    "openBalance",
+                    "rechAllowance",
+                    "smsUsage",
+                    "voiceAllowance",
+                    "voiceUsage"
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kp/trends/prepaid-subscriber-allowance-movement-daily-voice-sms/by-cdr",
+                "requestId": "trends/prepaid-subscriber-allowance-movement-daily-voice-sms/by-cdr",
+                "columns": [
+                    "limit",
+                    "dataType"
+                ]
+            }
+        ],
+        "name": "Balance Movement Allowances Voice",
+        "id": "bm-1004",
+        "direction": [
+            "freeUnitTypeId",
+            "cdr"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1709901614,
+            "counter": 6601630,
+            "time": 1709901614000,
+            "date": 1709901614000,
+            "machineIdentifier": 9004302,
+            "processIdentifier": 30457,
+            "timeSecond": 1709901614
+        },
+        "api": [
+            {
+                "type": "By Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-allowance-movement-daily/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "gprsUsage",
+                    "monAllowance",
+                    "openBalance",
+                    "rechAllowance",
+                    "smsUsage",
+                    "voiceAllowance",
+                    "voiceUsage"
+                ]
+            },
+            {
+                "type": "By Measurement Name",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/prepaid-subscriber-allowance-movement-daily/get-data-daily-stats-by-allowance-id",
+                "columns": [
+                    "freeUnitTypeId",
+                    "freeUnitTypeName",
+                    "activitiesDecrAmt",
+                    "activitiesIncrAmt",
+                    "calcClosingBal",
+                    "closeBalance",
+                    "balanceVariance",
+                    "gprsUsage",
+                    "monAllowance",
+                    "openBalance",
+                    "rechAllowance",
+                    "smsUsage",
+                    "voiceAllowance",
+                    "voiceUsage"
+                ]
+            },
+            {
+                "type": "By CDR",
+                "api": "/kpi/trends/prepaid-subscriber-allowance-movement-daily-voice-sms/by-cdr",
+                "requestId": "trends/prepaid-subscriber-allowance-movement-daily-voice-sms/by-cdr",
+                "columns": [
+                    "limit",
+                    "dataType"
+                ]
+            }
+        ],
+        "name": "Balance Movement Allowances SMS",
+        "id": "bm-1005",
+        "direction": [
+            "freeUnitTypeId",
+            "cdr"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1711091462,
+            "counter": 2701749,
+            "time": 1711091462000,
+            "date": 1711091462000,
+            "machineIdentifier": 351551,
+            "processIdentifier": 4654,
+            "timeSecond": 1711091462
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "startDate",
+                    "endDate",
+                    "event_date",
+                    "count",
+                    "bonus_amount",
+                    "fr_bonus_amount",
+                    "served_msisdn"
+                ]
+            },
+            {
+                "type": "Msisdn",
+                "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "requestId": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+                "columns": [
+                    "event_date",
+                    "count",
+                    "bonus_amount",
+                    "fr_bonus_amount",
+                    "served_msisdn",
+                    "recordDate"
+                ]
+            },
+            {
+                "type": "cdr",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "recordDate"
+                ]
+            }
+        ],
+        "name": "Incorrect Free Renewal",
+        "id": "fr-1001",
+        "direction": [
+            "event_date",
+            "served_msisdn",
+            "cdr"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1711308105,
+            "counter": 13774141,
+            "time": 1711308105000,
+            "date": 1711308105000,
+            "machineIdentifier": 11920199,
+            "processIdentifier": 13207,
+            "timeSecond": 1711308105
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-voice/get-stats-by-daily",
+                "columns": [
+                    "recordDate",
+                    "tapinCount",
+                    "tapinMou",
+                    "cbsMou",
+                    "cbsCount",
+                    "voiceCharge",
+                    "tapinCharge",
+                    "countVariance",
+                    "mouVariance",
+                    "countPercentage",
+                    "mouPercentage"
+                ]
+            },
+            {
+                "type": "SRV Type",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-voice/get-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "tapinCount",
+                    "tapinMou",
+                    "cbsMou",
+                    "cbsCount",
+                    "voiceCharge",
+                    "tapinCharge",
+                    "countVariance",
+                    "mouVariance",
+                    "countPercentage",
+                    "mouPercentage"
+                ]
+            },
+            {
+                "type": "Country",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-voice/get-stats-by-country",
+                "columns": [
+                    "country",
+                    "countryName",
+                    "srvType",
+                    "tapinCount",
+                    "tapinMou",
+                    "cbsMou",
+                    "cbsCount",
+                    "voiceCharge",
+                    "tapinCharge",
+                    "countVariance",
+                    "mouVariance",
+                    "countPercentage",
+                    "mouPercentage"
+                ]
+            },
+            {
+                "type": "MSISDN",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-voice/get-stats-by-msisdn",
+                "columns": [
+                    "served_msisdn",
+                    "srvType",
+                    "tapinCount",
+                    "tapinMou",
+                    "cbsMou",
+                    "cbsCount",
+                    "voiceCharge",
+                    "tapinCharge",
+                    "countVariance",
+                    "mouVariance",
+                    "countPercentage",
+                    "mouPercentage"
+                ]
+            },
+            {
+                "type": "CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "event_date",
+                    "srv_type_key",
+                    "country_name",
+                    "servedMsisdn",
+                    "partner_country_iso",
+                    "tapin_count",
+                    "gprs_total_volume",
+                    "tapin_charge"
+                ]
+            }
+        ],
+        "name": "TAPIN Vs CBS Voice",
+        "id": "recon-1004",
+        "direction": [
+            "srvType",
+            "country",
+            "served_msisdn"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1711362146,
+            "counter": 7303017,
+            "time": 1711362146000,
+            "date": 1711362146000,
+            "machineIdentifier": 5043416,
+            "processIdentifier": 19306,
+            "timeSecond": 1711362146
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-sms/get-stats-by-daily",
+                "columns": [
+                    "recordDate",
+                    "tapinCount",
+                    "cbsCount",
+                    "tapinCharge",
+                    "countVariance",
+                    "countPercentage"
+                ]
+            },
+            {
+                "type": "SRV Type",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-sms/get-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "tapinCount",
+                    "cbsCount",
+                    "tapinCharge",
+                    "countVariance",
+                    "countPercentage"
+                ]
+            },
+            {
+                "type": "Country",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-sms/get-stats-by-country",
+                "columns": [
+                    "country",
+                    "countryName",
+                    "tapinCount",
+                    "cbsCount",
+                    "tapinCharge",
+                    "countVariance",
+                    "countPercentage"
+                ]
+            },
+            {
+                "type": "MSISDN",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-sms/get-stats-by-msisdn",
+                "columns": [
+                    "served_msisdn",
+                    "tapinCount",
+                    "cbsCount",
+                    "tapinCharge",
+                    "countVariance",
+                    "countPercentage"
+                ]
+            },
+            {
+                "type": "CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "event_date",
+                    "srv_type_key",
+                    "country_name",
+                    "servedMsisdn",
+                    "partner_country_iso",
+                    "tapin_count",
+                    "gprs_total_volume",
+                    "tapin_charge"
+                ]
+            }
+        ],
+        "name": "TAPIN Vs CBS SMS",
+        "id": "recon-1005",
+        "direction": [
+            "srvType",
+            "country",
+            "servedMsisdn"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1711365084,
+            "counter": 7303020,
+            "time": 1711365084000,
+            "date": 1711365084000,
+            "machineIdentifier": 5043416,
+            "processIdentifier": 19306,
+            "timeSecond": 1711365084
+        },
+        "api": [
+            {
+                "type": "Daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-gprs/get-stats-by-daily",
+                "columns": [
+                    "recordDate",
+                    "cbsCount",
+                    "tapinCount",
+                    "tapinVolume",
+                    "cbsVolume",
+                    "tapinCharge",
+                    "cbsCharge",
+                    "countVariance",
+                    "countPercentage",
+                    "volumeVariance",
+                    "volumePercentage"
+                ]
+            },
+            {
+                "type": "SRV Type",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-gprs/get-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "cbsCount",
+                    "tapinCount",
+                    "tapinVolume",
+                    "cbsVolume",
+                    "tapinCharge",
+                    "cbsCharge",
+                    "countVariance",
+                    "countPercentage",
+                    "volumeVariance",
+                    "volumePercentage"
+                ]
+            },
+            {
+                "type": "Country",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-gprs/get-stats-by-country",
+                "columns": [
+                    "countryName",
+                    "country",
+                    "cbsCount",
+                    "tapinCount",
+                    "tapinVolume",
+                    "cbsVolume",
+                    "tapinCharge",
+                    "cbsCharge",
+                    "countVariance",
+                    "countPercentage",
+                    "volumeVariance",
+                    "volumePercentage"
+                ]
+            },
+            {
+                "type": "MSISDN",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "recon/tapin-cbs-gprs/get-stats-by-msisdn",
+                "columns": [
+                    "served_msisdn",
+                    "cbsCount",
+                    "tapinCount",
+                    "tapinVolume",
+                    "cbsVolume",
+                    "tapinCharge",
+                    "cbsCharge",
+                    "countVariance",
+                    "countPercentage",
+                    "volumeVariance",
+                    "volumePercentage"
+                ]
+            },
+            {
+                "type": "CDR",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "event_date",
+                    "srv_type_key",
+                    "country_name",
+                    "servedMsisdn",
+                    "partner_country_iso",
+                    "tapin_count",
+                    "gprs_total_volume",
+                    "tapin_charge"
+                ]
+            }
+        ],
+        "name": "TAPIN Vs CBS GPRS",
+        "id": "recon-1006",
+        "direction": [
+            "srvType",
+            "country",
+            "servedMsisdn"
+        ]
+    },
+    {
+        "_id": {
+            "timestamp": 1711400876,
+            "counter": 7174959,
+            "time": 1711400876000,
+            "date": 1711400876000,
+            "machineIdentifier": 1263495,
+            "processIdentifier": 3790,
+            "timeSecond": 1711400876
+        },
+        "api": [
+            {
+                "type": "daily",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/cbs-adj/get-data-daily-stats-by-day",
+                "columns": [
+                    "recordDate",
+                    "count",
+                    "amount"
+                ]
+            },
+            {
+                "type": "srvType",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/cbs-adj/get-data-daily-stats-by-srv-type",
+                "columns": [
+                    "srvTypeDisplayName",
+                    "srvType",
+                    "amount",
+                    "count"
+                ]
+            },
+            {
+                "type": "operator",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/cbs-adj/get-data-daily-stats-by-operator",
+                "columns": [
+                    "operator"
+                ]
+            },
+            {
+                "type": "subscriber",
+                "api": "/kpi/trends/network/get-metric-data",
+                "requestId": "trends/cbs-adj/get-data-daily-stats-by-msisdn",
+                "columns": [
+                    "servedMsisdn",
+                    "amount",
+                    "count"
+                ]
+            },
+            {
+                "type": "cdr",
+                "api": "/kpi/genericDetailDataResponse",
+                "requestId": "/kpi/genericDetailDataResponse",
+                "columns": [
+                    "recordDate",
+                    "event_date",
+                    "served_type",
+                    "served_msisdn",
+                    "operator",
+                    "oper_id",
+                    "servedMsisdn",
+                    "served_msisdn",
+                    "xdr_date"
+                ]
+            }
+        ],
+        "name": "CBS Adjustments Trends",
+        "id": "cbs-1014",
+        "direction": [
+            "srvType",
+            "operator",
+            "servedMsisdn"
+        ]
+    }
+]

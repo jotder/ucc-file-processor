@@ -1,0 +1,50 @@
+[
+    {
+        "categoryName": "Network and Usage Management",
+        "kpiCount": 24,
+        "kpiReady": 0,
+        "kpiOutThreshold": 0
+    },
+    {
+        "categoryName": "Customer Management",
+        "kpiCount": 2,
+        "kpiReady": 0,
+        "kpiOutThreshold": 0
+    },
+    {
+        "categoryName": "Finance and Accounting",
+        "kpiCount": 10,
+        "kpiReady": 0,
+        "kpiOutThreshold": 0
+    },
+    {
+        "categoryName": "Order Management and Provisioning",
+        "kpiCount": 5,
+        "kpiReady": 0,
+        "kpiOutThreshold": 0
+    },
+    {
+        "categoryName": "Partner Management",
+        "kpiCount": 8,
+        "kpiReady": 0,
+        "kpiOutThreshold": 0
+    },
+    {
+        "categoryName": "Product and Offer Management",
+        "kpiCount": 3,
+        "kpiReady": 0,
+        "kpiOutThreshold": 0
+    },
+    {
+        "categoryName": "Rating and Billing",
+        "kpiCount": 9,
+        "kpiReady": 0,
+        "kpiOutThreshold": 0
+    },
+    {
+        "categoryName": "Receivables Management",
+        "kpiCount": 1,
+        "kpiReady": 0,
+        "kpiOutThreshold": 0
+    }
+]

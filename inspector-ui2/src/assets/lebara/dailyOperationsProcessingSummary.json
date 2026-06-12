@@ -1,0 +1,92 @@
+[
+    {
+        "reportDate": "2024-08-11",
+        "fileCount": 208250,
+        "fileSize": 52472934623,
+        "recordCount": 449470999
+    },
+    {
+        "reportDate": "2024-08-12",
+        "fileCount": 350939,
+        "fileSize": 57328947974,
+        "recordCount": 495758025
+    },
+    {
+        "reportDate": "2024-08-13",
+        "fileCount": 208185,
+        "fileSize": 52109824141,
+        "recordCount": 446951523
+    },
+    {
+        "reportDate": "2024-08-14",
+        "fileCount": 210662,
+        "fileSize": 53827811513,
+        "recordCount": 460398096
+    },
+    {
+        "reportDate": "2024-08-15",
+        "fileCount": 207063,
+        "fileSize": 50736978993,
+        "recordCount": 429988718
+    },
+    {
+        "reportDate": "2024-08-16",
+        "fileCount": 259680,
+        "fileSize": 62609099108,
+        "recordCount": 493438596
+    },
+    {
+        "reportDate": "2024-08-17",
+        "fileCount": 205667,
+        "fileSize": 52598161441,
+        "recordCount": 451976914
+    },
+    {
+        "reportDate": "2024-08-18",
+        "fileCount": 206187,
+        "fileSize": 51387928312,
+        "recordCount": 436609733
+    },
+    {
+        "reportDate": "2024-08-19",
+        "fileCount": 206156,
+        "fileSize": 52070993415,
+        "recordCount": 445720214
+    },
+    {
+        "reportDate": "2024-08-20",
+        "fileCount": 206080,
+        "fileSize": 56631059237,
+        "recordCount": 473313730
+    },
+    {
+        "reportDate": "2024-08-21",
+        "fileCount": 205613,
+        "fileSize": 51701474839,
+        "recordCount": 443720106
+    },
+    {
+        "reportDate": "2024-08-22",
+        "fileCount": 209359,
+        "fileSize": 52976159062,
+        "recordCount": 453343273
+    },
+    {
+        "reportDate": "2024-08-23",
+        "fileCount": 205532,
+        "fileSize": 50752071761,
+        "recordCount": 446200545
+    },
+    {
+        "reportDate": "2024-08-24",
+        "fileCount": 206632,
+        "fileSize": 52486090148,
+        "recordCount": 451907179
+    },
+    {
+        "reportDate": "2024-08-25",
+        "fileCount": 206660,
+        "fileSize": 50829092853,
+        "recordCount": 433499505
+    }
+]

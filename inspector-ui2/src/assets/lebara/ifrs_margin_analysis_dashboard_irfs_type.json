@@ -1,0 +1,27 @@
+{
+    "pageNumber": 1,
+    "recordCount": 4,
+    "dataset": [
+        {
+            "actual_usage": 585.6678352355957,
+            "ifrs_type": "data_local_data",
+            "recordDate": "20240809"
+        },
+        {
+            "actual_usage": 1.4209747314453125E-4,
+            "ifrs_type": "data_roaming",
+            "recordDate": "20240809"
+        },
+        {
+            "actual_usage": 2.880096435546875E-4,
+            "ifrs_type": "data_roaming",
+            "recordDate": "20240810"
+        },
+        {
+            "actual_usage": 660.8482208251953,
+            "ifrs_type": "data_local_data",
+            "recordDate": "20240810"
+        }
+    ],
+    "lastObjectReferenceId": null
+}

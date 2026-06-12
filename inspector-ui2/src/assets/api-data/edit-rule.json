@@ -1,0 +1,63 @@
+{
+    "ruleId": "5aba81d0-13af-4ef8-937f-f2e431e85bd6",
+    "ruleName": "high_int-test",
+    "displayName": "High INT-test",
+    "ruleType": "dataDriven",
+    "module": "UsageFraud",
+    "ruleDescription": "Based on Test Sims",
+    "categories": [
+        "UsageFraud"
+    ],
+    "tags": [
+        "#usagefraud"
+    ],
+    "version": "1.0",
+    "status": "ready",
+    "activated": false,
+    "actionBy": "deepakp",
+    "actionOn": "2024-01-03 11:14:20",
+    "thresholdValue": null,
+    "queryExpr": "SELECT served_msisdn,\n         count(1) call_count\nFROM fct_huw_med_msc\nWHERE xdr_date\n    BETWEEN '$P{start_date}'\n        AND '$P{end_date}'\n        AND other_party_nw_ind_key = '3'\n        AND call_type = 'MOC'\n        AND served_msisdn IN ('966579185152')\nGROUP BY  served_msisdn\nHAVING count(1) > $T{call_count}",
+    "queryArguments": [
+        {
+            "argumentName": "start_date",
+            "labelName": "start_date",
+            "datatype": "timestamp",
+            "runtimeValue": "static",
+            "function": "TODAY_START"
+        },
+        {
+            "argumentName": "end_date",
+            "labelName": "end_date",
+            "datatype": "timestamp",
+            "runtimeValue": "static",
+            "function": "TODAY_END"
+        }
+    ],
+    "thresholdArguments": [
+        {
+            "thresholdName": "call_count",
+            "labelName": "call_count",
+            "value": "5",
+            "thresholdType": "static",
+            "serviceUrl": null
+        }
+    ],
+    "databaseEngine": "impala",
+    "dbInstanceId": "",
+    "principleColumn": "served_msisdn",
+    "thresholdColumn": null,
+    "thresholdColumnLabel": null,
+    "evidenceDataset": {
+        "required": true,
+        "derive": true,
+        "datasetColumns": [
+            "SELECT *\nFROM fct_huw_med_msc\nWHERE xdr_date\n    BETWEEN '$P{start_date}'\n        AND '$P{end_date}'\n        AND other_party_nw_ind_key = '3'\n        AND call_type = 'MOC'\n\tand served_msisdn in (966579185152)"
+        ],
+        "query": "SELECT *\nFROM fct_huw_med_msc\nWHERE xdr_date\n    BETWEEN '$P{start_date}'\n        AND '$P{end_date}'\n        AND other_party_nw_ind_key = '3'\n        AND call_type = 'MOC'\n\tand served_msisdn in (966579185152)\n\n"
+    },
+    "windowParams": {
+        "windowStart": "start_date",
+        "windowEnd": "end_date"
+    }
+}

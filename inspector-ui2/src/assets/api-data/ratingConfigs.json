@@ -1,0 +1,155 @@
+ [
+      {
+        "ratePlanName": "Data Usage Postpaid",
+        "serviceCategory": "Data",
+        "serviceType": "Postpaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Data Usage Prepaid",
+        "serviceCategory": "Data",
+        "serviceType": "Prepaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Facebook Prepaid Data Usage",
+        "serviceCategory": "Data",
+        "serviceType": "Prepaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Incoming Inroamer Voice Calls",
+        "serviceCategory": "Voice",
+        "serviceType": "Inroamer",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Inroamer Data Usage",
+        "serviceCategory": "Data",
+        "serviceType": "Inroamer",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Local PCRF Bypass Data Usage",
+        "serviceCategory": "Data",
+        "serviceType": ["Prepaid", "Postpaid"],
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing Inroamer SMS",
+        "serviceCategory": "SMS",
+        "serviceType": "Inroamer",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing Inroamer Voice Calls",
+        "serviceCategory": "Voice",
+        "serviceType": "Inroamer",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing International SMS Prepaid Calls",
+        "serviceCategory": "Voice",
+        "serviceType": "Prepaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing International Voice Calls",
+        "serviceCategory": "Voice",
+        "serviceType": "Prepaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing International Voice Calls",
+        "serviceCategory": "Voice",
+        "serviceType": "Postpaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing International Voice Postpaid Calls",
+        "serviceCategory": "Voice",
+        "serviceType": "Postpaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing Offnet SMS Postpaid",
+        "serviceCategory": "SMS",
+        "serviceType": "Postpaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing Offnet SMS Prepaid",
+        "serviceCategory": "SMS",
+        "serviceType": "Prepaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing Offnet Voice Call Prepaid",
+        "serviceCategory": "Voice",
+        "serviceType": "Prepaid",
+        "status": "INACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing Offnet Voice Calls Postpaid",
+        "serviceCategory": "Voice",
+        "serviceType": "Postpaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing Onnet SMS Postpaid",
+        "serviceCategory": "SMS",
+        "serviceType": "Postpaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing Onnet SMS Prepaid",
+        "serviceCategory": "SMS",
+        "serviceType": "Prepaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      },
+      {
+        "ratePlanName": "Outgoing Onnet Voice Call Postpaid",
+        "serviceCategory": "Voice",
+        "serviceType": "Postpaid",
+        "status": "ACTIVE",
+        "createdBy": "admin",
+        "currency": "US Dollar"
+      }
+    ]
+  

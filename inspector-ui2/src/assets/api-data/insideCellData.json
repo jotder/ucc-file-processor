@@ -1,0 +1,68 @@
+[
+    {
+        "recordDate": "01-03-2020",
+        "rechargeAmount": "116511",
+        "rechargeCount": "71211",
+        "serviceFee": "41211"
+    },
+    {
+        "recordDate": "02-03-2020",
+        "rechargeAmount": "234511",
+        "rechargeCount": "81211",
+        "serviceFee": "71211"
+    },
+    {
+        "recordDate": "03-03-2020",
+        "rechargeAmount": "320511",
+        "rechargeCount": "52211",
+        "serviceFee": "61211"
+    },
+    {
+        "recordDate": "04-03-2020",
+        "rechargeAmount": "120511",
+        "rechargeCount": "81211",
+        "serviceFee": "41211"
+    },
+    {
+        "recordDate": "05-03-2020",
+        "rechargeAmount": "320511",
+        "rechargeCount": "91211",
+        "serviceFee": "41211"
+    },
+    {
+        "recordDate": "06-03-2020",
+        "rechargeAmount": "232511",
+        "rechargeCount": "56211",
+        "serviceFee": "61211"
+    },
+    {
+        "recordDate": "07-03-2020",
+        "rechargeAmount": "334511",
+        "rechargeCount": "402116",
+        "serviceFee": "71211"
+    },
+    {
+        "recordDate": "08-03-2020",
+        "rechargeAmount": "569511",
+        "rechargeCount": "85211",
+        "serviceFee": "61211"
+    },
+    {
+        "recordDate": "09-03-2020",
+        "rechargeAmount": "456511",
+        "rechargeCount": "88211",
+        "serviceFee": "61211"
+    },
+    {
+        "recordDate": "10-03-2020",
+        "rechargeAmount": "344511",
+        "rechargeCount": "59211",
+        "serviceFee": "71211"
+    },
+    {
+        "recordDate": "11-03-2020",
+        "rechargeAmount": "636511",
+        "rechargeCount": "77211",
+        "serviceFee": "61211"
+    }
+]

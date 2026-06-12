@@ -1,0 +1,74 @@
+[
+    {
+        "moduleName": "BlacklistFraud",
+        "ruleCount": 7,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "BypassFraud",
+        "ruleCount": 5,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "DealerFraud",
+        "ruleCount": 4,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "GPRSFraud",
+        "ruleCount": 3,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "InternalFraud",
+        "ruleCount": 5,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "PrepaidFraud",
+        "ruleCount": 16,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "RoamingFraud",
+        "ruleCount": 16,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "SpamFraud",
+        "ruleCount": 1,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "SubscriptionFraud",
+        "ruleCount": 1,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "TestSimFraud",
+        "ruleCount": 2,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "UsageFraud",
+        "ruleCount": 25,
+        "alertCount": 0,
+        "fraudCount": 0
+    },
+    {
+        "moduleName": "VoucherFraud",
+        "ruleCount": 2,
+        "alertCount": 0,
+        "fraudCount": 0
+    }
+]

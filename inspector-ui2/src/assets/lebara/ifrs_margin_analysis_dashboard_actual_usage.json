@@ -1,0 +1,15 @@
+{
+    "pageNumber": 1,
+    "recordCount": 2,
+    "dataset": [
+        {
+            "actual_usage": 3270768.000000052,
+            "recordDate": "20240809"
+        },
+        {
+            "actual_usage": 2823456.216666661,
+            "recordDate": "20240810"
+        }
+    ],
+    "lastObjectReferenceId": null
+}

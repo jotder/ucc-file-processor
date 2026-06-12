@@ -1,0 +1,111 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+        <div class="text-3xl font-extrabold leading-none tracking-tight">Catalog</div>
+        <div class="text-secondary mt-1.5">Metadata graph — tables, KPIs and lineage traversal</div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        <mat-tab-group [(selectedIndex)]="tabIndex" (selectedIndexChange)="loadTab()">
+            @for (t of tabs; track t.id) {
+                <mat-tab [label]="t.label"></mat-tab>
+            }
+        </mat-tab-group>
+
+        @if (loading) {
+            <div class="mt-6 flex items-center gap-3">
+                <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+                <span class="text-secondary">Loading…</span>
+            </div>
+        }
+
+        <!-- Tables -->
+        @if (activeTab === 'tables' && !loading) {
+            <mat-form-field class="gamma-mat-dense mt-6 w-72" subscriptSizing="dynamic">
+                <mat-icon matPrefix svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                <input matInput [(ngModel)]="search" placeholder="Search tables…" />
+            </mat-form-field>
+            <ag-grid-angular
+                class="mt-4 h-160 w-full"
+                [theme]="gridTheme.theme()"
+                [rowData]="nodes"
+                [columnDefs]="nodeColumns"
+                [defaultColDef]="defaultColDef"
+                [quickFilterText]="search"
+                [pagination]="true"
+                [paginationPageSize]="25"
+                (rowClicked)="onNodeRowClicked($event)">
+            </ag-grid-angular>
+        }
+
+        <!-- KPIs -->
+        @if (activeTab === 'kpis' && !loading) {
+            <mat-form-field class="gamma-mat-dense mt-6 w-72" subscriptSizing="dynamic">
+                <mat-icon matPrefix svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                <input matInput [(ngModel)]="search" placeholder="Search KPIs…" />
+            </mat-form-field>
+            <ag-grid-angular
+                class="mt-4 h-160 w-full"
+                [theme]="gridTheme.theme()"
+                [rowData]="kpis"
+                [columnDefs]="kpiColumns"
+                [defaultColDef]="defaultColDef"
+                [quickFilterText]="search">
+            </ag-grid-angular>
+        }
+
+        <!-- Graph -->
+        @if (activeTab === 'graph') {
+            <div class="mt-6 flex flex-wrap items-center gap-3">
+                <mat-form-field class="gamma-mat-dense w-72" subscriptSizing="dynamic">
+                    <mat-label>From node id (blank = whole graph)</mat-label>
+                    <input matInput [(ngModel)]="graphFrom" />
+                </mat-form-field>
+                <mat-form-field class="gamma-mat-dense w-24" subscriptSizing="dynamic">
+                    <mat-label>Depth</mat-label>
+                    <input matInput type="number" min="1" max="6" [(ngModel)]="graphDepth" />
+                </mat-form-field>
+                <mat-form-field class="gamma-mat-dense w-32" subscriptSizing="dynamic">
+                    <mat-label>Direction</mat-label>
+                    <mat-select [(ngModel)]="graphDirection">
+                        @for (d of directions; track d) {
+                            <mat-option [value]="d">{{ d }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+                <mat-form-field class="gamma-mat-dense w-44" subscriptSizing="dynamic">
+                    <mat-label>Node kinds (csv)</mat-label>
+                    <input matInput [(ngModel)]="graphKinds" />
+                </mat-form-field>
+                <mat-form-field class="gamma-mat-dense w-44" subscriptSizing="dynamic">
+                    <mat-label>Edge kinds (csv)</mat-label>
+                    <input matInput [(ngModel)]="graphEdgeKinds" />
+                </mat-form-field>
+                <mat-checkbox [(ngModel)]="graphOverlay">overlay</mat-checkbox>
+                <button mat-flat-button color="primary" [disabled]="loading" (click)="runGraph()">Traverse</button>
+            </div>
+
+            @if (graph && !loading) {
+                @if (graph.nodes.length) {
+                    <div class="bg-card mt-6 rounded-2xl p-4 shadow">
+                        <div class="text-secondary mb-2 text-sm">
+                            {{ graph.nodes.length }} nodes, {{ graph.edges.length }} edges — click a node to inspect
+                        </div>
+                        <ucc-graph-view [data]="g6Data" (nodeClick)="openNode($event)"></ucc-graph-view>
+                        <div class="mt-3 flex flex-wrap gap-4">
+                            @for (l of legend; track l.kind) {
+                                <span class="flex items-center gap-1.5 text-sm">
+                                    <span class="inline-block h-3 w-3 rounded-full border-2"
+                                          [style.border-color]="l.fill"></span>{{ l.kind }}
+                                </span>
+                            }
+                        </div>
+                    </div>
+                } @else {
+                    <div class="text-secondary mt-6">No nodes matched — adjust the filters and traverse again.</div>
+                }
+            }
+        }
+    </div>
+</div>

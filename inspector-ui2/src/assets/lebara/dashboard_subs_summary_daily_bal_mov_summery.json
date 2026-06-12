@@ -1,0 +1,67 @@
+{
+    "pageNumber": 1,
+    "recordCount": 15,
+    "dataset": [
+        {
+            "recordDate": "20240824",
+            "bal_mov_sar": -304871.4820000008
+        },
+        {
+            "recordDate": "20240820",
+            "bal_mov_sar": -280468.64460000396
+        },
+        {
+            "recordDate": "20240815",
+            "bal_mov_sar": -334253.8399000019
+        },
+        {
+            "recordDate": "20240816",
+            "bal_mov_sar": -355119.21329999715
+        },
+        {
+            "recordDate": "20240818",
+            "bal_mov_sar": -306456.63440000266
+        },
+        {
+            "recordDate": "20240825",
+            "bal_mov_sar": -329388.5047999993
+        },
+        {
+            "recordDate": "20240811",
+            "bal_mov_sar": -380972.2782000005
+        },
+        {
+            "recordDate": "20240822",
+            "bal_mov_sar": -364105.30089999735
+        },
+        {
+            "recordDate": "20240812",
+            "bal_mov_sar": -314843.8542999998
+        },
+        {
+            "recordDate": "20240814",
+            "bal_mov_sar": -351004.9787000008
+        },
+        {
+            "recordDate": "20240813",
+            "bal_mov_sar": -330436.5388999991
+        },
+        {
+            "recordDate": "20240819",
+            "bal_mov_sar": -277663.53819999844
+        },
+        {
+            "recordDate": "20240823",
+            "bal_mov_sar": -336861.55920000374
+        },
+        {
+            "recordDate": "20240821",
+            "bal_mov_sar": -269141.45319999754
+        },
+        {
+            "recordDate": "20240817",
+            "bal_mov_sar": -297280.987499997
+        }
+    ],
+    "lastObjectReferenceId": null
+}

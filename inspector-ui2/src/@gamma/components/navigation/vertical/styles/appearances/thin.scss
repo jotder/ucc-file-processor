@@ -1,0 +1,97 @@
+/* Variables */
+:root {
+    --gamma-vertical-navigation-thin-width: 80px;
+}
+
+gamma-vertical-navigation {
+    /* Thin appearance overrides */
+    &.gamma-vertical-navigation-appearance-thin {
+        width: var(--gamma-vertical-navigation-thin-width);
+        min-width: var(--gamma-vertical-navigation-thin-width);
+        max-width: var(--gamma-vertical-navigation-thin-width);
+
+        /* Left positioned */
+        &.gamma-vertical-navigation-position-left {
+            &.gamma-vertical-navigation-mode-side {
+                margin-left: calc(
+                    var(--gamma-vertical-navigation-thin-width) * -1
+                );
+            }
+
+            &.gamma-vertical-navigation-opened {
+                margin-left: 0;
+            }
+        }
+
+        /* Right positioned */
+        &.gamma-vertical-navigation-position-right {
+            &.gamma-vertical-navigation-mode-side {
+                margin-right: calc(
+                    var(--gamma-vertical-navigation-thin-width) * -1
+                );
+            }
+
+            &.gamma-vertical-navigation-opened {
+                margin-right: 0;
+            }
+
+            .gamma-vertical-navigation-aside-wrapper {
+                left: auto;
+                right: var(--gamma-vertical-navigation-thin-width);
+            }
+        }
+
+        /* Wrapper */
+        .gamma-vertical-navigation-wrapper {
+            /* Content */
+            .gamma-vertical-navigation-content {
+                > gamma-vertical-navigation-aside-item,
+                > gamma-vertical-navigation-basic-item {
+                    flex-direction: column;
+                    justify-content: center;
+                    height: 64px;
+                    min-height: 64px;
+                    max-height: 64px;
+                    padding: 0 16px;
+
+                    .gamma-vertical-navigation-item-wrapper {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+
+                        .gamma-vertical-navigation-item {
+                            justify-content: center;
+                            padding: 12px;
+                            border-radius: 4px;
+
+                            .gamma-vertical-navigation-item-icon {
+                                margin: 0;
+                            }
+
+                            .gamma-vertical-navigation-item-arrow,
+                            .gamma-vertical-navigation-item-badge-content,
+                            .gamma-vertical-navigation-item-title-wrapper {
+                                display: none;
+                            }
+                        }
+                    }
+                }
+
+                > gamma-vertical-navigation-collapsable-item {
+                    display: none;
+                }
+
+                > gamma-vertical-navigation-group-item {
+                    > .gamma-vertical-navigation-item-wrapper {
+                        display: none;
+                    }
+                }
+            }
+        }
+
+        /* Aside wrapper */
+        .gamma-vertical-navigation-aside-wrapper {
+            left: var(--gamma-vertical-navigation-thin-width);
+        }
+    }
+}

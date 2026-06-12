@@ -1,0 +1,4714 @@
+[
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_international",
+        "trafficTotal": 155746.06324669922,
+        "amountPAYG": 140510.26000000065,
+        "trafficBundle": 2457801.386753301,
+        "amountBundle": 159993.93144022196
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 747.0,
+        "amountPAYG": 130.4679,
+        "trafficBundle": 18027.0,
+        "amountBundle": 364.5
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1293.0,
+        "amountPAYG": 135.675,
+        "trafficBundle": 34910.0,
+        "amountBundle": 54.36064594547279
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 59273.224768702225,
+        "amountPAYG": 18844.517600000232,
+        "trafficBundle": 315161.59189796436,
+        "amountBundle": 1132.0853560018245
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 444898.137155575,
+        "amountPAYG": 73414.89439999947,
+        "trafficBundle": 5.3476564231371E8,
+        "amountBundle": 684988.1311877299
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 215008.76810701558,
+        "amountPAYG": 66709.75629999735,
+        "trafficBundle": 1125284.0318929858,
+        "amountBundle": 3815.146595105636
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "sms_international",
+        "trafficTotal": 9457.0,
+        "amountPAYG": 645.9411999999996,
+        "trafficBundle": 1286.0,
+        "amountBundle": 320.53
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_800",
+        "trafficTotal": 570.6666666666666,
+        "amountPAYG": 189.42989999999998,
+        "trafficBundle": 546.2666666666667,
+        "amountBundle": 1.8995399944645095
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 66.38402824691894,
+        "amountPAYG": 288.9995,
+        "trafficBundle": 1929.1545268983448,
+        "amountBundle": 3304.1213033143945
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 54.0,
+        "amountPAYG": 75.57000000000001,
+        "trafficBundle": 34.0,
+        "amountBundle": 53.35
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1254.0000000000002,
+        "amountPAYG": 143.7379,
+        "trafficBundle": 416.0,
+        "amountBundle": 91.89999999999999
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 96359.73390329287,
+        "amountPAYG": 15182.707000000004,
+        "trafficBundle": 3123714.0660967007,
+        "amountBundle": 3579.7086125479636
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 265.26666666666665,
+        "amountPAYG": 1508.77,
+        "trafficBundle": 15.733333333333334,
+        "amountBundle": 27.500000000000004
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1403.0,
+        "amountPAYG": 137.69140000000002,
+        "trafficBundle": 370.0,
+        "amountBundle": 81.38356912901432
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7610.0,
+        "amountPAYG": 789.5666000000002,
+        "trafficBundle": 1615.0,
+        "amountBundle": 343.297348877314
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2634.366666666667,
+        "amountPAYG": 63.01769999999999,
+        "trafficBundle": 433.4833333333333,
+        "amountBundle": 1.9891371085440899
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6798.693094202898,
+        "amountPAYG": 2307.6781999999994,
+        "trafficBundle": 36865.15690579709,
+        "amountBundle": 136.2203768455513
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 324.86666666666673,
+        "amountPAYG": 1184.5739999999998,
+        "trafficBundle": 6.066666666666667,
+        "amountBundle": 18.333333333333336
+    },
+    {
+        "recordDate": "20240101",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2830.516666666667,
+        "amountPAYG": 368.13419999999996,
+        "trafficBundle": 4408.6,
+        "amountBundle": 21.07212441417943
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1005.0,
+        "amountPAYG": 102.1478,
+        "trafficBundle": 360.0,
+        "amountBundle": 78.3004821273732
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 58550.21118371165,
+        "amountPAYG": 19311.947100000263,
+        "trafficBundle": 318560.22214962187,
+        "amountBundle": 1164.7310612050308
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1505.0,
+        "amountPAYG": 159.9319,
+        "trafficBundle": 34117.0,
+        "amountBundle": 59.56447880419876
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_international",
+        "trafficTotal": 157974.04665183928,
+        "amountPAYG": 141504.15340000074,
+        "trafficBundle": 2519354.9700148283,
+        "amountBundle": 164402.1754529921
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 64.0,
+        "amountPAYG": 87.1,
+        "trafficBundle": 24.0,
+        "amountBundle": 37.58
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 78.6032657623291,
+        "amountPAYG": 363.6773999999999,
+        "trafficBundle": 387.43024921417236,
+        "amountBundle": 707.416937689394
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 278.0333333333333,
+        "amountPAYG": 1341.925,
+        "trafficBundle": 10.583333333333332,
+        "amountBundle": 10.0
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1341.0,
+        "amountPAYG": 129.5376,
+        "trafficBundle": 323.0,
+        "amountBundle": 75.27335831105523
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8465.0,
+        "amountPAYG": 618.6398999999999,
+        "trafficBundle": 1151.0,
+        "amountBundle": 286.24
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 94879.18882972196,
+        "amountPAYG": 15209.312300000001,
+        "trafficBundle": 3162191.4945035977,
+        "amountBundle": 3703.114933900758
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 213312.17097980407,
+        "amountPAYG": 67665.8255999966,
+        "trafficBundle": 1130398.4456868668,
+        "amountBundle": 3800.289890407282
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 367.20000000000005,
+        "amountPAYG": 861.0699999999999,
+        "trafficBundle": 1.35,
+        "amountBundle": 4.242424242424242
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_800",
+        "trafficTotal": 828.1333333333334,
+        "amountPAYG": 258.71,
+        "trafficBundle": 524.5166666666667,
+        "amountBundle": 2.3615020362356907
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 725.0,
+        "amountPAYG": 126.1707,
+        "trafficBundle": 16315.0,
+        "amountBundle": 104.95063778221864
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 361524.5806090724,
+        "amountPAYG": 60504.736399999376,
+        "trafficBundle": 2.9433726340294456E8,
+        "amountBundle": 392934.48073401465
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7536.0,
+        "amountPAYG": 782.9053000000001,
+        "trafficBundle": 1422.0,
+        "amountBundle": 303.1354800691643
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2449.3670405982903,
+        "amountPAYG": 301.9349,
+        "trafficBundle": 4287.38295940171,
+        "amountBundle": 30.865968512531065
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 4022.0666666666675,
+        "amountPAYG": 140.9471,
+        "trafficBundle": 592.5833333333334,
+        "amountBundle": 4.446161247946898
+    },
+    {
+        "recordDate": "20240102",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6879.831028992792,
+        "amountPAYG": 2392.180199999998,
+        "trafficBundle": 36155.90230434052,
+        "amountBundle": 132.38089177440713
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7337.0,
+        "amountPAYG": 688.7271000000002,
+        "trafficBundle": 1556.0,
+        "amountBundle": 327.3124962693891
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2990.8094594594595,
+        "amountPAYG": 67.25,
+        "trafficBundle": 545.4905405405406,
+        "amountBundle": 4.080978185856811
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 977.0,
+        "amountPAYG": 190.22480000000002,
+        "trafficBundle": 16990.0,
+        "amountBundle": 108.39015352210866
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1516.0,
+        "amountPAYG": 140.3499,
+        "trafficBundle": 34497.0,
+        "amountBundle": 31.16802591330494
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 268.80758380889887,
+        "amountPAYG": 987.2125,
+        "trafficBundle": 25.609505653381348,
+        "amountBundle": 110.30510000000001
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_800",
+        "trafficTotal": 861.2333333333333,
+        "amountPAYG": 299.5619,
+        "trafficBundle": 468.20000000000005,
+        "amountBundle": 2.1115010735947717
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 94070.19875349777,
+        "amountPAYG": 15519.9255,
+        "trafficBundle": 3204385.351246492,
+        "amountBundle": 3645.388944503051
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8017.0,
+        "amountPAYG": 576.9434999999999,
+        "trafficBundle": 794.0,
+        "amountBundle": 197.70000000000002
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 378214.9506822825,
+        "amountPAYG": 63595.122199999394,
+        "trafficBundle": 3.405271012100159E8,
+        "amountBundle": 449966.96026032267
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1257.0,
+        "amountPAYG": 127.484,
+        "trafficBundle": 287.0,
+        "amountBundle": 63.59268132544705
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 57393.94457271631,
+        "amountPAYG": 18888.020700000256,
+        "trafficBundle": 316328.50542728376,
+        "amountBundle": 1146.192366716112
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2598.0416666666665,
+        "amountPAYG": 376.37760000000003,
+        "trafficBundle": 4318.258333333333,
+        "amountBundle": 20.76123809799577
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1156.0,
+        "amountPAYG": 105.25000000000001,
+        "trafficBundle": 307.0,
+        "amountBundle": 66.20012789359254
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 213174.50705908705,
+        "amountPAYG": 66983.52959999673,
+        "trafficBundle": 1138237.492940917,
+        "amountBundle": 3836.362914846122
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 55.0,
+        "amountPAYG": 68.25,
+        "trafficBundle": 23.0,
+        "amountBundle": 25.35
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 304.71666666666664,
+        "amountPAYG": 778.7420999999999,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 241.4666666666667,
+        "amountPAYG": 1404.6339999999998,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_international",
+        "trafficTotal": 150992.6558605334,
+        "amountPAYG": 138204.24840000068,
+        "trafficBundle": 2388300.694139476,
+        "amountBundle": 156972.235895182
+    },
+    {
+        "recordDate": "20240103",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 7205.909019607841,
+        "amountPAYG": 2374.248099999999,
+        "trafficBundle": 36627.224313725485,
+        "amountBundle": 141.37323182202246
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7179.0,
+        "amountPAYG": 720.3295000000003,
+        "trafficBundle": 1690.0,
+        "amountBundle": 353.6666412830742
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1069.0,
+        "amountPAYG": 110.69030000000001,
+        "trafficBundle": 415.0,
+        "amountBundle": 85.23128796235973
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1225.0,
+        "amountPAYG": 132.987,
+        "trafficBundle": 225.0,
+        "amountBundle": 42.75390135979694
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 404.06666666666666,
+        "amountPAYG": 893.8699999999999,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 930.0,
+        "amountPAYG": 183.3296,
+        "trafficBundle": 16406.0,
+        "amountBundle": 76.82175958323697
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 7615.642354925776,
+        "amountPAYG": 2480.020399999998,
+        "trafficBundle": 37223.22431174087,
+        "amountBundle": 154.6028502093284
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2731.75,
+        "amountPAYG": 332.0917,
+        "trafficBundle": 4067.9166666666674,
+        "amountBundle": 19.045847204117205
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1429.0,
+        "amountPAYG": 128.7669,
+        "trafficBundle": 35261.0,
+        "amountBundle": 35.4568568735094
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 77.0,
+        "amountPAYG": 83.95,
+        "trafficBundle": 20.0,
+        "amountBundle": 20.84
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 378261.64113878063,
+        "amountPAYG": 63566.17609999928,
+        "trafficBundle": 3.608293117148372E8,
+        "amountBundle": 476539.1130105401
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_international",
+        "trafficTotal": 150630.17651380182,
+        "amountPAYG": 138543.4931000007,
+        "trafficBundle": 2361706.22348622,
+        "amountBundle": 155000.3171047618
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 337.68333333333334,
+        "amountPAYG": 1856.7707,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 101963.7039378651,
+        "amountPAYG": 16250.234799999998,
+        "trafficBundle": 3125658.279395455,
+        "amountBundle": 3691.916888414425
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 171.42150306701657,
+        "amountPAYG": 583.5217999999999,
+        "trafficBundle": 21.566901206970215,
+        "amountBundle": 88.0629
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 62797.636526298025,
+        "amountPAYG": 20279.420700000293,
+        "trafficBundle": 318300.8801403689,
+        "amountBundle": 1151.385887950866
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_800",
+        "trafficTotal": 811.7333333333333,
+        "amountPAYG": 298.5587,
+        "trafficBundle": 379.5333333333333,
+        "amountBundle": 1.513792742929974
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2592.616666666667,
+        "amountPAYG": 77.836,
+        "trafficBundle": 371.8666666666667,
+        "amountBundle": 2.5253575859123143
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 224887.6214116698,
+        "amountPAYG": 70338.38859999622,
+        "trafficBundle": 1145602.1119216671,
+        "amountBundle": 3874.0692876081803
+    },
+    {
+        "recordDate": "20240104",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8757.0,
+        "amountPAYG": 605.0990999999998,
+        "trafficBundle": 891.0,
+        "amountBundle": 222.0
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 291.36666666666673,
+        "amountPAYG": 1545.8116999999997,
+        "trafficBundle": 1.9,
+        "amountBundle": 3.3333333333333335
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1141.0,
+        "amountPAYG": 111.26920000000003,
+        "trafficBundle": 266.0,
+        "amountBundle": 61.350543847987545
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1527.0,
+        "amountPAYG": 170.37709999999998,
+        "trafficBundle": 273.0,
+        "amountBundle": 55.57056809384433
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_international",
+        "trafficTotal": 181688.59696758058,
+        "amountPAYG": 160243.75140000056,
+        "trafficBundle": 2899613.8530324213,
+        "amountBundle": 194431.92439906043
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 193057.90415365517,
+        "amountPAYG": 59502.063199998,
+        "trafficBundle": 945766.9125130125,
+        "amountBundle": 3072.7452427107874
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7115.0,
+        "amountPAYG": 729.7379000000003,
+        "trafficBundle": 1491.0,
+        "amountBundle": 307.7055223091481
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 404482.0722952574,
+        "amountPAYG": 67364.27349999943,
+        "trafficBundle": 3.757948293044582E8,
+        "amountBundle": 493692.52310272504
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 295.2166666666667,
+        "amountPAYG": 667.5588,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 5734.609911924119,
+        "amountPAYG": 1945.1440000000002,
+        "trafficBundle": 28448.10675474252,
+        "amountBundle": 107.9972180519447
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1022.0,
+        "amountPAYG": 152.98120000000003,
+        "trafficBundle": 17738.0,
+        "amountBundle": 93.40214541120382
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1352.0,
+        "amountPAYG": 141.84599999999998,
+        "trafficBundle": 34182.0,
+        "amountBundle": 42.858564603743915
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 175.8638162612915,
+        "amountPAYG": 580.1940999999999,
+        "trafficBundle": 529.8777627944946,
+        "amountBundle": 580.6715284090909
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 94154.10320113684,
+        "amountPAYG": 15167.723900000006,
+        "trafficBundle": 2738132.280132195,
+        "amountBundle": 3231.069732539523
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 1883.6,
+        "amountPAYG": 22.3,
+        "trafficBundle": 72.75,
+        "amountBundle": 0.2109054975403078
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7951.999999999999,
+        "amountPAYG": 526.6750999999998,
+        "trafficBundle": 778.0,
+        "amountBundle": 193.74
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 69.0,
+        "amountPAYG": 100.95000000000002,
+        "trafficBundle": 26.0,
+        "amountBundle": 35.989999999999995
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 1194.0747272727272,
+        "amountPAYG": 145.55999999999997,
+        "trafficBundle": 1753.7252727272723,
+        "amountBundle": 10.529120082319057
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 52193.49126619103,
+        "amountPAYG": 16717.332700000174,
+        "trafficBundle": 259008.5087338087,
+        "amountBundle": 893.3074517206982
+    },
+    {
+        "recordDate": "20240105",
+        "ifrsType": "voice_800",
+        "trafficTotal": 785.25,
+        "amountPAYG": 305.1605,
+        "trafficBundle": 238.6833333333334,
+        "amountBundle": 1.1956537216771246
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_800",
+        "trafficTotal": 707.5666666666666,
+        "amountPAYG": 236.15440000000004,
+        "trafficBundle": 308.19999999999993,
+        "amountBundle": 1.5782597495608042
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 204911.47000010632,
+        "amountPAYG": 63309.35059999773,
+        "trafficBundle": 1080247.596666561,
+        "amountBundle": 3654.9464845015355
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 179.75255584716797,
+        "amountPAYG": 582.4662999999999,
+        "trafficBundle": 1382.5792951583862,
+        "amountBundle": 2385.2946479437232
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2337.7166666666667,
+        "amountPAYG": 31.800000000000004,
+        "trafficBundle": 152.29999999999998,
+        "amountBundle": 1.2586222246435135
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 378493.36841614806,
+        "amountPAYG": 62755.51729999928,
+        "trafficBundle": 3.882174261065041E8,
+        "amountBundle": 509951.623496548
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 55390.60511965645,
+        "amountPAYG": 18042.144700000208,
+        "trafficBundle": 299281.66154701024,
+        "amountBundle": 1097.5485665033762
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8527.0,
+        "amountPAYG": 570.4482999999998,
+        "trafficBundle": 883.0,
+        "amountBundle": 218.74000000000004
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 95426.62676001944,
+        "amountPAYG": 14989.692199999998,
+        "trafficBundle": 2852389.4565733094,
+        "amountBundle": 3455.564103773773
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6248.430858763693,
+        "amountPAYG": 2115.4880000000003,
+        "trafficBundle": 33103.569141236294,
+        "amountBundle": 127.44291751083317
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_international",
+        "trafficTotal": 157316.9760132456,
+        "amountPAYG": 141828.7548000007,
+        "trafficBundle": 2318937.3406534223,
+        "amountBundle": 152171.80914941218
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 47.0,
+        "amountPAYG": 57.62,
+        "trafficBundle": 28.0,
+        "amountBundle": 44.660000000000004
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1316.0,
+        "amountPAYG": 130.2893,
+        "trafficBundle": 33949.0,
+        "amountBundle": 54.31214490022419
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7260.0,
+        "amountPAYG": 711.3433000000002,
+        "trafficBundle": 1456.0,
+        "amountBundle": 308.40350813901904
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1049.0,
+        "amountPAYG": 105.5796,
+        "trafficBundle": 244.0,
+        "amountBundle": 51.10021259407288
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 1347.007894736842,
+        "amountPAYG": 144.9289,
+        "trafficBundle": 3324.9087719298245,
+        "amountBundle": 17.10307183301035
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 298.1666666666667,
+        "amountPAYG": 1534.4399999999998,
+        "trafficBundle": 35.833333333333336,
+        "amountBundle": 65.23809523809524
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 908.0,
+        "amountPAYG": 139.98010000000002,
+        "trafficBundle": 18779.0,
+        "amountBundle": 116.55214541120381
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1293.0,
+        "amountPAYG": 132.2974,
+        "trafficBundle": 250.0,
+        "amountBundle": 54.77242579970284
+    },
+    {
+        "recordDate": "20240106",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 392.0333333333333,
+        "amountPAYG": 1000.33,
+        "trafficBundle": 0.016666666666666666,
+        "amountBundle": 2.121212121212121
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1178.0,
+        "amountPAYG": 111.43699999999998,
+        "trafficBundle": 248.0,
+        "amountBundle": 57.38661719980189
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 309.45000000000005,
+        "amountPAYG": 1562.5382999999997,
+        "trafficBundle": 24.56666666666667,
+        "amountBundle": 57.402597402597394
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 806.0,
+        "amountPAYG": 129.7808,
+        "trafficBundle": 15881.0,
+        "amountBundle": 107.25
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 390.25,
+        "amountPAYG": 1138.3999999999999,
+        "trafficBundle": 6.483333333333333,
+        "amountBundle": 11.666666666666668
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 162.6484375,
+        "amountPAYG": 511.0238999999998,
+        "trafficBundle": 429.42486095428467,
+        "amountBundle": 703.7884318452382
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1340.0,
+        "amountPAYG": 117.3363,
+        "trafficBundle": 34178.0,
+        "amountBundle": 76.51080859990094
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_international",
+        "trafficTotal": 167384.37132506742,
+        "amountPAYG": 159109.71480000057,
+        "trafficBundle": 2307524.6953416048,
+        "amountBundle": 149275.89131710838
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7080.0,
+        "amountPAYG": 717.3391000000003,
+        "trafficBundle": 1447.0,
+        "amountBundle": 299.8381222910107
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7878.0,
+        "amountPAYG": 502.24379999999985,
+        "trafficBundle": 790.0,
+        "amountBundle": 196.69000000000003
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2588.4693676957963,
+        "amountPAYG": 291.48980000000006,
+        "trafficBundle": 4250.580632304203,
+        "amountBundle": 19.615716112675948
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 55652.798934901046,
+        "amountPAYG": 17759.464000000284,
+        "trafficBundle": 307288.01773176563,
+        "amountBundle": 1135.0792585778884
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 79.0,
+        "amountPAYG": 104.43,
+        "trafficBundle": 22.0,
+        "amountBundle": 34.089999999999996
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 95138.16420968599,
+        "amountPAYG": 14624.1534,
+        "trafficBundle": 2902115.6024569646,
+        "amountBundle": 3651.1471959327505
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 382941.6031134635,
+        "amountPAYG": 62372.9030999995,
+        "trafficBundle": 3.977971247661459E8,
+        "amountBundle": 523103.02071430284
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 3113.7500000000005,
+        "amountPAYG": 78.246,
+        "trafficBundle": 304.6,
+        "amountBundle": 0.5680447354542681
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_800",
+        "trafficTotal": 731.3666666666668,
+        "amountPAYG": 255.94440000000003,
+        "trafficBundle": 362.76666666666665,
+        "amountBundle": 1.244680014000371
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1124.0,
+        "amountPAYG": 119.44879999999999,
+        "trafficBundle": 343.0,
+        "amountBundle": 74.10038355005717
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6727.988791424683,
+        "amountPAYG": 2273.3958999999977,
+        "trafficBundle": 36357.67787524197,
+        "amountBundle": 144.29659257816797
+    },
+    {
+        "recordDate": "20240107",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 205125.3416808867,
+        "amountPAYG": 62737.08949999668,
+        "trafficBundle": 1103984.5416524506,
+        "amountBundle": 3768.428285474217
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 353939.4104815883,
+        "amountPAYG": 60032.801899999235,
+        "trafficBundle": 4.120730558103201E8,
+        "amountBundle": 529047.1266244658
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6364.967230449807,
+        "amountPAYG": 2170.6737,
+        "trafficBundle": 37404.16610288351,
+        "amountBundle": 152.33587074818865
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1288.0,
+        "amountPAYG": 123.73230000000004,
+        "trafficBundle": 296.0,
+        "amountBundle": 58.33524586134372
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 4380.395833333333,
+        "amountPAYG": 74.534,
+        "trafficBundle": 315.0041666666667,
+        "amountBundle": 1.8395666478226294
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1389.0,
+        "amountPAYG": 146.7974,
+        "trafficBundle": 36919.0,
+        "amountBundle": 59.3548031456868
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6847.0,
+        "amountPAYG": 692.9681,
+        "trafficBundle": 1484.0,
+        "amountBundle": 313.35162086018346
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_800",
+        "trafficTotal": 654.4,
+        "amountPAYG": 233.8403,
+        "trafficBundle": 419.4833333333334,
+        "amountBundle": 2.635066661696573
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1299.0,
+        "amountPAYG": 110.1741,
+        "trafficBundle": 349.0,
+        "amountBundle": 73.15068084461039
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 57452.26486794553,
+        "amountPAYG": 17882.791300000194,
+        "trafficBundle": 318262.5017987212,
+        "amountBundle": 1159.4884826493856
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 93897.85758413047,
+        "amountPAYG": 14792.1636,
+        "trafficBundle": 2916431.575749198,
+        "amountBundle": 3617.248591963542
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 209.13718032836914,
+        "amountPAYG": 710.6437999999998,
+        "trafficBundle": 849.4039039611816,
+        "amountBundle": 1092.821447172619
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 87.0,
+        "amountPAYG": 108.8,
+        "trafficBundle": 43.0,
+        "amountBundle": 51.60000000000001
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2228.946960547504,
+        "amountPAYG": 256.34180000000003,
+        "trafficBundle": 4535.03637278583,
+        "amountBundle": 19.30291903532816
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8403.0,
+        "amountPAYG": 571.6791999999997,
+        "trafficBundle": 753.0,
+        "amountBundle": 187.04000000000002
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 849.0,
+        "amountPAYG": 102.73,
+        "trafficBundle": 15689.0,
+        "amountBundle": 112.05
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_international",
+        "trafficTotal": 157920.31174379322,
+        "amountPAYG": 141449.67790000068,
+        "trafficBundle": 2291547.321589543,
+        "amountBundle": 144722.4976062223
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 290.8833333333333,
+        "amountPAYG": 1678.4,
+        "trafficBundle": 32.88333333333333,
+        "amountBundle": 51.69942857142857
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 204608.1524212898,
+        "amountPAYG": 62788.99269999784,
+        "trafficBundle": 1132268.830912046,
+        "amountBundle": 3764.152303003939
+    },
+    {
+        "recordDate": "20240108",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 483.25,
+        "amountPAYG": 1248.5986999999998,
+        "trafficBundle": 7.283333333333334,
+        "amountBundle": 19.587705627705624
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1301.0,
+        "amountPAYG": 132.9302,
+        "trafficBundle": 218.0,
+        "amountBundle": 46.510832486942554
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1177.0,
+        "amountPAYG": 127.6356,
+        "trafficBundle": 34221.0,
+        "amountBundle": 43.40284873197295
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_international",
+        "trafficTotal": 153971.3443118793,
+        "amountPAYG": 138084.52640000067,
+        "trafficBundle": 2281792.5890214583,
+        "amountBundle": 141434.2600656749
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 307.95,
+        "amountPAYG": 1541.275,
+        "trafficBundle": 24.76666666666667,
+        "amountBundle": 49.58903896103896
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1179.0,
+        "amountPAYG": 134.34699999999998,
+        "trafficBundle": 422.0,
+        "amountBundle": 92.6058836807776
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2110.422222222222,
+        "amountPAYG": 247.8572,
+        "trafficBundle": 4022.2111111111108,
+        "amountBundle": 15.52957773207336
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 949.0,
+        "amountPAYG": 153.4468,
+        "trafficBundle": 15176.0,
+        "amountBundle": 138.25
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 138.1126003265381,
+        "amountPAYG": 510.7657999999999,
+        "trafficBundle": 925.8478326797485,
+        "amountBundle": 1602.521275297619
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 473.6166666666667,
+        "amountPAYG": 1245.3606999999997,
+        "trafficBundle": 13.816666666666666,
+        "amountBundle": 31.074095238095236
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7894.0,
+        "amountPAYG": 501.51449999999977,
+        "trafficBundle": 784.0,
+        "amountBundle": 194.34
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6754.353591269843,
+        "amountPAYG": 2225.3318999999997,
+        "trafficBundle": 37249.32974206348,
+        "amountBundle": 142.97847964792174
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 204246.70089389783,
+        "amountPAYG": 62531.76259999791,
+        "trafficBundle": 1125607.232439437,
+        "amountBundle": 3806.0897710831778
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2536.4166666666665,
+        "amountPAYG": 88.0406,
+        "trafficBundle": 425.63333333333344,
+        "amountBundle": 1.2160209879642871
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_800",
+        "trafficTotal": 511.7166666666666,
+        "amountPAYG": 165.4586,
+        "trafficBundle": 459.3666666666667,
+        "amountBundle": 3.040356407439631
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 62.0,
+        "amountPAYG": 85.90000000000002,
+        "trafficBundle": 14.0,
+        "amountBundle": 18.96
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 368312.1718215207,
+        "amountPAYG": 59831.29989999914,
+        "trafficBundle": 3.7090078663000447E8,
+        "amountBundle": 492462.69405634253
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 55438.53446972514,
+        "amountPAYG": 17926.775000000194,
+        "trafficBundle": 315014.8988636081,
+        "amountBundle": 1134.3300177281171
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 92661.40769838824,
+        "amountPAYG": 14945.481700000004,
+        "trafficBundle": 2900577.7756349426,
+        "amountBundle": 3569.095701402901
+    },
+    {
+        "recordDate": "20240109",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6744.0,
+        "amountPAYG": 645.8846000000001,
+        "trafficBundle": 1485.0,
+        "amountBundle": 309.48601119724276
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1312.0,
+        "amountPAYG": 126.2112,
+        "trafficBundle": 35545.0,
+        "amountBundle": 48.2931038100333
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 298.5157623291015,
+        "amountPAYG": 894.8289999999998,
+        "trafficBundle": 489.68126583099365,
+        "amountBundle": 800.4100699404762
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 205679.69530542614,
+        "amountPAYG": 63352.93019999778,
+        "trafficBundle": 1135345.7046945759,
+        "amountBundle": 3777.295651496189
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2746.433333333333,
+        "amountPAYG": 119.09710000000001,
+        "trafficBundle": 621.5666666666667,
+        "amountBundle": 4.739454928925807
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 55387.315094910606,
+        "amountPAYG": 17878.383000000194,
+        "trafficBundle": 319288.7182384227,
+        "amountBundle": 1135.7453181258218
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_800",
+        "trafficTotal": 639.3166666666666,
+        "amountPAYG": 179.6071,
+        "trafficBundle": 376.15000000000003,
+        "amountBundle": 0.5271783817356794
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 91339.25388679259,
+        "amountPAYG": 14785.622200000002,
+        "trafficBundle": 2916767.3461132064,
+        "amountBundle": 3540.732052676661
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 374325.84171159135,
+        "amountPAYG": 60860.28809999922,
+        "trafficBundle": 3.8357088540726805E8,
+        "amountBundle": 504236.36223362957
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1037.0,
+        "amountPAYG": 302.52340000000004,
+        "trafficBundle": 15546.0,
+        "amountBundle": 229.5
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1292.0,
+        "amountPAYG": 126.8127,
+        "trafficBundle": 340.0,
+        "amountBundle": 75.35242579970284
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 328.0,
+        "amountPAYG": 1846.9700000000003,
+        "trafficBundle": 31.550000000000004,
+        "amountBundle": 64.57925541125539
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8088.0,
+        "amountPAYG": 529.7976999999998,
+        "trafficBundle": 811.0,
+        "amountBundle": 200.90000000000003
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6482.967913297394,
+        "amountPAYG": 2178.0091,
+        "trafficBundle": 36648.24875336925,
+        "amountBundle": 136.03613873073832
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_international",
+        "trafficTotal": 151648.77052053643,
+        "amountPAYG": 133582.94000000067,
+        "trafficBundle": 2283400.4461461334,
+        "amountBundle": 137776.41887478597
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6978.999999999998,
+        "amountPAYG": 675.4668000000003,
+        "trafficBundle": 1584.0,
+        "amountBundle": 343.1669757255514
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1025.0,
+        "amountPAYG": 106.05469999999998,
+        "trafficBundle": 666.0,
+        "amountBundle": 137.04265813427182
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2549.0666666666666,
+        "amountPAYG": 282.68129999999996,
+        "trafficBundle": 3984.5333333333333,
+        "amountBundle": 23.560823520377216
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 71.0,
+        "amountPAYG": 85.49999999999999,
+        "trafficBundle": 28.0,
+        "amountBundle": 37.94
+    },
+    {
+        "recordDate": "20240110",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 463.5333333333333,
+        "amountPAYG": 1001.4395,
+        "trafficBundle": 11.799999999999999,
+        "amountBundle": 26.52019047619047
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 168.40444946289062,
+        "amountPAYG": 569.6032999999999,
+        "trafficBundle": 1157.6921577453613,
+        "amountBundle": 1617.8525819940476
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 212745.39117046245,
+        "amountPAYG": 67301.01139999737,
+        "trafficBundle": 1143979.5421628738,
+        "amountBundle": 3837.60925437699
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1067.0,
+        "amountPAYG": 235.79920000000004,
+        "trafficBundle": 15835.0,
+        "amountBundle": 232.2
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 358429.40019115666,
+        "amountPAYG": 59490.126099999135,
+        "trafficBundle": 4.0114797431595314E8,
+        "amountBundle": 512392.4665508775
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 57902.098602508675,
+        "amountPAYG": 18993.156600000228,
+        "trafficBundle": 321466.93473082455,
+        "amountBundle": 1152.158594736663
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2633.25,
+        "amountPAYG": 81.42439999999999,
+        "trafficBundle": 384.2,
+        "amountBundle": 2.8160439942562885
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8377.0,
+        "amountPAYG": 538.9805999999998,
+        "trafficBundle": 821.0,
+        "amountBundle": 204.53
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_800",
+        "trafficTotal": 544.1833333333333,
+        "amountPAYG": 184.0379,
+        "trafficBundle": 313.5833333333333,
+        "amountBundle": 0.7963248578063012
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1290.0,
+        "amountPAYG": 125.18610000000001,
+        "trafficBundle": 34576.0,
+        "amountBundle": 39.50003008359136
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 97785.56545975538,
+        "amountPAYG": 15914.076300000002,
+        "trafficBundle": 2897003.901206909,
+        "amountBundle": 3592.097109555595
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 289.34999999999997,
+        "amountPAYG": 1551.76,
+        "trafficBundle": 16.65,
+        "amountBundle": 29.228190476190473
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2314.9047619047624,
+        "amountPAYG": 224.4402,
+        "trafficBundle": 3330.4285714285716,
+        "amountBundle": 13.37356684608233
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1202.0,
+        "amountPAYG": 107.08590000000001,
+        "trafficBundle": 552.0,
+        "amountBundle": 118.79542518814579
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 68.0,
+        "amountPAYG": 90.84,
+        "trafficBundle": 28.0,
+        "amountBundle": 40.58
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_international",
+        "trafficTotal": 148206.60932065733,
+        "amountPAYG": 133083.56480000072,
+        "trafficBundle": 2297509.6906793443,
+        "amountBundle": 138714.98586673755
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6989.0,
+        "amountPAYG": 701.4749,
+        "trafficBundle": 1534.0,
+        "amountBundle": 327.1444234117389
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 7231.223910253979,
+        "amountPAYG": 2414.8925,
+        "trafficBundle": 38137.65942307933,
+        "amountBundle": 146.2724610618435
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1531.0,
+        "amountPAYG": 149.6532,
+        "trafficBundle": 275.0,
+        "amountBundle": 58.797425799702836
+    },
+    {
+        "recordDate": "20240111",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 488.5333333333334,
+        "amountPAYG": 1248.12,
+        "trafficBundle": 10.116666666666667,
+        "amountBundle": 24.75004329004329
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 317.85,
+        "amountPAYG": 673.3299999999999,
+        "trafficBundle": 3.716666666666667,
+        "amountBundle": 9.882285714285715
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 57.0,
+        "amountPAYG": 82.88000000000002,
+        "trafficBundle": 29.0,
+        "amountBundle": 38.919999999999995
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1515.0,
+        "amountPAYG": 158.04890000000003,
+        "trafficBundle": 35380.0,
+        "amountBundle": 37.0596415539983
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1038.0,
+        "amountPAYG": 93.62389999999999,
+        "trafficBundle": 217.0,
+        "amountBundle": 48.135
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 393704.0476377896,
+        "amountPAYG": 65746.35439999934,
+        "trafficBundle": 4.1744873019160813E8,
+        "amountBundle": 531607.6275915868
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 90845.94336173323,
+        "amountPAYG": 14992.684800000003,
+        "trafficBundle": 2667901.423304931,
+        "amountBundle": 3210.3974067387458
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 5391.223552188551,
+        "amountPAYG": 1828.2882,
+        "trafficBundle": 27739.576447811432,
+        "amountBundle": 101.92166757827029
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_800",
+        "trafficTotal": 405.1166666666667,
+        "amountPAYG": 126.66539999999998,
+        "trafficBundle": 235.55,
+        "amountBundle": 1.0983630359599388
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 991.0,
+        "amountPAYG": 137.54700000000003,
+        "trafficBundle": 17011.0,
+        "amountBundle": 117.1
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 824.05,
+        "amountPAYG": 82.44659999999999,
+        "trafficBundle": 1741.2000000000003,
+        "amountBundle": 8.647641883908008
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 1564.9,
+        "amountPAYG": 20.525,
+        "trafficBundle": 89.71666666666667,
+        "amountBundle": 0.3490694930663201
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7686.0,
+        "amountPAYG": 545.1790999999998,
+        "trafficBundle": 935.0,
+        "amountBundle": 231.4
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 158.49992752075195,
+        "amountPAYG": 709.2216,
+        "trafficBundle": 2322.9038639068604,
+        "amountBundle": 3209.388950027056
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 48141.357995107406,
+        "amountPAYG": 15637.989600000174,
+        "trafficBundle": 256132.09200489253,
+        "amountBundle": 848.8770049750638
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7336.999999999999,
+        "amountPAYG": 781.6190000000001,
+        "trafficBundle": 1491.0,
+        "amountBundle": 320.0464845273337
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_international",
+        "trafficTotal": 175819.95229254404,
+        "amountPAYG": 157785.88200000045,
+        "trafficBundle": 2796035.031040791,
+        "amountBundle": 183162.08269015397
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1325.0,
+        "amountPAYG": 136.1678,
+        "trafficBundle": 222.0,
+        "amountBundle": 48.05067383325079
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 238.0833333333333,
+        "amountPAYG": 1356.83,
+        "trafficBundle": 7.383333333333332,
+        "amountBundle": 12.887238095238095
+    },
+    {
+        "recordDate": "20240112",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 184174.19134245734,
+        "amountPAYG": 56991.23199999788,
+        "trafficBundle": 956708.5253242096,
+        "amountBundle": 3036.1667035205373
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 139.55414009094238,
+        "amountPAYG": 467.28579999999994,
+        "trafficBundle": 1699.0377740859985,
+        "amountBundle": 2718.0097483630952
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 91348.55454606569,
+        "amountPAYG": 14680.022099999998,
+        "trafficBundle": 2929546.095453928,
+        "amountBundle": 3446.4320012174394
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6629.0,
+        "amountPAYG": 680.8822999999999,
+        "trafficBundle": 1377.0,
+        "amountBundle": 294.13690433190186
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1089.0,
+        "amountPAYG": 110.3365,
+        "trafficBundle": 249.0,
+        "amountBundle": 54.73068097533082
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 1259.1763888888888,
+        "amountPAYG": 144.2456,
+        "trafficBundle": 2605.5402777777776,
+        "amountBundle": 11.17012656466746
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_800",
+        "trafficTotal": 421.3833333333333,
+        "amountPAYG": 113.4738,
+        "trafficBundle": 236.03333333333333,
+        "amountBundle": 1.311809067326166
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2102.6333333333328,
+        "amountPAYG": 35.5,
+        "trafficBundle": 129.91666666666669,
+        "amountBundle": 2.000542903908092
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 377330.7234502833,
+        "amountPAYG": 61665.029799999225,
+        "trafficBundle": 4.110730976657804E8,
+        "amountBundle": 522410.1332889151
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 50692.634424427844,
+        "amountPAYG": 16960.907900000173,
+        "trafficBundle": 303180.86557557236,
+        "amountBundle": 1030.6707252266133
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1283.0,
+        "amountPAYG": 140.48389999999998,
+        "trafficBundle": 271.0,
+        "amountBundle": 57.95175196645204
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 432.8333333333332,
+        "amountPAYG": 977.5577999999998,
+        "trafficBundle": 0.03333333333333333,
+        "amountBundle": 1.1904761904761905
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6011.491292388168,
+        "amountPAYG": 2093.947100000001,
+        "trafficBundle": 33419.55870761182,
+        "amountBundle": 114.51467406524384
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 63.0,
+        "amountPAYG": 80.7,
+        "trafficBundle": 45.0,
+        "amountBundle": 67.82000000000001
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7912.999999999999,
+        "amountPAYG": 492.5853999999999,
+        "trafficBundle": 906.0,
+        "amountBundle": 225.39000000000001
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 876.0,
+        "amountPAYG": 263.8311,
+        "trafficBundle": 16148.0,
+        "amountBundle": 110.55
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 264.1,
+        "amountPAYG": 1396.6666999999998,
+        "trafficBundle": 2.066666666666667,
+        "amountBundle": 2.5
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_international",
+        "trafficTotal": 154826.9125926012,
+        "amountPAYG": 139701.0336000007,
+        "trafficBundle": 2411934.487407405,
+        "amountBundle": 148483.95988473162
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 193757.6198406597,
+        "amountPAYG": 61396.27669999793,
+        "trafficBundle": 1095223.713492675,
+        "amountBundle": 3483.1718584581263
+    },
+    {
+        "recordDate": "20240113",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1455.0,
+        "amountPAYG": 144.4048,
+        "trafficBundle": 34984.0,
+        "amountBundle": 58.10408568489834
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 263.0333333333333,
+        "amountPAYG": 1633.6678,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6694.588736300237,
+        "amountPAYG": 2294.953499999999,
+        "trafficBundle": 36524.99459703307,
+        "amountBundle": 132.0608445387453
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2264.4125000000004,
+        "amountPAYG": 275.1998,
+        "trafficBundle": 4343.404166666667,
+        "amountBundle": 21.867475917660087
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 110.05792427062988,
+        "amountPAYG": 410.5414999999999,
+        "trafficBundle": 1100.532579421997,
+        "amountBundle": 1677.2745452380957
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1000.0,
+        "amountPAYG": 168.0693,
+        "trafficBundle": 16014.0,
+        "amountBundle": 93.35
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_international",
+        "trafficTotal": 151333.84313370066,
+        "amountPAYG": 138934.1496000007,
+        "trafficBundle": 2392382.6568663022,
+        "amountBundle": 145231.95437845876
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 395.20000000000005,
+        "amountPAYG": 931.9,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1219.0,
+        "amountPAYG": 123.07370000000002,
+        "trafficBundle": 272.0,
+        "amountBundle": 62.01066682947274
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 3353.233333333333,
+        "amountPAYG": 57.8315,
+        "trafficBundle": 440.3666666666667,
+        "amountBundle": 0.9855698632113484
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 64.0,
+        "amountPAYG": 89.74000000000001,
+        "trafficBundle": 31.0,
+        "amountBundle": 46.56
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 379742.97295871866,
+        "amountPAYG": 63398.56779999932,
+        "trafficBundle": 4.1123165239877766E8,
+        "amountBundle": 519967.9415648779
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1020.0,
+        "amountPAYG": 116.51559999999999,
+        "trafficBundle": 641.0,
+        "amountBundle": 127.39
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 201071.31370340922,
+        "amountPAYG": 63976.155699997704,
+        "trafficBundle": 1147896.7029632593,
+        "amountBundle": 3678.2027181141616
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6830.0,
+        "amountPAYG": 736.9056000000002,
+        "trafficBundle": 1454.0,
+        "amountBundle": 320.7576433564441
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_800",
+        "trafficTotal": 509.7881720430107,
+        "amountPAYG": 167.0833,
+        "trafficBundle": 387.5451612903226,
+        "amountBundle": 2.2812335025082415
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 53046.53384662926,
+        "amountPAYG": 17551.37910000019,
+        "trafficBundle": 316192.6161533708,
+        "amountBundle": 1083.7160874881793
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1334.0,
+        "amountPAYG": 148.0878,
+        "trafficBundle": 34986.0,
+        "amountBundle": 44.65129189771803
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7861.999999999999,
+        "amountPAYG": 552.9048999999999,
+        "trafficBundle": 808.0,
+        "amountBundle": 201.09
+    },
+    {
+        "recordDate": "20240114",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 92033.46989210336,
+        "amountPAYG": 14797.244299999998,
+        "trafficBundle": 3109023.4634412215,
+        "amountBundle": 3593.2281637141023
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1506.0,
+        "amountPAYG": 154.66970000000003,
+        "trafficBundle": 34685.0,
+        "amountBundle": 39.4607813320126
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 53769.339258682274,
+        "amountPAYG": 17476.350000000177,
+        "trafficBundle": 326668.7607413178,
+        "amountBundle": 1067.4610043361552
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 73.26330184936523,
+        "amountPAYG": 301.3265999999999,
+        "trafficBundle": 36.88917064666748,
+        "amountBundle": 118.71162916666667
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_800",
+        "trafficTotal": 474.46666666666664,
+        "amountPAYG": 158.8956,
+        "trafficBundle": 356.46666666666664,
+        "amountBundle": 2.4720286937864757
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6863.0,
+        "amountPAYG": 672.9343,
+        "trafficBundle": 2850.0,
+        "amountBundle": 583.7338880634769
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2224.313665097822,
+        "amountPAYG": 238.86830000000003,
+        "trafficBundle": 3566.2030015688447,
+        "amountBundle": 18.257737129670925
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8488.0,
+        "amountPAYG": 606.8947999999998,
+        "trafficBundle": 896.0,
+        "amountBundle": 222.92
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6296.563465256368,
+        "amountPAYG": 2127.0377,
+        "trafficBundle": 37795.40320141027,
+        "amountBundle": 142.92516775787843
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 88574.68478281767,
+        "amountPAYG": 14261.975900000001,
+        "trafficBundle": 3137729.5318838432,
+        "amountBundle": 3617.0799029495906
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 379675.4643284157,
+        "amountPAYG": 61874.64839999919,
+        "trafficBundle": 4.105863361278711E8,
+        "amountBundle": 509412.74137321895
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1027.0,
+        "amountPAYG": 106.1708,
+        "trafficBundle": 607.0,
+        "amountBundle": 114.35088852445219
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 60.0,
+        "amountPAYG": 78.17999999999999,
+        "trafficBundle": 35.0,
+        "amountBundle": 45.39
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 290.21666666666664,
+        "amountPAYG": 1572.8419999999999,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1231.0,
+        "amountPAYG": 127.1675,
+        "trafficBundle": 273.0,
+        "amountBundle": 56.647796801108356
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 913.0,
+        "amountPAYG": 159.084,
+        "trafficBundle": 15052.0,
+        "amountBundle": 227.25
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_international",
+        "trafficTotal": 146746.49307573756,
+        "amountPAYG": 130930.90200000069,
+        "trafficBundle": 2360489.5569242667,
+        "amountBundle": 138815.65131807892
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 384.78333333333336,
+        "amountPAYG": 954.1899999999999,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 200999.70887158357,
+        "amountPAYG": 62929.398799997885,
+        "trafficBundle": 1168742.391128419,
+        "amountBundle": 3671.057939448099
+    },
+    {
+        "recordDate": "20240115",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 3063.65,
+        "amountPAYG": 54.91669999999999,
+        "trafficBundle": 295.29999999999995,
+        "amountBundle": 1.47268968828914
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6293.7148627374445,
+        "amountPAYG": 2097.6533,
+        "trafficBundle": 38528.03513726253,
+        "amountBundle": 138.90375871536253
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2019.9333333333334,
+        "amountPAYG": 273.0533,
+        "trafficBundle": 3731.8833333333337,
+        "amountBundle": 17.76722119239863
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_800",
+        "trafficTotal": 404.5999999999999,
+        "amountPAYG": 132.62580000000003,
+        "trafficBundle": 461.5666666666667,
+        "amountBundle": 1.8253279070765378
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2977.9666666666667,
+        "amountPAYG": 54.525,
+        "trafficBundle": 227.25,
+        "amountBundle": 0.46436599026515313
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 369432.874377989,
+        "amountPAYG": 60329.3930999993,
+        "trafficBundle": 4.070382847876245E8,
+        "amountBundle": 500463.6940261484
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1237.0,
+        "amountPAYG": 131.09599999999998,
+        "trafficBundle": 259.0,
+        "amountBundle": 59.67053906660063
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1189.0,
+        "amountPAYG": 121.54110000000001,
+        "trafficBundle": 34457.0,
+        "amountBundle": 49.05641882879074
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7000.0,
+        "amountPAYG": 698.7733000000001,
+        "trafficBundle": 1498.0,
+        "amountBundle": 320.08358547055195
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 88168.38865550712,
+        "amountPAYG": 14089.176,
+        "trafficBundle": 3143692.8946778234,
+        "amountBundle": 3566.8037915981836
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 361.78333333333336,
+        "amountPAYG": 860.0249999999999,
+        "trafficBundle": 5.15,
+        "amountBundle": 10.833333333333334
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 900.0,
+        "amountPAYG": 200.3652,
+        "trafficBundle": 14865.0,
+        "amountBundle": 94.85
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7951.0,
+        "amountPAYG": 592.0866999999998,
+        "trafficBundle": 980.0,
+        "amountBundle": 242.89999999999998
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 76.0,
+        "amountPAYG": 91.66,
+        "trafficBundle": 28.0,
+        "amountBundle": 44.620000000000005
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 198231.5491960997,
+        "amountPAYG": 61793.46279999797,
+        "trafficBundle": 1175190.3341372348,
+        "amountBundle": 3686.5859079361226
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1235.0,
+        "amountPAYG": 96.4029,
+        "trafficBundle": 432.0,
+        "amountBundle": 85.33606297036438
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_international",
+        "trafficTotal": 145991.76926112798,
+        "amountPAYG": 132013.40210000065,
+        "trafficBundle": 2359774.514072211,
+        "amountBundle": 139936.52466199815
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 180.03778190247115,
+        "amountPAYG": 626.7035999999999,
+        "trafficBundle": 939.0410736120551,
+        "amountBundle": 883.2781645833335
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 191.35,
+        "amountPAYG": 1235.3073,
+        "trafficBundle": 11.916666666666666,
+        "amountBundle": 13.333333333333334
+    },
+    {
+        "recordDate": "20240116",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 52352.96277517985,
+        "amountPAYG": 16915.289700000165,
+        "trafficBundle": 327761.35389148694,
+        "amountBundle": 1066.6116799595582
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6757.0,
+        "amountPAYG": 674.2902000000001,
+        "trafficBundle": 1484.0,
+        "amountBundle": 317.11638811011255
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1786.0,
+        "amountPAYG": 180.07930000000002,
+        "trafficBundle": 208.0,
+        "amountBundle": 45.700041960312134
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1041.0,
+        "amountPAYG": 104.0009,
+        "trafficBundle": 1021.0,
+        "amountBundle": 211.45485255751368
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1244.0,
+        "amountPAYG": 113.39000000000001,
+        "trafficBundle": 34616.0,
+        "amountBundle": 49.45619033782685
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_international",
+        "trafficTotal": 144607.24101082038,
+        "amountPAYG": 128826.51810000063,
+        "trafficBundle": 2353098.37565585,
+        "amountBundle": 137561.0151889205
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6335.947498913089,
+        "amountPAYG": 2249.1626000000006,
+        "trafficBundle": 37511.56916775357,
+        "amountBundle": 129.17863896610152
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 883.0,
+        "amountPAYG": 220.62149999999997,
+        "trafficBundle": 15312.0,
+        "amountBundle": 83.65
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 352.4,
+        "amountPAYG": 800.6,
+        "trafficBundle": 12.35,
+        "amountBundle": 21.666666666666668
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2206.917647058823,
+        "amountPAYG": 233.82430000000005,
+        "trafficBundle": 3633.6323529411766,
+        "amountBundle": 13.59808916724683
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7912.0,
+        "amountPAYG": 559.2217999999999,
+        "trafficBundle": 869.0,
+        "amountBundle": 215.65000000000003
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2753.7879310344824,
+        "amountPAYG": 60.2,
+        "trafficBundle": 345.1287356321839,
+        "amountBundle": 1.8989452893517185
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_800",
+        "trafficTotal": 362.25000000000006,
+        "amountPAYG": 117.06789999999998,
+        "trafficBundle": 324.95000000000005,
+        "amountBundle": 1.000810966324365
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 196047.25083688687,
+        "amountPAYG": 61964.13519999797,
+        "trafficBundle": 1191273.9991631145,
+        "amountBundle": 3636.23655030134
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 145.30263698227103,
+        "amountPAYG": 467.1894,
+        "trafficBundle": 810.3523417698652,
+        "amountBundle": 756.5241385416666
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 348820.41459535394,
+        "amountPAYG": 56449.96959999913,
+        "trafficBundle": 4.131455870322787E8,
+        "amountBundle": 499028.18093763036
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 53368.26757503317,
+        "amountPAYG": 17164.679300000167,
+        "trafficBundle": 331879.0157583003,
+        "amountBundle": 1069.4804420915646
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 88595.99566467348,
+        "amountPAYG": 14251.551,
+        "trafficBundle": 3160666.7210019887,
+        "amountBundle": 3585.530007497569
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 318.2,
+        "amountPAYG": 1687.1286999999998,
+        "trafficBundle": 22.13333333333333,
+        "amountBundle": 23.333333333333336
+    },
+    {
+        "recordDate": "20240117",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 67.0,
+        "amountPAYG": 79.86999999999999,
+        "trafficBundle": 26.0,
+        "amountBundle": 32.33
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 902.0,
+        "amountPAYG": 296.497,
+        "trafficBundle": 16245.0,
+        "amountBundle": 160.0
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 360912.03873945284,
+        "amountPAYG": 58238.55779999907,
+        "trafficBundle": 4.240745925023265E8,
+        "amountBundle": 509685.55993764126
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1426.0,
+        "amountPAYG": 143.57559999999995,
+        "trafficBundle": 273.0,
+        "amountBundle": 53.50295786252541
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 203376.4209302935,
+        "amountPAYG": 64692.119799997585,
+        "trafficBundle": 1195692.095736374,
+        "amountBundle": 3680.7607638046875
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 48.0,
+        "amountPAYG": 65.33,
+        "trafficBundle": 20.0,
+        "amountBundle": 31.92
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 119.16876794751157,
+        "amountPAYG": 410.849,
+        "trafficBundle": 287.3910627180768,
+        "amountBundle": 322.6810229166667
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_international",
+        "trafficTotal": 143596.33581564808,
+        "amountPAYG": 129696.68560000064,
+        "trafficBundle": 2265918.347517694,
+        "amountBundle": 136664.0570126829
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 54383.52703733104,
+        "amountPAYG": 18207.199500000213,
+        "trafficBundle": 333224.6562960022,
+        "amountBundle": 1094.4202682296836
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1390.0000000000002,
+        "amountPAYG": 137.869,
+        "trafficBundle": 33842.0,
+        "amountBundle": 38.38817478043423
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2373.240243902439,
+        "amountPAYG": 56.821,
+        "trafficBundle": 293.6930894308943,
+        "amountBundle": 1.3579716458142586
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 92181.57022855288,
+        "amountPAYG": 15351.193099999999,
+        "trafficBundle": 3093398.6631047763,
+        "amountBundle": 3436.65260362311
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 965.0,
+        "amountPAYG": 87.79060000000001,
+        "trafficBundle": 1148.0,
+        "amountBundle": 226.8852125940727
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7672.0,
+        "amountPAYG": 551.2324999999998,
+        "trafficBundle": 784.0,
+        "amountBundle": 195.45000000000002
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 357.23333333333335,
+        "amountPAYG": 814.98,
+        "trafficBundle": 7.466666666666667,
+        "amountBundle": 12.5
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6308.938989898988,
+        "amountPAYG": 2216.9130999999998,
+        "trafficBundle": 37837.27767676766,
+        "amountBundle": 135.62883253979163
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 1992.3111111111111,
+        "amountPAYG": 247.39379999999997,
+        "trafficBundle": 3467.522222222222,
+        "amountBundle": 16.688689141676612
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6944.999999999999,
+        "amountPAYG": 675.5935999999999,
+        "trafficBundle": 1384.0,
+        "amountBundle": 296.61399398185
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_800",
+        "trafficTotal": 275.2833333333333,
+        "amountPAYG": 85.58160000000001,
+        "trafficBundle": 286.43333333333334,
+        "amountBundle": 1.3330698559642236
+    },
+    {
+        "recordDate": "20240118",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 305.73333333333335,
+        "amountPAYG": 1658.76,
+        "trafficBundle": 12.166666666666668,
+        "amountBundle": 20.833333333333332
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 5252.959999999999,
+        "amountPAYG": 1817.023600000001,
+        "trafficBundle": 29111.056666666642,
+        "amountBundle": 97.60083051579517
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 382422.05443197594,
+        "amountPAYG": 61927.99259999928,
+        "trafficBundle": 4.361837776101403E8,
+        "amountBundle": 518060.96859246184
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_800",
+        "trafficTotal": 232.56666666666666,
+        "amountPAYG": 70.91999999999999,
+        "trafficBundle": 172.11666666666665,
+        "amountBundle": 0.8615798650786471
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 1242.8666666666666,
+        "amountPAYG": 14.8,
+        "trafficBundle": 103.75,
+        "amountBundle": 0.4835753330935526
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1216.0,
+        "amountPAYG": 117.72920000000002,
+        "trafficBundle": 204.0,
+        "amountBundle": 47.40686173842558
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6754.0,
+        "amountPAYG": 689.1057000000001,
+        "trafficBundle": 1306.0,
+        "amountBundle": 285.7444787418189
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1524.0,
+        "amountPAYG": 135.1611,
+        "trafficBundle": 34056.0,
+        "amountBundle": 36.56388074062406
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 86004.41749999036,
+        "amountPAYG": 14210.400700000004,
+        "trafficBundle": 2748930.4491666714,
+        "amountBundle": 3173.1720790805693
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 46614.03405889771,
+        "amountPAYG": 15488.885100000169,
+        "trafficBundle": 275386.3992744353,
+        "amountBundle": 869.704856090351
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 993.0,
+        "amountPAYG": 90.6256,
+        "trafficBundle": 977.0,
+        "amountBundle": 200.64355163869948
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 583.8833333333332,
+        "amountPAYG": 74.1986,
+        "trafficBundle": 1758.3499999999997,
+        "amountBundle": 6.967819518904488
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 141.41166591644287,
+        "amountPAYG": 544.7086999999999,
+        "trafficBundle": 186.0991735458374,
+        "amountBundle": 322.39225937500004
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7785.0,
+        "amountPAYG": 546.8228999999997,
+        "trafficBundle": 743.0,
+        "amountBundle": 184.94
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 86.0,
+        "amountPAYG": 119.29,
+        "trafficBundle": 26.0,
+        "amountBundle": 38.919999999999995
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 343.23333333333335,
+        "amountPAYG": 1576.5576999999998,
+        "trafficBundle": 1.7000000000000002,
+        "amountBundle": 4.166666666666667
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_international",
+        "trafficTotal": 175544.7711466187,
+        "amountPAYG": 151650.90150000044,
+        "trafficBundle": 2738219.0621867143,
+        "amountBundle": 174301.7456472249
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 973.0,
+        "amountPAYG": 134.6023,
+        "trafficBundle": 16370.0,
+        "amountBundle": 147.4
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 172970.14565718503,
+        "amountPAYG": 54215.90059999816,
+        "trafficBundle": 994799.7043428179,
+        "amountBundle": 2909.507910867898
+    },
+    {
+        "recordDate": "20240119",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 277.68333333333334,
+        "amountPAYG": 613.5799999999999,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_800",
+        "trafficTotal": 313.1333333333333,
+        "amountPAYG": 99.48460000000001,
+        "trafficBundle": 210.48333333333335,
+        "amountBundle": 1.0144561674562165
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 50932.89253946296,
+        "amountPAYG": 16883.573500000173,
+        "trafficBundle": 325168.99079387053,
+        "amountBundle": 1022.1919992585906
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1198.0,
+        "amountPAYG": 106.1219,
+        "trafficBundle": 409.0,
+        "amountBundle": 83.40051105148844
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 108.79773330688477,
+        "amountPAYG": 434.7330999999999,
+        "trafficBundle": 122.99765396118164,
+        "amountBundle": 382.3678260416667
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 334.76666666666665,
+        "amountPAYG": 780.1499999999999,
+        "trafficBundle": 0.18333333333333332,
+        "amountBundle": 0.8333333333333334
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1194.0,
+        "amountPAYG": 118.51500000000001,
+        "trafficBundle": 33995.0,
+        "amountBundle": 29.83148243315173
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 1630.85,
+        "amountPAYG": 17.825,
+        "trafficBundle": 125.43333333333331,
+        "amountBundle": 0.3805241679058806
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 87139.33048533209,
+        "amountPAYG": 13961.697499999998,
+        "trafficBundle": 2939942.7528479956,
+        "amountBundle": 3419.576647366078
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6863.0,
+        "amountPAYG": 649.8782,
+        "trafficBundle": 1310.0,
+        "amountBundle": 276.66289066600626
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 5587.105080409356,
+        "amountPAYG": 1946.3955000000005,
+        "trafficBundle": 36234.228252923975,
+        "amountBundle": 129.58119140754795
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 893.0,
+        "amountPAYG": 272.23310000000004,
+        "trafficBundle": 15315.0,
+        "amountBundle": 221.25
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 368723.7254144021,
+        "amountPAYG": 59030.343199999275,
+        "trafficBundle": 4.354328942838559E8,
+        "amountBundle": 515828.36476535996
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 1365.2166666666667,
+        "amountPAYG": 186.60719999999998,
+        "trafficBundle": 2856.3833333333337,
+        "amountBundle": 12.403918432495793
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8094.0,
+        "amountPAYG": 520.2171999999997,
+        "trafficBundle": 778.0,
+        "amountBundle": 193.95000000000002
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_international",
+        "trafficTotal": 158104.78612001397,
+        "amountPAYG": 138652.40110000057,
+        "trafficBundle": 2386313.4138799887,
+        "amountBundle": 142925.16000660206
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 187210.91481245938,
+        "amountPAYG": 58609.45949999816,
+        "trafficBundle": 1156532.9185208764,
+        "amountBundle": 3415.139940089632
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1517.0,
+        "amountPAYG": 121.32930000000002,
+        "trafficBundle": 200.0,
+        "amountBundle": 44.601347666501574
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 56.0,
+        "amountPAYG": 68.64,
+        "trafficBundle": 22.0,
+        "amountBundle": 30.96
+    },
+    {
+        "recordDate": "20240120",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 225.00000000000003,
+        "amountPAYG": 1206.7332999999999,
+        "trafficBundle": 0.7,
+        "amountBundle": 0.8333333333333334
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 192103.26938650256,
+        "amountPAYG": 60067.25869999817,
+        "trafficBundle": 1206336.8972801669,
+        "amountBundle": 3527.4055425895276
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7694.0,
+        "amountPAYG": 486.9245999999997,
+        "trafficBundle": 752.0,
+        "amountBundle": 186.46
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_international",
+        "trafficTotal": 152481.13155325653,
+        "amountPAYG": 134530.2856000007,
+        "trafficBundle": 2289273.135113414,
+        "amountBundle": 134314.45769986825
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1209.0,
+        "amountPAYG": 126.00460000000001,
+        "trafficBundle": 33392.0,
+        "amountBundle": 39.637704982439665
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 76.0,
+        "amountPAYG": 93.94,
+        "trafficBundle": 23.0,
+        "amountBundle": 34.989999999999995
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 137.4470567703247,
+        "amountPAYG": 614.4139999999998,
+        "trafficBundle": 102.88331699371338,
+        "amountBundle": 160.63437938988093
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 271.73333333333335,
+        "amountPAYG": 1552.95,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1045.0,
+        "amountPAYG": 109.9265,
+        "trafficBundle": 346.0,
+        "amountBundle": 74.89563894508098
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 849.0,
+        "amountPAYG": 120.46640000000001,
+        "trafficBundle": 14937.0,
+        "amountBundle": 165.3035586424776
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 51755.60294348172,
+        "amountPAYG": 16900.47950000016,
+        "trafficBundle": 342092.2303898518,
+        "amountBundle": 1078.410269252199
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6753.0,
+        "amountPAYG": 695.3959,
+        "trafficBundle": 1427.0,
+        "amountBundle": 301.9682251730685
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 336047.8966846409,
+        "amountPAYG": 54978.58579999903,
+        "trafficBundle": 4.2412170392776537E8,
+        "amountBundle": 493393.76646208856
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1255.0,
+        "amountPAYG": 133.0475,
+        "trafficBundle": 309.0,
+        "amountBundle": 65.74041828672118
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_800",
+        "trafficTotal": 352.33333333333326,
+        "amountPAYG": 99.1193,
+        "trafficBundle": 350.50000000000006,
+        "amountBundle": 0.6444928252599703
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 5722.454708374063,
+        "amountPAYG": 1954.4213000000004,
+        "trafficBundle": 37983.095291625934,
+        "amountBundle": 129.8443786313884
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2871.9833333333327,
+        "amountPAYG": 82.648,
+        "trafficBundle": 387.6333333333333,
+        "amountBundle": 1.8530298275046553
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 498.75,
+        "amountPAYG": 1245.35,
+        "trafficBundle": 2.4,
+        "amountBundle": 6.236285714285714
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 88051.05082548823,
+        "amountPAYG": 13946.6012,
+        "trafficBundle": 3106212.699174502,
+        "amountBundle": 3598.7865805056344
+    },
+    {
+        "recordDate": "20240121",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2200.1408333333334,
+        "amountPAYG": 245.79489999999996,
+        "trafficBundle": 4615.742499999999,
+        "amountBundle": 19.121979053483933
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 1947.7555555555552,
+        "amountPAYG": 205.49630000000002,
+        "trafficBundle": 4220.644444444444,
+        "amountBundle": 21.102255184195453
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 385.78163623809814,
+        "amountPAYG": 379.02889999999996,
+        "trafficBundle": 54.87077045440674,
+        "amountBundle": 181.56990044642856
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 46.0,
+        "amountPAYG": 66.37,
+        "trafficBundle": 26.0,
+        "amountBundle": 31.15
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1115.0,
+        "amountPAYG": 114.1739,
+        "trafficBundle": 754.0,
+        "amountBundle": 155.7503904231148
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 279.65000000000003,
+        "amountPAYG": 1586.9099999999999,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6691.0,
+        "amountPAYG": 659.0665000000001,
+        "trafficBundle": 1392.0,
+        "amountBundle": 297.5361937202792
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1296.0,
+        "amountPAYG": 129.31449999999998,
+        "trafficBundle": 32929.0,
+        "amountBundle": 54.40540980608301
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_international",
+        "trafficTotal": 144176.31689844507,
+        "amountPAYG": 127308.87120000063,
+        "trafficBundle": 2295691.2331015607,
+        "amountBundle": 130110.04641536737
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1185.0,
+        "amountPAYG": 139.965,
+        "trafficBundle": 213.0,
+        "amountBundle": 42.853178836619946
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7716.999999999999,
+        "amountPAYG": 503.21659999999986,
+        "trafficBundle": 834.0,
+        "amountBundle": 206.09000000000003
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6142.718055555555,
+        "amountPAYG": 2149.9574000000002,
+        "trafficBundle": 38845.64861111109,
+        "amountBundle": 127.48174943319748
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 190786.77117514066,
+        "amountPAYG": 59633.44619999822,
+        "trafficBundle": 1229194.6954915295,
+        "amountBundle": 3468.799517013661
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_800",
+        "trafficTotal": 348.1333333333333,
+        "amountPAYG": 114.49189999999999,
+        "trafficBundle": 257.1666666666667,
+        "amountBundle": 0.37882456474248655
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 50750.06284375972,
+        "amountPAYG": 16810.734900000152,
+        "trafficBundle": 350277.8204895738,
+        "amountBundle": 1037.8092491937653
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 347300.0195255113,
+        "amountPAYG": 56329.5069999991,
+        "trafficBundle": 4.2888585183230567E8,
+        "amountBundle": 495544.5112828004
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 86640.87551541594,
+        "amountPAYG": 13841.598200000002,
+        "trafficBundle": 3137353.941151244,
+        "amountBundle": 3520.3141946057003
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2490.333333333333,
+        "amountPAYG": 34.8103,
+        "trafficBundle": 274.5,
+        "amountBundle": 1.3651154041658562
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 429.76666666666665,
+        "amountPAYG": 1221.09,
+        "trafficBundle": 3.766666666666666,
+        "amountBundle": 9.578761904761905
+    },
+    {
+        "recordDate": "20240122",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 816.0,
+        "amountPAYG": 202.47299999999998,
+        "trafficBundle": 14874.0,
+        "amountBundle": 162.03
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 785.0,
+        "amountPAYG": 117.9973,
+        "trafficBundle": 14151.0,
+        "amountBundle": 126.9
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2823.3500000000004,
+        "amountPAYG": 75.7009,
+        "trafficBundle": 366.1333333333333,
+        "amountBundle": 0.6496904102578234
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 363.0166666666666,
+        "amountPAYG": 794.9299999999998,
+        "trafficBundle": 3.0,
+        "amountBundle": 9.523809523809524
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_800",
+        "trafficTotal": 380.2166666666667,
+        "amountPAYG": 135.4715,
+        "trafficBundle": 317.7,
+        "amountBundle": 0.8619141824225216
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 85584.44778774078,
+        "amountPAYG": 13815.912500000002,
+        "trafficBundle": 3122482.2688789167,
+        "amountBundle": 3507.784248874903
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7620.0,
+        "amountPAYG": 521.2007999999998,
+        "trafficBundle": 1016.0,
+        "amountBundle": 240.73
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 96.0,
+        "amountPAYG": 135.45000000000002,
+        "trafficBundle": 31.0,
+        "amountBundle": 23.840000000000003
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 297.5333333333333,
+        "amountPAYG": 1606.35,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1275.0000000000002,
+        "amountPAYG": 108.85850000000002,
+        "trafficBundle": 212.0,
+        "amountBundle": 40.752899948930924
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 961.0,
+        "amountPAYG": 107.6985,
+        "trafficBundle": 678.0,
+        "amountBundle": 147.60025578718506
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 419.1520071029663,
+        "amountPAYG": 634.9146,
+        "trafficBundle": 17.270366668701172,
+        "amountBundle": 105.76015729166664
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 50805.82335592123,
+        "amountPAYG": 16492.71630000019,
+        "trafficBundle": 350987.9933107455,
+        "amountBundle": 1041.7959641573277
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 5822.553156565655,
+        "amountPAYG": 2083.2897,
+        "trafficBundle": 38951.763510100995,
+        "amountBundle": 134.9850899447047
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_international",
+        "trafficTotal": 138683.56169306373,
+        "amountPAYG": 123571.86360000062,
+        "trafficBundle": 2299136.021640275,
+        "amountBundle": 127857.64737561165
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 366530.23602562887,
+        "amountPAYG": 59456.963299998984,
+        "trafficBundle": 4.297961321828881E8,
+        "amountBundle": 495172.3395455636
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7010.999999999999,
+        "amountPAYG": 689.4117000000002,
+        "trafficBundle": 1433.0,
+        "amountBundle": 308.8141105229947
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1194.0,
+        "amountPAYG": 127.29639999999999,
+        "trafficBundle": 34090.0,
+        "amountBundle": 27.706421743022993
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 187704.17469053005,
+        "amountPAYG": 59499.21399999766,
+        "trafficBundle": 1231372.9586428078,
+        "amountBundle": 3475.3522716675798
+    },
+    {
+        "recordDate": "20240123",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2169.895833333333,
+        "amountPAYG": 258.1473,
+        "trafficBundle": 3685.9208333333336,
+        "amountBundle": 16.266118627584667
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 52388.35392186911,
+        "amountPAYG": 17194.63110000021,
+        "trafficBundle": 353906.0960781316,
+        "amountBundle": 1049.32105843018
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 150.17259328004022,
+        "amountPAYG": 529.5423999999998,
+        "trafficBundle": 236.19512255553107,
+        "amountBundle": 127.35191904761903
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 189852.23607629281,
+        "amountPAYG": 59787.905399997704,
+        "trafficBundle": 1254427.3305903773,
+        "amountBundle": 3489.9256472011293
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2815.7666666666664,
+        "amountPAYG": 52.0385,
+        "trafficBundle": 280.83333333333337,
+        "amountBundle": 1.1142124860695442
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 84767.75264027606,
+        "amountPAYG": 13820.893600000001,
+        "trafficBundle": 3149910.964026376,
+        "amountBundle": 3447.5558915468678
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_800",
+        "trafficTotal": 348.23333333333335,
+        "amountPAYG": 109.37619999999998,
+        "trafficBundle": 279.7833333333334,
+        "amountBundle": 1.0968300961094746
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 913.0,
+        "amountPAYG": 152.6323,
+        "trafficBundle": 14621.0,
+        "amountBundle": 190.0
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1482.0,
+        "amountPAYG": 117.06190000000001,
+        "trafficBundle": 34261.0,
+        "amountBundle": 45.56443213661832
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 6843.0,
+        "amountPAYG": 662.3939,
+        "trafficBundle": 1481.0,
+        "amountBundle": 307.83271832864335
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7428.0,
+        "amountPAYG": 527.5554999999998,
+        "trafficBundle": 835.0,
+        "amountBundle": 205.87000000000003
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1356.0,
+        "amountPAYG": 124.25670000000002,
+        "trafficBundle": 285.0,
+        "amountBundle": 59.052897071877325
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 278.0833333333333,
+        "amountPAYG": 1383.9319,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_international",
+        "trafficTotal": 143286.55382820696,
+        "amountPAYG": 127182.57390000063,
+        "trafficBundle": 2326316.9795051273,
+        "amountBundle": 130246.49033498506
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 57.0,
+        "amountPAYG": 71.78000000000002,
+        "trafficBundle": 15.0,
+        "amountBundle": 20.19
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6092.7941280016275,
+        "amountPAYG": 2079.6481999999996,
+        "trafficBundle": 38399.47253866502,
+        "amountBundle": 139.37137431059267
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 366433.23491377145,
+        "amountPAYG": 60668.16649999894,
+        "trafficBundle": 4.343191291090006E8,
+        "amountBundle": 493388.64472108777
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1161.0,
+        "amountPAYG": 119.4479,
+        "trafficBundle": 298.0,
+        "amountBundle": 63.68551131292927
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2008.0791666666664,
+        "amountPAYG": 196.82510000000002,
+        "trafficBundle": 3969.320833333333,
+        "amountBundle": 14.400208431065582
+    },
+    {
+        "recordDate": "20240124",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 387.7333333333334,
+        "amountPAYG": 783.3885,
+        "trafficBundle": 3.9,
+        "amountBundle": 8.315047619047618
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 248.21666666666664,
+        "amountPAYG": 1275.3000000000002,
+        "trafficBundle": 6.333333333333334,
+        "amountBundle": 20.714285714285715
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 205538.67426494326,
+        "amountPAYG": 65917.14739999753,
+        "trafficBundle": 1286724.9924017289,
+        "amountBundle": 3705.7510346135896
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_international",
+        "trafficTotal": 152177.06604353042,
+        "amountPAYG": 132497.10960000055,
+        "trafficBundle": 2351915.583956472,
+        "amountBundle": 109862.71328379778
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7389.999999999998,
+        "amountPAYG": 541.6750999999998,
+        "trafficBundle": 763.0,
+        "amountBundle": 189.94
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7065.0,
+        "amountPAYG": 706.1314999999998,
+        "trafficBundle": 1258.0,
+        "amountBundle": 265.6276647899473
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_800",
+        "trafficTotal": 406.51666666666665,
+        "amountPAYG": 133.57360000000003,
+        "trafficBundle": 258.41666666666663,
+        "amountBundle": 2.007547990927125
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1345.0,
+        "amountPAYG": 135.85930000000002,
+        "trafficBundle": 413.0,
+        "amountBundle": 92.24999999999999
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 56633.752942742234,
+        "amountPAYG": 18783.033200000224,
+        "trafficBundle": 359223.66372392466,
+        "amountBundle": 1076.3460851042619
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 187.48398876190186,
+        "amountPAYG": 567.7408999999999,
+        "trafficBundle": 196.79079055786133,
+        "amountBundle": 244.37301666666664
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 79.0,
+        "amountPAYG": 77.25000000000001,
+        "trafficBundle": 16.0,
+        "amountBundle": 17.400000000000002
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1434.0,
+        "amountPAYG": 131.49020000000002,
+        "trafficBundle": 232.0,
+        "amountBundle": 45.902021499752365
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2906.2000000000003,
+        "amountPAYG": 50.2407,
+        "trafficBundle": 337.96666666666664,
+        "amountBundle": 0.7087953469726095
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6663.748234767023,
+        "amountPAYG": 2324.5131999999994,
+        "trafficBundle": 39494.21843189963,
+        "amountBundle": 134.61160863152352
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1241.0,
+        "amountPAYG": 115.9222,
+        "trafficBundle": 35891.0,
+        "amountBundle": 47.83159058152443
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 381036.2846547056,
+        "amountPAYG": 63992.61909999925,
+        "trafficBundle": 4.404806623936147E8,
+        "amountBundle": 499025.343335671
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 91604.81607259292,
+        "amountPAYG": 15168.5413,
+        "trafficBundle": 3092017.717260734,
+        "amountBundle": 3471.3609573894623
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 918.0,
+        "amountPAYG": 270.31690000000003,
+        "trafficBundle": 16278.0,
+        "amountBundle": 79.65
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 372.7833333333333,
+        "amountPAYG": 912.8899999999999,
+        "trafficBundle": 6.4,
+        "amountBundle": 20.824190476190477
+    },
+    {
+        "recordDate": "20240125",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2503.9496600331677,
+        "amountPAYG": 282.4017,
+        "trafficBundle": 4573.967006633499,
+        "amountBundle": 21.16163583261084
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1183.0,
+        "amountPAYG": 126.702,
+        "trafficBundle": 302.0,
+        "amountBundle": 70.39026953330031
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 1720.2666666666669,
+        "amountPAYG": 19.776799999999998,
+        "trafficBundle": 114.75,
+        "amountBundle": 0.5611676719473957
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 820.5999999999999,
+        "amountPAYG": 123.06890000000001,
+        "trafficBundle": 1806.7666666666664,
+        "amountBundle": 7.919353841791622
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 87657.30136770428,
+        "amountPAYG": 14340.199300000002,
+        "trafficBundle": 2739112.248632285,
+        "amountBundle": 3138.963407080242
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7646.0,
+        "amountPAYG": 778.1625000000001,
+        "trafficBundle": 1429.0,
+        "amountBundle": 313.8458294368437
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 419529.8740363953,
+        "amountPAYG": 69134.03769999971,
+        "trafficBundle": 4.544800914289888E8,
+        "amountBundle": 513869.80223146133
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1191.0,
+        "amountPAYG": 109.59689999999999,
+        "trafficBundle": 265.0,
+        "amountBundle": 60.39472973336518
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 5259.527460317459,
+        "amountPAYG": 1965.6273999999999,
+        "trafficBundle": 30632.339206349185,
+        "amountBundle": 108.89789355347968
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 48754.36063882276,
+        "amountPAYG": 15703.64890000021,
+        "trafficBundle": 293132.0393611771,
+        "amountBundle": 848.7291624720125
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 332.78333333333336,
+        "amountPAYG": 817.8049999999998,
+        "trafficBundle": 3.1,
+        "amountBundle": 9.523809523809524
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1342.0,
+        "amountPAYG": 120.3016,
+        "trafficBundle": 35242.0,
+        "amountBundle": 25.390404299950475
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_800",
+        "trafficTotal": 238.25,
+        "amountPAYG": 76.3351,
+        "trafficBundle": 135.81666666666666,
+        "amountBundle": 0.5581279188103753
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 176351.77904253366,
+        "amountPAYG": 55745.66819999735,
+        "trafficBundle": 1063153.7209574676,
+        "amountBundle": 2876.968652110839
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1015.0,
+        "amountPAYG": 197.62380000000002,
+        "trafficBundle": 16633.0,
+        "amountBundle": 184.3807669693939
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 283.2833333333333,
+        "amountPAYG": 1712.42,
+        "trafficBundle": 2.3166666666666664,
+        "amountBundle": 4.0476190476190474
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 65.0,
+        "amountPAYG": 88.52000000000001,
+        "trafficBundle": 28.0,
+        "amountBundle": 48.0
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "voice_international",
+        "trafficTotal": 177171.6602569309,
+        "amountPAYG": 152616.64370000048,
+        "trafficBundle": 2796554.956409743,
+        "amountBundle": 118136.97319943957
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "sms_international",
+        "trafficTotal": 8217.0,
+        "amountPAYG": 558.2842999999997,
+        "trafficBundle": 712.0,
+        "amountBundle": 176.88
+    },
+    {
+        "recordDate": "20240126",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 130.38330078125,
+        "amountPAYG": 481.51449999999994,
+        "trafficBundle": 285.5248441696167,
+        "amountBundle": 358.2858770833333
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 52728.65871027931,
+        "amountPAYG": 17347.741300000165,
+        "trafficBundle": 344195.4746230542,
+        "amountBundle": 1028.7533037293292
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_800",
+        "trafficTotal": 301.76666666666665,
+        "amountPAYG": 94.3202,
+        "trafficBundle": 293.16666666666674,
+        "amountBundle": 2.2001540136984232
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 396681.65895775903,
+        "amountPAYG": 66488.27479999921,
+        "trafficBundle": 4.558316248969454E8,
+        "amountBundle": 517409.56297609693
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 195499.10210635947,
+        "amountPAYG": 61307.41529999804,
+        "trafficBundle": 1224187.2312269767,
+        "amountBundle": 3361.7578677110405
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 171.6140375137329,
+        "amountPAYG": 629.5092999999998,
+        "trafficBundle": 89.1448917388916,
+        "amountBundle": 214.9016197172619
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7966.0,
+        "amountPAYG": 549.7335999999997,
+        "trafficBundle": 808.0,
+        "amountBundle": 197.44
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1345.0,
+        "amountPAYG": 124.53460000000001,
+        "trafficBundle": 34736.0,
+        "amountBundle": 31.054716832755513
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2516.1666666666665,
+        "amountPAYG": 37.425,
+        "trafficBundle": 178.01666666666668,
+        "amountBundle": 0.3911548912249324
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 88874.87594780955,
+        "amountPAYG": 14277.727600000002,
+        "trafficBundle": 2929815.224052185,
+        "amountBundle": 3344.0287713986017
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7448.0,
+        "amountPAYG": 711.4916,
+        "trafficBundle": 1435.0,
+        "amountBundle": 313.1317131314109
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1157.0,
+        "amountPAYG": 119.1014,
+        "trafficBundle": 307.0,
+        "amountBundle": 69.54080859990094
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1171.0,
+        "amountPAYG": 116.13390000000001,
+        "trafficBundle": 442.0,
+        "amountBundle": 97.43499999999999
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_international",
+        "trafficTotal": 152443.87441087933,
+        "amountPAYG": 132203.4833000006,
+        "trafficBundle": 2456178.9755891203,
+        "amountBundle": 95006.33370389983
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 59.0,
+        "amountPAYG": 71.35,
+        "trafficBundle": 43.0,
+        "amountBundle": 58.38
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 433.6333333333333,
+        "amountPAYG": 1017.9971,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1014.0,
+        "amountPAYG": 322.1972,
+        "trafficBundle": 15207.0,
+        "amountBundle": 221.5001277628721
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 1264.3404812834224,
+        "amountPAYG": 114.38900000000001,
+        "trafficBundle": 2552.6261853832443,
+        "amountBundle": 15.105791873467396
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 5965.937741702741,
+        "amountPAYG": 2034.6447000000007,
+        "trafficBundle": 39557.145591630586,
+        "amountBundle": 123.44313826244249
+    },
+    {
+        "recordDate": "20240127",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 303.3,
+        "amountPAYG": 1446.54,
+        "trafficBundle": 7.266666666666667,
+        "amountBundle": 8.214285714285715
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 104.75131511688232,
+        "amountPAYG": 465.07039999999995,
+        "trafficBundle": 296.7562780380249,
+        "amountBundle": 382.02842499999997
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_international",
+        "trafficTotal": 149076.40828294575,
+        "amountPAYG": 130587.11980000064,
+        "trafficBundle": 2426831.391717055,
+        "amountBundle": 86628.69702845416
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1311.0,
+        "amountPAYG": 117.9922,
+        "trafficBundle": 36068.0,
+        "amountBundle": 31.16575530504443
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 982.0,
+        "amountPAYG": 110.4662,
+        "trafficBundle": 737.0,
+        "amountBundle": 157.25012789359258
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 227.61666666666665,
+        "amountPAYG": 1175.9385,
+        "trafficBundle": 2.1666666666666665,
+        "amountBundle": 5.0
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "sms_international",
+        "trafficTotal": 7978.0,
+        "amountPAYG": 486.3228999999998,
+        "trafficBundle": 803.0,
+        "amountBundle": 198.59000000000003
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1395.0,
+        "amountPAYG": 156.1169,
+        "trafficBundle": 265.0,
+        "amountBundle": 53.06058814844543
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7612.0,
+        "amountPAYG": 733.9339,
+        "trafficBundle": 1440.0,
+        "amountBundle": 309.5937928840643
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1152.0,
+        "amountPAYG": 295.0892,
+        "trafficBundle": 15475.0,
+        "amountBundle": 313.7501277628721
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 104.0,
+        "amountPAYG": 134.39000000000001,
+        "trafficBundle": 27.0,
+        "amountBundle": 41.730000000000004
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 371957.3519936841,
+        "amountPAYG": 61620.297499999186,
+        "trafficBundle": 4.524561073860165E8,
+        "amountBundle": 504425.0881957961
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 55732.9460260669,
+        "amountPAYG": 17832.441900000184,
+        "trafficBundle": 361293.98730726633,
+        "amountBundle": 1039.0384495007925
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2705.637202380952,
+        "amountPAYG": 296.8479,
+        "trafficBundle": 4707.912797619048,
+        "amountBundle": 19.300305261996183
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 88250.25194744367,
+        "amountPAYG": 14535.486200000001,
+        "trafficBundle": 3043747.0980525515,
+        "amountBundle": 3485.564289651288
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 419.95,
+        "amountPAYG": 979.8,
+        "trafficBundle": 0.9833333333333333,
+        "amountBundle": 3.3333333333333335
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 5114.150000000001,
+        "amountPAYG": 105.5669,
+        "trafficBundle": 474.3500000000001,
+        "amountBundle": 2.119488753306822
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_800",
+        "trafficTotal": 396.7888888888889,
+        "amountPAYG": 124.155,
+        "trafficBundle": 568.4777777777778,
+        "amountBundle": 1.8653488740446913
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 204276.65659649976,
+        "amountPAYG": 63811.92599999787,
+        "trafficBundle": 1274437.3100701717,
+        "amountBundle": 3475.096812884769
+    },
+    {
+        "recordDate": "20240128",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6628.4509677419355,
+        "amountPAYG": 2240.1412,
+        "trafficBundle": 40410.33236559138,
+        "amountBundle": 137.64046084568503
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 42.0,
+        "amountPAYG": 47.1,
+        "trafficBundle": 16.0,
+        "amountBundle": 20.86
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "sms_international",
+        "trafficTotal": 10530.0,
+        "amountPAYG": 671.8454999999998,
+        "trafficBundle": 1147.0,
+        "amountBundle": 284.20000000000005
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1523.0,
+        "amountPAYG": 121.278,
+        "trafficBundle": 35200.0,
+        "amountBundle": 95.12901800482811
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 251.78333333333327,
+        "amountPAYG": 1220.56,
+        "trafficBundle": 11.799999999999999,
+        "amountBundle": 25.000000000000004
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 202390.8560976895,
+        "amountPAYG": 62288.336699997395,
+        "trafficBundle": 1300551.2772356486,
+        "amountBundle": 3452.615517476589
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 121.8588752746582,
+        "amountPAYG": 435.93919999999997,
+        "trafficBundle": 143.50730991363525,
+        "amountBundle": 295.7433354166666
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_international",
+        "trafficTotal": 149191.15393622228,
+        "amountPAYG": 130484.45920000068,
+        "trafficBundle": 2406220.546063781,
+        "amountBundle": 81896.45713136115
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1353.0,
+        "amountPAYG": 139.47000000000003,
+        "trafficBundle": 247.0,
+        "amountBundle": 53.29185871799001
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 377497.4935055584,
+        "amountPAYG": 62507.60539999924,
+        "trafficBundle": 4.5481212337754256E8,
+        "amountBundle": 501336.8388955508
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6385.658112827967,
+        "amountPAYG": 2130.3420999999994,
+        "trafficBundle": 41718.24188717201,
+        "amountBundle": 142.41618895145513
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1231.0,
+        "amountPAYG": 115.2534,
+        "trafficBundle": 1006.0,
+        "amountBundle": 202.60025578718498
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 4828.200000000001,
+        "amountPAYG": 76.3083,
+        "trafficBundle": 485.58333333333326,
+        "amountBundle": 2.331295959608455
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 87740.20536954037,
+        "amountPAYG": 13953.3107,
+        "trafficBundle": 3184813.3446304463,
+        "amountBundle": 3474.6965261406176
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 490.1166666666666,
+        "amountPAYG": 1046.59,
+        "trafficBundle": 4.300000000000001,
+        "amountBundle": 10.0
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1221.0,
+        "amountPAYG": 314.15110000000004,
+        "trafficBundle": 15194.0,
+        "amountBundle": 282.75
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 54337.50041745635,
+        "amountPAYG": 17492.63120000022,
+        "trafficBundle": 364157.56624921033,
+        "amountBundle": 1031.717348344873
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2249.7982758620687,
+        "amountPAYG": 317.5826,
+        "trafficBundle": 4733.9350574712635,
+        "amountBundle": 15.628711707688101
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "voice_800",
+        "trafficTotal": 617.5999999999999,
+        "amountPAYG": 171.7616,
+        "trafficBundle": 822.45,
+        "amountBundle": 3.119404664450971
+    },
+    {
+        "recordDate": "20240129",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7160.0,
+        "amountPAYG": 680.1457000000001,
+        "trafficBundle": 1387.0,
+        "amountBundle": 298.5315154919702
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1229.0,
+        "amountPAYG": 91.34160000000001,
+        "trafficBundle": 369.0,
+        "amountBundle": 73.75026953330031
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 89689.08544933666,
+        "amountPAYG": 14157.314500000002,
+        "trafficBundle": 3226962.981217322,
+        "amountBundle": 3560.2412930580335
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6446.091019010095,
+        "amountPAYG": 2121.5626,
+        "trafficBundle": 42910.692314323234,
+        "amountBundle": 127.1466496585145
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "sms_international",
+        "trafficTotal": 9897.0,
+        "amountPAYG": 632.6473999999998,
+        "trafficBundle": 905.0,
+        "amountBundle": 224.14000000000004
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7443.0,
+        "amountPAYG": 688.2047000000001,
+        "trafficBundle": 1370.0,
+        "amountBundle": 285.4101138770906
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_800",
+        "trafficTotal": 624.6333333333333,
+        "amountPAYG": 215.6594,
+        "trafficBundle": 558.1500000000001,
+        "amountBundle": 1.9877726185699307
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2240.40354978355,
+        "amountPAYG": 239.5244,
+        "trafficBundle": 4499.779783549784,
+        "amountBundle": 16.927366621033272
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 343.28333333333336,
+        "amountPAYG": 831.98,
+        "trafficBundle": 11.883333333333333,
+        "amountBundle": 24.17888888888889
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 391069.8606289326,
+        "amountPAYG": 66528.31599999926,
+        "trafficBundle": 4.602082352995087E8,
+        "amountBundle": 501846.9439152178
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1246.0,
+        "amountPAYG": 114.7794,
+        "trafficBundle": 305.0,
+        "amountBundle": 69.70107813320125
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 2928.25,
+        "amountPAYG": 89.38899999999998,
+        "trafficBundle": 487.1333333333334,
+        "amountBundle": 1.4196355017244093
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1355.0,
+        "amountPAYG": 112.9727,
+        "trafficBundle": 35673.0,
+        "amountBundle": 49.562291033052674
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1187.0000000000002,
+        "amountPAYG": 314.6671,
+        "trafficBundle": 15190.0,
+        "amountBundle": 283.9
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 55.132405281066895,
+        "amountPAYG": 228.7871,
+        "trafficBundle": 737.566333770752,
+        "amountBundle": 1160.7156385416665
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 55586.1136896806,
+        "amountPAYG": 17672.411900000166,
+        "trafficBundle": 377310.8029769865,
+        "amountBundle": 1049.317407256336
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 204329.17126741988,
+        "amountPAYG": 63096.38139999794,
+        "trafficBundle": 1323203.7620659207,
+        "amountBundle": 3529.6859703313553
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 35.0,
+        "amountPAYG": 35.589999999999996,
+        "trafficBundle": 22.0,
+        "amountBundle": 30.200000000000003
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_international",
+        "trafficTotal": 151444.23836285534,
+        "amountPAYG": 135584.23300000082,
+        "trafficBundle": 2403017.2949704854,
+        "amountBundle": 79190.88470542048
+    },
+    {
+        "recordDate": "20240130",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 253.51666666666668,
+        "amountPAYG": 1258.21,
+        "trafficBundle": 11.283333333333333,
+        "amountBundle": 33.333333333333336
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_international",
+        "trafficTotal": 137430.9801153422,
+        "amountPAYG": 128331.98880000065,
+        "trafficBundle": 2326621.619884665,
+        "amountBundle": 74222.1195746395
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "sms_premium_mo",
+        "trafficTotal": 1189.0,
+        "amountPAYG": 433.5172,
+        "trafficBundle": 15323.0,
+        "amountBundle": 668.6
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_mobily",
+        "trafficTotal": 55352.09325690463,
+        "amountPAYG": 17929.63170000019,
+        "trafficBundle": 373952.8400764289,
+        "amountBundle": 1061.6981726698311
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "sms_other",
+        "trafficTotal": 1272.0,
+        "amountPAYG": 116.62419999999999,
+        "trafficBundle": 37557.0,
+        "amountBundle": 43.90397335388551
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "data_local_data",
+        "trafficTotal": 375680.9464939383,
+        "amountPAYG": 64902.25069999923,
+        "trafficBundle": 4.5692132507475215E8,
+        "amountBundle": 505829.9831816012
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "data_roaming",
+        "trafficTotal": 166.272629737854,
+        "amountPAYG": 418.4249999999999,
+        "trafficBundle": 237.4993658065796,
+        "amountBundle": 361.1052151041667
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "sms_international",
+        "trafficTotal": 9025.0,
+        "amountPAYG": 586.7947999999998,
+        "trafficBundle": 723.0,
+        "amountBundle": 179.74
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_othermobileoperators",
+        "trafficTotal": 209719.30356948124,
+        "amountPAYG": 64281.65509999778,
+        "trafficBundle": 1343596.1297638577,
+        "amountBundle": 3540.858677109382
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "sms_roaming",
+        "trafficTotal": 76.0,
+        "amountPAYG": 86.12,
+        "trafficBundle": 28.0,
+        "amountBundle": 39.88
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_800",
+        "trafficTotal": 734.1166666666666,
+        "amountPAYG": 202.23749999999998,
+        "trafficBundle": 578.3166666666666,
+        "amountBundle": 1.6842265734754724
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_onnet",
+        "trafficTotal": 89280.44388265038,
+        "amountPAYG": 14164.588,
+        "trafficBundle": 3235066.4227840095,
+        "amountBundle": 3614.704129792309
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_roaming_moc",
+        "trafficTotal": 237.96666666666664,
+        "amountPAYG": 1243.03,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "sms_onnet",
+        "trafficTotal": 1044.0,
+        "amountPAYG": 86.46809999999999,
+        "trafficBundle": 297.0,
+        "amountBundle": 63.40051118220886
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "sms_mobily",
+        "trafficTotal": 1428.0,
+        "amountPAYG": 129.05159999999998,
+        "trafficBundle": 278.0,
+        "amountBundle": 62.05224901038439
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_premium",
+        "trafficTotal": 3489.7000000000003,
+        "amountPAYG": 75.8,
+        "trafficBundle": 544.6833333333334,
+        "amountBundle": 2.205961271545478
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_fixed",
+        "trafficTotal": 6951.429761904762,
+        "amountPAYG": 2318.6974999999998,
+        "trafficBundle": 42936.87023809522,
+        "amountBundle": 137.2033863878914
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "sms_other_mobile",
+        "trafficTotal": 7113.0,
+        "amountPAYG": 662.5513,
+        "trafficBundle": 1408.0,
+        "amountBundle": 297.3490146366154
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_9200",
+        "trafficTotal": 2256.6,
+        "amountPAYG": 255.49490000000003,
+        "trafficBundle": 4369.433333333333,
+        "amountBundle": 16.14391598151453
+    },
+    {
+        "recordDate": "20240131",
+        "ifrsType": "voice_roaming_mtc",
+        "trafficTotal": 451.65,
+        "amountPAYG": 944.4499999999999,
+        "trafficBundle": 0.0,
+        "amountBundle": 0.0
+    }
+]

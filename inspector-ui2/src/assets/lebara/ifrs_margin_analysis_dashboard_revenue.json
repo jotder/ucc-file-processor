@@ -1,0 +1,15 @@
+{
+    "pageNumber": 1,
+    "recordCount": 2,
+    "dataset": [
+        {
+            "revenue": 140789.9425187424,
+            "recordDate": "20240810"
+        },
+        {
+            "revenue": 154945.35172774154,
+            "recordDate": "20240809"
+        }
+    ],
+    "lastObjectReferenceId": null
+}

@@ -1,0 +1,15 @@
+{
+    "pageNumber": 1,
+    "recordCount": 2,
+    "dataset": [
+        {
+            "access_cost_sar": 0.0,
+            "recordDate": "20240809"
+        },
+        {
+            "access_cost_sar": 0.0,
+            "recordDate": "20240810"
+        }
+    ],
+    "lastObjectReferenceId": null
+}

@@ -1,0 +1,28 @@
+[
+    {
+        "displayName": "Prepaid",
+        "value": [
+            "2",
+            "6"
+        ]
+    },
+    {
+        "displayName": "Postpaid",
+        "value": [
+            "1",
+            "5"
+        ]
+    },
+    {
+        "displayName": "Postpaid2",
+        "value": "-1"
+    },
+    {
+        "displayName": "Hybrid",
+        "value": "7"
+    },
+    {
+        "displayName": "All",
+        "value": null
+    }
+]

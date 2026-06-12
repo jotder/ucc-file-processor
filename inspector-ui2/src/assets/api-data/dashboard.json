@@ -1,0 +1,422 @@
+{
+    "name": "Dashboard",
+    "id": "",
+    "isSrvTypeOperator": true,
+    "operationLevels": [],
+    "searchFilter": true,
+    "fixOperationLevles": [],
+    "api_config": [
+        {
+            "widget": "l-1",
+            "kpiConfig": {
+                "serviceId": "trends/cbs-voice/get-stats-by-hourly",
+                "api": "/kpi/trends/cbs-voice/get-stats-by-hourly",
+                "displayType": "map",
+                "formate": "hourly",
+                "startDate": "",
+                "kpiType": "",
+                "srvTypeOperator": "in",
+                "endDate": "",
+                "keyToPass": [],
+                "componentName": "GammaHeatMapComponent",
+                "dataConfig": {
+                    "mapConfig": {
+                        "lat": 24.2669,
+                        "lng": 45.1078,
+                        "zoom": 6
+                    },
+                    "infowindow": [
+                        {
+                            "displayName": "Site ID",
+                            "keyName": "siteId"
+                        },
+                        {
+                            "displayName": "Site Name",
+                            "keyName": "siteName"
+                        },
+                        {
+                            "displayName": "City",
+                            "keyName": "city"
+                        },
+                        {
+                            "displayName": "Region",
+                            "keyName": "region"
+                        }
+                    ],
+                    "mapMarkerData": [
+                        {
+                            "displayName": "Site ID",
+                            "keyName": "siteId"
+                        },
+                        {
+                            "displayName": "Site Name",
+                            "keyName": "siteName"
+                        },
+                        {
+                            "displayName": "City",
+                            "keyName": "city"
+                        },
+                        {
+                            "displayName": "Region",
+                            "keyName": "region"
+                        },
+                        {
+                            "displayName": "State",
+                            "keyName": "state"
+                        },
+                        {
+                            "displayName": "weight",
+                            "keyName": "Weight"
+                        },
+                        {
+                            "displayName": "Count",
+                            "keyName": "count"
+                        },
+                        {
+                            "displayName": "mou",
+                            "keyName": "MoU"
+                        }
+                    ]
+                }
+            },
+            "widGetConfig": {
+                "width": "full",
+                "display": false,
+                "widgetTitle": "Hourly Network Data"
+            },
+            "drillDown": null
+        },
+        {
+            "widget": "l-2",
+            "kpiConfig": {
+                "serviceId": "trends/cbs-voice/get-stats-by-hourly",
+                "api": "/kpi/trends/cbs-voice/get-stats-by-hourly",
+                "displayType": "map",
+                "formate": "daily",
+                "startDate": "",
+                "kpiType": "",
+                "srvTypeOperator": "in",
+                "endDate": "",
+                "keyToPass": [],
+                "componentName": "GammaHeatMapComponent",
+                "dataConfig": {
+                    "mapConfig": {
+                        "lat": 20.5937,
+                        "lng": 78.9629,
+                        "zoom": 6
+                    },
+                    "mapMarkerData": [
+                        {
+                            "displayName": "Site ID",
+                            "keyName": "siteId"
+                        },
+                        {
+                            "displayName": "Site Name",
+                            "keyName": "siteName"
+                        },
+                        {
+                            "displayName": "City",
+                            "keyName": "city"
+                        },
+                        {
+                            "displayName": "Region",
+                            "keyName": "region"
+                        },
+                        {
+                            "displayName": "Cell Ids",
+                            "keyName": "cellIds"
+                        }
+                    ],
+                    "infowindow": [
+                        {
+                            "displayName": "Site ID",
+                            "keyName": "siteId"
+                        },
+                        {
+                            "displayName": "Site Name",
+                            "keyName": "siteName"
+                        },
+                        {
+                            "displayName": "City",
+                            "keyName": "city"
+                        },
+                        {
+                            "displayName": "Region",
+                            "keyName": "region"
+                        },
+                        {
+                            "displayName": "Cell Ids",
+                            "keyName": "cellIds"
+                        },
+                        {
+                            "displayName": "State",
+                            "keyName": "state"
+                        },
+                        {
+                            "displayName": "weight",
+                            "keyName": "Weight"
+                        },
+                        {
+                            "displayName": "Count",
+                            "keyName": "count"
+                        },
+                        {
+                            "displayName": "mou",
+                            "keyName": "MoU"
+                        }
+                    ]
+                }
+            },
+            "widGetConfig": {
+                "width": "full",
+                "display": false,
+                "widgetTitle": "Hourly Network Data"
+            },
+            "drillDown": null
+        },
+        {
+            "widget": "l-3",
+            "kpiConfig": {
+                "serviceId": "getMscDailyStats",
+                "api": "/kpi/trends/msc/get-stats-by-daily",
+                "displayType": "chart",
+                "formate": "daily",
+                "startDate": "",
+                "kpiType": "",
+                "srvTypeOperator": "in",
+                "endDate": "",
+                "keyToPass": [],
+                "componentName": "GammaChartComponent",
+                "dataConfig": {
+                    "title": "",
+                    "argumentField": "recordDate",
+                    "verticalAlignment": "bottom",
+                    "horizontalAlignment": "center",
+                    "caption": "Daily Trend Chart",
+                    "chart_config": [
+                        {
+                            "type": "bar",
+                            "valueField": "mou",
+                            "name": "MoU",
+                            "axis": "mou",
+                            "position": "right"
+                        },
+                        {
+                            "type": "spline",
+                            "valueField": "count",
+                            "name": "Count",
+                            "axis": "count",
+                            "position": "left"
+                        }
+                    ]
+                }
+            },
+            "widGetConfig": {
+                "width": "half",
+                "display": false,
+                "widgetTitle": "MSC Voice Daily Trends"
+            },
+            "drillDown": null
+        },
+        {
+            "widget": "l-4",
+            "kpiConfig": {
+                "serviceId": "trends/cbs-voice/get-stats-by-daily",
+                "api": "/kpi/trends/cbs-voice/get-stats-by-daily",
+                "displayType": "chart",
+                "formate": "daily",
+                "startDate": "",
+                "kpiType": "",
+                "srvTypeOperator": "in",
+                "endDate": "",
+                "keyToPass": [],
+                "componentName": "GammaChartComponent",
+                "dataConfig": {
+                    "title": "",
+                    "argumentField": "recordDate",
+                    "verticalAlignment": "bottom",
+                    "horizontalAlignment": "center",
+                    "caption": "Daily Trend Chart",
+                    "chart_config": [
+                        {
+                            "type": "bar",
+                            "valueField": "charge",
+                            "name": "Charge",
+                            "axis": "charge",
+                            "position": "left"
+                        },
+                        {
+                            "type": "spline",
+                            "valueField": "count",
+                            "name": "Count",
+                            "axis": "count",
+                            "position": "right"
+                        }
+                    ]
+                }
+            },
+            "widGetConfig": {
+                "width": "half",
+                "display": false,
+                "widgetTitle": "CBS Voice Daily Trends"
+            },
+            "drillDown": null
+        },
+        {
+            "widget": "l-5",
+            "kpiConfig": {
+                "serviceId": "getMScOverallCountMouHourlyTrend",
+                "api": "/kpi/trends/msc/get-stats-by-hourly",
+                "displayType": "chart",
+                "formate": "hourly",
+                "startDate": "",
+                "kpiType": "",
+                "srvTypeOperator": "in",
+                "endDate": "",
+                "keyToPass": [],
+                "componentName": "GammaChartComponent",
+                "dataConfig": {
+                    "title": "",
+                    "argumentField": "hour",
+                    "verticalAlignment": "bottom",
+                    "horizontalAlignment": "center",
+                    "caption": "Daily Trend Chart",
+                    "chart_config": [
+                        {
+                            "type": "bar",
+                            "valueField": "mou",
+                            "name": "MoU",
+                            "axis": "mou",
+                            "position": "right"
+                        },
+                        {
+                            "type": "spline",
+                            "valueField": "count",
+                            "name": "Count",
+                            "axis": "count",
+                            "position": "left"
+                        }
+                    ]
+                }
+            },
+            "widGetConfig": {
+                "width": "half",
+                "display": false,
+                "widgetTitle": "MSC Voice Hourly Trends"
+            },
+            "drillDown": null
+        },
+        {
+            "widget": "l-6",
+            "kpiConfig": {
+                "serviceId": "trends/cbs-voice/get-stats-by-hourly",
+                "api": "/kpi/trends/cbs-voice/get-stats-by-hourly",
+                "displayType": "chart",
+                "formate": "hourly",
+                "startDate": "",
+                "kpiType": "",
+                "srvTypeOperator": "in",
+                "endDate": "",
+                "keyToPass": [],
+                "componentName": "GammaChartComponent",
+                "dataConfig": {
+                    "title": "",
+                    "argumentField": "hour",
+                    "verticalAlignment": "bottom",
+                    "horizontalAlignment": "center",
+                    "caption": "Daily Trend Chart",
+                    "chart_config": [
+                        {
+                            "type": "bar",
+                            "valueField": "charge",
+                            "name": "Charge",
+                            "axis": "charge",
+                            "position": "left"
+                        },
+                        {
+                            "type": "spline",
+                            "valueField": "count",
+                            "name": "Count",
+                            "axis": "count",
+                            "position": "right"
+                        }
+                    ]
+                }
+            },
+            "widGetConfig": {
+                "width": "half",
+                "display": false,
+                "widgetTitle": "CBS Voice Hourly Trends"
+            },
+            "drillDown": null
+        },
+        {
+            "widget": "l-3",
+            "widGetConfig": {
+                "display": false,
+                "widgetTitle": "filter"
+            },
+            "drillDown": 2,
+            "kpiConfig": {
+                "serviceId": "NA",
+                "api": "NA",
+                "displayType": "filter",
+                "formate": "daily",
+                "startDate": "",
+                "kpiType": "network",
+                "srvTypeOperator": "",
+                "endDate": "",
+                "keyToPass": [],
+                "componentName": "GammaAdvanceFilterComponent",
+                "dataConfig": {
+                    "filterItems": [
+                        {
+                            "apiName": "startDate",
+                            "label": "Start date",
+                            "filterType": "date",
+                            "operatorName": "",
+                            "defaultFilterType": "dynamic",
+                            "defaultFilterValue": "180,days",
+                            "momentFunction": "subtract",
+                            "momentFormate": "YYYY-MM-DD"
+                        },
+                        {
+                            "apiName": "endDate",
+                            "label": "End date",
+                            "filterType": "date",
+                            "operatorName": "",
+                            "defaultFilterType": "dynamic",
+                            "defaultFilterValue": "1,days",
+                            "momentFunction": "subtract",
+                            "momentFormate": "YYYY-MM-DD"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "widget": "l-4",
+            "widGetConfig": {
+                "width":"full",
+                "display": true,
+                "widgetTitle": "dashboard"
+            },
+            "drillDown": 2,
+            "kpiConfig": {
+                "serviceId": "NA",
+                "api": "NA",
+                "displayType": "filter",
+                "formate": "daily",
+                "startDate": "",
+                "kpiType": "network",
+                "srvTypeOperator": "",
+                "endDate": "",
+                "keyToPass": [],
+                "componentName": "DemoDashboardComponent",
+                "dataConfig": {
+                    
+                }
+            }
+        }
+    ]
+}

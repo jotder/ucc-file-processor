@@ -1,0 +1,606 @@
+{
+    "returnCode": "200",
+    "message": "",
+    "Payload": [
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-ccn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huawei-ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-gmsc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "eric-air"
+        }
+    ]
+}

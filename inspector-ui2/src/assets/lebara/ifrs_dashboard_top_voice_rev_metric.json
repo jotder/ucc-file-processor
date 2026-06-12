@@ -1,0 +1,7017 @@
+{
+    "pageNumber": 1,
+    "recordCount": 1402,
+    "dataset": [
+        {
+            "revenue": 1012.22,
+            "recordDate": "20240708",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 735.0,
+            "recordDate": "20240610",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 714.4399999999999,
+            "recordDate": "20240717",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 669.1644,
+            "recordDate": "20240723",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 645.0,
+            "recordDate": "20240604",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 628.8148,
+            "recordDate": "20240614",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 597.3199999999999,
+            "recordDate": "20240608",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 585.7249999999999,
+            "recordDate": "20240714",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 556.1,
+            "recordDate": "20240627",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 539.0,
+            "recordDate": "20240725",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 523.0,
+            "recordDate": "20240619",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 522.8794,
+            "recordDate": "20240604",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 515.0,
+            "recordDate": "20240611",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 502.46000000000004,
+            "recordDate": "20240710",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 502.0,
+            "recordDate": "20240609",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 501.1,
+            "recordDate": "20240806",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 500.9,
+            "recordDate": "20240606",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 496.4775757575758,
+            "recordDate": "20240731",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 496.3,
+            "recordDate": "20240613",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 488.0,
+            "recordDate": "20240602",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 482.29999999999995,
+            "recordDate": "20240624",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 477.0,
+            "recordDate": "20240609",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 476.32,
+            "recordDate": "20240408",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 473.0,
+            "recordDate": "20240330",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 473.0,
+            "recordDate": "20240310",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 471.0,
+            "recordDate": "20240804",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 461.0,
+            "recordDate": "20240711",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 459.9,
+            "recordDate": "20240808",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 457.83,
+            "recordDate": "20240617",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 456.0,
+            "recordDate": "20240803",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 454.98,
+            "recordDate": "20240724",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 453.48999999999995,
+            "recordDate": "20240802",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 449.4,
+            "recordDate": "20240403",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 447.0,
+            "recordDate": "20240208",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 447.0,
+            "recordDate": "20240204",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 445.22029999999995,
+            "recordDate": "20240612",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 443.05,
+            "recordDate": "20240724",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 442.0,
+            "recordDate": "20240607",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 441.7,
+            "recordDate": "20240704",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 441.0,
+            "recordDate": "20240602",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 440.34950000000003,
+            "recordDate": "20240407",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 434.83,
+            "recordDate": "20240124",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 432.90000000000003,
+            "recordDate": "20240626",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 432.8,
+            "recordDate": "20240702",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 429.0,
+            "recordDate": "20240716",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 427.3139393939394,
+            "recordDate": "20240707",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 424.0,
+            "recordDate": "20240401",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 423.42,
+            "recordDate": "20240609",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 420.7642,
+            "recordDate": "20240531",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 420.43,
+            "recordDate": "20240402",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 415.9352,
+            "recordDate": "20240602",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 415.0,
+            "recordDate": "20240730",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 411.05,
+            "recordDate": "20240410",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 410.8,
+            "recordDate": "20240601",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 410.20000000000005,
+            "recordDate": "20240808",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 410.0,
+            "recordDate": "20240305",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 408.55,
+            "recordDate": "20240611",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 407.92,
+            "recordDate": "20240605",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 405.49,
+            "recordDate": "20240605",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 404.71999999999997,
+            "recordDate": "20240709",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 404.0,
+            "recordDate": "20240403",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 402.0,
+            "recordDate": "20240610",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 401.45,
+            "recordDate": "20240610",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 401.0,
+            "recordDate": "20240615",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 400.125,
+            "recordDate": "20240706",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 400.0,
+            "recordDate": "20240405",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 400.0,
+            "recordDate": "20240613",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 399.0,
+            "recordDate": "20240805",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 399.0,
+            "recordDate": "20240531",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 397.2145454545455,
+            "recordDate": "20240807",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 397.0,
+            "recordDate": "20240329",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 397.0,
+            "recordDate": "20240326",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 396.0,
+            "recordDate": "20240611",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 394.83,
+            "recordDate": "20240727",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 394.03,
+            "recordDate": "20240615",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 393.0,
+            "recordDate": "20240715",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 391.81333333333333,
+            "recordDate": "20240704",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 390.0,
+            "recordDate": "20240612",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 389.0,
+            "recordDate": "20240201",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 387.83,
+            "recordDate": "20240306",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 386.28000000000003,
+            "recordDate": "20240613",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 386.26878787878786,
+            "recordDate": "20240706",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 386.0,
+            "recordDate": "20240311",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 386.0,
+            "recordDate": "20240709",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 384.9155,
+            "recordDate": "20240714",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 384.9,
+            "recordDate": "20240706",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 383.56,
+            "recordDate": "20240805",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 382.0,
+            "recordDate": "20240807",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 382.0,
+            "recordDate": "20240402",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 381.06,
+            "recordDate": "20240712",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 381.0,
+            "recordDate": "20240312",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 380.0,
+            "recordDate": "20240601",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 380.0,
+            "recordDate": "20240330",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 380.0,
+            "recordDate": "20240206",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 379.83,
+            "recordDate": "20240722",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 379.6,
+            "recordDate": "20240717",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 378.0,
+            "recordDate": "20240604",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 378.0,
+            "recordDate": "20240718",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 378.0,
+            "recordDate": "20240616",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 377.83,
+            "recordDate": "20240726",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 376.2,
+            "recordDate": "20240707",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 375.6,
+            "recordDate": "20240121",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 374.24569999999994,
+            "recordDate": "20240616",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 374.0,
+            "recordDate": "20240619",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 373.5,
+            "recordDate": "20240803",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 373.0,
+            "recordDate": "20240119",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 372.59999999999997,
+            "recordDate": "20240407",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 372.19999999999993,
+            "recordDate": "20240607",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 371.8,
+            "recordDate": "20240618",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 371.0,
+            "recordDate": "20240302",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 369.96,
+            "recordDate": "20240810",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 369.0,
+            "recordDate": "20240303",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 368.4244,
+            "recordDate": "20240310",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 367.0,
+            "recordDate": "20240404",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 366.9687,
+            "recordDate": "20240201",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 366.0,
+            "recordDate": "20240118",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 365.0,
+            "recordDate": "20240605",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 364.10617306520413,
+            "recordDate": "20240727",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 364.0,
+            "recordDate": "20240207",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 363.83,
+            "recordDate": "20240608",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 362.0,
+            "recordDate": "20240626",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 360.3651919561243,
+            "recordDate": "20240804",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 360.0,
+            "recordDate": "20240711",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 358.0,
+            "recordDate": "20240613",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 357.3195,
+            "recordDate": "20240702",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 357.29999999999995,
+            "recordDate": "20240711",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 357.0303,
+            "recordDate": "20240625",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 356.12,
+            "recordDate": "20240804",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 354.73,
+            "recordDate": "20240104",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 354.1943,
+            "recordDate": "20240104",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 353.9,
+            "recordDate": "20240101",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 352.5,
+            "recordDate": "20240801",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 352.0,
+            "recordDate": "20240603",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 351.85999999999996,
+            "recordDate": "20240403",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 350.43829999999997,
+            "recordDate": "20240107",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 350.0,
+            "recordDate": "20240607",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 348.02,
+            "recordDate": "20240620",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 348.0,
+            "recordDate": "20240808",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 347.83,
+            "recordDate": "20240307",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 346.2,
+            "recordDate": "20240206",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 346.0,
+            "recordDate": "20240114",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 345.0,
+            "recordDate": "20240728",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 344.26,
+            "recordDate": "20240406",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 344.0,
+            "recordDate": "20240313",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 343.71999999999997,
+            "recordDate": "20240404",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 343.0715151515151,
+            "recordDate": "20240729",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 343.02000000000004,
+            "recordDate": "20240623",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 343.0,
+            "recordDate": "20240126",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 341.0,
+            "recordDate": "20240614",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 340.8,
+            "recordDate": "20240311",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 340.4145454545455,
+            "recordDate": "20240721",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 340.0,
+            "recordDate": "20240617",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 340.0,
+            "recordDate": "20240810",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 339.9,
+            "recordDate": "20240131",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 339.0,
+            "recordDate": "20240720",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 338.0,
+            "recordDate": "20240306",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 337.46,
+            "recordDate": "20240702",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 336.0136,
+            "recordDate": "20240406",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 335.53999999999996,
+            "recordDate": "20240401",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 335.49,
+            "recordDate": "20240327",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 335.3238,
+            "recordDate": "20240331",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 334.0,
+            "recordDate": "20240117",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 334.0,
+            "recordDate": "20240707",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 333.0,
+            "recordDate": "20240110",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 333.0,
+            "recordDate": "20240606",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 331.6,
+            "recordDate": "20240617",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 331.59999999999997,
+            "recordDate": "20240624",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 331.0,
+            "recordDate": "20240531",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 330.26,
+            "recordDate": "20240614",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 330.0,
+            "recordDate": "20240729",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 329.26959999999997,
+            "recordDate": "20240710",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 328.9,
+            "recordDate": "20240324",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 327.90000000000003,
+            "recordDate": "20240727",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 327.8,
+            "recordDate": "20240306",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 327.65999999999997,
+            "recordDate": "20240713",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 326.73900000000003,
+            "recordDate": "20240620",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 326.64,
+            "recordDate": "20240727",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 326.3,
+            "recordDate": "20240126",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 325.6161730652042,
+            "recordDate": "20240810",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 325.2,
+            "recordDate": "20240630",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 325.0,
+            "recordDate": "20240409",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 324.76,
+            "recordDate": "20240612",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 324.4357575757576,
+            "recordDate": "20240601",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 324.41999999999996,
+            "recordDate": "20240604",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 323.0,
+            "recordDate": "20240712",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 322.9,
+            "recordDate": "20240606",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 322.83,
+            "recordDate": "20240115",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 322.0,
+            "recordDate": "20240719",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 322.0,
+            "recordDate": "20240801",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 322.0,
+            "recordDate": "20240630",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 321.09999999999997,
+            "recordDate": "20240715",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 321.0,
+            "recordDate": "20240621",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 321.0,
+            "recordDate": "20240205",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 320.8,
+            "recordDate": "20240111",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 320.56,
+            "recordDate": "20240310",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 320.55,
+            "recordDate": "20240809",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 320.0,
+            "recordDate": "20240401",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 319.5,
+            "recordDate": "20240627",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 319.5,
+            "recordDate": "20240621",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 318.15,
+            "recordDate": "20240301",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 318.09484848484846,
+            "recordDate": "20240701",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 318.0,
+            "recordDate": "20240314",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 317.02,
+            "recordDate": "20240305",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 317.0,
+            "recordDate": "20240809",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 316.73,
+            "recordDate": "20240807",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 316.35,
+            "recordDate": "20240628",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 316.0,
+            "recordDate": "20240331",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 315.4444,
+            "recordDate": "20240617",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 315.0,
+            "recordDate": "20240126",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 314.9,
+            "recordDate": "20240629",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 314.82,
+            "recordDate": "20240723",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 313.49,
+            "recordDate": "20240308",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 313.1,
+            "recordDate": "20240716",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 312.6565,
+            "recordDate": "20240618",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 312.28,
+            "recordDate": "20240703",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 312.1078,
+            "recordDate": "20240204",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 312.0,
+            "recordDate": "20240407",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 311.0,
+            "recordDate": "20240127",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 311.0,
+            "recordDate": "20240620",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 310.83,
+            "recordDate": "20240118",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 310.19999999999993,
+            "recordDate": "20240129",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 309.83,
+            "recordDate": "20240324",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 309.81,
+            "recordDate": "20240309",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 309.6317409984671,
+            "recordDate": "20240722",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 309.3,
+            "recordDate": "20240601",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 309.0,
+            "recordDate": "20240731",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 308.0,
+            "recordDate": "20240130",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 307.02,
+            "recordDate": "20240626",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 307.0,
+            "recordDate": "20240111",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 306.4490909090909,
+            "recordDate": "20240402",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 305.65999999999997,
+            "recordDate": "20240801",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 305.0,
+            "recordDate": "20240731",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 304.6,
+            "recordDate": "20240605",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 304.32,
+            "recordDate": "20240710",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 304.1,
+            "recordDate": "20240603",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 304.08,
+            "recordDate": "20240622",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 303.0,
+            "recordDate": "20240803",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 302.71999999999997,
+            "recordDate": "20240630",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 302.4475,
+            "recordDate": "20240123",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 302.03,
+            "recordDate": "20240723",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 302.0,
+            "recordDate": "20240125",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 301.8963,
+            "recordDate": "20240807",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 301.83,
+            "recordDate": "20240203",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 301.6,
+            "recordDate": "20240627",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 301.0,
+            "recordDate": "20240708",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 300.0,
+            "recordDate": "20240113",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 299.0,
+            "recordDate": "20240121",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 298.0,
+            "recordDate": "20240603",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 297.44,
+            "recordDate": "20240611",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 297.0,
+            "recordDate": "20240331",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 296.24,
+            "recordDate": "20240730",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 296.0,
+            "recordDate": "20240307",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 296.0,
+            "recordDate": "20240615",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 295.68499999999995,
+            "recordDate": "20240608",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 295.0,
+            "recordDate": "20240113",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 295.0,
+            "recordDate": "20240728",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 293.0,
+            "recordDate": "20240320",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 293.0,
+            "recordDate": "20240106",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 293.0,
+            "recordDate": "20240321",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 292.0,
+            "recordDate": "20240614",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 291.24,
+            "recordDate": "20240718",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 290.83,
+            "recordDate": "20240322",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 290.6975,
+            "recordDate": "20240203",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 290.0,
+            "recordDate": "20240327",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 290.0,
+            "recordDate": "20240205",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 289.055,
+            "recordDate": "20240123",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 289.00333956969126,
+            "recordDate": "20240307",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 288.0,
+            "recordDate": "20240406",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 287.6,
+            "recordDate": "20240122",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 287.12,
+            "recordDate": "20240616",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 286.94,
+            "recordDate": "20240603",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 285.0,
+            "recordDate": "20240711",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 285.0,
+            "recordDate": "20240714",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 284.9187,
+            "recordDate": "20240606",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 284.7455575868373,
+            "recordDate": "20240725",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 284.5,
+            "recordDate": "20240714",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 284.4078,
+            "recordDate": "20240114",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 282.8951515151515,
+            "recordDate": "20240725",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 282.79999999999995,
+            "recordDate": "20240625",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 282.0,
+            "recordDate": "20240309",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 281.70779999999996,
+            "recordDate": "20240710",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 281.0,
+            "recordDate": "20240202",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 280.6,
+            "recordDate": "20240328",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 280.6,
+            "recordDate": "20240122",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 279.5,
+            "recordDate": "20240123",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 279.0,
+            "recordDate": "20240129",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 279.0,
+            "recordDate": "20240210",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 278.5144,
+            "recordDate": "20240319",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 278.46,
+            "recordDate": "20240708",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 278.0,
+            "recordDate": "20240302",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 277.9,
+            "recordDate": "20240110",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 277.5,
+            "recordDate": "20240722",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 277.28290000000004,
+            "recordDate": "20240701",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 276.5859,
+            "recordDate": "20240709",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 276.2187,
+            "recordDate": "20240117",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 276.19,
+            "recordDate": "20240720",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 276.0,
+            "recordDate": "20240628",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 275.73,
+            "recordDate": "20240404",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 275.0,
+            "recordDate": "20240723",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 275.0,
+            "recordDate": "20240106",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 273.9,
+            "recordDate": "20240102",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 273.03999999999996,
+            "recordDate": "20240805",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 273.0,
+            "recordDate": "20240316",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 272.9567,
+            "recordDate": "20240624",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 272.9,
+            "recordDate": "20240728",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 272.9,
+            "recordDate": "20240104",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 272.83,
+            "recordDate": "20240806",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 272.83,
+            "recordDate": "20240730",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 272.6844,
+            "recordDate": "20240104",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 272.14,
+            "recordDate": "20240128",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 271.69999999999993,
+            "recordDate": "20240717",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 271.63,
+            "recordDate": "20240303",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 271.0,
+            "recordDate": "20240105",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 270.81710342365926,
+            "recordDate": "20240804",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 270.0,
+            "recordDate": "20240105",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 270.0,
+            "recordDate": "20240301",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 269.5703,
+            "recordDate": "20240410",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 268.50000000000006,
+            "recordDate": "20240713",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 268.2537,
+            "recordDate": "20240202",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 268.15258510595027,
+            "recordDate": "20240305",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 267.15999999999997,
+            "recordDate": "20240628",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 267.0,
+            "recordDate": "20240208",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 266.8,
+            "recordDate": "20240620",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 266.5,
+            "recordDate": "20240107",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 266.07140000000004,
+            "recordDate": "20240804",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 266.06151515151515,
+            "recordDate": "20240610",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 266.0,
+            "recordDate": "20240802",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 266.0,
+            "recordDate": "20240117",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 266.0,
+            "recordDate": "20240714",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 265.2,
+            "recordDate": "20240602",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 265.0,
+            "recordDate": "20240701",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 263.775,
+            "recordDate": "20240608",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 263.0,
+            "recordDate": "20240102",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 261.83,
+            "recordDate": "20240305",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 260.94,
+            "recordDate": "20240626",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 260.4,
+            "recordDate": "20240609",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 259.7,
+            "recordDate": "20240309",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 259.0,
+            "recordDate": "20240630",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 258.3255575868373,
+            "recordDate": "20240807",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 257.5,
+            "recordDate": "20240713",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 257.0813,
+            "recordDate": "20240715",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 257.06,
+            "recordDate": "20240728",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 256.4,
+            "recordDate": "20240705",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 256.0,
+            "recordDate": "20240326",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 256.0,
+            "recordDate": "20240209",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 255.32999999999998,
+            "recordDate": "20240304",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 255.28,
+            "recordDate": "20240713",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 255.14128787878786,
+            "recordDate": "20240531",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 255.10276819542696,
+            "recordDate": "20240108",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 255.0,
+            "recordDate": "20240701",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 255.0,
+            "recordDate": "20240304",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 254.98,
+            "recordDate": "20240305",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 254.3,
+            "recordDate": "20240130",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 253.75,
+            "recordDate": "20240207",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 253.3,
+            "recordDate": "20240726",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 253.0,
+            "recordDate": "20240721",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 252.4,
+            "recordDate": "20240328",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 251.94039756782038,
+            "recordDate": "20240308",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 251.66,
+            "recordDate": "20240307",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 251.3,
+            "recordDate": "20240125",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 251.18015902712813,
+            "recordDate": "20240208",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 250.63000000000002,
+            "recordDate": "20240730",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 250.21757575757576,
+            "recordDate": "20240102",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 250.1465,
+            "recordDate": "20240712",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 250.0,
+            "recordDate": "20240308",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 249.8,
+            "recordDate": "20240409",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 249.6,
+            "recordDate": "20240729",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 248.20000000000002,
+            "recordDate": "20240803",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 247.82999999999998,
+            "recordDate": "20240717",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 247.49999999999997,
+            "recordDate": "20240728",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 247.42,
+            "recordDate": "20240806",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 247.08545876056485,
+            "recordDate": "20240723",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 246.62,
+            "recordDate": "20240209",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 246.3,
+            "recordDate": "20240320",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 246.23999999999998,
+            "recordDate": "20240615",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 245.26,
+            "recordDate": "20240116",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 245.0,
+            "recordDate": "20240321",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 245.0,
+            "recordDate": "20240704",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 244.8066,
+            "recordDate": "20240702",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 244.62,
+            "recordDate": "20240809",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 244.565,
+            "recordDate": "20240301",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 244.3,
+            "recordDate": "20240616",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 244.0078,
+            "recordDate": "20240317",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 244.0,
+            "recordDate": "20240103",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 244.0,
+            "recordDate": "20240724",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 244.0,
+            "recordDate": "20240409",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 244.0,
+            "recordDate": "20240122",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 243.0,
+            "recordDate": "20240703",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 242.6,
+            "recordDate": "20240115",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 242.0,
+            "recordDate": "20240105",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 241.90252179426219,
+            "recordDate": "20240410",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 241.54000000000002,
+            "recordDate": "20240618",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 241.0,
+            "recordDate": "20240112",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 240.14,
+            "recordDate": "20240607",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 240.0,
+            "recordDate": "20240703",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 240.0,
+            "recordDate": "20240309",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 240.0,
+            "recordDate": "20240328",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 239.38,
+            "recordDate": "20240302",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 238.60000000000002,
+            "recordDate": "20240706",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 238.37,
+            "recordDate": "20240124",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 238.0,
+            "recordDate": "20240725",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 238.0,
+            "recordDate": "20240103",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 237.6,
+            "recordDate": "20240703",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 237.5,
+            "recordDate": "20240718",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 236.0,
+            "recordDate": "20240315",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 236.0,
+            "recordDate": "20240207",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 235.53869565217389,
+            "recordDate": "20240119",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 235.5,
+            "recordDate": "20240805",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 235.4,
+            "recordDate": "20240311",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 235.10000000000002,
+            "recordDate": "20240619",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 234.7,
+            "recordDate": "20240103",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 234.0,
+            "recordDate": "20240618",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 233.4463068632113,
+            "recordDate": "20240718",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 233.2,
+            "recordDate": "20240327",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 232.9,
+            "recordDate": "20240108",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 232.26,
+            "recordDate": "20240304",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 231.76330000000002,
+            "recordDate": "20240116",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 231.14,
+            "recordDate": "20240330",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 231.0,
+            "recordDate": "20240131",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 231.0,
+            "recordDate": "20240116",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 231.0,
+            "recordDate": "20240624",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 230.60000000000002,
+            "recordDate": "20240708",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 230.51999999999998,
+            "recordDate": "20240408",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 230.20000000000002,
+            "recordDate": "20240805",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 230.0,
+            "recordDate": "20240323",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 230.0,
+            "recordDate": "20240808",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 230.0,
+            "recordDate": "20240804",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 229.9,
+            "recordDate": "20240316",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 228.05789999999996,
+            "recordDate": "20240302",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 227.8,
+            "recordDate": "20240402",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 227.8,
+            "recordDate": "20240627",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 227.7,
+            "recordDate": "20240721",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 227.5485,
+            "recordDate": "20240128",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 227.5,
+            "recordDate": "20240724",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 227.3,
+            "recordDate": "20240311",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 227.0,
+            "recordDate": "20240101",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 227.0,
+            "recordDate": "20240315",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 226.59999999999997,
+            "recordDate": "20240201",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 226.0,
+            "recordDate": "20240109",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 226.0,
+            "recordDate": "20240625",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 226.0,
+            "recordDate": "20240629",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 225.96161486898234,
+            "recordDate": "20240110",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 225.29999999999998,
+            "recordDate": "20240306",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 224.9,
+            "recordDate": "20240301",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 224.0,
+            "recordDate": "20240315",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 223.8585,
+            "recordDate": "20240401",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 223.82201856700783,
+            "recordDate": "20240108",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 223.54,
+            "recordDate": "20240131",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 223.0,
+            "recordDate": "20240709",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 223.0,
+            "recordDate": "20240317",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 222.74,
+            "recordDate": "20240724",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 222.0,
+            "recordDate": "20240307",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 221.8844,
+            "recordDate": "20240627",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 221.16606060606063,
+            "recordDate": "20240321",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 220.84,
+            "recordDate": "20240210",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 220.62,
+            "recordDate": "20240110",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 220.0,
+            "recordDate": "20240727",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 220.0,
+            "recordDate": "20240101",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 220.0,
+            "recordDate": "20240612",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 219.32000000000002,
+            "recordDate": "20240621",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 219.0,
+            "recordDate": "20240408",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 218.8721,
+            "recordDate": "20240308",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 218.3,
+            "recordDate": "20240629",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 218.20000000000002,
+            "recordDate": "20240622",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 218.0,
+            "recordDate": "20240122",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 217.9,
+            "recordDate": "20240619",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 217.67,
+            "recordDate": "20240205",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 217.3,
+            "recordDate": "20240716",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 216.70204870629772,
+            "recordDate": "20240720",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 216.65151515151516,
+            "recordDate": "20240320",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 216.49,
+            "recordDate": "20240107",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 216.06,
+            "recordDate": "20240114",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 214.4,
+            "recordDate": "20240313",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 214.12,
+            "recordDate": "20240409",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 214.0,
+            "recordDate": "20240715",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 214.0,
+            "recordDate": "20240707",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 213.97,
+            "recordDate": "20240127",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 213.82999999999998,
+            "recordDate": "20240331",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 213.3022081132156,
+            "recordDate": "20240805",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 213.0,
+            "recordDate": "20240405",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 213.0,
+            "recordDate": "20240108",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 212.82999999999998,
+            "recordDate": "20240112",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 212.5,
+            "recordDate": "20240630",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 212.4795,
+            "recordDate": "20240209",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 212.24,
+            "recordDate": "20240106",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 210.45999999999998,
+            "recordDate": "20240621",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 210.0,
+            "recordDate": "20240713",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 209.8552992607901,
+            "recordDate": "20240111",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 209.4,
+            "recordDate": "20240310",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 209.0,
+            "recordDate": "20240325",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 208.5,
+            "recordDate": "20240727",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 207.68,
+            "recordDate": "20240206",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 207.5,
+            "recordDate": "20240101",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 207.0,
+            "recordDate": "20240325",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 206.1787878787879,
+            "recordDate": "20240719",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 206.0,
+            "recordDate": "20240204",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 206.0,
+            "recordDate": "20240809",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 206.0,
+            "recordDate": "20240726",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 206.0,
+            "recordDate": "20240120",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 205.5,
+            "recordDate": "20240312",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 205.4225,
+            "recordDate": "20240202",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 205.1,
+            "recordDate": "20240118",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 204.86,
+            "recordDate": "20240628",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 204.83,
+            "recordDate": "20240721",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 204.68849999999998,
+            "recordDate": "20240407",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 204.5,
+            "recordDate": "20240623",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 204.42,
+            "recordDate": "20240123",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 204.34,
+            "recordDate": "20240810",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 203.0,
+            "recordDate": "20240623",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 202.9,
+            "recordDate": "20240318",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 202.5,
+            "recordDate": "20240115",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 202.1110342365924,
+            "recordDate": "20240715",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 202.0,
+            "recordDate": "20240711",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 201.95950964056175,
+            "recordDate": "20240127",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 201.72959999999998,
+            "recordDate": "20240803",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 201.32,
+            "recordDate": "20240206",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 201.0,
+            "recordDate": "20240809",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 201.0,
+            "recordDate": "20240622",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 201.0,
+            "recordDate": "20240127",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 200.0,
+            "recordDate": "20240705",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 200.0,
+            "recordDate": "20240726",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 199.17177049641623,
+            "recordDate": "20240110",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 199.0,
+            "recordDate": "20240623",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 199.0,
+            "recordDate": "20240320",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 198.5,
+            "recordDate": "20240720",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 198.0,
+            "recordDate": "20240628",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 198.0,
+            "recordDate": "20240806",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 198.0,
+            "recordDate": "20240629",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 198.0,
+            "recordDate": "20240312",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 197.4,
+            "recordDate": "20240119",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 197.0,
+            "recordDate": "20240107",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 196.5,
+            "recordDate": "20240403",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 196.5,
+            "recordDate": "20240706",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 196.4313,
+            "recordDate": "20240705",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 196.3782,
+            "recordDate": "20240712",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 196.0,
+            "recordDate": "20240203",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 195.6,
+            "recordDate": "20240117",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 195.30498181818183,
+            "recordDate": "20240722",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 195.0,
+            "recordDate": "20240122",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 195.0,
+            "recordDate": "20240210",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 195.0,
+            "recordDate": "20240329",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 194.51832450863358,
+            "recordDate": "20240302",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 194.42,
+            "recordDate": "20240622",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 194.0,
+            "recordDate": "20240110",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 194.0,
+            "recordDate": "20240108",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 193.79999999999998,
+            "recordDate": "20240802",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 193.639,
+            "recordDate": "20240119",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 193.5,
+            "recordDate": "20240315",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 193.06,
+            "recordDate": "20240208",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 192.32,
+            "recordDate": "20240128",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 192.3,
+            "recordDate": "20240316",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 192.0,
+            "recordDate": "20240319",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 191.8,
+            "recordDate": "20240325",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 191.8,
+            "recordDate": "20240725",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 191.5195,
+            "recordDate": "20240626",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 191.5,
+            "recordDate": "20240316",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 190.80801237800523,
+            "recordDate": "20240111",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 190.42,
+            "recordDate": "20240124",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 190.0,
+            "recordDate": "20240720",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 189.43,
+            "recordDate": "20240716",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 189.17,
+            "recordDate": "20240609",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 189.0,
+            "recordDate": "20240209",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 189.0,
+            "recordDate": "20240731",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 188.8333,
+            "recordDate": "20240120",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 188.71710342365924,
+            "recordDate": "20240803",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 188.31,
+            "recordDate": "20240716",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 188.0,
+            "recordDate": "20240101",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 187.32,
+            "recordDate": "20240201",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 186.7,
+            "recordDate": "20240113",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 185.89999999999998,
+            "recordDate": "20240118",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 185.79,
+            "recordDate": "20240603",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 184.95000000000002,
+            "recordDate": "20240808",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 184.39999999999998,
+            "recordDate": "20240718",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 184.3,
+            "recordDate": "20240316",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 184.2,
+            "recordDate": "20240617",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 182.8,
+            "recordDate": "20240712",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 182.73432663010357,
+            "recordDate": "20240729",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 182.54719999999998,
+            "recordDate": "20240314",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 181.63,
+            "recordDate": "20240719",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 180.3595652173913,
+            "recordDate": "20240210",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 178.98,
+            "recordDate": "20240310",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 178.5,
+            "recordDate": "20240808",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 178.5,
+            "recordDate": "20240705",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 178.4303180542563,
+            "recordDate": "20240611",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 178.38,
+            "recordDate": "20240615",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 178.275,
+            "recordDate": "20240109",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 178.0,
+            "recordDate": "20240629",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 178.0,
+            "recordDate": "20240322",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 178.0,
+            "recordDate": "20240323",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 177.93,
+            "recordDate": "20240701",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 177.82999999999998,
+            "recordDate": "20240129",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 177.8,
+            "recordDate": "20240209",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 177.79999999999998,
+            "recordDate": "20240127",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 177.5,
+            "recordDate": "20240707",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 177.23000000000002,
+            "recordDate": "20240625",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 177.0,
+            "recordDate": "20240318",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 176.60000000000002,
+            "recordDate": "20240309",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 176.0,
+            "recordDate": "20240108",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 176.0,
+            "recordDate": "20240329",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 175.8,
+            "recordDate": "20240319",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 175.37999999999997,
+            "recordDate": "20240126",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 175.0,
+            "recordDate": "20240203",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 174.5,
+            "recordDate": "20240720",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 174.3,
+            "recordDate": "20240705",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 174.1403180542563,
+            "recordDate": "20240306",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 173.82,
+            "recordDate": "20240328",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 173.82,
+            "recordDate": "20240302",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 173.65999999999997,
+            "recordDate": "20240128",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 173.13400000000001,
+            "recordDate": "20240116",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 172.81683816651073,
+            "recordDate": "20240301",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 172.8,
+            "recordDate": "20240726",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 172.23,
+            "recordDate": "20240703",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 172.12,
+            "recordDate": "20240717",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 171.72999999999996,
+            "recordDate": "20240801",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 171.43,
+            "recordDate": "20240730",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 171.14999999999998,
+            "recordDate": "20240205",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 170.93,
+            "recordDate": "20240326",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 170.72,
+            "recordDate": "20240308",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 170.7,
+            "recordDate": "20240129",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 170.5,
+            "recordDate": "20240319",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 170.45,
+            "recordDate": "20240121",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 170.0,
+            "recordDate": "20240806",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 169.9,
+            "recordDate": "20240115",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 169.0,
+            "recordDate": "20240708",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 169.0,
+            "recordDate": "20240301",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 168.32000000000002,
+            "recordDate": "20240104",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 168.2,
+            "recordDate": "20240317",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 167.9,
+            "recordDate": "20240324",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 167.8565201122544,
+            "recordDate": "20240207",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 167.5,
+            "recordDate": "20240301",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 167.02565513548888,
+            "recordDate": "20240703",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 167.01999999999998,
+            "recordDate": "20240130",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 166.5,
+            "recordDate": "20240326",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 166.21999999999997,
+            "recordDate": "20240303",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 166.12,
+            "recordDate": "20240329",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 166.05454545454543,
+            "recordDate": "20240729",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 165.41000000000003,
+            "recordDate": "20240209",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 165.0,
+            "recordDate": "20240725",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 164.42000000000002,
+            "recordDate": "20240103",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 164.0391,
+            "recordDate": "20240722",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 162.66,
+            "recordDate": "20240703",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 162.6,
+            "recordDate": "20240121",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 161.8773913043478,
+            "recordDate": "20240205",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 161.0,
+            "recordDate": "20240114",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 160.0,
+            "recordDate": "20240322",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 160.0,
+            "recordDate": "20240406",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 160.0,
+            "recordDate": "20240704",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 159.5,
+            "recordDate": "20240109",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 159.3,
+            "recordDate": "20240308",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 158.39999999999998,
+            "recordDate": "20240207",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 158.30346130408287,
+            "recordDate": "20240109",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 158.05476303693138,
+            "recordDate": "20240107",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 157.9287,
+            "recordDate": "20240702",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 157.7,
+            "recordDate": "20240203",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 157.29,
+            "recordDate": "20240601",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 157.2,
+            "recordDate": "20240125",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 157.0,
+            "recordDate": "20240311",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 157.0,
+            "recordDate": "20240105",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 156.9026707926684,
+            "recordDate": "20240112",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 156.35494509293528,
+            "recordDate": "20240306",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 156.12,
+            "recordDate": "20240326",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 156.0042937324602,
+            "recordDate": "20240106",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 155.53420684731847,
+            "recordDate": "20240616",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 155.32,
+            "recordDate": "20240308",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 155.3,
+            "recordDate": "20240111",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 155.1,
+            "recordDate": "20240304",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 155.0,
+            "recordDate": "20240319",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 154.5,
+            "recordDate": "20240317",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 154.1,
+            "recordDate": "20240801",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 153.76330000000002,
+            "recordDate": "20240115",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 153.6,
+            "recordDate": "20240706",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 153.5,
+            "recordDate": "20240124",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 153.3,
+            "recordDate": "20240317",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 153.0,
+            "recordDate": "20240318",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 153.0,
+            "recordDate": "20240728",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 152.82999999999998,
+            "recordDate": "20240718",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 152.54086956521738,
+            "recordDate": "20240127",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 152.5,
+            "recordDate": "20240117",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 152.4,
+            "recordDate": "20240730",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 152.0,
+            "recordDate": "20240206",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 151.82,
+            "recordDate": "20240731",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 151.66,
+            "recordDate": "20240121",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 151.66,
+            "recordDate": "20240806",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 150.8,
+            "recordDate": "20240408",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 150.5,
+            "recordDate": "20240114",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 150.31,
+            "recordDate": "20240106",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 150.23304347826087,
+            "recordDate": "20240112",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 149.14,
+            "recordDate": "20240610",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 149.075,
+            "recordDate": "20240304",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 147.84999999999997,
+            "recordDate": "20240405",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 147.29,
+            "recordDate": "20240402",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 147.20000000000002,
+            "recordDate": "20240327",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 147.14999999999998,
+            "recordDate": "20240115",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 146.98,
+            "recordDate": "20240319",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 146.93420886326697,
+            "recordDate": "20240721",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 146.38047708138447,
+            "recordDate": "20240731",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 145.69,
+            "recordDate": "20240611",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 145.61,
+            "recordDate": "20240203",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 145.23,
+            "recordDate": "20240712",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 145.0,
+            "recordDate": "20240109",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 144.925,
+            "recordDate": "20240102",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 144.75,
+            "recordDate": "20240810",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 144.63,
+            "recordDate": "20240531",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 144.5,
+            "recordDate": "20240130",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 144.33999999999997,
+            "recordDate": "20240403",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 144.27913660811276,
+            "recordDate": "20240605",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 144.03,
+            "recordDate": "20240704",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 143.84,
+            "recordDate": "20240315",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 143.70999999999998,
+            "recordDate": "20240705",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 143.04234613040825,
+            "recordDate": "20240713",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 143.0,
+            "recordDate": "20240114",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 143.0,
+            "recordDate": "20240405",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 142.5,
+            "recordDate": "20240120",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 141.8,
+            "recordDate": "20240112",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 141.64420684731846,
+            "recordDate": "20240616",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 140.95,
+            "recordDate": "20240802",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 140.5803180542563,
+            "recordDate": "20240801",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 140.2,
+            "recordDate": "20240729",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 140.0,
+            "recordDate": "20240702",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 139.82999999999998,
+            "recordDate": "20240125",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 139.63,
+            "recordDate": "20240105",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 139.46,
+            "recordDate": "20240602",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 139.32999999999998,
+            "recordDate": "20240126",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 139.0,
+            "recordDate": "20240715",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 138.90999999999997,
+            "recordDate": "20240629",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 138.74662121650024,
+            "recordDate": "20240107",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 138.62,
+            "recordDate": "20240324",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 138.5,
+            "recordDate": "20240409",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 138.5,
+            "recordDate": "20240312",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 137.89,
+            "recordDate": "20240309",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 137.82999999999998,
+            "recordDate": "20240709",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 137.58999999999997,
+            "recordDate": "20240619",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 137.46,
+            "recordDate": "20240204",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 137.42999999999998,
+            "recordDate": "20240107",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 137.41,
+            "recordDate": "20240312",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 137.4,
+            "recordDate": "20240716",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 137.2,
+            "recordDate": "20240113",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 137.0,
+            "recordDate": "20240404",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 136.78999999999996,
+            "recordDate": "20240401",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 136.5,
+            "recordDate": "20240120",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 136.5,
+            "recordDate": "20240207",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 136.41999999999996,
+            "recordDate": "20240625",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 136.04248252476276,
+            "recordDate": "20240706",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 135.94,
+            "recordDate": "20240105",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 135.87607712449415,
+            "recordDate": "20240125",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 135.71999999999997,
+            "recordDate": "20240112",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 135.1,
+            "recordDate": "20240307",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 135.0,
+            "recordDate": "20240201",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 135.0,
+            "recordDate": "20240807",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 134.95999999999998,
+            "recordDate": "20240330",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 134.8723461304083,
+            "recordDate": "20240201",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 134.77907634115587,
+            "recordDate": "20240304",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 134.60999999999999,
+            "recordDate": "20240123",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 134.6,
+            "recordDate": "20240807",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 134.4,
+            "recordDate": "20240305",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 134.02999999999997,
+            "recordDate": "20240301",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 134.0,
+            "recordDate": "20240802",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 133.90999999999997,
+            "recordDate": "20240701",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 133.8,
+            "recordDate": "20240604",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 133.63260530429486,
+            "recordDate": "20240604",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 133.2387,
+            "recordDate": "20240701",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 133.16,
+            "recordDate": "20240406",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 133.05,
+            "recordDate": "20240118",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 133.0,
+            "recordDate": "20240314",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 133.0,
+            "recordDate": "20240105",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 133.0,
+            "recordDate": "20240202",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 132.87,
+            "recordDate": "20240612",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 132.58999999999997,
+            "recordDate": "20240629",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 132.5603180542563,
+            "recordDate": "20240105",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 132.52999999999997,
+            "recordDate": "20240410",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 132.5,
+            "recordDate": "20240325",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 132.0,
+            "recordDate": "20240115",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 132.0,
+            "recordDate": "20240801",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 132.0,
+            "recordDate": "20240131",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 131.88079513564077,
+            "recordDate": "20240206",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 131.75,
+            "recordDate": "20240718",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 131.38,
+            "recordDate": "20240202",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 131.3,
+            "recordDate": "20240104",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 131.07999999999998,
+            "recordDate": "20240802",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 131.05869565217392,
+            "recordDate": "20240709",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 131.0,
+            "recordDate": "20240722",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 131.0,
+            "recordDate": "20240704",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 130.99869999999999,
+            "recordDate": "20240106",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 130.3,
+            "recordDate": "20240810",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 130.29,
+            "recordDate": "20240303",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 130.0,
+            "recordDate": "20240120",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 129.91889697807784,
+            "recordDate": "20240303",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 129.4687,
+            "recordDate": "20240119",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 129.46,
+            "recordDate": "20240318",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 128.72173913043477,
+            "recordDate": "20240117",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 128.68,
+            "recordDate": "20240119",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 128.5,
+            "recordDate": "20240204",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 128.5,
+            "recordDate": "20240202",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 128.23,
+            "recordDate": "20240703",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 128.0,
+            "recordDate": "20240721",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 127.66,
+            "recordDate": "20240112",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 127.52000000000001,
+            "recordDate": "20240802",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 127.00120000000001,
+            "recordDate": "20240613",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 126.94999999999999,
+            "recordDate": "20240322",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 126.83,
+            "recordDate": "20240303",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 126.8,
+            "recordDate": "20240208",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 125.9,
+            "recordDate": "20240124",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 125.37999999999998,
+            "recordDate": "20240618",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 124.8,
+            "recordDate": "20240210",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 124.79999999999998,
+            "recordDate": "20240621",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 124.78,
+            "recordDate": "20240719",
+            "countryName": "BGD"
+        },
+        {
+            "revenue": 124.37,
+            "recordDate": "20240623",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 124.23999999999998,
+            "recordDate": "20240620",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 124.0,
+            "recordDate": "20240110",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 123.83,
+            "recordDate": "20240205",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 123.6,
+            "recordDate": "20240123",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 123.3,
+            "recordDate": "20240725",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 123.27217391304349,
+            "recordDate": "20240719",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 123.0,
+            "recordDate": "20240405",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 122.9233395696913,
+            "recordDate": "20240130",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 122.43999999999998,
+            "recordDate": "20240711",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 122.31869999999999,
+            "recordDate": "20240704",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 122.19999999999999,
+            "recordDate": "20240714",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 122.17999999999999,
+            "recordDate": "20240728",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 122.15,
+            "recordDate": "20240325",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 122.0303,
+            "recordDate": "20240609",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 122.0,
+            "recordDate": "20240129",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 121.89999999999999,
+            "recordDate": "20240405",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 121.81,
+            "recordDate": "20240323",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 121.75999999999999,
+            "recordDate": "20240615",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 121.63682738927392,
+            "recordDate": "20240309",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 121.56,
+            "recordDate": "20240120",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 121.0619,
+            "recordDate": "20240124",
+            "countryName": "IND"
+        },
+        {
+            "revenue": 121.0,
+            "recordDate": "20240328",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 120.6,
+            "recordDate": "20240706",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 120.6,
+            "recordDate": "20240209",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 120.0,
+            "recordDate": "20240109",
+            "countryName": "ZAF"
+        },
+        {
+            "revenue": 119.68392378178041,
+            "recordDate": "20240109",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 119.52,
+            "recordDate": "20240717",
+            "countryName": "AUT"
+        },
+        {
+            "revenue": 119.16250000000001,
+            "recordDate": "20240603",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 118.9,
+            "recordDate": "20240721",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 118.22,
+            "recordDate": "20240202",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 117.9,
+            "recordDate": "20240321",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 117.66,
+            "recordDate": "20240201",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 117.01217391304348,
+            "recordDate": "20240619",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 116.5078,
+            "recordDate": "20240314",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 116.47999999999999,
+            "recordDate": "20240113",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 116.42999999999999,
+            "recordDate": "20240103",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 116.3,
+            "recordDate": "20240303",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 115.97047708138444,
+            "recordDate": "20240117",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 115.82999999999998,
+            "recordDate": "20240104",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 115.60000000000001,
+            "recordDate": "20240210",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 115.0,
+            "recordDate": "20240116",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 115.0,
+            "recordDate": "20240131",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 114.28,
+            "recordDate": "20240707",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 114.0,
+            "recordDate": "20240330",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 114.0,
+            "recordDate": "20240404",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 114.0,
+            "recordDate": "20240710",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 114.0,
+            "recordDate": "20240325",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 113.8,
+            "recordDate": "20240109",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 113.68999999999998,
+            "recordDate": "20240623",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 113.66,
+            "recordDate": "20240121",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 113.47999999999999,
+            "recordDate": "20240110",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 113.3,
+            "recordDate": "20240204",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 113.0787,
+            "recordDate": "20240409",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 112.39,
+            "recordDate": "20240702",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 112.2868,
+            "recordDate": "20240404",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 111.82,
+            "recordDate": "20240125",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 111.42999999999999,
+            "recordDate": "20240123",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 110.8,
+            "recordDate": "20240723",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 110.5,
+            "recordDate": "20240729",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 109.85,
+            "recordDate": "20240109",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 109.53,
+            "recordDate": "20240627",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 109.52,
+            "recordDate": "20240108",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 109.50999999999999,
+            "recordDate": "20240406",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 109.03,
+            "recordDate": "20240106",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 108.89999999999999,
+            "recordDate": "20240310",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 108.8,
+            "recordDate": "20240715",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 107.30047708138446,
+            "recordDate": "20240128",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 107.0,
+            "recordDate": "20240113",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 106.57999999999998,
+            "recordDate": "20240630",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 106.5,
+            "recordDate": "20240717",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 106.43,
+            "recordDate": "20240602",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 106.29347826086953,
+            "recordDate": "20240707",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 106.07,
+            "recordDate": "20240628",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 106.0,
+            "recordDate": "20240719",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 105.99,
+            "recordDate": "20240705",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 105.98159027128156,
+            "recordDate": "20240803",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 105.97608695652173,
+            "recordDate": "20240113",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 105.91739130434783,
+            "recordDate": "20240102",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 105.80000000000001,
+            "recordDate": "20240406",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 105.8,
+            "recordDate": "20240808",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 105.8,
+            "recordDate": "20240102",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 105.66507617306522,
+            "recordDate": "20240806",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 105.39,
+            "recordDate": "20240120",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 105.13999999999999,
+            "recordDate": "20240626",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 104.5,
+            "recordDate": "20240726",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 104.49,
+            "recordDate": "20240710",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 104.19999999999999,
+            "recordDate": "20240314",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 104.12,
+            "recordDate": "20240122",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 104.1,
+            "recordDate": "20240611",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 104.05950964056177,
+            "recordDate": "20240620",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 104.05000000000001,
+            "recordDate": "20240326",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 102.5,
+            "recordDate": "20240805",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 102.28869565217391,
+            "recordDate": "20240725",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 102.22999999999999,
+            "recordDate": "20240117",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 102.16608695652172,
+            "recordDate": "20240614",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 101.91,
+            "recordDate": "20240119",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 101.68826086956523,
+            "recordDate": "20240205",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 101.5343,
+            "recordDate": "20240313",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 101.44,
+            "recordDate": "20240401",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 100.92,
+            "recordDate": "20240302",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 100.64,
+            "recordDate": "20240114",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 100.5,
+            "recordDate": "20240302",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 100.36,
+            "recordDate": "20240410",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 100.04,
+            "recordDate": "20240616",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 99.9,
+            "recordDate": "20240301",
+            "countryName": "ESP"
+        },
+        {
+            "revenue": 99.8,
+            "recordDate": "20240104",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 99.61095063985374,
+            "recordDate": "20240210",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 99.05999999999999,
+            "recordDate": "20240321",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 99.0,
+            "recordDate": "20240321",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 99.0,
+            "recordDate": "20240317",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 98.83000000000001,
+            "recordDate": "20240723",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 98.83,
+            "recordDate": "20240313",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 98.72432663010358,
+            "recordDate": "20240607",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 98.7,
+            "recordDate": "20240719",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 98.69086956521738,
+            "recordDate": "20240111",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 98.68,
+            "recordDate": "20240126",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 98.64999999999999,
+            "recordDate": "20240209",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 98.45151515151515,
+            "recordDate": "20240612",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 98.06047708138448,
+            "recordDate": "20240713",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 98.0,
+            "recordDate": "20240103",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 97.5,
+            "recordDate": "20240312",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 97.13000000000001,
+            "recordDate": "20240329",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 96.85956521739129,
+            "recordDate": "20240116",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 96.49000000000001,
+            "recordDate": "20240305",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 96.46000000000001,
+            "recordDate": "20240608",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 96.20608695652174,
+            "recordDate": "20240621",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 95.39,
+            "recordDate": "20240203",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 94.6,
+            "recordDate": "20240118",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 94.53,
+            "recordDate": "20240108",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 94.5,
+            "recordDate": "20240111",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 93.83608695652173,
+            "recordDate": "20240808",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 93.76173065204142,
+            "recordDate": "20240726",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 93.75999999999999,
+            "recordDate": "20240617",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 93.72,
+            "recordDate": "20240703",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 93.66,
+            "recordDate": "20240323",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 93.4686,
+            "recordDate": "20240715",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 93.44,
+            "recordDate": "20240408",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 93.38999999999999,
+            "recordDate": "20240407",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 93.0,
+            "recordDate": "20240803",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 92.94,
+            "recordDate": "20240121",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 92.61950964056177,
+            "recordDate": "20240126",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 92.5,
+            "recordDate": "20240327",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 92.49021022816935,
+            "recordDate": "20240614",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 91.98,
+            "recordDate": "20240122",
+            "countryName": "LBN"
+        },
+        {
+            "revenue": 91.84,
+            "recordDate": "20240314",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 91.7,
+            "recordDate": "20240713",
+            "countryName": "AUS"
+        },
+        {
+            "revenue": 91.6671,
+            "recordDate": "20240408",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 91.62015902712815,
+            "recordDate": "20240710",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 91.52000000000001,
+            "recordDate": "20240618",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 91.34,
+            "recordDate": "20240409",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 91.24238540692234,
+            "recordDate": "20240129",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 91.18143124415342,
+            "recordDate": "20240610",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 90.9819,
+            "recordDate": "20240208",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 90.18,
+            "recordDate": "20240720",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 90.10000000000001,
+            "recordDate": "20240605",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 90.0,
+            "recordDate": "20240717",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 89.9,
+            "recordDate": "20240316",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 89.5,
+            "recordDate": "20240717",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 88.8,
+            "recordDate": "20240402",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 88.69696540646657,
+            "recordDate": "20240315",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 88.6,
+            "recordDate": "20240723",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 88.41,
+            "recordDate": "20240407",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 88.33642291285801,
+            "recordDate": "20240711",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 88.14999999999999,
+            "recordDate": "20240711",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 88.0,
+            "recordDate": "20240724",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 87.93,
+            "recordDate": "20240718",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 87.75,
+            "recordDate": "20240103",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 87.7,
+            "recordDate": "20240721",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 87.63999999999999,
+            "recordDate": "20240625",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 87.58,
+            "recordDate": "20240807",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 87.5,
+            "recordDate": "20240620",
+            "countryName": "DEU"
+        },
+        {
+            "revenue": 87.41,
+            "recordDate": "20240131",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 87.0,
+            "recordDate": "20240328",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 86.64,
+            "recordDate": "20240618",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 86.48,
+            "recordDate": "20240118",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 86.30000000000001,
+            "recordDate": "20240119",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 86.17999999999999,
+            "recordDate": "20240630",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 86.0,
+            "recordDate": "20240713",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 85.66,
+            "recordDate": "20240118",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 85.56,
+            "recordDate": "20240731",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 85.50000000000001,
+            "recordDate": "20240331",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 84.6,
+            "recordDate": "20240730",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 84.0,
+            "recordDate": "20240809",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 84.0,
+            "recordDate": "20240102",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 84.0,
+            "recordDate": "20240127",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 84.0,
+            "recordDate": "20240128",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 83.89,
+            "recordDate": "20240127",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 83.84739130434782,
+            "recordDate": "20240613",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 83.72,
+            "recordDate": "20240611",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 83.36374941121053,
+            "recordDate": "20240808",
+            "countryName": "USA"
+        },
+        {
+            "revenue": 83.3355575868373,
+            "recordDate": "20240714",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 82.5,
+            "recordDate": "20240115",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 82.36,
+            "recordDate": "20240806",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 82.33387925529753,
+            "recordDate": "20240804",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 82.1495,
+            "recordDate": "20240407",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 81.95,
+            "recordDate": "20240325",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 81.33999999999999,
+            "recordDate": "20240622",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 81.15,
+            "recordDate": "20240329",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 81.10000000000001,
+            "recordDate": "20240627",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 81.1,
+            "recordDate": "20240707",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 80.80999999999997,
+            "recordDate": "20240624",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 80.69,
+            "recordDate": "20240408",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 80.6,
+            "recordDate": "20240714",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 80.19,
+            "recordDate": "20240318",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 80.01,
+            "recordDate": "20240406",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 80.0,
+            "recordDate": "20240804",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 79.94999999999999,
+            "recordDate": "20240206",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 79.61,
+            "recordDate": "20240307",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 79.5,
+            "recordDate": "20240327",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 79.25,
+            "recordDate": "20240630",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 79.18999999999998,
+            "recordDate": "20240708",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 78.72,
+            "recordDate": "20240125",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 78.65,
+            "recordDate": "20240310",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 78.63682738927392,
+            "recordDate": "20240307",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 78.53999999999999,
+            "recordDate": "20240626",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 78.52,
+            "recordDate": "20240531",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 78.5,
+            "recordDate": "20240205",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 78.23,
+            "recordDate": "20240405",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 78.10000000000001,
+            "recordDate": "20240120",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 78.0,
+            "recordDate": "20240725",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 77.5,
+            "recordDate": "20240403",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 77.41999999999999,
+            "recordDate": "20240707",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 77.33000000000001,
+            "recordDate": "20240722",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 77.28,
+            "recordDate": "20240630",
+            "countryName": "SYR"
+        },
+        {
+            "revenue": 77.2573913043478,
+            "recordDate": "20240126",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 76.71,
+            "recordDate": "20240309",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 76.32,
+            "recordDate": "20240627",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 76.1,
+            "recordDate": "20240711",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 75.75,
+            "recordDate": "20240106",
+            "countryName": "AZE"
+        },
+        {
+            "revenue": 75.66,
+            "recordDate": "20240702",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 75.6,
+            "recordDate": "20240323",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 75.33,
+            "recordDate": "20240331",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 75.3,
+            "recordDate": "20240610",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 74.61,
+            "recordDate": "20240809",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 74.4,
+            "recordDate": "20240326",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 74.36234310814658,
+            "recordDate": "20240101",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 74.2,
+            "recordDate": "20240615",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 74.13,
+            "recordDate": "20240130",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 73.9,
+            "recordDate": "20240622",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 73.89999999999999,
+            "recordDate": "20240612",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 73.6,
+            "recordDate": "20240306",
+            "countryName": "NGA"
+        },
+        {
+            "revenue": 73.3,
+            "recordDate": "20240327",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 73.0687,
+            "recordDate": "20240311",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 72.69,
+            "recordDate": "20240709",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 72.1,
+            "recordDate": "20240330",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 72.01,
+            "recordDate": "20240309",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 72.0,
+            "recordDate": "20240317",
+            "countryName": "FRA"
+        },
+        {
+            "revenue": 71.95869565217392,
+            "recordDate": "20240607",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 71.88000000000001,
+            "recordDate": "20240318",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 71.8723461304083,
+            "recordDate": "20240606",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 71.75102859234555,
+            "recordDate": "20240805",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 71.22999999999999,
+            "recordDate": "20240304",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 70.9,
+            "recordDate": "20240321",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 70.5,
+            "recordDate": "20240712",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 70.5,
+            "recordDate": "20240602",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 70.14,
+            "recordDate": "20240122",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 70.02000000000001,
+            "recordDate": "20240405",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 69.47607712449417,
+            "recordDate": "20240619",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 68.81,
+            "recordDate": "20240803",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 68.73,
+            "recordDate": "20240605",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 68.7,
+            "recordDate": "20240318",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 68.13,
+            "recordDate": "20240730",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 68.02999999999999,
+            "recordDate": "20240619",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 68.0,
+            "recordDate": "20240327",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 68.0,
+            "recordDate": "20240116",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 67.95000000000002,
+            "recordDate": "20240331",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 67.7,
+            "recordDate": "20240409",
+            "countryName": "ETH"
+        },
+        {
+            "revenue": 67.36000000000001,
+            "recordDate": "20240620",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 67.32,
+            "recordDate": "20240704",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 67.29999999999998,
+            "recordDate": "20240619",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 67.2,
+            "recordDate": "20240624",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 66.67,
+            "recordDate": "20240316",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 66.33112365206793,
+            "recordDate": "20240724",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 66.06,
+            "recordDate": "20240313",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 65.7,
+            "recordDate": "20240123",
+            "countryName": "LBN"
+        },
+        {
+            "revenue": 65.57,
+            "recordDate": "20240606",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 65.39000000000001,
+            "recordDate": "20240205",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 65.07999999999998,
+            "recordDate": "20240116",
+            "countryName": "ETH"
+        },
+        {
+            "revenue": 65.0,
+            "recordDate": "20240114",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 64.56,
+            "recordDate": "20240201",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 64.19,
+            "recordDate": "20240303",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 64.0219,
+            "recordDate": "20240621",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 64.0,
+            "recordDate": "20240314",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 63.3,
+            "recordDate": "20240313",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 63.0,
+            "recordDate": "20240702",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 63.0,
+            "recordDate": "20240101",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 62.75,
+            "recordDate": "20240328",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 62.72,
+            "recordDate": "20240326",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 62.620000000000005,
+            "recordDate": "20240305",
+            "countryName": "LBN"
+        },
+        {
+            "revenue": 62.580000000000005,
+            "recordDate": "20240303",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 62.5,
+            "recordDate": "20240408",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 62.48608695652174,
+            "recordDate": "20240119",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 62.21,
+            "recordDate": "20240706",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 62.0,
+            "recordDate": "20240405",
+            "countryName": "IRL"
+        },
+        {
+            "revenue": 61.8,
+            "recordDate": "20240618",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 61.739999999999995,
+            "recordDate": "20240327",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 61.63,
+            "recordDate": "20240624",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 61.53,
+            "recordDate": "20240302",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 61.5,
+            "recordDate": "20240328",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 61.480000000000004,
+            "recordDate": "20240610",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 61.10000000000001,
+            "recordDate": "20240320",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 60.974347826086955,
+            "recordDate": "20240810",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 60.48393081293316,
+            "recordDate": "20240317",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 60.1,
+            "recordDate": "20240107",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 59.95,
+            "recordDate": "20240121",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 59.83,
+            "recordDate": "20240609",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 59.6,
+            "recordDate": "20240130",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 59.46999999999999,
+            "recordDate": "20240709",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 59.251590271281565,
+            "recordDate": "20240202",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 59.209999999999994,
+            "recordDate": "20240316",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 59.199999999999996,
+            "recordDate": "20240122",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 59.14,
+            "recordDate": "20240626",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 59.0,
+            "recordDate": "20240402",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 59.0,
+            "recordDate": "20240704",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 58.97,
+            "recordDate": "20240108",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 58.83,
+            "recordDate": "20240605",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 58.800000000000004,
+            "recordDate": "20240801",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 58.76,
+            "recordDate": "20240810",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 58.71976541448724,
+            "recordDate": "20240727",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 58.599999999999994,
+            "recordDate": "20240131",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 58.38999999999999,
+            "recordDate": "20240209",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 58.2,
+            "recordDate": "20240624",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 58.1,
+            "recordDate": "20240106",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 57.9887,
+            "recordDate": "20240115",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 57.910000000000004,
+            "recordDate": "20240406",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 57.83,
+            "recordDate": "20240410",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 57.77547630369313,
+            "recordDate": "20240727",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 57.5,
+            "recordDate": "20240126",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 57.152173913043484,
+            "recordDate": "20240708",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 56.78999999999999,
+            "recordDate": "20240314",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 56.78564642358552,
+            "recordDate": "20240410",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 56.78454545454545,
+            "recordDate": "20240620",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 56.69043478260869,
+            "recordDate": "20240805",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 56.63,
+            "recordDate": "20240616",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 56.561908325537885,
+            "recordDate": "20240118",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 56.31,
+            "recordDate": "20240111",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 56.160000000000004,
+            "recordDate": "20240103",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 55.8017,
+            "recordDate": "20240105",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 55.75,
+            "recordDate": "20240112",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 55.6,
+            "recordDate": "20240728",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 55.5,
+            "recordDate": "20240730",
+            "countryName": "MAR"
+        },
+        {
+            "revenue": 55.5,
+            "recordDate": "20240609",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 55.48,
+            "recordDate": "20240622",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 55.199999999999996,
+            "recordDate": "20240112",
+            "countryName": "ETH"
+        },
+        {
+            "revenue": 55.15,
+            "recordDate": "20240207",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 55.059999999999995,
+            "recordDate": "20240807",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 55.05869565217392,
+            "recordDate": "20240306",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 55.05,
+            "recordDate": "20240318",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 54.879999999999995,
+            "recordDate": "20240729",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 54.879999999999995,
+            "recordDate": "20240624",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 54.6,
+            "recordDate": "20240401",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 54.53,
+            "recordDate": "20240609",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 54.49,
+            "recordDate": "20240613",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 54.46999999999999,
+            "recordDate": "20240617",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 54.42,
+            "recordDate": "20240409",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 54.06,
+            "recordDate": "20240726",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 54.05,
+            "recordDate": "20240131",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 54.0,
+            "recordDate": "20240724",
+            "countryName": "AFG"
+        },
+        {
+            "revenue": 53.92,
+            "recordDate": "20240204",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 53.9,
+            "recordDate": "20240623",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 53.72,
+            "recordDate": "20240124",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 53.53,
+            "recordDate": "20240403",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 53.431113189897104,
+            "recordDate": "20240101",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 53.15,
+            "recordDate": "20240321",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 52.89043478260869,
+            "recordDate": "20240625",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 52.839999999999996,
+            "recordDate": "20240320",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 52.779999999999994,
+            "recordDate": "20240612",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 52.67999999999999,
+            "recordDate": "20240308",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 52.56999999999999,
+            "recordDate": "20240701",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 52.529999999999994,
+            "recordDate": "20240410",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 52.07000000000001,
+            "recordDate": "20240407",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 51.800000000000004,
+            "recordDate": "20240201",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 51.699999999999996,
+            "recordDate": "20240608",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 51.300000000000004,
+            "recordDate": "20240613",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 51.22,
+            "recordDate": "20240307",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 51.12,
+            "recordDate": "20240123",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 51.11,
+            "recordDate": "20240718",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 51.08,
+            "recordDate": "20240408",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 50.980000000000004,
+            "recordDate": "20240809",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 50.959999999999994,
+            "recordDate": "20240712",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 50.870000000000005,
+            "recordDate": "20240403",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 50.87,
+            "recordDate": "20240629",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 50.82000000000001,
+            "recordDate": "20240605",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 50.76,
+            "recordDate": "20240716",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 50.5,
+            "recordDate": "20240206",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 50.44,
+            "recordDate": "20240317",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 50.288695652173914,
+            "recordDate": "20240724",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 50.23987795213188,
+            "recordDate": "20240726",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 50.209999999999994,
+            "recordDate": "20240114",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 50.10000000000001,
+            "recordDate": "20240322",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 49.730318054256315,
+            "recordDate": "20240610",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 49.48,
+            "recordDate": "20240601",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 49.3,
+            "recordDate": "20240708",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 49.3,
+            "recordDate": "20240410",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 49.099999999999994,
+            "recordDate": "20240128",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 48.8,
+            "recordDate": "20240103",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 48.5,
+            "recordDate": "20240809",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 48.5,
+            "recordDate": "20240729",
+            "countryName": "MAR"
+        },
+        {
+            "revenue": 48.3,
+            "recordDate": "20240601",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 48.25,
+            "recordDate": "20240313",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 47.790000000000006,
+            "recordDate": "20240608",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 47.449999999999996,
+            "recordDate": "20240306",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 47.379999999999995,
+            "recordDate": "20240331",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 47.21000000000001,
+            "recordDate": "20240310",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 47.04,
+            "recordDate": "20240121",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 47.04,
+            "recordDate": "20240208",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 47.04,
+            "recordDate": "20240324",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 47.029999999999994,
+            "recordDate": "20240107",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 46.9,
+            "recordDate": "20240613",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 46.89000000000001,
+            "recordDate": "20240101",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 46.79,
+            "recordDate": "20240130",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 46.75,
+            "recordDate": "20240312",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 46.5,
+            "recordDate": "20240320",
+            "countryName": "AFG"
+        },
+        {
+            "revenue": 46.269999999999996,
+            "recordDate": "20240324",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 46.19999999999998,
+            "recordDate": "20240311",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 46.1,
+            "recordDate": "20240701",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 46.07,
+            "recordDate": "20240110",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 45.89,
+            "recordDate": "20240616",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 45.849999999999994,
+            "recordDate": "20240618",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 45.48831986051672,
+            "recordDate": "20240728",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 45.349999999999994,
+            "recordDate": "20240113",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 45.28,
+            "recordDate": "20240113",
+            "countryName": "LBN"
+        },
+        {
+            "revenue": 45.23,
+            "recordDate": "20240710",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 45.03999999999999,
+            "recordDate": "20240323",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 44.9,
+            "recordDate": "20240407",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 44.7,
+            "recordDate": "20240604",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 43.800000000000004,
+            "recordDate": "20240705",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 43.5,
+            "recordDate": "20240202",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 43.38999999999999,
+            "recordDate": "20240627",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 43.38000000000001,
+            "recordDate": "20240612",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 43.260000000000005,
+            "recordDate": "20240806",
+            "countryName": "LBN"
+        },
+        {
+            "revenue": 43.120000000000005,
+            "recordDate": "20240617",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 43.099999999999994,
+            "recordDate": "20240607",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 42.970000000000006,
+            "recordDate": "20240531",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 42.96,
+            "recordDate": "20240615",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 42.857057843370626,
+            "recordDate": "20240601",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 42.53030303030303,
+            "recordDate": "20240625",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 42.5,
+            "recordDate": "20240322",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 42.46,
+            "recordDate": "20240628",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 42.0,
+            "recordDate": "20240321",
+            "countryName": "ROU"
+        },
+        {
+            "revenue": 42.0,
+            "recordDate": "20240125",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 42.0,
+            "recordDate": "20240316",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 41.87,
+            "recordDate": "20240313",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 41.710952607386275,
+            "recordDate": "20240731",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 41.7,
+            "recordDate": "20240601",
+            "countryName": "SYR"
+        },
+        {
+            "revenue": 41.61,
+            "recordDate": "20240312",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 41.6,
+            "recordDate": "20240111",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 41.59,
+            "recordDate": "20240401",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 41.3203,
+            "recordDate": "20240322",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 41.260000000000005,
+            "recordDate": "20240712",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 41.25,
+            "recordDate": "20240328",
+            "countryName": "KWT"
+        },
+        {
+            "revenue": 41.18,
+            "recordDate": "20240602",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 41.16,
+            "recordDate": "20240710",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 41.0,
+            "recordDate": "20240810",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 40.9,
+            "recordDate": "20240716",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 40.9,
+            "recordDate": "20240124",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 40.853699999999996,
+            "recordDate": "20240714",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 40.53999999999999,
+            "recordDate": "20240802",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 40.5,
+            "recordDate": "20240716",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 40.3,
+            "recordDate": "20240324",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 40.2,
+            "recordDate": "20240320",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 40.19,
+            "recordDate": "20240722",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 40.0,
+            "recordDate": "20240120",
+            "countryName": "ITA"
+        },
+        {
+            "revenue": 39.85,
+            "recordDate": "20240315",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 39.79,
+            "recordDate": "20240314",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 39.54,
+            "recordDate": "20240308",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 39.42,
+            "recordDate": "20240130",
+            "countryName": "LBN"
+        },
+        {
+            "revenue": 39.42,
+            "recordDate": "20240305",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 39.37,
+            "recordDate": "20240206",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 39.300000000000004,
+            "recordDate": "20240310",
+            "countryName": "USA"
+        },
+        {
+            "revenue": 39.2,
+            "recordDate": "20240709",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 39.11,
+            "recordDate": "20240402",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 38.9,
+            "recordDate": "20240617",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 38.64,
+            "recordDate": "20240723",
+            "countryName": "SYR"
+        },
+        {
+            "revenue": 38.64,
+            "recordDate": "20240318",
+            "countryName": "SYR"
+        },
+        {
+            "revenue": 38.64,
+            "recordDate": "20240802",
+            "countryName": "SYR"
+        },
+        {
+            "revenue": 38.64,
+            "recordDate": "20240117",
+            "countryName": "SYR"
+        },
+        {
+            "revenue": 38.6,
+            "recordDate": "20240128",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 38.54,
+            "recordDate": "20240304",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 38.5,
+            "recordDate": "20240603",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 37.91,
+            "recordDate": "20240102",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 37.83,
+            "recordDate": "20240125",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 37.78,
+            "recordDate": "20240128",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 37.5,
+            "recordDate": "20240313",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 37.25,
+            "recordDate": "20240324",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 36.638334125851955,
+            "recordDate": "20240719",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 36.28,
+            "recordDate": "20240322",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 36.25,
+            "recordDate": "20240705",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 36.16,
+            "recordDate": "20240104",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 36.12214455539705,
+            "recordDate": "20240722",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 36.11,
+            "recordDate": "20240719",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 36.0,
+            "recordDate": "20240325",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 35.42,
+            "recordDate": "20240606",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 35.28,
+            "recordDate": "20240721",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 35.28,
+            "recordDate": "20240404",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 35.28,
+            "recordDate": "20240325",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 35.28,
+            "recordDate": "20240315",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 35.28,
+            "recordDate": "20240622",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 35.1,
+            "recordDate": "20240124",
+            "countryName": "THA"
+        },
+        {
+            "revenue": 34.879999999999995,
+            "recordDate": "20240727",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 34.29,
+            "recordDate": "20240320",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 34.16,
+            "recordDate": "20240204",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 33.57,
+            "recordDate": "20240304",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 33.5,
+            "recordDate": "20240207",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 33.05,
+            "recordDate": "20240603",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 33.05,
+            "recordDate": "20240330",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 33.0,
+            "recordDate": "20240208",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 33.0,
+            "recordDate": "20240614",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 32.47,
+            "recordDate": "20240621",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 32.23,
+            "recordDate": "20240603",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 31.5,
+            "recordDate": "20240131",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 31.46,
+            "recordDate": "20240608",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 31.430000000000003,
+            "recordDate": "20240322",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 31.380000000000003,
+            "recordDate": "20240323",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 31.360000000000007,
+            "recordDate": "20240102",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 31.259999999999998,
+            "recordDate": "20240626",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 31.2,
+            "recordDate": "20240210",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 31.075757575757578,
+            "recordDate": "20240801",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 30.979999999999997,
+            "recordDate": "20240207",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 30.6,
+            "recordDate": "20240331",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 30.1,
+            "recordDate": "20240611",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 30.0,
+            "recordDate": "20240401",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 30.0,
+            "recordDate": "20240315",
+            "countryName": "DEU"
+        },
+        {
+            "revenue": 29.6,
+            "recordDate": "20240324",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 29.599999999999998,
+            "recordDate": "20240606",
+            "countryName": "NGA"
+        },
+        {
+            "revenue": 29.599999999999998,
+            "recordDate": "20240312",
+            "countryName": "NGA"
+        },
+        {
+            "revenue": 29.5,
+            "recordDate": "20240326",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 29.32,
+            "recordDate": "20240210",
+            "countryName": "USA"
+        },
+        {
+            "revenue": 29.0,
+            "recordDate": "20240319",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 28.979999999999997,
+            "recordDate": "20240708",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 28.86,
+            "recordDate": "20240329",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 28.74,
+            "recordDate": "20240614",
+            "countryName": "ETH"
+        },
+        {
+            "revenue": 28.32,
+            "recordDate": "20240614",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 28.269999999999996,
+            "recordDate": "20240602",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 28.0,
+            "recordDate": "20240323",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 27.909999999999997,
+            "recordDate": "20240628",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 27.73,
+            "recordDate": "20240116",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 27.6,
+            "recordDate": "20240608",
+            "countryName": "TUN"
+        },
+        {
+            "revenue": 27.4587,
+            "recordDate": "20240715",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 27.439999999999998,
+            "recordDate": "20240402",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 27.0,
+            "recordDate": "20240731",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 27.0,
+            "recordDate": "20240621",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 27.0,
+            "recordDate": "20240204",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 26.75,
+            "recordDate": "20240607",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 26.75,
+            "recordDate": "20240330",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 26.0,
+            "recordDate": "20240606",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 25.900000000000002,
+            "recordDate": "20240203",
+            "countryName": "USA"
+        },
+        {
+            "revenue": 25.3,
+            "recordDate": "20240623",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 25.14,
+            "recordDate": "20240804",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 24.88,
+            "recordDate": "20240623",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 24.810000000000002,
+            "recordDate": "20240208",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 24.75,
+            "recordDate": "20240404",
+            "countryName": "OMN"
+        },
+        {
+            "revenue": 24.18,
+            "recordDate": "20240615",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 23.91,
+            "recordDate": "20240129",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 23.520000000000003,
+            "recordDate": "20240329",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 23.52,
+            "recordDate": "20240604",
+            "countryName": "NPL"
+        },
+        {
+            "revenue": 23.3,
+            "recordDate": "20240629",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 23.150000000000002,
+            "recordDate": "20240311",
+            "countryName": "BHR"
+        },
+        {
+            "revenue": 23.13,
+            "recordDate": "20240404",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 22.589999999999996,
+            "recordDate": "20240329",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 21.58,
+            "recordDate": "20240311",
+            "countryName": "TUR"
+        },
+        {
+            "revenue": 21.189999999999998,
+            "recordDate": "20240129",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 21.0,
+            "recordDate": "20240607",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 20.93,
+            "recordDate": "20240625",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 20.93,
+            "recordDate": "20240628",
+            "countryName": "IRQ"
+        },
+        {
+            "revenue": 20.31,
+            "recordDate": "20240720",
+            "countryName": "ETH"
+        },
+        {
+            "revenue": 19.9,
+            "recordDate": "20240323",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 19.83,
+            "recordDate": "20240127",
+            "countryName": "KWT"
+        },
+        {
+            "revenue": 19.73,
+            "recordDate": "20240604",
+            "countryName": "IDN"
+        },
+        {
+            "revenue": 19.5,
+            "recordDate": "20240203",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 19.05,
+            "recordDate": "20240622",
+            "countryName": "USA"
+        },
+        {
+            "revenue": 18.5,
+            "recordDate": "20240129",
+            "countryName": "SDN"
+        },
+        {
+            "revenue": 18.42,
+            "recordDate": "20240319",
+            "countryName": "USA"
+        },
+        {
+            "revenue": 18.0,
+            "recordDate": "20240319",
+            "countryName": "AFG"
+        },
+        {
+            "revenue": 17.6,
+            "recordDate": "20240720",
+            "countryName": "USA"
+        },
+        {
+            "revenue": 16.98,
+            "recordDate": "20240403",
+            "countryName": "LBN"
+        },
+        {
+            "revenue": 15.151515151515152,
+            "recordDate": "20240531",
+            "countryName": "JOR"
+        },
+        {
+            "revenue": 13.9,
+            "recordDate": "20240330",
+            "countryName": "SYR"
+        },
+        {
+            "revenue": 13.5,
+            "recordDate": "20240531",
+            "countryName": "PHL"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240411",
+            "countryName": "GBR"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240411",
+            "countryName": "EGY"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240411",
+            "countryName": "USA"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240411",
+            "countryName": "ITA"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240211",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240411",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240411",
+            "countryName": "QAT"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240211",
+            "countryName": "YEM"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240211",
+            "countryName": "PAK"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240211",
+            "countryName": "USA"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240411",
+            "countryName": "ARE"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240211",
+            "countryName": "UGA"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240211",
+            "countryName": "ETH"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240411",
+            "countryName": "ETH"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240411",
+            "countryName": "POL"
+        },
+        {
+            "revenue": 0.0,
+            "recordDate": "20240211",
+            "countryName": "EGY"
+        }
+    ],
+    "lastObjectReferenceId": null
+}

@@ -1,0 +1,55 @@
+{
+    "pageNumber": 1,
+    "recordCount": 6,
+    "dataset": [
+        {
+            "margin_sar": 60643.5903558363,
+            "eventTypeKey": "5",
+            "revenue": 207538.52968591478,
+            "access_cost_sar": 146894.93933005724,
+            "ict_cost_sar": 0.0,
+            "recordDate": "20240809"
+        },
+        {
+            "margin_sar": -324630.88281391136,
+            "eventTypeKey": "1",
+            "revenue": 249965.75138453394,
+            "access_cost_sar": 81654.20841668146,
+            "ict_cost_sar": 492942.4257818064,
+            "recordDate": "20240809"
+        },
+        {
+            "margin_sar": 1206.8375618926682,
+            "eventTypeKey": "2",
+            "revenue": 3717.1675618926047,
+            "access_cost_sar": 1924.8800000001067,
+            "ict_cost_sar": 585.4500000000666,
+            "recordDate": "20240809"
+        },
+        {
+            "margin_sar": 1776.251024285879,
+            "eventTypeKey": "2",
+            "revenue": 4263.091024285819,
+            "access_cost_sar": 1877.739999999904,
+            "ict_cost_sar": 609.1000000000341,
+            "recordDate": "20240810"
+        },
+        {
+            "margin_sar": 56336.89740351041,
+            "eventTypeKey": "5",
+            "revenue": 213550.13998185162,
+            "access_cost_sar": 157213.24257831834,
+            "ict_cost_sar": 0.0,
+            "recordDate": "20240810"
+        },
+        {
+            "margin_sar": -284524.8269939907,
+            "eventTypeKey": "1",
+            "revenue": 241073.11262760928,
+            "access_cost_sar": 90491.91558333795,
+            "ict_cost_sar": 435106.02403826924,
+            "recordDate": "20240810"
+        }
+    ],
+    "lastObjectReferenceId": null
+}

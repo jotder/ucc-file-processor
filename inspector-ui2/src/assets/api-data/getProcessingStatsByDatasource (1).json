@@ -1,0 +1,156 @@
+{
+    "returnCode": "200",
+    "message": "",
+    "Payload": [
+        {
+            "recCount": 6892724784,
+            "fileSize": 739435560160,
+            "datasource": "Overall",
+            "fileCount": 2988878
+        },
+        {
+            "recCount": 13120,
+            "fileSize": 3519269,
+            "datasource": "cbs_subscription_com",
+            "fileCount": 11640
+        },
+        {
+            "recCount": 191734,
+            "fileSize": 15861020,
+            "datasource": "cbs_ar_payment_test",
+            "fileCount": 4
+        },
+        {
+            "recCount": 254465,
+            "fileSize": 71693700,
+            "datasource": "inf_offers",
+            "fileCount": 4
+        },
+        {
+            "recCount": 0,
+            "fileSize": 650349,
+            "datasource": "wallet_evd_transactions",
+            "fileCount": 1
+        },
+        {
+            "recCount": 354109504,
+            "fileSize": 78933363489,
+            "datasource": "huw_med_msc",
+            "fileCount": 390609
+        },
+        {
+            "recCount": 1243377,
+            "fileSize": 196747652,
+            "datasource": "cbs_sms",
+            "fileCount": 312087
+        },
+        {
+            "recCount": 151197593,
+            "fileSize": 17715825646,
+            "datasource": "cbs_voice",
+            "fileCount": 356471
+        },
+        {
+            "recCount": 376145837,
+            "fileSize": 31364737913,
+            "datasource": "smsc_mt",
+            "fileCount": 43688
+        },
+        {
+            "recCount": 6196,
+            "fileSize": 3325532,
+            "datasource": "cbs_adj",
+            "fileCount": 5708
+        },
+        {
+            "recCount": 58654,
+            "fileSize": 8479257,
+            "datasource": "cbs_transfer",
+            "fileCount": 29329
+        },
+        {
+            "recCount": 181103573,
+            "fileSize": 29489462024,
+            "datasource": "crm_consolidate",
+            "fileCount": 14
+        },
+        {
+            "recCount": 93551831,
+            "fileSize": 3838931439,
+            "datasource": "sdp_pe_free_unit",
+            "fileCount": 941
+        },
+        {
+            "recCount": 75613902,
+            "fileSize": 3121314639,
+            "datasource": "bc_offering",
+            "fileCount": 757
+        },
+        {
+            "recCount": 2320149,
+            "fileSize": 207725883,
+            "datasource": "cbs_recurring",
+            "fileCount": 206542
+        },
+        {
+            "recCount": 709722,
+            "fileSize": 123394036,
+            "datasource": "cbs_recharge",
+            "fileCount": 152395
+        },
+        {
+            "recCount": 217548756,
+            "fileSize": 22661963958,
+            "datasource": "cbs_gprs",
+            "fileCount": 508469
+        },
+        {
+            "recCount": 1732064,
+            "fileSize": 25844717,
+            "datasource": "edch-tap",
+            "fileCount": 1729
+        },
+        {
+            "recCount": 1080914720,
+            "fileSize": 288163465283,
+            "datasource": "huw_sgsn_unl",
+            "fileCount": 280813
+        },
+        {
+            "recCount": 185809,
+            "fileSize": 30462841,
+            "datasource": "cbs_subscription_cm",
+            "fileCount": 109812
+        },
+        {
+            "recCount": 3170041556,
+            "fileSize": 220488458323,
+            "datasource": "ggsn",
+            "fileCount": 524539
+        },
+        {
+            "recCount": 823956798,
+            "fileSize": 25534954422,
+            "datasource": "sdp_snapshot",
+            "fileCount": 8282
+        },
+        {
+            "recCount": 773601,
+            "fileSize": 63466951,
+            "datasource": "cbs_ar_payment",
+            "fileCount": 15
+        },
+        {
+            "recCount": 291353193,
+            "fileSize": 16995811497,
+            "datasource": "smsc_mo",
+            "fileCount": 44324
+        },
+        {
+            "recCount": 69698630,
+            "fileSize": 376100320,
+            "datasource": "cbs_available_credit",
+            "fileCount": 705
+        }
+    ]
+}

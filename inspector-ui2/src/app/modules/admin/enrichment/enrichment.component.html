@@ -1,0 +1,122 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <div class="text-3xl font-extrabold leading-none tracking-tight">Enrichment</div>
+            <div class="text-secondary mt-1.5">Stage-2 jobs: runs, lineage and rollup reports</div>
+        </div>
+        <div class="mt-4 flex items-center gap-3 sm:mt-0">
+            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                <mat-label>Search</mat-label>
+                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
+            </mat-form-field>
+            <button mat-stroked-button (click)="load()">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                <span class="ml-2">Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        @if (unavailable) {
+            <div class="text-secondary rounded-2xl border-2 border-dashed border-gray-300 p-8 dark:border-gray-600">
+                No enrichment jobs are registered.
+            </div>
+        } @else {
+            <ag-grid-angular
+                class="h-80 w-full"
+                [theme]="themeSvc.theme()"
+                [rowData]="jobs"
+                [columnDefs]="jobColumns"
+                [defaultColDef]="defaultColDef"
+                [pagination]="true"
+                [paginationPageSize]="10"
+                [quickFilterText]="quickFilter"
+                [loading]="loading"
+                rowSelection="single"
+                (rowClicked)="onRowClick($event)"
+            ></ag-grid-angular>
+        }
+
+        @if (selected) {
+            <div class="mt-8">
+                <div class="text-xl font-semibold">{{ selected.name }}</div>
+                <mat-tab-group [(selectedIndex)]="selectedIndex" (selectedIndexChange)="onTabChange()">
+                    @for (t of tabs; track t.id) {
+                        <mat-tab [label]="t.label"></mat-tab>
+                    }
+                </mat-tab-group>
+
+                @if (activeTab === 'lineage') {
+                    <div class="mt-4 flex items-center gap-3">
+                        <mat-form-field class="gamma-mat-dense w-72" subscriptSizing="dynamic">
+                            <mat-label>Run id (optional)</mat-label>
+                            <input matInput [(ngModel)]="lineageRunId" placeholder="filter by run id" />
+                        </mat-form-field>
+                        <button mat-flat-button color="primary" (click)="loadTab()">Apply</button>
+                    </div>
+                }
+
+                @if (activeTab === 'report') {
+                    <div class="mt-4 flex flex-wrap items-center gap-3">
+                        <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                            <mat-label>From</mat-label>
+                            <input matInput [matDatepicker]="fromPicker" [(ngModel)]="from" />
+                            <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+                            <mat-datepicker #fromPicker></mat-datepicker>
+                        </mat-form-field>
+                        <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                            <mat-label>To</mat-label>
+                            <input matInput [matDatepicker]="toPicker" [(ngModel)]="to" />
+                            <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
+                            <mat-datepicker #toPicker></mat-datepicker>
+                        </mat-form-field>
+                        <button mat-flat-button color="primary" (click)="loadReport()">Run report</button>
+                    </div>
+                }
+
+                @if (detailLoading) {
+                    <div class="mt-4 flex items-center gap-3">
+                        <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+                        <span class="text-secondary">Loading…</span>
+                    </div>
+                }
+
+                @if (activeTab === 'report' && report && !detailLoading) {
+                    <table class="mt-6 w-fit text-sm [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left">
+                        <tbody>
+                            <tr class="border-b">
+                                <th>Total runs</th><td>{{ report.totalRuns }}</td>
+                                <th>Success</th><td>{{ report.success }}</td>
+                                <th>Failed</th><td>{{ report.failed }}</td>
+                            </tr>
+                            <tr class="border-b">
+                                <th>Error rate</th><td>{{ (report.errorRate * 100).toFixed(1) }}%</td>
+                                <th>Output rows</th><td>{{ report.totalOutputRows }}</td>
+                                <th>Output files</th><td>{{ report.totalOutputFiles ?? '—' }}</td>
+                            </tr>
+                            <tr>
+                                <th>p50 (ms)</th><td>{{ report.p50DurationMs }}</td>
+                                <th>p95 (ms)</th><td>{{ report.p95DurationMs }}</td>
+                                <th>p99 (ms)</th><td>{{ report.p99DurationMs }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                }
+
+                @if (activeTab !== 'report' && !detailLoading) {
+                    <ag-grid-angular
+                        class="mt-4 h-96 w-full"
+                        [theme]="themeSvc.theme()"
+                        [rowData]="rows"
+                        [columnDefs]="detailColumns"
+                        [defaultColDef]="defaultColDef"
+                        [pagination]="true"
+                        [paginationPageSize]="25"
+                    ></ag-grid-angular>
+                }
+            </div>
+        }
+    </div>
+</div>

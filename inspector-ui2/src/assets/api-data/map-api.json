@@ -1,0 +1,94 @@
+{
+    "returnCode": "200",
+    "message": "",
+    "Payload": [
+        {
+            "cellIds": [
+                {
+                    "mou": 203.83333333333334,
+                    "cgiId": "108613031",
+                    "cellName": "13031",
+                    "count": 30,
+                    "pulse": 217,
+                    "cellId": "13031",
+                    "type": "2G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 35.016666666666666,
+                    "cgiId": "108613032",
+                    "cellName": "13032",
+                    "count": 1,
+                    "pulse": 36,
+                    "cellId": "13032",
+                    "type": "2G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 62.146666666666666,
+                    "cgiId": "108613032",
+                    "cellName": "13033",
+                    "count": 2,
+                    "pulse": 33,
+                    "cellId": "13032",
+                    "type": "2G",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 300.85000000000002,
+            "city": "Riyadh",
+            "latitude": 24.68878,
+            "count": 33,
+            "siteName": "",
+            "siteId": "1461",
+            "weight": 238.85000000000002,
+            "state": "Arriyadh",
+            "region": "Arriyadh",
+            "longitude": 46.68789
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 508.7,
+                    "cgiId": "123108971",
+                    "cellName": "DWAIM7-B2",
+                    "count": 184,
+                    "pulse": 610,
+                    "cellId": "8971",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 962.0166666666667,
+                    "cgiId": "123108972",
+                    "cellName": "DWAIM7-A1",
+                    "count": 297,
+                    "pulse": 1118,
+                    "cellId": "8972",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 972.2333333333333,
+                    "cgiId": "123108973",
+                    "cellName": "DWAIM7-C1",
+                    "count": 267,
+                    "pulse": 1115,
+                    "cellId": "8973",
+                    "type": "3G",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 2430.883333333333,
+            "city": "Riyadh",
+            "latitude": 24.78608,
+            "count": 4017,
+            "siteName": "DWAIM7",
+            "siteId": "5816",
+            "weight": 11847.883333333333,
+            "state": "Arriyadh",
+            "region": "Arriyadh",
+            "longitude": 46.83986
+        }
+    ]
+}

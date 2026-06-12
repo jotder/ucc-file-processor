@@ -1,0 +1,74 @@
+{
+    "returnCode": "200",
+    "message": "",
+    "Payload": [
+        {
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "nodes": [
+                {
+                    "isBookmarked": false,
+                    "isAccessible": true,
+                    "lastAccessTime": "",
+                    "nodes": [],
+                    "tag_type": "child",
+                    "name": "Daily MSC vs CCN Matcher",
+                    "id": "RS1001",
+                    "tid": "1.1",
+                    "url": "",
+                    "desc": "Daily MSC vs CCN Matcher Reports",
+                    "tags": "0"
+                },
+                {
+                    "isBookmarked": false,
+                    "isAccessible": true,
+                    "lastAccessTime": "",
+                    "nodes": [],
+                    "tag_type": "child",
+                    "name": "Incoming Calls per Trunk Group",
+                    "id": "RS1002",
+                    "tid": "1.2",
+                    "url": "",
+                    "desc": "Incoming Calls per Trunk Group Reports",
+                    "tags": "0"
+                }
+            ],
+            "tag_type": "parent",
+            "name": "MSC",
+            "id": "",
+            "tid": "1",
+            "url": "",
+            "desc": "MSC Reports",
+            "tags": "1"
+        },
+        {
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "nodes": [
+                {
+                    "isBookmarked": false,
+                    "isAccessible": true,
+                    "lastAccessTime": "",
+                    "nodes": [],
+                    "tag_type": "child",
+                    "name": "Revenue Report",
+                    "id": "RS3001",
+                    "tid": "2.1",
+                    "url": "",
+                    "desc": "Revenue Report",
+                    "tags": "0"
+                }
+            ],
+            "tag_type": "parent",
+            "name": "Revenue",
+            "id": "",
+            "tid": "2",
+            "url": "",
+            "desc": "Revenue Reports",
+            "tags": "2"
+        }
+     
+    ]
+}

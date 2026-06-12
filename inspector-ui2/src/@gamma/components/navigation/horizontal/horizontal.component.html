@@ -1,0 +1,37 @@
+<div class="gamma-horizontal-navigation-wrapper">
+    @for (item of navigation; track trackByFn($index, item)) {
+        <!-- Skip the hidden items -->
+        @if ((item.hidden && !item.hidden(item)) || !item.hidden) {
+            <!-- Basic -->
+            @if (item.type === 'basic') {
+                <gamma-horizontal-navigation-basic-item
+                    class="gamma-horizontal-navigation-menu-item"
+                    [item]="item"
+                    [name]="name"
+                ></gamma-horizontal-navigation-basic-item>
+            }
+
+            <!-- Branch: aside, collapsable, group -->
+            @if (
+                item.type === 'aside' ||
+                item.type === 'collapsable' ||
+                item.type === 'group'
+            ) {
+                <gamma-horizontal-navigation-branch-item
+                    class="gamma-horizontal-navigation-menu-item"
+                    [item]="item"
+                    [name]="name"
+                ></gamma-horizontal-navigation-branch-item>
+            }
+
+            <!-- Spacer -->
+            @if (item.type === 'spacer') {
+                <gamma-horizontal-navigation-spacer-item
+                    class="gamma-horizontal-navigation-menu-item"
+                    [item]="item"
+                    [name]="name"
+                ></gamma-horizontal-navigation-spacer-item>
+            }
+        }
+    }
+</div>

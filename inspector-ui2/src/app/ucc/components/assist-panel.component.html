@@ -1,0 +1,161 @@
+<div class="flex flex-col gap-3">
+    @if (!hideInput) {
+        <div>
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <textarea matInput rows="3" [(ngModel)]="userText" [placeholder]="placeholder"></textarea>
+            </mat-form-field>
+            <div class="mt-2 flex items-center justify-end gap-4">
+                @if (isSql) {
+                    <mat-checkbox [(ngModel)]="wantSample">include sample rows</mat-checkbox>
+                }
+                <button mat-flat-button color="primary" [disabled]="loading" (click)="run()">
+                    <mat-icon svgIcon="heroicons_outline:chat-bubble-left-ellipsis"></mat-icon>
+                    <span class="ml-2">Ask</span>
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (loading) {
+        <div class="flex items-center gap-3">
+            <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+            <span class="text-secondary">Asking the agent…</span>
+        </div>
+    }
+
+    @if (result && !loading) {
+        <div class="flex flex-col gap-2">
+            <p class="font-medium">{{ result.answer }}</p>
+            <p class="text-secondary text-sm">
+                status <b>{{ result.status }}</b> ·
+                confidence {{ (result.confidence * 100).toFixed(0) }}% ·
+                {{ result.validated ? 'validated' : 'unvalidated' }}
+                @if (!result.applyVia) {
+                    <span>· draft only</span>
+                }
+            </p>
+            @if (result.message) {
+                <p class="text-sm">{{ result.message }}</p>
+            }
+            @if (result.rationale) {
+                <p class="text-secondary text-sm italic">{{ result.rationale }}</p>
+            }
+            @if (humanReadable) {
+                <p>{{ humanReadable }}</p>
+            }
+            @if (narrative) {
+                <div class="whitespace-pre-wrap">{{ narrative }}</div>
+            }
+
+            <!-- SQL -->
+            @if (sql) {
+                <div>
+                    <div class="flex items-center justify-between font-semibold">
+                        SQL
+                        <button mat-icon-button (click)="copy(sql)">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:clipboard-document"></mat-icon>
+                        </button>
+                    </div>
+                    <pre class="overflow-auto rounded bg-gray-100 p-3 text-xs dark:bg-gray-800">{{ sql }}</pre>
+                </div>
+            }
+
+            <!-- sample rows -->
+            @if (sampleRows.length) {
+                <div>
+                    <div class="font-semibold">Sample rows ({{ sampleRows.length }})</div>
+                    <div class="mt-1 overflow-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr>
+                                    @for (c of sampleColumns; track c) {
+                                        <th class="border-b px-2 py-1 text-left">{{ c }}</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (r of sampleRows; track $index) {
+                                    <tr>
+                                        @for (c of sampleColumns; track c) {
+                                            <td class="border-b px-2 py-1">{{ cell(r, c) }}</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            <!-- draft toon -->
+            @if (draftToon) {
+                <div>
+                    <div class="flex items-center justify-between font-semibold">
+                        Draft config (.toon)
+                        <button mat-icon-button (click)="copy(draftToon)">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:clipboard-document"></mat-icon>
+                        </button>
+                    </div>
+                    <pre class="overflow-auto rounded bg-gray-100 p-3 text-xs dark:bg-gray-800">{{ draftToon }}</pre>
+                </div>
+            }
+
+            <!-- next runs -->
+            @if (nextRuns.length) {
+                <div>
+                    <div class="font-semibold">Next runs</div>
+                    <ul class="mt-1 list-inside list-disc text-sm">
+                        @for (r of nextRuns; track r) {
+                            <li>{{ r }}</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <!-- findings -->
+            @if (findings.length) {
+                <div>
+                    <div class="font-semibold">Findings</div>
+                    <table class="mt-1 w-full text-xs">
+                        <thead>
+                            <tr>
+                                <th class="border-b px-2 py-1 text-left">Severity</th>
+                                <th class="border-b px-2 py-1 text-left">Field</th>
+                                <th class="border-b px-2 py-1 text-left">Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (f of findings; track $index) {
+                                <tr>
+                                    <td class="border-b px-2 py-1">{{ f.severity }}</td>
+                                    <td class="border-b px-2 py-1">{{ f.fieldPath }}</td>
+                                    <td class="border-b px-2 py-1">{{ f.message }}</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <!-- citations / links -->
+            @if (result.citations?.length || result.links?.length) {
+                <div class="flex flex-wrap items-center gap-2">
+                    @for (c of result.citations; track c) {
+                        <span class="rounded-full bg-gray-200 px-3 py-0.5 text-xs dark:bg-gray-700">
+                            {{ c.source }}: {{ c.ref }}
+                        </span>
+                    }
+                    @for (l of result.links; track l) {
+                        <a class="text-primary text-xs underline" [href]="l" target="_blank" rel="noopener">{{ l }}</a>
+                    }
+                </div>
+            }
+
+            <!-- raw fallback -->
+            <details>
+                <summary class="text-secondary cursor-pointer text-sm">Raw data</summary>
+                <pre class="overflow-auto rounded bg-gray-100 p-3 text-xs dark:bg-gray-800">{{ pretty(result.data) }}</pre>
+            </details>
+        </div>
+    }
+</div>

@@ -1,0 +1,6486 @@
+{
+    "returnCode": "200",
+    "message": "",
+    "Payload": [
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subquota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "data_mediated"
+        },
+        {
+            "recCount": 76018708,
+            "fileSize": 20260886504,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 19907
+        },
+        {
+            "recCount": 69225736,
+            "fileSize": 18465166580,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 18651
+        },
+        {
+            "recCount": 76062136,
+            "fileSize": 20279028765,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 19460
+        },
+        {
+            "recCount": 77141849,
+            "fileSize": 20565903824,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 19834
+        },
+        {
+            "recCount": 76612597,
+            "fileSize": 20418650365,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 19726
+        },
+        {
+            "recCount": 76655812,
+            "fileSize": 20431632063,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 19645
+        },
+        {
+            "recCount": 75270762,
+            "fileSize": 20064626457,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 19552
+        },
+        {
+            "recCount": 76149673,
+            "fileSize": 20299053935,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 19715
+        },
+        {
+            "recCount": 69775221,
+            "fileSize": 18611354444,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 18451
+        },
+        {
+            "recCount": 74781510,
+            "fileSize": 19937487727,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 19340
+        },
+        {
+            "recCount": 74954183,
+            "fileSize": 19980667217,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 19503
+        },
+        {
+            "recCount": 75358644,
+            "fileSize": 20088378730,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 19625
+        },
+        {
+            "recCount": 69839367,
+            "fileSize": 18618536585,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 18129
+        },
+        {
+            "recCount": 76547898,
+            "fileSize": 20402860416,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 19783
+        },
+        {
+            "recCount": 36217564,
+            "fileSize": 9657227618,
+            "datasource": "huw_sgsn_unl",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 9140
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hur"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_quota"
+        },
+        {
+            "recCount": 49816,
+            "fileSize": 8722307,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 10983
+        },
+        {
+            "recCount": 50379,
+            "fileSize": 8636486,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 10413
+        },
+        {
+            "recCount": 46766,
+            "fileSize": 8245452,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 10587
+        },
+        {
+            "recCount": 49842,
+            "fileSize": 8705418,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 10795
+        },
+        {
+            "recCount": 54891,
+            "fileSize": 9429320,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 11176
+        },
+        {
+            "recCount": 53262,
+            "fileSize": 9177829,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 10941
+        },
+        {
+            "recCount": 51184,
+            "fileSize": 8866098,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 10827
+        },
+        {
+            "recCount": 52479,
+            "fileSize": 8991971,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 10743
+        },
+        {
+            "recCount": 55186,
+            "fileSize": 9278786,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 10421
+        },
+        {
+            "recCount": 47712,
+            "fileSize": 8331480,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 10373
+        },
+        {
+            "recCount": 47025,
+            "fileSize": 8205542,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 10278
+        },
+        {
+            "recCount": 46656,
+            "fileSize": 8156379,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 10295
+        },
+        {
+            "recCount": 42820,
+            "fileSize": 7467459,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 9351
+        },
+        {
+            "recCount": 46432,
+            "fileSize": 8194948,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 10426
+        },
+        {
+            "recCount": 15148,
+            "fileSize": 2962479,
+            "datasource": "cbs_recharge",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 4754
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_subs_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_postpaid_billing"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_device_cdr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "fileSize": 650349,
+            "datasource": "wallet_evd_transactions",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "wallet_evd_transactions"
+        },
+        {
+            "recCount": 14636671,
+            "fileSize": 1535815295,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 34976
+        },
+        {
+            "recCount": 13710163,
+            "fileSize": 1428556826,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 35098
+        },
+        {
+            "recCount": 16109288,
+            "fileSize": 1645928478,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 35233
+        },
+        {
+            "recCount": 16236482,
+            "fileSize": 1656064811,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 35235
+        },
+        {
+            "recCount": 17038421,
+            "fileSize": 1818260869,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 36777
+        },
+        {
+            "recCount": 16168791,
+            "fileSize": 1649074746,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 34911
+        },
+        {
+            "recCount": 14476536,
+            "fileSize": 1517902780,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 34949
+        },
+        {
+            "recCount": 14735474,
+            "fileSize": 1549823559,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 35086
+        },
+        {
+            "recCount": 14153278,
+            "fileSize": 1470579672,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 34985
+        },
+        {
+            "recCount": 14882588,
+            "fileSize": 1548241473,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 34933
+        },
+        {
+            "recCount": 14654959,
+            "fileSize": 1535144507,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 35047
+        },
+        {
+            "recCount": 14709128,
+            "fileSize": 1536122213,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 34955
+        },
+        {
+            "recCount": 13458952,
+            "fileSize": 1410446830,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 32395
+        },
+        {
+            "recCount": 14702908,
+            "fileSize": 1542999050,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 35046
+        },
+        {
+            "recCount": 7854624,
+            "fileSize": 814873779,
+            "datasource": "cbs_gprs",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 18792
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_ggsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_dealer"
+        },
+        {
+            "recCount": 220387041,
+            "fileSize": 15419529505,
+            "datasource": "ggsn",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 36650
+        },
+        {
+            "recCount": 221640054,
+            "fileSize": 15107651900,
+            "datasource": "ggsn",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 37811
+        },
+        {
+            "recCount": 226677494,
+            "fileSize": 15644645081,
+            "datasource": "ggsn",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 37153
+        },
+        {
+            "recCount": 220666782,
+            "fileSize": 15392954606,
+            "datasource": "ggsn",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 37160
+        },
+        {
+            "recCount": 216308269,
+            "fileSize": 15207975017,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 35589
+        },
+        {
+            "recCount": 218363867,
+            "fileSize": 15265087053,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 35366
+        },
+        {
+            "recCount": 218416351,
+            "fileSize": 15228583067,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 35512
+        },
+        {
+            "recCount": 220117192,
+            "fileSize": 15349946725,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 36585
+        },
+        {
+            "recCount": 225007355,
+            "fileSize": 15285973954,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 38561
+        },
+        {
+            "recCount": 221357513,
+            "fileSize": 15345425504,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 36086
+        },
+        {
+            "recCount": 220394000,
+            "fileSize": 15322948295,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 35902
+        },
+        {
+            "recCount": 217946590,
+            "fileSize": 15229546756,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 35649
+        },
+        {
+            "recCount": 202598258,
+            "fileSize": 14149663184,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 34169
+        },
+        {
+            "recCount": 221883671,
+            "fileSize": 15476093900,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 36906
+        },
+        {
+            "recCount": 98044278,
+            "fileSize": 7046666799,
+            "datasource": "ggsn",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 15410
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_manlog"
+        },
+        {
+            "recCount": 545,
+            "fileSize": 292205,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 504
+        },
+        {
+            "recCount": 380,
+            "fileSize": 203917,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 344
+        },
+        {
+            "recCount": 430,
+            "fileSize": 231176,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 392
+        },
+        {
+            "recCount": 487,
+            "fileSize": 262058,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 448
+        },
+        {
+            "recCount": 541,
+            "fileSize": 291086,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 483
+        },
+        {
+            "recCount": 498,
+            "fileSize": 267034,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 456
+        },
+        {
+            "recCount": 461,
+            "fileSize": 246806,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 428
+        },
+        {
+            "recCount": 454,
+            "fileSize": 243766,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 419
+        },
+        {
+            "recCount": 399,
+            "fileSize": 214333,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 360
+        },
+        {
+            "recCount": 379,
+            "fileSize": 203603,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 357
+        },
+        {
+            "recCount": 369,
+            "fileSize": 198486,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 346
+        },
+        {
+            "recCount": 375,
+            "fileSize": 201113,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 351
+        },
+        {
+            "recCount": 358,
+            "fileSize": 191484,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 334
+        },
+        {
+            "recCount": 383,
+            "fileSize": 205485,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 354
+        },
+        {
+            "recCount": 135,
+            "fileSize": 71887,
+            "datasource": "cbs_adj",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 130
+        },
+        {
+            "recCount": 12584,
+            "fileSize": 2101947,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 7666
+        },
+        {
+            "recCount": 12988,
+            "fileSize": 2123645,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 7639
+        },
+        {
+            "recCount": 12033,
+            "fileSize": 2014913,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 7358
+        },
+        {
+            "recCount": 12426,
+            "fileSize": 2069409,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 7534
+        },
+        {
+            "recCount": 13704,
+            "fileSize": 2230767,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 8030
+        },
+        {
+            "recCount": 13677,
+            "fileSize": 2221386,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 7921
+        },
+        {
+            "recCount": 13090,
+            "fileSize": 2145975,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 7717
+        },
+        {
+            "recCount": 13107,
+            "fileSize": 2138180,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 7675
+        },
+        {
+            "recCount": 13863,
+            "fileSize": 2232391,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 7984
+        },
+        {
+            "recCount": 12931,
+            "fileSize": 2113548,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 7622
+        },
+        {
+            "recCount": 12728,
+            "fileSize": 2084774,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 7509
+        },
+        {
+            "recCount": 12647,
+            "fileSize": 2047376,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 7318
+        },
+        {
+            "recCount": 11689,
+            "fileSize": 1926217,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 6979
+        },
+        {
+            "recCount": 12805,
+            "fileSize": 2089500,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 7472
+        },
+        {
+            "recCount": 5505,
+            "fileSize": 917254,
+            "datasource": "cbs_subscription_cm",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 3367
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "voice_mediated"
+        },
+        {
+            "recCount": 119368,
+            "fileSize": 1742290,
+            "datasource": "edch-tap",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 128
+        },
+        {
+            "recCount": 108743,
+            "fileSize": 1653475,
+            "datasource": "edch-tap",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 113
+        },
+        {
+            "recCount": 97914,
+            "fileSize": 1510862,
+            "datasource": "edch-tap",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 112
+        },
+        {
+            "recCount": 126726,
+            "fileSize": 1923074,
+            "datasource": "edch-tap",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 111
+        },
+        {
+            "recCount": 79728,
+            "fileSize": 1299016,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 120
+        },
+        {
+            "recCount": 150880,
+            "fileSize": 2157897,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 125
+        },
+        {
+            "recCount": 116832,
+            "fileSize": 1746729,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 125
+        },
+        {
+            "recCount": 130698,
+            "fileSize": 1949627,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 123
+        },
+        {
+            "recCount": 87029,
+            "fileSize": 1306819,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 128
+        },
+        {
+            "recCount": 88210,
+            "fileSize": 1345989,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 115
+        },
+        {
+            "recCount": 125207,
+            "fileSize": 1900710,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 122
+        },
+        {
+            "recCount": 107796,
+            "fileSize": 1631012,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 116
+        },
+        {
+            "recCount": 169119,
+            "fileSize": 2421651,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 117
+        },
+        {
+            "recCount": 125115,
+            "fileSize": 1850333,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 114
+        },
+        {
+            "recCount": 98699,
+            "fileSize": 1405233,
+            "datasource": "edch-tap",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 60
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_service"
+        },
+        {
+            "recCount": 3990,
+            "fileSize": 579208,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 1990
+        },
+        {
+            "recCount": 4302,
+            "fileSize": 621656,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 2145
+        },
+        {
+            "recCount": 3658,
+            "fileSize": 543256,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 1902
+        },
+        {
+            "recCount": 3846,
+            "fileSize": 561089,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 1947
+        },
+        {
+            "recCount": 4532,
+            "fileSize": 644375,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 2205
+        },
+        {
+            "recCount": 4214,
+            "fileSize": 617723,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 2143
+        },
+        {
+            "recCount": 3930,
+            "fileSize": 581862,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 2031
+        },
+        {
+            "recCount": 3898,
+            "fileSize": 561826,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 1940
+        },
+        {
+            "recCount": 5220,
+            "fileSize": 724180,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 2439
+        },
+        {
+            "recCount": 4282,
+            "fileSize": 597569,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 2043
+        },
+        {
+            "recCount": 3986,
+            "fileSize": 573677,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 1991
+        },
+        {
+            "recCount": 3856,
+            "fileSize": 562243,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 1967
+        },
+        {
+            "recCount": 3674,
+            "fileSize": 538896,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 1883
+        },
+        {
+            "recCount": 3742,
+            "fileSize": 542282,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 1878
+        },
+        {
+            "recCount": 1514,
+            "fileSize": 227484,
+            "datasource": "cbs_transfer",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 817
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_epin"
+        },
+        {
+            "recCount": 52079,
+            "fileSize": 4242871,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 52775,
+            "fileSize": 4331014,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 48898,
+            "fileSize": 4012930,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 52299,
+            "fileSize": 4260660,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 57079,
+            "fileSize": 4651675,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 55728,
+            "fileSize": 4562397,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 53486,
+            "fileSize": 4387586,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 54966,
+            "fileSize": 4502386,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 57706,
+            "fileSize": 4740307,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 49708,
+            "fileSize": 4092234,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 49120,
+            "fileSize": 4043638,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 48503,
+            "fileSize": 3996412,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 47817,
+            "fileSize": 3942687,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 48163,
+            "fileSize": 3968056,
+            "datasource": "cbs_ar_payment",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment"
+        },
+        {
+            "recCount": 26509591,
+            "fileSize": 5901592271,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 27861
+        },
+        {
+            "recCount": 22869400,
+            "fileSize": 5082663622,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 25854
+        },
+        {
+            "recCount": 26859732,
+            "fileSize": 5958438049,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 26431
+        },
+        {
+            "recCount": 22943203,
+            "fileSize": 5134399145,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 27011
+        },
+        {
+            "recCount": 23846667,
+            "fileSize": 5335482735,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 28650
+        },
+        {
+            "recCount": 23196887,
+            "fileSize": 5196619553,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 27661
+        },
+        {
+            "recCount": 22427604,
+            "fileSize": 5030315505,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 27427
+        },
+        {
+            "recCount": 22026596,
+            "fileSize": 4960461457,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 27155
+        },
+        {
+            "recCount": 24697085,
+            "fileSize": 5478528046,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 25696
+        },
+        {
+            "recCount": 25739426,
+            "fileSize": 5724911371,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 26066
+        },
+        {
+            "recCount": 25767292,
+            "fileSize": 5738298021,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 26967
+        },
+        {
+            "recCount": 27969282,
+            "fileSize": 6202764064,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 27626
+        },
+        {
+            "recCount": 22370418,
+            "fileSize": 4993699201,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 25198
+        },
+        {
+            "recCount": 26942544,
+            "fileSize": 5985253434,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 27520
+        },
+        {
+            "recCount": 9905179,
+            "fileSize": 2200869185,
+            "datasource": "huw_med_msc",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 13345
+        },
+        {
+            "recCount": 29160668,
+            "fileSize": 2473426413,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 3413
+        },
+        {
+            "recCount": 25210438,
+            "fileSize": 2077996606,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 2965
+        },
+        {
+            "recCount": 27262875,
+            "fileSize": 2264484735,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 3240
+        },
+        {
+            "recCount": 24095027,
+            "fileSize": 2005205514,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 2777
+        },
+        {
+            "recCount": 25975863,
+            "fileSize": 2065266919,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 3010
+        },
+        {
+            "recCount": 24200996,
+            "fileSize": 1948726631,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 2830
+        },
+        {
+            "recCount": 23730992,
+            "fileSize": 1922273126,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 2696
+        },
+        {
+            "recCount": 23465553,
+            "fileSize": 2033489095,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 2658
+        },
+        {
+            "recCount": 25030747,
+            "fileSize": 2112613119,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 2985
+        },
+        {
+            "recCount": 26818030,
+            "fileSize": 2262950142,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 3142
+        },
+        {
+            "recCount": 26894367,
+            "fileSize": 2346135949,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 3100
+        },
+        {
+            "recCount": 30732817,
+            "fileSize": 2499634145,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 3573
+        },
+        {
+            "recCount": 24602692,
+            "fileSize": 2018886624,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 2805
+        },
+        {
+            "recCount": 27876724,
+            "fileSize": 2369249215,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 3198
+        },
+        {
+            "recCount": 11072238,
+            "fileSize": 962833198,
+            "datasource": "smsc_mt",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 1294
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recharge_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscription"
+        },
+        {
+            "recCount": 23353565,
+            "fileSize": 1386647204,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 3535
+        },
+        {
+            "recCount": 18352526,
+            "fileSize": 1096628335,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 2816
+        },
+        {
+            "recCount": 22630710,
+            "fileSize": 1246474640,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 3455
+        },
+        {
+            "recCount": 19126080,
+            "fileSize": 1102016578,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 2893
+        },
+        {
+            "recCount": 19534094,
+            "fileSize": 1064788720,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 2967
+        },
+        {
+            "recCount": 18866645,
+            "fileSize": 1030385348,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 2894
+        },
+        {
+            "recCount": 17704621,
+            "fileSize": 992542832,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 2688
+        },
+        {
+            "recCount": 16750449,
+            "fileSize": 1117628089,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 2562
+        },
+        {
+            "recCount": 19727983,
+            "fileSize": 1167515873,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 3023
+        },
+        {
+            "recCount": 21183135,
+            "fileSize": 1234670868,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 3250
+        },
+        {
+            "recCount": 22060886,
+            "fileSize": 1361935284,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 3317
+        },
+        {
+            "recCount": 24175173,
+            "fileSize": 1311896757,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 3660
+        },
+        {
+            "recCount": 17829883,
+            "fileSize": 1035829268,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 2716
+        },
+        {
+            "recCount": 22105980,
+            "fileSize": 1292078158,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 3282
+        },
+        {
+            "recCount": 7948289,
+            "fileSize": 554371023,
+            "datasource": "smsc_mo",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 1265
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_cust_all"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supplied"
+        },
+        {
+            "recCount": 139655,
+            "fileSize": 11618149,
+            "datasource": "cbs_ar_payment_test",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 3
+        },
+        {
+            "recCount": 52079,
+            "fileSize": 4242871,
+            "datasource": "cbs_ar_payment_test",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_ar_payment_test"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "med_tapin"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_msc"
+        },
+        {
+            "recCount": 10266760,
+            "fileSize": 1201506596,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 23042
+        },
+        {
+            "recCount": 8930971,
+            "fileSize": 1046607337,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 23044
+        },
+        {
+            "recCount": 9752019,
+            "fileSize": 1142072998,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 23046
+        },
+        {
+            "recCount": 9992666,
+            "fileSize": 1170695985,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 23045
+        },
+        {
+            "recCount": 10231442,
+            "fileSize": 1199845382,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 23047
+        },
+        {
+            "recCount": 10164507,
+            "fileSize": 1191945479,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 23047
+        },
+        {
+            "recCount": 10129035,
+            "fileSize": 1187218154,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 23043
+        },
+        {
+            "recCount": 10528057,
+            "fileSize": 1231951215,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 23049
+        },
+        {
+            "recCount": 9218502,
+            "fileSize": 1079748934,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 23049
+        },
+        {
+            "recCount": 9963999,
+            "fileSize": 1165407063,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 23052
+        },
+        {
+            "recCount": 10067440,
+            "fileSize": 1178945139,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 23045
+        },
+        {
+            "recCount": 10039670,
+            "fileSize": 1176233409,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 23044
+        },
+        {
+            "recCount": 9223485,
+            "fileSize": 1080224978,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 21368
+        },
+        {
+            "recCount": 10010989,
+            "fileSize": 1174213796,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 23043
+        },
+        {
+            "recCount": 3761586,
+            "fileSize": 443702321,
+            "datasource": "cbs_voice",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 12399
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_sim"
+        },
+        {
+            "recCount": 4645775,
+            "fileSize": 25566573,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4645937,
+            "fileSize": 25584860,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4646055,
+            "fileSize": 25602384,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4646163,
+            "fileSize": 24594547,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4646299,
+            "fileSize": 24781187,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4646432,
+            "fileSize": 24689786,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4646557,
+            "fileSize": 24773794,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4646705,
+            "fileSize": 24844538,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4646858,
+            "fileSize": 24905602,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4646980,
+            "fileSize": 24957439,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4647103,
+            "fileSize": 25003885,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4647234,
+            "fileSize": 25045479,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4647367,
+            "fileSize": 25083699,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 4647502,
+            "fileSize": 25120379,
+            "datasource": "cbs_available_credit",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 47
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_available_credit"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "mobily_sgsn"
+        },
+        {
+            "recCount": 86228,
+            "fileSize": 13625489,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 21533
+        },
+        {
+            "recCount": 87456,
+            "fileSize": 13679989,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 21619
+        },
+        {
+            "recCount": 85241,
+            "fileSize": 13527746,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 21561
+        },
+        {
+            "recCount": 84862,
+            "fileSize": 13511096,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 21554
+        },
+        {
+            "recCount": 86036,
+            "fileSize": 13648343,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 21590
+        },
+        {
+            "recCount": 86614,
+            "fileSize": 13756190,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 21710
+        },
+        {
+            "recCount": 86942,
+            "fileSize": 13760488,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 21650
+        },
+        {
+            "recCount": 88170,
+            "fileSize": 13866612,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 21631
+        },
+        {
+            "recCount": 89174,
+            "fileSize": 13906132,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 21586
+        },
+        {
+            "recCount": 87061,
+            "fileSize": 13704914,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 21671
+        },
+        {
+            "recCount": 85184,
+            "fileSize": 13513418,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 21481
+        },
+        {
+            "recCount": 86267,
+            "fileSize": 13602258,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 21580
+        },
+        {
+            "recCount": 79639,
+            "fileSize": 12583172,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 19964
+        },
+        {
+            "recCount": 86713,
+            "fileSize": 13711895,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 21632
+        },
+        {
+            "recCount": 37679,
+            "fileSize": 6331728,
+            "datasource": "cbs_sms",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 11294
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 74526,
+            "fileSize": 17289878,
+            "datasource": "bc_offering",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "bc_offering"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "pcrf_subscriber"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "huw_sgsn_gpx"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "his_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 254465,
+            "fileSize": 71693700,
+            "datasource": "inf_offers",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 4
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "inf_offers"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_cardstatus"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_raw_normal"
+        },
+        {
+            "recCount": 21260880,
+            "fileSize": 656633328,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 214
+        },
+        {
+            "recCount": 21271010,
+            "fileSize": 657131724,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 214
+        },
+        {
+            "recCount": 21273756,
+            "fileSize": 657298706,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 214
+        },
+        {
+            "recCount": 21303786,
+            "fileSize": 651907494,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 214
+        },
+        {
+            "recCount": 10644034,
+            "fileSize": 326724080,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 10648505,
+            "fileSize": 327981390,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 10642704,
+            "fileSize": 328043036,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 10649358,
+            "fileSize": 328368757,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 10655373,
+            "fileSize": 328802759,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 10655791,
+            "fileSize": 328929070,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 10658287,
+            "fileSize": 329111837,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 10660105,
+            "fileSize": 329263604,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 10657304,
+            "fileSize": 329247934,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 10661252,
+            "fileSize": 329410922,
+            "datasource": "sdp_snapshot",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 107
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "sdp_snapshot"
+        },
+        {
+            "recCount": 1005,
+            "fileSize": 269362,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 898
+        },
+        {
+            "recCount": 798,
+            "fileSize": 218687,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 719
+        },
+        {
+            "recCount": 829,
+            "fileSize": 230061,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 768
+        },
+        {
+            "recCount": 794,
+            "fileSize": 219620,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 730
+        },
+        {
+            "recCount": 915,
+            "fileSize": 250115,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 835
+        },
+        {
+            "recCount": 817,
+            "fileSize": 225877,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 747
+        },
+        {
+            "recCount": 1402,
+            "fileSize": 321862,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 1015
+        },
+        {
+            "recCount": 913,
+            "fileSize": 247391,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 818
+        },
+        {
+            "recCount": 842,
+            "fileSize": 230924,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 757
+        },
+        {
+            "recCount": 903,
+            "fileSize": 243725,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 806
+        },
+        {
+            "recCount": 982,
+            "fileSize": 263735,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 884
+        },
+        {
+            "recCount": 959,
+            "fileSize": 259184,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 870
+        },
+        {
+            "recCount": 819,
+            "fileSize": 224076,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 745
+        },
+        {
+            "recCount": 812,
+            "fileSize": 223042,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 740
+        },
+        {
+            "recCount": 329,
+            "fileSize": 91306,
+            "datasource": "cbs_subscription_com",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 307
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "ota_mobile_info"
+        },
+        {
+            "recCount": 12908971,
+            "fileSize": 2099923907,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12911783,
+            "fileSize": 2101972116,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12914572,
+            "fileSize": 2102339493,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12916958,
+            "fileSize": 2102607215,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12928792,
+            "fileSize": 2105402461,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12931179,
+            "fileSize": 2105845402,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12934045,
+            "fileSize": 2106378161,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12936659,
+            "fileSize": 2106969236,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12942747,
+            "fileSize": 2108163507,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12945754,
+            "fileSize": 2108732752,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12948100,
+            "fileSize": 2109160118,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12952575,
+            "fileSize": 2110027717,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "crm_consolidate"
+        },
+        {
+            "recCount": 12959474,
+            "fileSize": 2109946298,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 12971964,
+            "fileSize": 2111993641,
+            "datasource": "crm_consolidate",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 1
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "uvc_supply"
+        },
+        {
+            "recCount": 6118910,
+            "fileSize": 247915928,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 62
+        },
+        {
+            "recCount": 6144141,
+            "fileSize": 248663741,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 62
+        },
+        {
+            "recCount": 6162773,
+            "fileSize": 249171952,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 62
+        },
+        {
+            "recCount": 6195354,
+            "fileSize": 253182229,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 62
+        },
+        {
+            "recCount": 6242547,
+            "fileSize": 258146594,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 63
+        },
+        {
+            "recCount": 6268497,
+            "fileSize": 259120588,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 63
+        },
+        {
+            "recCount": 6288793,
+            "fileSize": 259851124,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 63
+        },
+        {
+            "recCount": 6265091,
+            "fileSize": 258806070,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 63
+        },
+        {
+            "recCount": 6283011,
+            "fileSize": 259376607,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 63
+        },
+        {
+            "recCount": 6283959,
+            "fileSize": 259274024,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 63
+        },
+        {
+            "recCount": 6287774,
+            "fileSize": 259254623,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 63
+        },
+        {
+            "recCount": 6292027,
+            "fileSize": 259252784,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 63
+        },
+        {
+            "recCount": 6305941,
+            "fileSize": 259642564,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 64
+        },
+        {
+            "recCount": 6319296,
+            "fileSize": 260110852,
+            "datasource": "sdp_pe_free_unit",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 64
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "sdp_pe_free_unit"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "hlr"
+        },
+        {
+            "recCount": 106740,
+            "fileSize": 11445046,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileCount": 14447
+        },
+        {
+            "recCount": 104059,
+            "fileSize": 11219926,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileCount": 13836
+        },
+        {
+            "recCount": 102692,
+            "fileSize": 11015350,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileCount": 13812
+        },
+        {
+            "recCount": 113096,
+            "fileSize": 11706277,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileCount": 14476
+        },
+        {
+            "recCount": 873127,
+            "fileSize": 55097860,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileCount": 16699
+        },
+        {
+            "recCount": 106269,
+            "fileSize": 11509670,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileCount": 14460
+        },
+        {
+            "recCount": 106180,
+            "fileSize": 11436511,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileCount": 14288
+        },
+        {
+            "recCount": 109910,
+            "fileSize": 11761208,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileCount": 14491
+        },
+        {
+            "recCount": 106670,
+            "fileSize": 11544141,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileCount": 13912
+        },
+        {
+            "recCount": 104249,
+            "fileSize": 11073218,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileCount": 13699
+        },
+        {
+            "recCount": 104917,
+            "fileSize": 11124341,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileCount": 14038
+        },
+        {
+            "recCount": 104820,
+            "fileSize": 11095884,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileCount": 14238
+        },
+        {
+            "recCount": 103749,
+            "fileSize": 10620722,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileCount": 13103
+        },
+        {
+            "recCount": 105742,
+            "fileSize": 11111639,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileCount": 14123
+        },
+        {
+            "recCount": 67803,
+            "fileSize": 5946672,
+            "datasource": "cbs_recurring",
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileCount": 6896
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-27",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-28",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-29",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-06-30",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-01",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-02",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-03",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-04",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-05",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-06",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-07",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-08",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-09",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-10",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        },
+        {
+            "recCount": 0,
+            "recordDate": "2024-07-11",
+            "type": "received",
+            "fileSize": 0,
+            "fileCount": 0,
+            "datasource": "cbs_recurring_dump"
+        }
+    ]
+}

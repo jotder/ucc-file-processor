@@ -1,0 +1,156 @@
+{
+    "returnCode": "200",
+    "message": "",
+    "Payload": [
+        {
+            "counterFields": [
+                {
+                    "fieldName": "call_count",
+                    "dataType": "long",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "call_duration",
+                    "dataType": "long",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "call_charge",
+                    "dataType": "double",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "msisdn",
+                    "dataType": "String",
+                    "fieldType": "dimension"
+                }
+            ],
+            "partitionTypes": [
+                "hourly",
+                "daily",
+                "monthly"
+            ],
+            "counterId": "1",
+            "counterName": "voice_call_counter"
+        },
+        {
+            "counterFields": [
+                {
+                    "fieldName": "call_count",
+                    "dataType": "long",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "call_charge",
+                    "dataType": "double",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "msisdn",
+                    "dataType": "String",
+                    "fieldType": "dimension"
+                }
+            ],
+            "partitionTypes": [
+                "hourly",
+                "daily",
+                "monthly"
+            ],
+            "counterId": "2",
+            "counterName": "sms_call_counter"
+        },
+        {
+            "counterFields": [
+                {
+                    "fieldName": "call_count",
+                    "dataType": "long",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "call_duration",
+                    "dataType": "long",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "call_charge",
+                    "dataType": "double",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "msisdn",
+                    "dataType": "String",
+                    "fieldType": "dimension"
+                },
+                {
+                    "fieldName": "event_type",
+                    "dataType": "String",
+                    "fieldType": "dimension"
+                }
+            ],
+            "partitionTypes": [
+                "hourly",
+                "daily",
+                "monthly"
+            ],
+            "counterId": "3",
+            "counterName": "sub_usage_counter"
+        },
+        {
+            "counterFields": [
+                {
+                    "fieldName": "call_count",
+                    "dataType": "long",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "call_duration",
+                    "dataType": "long",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "msisdn",
+                    "dataType": "String",
+                    "fieldType": "dimension"
+                },
+                {
+                    "fieldName": "country_code",
+                    "dataType": "String",
+                    "fieldType": "dimension"
+                }
+            ],
+            "partitionTypes": [
+                "hourly",
+                "daily",
+                "monthly"
+            ],
+            "counterId": "4",
+            "counterName": "sub_called_country_counters"
+        },
+        {
+            "counterFields": [
+                {
+                    "fieldName": "imei_count",
+                    "dataType": "long",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "imsi_count",
+                    "dataType": "long",
+                    "fieldType": "measure"
+                },
+                {
+                    "fieldName": "msisdn",
+                    "dataType": "String",
+                    "fieldType": "dimension"
+                }
+            ],
+            "partitionTypes": [
+                "hourly",
+                "daily",
+                "monthly"
+            ],
+            "counterId": "5",
+            "counterName": "sub_device_counters"
+        }
+    ]
+}

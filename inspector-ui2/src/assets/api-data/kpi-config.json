@@ -1,0 +1,570 @@
+[
+  {
+    "name": "Network",
+    "tid": "1",
+    "isBookmarked": false,
+    "isAccessible": false,
+    "lastAccessTime": "",
+    "tag_type": "parent",
+    "nodes": [
+      {
+        "name": "MSC",
+        "tid": "1.1",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "parent",
+        "id": "",
+        "desc": "",
+        "nodes": [
+          {
+            "name": "MSC Voice Trends",
+            "tid": "1.1.1",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "msc-1001",
+            "desc": "MSC Voice Trends",
+            "nodes": [],
+            "config": {},
+            "isVisible": true
+          },
+          {
+            "name": "MSC SMS Trends",
+            "tid": "1.1.2",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "msc-1002",
+            "desc": "MSC Voice Trends",
+            "isVisible": true,
+            "nodes": [],
+            "config": {}
+          },
+          {
+            "name": "MSC Zero Duration",
+            "tid": "1.1.3",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "msc-1003",
+            "desc": "MSC Zero Duration",
+            "isVisible": true,
+            "nodes": [],
+            "config": {}
+          }
+        ],
+        "config": {},
+        "isVisible": false
+      },
+      {
+        "name": "CBS ",
+        "tid": "1.2",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "parent",
+        "nodes": [
+          {
+            "name": "CBS Voice Trends",
+            "tid": "1.2.1",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1001",
+            "desc": "CBS Voice Daily",
+            "nodes": [],
+            "config": {},
+            "isVisible": true
+          },
+          {
+            "name": "CBS SMS Trends",
+            "tid": "1.2.2",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1002",
+            "desc": "CBS SMS Trends",
+            "nodes": [],
+            "config": {},
+            "isVisible": true
+          },
+          {
+            "name": "CBS GPRS Trends",
+            "tid": "1.2.3",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1003",
+            "desc": "CBS GPRS Trends",
+            "nodes": [],
+            "config": {},
+            "isVisible": true
+          },
+          {
+            "name": "CBS Zero Duration",
+            "tid": "1.2.4",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1004",
+            "desc": "CBS Zero Duration Trends(voice)",
+            "nodes": [],
+            "config": {},
+            "isVisible": true
+          },
+          {
+            "name": "CBS Zero Charge",
+            "tid": "1.2.5",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1006",
+            "desc": "CBS Zero Charge",
+            "nodes": [],
+            "config": {},
+            "isVisible": true
+          },
+          {
+            "name": "CBS Zero Charge Excluding Toll Free",
+            "tid": "1.2.6",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1009",
+            "desc": "CBS Zero Charge Excluding Toll Free",
+            "nodes": [],
+            "config": {},
+            "isVisible": true
+          },
+          {
+            "name": "CBS zero charge nonzero duration voice",
+            "tid": "1.2.8",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1008",
+            "desc": "CBS zero charge nonzero duration voice",
+            "nodes": [],
+            "config": {},
+            "isVisible": true
+          },
+          {
+            "name": "CBS zero Duration nonzero Charge voice",
+            "tid": "1.2.9",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1010",
+            "desc": "CBS zero Duration nonzero Charge voice",
+            "nodes": [],
+            "config": {},
+            "kpiGifUrl": "http://127.0.0.1:6602/api/v1/kpi/gif?id=cbs-1010",
+            "isVisible": true
+          },
+          {
+            "name": "Accumulators’ utilization",
+            "tid": "1.2.10",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1011",
+            "desc": "Accumulators’ utilization",
+            "nodes": [],
+            "config": {},
+            "kpiGifUrl": "http://127.0.0.1:6602/api/v1/kpi/gif?id=cbs-1011",
+            "isVisible": true
+          },
+          {
+            "name": "Dedicated account",
+            "tid": "1.2.11",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1012",
+            "desc": "Dedicated account",
+            "isVisible": true,
+            "nodes": [],
+            "config": {}
+          },
+          {
+            "name": "CBS Transfer Trends",
+            "tid": "1.2.12",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1013",
+            "desc": "CBS Transfer Trends",
+            "isVisible": true,
+            "nodes": [],
+            "config": {}
+          },
+          {
+            "name": "CBS Adjustments Trends",
+            "tid": "1.2.13",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "cbs-1014",
+            "desc": "CBS Adjustments Trends",
+            "isVisible": true,
+            "nodes": [],
+            "config": {}
+          }
+        ],
+        "config": {},
+        "isVisible": false
+      },
+      {
+        "name": "GGSN",
+        "tid": "1.3",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "parent",
+        "isVisible": true,
+        "nodes": [
+          {
+            "name": "GGSN Trends",
+            "tid": "1.3.1",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "ggsn-1001",
+            "desc": "GGSN Trends",
+            "isVisible": true,
+            "nodes": [],
+            "config": {}
+          }
+        ],
+        "config": {}
+      },
+      {
+        "name": "RBT",
+        "tid": "1.4",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "parent",
+        "isVisible": true,
+        "nodes": [
+          {
+            "name": "RBT Trends",
+            "tid": "1.4.1",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "rbt-1001",
+            "desc": "RBT Reports",
+            "isVisible": true,
+            "nodes": [],
+            "config": {}
+          }
+        ],
+        "config": {}
+      },
+      {
+        "name": "Main Account Balance",
+        "tid": "1.5",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "parent",
+        "id": "",
+        "desc": "",
+        "isVisible": true,
+        "nodes": [
+          {
+            "name": "Main Account Balance Trends",
+            "tid": "1.5.1",
+            "isBookmarked": false,
+            "isAccessible": false,
+            "lastAccessTime": "",
+            "tag_type": "child",
+            "id": "main-1001",
+            "desc": "Main Account Balance Trends",
+            "isVisible": true,
+            "nodes": [],
+            "config": {}
+          }
+        ],
+        "config": {}
+      }
+    ],
+    "config": {},
+    "isVisible": false
+  },
+  {
+    "name": "Recon",
+    "tid": "2",
+    "isBookmarked": false,
+    "isAccessible": false,
+    "lastAccessTime": "",
+    "tag_type": "parent",
+    "nodes": [
+      {
+        "name": "MSC Vs CBS Voice",
+        "tid": "2.1",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "recon-1001",
+        "desc": "MSC Vs CBS Voice",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "MSC Vs CBS SMS",
+        "tid": "2.2",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "recon-1002",
+        "desc": "MSC Vs CBS SMS",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "CBS Transfer Recon",
+        "tid": "2.3",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "recon-1003",
+        "desc": "CBS Transfer Recon",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "TAPIN Vs CBS Voice",
+        "tid": "2.4",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "recon-1004",
+        "desc": "TAPIN Vs CBS Voice Recon",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "TAPIN Vs CBS SMS",
+        "tid": "2.5",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "recon-1005",
+        "desc": "TAPIN Vs CBS SMS Recon",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "TAPIN Vs CBS GPRS",
+        "tid": "2.6",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "recon-1006",
+        "desc": "TAPIN Vs CBS GPRS Recon",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      }
+    ],
+    "config": {
+      "api_config": [
+        {
+          "widget": "l-1",
+          "widGetConfig": {
+            "width": "half",
+            "display": true,
+            "widgetTitle": "Daily Trends"
+          },
+          "drillDown": null,
+          "kpiConfig": {
+            "serviceId": "trends/cbs/zero-charge-voice-daily",
+            "api": "/kpi/trends/cbs/zero-charge-voice-daily",
+            "displayType": "chart",
+            "formate": "daily",
+            "startDate": "",
+            "kpiType": "network",
+            "srvTypeOperator": "",
+            "endDate": "",
+            "keyToPass": [],
+            "componentName": "GammaChartComponent",
+            "dataConfig": {
+              "title": "",
+              "argumentField": "",
+              "verticalAlignment": "",
+              "horizontalAlignment": "",
+              "caption": "",
+              "chart_config": []
+            }
+          }
+        }
+      ],
+      "isSrvTypeOperator": false,
+      "fixOperationLevles": [],
+      "operationLevels": [
+        "srvType"
+      ],
+      "searchFilter": false
+    },
+    "isVisible": true
+  },
+  {
+    "name": "Balance Movement",
+    "tid": "3",
+    "isBookmarked": false,
+    "isAccessible": false,
+    "lastAccessTime": "",
+    "tag_type": "parent",
+    "isVisible": true,
+    "nodes": [
+      {
+        "name": "Prepaid subscriber balance Movement (PAYG) ",
+        "tid": "3.1",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "bm-1001",
+        "desc": "Prepaid subscriber balance Movement (PAYG) ",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "Prepaid subscriber balance Movement (bonus) ",
+        "tid": "3.2",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "bm-1002",
+        "desc": "Prepaid subscriber balance Movement (bonus) ",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "Balance Movement Allowances GPRS",
+        "tid": "3.3",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "bm-1003",
+        "desc": "Balance Movement Allowances GPRS",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "Balance Movement Allowances Voice",
+        "tid": "3.4",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "bm-1004",
+        "desc": "Balance Movement Allowances Voice",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "Balance Movement Allowances SMS",
+        "tid": "3.5",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "bm-1005",
+        "desc": "Balance Movement Allowances SMS",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      }
+    ],
+    "config": {}
+  },
+  {
+    "name": "Financial Reports",
+    "tid": "4",
+    "isBookmarked": false,
+    "isAccessible": false,
+    "lastAccessTime": "",
+    "tag_type": "parent",
+    "isVisible": true,
+    "nodes": [
+      {
+        "name": "IFRS Daily Report",
+        "tid": "4.1",
+        "isBookmarked": false,
+        "isAccessible": true,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "ifrs-1001",
+        "desc": "IFRS Daily Report",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "Incorrect Free Renewal",
+        "tid": "4.2",
+        "isBookmarked": false,
+        "isAccessible": false,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "fr-1001",
+        "desc": "Incorrect Free Renewal",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      },
+      {
+        "name": "IFRS Revenue Reposts",
+        "tid": "4.3",
+        "isBookmarked": false,
+        "isAccessible": true,
+        "lastAccessTime": "",
+        "tag_type": "child",
+        "id": "ifrs-1002",
+        "desc": "IFRS Revenue Reposts",
+        "isVisible": true,
+        "nodes": [],
+        "config": {}
+      }
+    ],
+    "config": {}
+  }
+]

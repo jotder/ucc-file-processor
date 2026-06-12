@@ -1,0 +1,271 @@
+{
+  "returnCode": "200",
+  "message": "",
+  "Payload": [
+    {
+      "isBookmarked": false,
+      "isAccessible": false,
+      "lastAccessTime": "",
+      "nodes": [
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "High Main Account Balance",
+          "id": "pf-1001",
+          "tid": "1.1",
+          "url": "",
+          "desc": "High Single value manual credit provided to a subscriber",
+          "tags": "0"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "High Number of Manual Credit",
+          "id": "pf-1002",
+          "tid": "1.2",
+          "url": "",
+          "desc": "High number of manual credits provided to a subscriber",
+          "tags": "0"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "High Amount of Manual Credit",
+          "id": "pf-1003",
+          "tid": "1.3",
+          "url": "",
+          "desc": "High amount of manual credits provided to a subscriber",
+          "tags": "2"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Single Value Manual Credit",
+          "id": "pf-1004",
+          "tid": "1.4",
+          "url": "",
+          "desc": "High Single value manual credit provided to a subscriber",
+          "tags": "3"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Total  Call Charges(24 Hour)",
+          "id": "pf-1005",
+          "tid": "1.5",
+          "url": "",
+          "desc": "Total charge all calls for 24 hours",
+          "tags": "4"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "International Call charges(24 Hour)",
+          "id": "pf-1006",
+          "tid": "1.6",
+          "url": "",
+          "desc": "Total charge for international calls for 24 hours",
+          "tags": "5"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Top VAS SMS 24 hours",
+          "id": "pf-1007",
+          "tid": "1.7",
+          "url": "",
+          "desc": "Total charge for VAS calls / SMSs for 24 hours",
+          "tags": "6"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Roaming Call Forwards Prepaid(24 Hour)",
+          "id": "pf-1008",
+          "tid": "1.8",
+          "url": "",
+          "desc": "Total Charge for Roaming calls / Roaming call forwards for 24 hours (PREPAID)",
+          "tags": "7"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "High Dedicated Account balance",
+          "id": "pf-1009",
+          "tid": "1.9",
+          "url": "",
+          "desc": "Alarm is raised when Prepaid Subscribers are detected to have a dedicated account balance more than a threshold value",
+          "tags": "8"
+        },
+       
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Top VAS Voice 24 hours",
+          "id": "pf-1011",
+          "tid": "1.11",
+          "url": "",
+          "desc": "Total charge for VAS calls / SMSs for 24 hours",
+          "tags": "10"
+        }
+      ],
+      "tag_type": "parent",
+      "name": "Prepaid Fraud",
+      "id": "",
+      "tid": "1",
+      "url": "",
+      "desc": "Prepaid Fraud",
+      "tags": "1"
+    },
+    {
+      "isBookmarked": false,
+      "isAccessible": false,
+      "lastAccessTime": "",
+      "nodes": [
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Staff Providing High Number Adjustments",
+          "id": "if-1001",
+          "tid": "2.1",
+          "url": "",
+          "desc": "Staff providing High number of adjustments ",
+          "tags": "0"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Staff Providing High Value Adjustments",
+          "id": "if-1002",
+          "tid": "2.2",
+          "url": "",
+          "desc": "Staff providing High value of adjustments ( Total Value )",
+          "tags": "1"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Reactivation of Terminated & Barred Subscribers & Services -Prepaid",
+          "id": "if-1003",
+          "tid": "1.10",
+          "url": "",
+          "desc": "Employees who have reactivated Suspended/ barred customers who have not cleared their dues",
+          "tags": "9"
+        }
+      ],
+      "tag_type": "parent",
+      "name": "Internal Fraud",
+      "id": "",
+      "tid": "2",
+      "url": "",
+      "desc": "Internal Fraud",
+      "tags": "2"
+    },
+    {
+      "isBookmarked": false,
+      "isAccessible": false,
+      "lastAccessTime": "",
+      "nodes": [
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Outgoing Voice Count Postpaid Outroamer",
+          "id": "rf-1001",
+          "tid": "3.1",
+          "url": "",
+          "desc": "High number of outgoing voice calls by Postpaid Outroamers (TAP)",
+          "tags": "0"
+        },
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Outgoing Voice MoU Postpaid Outroamer",
+          "id": "rf-1002",
+          "tid": "3.2",
+          "url": "",
+          "desc": "High duration of outgoing voice calls by Postpaid Outroamers (TAP)",
+          "tags": "1"
+        }
+      ],
+      "tag_type": "parent",
+      "name": "Roaming Fraud",
+      "id": "",
+      "tid": "3",
+      "url": "",
+      "desc": "Roaming Fraud",
+      "tags": "3"
+    },
+    {
+      "isBookmarked": false,
+      "isAccessible": false,
+      "lastAccessTime": "",
+      "nodes": [
+        {
+          "isBookmarked": false,
+          "isAccessible": false,
+          "lastAccessTime": "",
+          "nodes": [],
+          "tag_type": "child",
+          "name": "Accumulated Charges Postpaid",
+          "id": "uf-1001",
+          "tid": "4.1",
+          "url": "",
+          "desc": "High charges accumulated by Postpaid subscribers",
+          "tags": "0"
+        }
+      ],
+      "tag_type": "parent",
+      "name": "Usage Fraud",
+      "id": "",
+      "tid": "4",
+      "url": "",
+      "desc": "Usage Fraud",
+      "tags": "4"
+    }
+  ]
+}

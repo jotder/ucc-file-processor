@@ -1,0 +1,42 @@
+{
+    "returnCode": "200",
+    "message": "",
+    "Payload": [
+        {
+            "alertType": "CASE",
+            "lastAccess": "2022-03-29 12:21:12",
+            "type": "DATA_DRIVEN",
+            "users": [
+                "100009",
+                "100004",
+                "100005"
+            ],
+            "hits": "3",
+            "groupName": "",
+            "name": "Demo Rule 01",
+            "businessDomain": "CCN",
+            "id": "RU-1035",
+            "category": "Revenue Assurance",
+            "desc": "Demo Rule 01 for realtime processing",
+            "status": true
+        },
+        {
+            "alertType": "CASE",
+            "lastAccess": "2022-03-18 12:21:12",
+            "type": "EVENT_DRIVEN",
+            "users": [
+                "100009",
+                "100004",
+                "100005"
+            ],
+            "hits": "2",
+            "groupName": "",
+            "name": "Demo Rule 01",
+            "businessDomain": "Postpaid",
+            "id": "RU-1036",
+            "category": "Fraud Management",
+            "desc": "Demo Rule 01 for realtime processing",
+            "status": true
+        }
+    ]
+}

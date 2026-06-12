@@ -1,0 +1,308 @@
+[
+    {
+        "moduleName": "PrepaidFraud",
+        "displayName": "Prepaid Fraud",
+        "moduleId": "FM-1001",
+        "moduleDescription": "Prepaid Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": "0 44 8 * * ?",
+        "evaluationExecClass": "",
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "prepaid-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily3AM",
+                "execCronExpression": "0 0 3 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": null
+            }
+        ]
+    },
+    {
+        "moduleName": "PostpaidFraud",
+        "displayName": "Postpaid Fraud",
+        "moduleId": "FM-1002",
+        "moduleDescription": "Postpaid Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": null,
+        "evaluationExecClass": null,
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "postpaid-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily3AM",
+                "execCronExpression": "0 0 3 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": null
+            }
+        ]
+    },
+    {
+        "moduleName": "InternalFraud",
+        "displayName": "Internal Fraud",
+        "moduleId": "FM-1004",
+        "moduleDescription": "Internal Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": null,
+        "evaluationExecClass": null,
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "internal-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily4AM",
+                "execCronExpression": "0 0 4 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": null
+            }
+        ]
+    },
+    {
+        "moduleName": "DealerFraud",
+        "displayName": "Dealer Fraud",
+        "moduleId": "FM-1005",
+        "moduleDescription": "Dealer Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": null,
+        "evaluationExecClass": null,
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "dealer-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily3AM",
+                "execCronExpression": "0 0 3 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": null
+            }
+        ]
+    },
+    {
+        "moduleName": "RoamingFraud",
+        "displayName": "Roaming Fraud",
+        "moduleId": "FM-1006",
+        "moduleDescription": "Roaming Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": null,
+        "evaluationExecClass": null,
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "roaming-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily3AM",
+                "execCronExpression": "0 0 3 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": null
+            }
+        ]
+    },
+    {
+        "moduleName": "BlacklistFraud",
+        "displayName": "Blacklist Fraud",
+        "moduleId": "FM-1007",
+        "moduleDescription": "Blacklist Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": null,
+        "evaluationExecClass": null,
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "blacklist-fraud-request",
+        "enable": false,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily4AM",
+                "execCronExpression": "0 0 3 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": null
+            }
+        ]
+    },
+    {
+        "moduleName": "PartnersFraud",
+        "displayName": "Partners Fraud",
+        "moduleId": "FM-1010",
+        "moduleDescription": "Partners Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": null,
+        "evaluationExecClass": null,
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "partners-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily6AM",
+                "execCronExpression": "0 0 6 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": null
+            }
+        ]
+    },
+    {
+        "moduleName": "GPRSFraud",
+        "displayName": "GPRS Fraud",
+        "moduleId": "FM-1011",
+        "moduleDescription": "GPRS Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": null,
+        "evaluationExecClass": null,
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "gprs-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily6AM",
+                "execCronExpression": "0 0 6 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": null
+            }
+        ]
+    },
+    {
+        "moduleName": "BypassFraud",
+        "displayName": "Bypass Fraud",
+        "moduleId": "FM-1009",
+        "moduleDescription": "Bypass Fraud",
+        "associatedRules": [
+            "3f4e6779-1af6-4c79-818e-dff36930e5a9",
+            "91e22a69-dc22-4de9-825d-e7bf097bef51",
+            "eb8bca68-98af-4447-95cc-c7cbf11c8455",
+            "a7b6065e-cb18-4c99-9f4a-ed9e60c52728"
+        ],
+        "alertPrefix": null,
+        "execCronExpression": "",
+        "evaluationExecClass": "",
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "bypass-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily6AM",
+                "execCronExpression": "0 0 6 * * ?",
+                "evaluationExecClass": "com.gamma.rule.core.internals.exec.BypassModuleEvaluationExec",
+                "associatedRules": null
+            },
+            {
+                "batchNo": "2",
+                "batchName": "Daily11AM",
+                "execCronExpression": "0 0 11 * * ?",
+                "evaluationExecClass": "com.gamma.rule.core.internals.exec.BypassModuleEvaluationExec",
+                "associatedRules": [
+                    "3f4e6779-1af6-4c79-818e-dff36930e5a9",
+                    "91e22a69-dc22-4de9-825d-e7bf097bef51",
+                    "eb8bca68-98af-4447-95cc-c7cbf11c8455",
+                    "a7b6065e-cb18-4c99-9f4a-ed9e60c52728"
+                ]
+            }
+        ]
+    },
+    {
+        "moduleName": "VoucherFraud",
+        "displayName": "Voucher Fraud",
+        "moduleId": "FM-1003",
+        "moduleDescription": "Voucher Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": null,
+        "evaluationExecClass": null,
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "voucher-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily3AM",
+                "execCronExpression": "0 0 3 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": null
+            }
+        ]
+    },
+    {
+        "moduleName": "UsageFraud",
+        "displayName": "Usage Fraud",
+        "moduleId": "FM-1008",
+        "moduleDescription": "Usage Fraud",
+        "associatedRules": null,
+        "alertPrefix": null,
+        "execCronExpression": "",
+        "evaluationExecClass": "",
+        "notificationEnabled": true,
+        "notificationType": "email",
+        "notificationRequestName": "usage-fraud-request",
+        "enable": true,
+        "actionBy": null,
+        "execBatches": [
+            {
+                "batchNo": "1",
+                "batchName": "Daily4AM",
+                "execCronExpression": "0 0 4 * * ?",
+                "evaluationExecClass": "",
+                "associatedRules": [
+                    "7c783b14-d2df-49b6-a037-e53daee88acc",
+                    "a846507d-7ed1-4f95-90d9-d4b138b54757",
+                    "8d8e9338-41ff-4523-a1e9-9c286bb703ca",
+                    "f43ab96d-fbb6-4c2d-a4dc-e28c60fadc87",
+                    "be78ed26-9689-491b-b113-b12f9cba5a81",
+                    "c413d264-62c7-46a3-b942-bc18cf392cc8",
+                    "7d4eb0a7-16f0-40f0-b10f-bf5c34d41792",
+                    "f1cc6414-92b0-40ed-9d8e-ec40ba2a327c",
+                    "c6eced72-4f6e-48b5-ae7d-ec5b0e02bf64",
+                    "5e93c97d-db94-483f-ba76-7cd88a178881",
+                    "978c10ac-8f1f-46d9-a70e-784fb8f0a262",
+                    "42647995-0464-45c0-9827-99805e70aec8",
+                    "63be7011-1cd3-454f-9f47-bee0429ac5bb",
+                    "9006472e-7d3f-4599-98b6-a12d9d45c157",
+                    "d10e69c1-4f41-4b78-85c5-e8f280607c6d",
+                    "192f0a95-4e8a-4bdd-8f16-1d6514b9f53a",
+                    "e18a8c01-f7a8-49d0-9c4b-3963da93d841",
+                    "f852e4d6-a838-45a7-a946-9f4803939dfa",
+                    "7e9339df-3521-4c21-b874-5327c583041a",
+                    "31e4a2c9-5b82-4036-9c2b-eabdce9e745e",
+                    "89eb56f6-227b-43a0-b510-a3065433716e",
+                    "555bc427-c057-4b3a-85e0-b0b005c3d451",
+                    "e63493a8-e33d-4233-9e7f-927fcfa0691e",
+                    "8a236e79-dc95-4d5f-b817-6949a2631b3d"
+                ]
+            }
+        ]
+    }
+]

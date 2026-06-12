@@ -1,0 +1,15 @@
+{
+    "pageNumber": 1,
+    "recordCount": 2,
+    "dataset": [
+        {
+            "margin_sar": -265235.11243735685,
+            "recordDate": "20240809"
+        },
+        {
+            "margin_sar": -214637.5670361888,
+            "recordDate": "20240810"
+        }
+    ],
+    "lastObjectReferenceId": null
+}

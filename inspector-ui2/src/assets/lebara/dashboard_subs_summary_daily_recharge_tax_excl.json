@@ -1,0 +1,67 @@
+{
+    "pageNumber": 1,
+    "recordCount": 15,
+    "dataset": [
+        {
+            "recharge_tax_excl": 1537787.9513041517,
+            "recordDate": "20240813"
+        },
+        {
+            "recharge_tax_excl": 1466989.9008693374,
+            "recordDate": "20240819"
+        },
+        {
+            "recharge_tax_excl": 1535873.1756519752,
+            "recordDate": "20240814"
+        },
+        {
+            "recharge_tax_excl": 1393735.4513040988,
+            "recordDate": "20240821"
+        },
+        {
+            "recharge_tax_excl": 1456430.3069562805,
+            "recordDate": "20240817"
+        },
+        {
+            "recharge_tax_excl": 1547137.3034780605,
+            "recordDate": "20240823"
+        },
+        {
+            "recharge_tax_excl": 1613818.0130433184,
+            "recordDate": "20240811"
+        },
+        {
+            "recharge_tax_excl": 1435617.6756519268,
+            "recordDate": "20240824"
+        },
+        {
+            "recharge_tax_excl": 1399979.052173661,
+            "recordDate": "20240820"
+        },
+        {
+            "recharge_tax_excl": 1548945.3321737156,
+            "recordDate": "20240815"
+        },
+        {
+            "recharge_tax_excl": 1561220.5921737012,
+            "recordDate": "20240816"
+        },
+        {
+            "recharge_tax_excl": 1467973.24869542,
+            "recordDate": "20240818"
+        },
+        {
+            "recharge_tax_excl": 1514373.0295650142,
+            "recordDate": "20240812"
+        },
+        {
+            "recharge_tax_excl": 1501934.167825882,
+            "recordDate": "20240822"
+        },
+        {
+            "recharge_tax_excl": 1494707.7617388892,
+            "recordDate": "20240825"
+        }
+    ],
+    "lastObjectReferenceId": null
+}

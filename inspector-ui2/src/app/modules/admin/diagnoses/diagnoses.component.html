@@ -1,0 +1,53 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <div class="text-3xl font-extrabold leading-none tracking-tight">Diagnoses</div>
+            <div class="text-secondary mt-1.5">Recent failure root-cause analyses (assist agent)</div>
+        </div>
+        <div class="mt-4 flex items-center gap-3 sm:mt-0">
+            <mat-form-field class="gamma-mat-dense w-28" subscriptSizing="dynamic">
+                <mat-label>Limit</mat-label>
+                <input matInput type="number" min="1" max="500" [(ngModel)]="limit" />
+            </mat-form-field>
+            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                <mat-label>Search</mat-label>
+                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
+            </mat-form-field>
+            <button mat-flat-button color="primary" (click)="load()">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                <span class="ml-2">Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        @if (loading) {
+            <div class="flex items-center gap-3">
+                <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+                <span class="text-secondary">Loading…</span>
+            </div>
+        }
+
+        @if (!loading && !diagnoses.length) {
+            <div class="text-secondary rounded-2xl border-2 border-dashed border-gray-300 p-8 dark:border-gray-600">
+                No diagnoses yet (none recorded, or the assist agent is not running).
+            </div>
+        }
+
+        @if (!loading && diagnoses.length) {
+            <ag-grid-angular
+                class="h-[42rem] w-full"
+                [theme]="themeSvc.theme()"
+                [rowData]="diagnoses"
+                [columnDefs]="columnDefs"
+                [defaultColDef]="defaultColDef"
+                [pagination]="true"
+                [paginationPageSize]="25"
+                [quickFilterText]="quickFilter"
+                (rowClicked)="openDetail($event)"
+            ></ag-grid-angular>
+        }
+    </div>
+</div>

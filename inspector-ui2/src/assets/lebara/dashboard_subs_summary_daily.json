@@ -1,0 +1,67 @@
+{
+    "pageNumber": 1,
+    "recordCount": 15,
+    "dataset": [
+        {
+            "subs_cnt": 3757090,
+            "recordDate": "20240812"
+        },
+        {
+            "subs_cnt": 3732361,
+            "recordDate": "20240814"
+        },
+        {
+            "subs_cnt": 3801890,
+            "recordDate": "20240822"
+        },
+        {
+            "subs_cnt": 3757115,
+            "recordDate": "20240811"
+        },
+        {
+            "subs_cnt": 3800495,
+            "recordDate": "20240820"
+        },
+        {
+            "subs_cnt": 3799743,
+            "recordDate": "20240818"
+        },
+        {
+            "subs_cnt": 3802629,
+            "recordDate": "20240824"
+        },
+        {
+            "subs_cnt": 3732248,
+            "recordDate": "20240815"
+        },
+        {
+            "subs_cnt": 3799747,
+            "recordDate": "20240817"
+        },
+        {
+            "subs_cnt": 3799474,
+            "recordDate": "20240816"
+        },
+        {
+            "subs_cnt": 3802382,
+            "recordDate": "20240825"
+        },
+        {
+            "subs_cnt": 3800621,
+            "recordDate": "20240821"
+        },
+        {
+            "subs_cnt": 3802386,
+            "recordDate": "20240823"
+        },
+        {
+            "subs_cnt": 3756723,
+            "recordDate": "20240813"
+        },
+        {
+            "subs_cnt": 3799976,
+            "recordDate": "20240819"
+        }
+    ],
+    "lastObjectReferenceId": null
+}

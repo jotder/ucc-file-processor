@@ -1,0 +1,32 @@
+[
+    {
+        "alertCount": 5,
+        "moduleName": "UsageFraud",
+        "status": "ack"
+    },
+    {
+        "alertCount": 102,
+        "moduleName": "UsageFraud",
+        "status": "archived"
+    },
+    {
+        "alertCount": 41145,
+        "moduleName": "UsageFraud",
+        "status": "open"
+    },
+    {
+        "alertCount": 5,
+        "moduleName": "PrepaidFraud",
+        "status": "ack"
+    },
+    {
+        "alertCount": 102,
+        "moduleName": "PrepaidFraud",
+        "status": "archived"
+    },
+    {
+        "alertCount": 41145,
+        "moduleName": "PrepaidFraud",
+        "status": "open"
+    }
+]

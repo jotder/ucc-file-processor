@@ -1,0 +1,102 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex items-center justify-between border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <div class="text-3xl font-extrabold leading-none tracking-tight">Dashboard</div>
+            <div class="text-secondary mt-1.5">Service health, throughput and error-rate overview</div>
+        </div>
+        <div class="flex items-center gap-4">
+            <mat-slide-toggle [(ngModel)]="autoRefresh"
+                              matTooltip="Auto-refresh (pauses when the tab is hidden)">Auto</mat-slide-toggle>
+            <button mat-icon-button matTooltip="Refresh now" (click)="refresh()">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col gap-6 p-6 sm:p-10">
+        @if (loading && !status) {
+            <div class="flex items-center gap-3">
+                <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+                <span class="text-secondary">Loading service status…</span>
+            </div>
+        }
+
+        @if (status || ready) {
+            <!-- KPI tiles -->
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+                <div class="bg-card rounded-2xl p-4 shadow"
+                     [class.ring-2]="ready" [class.ring-green-500]="ready?.status === 'READY'"
+                     [class.ring-amber-500]="ready && ready.status !== 'READY'">
+                    <div class="text-secondary text-sm">Service</div>
+                    <div class="mt-1 text-2xl font-bold">{{ ready?.status || '—' }}</div>
+                </div>
+                <div class="bg-card rounded-2xl p-4 shadow">
+                    <div class="text-secondary text-sm">Pipelines</div>
+                    <div class="mt-1 text-2xl font-bold">{{ status?.pipelineCount ?? '—' }}</div>
+                </div>
+                <div class="bg-card rounded-2xl p-4 shadow"
+                     [class.text-amber-600]="(status?.pausedCount || 0) > 0">
+                    <div class="text-secondary text-sm">Paused</div>
+                    <div class="mt-1 text-2xl font-bold">{{ status?.pausedCount ?? '—' }}</div>
+                </div>
+                <div class="bg-card rounded-2xl p-4 shadow">
+                    <div class="text-secondary text-sm">Committed batches</div>
+                    <div class="mt-1 text-2xl font-bold">{{ status?.totalCommittedBatches ?? '—' }}</div>
+                </div>
+                <div class="bg-card rounded-2xl p-4 shadow"
+                     [class.text-amber-600]="(status?.totalQuarantineFiles || 0) > 0">
+                    <div class="text-secondary text-sm">Quarantine files</div>
+                    <div class="mt-1 text-2xl font-bold">{{ status?.totalQuarantineFiles ?? '—' }}</div>
+                </div>
+                <div class="bg-card rounded-2xl p-4 shadow"
+                     [class.text-amber-600]="(report?.errorRate || 0) > 0 && (report?.errorRate || 0) < 0.1"
+                     [class.text-red-600]="(report?.errorRate || 0) >= 0.1">
+                    <div class="text-secondary text-sm">Error rate</div>
+                    <div class="mt-1 text-2xl font-bold">{{ errorRatePct }}</div>
+                </div>
+            </div>
+        }
+
+        @if (report) {
+            <!-- Charts -->
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <div class="bg-card rounded-2xl p-6 shadow">
+                    <div class="font-semibold">Batch duration percentiles (ms)</div>
+                    <ucc-chart class="mt-4" type="bar" [data]="latencyData"></ucc-chart>
+                </div>
+                <div class="bg-card rounded-2xl p-6 shadow">
+                    <div class="font-semibold">Batch outcomes ({{ report.totalBatches }} total)</div>
+                    <ucc-chart class="mt-4" type="doughnut" [data]="outcomeData"></ucc-chart>
+                </div>
+            </div>
+        }
+
+        @if (status) {
+            <!-- Per-pipeline status grid -->
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <div class="mb-4 font-semibold">Pipelines</div>
+                <ag-grid-angular
+                    class="h-72 w-full"
+                    [theme]="gridTheme.theme()"
+                    [rowData]="status.pipelines || []"
+                    [columnDefs]="pipelineColumns"
+                    [defaultColDef]="defaultColDef">
+                </ag-grid-angular>
+            </div>
+        }
+
+        @if (!loading) {
+            <!-- Raw metrics -->
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <button mat-stroked-button (click)="showMetrics = !showMetrics">
+                    {{ showMetrics ? 'Hide' : 'Show' }} Prometheus metrics (raw)
+                </button>
+                @if (showMetrics) {
+                    <pre class="mt-4 max-h-96 overflow-auto rounded bg-gray-100 p-3 text-xs dark:bg-gray-800">{{ metricsText }}</pre>
+                }
+            </div>
+        }
+    </div>
+</div>

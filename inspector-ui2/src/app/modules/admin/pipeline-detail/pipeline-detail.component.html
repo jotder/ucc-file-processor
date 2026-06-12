@@ -1,0 +1,173 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex items-center gap-3 border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+        <button mat-icon-button (click)="back()" matTooltip="Back to pipelines">
+            <mat-icon svgIcon="heroicons_outline:arrow-left"></mat-icon>
+        </button>
+        <div>
+            <div class="text-3xl font-extrabold leading-none tracking-tight">{{ name }}</div>
+            <div class="text-secondary mt-1.5">Audit: batches, files, lineage, quarantine, commits, report</div>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        <mat-tab-group [(selectedIndex)]="selectedIndex" (selectedIndexChange)="onTabChange()">
+            @for (t of tabs; track t.id) {
+                <mat-tab [label]="t.label"></mat-tab>
+            }
+        </mat-tab-group>
+
+        @if (loading) {
+            <div class="mt-6 flex items-center gap-3">
+                <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+                <span class="text-secondary">Loading…</span>
+            </div>
+        }
+
+        <!-- Lineage batch filter -->
+        @if (activeTab === 'lineage') {
+            <div class="mt-4 flex items-center gap-3">
+                <mat-form-field class="gamma-mat-dense w-72" subscriptSizing="dynamic">
+                    <mat-label>Batch id (optional)</mat-label>
+                    <input matInput [(ngModel)]="lineageBatchId" placeholder="filter by batch id" />
+                </mat-form-field>
+                <button mat-flat-button color="primary" (click)="loadTab()">Apply</button>
+            </div>
+        }
+
+        <!-- Report tab -->
+        @if (activeTab === 'report') {
+            <div class="mt-4 flex flex-wrap items-center gap-3">
+                <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                    <mat-label>From</mat-label>
+                    <input matInput [matDatepicker]="fromPicker" [(ngModel)]="from" />
+                    <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+                    <mat-datepicker #fromPicker></mat-datepicker>
+                </mat-form-field>
+                <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                    <mat-label>To</mat-label>
+                    <input matInput [matDatepicker]="toPicker" [(ngModel)]="to" />
+                    <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
+                    <mat-datepicker #toPicker></mat-datepicker>
+                </mat-form-field>
+                <button mat-flat-button color="primary" (click)="loadReport()">Run report</button>
+            </div>
+            @if (report && !loading) {
+                <table class="mt-6 w-fit text-sm [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left">
+                    <tbody>
+                        <tr class="border-b">
+                            <th>Total batches</th><td>{{ report.totalBatches }}</td>
+                            <th>Success</th><td>{{ report.success }}</td>
+                            <th>Failed</th><td>{{ report.failed }}</td>
+                        </tr>
+                        <tr class="border-b">
+                            <th>Error rate</th><td>{{ (report.errorRate * 100).toFixed(1) }}%</td>
+                            <th>Output rows</th><td>{{ report.totalOutputRows }}</td>
+                            <th>Output files</th><td>{{ report.totalOutputFiles ?? '—' }}</td>
+                        </tr>
+                        <tr class="border-b">
+                            <th>p50 (ms)</th><td>{{ report.p50DurationMs }}</td>
+                            <th>p95 (ms)</th><td>{{ report.p95DurationMs }}</td>
+                            <th>p99 (ms)</th><td>{{ report.p99DurationMs }}</td>
+                        </tr>
+                        <tr>
+                            <th>Window from</th><td colspan="2">{{ report.windowFrom }}</td>
+                            <th>Window to</th><td colspan="2">{{ report.windowTo }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            }
+        }
+
+        <!-- Files tab: processing-status breakdown + search -->
+        @if (activeTab === 'files' && !loading) {
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+                <div class="rounded-xl border px-4 py-2 text-center" [class.border-amber-500]="(inbox?.pending || 0) > 0">
+                    <div class="text-xl font-bold">{{ inbox ? (inbox.pending < 0 ? '—' : inbox.pending) : '…' }}</div>
+                    <div class="text-secondary text-xs">Pending</div>
+                </div>
+                <div class="rounded-xl border px-4 py-2 text-center">
+                    <div class="text-xl font-bold">{{ inbox ? (inbox.running ? 'Yes' : 'No') : '…' }}</div>
+                    <div class="text-secondary text-xs">Processing</div>
+                </div>
+                <div class="mx-2 h-10 w-px bg-gray-300 dark:bg-gray-600"></div>
+                <button class="rounded-xl border px-4 py-2 text-center" [class.ring-2]="fileStatus === 'ALL'" (click)="fileStatus = 'ALL'">
+                    <div class="text-xl font-bold">{{ fileStats.total }}</div>
+                    <div class="text-secondary text-xs">Processed</div>
+                </button>
+                <button class="rounded-xl border px-4 py-2 text-center text-green-600" [class.ring-2]="fileStatus === 'SUCCESS'" (click)="fileStatus = 'SUCCESS'">
+                    <div class="text-xl font-bold">{{ fileStats.success }}</div>
+                    <div class="text-secondary text-xs">Succeeded</div>
+                </button>
+                <button class="rounded-xl border px-4 py-2 text-center text-amber-600" [class.ring-2]="fileStatus === 'REJECTED'" (click)="fileStatus = 'REJECTED'">
+                    <div class="text-xl font-bold">{{ fileStats.rejected }}</div>
+                    <div class="text-secondary text-xs">Rejected</div>
+                </button>
+                <button class="rounded-xl border px-4 py-2 text-center text-red-600" [class.ring-2]="fileStatus === 'ERRORED'" (click)="fileStatus = 'ERRORED'">
+                    <div class="text-xl font-bold">{{ fileStats.errored }}</div>
+                    <div class="text-secondary text-xs">With errors</div>
+                </button>
+                <div class="rounded-xl border px-4 py-2 text-center">
+                    <div class="text-xl font-bold">{{ fileStats.rows }}</div>
+                    <div class="text-secondary text-xs">Rows parsed</div>
+                </div>
+            </div>
+            <p class="text-secondary mt-2 text-sm">
+                <b>Pending</b> / <b>Processing</b> are live from the inbox@if (inbox?.inbox) {<span> (<code>{{ inbox?.inbox }}</code>)</span>};
+                the status counts cover <b>processed</b> files recorded in the durable audit.
+            </p>
+            <div class="mt-3 flex items-center gap-3">
+                <mat-form-field class="gamma-mat-dense w-72" subscriptSizing="dynamic">
+                    <mat-label>Search filename</mat-label>
+                    <input matInput [(ngModel)]="fileSearch" placeholder="search filename…" />
+                </mat-form-field>
+                <mat-form-field class="gamma-mat-dense w-44" subscriptSizing="dynamic">
+                    <mat-label>Status</mat-label>
+                    <mat-select [(ngModel)]="fileStatus">
+                        @for (f of fileFilters; track f) {
+                            <mat-option [value]="f">{{ f }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+                <button mat-stroked-button (click)="loadFiles()">
+                    <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                    <span class="ml-2">Reload</span>
+                </button>
+            </div>
+            <ag-grid-angular
+                class="mt-4 h-[36rem] w-full"
+                [theme]="themeSvc.theme()"
+                [rowData]="filteredFiles"
+                [columnDefs]="fileColumns"
+                [defaultColDef]="defaultColDef"
+                [pagination]="true"
+                [paginationPageSize]="25"
+                (firstDataRendered)="refreshActions($event)"
+                (rowDataUpdated)="refreshActions($event)"
+            ></ag-grid-angular>
+        }
+
+        <!-- Generic audit-row grid (batches / lineage / quarantine / commits) -->
+        @if (activeTab !== 'report' && activeTab !== 'files' && !loading) {
+            <div class="mt-4">
+                <mat-form-field class="gamma-mat-dense w-72" subscriptSizing="dynamic">
+                    <mat-label>Search</mat-label>
+                    <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
+                </mat-form-field>
+            </div>
+            <ag-grid-angular
+                class="mt-3 h-[36rem] w-full"
+                [theme]="themeSvc.theme()"
+                [rowData]="rows"
+                [columnDefs]="columns"
+                [defaultColDef]="defaultColDef"
+                [pagination]="true"
+                [paginationPageSize]="25"
+                [quickFilterText]="quickFilter"
+                (firstDataRendered)="refreshActions($event)"
+                (rowDataUpdated)="refreshActions($event)"
+            ></ag-grid-angular>
+        }
+    </div>
+</div>

@@ -1,0 +1,65 @@
+/* eslint-disable */
+import { GammaNavigationItem } from '@gamma/components/navigation';
+
+export const defaultNavigation: GammaNavigationItem[] = [
+    {
+        id   : 'dashboard',
+        title: 'Dashboard',
+        type : 'basic',
+        icon : 'heroicons_outline:chart-bar',
+        link : '/dashboard'
+    },
+    {
+        id   : 'pipelines',
+        title: 'Pipelines',
+        type : 'basic',
+        icon : 'heroicons_outline:arrows-right-left',
+        link : '/pipelines'
+    },
+    {
+        id   : 'jobs',
+        title: 'Jobs',
+        type : 'basic',
+        icon : 'heroicons_outline:clock',
+        link : '/jobs'
+    },
+    {
+        id   : 'enrichment',
+        title: 'Enrichment',
+        type : 'basic',
+        icon : 'heroicons_outline:funnel',
+        link : '/enrichment'
+    },
+    {
+        id   : 'catalog',
+        title: 'Catalog',
+        type : 'basic',
+        icon : 'heroicons_outline:share',
+        link : '/catalog'
+    },
+    {
+        id   : 'diagnoses',
+        title: 'Diagnoses',
+        type : 'basic',
+        icon : 'heroicons_outline:wrench-screwdriver',
+        link : '/diagnoses'
+    },
+    {
+        id   : 'config',
+        title: 'Config',
+        type : 'basic',
+        icon : 'heroicons_outline:adjustments-horizontal',
+        link : '/config'
+    },
+    {
+        id   : 'assist',
+        title: 'Assistant',
+        type : 'basic',
+        icon : 'heroicons_outline:sparkles',
+        link : '/assist'
+    }
+];
+// The alternate layouts reuse the same UCC navigation.
+export const compactNavigation: GammaNavigationItem[] = defaultNavigation;
+export const futuristicNavigation: GammaNavigationItem[] = defaultNavigation;
+export const horizontalNavigation: GammaNavigationItem[] = defaultNavigation;

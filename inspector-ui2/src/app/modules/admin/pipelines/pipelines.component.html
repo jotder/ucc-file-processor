@@ -1,0 +1,41 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <div class="text-3xl font-extrabold leading-none tracking-tight">Pipelines</div>
+            <div class="text-secondary mt-1.5">Configured pipelines with lifecycle actions</div>
+        </div>
+        <div class="mt-4 flex items-center gap-3 sm:mt-0">
+            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                <mat-label>Search</mat-label>
+                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
+            </mat-form-field>
+            <mat-slide-toggle [(ngModel)]="autoRefresh">Auto</mat-slide-toggle>
+            <button mat-stroked-button (click)="load()">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                <span class="ml-2">Refresh</span>
+            </button>
+            <button mat-flat-button color="primary" [disabled]="!canControl" (click)="runAll()">
+                <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
+                <span class="ml-2">Run all</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        <ag-grid-angular
+            class="h-[42rem] w-full"
+            [theme]="themeSvc.theme()"
+            [rowData]="pipelines"
+            [columnDefs]="columnDefs"
+            [defaultColDef]="defaultColDef"
+            [pagination]="true"
+            [paginationPageSize]="25"
+            [quickFilterText]="quickFilter"
+            [loading]="loading"
+            (firstDataRendered)="refreshActions($event)"
+            (rowDataUpdated)="refreshActions($event)"
+        ></ag-grid-angular>
+    </div>
+</div>

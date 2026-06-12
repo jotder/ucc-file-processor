@@ -1,0 +1,1739 @@
+[
+    {
+        "viewId": "22d1af1d-0240-4cf2-b1b8-6441e3f99b33",
+        "viewName": "IFRS Voice Chart",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-12 14:42:32",
+        "datasetId": "cffa92ad-94ea-427a-965f-491876a65198",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "daily",
+            "componentName": "GammaChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "amountPAYG",
+                        "name": "Amount",
+                        "axis": "amountPAYG",
+                        "position": "left"
+                    }
+                ],
+                "chartType": "bar",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "171bcc25-782d-420b-9a0f-82c5adf47773",
+        "viewName": "MSC SMS Table",
+        "viewLabel": "MSC SMS KPI",
+        "viewType": "table",
+        "createdBy": "admin",
+        "creationDate": "2024-08-12 17:22:07",
+        "datasetId": "2cd08a31-cd77-43fa-bd7f-2f4bc81923f6",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "/kpi/trends/network/get-metric-data",
+            "displayType": "table",
+            "formate": "",
+            "keyToPass": [],
+            "componentName": "GammaOthersOperatorComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "Daily Trends",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "recordDate",
+                        "caption": "Record Date",
+                        "enrichName": null,
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "count",
+                        "caption": "Count",
+                        "enrichName": null,
+                        "decimals": "0"
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "mou",
+                        "caption": "MoU",
+                        "enrichName": "reformatNumberWithThousandSeparatorV3",
+                        "decimals": "2"
+                    }
+                ],
+                "commonConfig": {
+                    "title": "| Record Date = ",
+                    "dataField": "recordDate",
+                    "checkedKey": "recordDate",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "cd960563-78d1-4bfa-addc-8eb0784860ed",
+        "viewName": "MSC SMS Bar Chart ",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-13 15:41:29",
+        "datasetId": "2cd08a31-cd77-43fa-bd7f-2f4bc81923f6",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "daily",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "count",
+                        "name": "Count",
+                        "axis": "count",
+                        "position": "left"
+                    }
+                ],
+                "chartType": "bar",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "91a2fafe-7d5f-42ad-ad56-83e309bc114c",
+        "viewName": "Interconnect SMS Cost Chart",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-13 16:02:08",
+        "datasetId": "4b17db05-1dbb-4f0c-903d-b6381cf164e3",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "event_date",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "area",
+                        "valueField": "traffic_total",
+                        "name": "",
+                        "axis": "",
+                        "position": "left"
+                    }
+                ],
+                "chartType": "area",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "ad24de77-a17e-41de-8839-cbdc283b8b9f",
+        "viewName": "Revenue Area Chart",
+        "viewLabel": "Revenue Dashboard ",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 11:55:06",
+        "datasetId": "bfb5d2db-5dcd-49e0-802b-96d5495abf09",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "150",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "area",
+                        "valueField": "revenue",
+                        "name": "revenue",
+                        "axis": "",
+                        "position": "left"
+                    }
+                ],
+                "chartType": "area",
+                "chartAxis": "single",
+                "legendDisplay": false
+            }
+        }
+    },
+    {
+        "viewId": "8fed26a3-2e3f-4e79-9c24-66115010b1c0",
+        "viewName": "Interconnect Cost Area Chart",
+        "viewLabel": "Revenue Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 13:28:49",
+        "datasetId": "bfb5d2db-5dcd-49e0-802b-96d5495abf09",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "150",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "area",
+                        "valueField": "ict_cost_sar",
+                        "name": "Interconnect Cost",
+                        "axis": "",
+                        "position": "left"
+                    }
+                ],
+                "chartType": "area",
+                "chartAxis": "single",
+                "legendDisplay": false
+            }
+        }
+    },
+    {
+        "viewId": "d92b3f00-8695-48bf-8425-a1383d1ec9aa",
+        "viewName": "Access Cost Area Chart",
+        "viewLabel": "Revenue Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 13:35:27",
+        "datasetId": "bfb5d2db-5dcd-49e0-802b-96d5495abf09",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "150",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "area",
+                        "valueField": "access_cost_sar",
+                        "name": "Access cost",
+                        "axis": "",
+                        "position": null
+                    }
+                ],
+                "chartType": "area",
+                "chartAxis": "single",
+                "legendDisplay": false
+            }
+        }
+    },
+    {
+        "viewId": "09552335-367a-40ae-8d06-a700d0806e28",
+        "viewName": "Margin Area Chart",
+        "viewLabel": "Revenue Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 13:37:30",
+        "datasetId": "bfb5d2db-5dcd-49e0-802b-96d5495abf09",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "150",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "area",
+                        "valueField": "margin_sar",
+                        "name": "Margin",
+                        "axis": "",
+                        "position": null
+                    }
+                ],
+                "chartType": "area",
+                "chartAxis": "single",
+                "legendDisplay": false
+            }
+        }
+    },
+    {
+        "viewId": "685e0627-673b-424b-b371-dcd043c750a1",
+        "viewName": "Voice Mou Pie Chart",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 16:07:33",
+        "datasetId": "b4e0fed3-b2dd-4cde-8f74-e673a1f0f7d4",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "daily",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "ifrs_type",
+                "verticalAlignment": "bottom",
+                "size": "200",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "doughnut",
+                        "valueField": "actual_usage",
+                        "name": "MoU",
+                        "axis": "",
+                        "position": "left"
+                    }
+                ],
+                "labelDisplay": false,
+                "palette": "",
+                "chartType": "doughnut",
+                "chartAxis": "single",
+                "legendDisplay": false
+            }
+        }
+    },
+    {
+        "viewId": "a72a82eb-2ef0-4c78-bfdf-f2fb1b33b459",
+        "viewName": "Voice Mou Trends Chart",
+        "viewLabel": "Revenue Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 16:11:04",
+        "datasetId": "b4e0fed3-b2dd-4cde-8f74-e673a1f0f7d4",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "150",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "actual_usage",
+                        "name": "MoU",
+                        "axis": "",
+                        "position": null
+                    }
+                ],
+                "labelDisplay": true,
+                "palette": "",
+                "chartType": "bar",
+                "chartAxis": "single",
+                "legendDisplay": false
+            }
+        }
+    },
+    {
+        "viewId": "34e144c9-46d2-4bfe-af36-d213d5f23836",
+        "viewName": "SMS Count Pie Chart",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 16:38:36",
+        "datasetId": "8d477952-dc2e-4a7a-9389-a7e32df55dcb",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "daily",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "ifrs_type",
+                "verticalAlignment": "bottom",
+                "size": "200",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "doughnut",
+                        "valueField": "actual_usage",
+                        "name": "Count",
+                        "axis": "",
+                        "position": "left"
+                    }
+                ],
+                "labelDisplay": false,
+                "palette": "",
+                "chartType": "doughnut",
+                "chartAxis": "single",
+                "legendDisplay": false
+            }
+        }
+    },
+    {
+        "viewId": "475c6950-84ec-40b8-b613-915dc23ae00f",
+        "viewName": "SMS Count Trends Chart",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 16:39:19",
+        "datasetId": "8d477952-dc2e-4a7a-9389-a7e32df55dcb",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "150",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "actual_usage",
+                        "name": "Count",
+                        "axis": "",
+                        "position": null
+                    }
+                ],
+                "labelDisplay": true,
+                "palette": "",
+                "chartType": "bar",
+                "chartAxis": "single",
+                "legendDisplay": false
+            }
+        }
+    },
+    {
+        "viewId": "ea3ba75e-97d4-491b-9f84-fddbca0b143d",
+        "viewName": "revenue today and previous",
+        "viewLabel": "Dashbaord",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 17:58:00",
+        "datasetId": "ccd873c9-6c8e-4ec2-9b78-b9826ececa26",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "",
+            "componentName": "GammaTodayPreviousComponent",
+            "dataConfig": {}
+        }
+    },
+    {
+        "viewId": "39709821-36c9-4417-b21e-d2ed5e2a547f",
+        "viewName": "Today vs Previous Day Access Cost",
+        "viewLabel": "Dashboard",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 19:06:00",
+        "datasetId": "695e224a-4aed-4858-96fd-12f0d922d67c",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "",
+            "componentName": "GammaTodayPreviousComponent",
+            "dataConfig": {}
+        }
+    },
+    {
+        "viewId": "f464bca1-2fe9-4650-932e-151bb5687ddb",
+        "viewName": "Today vs Previous Day Interconnect Cost",
+        "viewLabel": "Dashboard",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 19:06:52",
+        "datasetId": "1b1e2c1e-87b8-4c2d-9330-022673a92cbc",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "",
+            "componentName": "GammaTodayPreviousComponent",
+            "dataConfig": {}
+        }
+    },
+    {
+        "viewId": "02c0e1c2-a8dc-40f9-a321-59e3f44de36e",
+        "viewName": "Today vs Previous Day Margin",
+        "viewLabel": "Dashboard ",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 19:07:31",
+        "datasetId": "d44a19c7-77ad-4d8a-8c8f-94defe356925",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "",
+            "componentName": "GammaTodayPreviousComponent",
+            "dataConfig": {}
+        }
+    },
+    {
+        "viewId": "88be27b4-206e-4b97-98f4-d63f228c4929",
+        "viewName": "Table View With Bar",
+        "viewLabel": "Dashboard",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 17:49:32",
+        "datasetId": "6179e0fb-6a5b-4d03-94d4-9d36f42d9aba",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "",
+            "componentName": "GammaTableWithPercentageComponent",
+            "dataConfig": {}
+        }
+    },
+    {
+        "viewId": "15f32624-e3c2-4a4c-b21a-8dc9a5b0271e",
+        "viewName": "Top Countries Voice MoU Chart",
+        "viewLabel": "dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 19:17:17",
+        "datasetId": "2a7f9f6b-a247-4816-b21c-b205fc8eae37",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "daily",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "countryName",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "mou",
+                        "name": "MoU",
+                        "axis": "",
+                        "position": null
+                    }
+                ],
+                "chartType": "bar",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "7542a703-8050-4e60-8b77-c573002296b0",
+        "viewName": "Top Countries Voice Revenue Chart",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 19:19:31",
+        "datasetId": "e86db798-838c-4c50-87e3-0cb801e3e83a",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "daily",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "countryName",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "revenue",
+                        "name": "Revenue",
+                        "axis": "",
+                        "position": null
+                    }
+                ],
+                "chartType": "bar",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "a14a8603-7d4e-486f-b821-edddbf15e3f5",
+        "viewName": "Top Countries Voice Margin Chart",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 19:20:31",
+        "datasetId": "5decd917-a2a6-45eb-8ad1-0aceff5311ad",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "daily",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "countryName",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "margin",
+                        "name": "margin",
+                        "axis": "",
+                        "position": "left"
+                    }
+                ],
+                "chartType": "bar",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "e4bf67e9-9f96-4bdb-b330-87b75628e3a7",
+        "viewName": "International Voice MoU Card",
+        "viewLabel": "Dashboard",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 00:17:41",
+        "datasetId": "54a28002-ccfd-4f63-972b-2bd4a1ad607a",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "others",
+            "formate": "daily",
+            "componentName": "GammSingleNumberCardComponent",
+            "dataConfig": {}
+        }
+    },
+    {
+        "viewId": "831a3056-104d-4d47-930d-880e0ced000c",
+        "viewName": "International Voice Revenue Card",
+        "viewLabel": "Dashboard",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 01:20:49",
+        "datasetId": "aaa4ff7e-a82e-417d-b5c8-ed908b4e909d",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "others",
+            "formate": "daily",
+            "keyToPass": [],
+            "componentName": "GammSingleNumberCardComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "",
+                    "checkedKey": "",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "7ec161d4-24f6-4f6f-a765-b1576b36b458",
+        "viewName": "International Voice Cost Card",
+        "viewLabel": "Dashboard",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 01:25:26",
+        "datasetId": "763f07e9-5eb8-4854-8876-319b7fb33374",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "others",
+            "formate": "daily",
+            "keyToPass": [],
+            "componentName": "GammSingleNumberCardComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "access_cost_sar",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "recordDate",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "",
+                    "checkedKey": "",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "5537f795-f663-49c0-bdde-ae3d88e285dc",
+        "viewName": "International Voice Margin Card",
+        "viewLabel": "Dashbord",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 01:26:05",
+        "datasetId": "d230ab1b-efdd-43d3-b7e5-99b47cd9feb4",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "others",
+            "formate": "daily",
+            "keyToPass": [],
+            "componentName": "GammSingleNumberCardComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "margin_sar",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "recordDate",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "",
+                    "checkedKey": "",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "defd2d60-81c0-44d8-b97f-3e6f15af21b8",
+        "viewName": "Funel chart",
+        "viewLabel": "dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 14:40:56",
+        "datasetId": "3d6e3b3e-79f2-4d57-9402-594c544bd843",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "daily",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "",
+                "verticalAlignment": "bottom",
+                "size": "240",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [],
+                "chartType": "funnel",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "de1ed9df-eda9-4ce1-8c56-f524d171de58",
+        "viewName": "Subscriber Count card",
+        "viewLabel": "Main Dashboard",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 19:43:49",
+        "datasetId": "c5080666-cb19-49f0-acee-95c73d7b869d",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "others",
+            "formate": "daily",
+            "keyToPass": [],
+            "componentName": "GammSingleNumberCardComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "subs_cnt",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "recordDate",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "",
+                    "checkedKey": "",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "83925317-f1d5-49ad-8c82-34f26f02c6cd",
+        "viewName": "SDP Balance SAR Card ",
+        "viewLabel": "Main Dashboard",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 19:44:27",
+        "datasetId": "0ae334a4-028f-4eb3-ae7d-a64625ca44b0",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "others",
+            "formate": "daily",
+            "keyToPass": [],
+            "componentName": "GammSingleNumberCardComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "subs_bal_sar",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "recordDate",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "",
+                    "checkedKey": "",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "486eea49-bfa7-446c-8e5a-e2ab974c1725",
+        "viewName": "Balance Movement Card",
+        "viewLabel": "Main Dashboard\t",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 19:45:59",
+        "datasetId": "dc9d9e82-afef-45e8-9b9f-08e01a9da3b7",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "others",
+            "formate": "daily",
+            "keyToPass": [],
+            "componentName": "GammSingleNumberCardComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "recordDate",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "bal_mov_sar",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "",
+                    "checkedKey": "",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "631724d4-3de7-4956-8152-71221988605f",
+        "viewName": "Recharge SAR Card",
+        "viewLabel": "Main Dashboard\t",
+        "viewType": "others",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 19:46:55",
+        "datasetId": "675b89d7-9cb4-4ed1-a5a5-37947fd2c9c2",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "others",
+            "formate": "daily",
+            "keyToPass": [],
+            "componentName": "GammSingleNumberCardComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "recharge_tax_excl",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "recordDate",
+                        "caption": "",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "",
+                    "checkedKey": "",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "a1729ea0-7dd0-4aff-8818-73025fd77242",
+        "viewName": "Revenue Assurance KPIs table",
+        "viewLabel": "Main Dashboard",
+        "viewType": "table",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 23:30:22",
+        "datasetId": "229ef67e-1602-4b0d-9930-b34de16d0b23",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "/kpi/trends/network/get-metric-data",
+            "displayType": "table",
+            "formate": "monthly",
+            "keyToPass": [],
+            "componentName": "GammaAdvanceOperatorTableComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "categoryName",
+                        "caption": "Revenue Assurance KPIs",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "kpiCount",
+                        "caption": "Configured KPIs",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "kpiReady",
+                        "caption": "KPI Readiness",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "kpiOutThreshold",
+                        "caption": "KPIs Outside Threshold",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "",
+                    "checkedKey": "",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "34fc60a1-55b3-4956-87a0-519cf5d032ae",
+        "viewName": "Fraud Rules table",
+        "viewLabel": "Main Dashboard",
+        "viewType": "table",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 23:51:47",
+        "datasetId": "f8bee188-da2f-4c96-8c4f-8bf6580b323d",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "/kpi/trends/network/get-metric-data",
+            "displayType": "table",
+            "formate": "monthly",
+            "keyToPass": [],
+            "componentName": "GammaAdvanceOperatorTableComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "",
+                "numberOfRow": 7,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "moduleName",
+                        "caption": "Fraud Rules",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "ruleCount",
+                        "caption": "Configured Rules",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "alertCount",
+                        "caption": "Total Alerts",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "fraudCount",
+                        "caption": "Detected Fraud",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "",
+                    "checkedKey": "",
+                    "isSearchBox": false
+                }
+            }
+        }
+    },
+    {
+        "viewId": "fe0ce5a3-5d65-4982-9ba9-792246aaa83c",
+        "viewName": "Data Processing Information Chart",
+        "viewLabel": "Main Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-19 01:03:19",
+        "datasetId": "d96c0142-3245-4a00-8cbb-746916daa98d",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "reportDate",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "spline",
+                        "valueField": "recordCount",
+                        "name": "Record Count",
+                        "axis": "recordCount",
+                        "position": "left"
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "fileCount",
+                        "name": "File Count",
+                        "axis": "fileCount",
+                        "color": "",
+                        "position": "right"
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "fileSize",
+                        "name": "File Size",
+                        "axis": "fileSize",
+                        "color": "",
+                        "position": "right"
+                    }
+                ],
+                "chartType": "spline",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "70179db0-31be-40ba-88f5-83e888dfaa28",
+        "viewName": "SMS Count Pie Chart",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-19 04:39:28",
+        "datasetId": "5f4fd622-2e9a-4586-8a9b-e73edfa26bf6",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "doughnut",
+                        "valueField": "actual_usage",
+                        "name": "MoU",
+                        "axis": "",
+                        "position": "left"
+                    }
+                ],
+                "palette": "",
+                "legendDisplay": false,
+                "labelDisplay": false,
+                "chartType": "doughnut",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "5e97fdb9-ad4c-4fe0-bbc5-bead1e6e0064",
+        "viewName": "Daily Fraud Alert Distribution Chart",
+        "viewLabel": "Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-19 04:52:13",
+        "datasetId": "1c416515-f732-4ba0-9245-a5498a832d2c",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "reportDate",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "spline",
+                        "valueField": "BlacklistFraud",
+                        "name": "BlacklistFraud",
+                        "axis": "BlacklistFraud",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "BypassFraud",
+                        "name": "BypassFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "DealerFraud",
+                        "name": "DealerFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "GPRSFraud",
+                        "name": "GPRSFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "InternalFraud",
+                        "name": "InternalFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "PrepaidFraud",
+                        "name": "PrepaidFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "RoamingFraud",
+                        "name": "RoamingFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "SpamFraud",
+                        "name": "SpamFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "SubscriptionFraud",
+                        "name": "SubscriptionFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "TestSimFraud",
+                        "name": "TestSimFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "UsageFraud",
+                        "name": "UsageFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "VoucherFraud",
+                        "name": "VoucherFraud",
+                        "axis": "",
+                        "color": "",
+                        "position": ""
+                    }
+                ],
+                "chartType": "spline",
+                "chartAxis": "single",
+                "legendDisplay": false
+            }
+        }
+    },
+    {
+        "viewId": "f179ea0b-090b-4aba-b5af-35983b47593d",
+        "viewName": "GPRS Count Pie Chart",
+        "viewLabel": "Revenue Dashboard",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-19 17:07:57",
+        "datasetId": "5f4fd622-2e9a-4586-8a9b-e73edfa26bf6",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "daily",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "ifrs_type",
+                "verticalAlignment": "bottom",
+                "size": "200",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "doughnut",
+                        "valueField": "actual_usage",
+                        "name": "Usage",
+                        "axis": "",
+                        "position": "left"
+                    }
+                ],
+                "palette": "",
+                "labelDisplay": false,
+                "legendDisplay": false,
+                "chartType": "doughnut",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "161c5210-5806-4674-b5d8-722687ea83dd",
+        "viewName": "GPRS IFRS Daily trend Chart",
+        "viewLabel": "Revenue Dashboard\t",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-19 17:08:48",
+        "datasetId": "46485c78-4db6-45ca-9437-4957a513ad9b",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "150",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "actual_usage",
+                        "name": "Usage",
+                        "axis": null,
+                        "position": null
+                    }
+                ],
+                "legendDisplay": false,
+                "chartType": "bar",
+                "chartAxis": "single"
+            }
+        }
+    },
+    {
+        "viewId": "9d989926-1610-4f97-8598-a84e4d3f1812",
+        "viewName": "MSC vs CBS voice Count Chart",
+        "viewLabel": "test kpi",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-23 17:15:46",
+        "datasetId": "488af3bf-4ac4-4353-8cdb-e0597a555544",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "mscCount",
+                        "name": "MSC",
+                        "axis": "mscCount",
+                        "position": "left"
+                    },
+                    {
+                        "type": "bar",
+                        "valueField": "cbsCount",
+                        "name": "CBS",
+                        "axis": "mscCount",
+                        "color": "",
+                        "position": "left"
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "countVar",
+                        "name": "Variance",
+                        "axis": "countVar",
+                        "color": "",
+                        "position": "right"
+                    }
+                ],
+                "legendDisplay": true,
+                "chartAxis": "multy"
+            }
+        }
+    },
+    {
+        "viewId": "099502b3-8dff-40d1-a389-de182f3c4fba",
+        "viewName": "MSC vs CBS voice MoU Chart",
+        "viewLabel": "test kpi",
+        "viewType": "chart",
+        "createdBy": "admin",
+        "creationDate": "2024-08-23 17:59:51",
+        "datasetId": "488af3bf-4ac4-4353-8cdb-e0597a555544",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "",
+            "displayType": "chart",
+            "formate": "monthly",
+            "componentName": "GammaAdvanceChartComponent",
+            "dataConfig": {
+                "argumentField": "recordDate",
+                "verticalAlignment": "bottom",
+                "size": "250",
+                "horizontalAlignment": "center",
+                "caption": "",
+                "chart_config": [
+                    {
+                        "type": "bar",
+                        "valueField": "mscMou",
+                        "name": "MSC",
+                        "axis": "mscCount",
+                        "position": "left"
+                    },
+                    {
+                        "type": "bar",
+                        "valueField": "cbsMou",
+                        "name": "CBS",
+                        "axis": "mscCount",
+                        "color": "",
+                        "position": "left"
+                    },
+                    {
+                        "type": "spline",
+                        "valueField": "mouVar",
+                        "name": "Variance",
+                        "axis": "countVar",
+                        "color": "",
+                        "position": "right"
+                    }
+                ],
+                "legendDisplay": true,
+                "chartAxis": "multy",
+                "chartType": "bar"
+            }
+        }
+    },
+    {
+        "viewId": "d1d8e2d3-9d0f-49bc-af59-b142aaef3d16",
+        "viewName": "MSC vs CBS voice Daily trends",
+        "viewLabel": "test kpi",
+        "viewType": "table",
+        "createdBy": "admin",
+        "creationDate": "2024-08-23 18:24:28",
+        "datasetId": "488af3bf-4ac4-4353-8cdb-e0597a555544",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "/kpi/trends/network/get-metric-data",
+            "displayType": "table",
+            "formate": "monthly",
+            "keyToPass": [
+                "recordDate"
+            ],
+            "componentName": "GammaAdvanceOperatorTableComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "text_file_name",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "recordDate",
+                        "caption": "Record Date",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "cbsCount",
+                        "caption": "CBS Count",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "mscCount",
+                        "caption": "MSC Count",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "countVar",
+                        "caption": "Count Variance",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "countPercentage",
+                        "caption": "Count Percentage",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "mscMou",
+                        "caption": "MSC MoU",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "cbsMou",
+                        "caption": "CBS MoU",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "mouVar",
+                        "caption": "MoU Variance",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "mouPercentage",
+                        "caption": "MoU Percentage",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "",
+                    "dataField": "recordDate",
+                    "checkedKey": "recordDate",
+                    "isSearchBox": true
+                }
+            }
+        }
+    },
+    {
+        "viewId": "4c009677-3bbc-4c8b-b68b-f8b4152404a2",
+        "viewName": "MSC vs CBS voice BY SRV Type",
+        "viewLabel": "Test KpI",
+        "viewType": "table",
+        "createdBy": "admin",
+        "creationDate": "2024-08-24 12:20:58",
+        "datasetId": "1a70ff5c-0c26-47a3-8938-810213e94679",
+        "kpiConfig": {
+            "serviceId": "",
+            "api": "/kpi/trends/network/get-metric-data",
+            "displayType": "table",
+            "formate": "monthly",
+            "keyToPass": [
+                "srvType"
+            ],
+            "componentName": "GammaAdvanceOperatorTableComponent",
+            "dataConfig": {
+                "searchPanel": true,
+                "file_name": "by_srvtype",
+                "numberOfRow": 10,
+                "pageInfo": true,
+                "allowedPageSizes": [
+                    10,
+                    20,
+                    50,
+                    100
+                ],
+                "columns": [
+                    {
+                        "visible": true,
+                        "dataField": "srvType",
+                        "caption": "SRV Type",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "mscCount",
+                        "caption": "MSC Count",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "cbsCount",
+                        "caption": "CBS Count",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "countVar",
+                        "caption": "Count Variance",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "countPercentage",
+                        "caption": "Count Percentage",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "mscMou",
+                        "caption": "MSC MoU",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "cbsMou",
+                        "caption": "CBS MoU",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "mouVar",
+                        "caption": "MoU Variance",
+                        "enrichName": "",
+                        "decimals": ""
+                    },
+                    {
+                        "visible": true,
+                        "dataField": "mouPercentage",
+                        "caption": "MoU Percentage",
+                        "enrichName": "",
+                        "decimals": ""
+                    }
+                ],
+                "commonConfig": {
+                    "title": "| SRV Type = ",
+                    "dataField": "srvType",
+                    "checkedKey": "srvType",
+                    "isSearchBox": false
+                }
+            }
+        }
+    }
+]

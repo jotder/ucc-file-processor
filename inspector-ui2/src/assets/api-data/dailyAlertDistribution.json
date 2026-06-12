@@ -1,0 +1,1707 @@
+[
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231204",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231205",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231206",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231207",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231208",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231209",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231210",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231211",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231212",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231213",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231214",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231215",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231216",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231217",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231218",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231219",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231220",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231221",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231222",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231223",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231224",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231225",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231226",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231227",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231228",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231229",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231230",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 87,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20231231",
+        "alertCount": 56,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "PrepaidFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "PostpaidFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "VoucherFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "InternalFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "DealerFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "RoamingFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "BlacklistFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "BypassFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "PartnersFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "GPRSFraud"
+    },
+    {
+        "reportDate": "20240101",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240102",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    },
+    {
+        "reportDate": "20240103",
+        "alertCount": 0,
+        "moduleName": "UsageFraud"
+    }
+]

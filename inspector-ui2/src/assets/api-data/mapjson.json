@@ -1,0 +1,434 @@
+{
+    "returnCode": "200",
+    "message": "",
+    "Payload": [
+        {
+            "cellIds": [
+                {
+                    "mou": 203.83333333333334,
+                    "cgiId": "108613031",
+                    "cellName": "13031",
+                    "count": 30,
+                    "pulse": 217,
+                    "cellId": "13031",
+                    "type": "2G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 35.016666666666666,
+                    "cgiId": "108613032",
+                    "cellName": "13032",
+                    "count": 1,
+                    "pulse": 36,
+                    "cellId": "13032",
+                    "type": "2G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 62.146666666666666,
+                    "cgiId": "108613032",
+                    "cellName": "13033",
+                    "count": 2,
+                    "pulse": 33,
+                    "cellId": "13032",
+                    "type": "2G",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 300.85000000000002,
+            "city": "Riyadh",
+            "latitude": 24.68878,
+            "count": 33,
+            "siteName": "",
+            "siteId": "1461",
+            "weight": 238.85000000000002,
+            "state": "Arriyadh",
+            "region": "Arriyadh",
+            "longitude": 46.68789
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 508.7,
+                    "cgiId": "123108971",
+                    "cellName": "DWAIM7-B2",
+                    "count": 184,
+                    "pulse": 610,
+                    "cellId": "8971",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 962.0166666666667,
+                    "cgiId": "123108972",
+                    "cellName": "DWAIM7-A1",
+                    "count": 297,
+                    "pulse": 1118,
+                    "cellId": "8972",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 972.2333333333333,
+                    "cgiId": "123108973",
+                    "cellName": "DWAIM7-C1",
+                    "count": 267,
+                    "pulse": 1115,
+                    "cellId": "8973",
+                    "type": "3G",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 2430.883333333333,
+            "city": "Riyadh",
+            "latitude": 24.78608,
+            "count": 4017,
+            "siteName": "DWAIM7",
+            "siteId": "5816",
+            "weight": 11847.883333333333,
+            "state": "Arriyadh",
+            "region": "Arriyadh",
+            "longitude": 46.83986
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 508.7,
+                    "cgiId": "122118161",
+                    "cellName": "DWAIM7-B2",
+                    "count": 184,
+                    "pulse": 610,
+                    "cellId": "18161",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 962.0166666666667,
+                    "cgiId": "122118162",
+                    "cellName": "DWAIM7-A1",
+                    "count": 297,
+                    "pulse": 1118,
+                    "cellId": "18162",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 972.2333333333333,
+                    "cgiId": "122118163",
+                    "cellName": "DWAIM7-C1",
+                    "count": 267,
+                    "pulse": 1115,
+                    "cellId": "18163",
+                    "type": "3G",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 5430.883333333333,
+            "city": "Riyadh",
+            "latitude": 24.71126,
+            "count": 6817,
+            "siteName": "DWAIM7",
+            "siteId": "8161",
+            "weight": 11847.883333333333,
+            "state": "Arriyadh",
+            "region": "Arriyadh",
+            "longitude": 46.62314
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 508.7,
+                    "cgiId": "124118181",
+                    "cellName": "DWAIM7-B2",
+                    "count": 184,
+                    "pulse": 610,
+                    "cellId": "18181",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 962.0166666666667,
+                    "cgiId": "124118182",
+                    "cellName": "DWAIM7-A1",
+                    "count": 297,
+                    "pulse": 1118,
+                    "cellId": "18182",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 972.2333333333333,
+                    "cgiId": "124118181",
+                    "cellName": "DWAIM7-C1",
+                    "count": 267,
+                    "pulse": 1115,
+                    "cellId": "18183",
+                    "type": "3G",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 430.883333333333,
+            "city": "Riyadh",
+            "latitude": 24.78596,
+            "count": 6817,
+            "siteName": "DWAIM7",
+            "siteId": "8181",
+            "weight": 11847.883333333333,
+            "state": "Arriyadh",
+            "region": "Arriyadh",
+            "longitude": 46.83998
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 508.7,
+                    "cgiId": "133800351",
+                    "cellName": "DWAIM7-B2",
+                    "count": 184,
+                    "pulse": 610,
+                    "cellId": "351",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 962.0166666666667,
+                    "cgiId": "133800352",
+                    "cellName": "DWAIM7-A1",
+                    "count": 297,
+                    "pulse": 1118,
+                    "cellId": "352",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 972.2333333333333,
+                    "cgiId": "133800353",
+                    "cellName": "DWAIM7-C1",
+                    "count": 267,
+                    "pulse": 1115,
+                    "cellId": "353",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 262.0166666666667,
+                    "cgiId": "133800354",
+                    "cellName": "DWAIM7-A1",
+                    "count": 297,
+                    "pulse": 1118,
+                    "cellId": "354",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 972.2333333333333,
+                    "cgiId": "133800355",
+                    "cellName": "DWAIM7-C1",
+                    "count": 267,
+                    "pulse": 1115,
+                    "cellId": "355",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 262.0166666666667,
+                    "cgiId": "133800356",
+                    "cellName": "DWAIM7-A1",
+                    "count": 297,
+                    "pulse": 1118,
+                    "cellId": "356",
+                    "type": "3G",
+                    "locationNumber": ""
+                },
+                {
+                    "mou": 972.2333333333333,
+                    "cgiId": "133800357",
+                    "cellName": "DWAIM7-C1",
+                    "count": 267,
+                    "pulse": 1115,
+                    "cellId": "357",
+                    "type": "3G",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 40430.883333333333,
+            "city": "Riyadh",
+            "latitude": 24.76804,
+            "count": 16817,
+            "siteName": "DWAIM7",
+            "siteId": "8181",
+            "weight": 11847.883333333333,
+            "state": "Arriyadh",
+            "region": "Arriyadh",
+            "longitude": 46.80784
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 508.7,
+                    "cgiId": "29241384",
+                    "cellName": "114224D",
+                    "count": 184,
+                    "pulse": 610,
+                    "cellId": "29241384",
+                    "type": "OMNI",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 430.883333333333,
+            "city": "Riyadh",
+            "latitude": 24.67988,
+            "count": 6817,
+            "siteName": "DWAIM7",
+            "siteId": "8181",
+            "weight": 11847.883333333333,
+            "state": "Riyadh",
+            "region": "Central",
+            "longitude": 46.68735
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 308.7,
+                    "cgiId": "33892355",
+                    "cellName": "E2392-L21-A",
+                    "count": 64,
+                    "pulse": 610,
+                    "cellId": "33892355",
+                    "type": "OMNI",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 308.7,
+            "city": "Dammam",
+            "latitude": 26.54292,
+            "count": 64,
+            "siteName": "Huawei",
+            "siteId": "2392",
+            "weight": 11847.883333333333,
+            "state": "Dammam",
+            "region": "East",
+            "longitude": 50.07505
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 348.7,
+                    "cgiId": "33873924",
+                    "cellName": "L03_HFREA2320_4",
+                    "count": 64,
+                    "pulse": 610,
+                    "cellId": "33873924",
+                    "type": "Roof Top",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 308.7,
+            "city": "Hafr Al-Batin",
+            "latitude": 28.4208,
+            "count": 64,
+            "siteName": "Huawei",
+            "siteId": "2392",
+            "weight": 17,
+            "state": "Hafr Al-Batin",
+            "region": "East",
+            "longitude": 45.98109
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 358.7,
+                    "cgiId": "29611015",
+                    "cellName": "C5668-L21-B",
+                    "count": 64,
+                    "pulse": 610,
+                    "cellId": "29611015",
+                    "type": "Green Field",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 308.7,
+            "city": "RUMAH",
+            "latitude": 25.561972,
+            "count": 64,
+            "siteName": "Huawei",
+            "siteId": "2392",
+            "weight": 35,
+            "state": "RUMAH",
+            "region": "Central",
+            "longitude": 47.173653
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 358.7,
+                    "cgiId": "29800200",
+                    "cellName": "C6407-L21-C",
+                    "count": 64,
+                    "pulse": 610,
+                    "cellId": "29800200",
+                    "type": "Roof Top",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 308.7,
+            "city": "Al-Kharj",
+            "latitude": 24.1565,
+            "count": 64,
+            "siteName": "Huawei",
+            "siteId": "2392",
+            "weight": 35,
+            "state": "Al-Kharj",
+            "region": "Central",
+            "longitude": 47.31235
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 358.7,
+                    "cgiId": "34022660",
+                    "cellName": "E2901-L21-B",
+                    "count": 64,
+                    "pulse": 610,
+                    "cellId": "34022660",
+                    "type": "Green Field",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 308.7,
+            "city": "Khubar",
+            "latitude": 26.30939,
+            "count": 64,
+            "siteName": "Huawei",
+            "siteId": "2392",
+            "weight": 35,
+            "state": "Khubar",
+            "region": "Central",
+            "longitude": 50.17401
+        },
+        {
+            "cellIds": [
+                {
+                    "mou": 358.7,
+                    "cgiId": "31417348",
+                    "cellName": "W2724U8-L21-B_NEW",
+                    "count": 64,
+                    "pulse": 610,
+                    "cellId": "31417348",
+                    "type": "Green Field",
+                    "locationNumber": ""
+                }
+            ],
+            "mou": 260.7,
+            "city": "DHOLOM",
+            "latitude": 22.71957,
+            "count": 64,
+            "siteName": "Huawei",
+            "siteId": "2392",
+            "weight": 35,
+            "state": "DHOLOM",
+            "region": "Central",
+            "longitude": 42.17847
+        }
+    ]
+}

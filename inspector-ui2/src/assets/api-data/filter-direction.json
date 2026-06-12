@@ -1,0 +1,122 @@
+{
+    "eventTypeKey": [
+        {
+            "name": "Voice",
+            "value": "1"
+        },
+        {
+            "name": "SMS",
+            "value": "2"
+        },
+        {
+            "name": "MMS",
+            "value": "3"
+        },
+        {
+            "name": "one-off fee deduction",
+            "value": "4"
+        },
+        {
+            "name": "GPRS Charging",
+            "value": "5"
+        },
+        {
+            "name": "Content-based charging",
+            "value": "6"
+        },
+        {
+            "name": "Recurring fee",
+            "value": "7"
+        },
+        {
+            "name": "Service processed on the management foreground",
+            "value": "8"
+        },
+        {
+            "name": "CF",
+            "value": "9"
+        }
+    ],
+    "srvType": [
+        {
+            "name": "ALL",
+            "value": null
+        },
+        {
+            "name": "POSTPAID",
+            "value": "1"
+        },
+        {
+            "name": "PREPAID",
+            "value": "2"
+        },
+        {
+            "name": "INROAMER",
+            "value": "3"
+        },
+        {
+            "name": "OUTROAMER",
+            "value": "4"
+        },
+        {
+            "name": "POSTOUTROAMER",
+            "value": "5"
+        },
+        {
+            "name": "PREOUTROAMER",
+            "value": "6"
+        },
+        {
+            "name": "UNKNOWN",
+            "value": "-99"
+        },
+        {
+            "name": "NOT APPLICABLE",
+            "value": "-98"
+        },
+        {
+            "name": "NO MSISDN NO IMSI",
+            "value": "-90"
+        },
+        {
+            "name": "HYBRID",
+            "value": "7"
+        },
+        {
+            "name": "HYBRID OUTROAMER",
+            "value": "8"
+        },
+        {
+            "name": "POSTPAID2",
+            "value": "-1"
+        },
+        {
+            "name": "POST2OUTROAMER",
+            "value": "-2"
+        }
+    ],
+    "direction": [
+        {
+            "name": "OUTGOING",
+            "value": "1"
+        },
+        {
+            "name": "INCOMING",
+            "value": "2"
+        }
+    ],
+    "nw_call_type": [
+        {
+            "name": "ONNET",
+            "value": "1"
+        },
+        {
+            "name": "OFFNET",
+            "value": "2"
+        },
+        {
+            "name": "INTERNATIONAL",
+            "value": "3"
+        }
+    ]
+}

@@ -1,0 +1,122 @@
+[
+  {
+    "access_cost_sar": 8.772333333333334,
+    "margin_sar": 130.0894843149541,
+    "revenue": 158.16095098162083,
+    "ict_cost_sar": 19.299133333333327
+  },
+  {
+    "access_cost_sar": 1.7400000000000007,
+    "margin_sar": 490.1779,
+    "revenue": 491.91790000000003,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 0,
+    "margin_sar": 119.86447880419892,
+    "revenue": 119.86447880419892,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 6780.507333333947,
+    "margin_sar": -6780.507333333947,
+    "revenue": 0,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 0,
+    "margin_sar": 1841.0207,
+    "revenue": 1841.0207,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 1.8356666666666666,
+    "margin_sar": 8.26603650192996,
+    "revenue": 14.140169835263293,
+    "ict_cost_sar": 4.038466666666666
+  },
+  {
+    "access_cost_sar": 0,
+    "margin_sar": 755.854260322592,
+    "revenue": 755.854260322592,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 0,
+    "margin_sar": 78.53904473545427,
+    "revenue": 78.53904473545427,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 4.368166666666666,
+    "margin_sar": 26.01262804510751,
+    "revenue": 39.990761378440844,
+    "ict_cost_sar": 9.609966666666665
+  },
+  {
+    "access_cost_sar": 435.2833333333309,
+    "margin_sar": 1483.8080192378768,
+    "revenue": 2397.9030192378746,
+    "ict_cost_sar": 478.81166666666206
+  },
+  {
+    "access_cost_sar": 1245.859999999985,
+    "margin_sar": -513.6266999999302,
+    "revenue": 732.233299999996,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 0,
+    "margin_sar": 73.31170859990095,
+    "revenue": 73.31170859990095,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 1206.93999999996,
+    "margin_sar": -430.16259999993486,
+    "revenue": 776.7773999999976,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 1.5713333333333335,
+    "margin_sar": 2.0061064237918367,
+    "revenue": 5.305906423791837,
+    "ict_cost_sar": 1.7284666666666668
+  },
+  {
+    "access_cost_sar": 3300.2259999998623,
+    "margin_sar": -3300.2259999998623,
+    "revenue": 0,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 8.612666666666666,
+    "margin_sar": 74.83919164960162,
+    "revenue": 102.39972498293497,
+    "ict_cost_sar": 18.947866666666666
+  },
+  {
+    "access_cost_sar": 0,
+    "margin_sar": -88542.90926089583,
+    "revenue": 270216.95098247274,
+    "ict_cost_sar": 358759.8602433565
+  },
+  {
+    "access_cost_sar": 392.7730000000023,
+    "margin_sar": -392.7730000000023,
+    "revenue": 0,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 391.0668333333352,
+    "margin_sar": -391.0668333333352,
+    "revenue": 0,
+    "ict_cost_sar": 0
+  },
+  {
+    "access_cost_sar": 56.79999999999911,
+    "margin_sar": 37.40906173842551,
+    "revenue": 165.2090617384256,
+    "ict_cost_sar": 70.99999999999854
+  }
+]

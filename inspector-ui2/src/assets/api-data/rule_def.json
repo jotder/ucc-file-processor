@@ -1,0 +1,1498 @@
+[
+  {
+    "_id": "feab7441-36cc-4ee9-a78f-c3f2e30b00a2",
+    "rule_id": "feab7441-36cc-4ee9-a78f-c3f2e30b00a2",
+    "rule_name": "multiple_failed_recharges_per_subscriber",
+    "display_name": "Multiple Failed Recharges per Subscriber",
+    "rule_type": "dataDriven",
+    "module": "VoucherFraud",
+    "rule_description": "Multiple Failed Recharges per Subscriber",
+    "categories": ["Fraud", "VoucherFraud"],
+    "tags": ["#fraud", "#voucherfraud"],
+    "version": "2.1",
+    "status": "created",
+    "activated": false,
+    "action_by": null,
+    "threshold_value": "200",
+    "query_expr": "select served_msisdn, count(*) err_count from air_error_fct where xdr_date between '$P{start_date}' and '$P{end_date}' group by served_msisdn  having  count(*) > 200 order by err_count desc",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "dynamic",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "dynamic",
+        "function": "TODAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "err_count",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "e40b8dc1-6d2d-4f37-9f5f-2f3d1e261058",
+    "rule_id": "e40b8dc1-6d2d-4f37-9f5f-2f3d1e261058",
+    "rule_name": "high_number_of_on_net_domestic_calls",
+    "display_name": "Long Duration On-net & Off-net call",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for Long Duration On-net & Off-net call",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": false,
+    "action_by": null,
+    "threshold_value": "220",
+    "query_expr": "select served_msisdn, original_dur from rafms.eric_msc_fct  where xdr_date between '$p{start_date}' and '$p{end_date}' and  event_type_key ='1'  and event_direction_key='1' and original_dur >= 8100 ",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "original_dur",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "89eb56f6-227b-43a0-b510-a3065433716e",
+    "rule_id": "89eb56f6-227b-43a0-b510-a3065433716e",
+    "rule_name": "high_duration_of_voice_calls_for_postpaid_subscribers",
+    "display_name": "High duration of voice calls for postpaid subscribers",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High duration of voice calls for postpaid subscribers",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "200",
+    "query_expr": "select served_msisdn, sum(original_dur) call_duration from rafms.eric_ccn_scf_fct where xdr_date between '$p{start_date}' and '$p{end_date}' and srv_type_key='1' and event_type_key = '1' group by served_msisdn having sum(original_dur) > 50000",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_duration",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "ebc83f03-6e4a-41f7-ae2b-18d8010475a8",
+    "rule_id": "ebc83f03-6e4a-41f7-ae2b-18d8010475a8",
+    "rule_name": "high_number_of_voice_calls_for_postpaid_subscribers",
+    "display_name": "High number of voice calls for postpaid subscribers",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High number of voice calls for postpaid subscribers",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "200",
+    "query_expr": "select served_msisdn, count(1) call_count from rafms.eric_ccn_scf_fct where xdr_date between '$p{start_date}' and '$p{end_date}' and srv_type_key='1' and event_type_key = '1' group by served_msisdn having count(1) > 200",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_cnt",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "98d83059-d276-4bc6-bef8-7fad0e4a669c",
+    "rule_id": "98d83059-d276-4bc6-bef8-7fad0e4a669c",
+    "rule_name": "high_duration_of_international_calls",
+    "display_name": "High Duration of International calls",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High Duration of International calls by a subscriber",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "5000",
+    "query_expr": "select served_msisdn, sum(original_dur) as call_duration from rafms.eric_gmsc_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key ='1' and event_direction_key='1' and nw_ind_key='3' and group by served_msisdn having sum(original_dur) > 5000",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_duration",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "262291ac-a750-451b-87d5-892e5a3734e5",
+    "rule_id": "262291ac-a750-451b-87d5-892e5a3734e5",
+    "rule_name": "high_number_of_satellite_calls",
+    "display_name": "High Number of Satellite Calls",
+    "rule_type": "dataDriven",
+    "module": "GPRSFraud",
+    "rule_description": "Control for High Number of Satellite Calls",
+    "categories": ["Fraud", "GPRSFraud"],
+    "tags": ["#fraud", "#gprsfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "1",
+    "query_expr": "select a.served_msisdn, count(1) call_count from (select served_msisdn, other_msisdn, other_msisdn_dial_digit_key, other_msisdn_iso_code, in_tg_id_key, out_tg_id_key, billable_pulse from eric_msc_fct where xdr_date between '$p{start_date}' and '$p{end_date}' and other_msisdn_dial_digit_key in ('628681', '870', '871', '872', '873', '874', '878', '8711', '8713', '8716', '8721', '8723', '8726', '8731', '8733', '8736', '8741', '8743', '8746', '8810', '8811', '8812', '8813', '8818', '8819', '61140','87139', '87176', '87239', '87276', '87339', '87376', '87439', '87476', '88213', '88220'))a group by a.served_msisdn having count(1) > 1",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_count",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "23cc888c-491f-45b3-a03d-c4b7f5e9e2fd",
+    "rule_id": "23cc888c-491f-45b3-a03d-c4b7f5e9e2fd",
+    "rule_name": "staff_providing_single_high_value_adjustment",
+    "display_name": "Staff providing single high value adjustment",
+    "rule_type": "dataDriven",
+    "module": "InternalFraud",
+    "rule_description": "Control for Staff providing single high value adjustment",
+    "categories": ["Fraud", "InternalFraud"],
+    "tags": ["#fraud", "#internalfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "5000",
+    "query_expr": "select served_msisdn, origin_operator_id, service_class, external_data1, transaction_amount from air_adjustment_fct WHERE xdr_date between '$P{start_date}' and '$P{end_date}' and transaction_type is NULL and transaction_amount > 5000 and (external_data2 like 'Annual_SDT_%' or upper(external_data1) like 'LEGAL%')",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "transaction_amount",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "f0f09188-38ea-400f-be46-06caf61e202c",
+    "rule_id": "f0f09188-38ea-400f-be46-06caf61e202c",
+    "rule_name": "high_duration_of_international_call_forwards",
+    "display_name": "High Duration of International Call forwards",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High Duration of International Call forwards",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "4500",
+    "query_expr": "select served_msisdn, sum(original_dur) call_duration from eric_gmsc_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key ='5'  and event_direction_key='1' and nw_ind_key='3' group by served_msisdn having sum(original_dur) > 4500",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_duration",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "537234ec-5cc5-4b53-979c-e05f6e52ef00",
+    "rule_id": "537234ec-5cc5-4b53-979c-e05f6e52ef00",
+    "rule_name": "high_value_of_credits_received_by_subscriber",
+    "display_name": "High value of credits received by a subscriber",
+    "rule_type": "dataDriven",
+    "module": "PrepaidFraud",
+    "rule_description": "Control for High value of credits received by a subscriber",
+    "categories": ["Fraud", "PrepaidFraud"],
+    "tags": ["#fraud", "#voucherfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "15000",
+    "query_expr": "SELECT served_msisdn, sum(transaction_amount) me2u_received from rafms.air_adjustment_fct  where xdr_date between '$P{start_date}' and '$P{end_date}' and  transaction_type = 'me2u credit transfer' and transaction_code = 'credit' and cast(service_class as int) < 700 group by served_msisdn having count(1) > 15000",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "me2u_received",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "f6c56225-aaf8-4674-8bd8-64e1da387116",
+    "rule_id": "f6c56225-aaf8-4674-8bd8-64e1da387116",
+    "rule_name": "high_number_of_voucher_recharges_without_voice_calls",
+    "display_name": "High Number of Voucher recharges without Voice calls",
+    "rule_type": "dataDriven",
+    "module": "VoucherFraud",
+    "rule_description": "Control High Number of Voucher recharges without Voice calls good indicator for voucher theft scenarios",
+    "categories": ["Fraud", "VoucherFraud"],
+    "tags": ["#fraud", "#voucherfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "200",
+    "query_expr": "select served_msisdn, count(*) err_count from air_error_fct where xdr_date between '$P{start_date}' and '$P{end_date}' group by served_msisdn  having  count(*) > 200 order by err_count desc",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "dynamic",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "dynamic",
+        "function": "TODAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "err_count",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "8d85cc81-3d98-480d-bae9-046807622a74",
+    "rule_id": "8d85cc81-3d98-480d-bae9-046807622a74",
+    "rule_name": "high_number_of_international_call_forwards",
+    "display_name": "High Number of International Call forwards",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High Number of International Call forwards",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "20",
+    "query_expr": "select served_msisdn, count(*) call_count from eric_gmsc_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key ='5'  and event_direction_key='1' and nw_ind_key='3' group by served_msisdn having count(*) > 20 ",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_cnt",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "26f5d82f-7c02-49c2-b440-2d44692a48c0",
+    "rule_id": "26f5d82f-7c02-49c2-b440-2d44692a48c0",
+    "rule_name": "high_duration_of_satellite_calls",
+    "display_name": "High Duration of Satellite Calls",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High Duration of Satellite Calls",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "5",
+    "query_expr": "select a.served_msisdn, count(1) call_count, sum(a.billable_pulse) billable_pulse from (select served_msisdn, other_msisdn, other_msisdn_dial_digit_key, other_msisdn_iso_code, in_tg_id_key, out_tg_id_key, billable_pulse from eric_msc_fct where xdr_date between '$p{start_date}' and '$p{end_date}' and event_type_key = '1' and event_direction_key = '1' and other_msisdn_dial_digit_key in ('628681', '870', '871', '872', '873', '874', '878', '8711', '8713', '8716', '8721', '8723', '8726', '8731', '8733', '8736', '8741', '8743', '8746', '8810', '8811', '8812', '8813', '8818', '8819', '61140','87139', '87176', '87239', '87276', '87339', '87376', '87439', '87476', '88213', '88220'))a \ngroup by a.served_msisdn having sum(a.billable_pulse) > 5",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "billable_pulse",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "40539ab5-1103-4556-b458-f3090163f575",
+    "rule_id": "40539ab5-1103-4556-b458-f3090163f575",
+    "rule_name": "high_number_of_call_conferences",
+    "display_name": "High number of call conferences",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High number of call conferences",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "1000",
+    "query_expr": "select served_msisdn, count(1) call_cnt from rafms.eric_msc_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and suppliment_code_key = '81'  group by served_msisdn having count(1) > 10",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_cnt",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "9c032b52-798f-493b-87e0-719f2098689c",
+    "rule_id": "9c032b52-798f-493b-87e0-719f2098689c",
+    "rule_name": "high_accumulated_charge_of_gprs_downloads_by_subscribers.json",
+    "display_name": "High Accumulated Charge of GPRS downloads by home subscribers",
+    "rule_type": "dataDriven",
+    "module": "GPRSFraud",
+    "rule_description": "Control for High Accumulated Charge of GPRS downloads by home subscribers",
+    "categories": ["Fraud", "GPRSFraud"],
+    "tags": ["#fraud", "#gprsfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "10000",
+    "query_expr": "select served_msisdn, round(sum(charge), 2) charge from (select served_msisdn, sum(charge) charge from eric_ccn_gy_post_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key  = '4' group by served_msisdn union select served_msisdn, sum(charge) as charge from eric_ccn_gy_pre_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key  = '4' group by served_msisdn) as m  group by m.served_msisdn having sum(m.charge) > 10000 order by charge desc",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "charge",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "a8a806fc-ccee-42f3-ac4a-bed8a0a4cc9b",
+    "rule_id": "a8a806fc-ccee-42f3-ac4a-bed8a0a4cc9b",
+    "rule_name": "long_duration_international_call",
+    "display_name": "Long Duration International Call",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for Long Duration International Call",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "3600",
+    "query_expr": "select served_msisdn, original_duration from eric_gmsc_fct where dr_date between '$p{start_date}' and '$p{end_date}' and event_type_key ='1'  and event_direction_key='1' and nw_ind_key='3' and original_duration > 3600",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "original_duration",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "9a75b1db-045e-4672-abb8-4cd39db87903",
+    "rule_id": "9a75b1db-045e-4672-abb8-4cd39db87903",
+    "rule_name": "high_value_of_sdp_adjustments",
+    "display_name": "High value of SDP adjustments",
+    "rule_type": "dataDriven",
+    "module": "PrepaidFraud",
+    "rule_description": "Control for High value of SDP adjustments",
+    "categories": ["Fraud", "PrepaidFraud"],
+    "tags": ["#fraud", "#prepaidfraud"],
+    "version": "2.1",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "200",
+    "query_expr": "select served_msisdn, sum(transaction_amount) as adjustment_value from rafms.air_adjustment_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and transaction_type is null and subscription_type_key is null and transaction_amount > 0  and cast(service_class as int) < 700 group by served_msisdn having sum(transaction_amount) > 5000",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "adjustment_value",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "5444ed5a-d791-481d-abca-082ab6cba31a",
+    "rule_id": "5444ed5a-d791-481d-abca-082ab6cba31a",
+    "rule_name": "high_number_of_credits_given_by_subscriber",
+    "display_name": "High number of credits given by a subscriber",
+    "rule_type": "dataDriven",
+    "module": "PrepaidFraud",
+    "rule_description": "Control for High number of credits given by a subscriber",
+    "categories": ["Fraud", "PrepaidFraud"],
+    "tags": ["#fraud", "#voucherfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "25",
+    "query_expr": "select served_msisdn, count(1) me2u_debit_cnt from rafms.air_adjustment_fct  where xdr_date between '$P{start_date}' and '$P{end_date}' and  transaction_type = 'me2u credit transfer' and transaction_code = 'debit' and cast(service_class as int) < 700 group by served_msisdn having count(1) > 25",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "me2u_debit_cnt",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "afadadeb-4368-4b31-ba5f-5174f56ca6cf",
+    "rule_id": "afadadeb-4368-4b31-ba5f-5174f56ca6cf",
+    "rule_name": "high_duration_of_off_net_domestic_calls",
+    "display_name": "High Duration of off-net Domestic calls",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High Duration of off-net Domestic calls",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "40000",
+    "query_expr": "select served_msisdn, sum(original_dur) call_duration from rafms.eric_msc_fct where xdr_date between '$P{start_date}' and event_type_key ='1' and event_direction_key='1' and nw_ind_key='2'group by served_msisdn having sum(original_dur) > 40000 ",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_duration",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "8bac5463-8510-431c-ac5c-05609f5ca8d0",
+    "rule_id": "8bac5463-8510-431c-ac5c-05609f5ca8d0",
+    "rule_name": "high_value_of_credits_given_by_subscriber",
+    "display_name": "High value of credits given by a subscriber",
+    "rule_type": "dataDriven",
+    "module": "PrepaidFraud",
+    "rule_description": "Control for High value of credits given by a subscriber",
+    "categories": ["Fraud", "PrepaidFraud"],
+    "tags": ["#fraud", "#voucherfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "-500",
+    "query_expr": "select served_msisdn, sum(transaction_amount) me2u_debit from rafms.air_adjustment_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and transaction_type = 'me2u credit transfer' and transaction_code = 'debit' group by served_msisdn having sum(transaction_amount) < -500",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "me2u_debit",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "c0c52f3a-18a1-4e1a-b13f-36d6b636e567",
+    "rule_id": "c0c52f3a-18a1-4e1a-b13f-36d6b636e567",
+    "rule_name": "high_number_of_call_forwards",
+    "display_name": "High  number of Call Forwards",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High  number of Call Forwards",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "1000",
+    "query_expr": "select served_msisdn, sum(original_dur) call_duration from eric_msc_fct WHERE xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key = '5' group by served_msisdn having sum(original_dur) > 1000",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_duration",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "386664c9-48ee-4038-a8be-150382b10eff",
+    "rule_id": "386664c9-48ee-4038-a8be-150382b10eff",
+    "rule_name": "high_gprs_upload_subscribers",
+    "display_name": "High GPRS Upload Subscribers",
+    "rule_type": "dataDriven",
+    "module": "GPRSFraud",
+    "rule_description": "Control for High GPRS Upload Subscribers",
+    "categories": ["Fraud", "GPRSFraud"],
+    "tags": ["#fraud", "#gprsfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "20",
+    "query_expr": "select served_msisdn, round(sum(volume_uplink)/1024/1024/1024, 1) volume from (select served_msisdn, sum(data_volume_fbc_uplink) volume_uplink from ggsn_post_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key  = '4' group by served_msisdn union select served_msisdn, sum(data_volume_fbc_uplink) as volume_uplink from ggsn_pre_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key  = '4' group by served_msisdn) as m  group by m.served_msisdn having sum(m.volume_uplink) > 20*1024*1024*1024 order by volume desc",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "volume",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "f96bc650-b495-45fb-b4c1-3c02207bbe52",
+    "rule_id": "f96bc650-b495-45fb-b4c1-3c02207bbe52",
+    "rule_name": "high_number_of_off_net_domestic_calls",
+    "display_name": "High Number of off-net Domestic calls",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High Number of off-net Domestic calls",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "220",
+    "query_expr": "select served_msisdn, count(1) call_cnt from rafms.eric_msc_fct where xdr_date between '$P{start_date}' and event_type_key ='1' and event_direction_key='1' and nw_ind_key='2'group by served_msisdn having count(1) > 180 ",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_cnt",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "cc80dfeb-c7a8-4234-8ada-8159ca843a6b",
+    "rule_id": "cc80dfeb-c7a8-4234-8ada-8159ca843a6b",
+    "rule_name": "high_duration_of_call_conferences",
+    "display_name": "High duration of call conferences",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High duration of call conferences",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "3600",
+    "query_expr": "select served_msisdn, sum(original_dur) call_duration from rafms.eric_msc_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and suppliment_code_key = '81'  group by served_msisdn having sum(original_dur) > 3600",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_duration",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "b5c03aea-dd04-4110-83ad-651d115f4e4f",
+    "rule_id": "b5c03aea-dd04-4110-83ad-651d115f4e4f",
+    "rule_name": "high_sdr_accumulated_for_incoming_calls_to_postpaid_outroamers.json",
+    "display_name": "High SDR accumulated for incoming calls to Postpaid Outroamers",
+    "rule_type": "dataDriven",
+    "module": "RoamingFraud",
+    "rule_description": "Control for High SDR accumulated for incoming calls to Postpaid Outroamers",
+    "categories": ["Fraud", "RoamingFraud"],
+    "tags": ["#fraud", "#roamingfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "20",
+    "query_expr": "select served_msisdn, count(1) og_call_cnt, sum(original_dur) call_dur, sum(charge) call_charge, sum(xdr_charge) xdr_charge from tap_voice_sms_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and cdr_type = 'TAPIN' and event_type_key = '1' and event_direction_key = '2' and served_msisdn in (select served_msisdn from rafms.sdp_subscriber_fct WHERE xdr_date between '$P{start_date}' and '$P{end_date}' and cast(serviceclassid as int) >= 700) GROUP BY served_msisdn HAVING sum(xdr_charge) > 20",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "xdr_charge",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "a1c39a54-56f2-4cf6-a2e3-d19803835a2d",
+    "rule_id": "a1c39a54-56f2-4cf6-a2e3-d19803835a2d",
+    "rule_name": "high_number_of_mms",
+    "display_name": "High number of MMS",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High number of MMS",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "800",
+    "query_expr": "select served_msisdn, sum(call_cnt) as mms_call_cnt from (select served_msisdn, count(*) call_cnt from ggsn_post_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key = '3' group by served_msisdn union select served_msisdn, count(*) call_cnt from ggsn_pre_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key = '3' group by served_msisdn) as ggsn group by served_msisdn having sum(call_cnt) > 800",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "mms_call_cnt",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "9bb80a2e-9f08-43a8-af10-86aa749a918b",
+    "rule_id": "9bb80a2e-9f08-43a8-af10-86aa749a918b",
+    "rule_name": "high_number_of_credits_received_by_subscriber",
+    "display_name": "High number of credits received by a subscriber",
+    "rule_type": "dataDriven",
+    "module": "PrepaidFraud",
+    "rule_description": "Control for High number of credits received by a subscriber",
+    "categories": ["Fraud", "PrepaidFraud"],
+    "tags": ["#fraud", "#voucherfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "30",
+    "query_expr": "select served_msisdn, count(1) me2u_cnt, sum(transaction_amount) me2u_amt from rafms.air_adjustment_fct  where xdr_date between '$P{start_date}' and '$P{end_date}' and transaction_type = 'me2u credit transfer' and transaction_code = 'credit' and cast(service_class as int) < 700 group by served_msisdn having count(1) > 30 and sum(transaction_amount) > 8000",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "me2u_cnt",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "a25ff627-e0fd-4ad0-babf-adc124c54642",
+    "rule_id": "a25ff627-e0fd-4ad0-babf-adc124c54642",
+    "rule_name": "high_sdg_accumulated_for_all_voice_outgoing_calls_by_postpaid_outroamers",
+    "display_name": "High SDG accumulated for all voice outgoing calls by Postpaid Outroamers",
+    "rule_type": "dataDriven",
+    "module": "RoamingFraud",
+    "rule_description": "Control for High SDG accumulated for all voice outgoing calls by Postpaid Outroamers",
+    "categories": ["Fraud", "RoamingFraud"],
+    "tags": ["#fraud", "#roamingfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "20",
+    "query_expr": "select served_msisdn, count(1) og_call_cnt, sum(original_dur) call_dur, sum(charge) call_charge, sum(xdr_charge) xdr_charge from tap_voice_sms_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and cdr_type = 'TAPIN' and event_type_key = '1' and event_direction_key = '1' and served_msisdn in (select served_msisdn from rafms.sdp_subscriber_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and cast(serviceclassid as int) >= 700) GROUP BY served_msisdn HAVING sum(xdr_charge) > 20",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "xdr_charge",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "504bde68-7d98-4eb5-a578-0892342317e9",
+    "rule_id": "504bde68-7d98-4eb5-a578-0892342317e9",
+    "rule_name": "high_value_of_voucher_recharges_without_voice_calls",
+    "display_name": "High Value of Voucher Recharges  without Voice calls",
+    "rule_type": "dataDriven",
+    "module": "VoucherFraud",
+    "rule_description": "Control High Value of Voucher Recharges  without Voice calls good indicator for voucher theft scenarios",
+    "categories": ["Fraud", "VoucherFraud"],
+    "tags": ["#fraud", "#voucherfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "200",
+    "query_expr": "select served_msisdn, count(*) err_count from air_error_fct where xdr_date between '$P{start_date}' and '$P{end_date}' group by served_msisdn  having  count(*) > 200 order by err_count desc",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "err_count",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "3d7b8c7d-3ad5-4c3c-a9a4-1b13c4527a9d",
+    "rule_id": "3d7b8c7d-3ad5-4c3c-a9a4-1b13c4527a9d",
+    "rule_name": "high_number_of_international_calls",
+    "display_name": "High Number of International calls",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High Number of International calls by a subscriber",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "100",
+    "query_expr": "select served_msisdn, count(1) as call_count from rafms.eric_gmsc_fct where  xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key ='1' and event_direction_key='1' and nw_ind_key='3' and group by served_msisdn having count(1) > 100",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_count",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "e765c7c0-3b24-42a7-a284-92517a0618cc",
+    "rule_id": "e765c7c0-3b24-42a7-a284-92517a0618cc",
+    "rule_name": "high_gprs_downloads_subscribers",
+    "display_name": "High GPRS Downloads Subscribers",
+    "rule_type": "dataDriven",
+    "module": "GPRSFraud",
+    "rule_description": "Control for High GPRS Downloads Subscribers",
+    "categories": ["Fraud", "GPRSFraud"],
+    "tags": ["#fraud", "#gprsfraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "50",
+    "query_expr": "select served_msisdn, round(sum(volume_downlink)/1024/1024/1024, 1) volume from (select served_msisdn, sum(data_volume_fbc_downlink) volume_downlink from ggsn_post_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key  = '4' group by served_msisdn union select served_msisdn, sum(data_volume_fbc_downlink) as volume_downlink from ggsn_pre_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key  = '4' group by served_msisdn) as m  group by m.served_msisdn having sum(m.volume_downlink) > 50*1024*1024*1024 order by volume desc",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "volume",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "277ceeee-28db-46f8-baba-1fe63ca4153f",
+    "rule_id": "277ceeee-28db-46f8-baba-1fe63ca4153f",
+    "rule_name": "high_duration_of_on_net_domestic_calls",
+    "display_name": "High Duration of on-net Domestic calls",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High Duration of on-net Domestic calls",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "50000",
+    "query_expr": "select served_msisdn, sum(original_dur) call_duration from rafms.eric_msc_fct where xdr_date between '$P{start_date}' and event_type_key ='1' and event_direction_key='1' and nw_ind_key='1'group by served_msisdn having sum(original_dur) > 50000 ",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_duration",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "4a2fbffe-cf4b-4539-a3f3-9faaff5a455d",
+    "rule_id": "4a2fbffe-cf4b-4539-a3f3-9faaff5a455d",
+    "rule_name": "high_number_of_sdp_adjustments",
+    "display_name": "High number of SDP adjustments",
+    "rule_type": "dataDriven",
+    "module": "PrepaidFraud",
+    "rule_description": "Control for High number of SDP adjustments",
+    "categories": ["Fraud", "PrepaidFraud"],
+    "tags": ["#fraud", "#prepaidfraud"],
+    "version": "2.1",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "200",
+    "query_expr": "select served_msisdn, count(1) as adjustment_count from rafms.air_adjustment_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and  transaction_type is null and subscription_type_key is null and transaction_amount > 0 group by served_msisdn having count(1) > 1",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "adjustment_count",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "6d91ba2a-e68b-4b3c-9548-b56e365b5d8c",
+    "rule_id": "6d91ba2a-e68b-4b3c-9548-b56e365b5d8c",
+    "rule_name": "high_number_of_call_holds",
+    "display_name": "High number of Call Holds",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High number of Call Holds",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "1000",
+    "query_expr": "select served_msisdn, count(1) call_cnt from rafms.eric_msc_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and suppliment_code_key = '66'  group by  served_msisdn having count(1) > 10",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "call_cnt",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  },
+  {
+    "_id": "a128b681-3ab9-4393-b99e-14a8b98add68",
+    "rule_id": "a128b681-3ab9-4393-b99e-14a8b98add68",
+    "rule_name": "high_number_of_sms",
+    "display_name": "High number of SMS",
+    "rule_type": "dataDriven",
+    "module": "UsageFraud",
+    "rule_description": "Control for High number of SMS",
+    "categories": ["Fraud", "UsageFraud"],
+    "tags": ["#fraud", "#usagefraud"],
+    "version": "1.0",
+    "status": "created",
+    "activated": true,
+    "action_by": null,
+    "threshold_value": "1000",
+    "query_expr": "select event_date, served_msisdn, count(1) sms_cnt from rafms.eric_msc_fct where xdr_date between '$P{start_date}' and '$P{end_date}' and event_type_key='2' and event_direction_key='1'  group by event_date, served_msisdn having count(1) > 1000",
+    "query_arguments": [
+      {
+        "argument_name": "start_date",
+        "label_name": "Event Start Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_START"
+      },
+      {
+        "argument_name": "end_date",
+        "label_name": "Event End Date",
+        "datatype": "timestamp",
+        "runtime_value": "static",
+        "function": "LASTDAY_END"
+      }
+    ],
+    "database_engine": "impala",
+    "db_instance_id": "",
+    "principle_column": "served_msisdn",
+    "threshold_column": "sms_cnt",
+    "evidence_dataset": {
+      "required": false,
+      "derive": false,
+      "dataset_columns": null,
+      "query": ""
+    },
+    "creation_date": "2022-11-10 13:45:00"
+  }
+]

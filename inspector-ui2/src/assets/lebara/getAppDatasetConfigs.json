@@ -1,0 +1,3075 @@
+[
+    {
+        "datasetId": "2cd08a31-cd77-43fa-bd7f-2f4bc81923f6",
+        "datasetName": "MSC SMS Dataset ",
+        "datasetType": "mongo",
+        "createdBy": "admin",
+        "creationDate": "2024-08-10 08:42:48",
+        "config": {
+            "api": "/kpi/trends/network/get-metric-data",
+            "serviceId": "getMscDailyStats",
+            "apiType": "post",
+            "filterItems": [
+                {
+                    "apiName": "startDate",
+                    "label": "Start Date",
+                    "filterType": "date",
+                    "operatorName": "",
+                    "defaultFilterType": "dynamic",
+                    "defaultFilterValue": "YYYY-MM-DD",
+                    "momentFunction": "subtract",
+                    "momentFormate": "15,days"
+                },
+                {
+                    "apiName": "endDate",
+                    "label": "End Date",
+                    "filterType": "date",
+                    "operatorName": "",
+                    "defaultFilterType": "dynamic",
+                    "defaultFilterValue": "YYYY-MM-DD",
+                    "momentFunction": "subtract",
+                    "momentFormate": "1,days"
+                }
+            ],
+            "fixOperationLevles": [
+                {
+                    "key": "eventTypeKey",
+                    "value": "2"
+                }
+            ]
+        }
+    },
+    {
+        "datasetId": "4b17db05-1dbb-4f0c-903d-b6381cf164e3",
+        "datasetName": "Interconnect SMS Cost ",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-10 09:18:45",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "event_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "eneDate",
+                        "serverColumn": "event_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "event_date",
+                        "descending": true
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "impala"
+                    },
+                    {
+                        "databaseName": "rafms"
+                    },
+                    {
+                        "tableName": "metric_interconnect_sms_revenue_daily"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "amount_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": "SUM(amount_sar)",
+                        "aliasName": "amount_sar"
+                    },
+                    {
+                        "columnName": "traffic_total",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "traffic_total"
+                    },
+                    {
+                        "columnName": "blended_rate",
+                        "functionName": "",
+                        "enrichFunction": "",
+                        "advancedColumn": "SUM(amount_sar)/SUM(traffic_total)",
+                        "aliasName": "blended_rate"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "event_date",
+                        "columnName": "event_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "amount_sar",
+                        "columnName": "amount_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "SUM(amount_sar)",
+                        "enrichFunction": "",
+                        "caption": "Amount SAR"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "traffic_total",
+                        "columnName": "traffic_total",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Traffic Total"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "blended_rate",
+                        "columnName": "blended_rate",
+                        "functionName": "",
+                        "advancedColumn": "SUM(amount_sar)/SUM(traffic_total)",
+                        "enrichFunction": "",
+                        "caption": "Blended Rate"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "event_date",
+                        "aliasName": ""
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "cffa92ad-94ea-427a-965f-491876a65198",
+        "datasetName": "IFRS Voice",
+        "datasetType": "simpleApi",
+        "createdBy": "admin",
+        "creationDate": "2024-08-10 09:26:22",
+        "config": {
+            "api": "/kpi/getIfrsDailyUsageSummary",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "recordDate",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "recordDate",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "ifrsType",
+                        "serverColumn": "ifrsType",
+                        "operatorName": "eq",
+                        "defaultValue": "voice_premium",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "trafficType",
+                        "serverColumn": "trafficType",
+                        "operatorName": "eq",
+                        "defaultValue": "voice",
+                        "dataType": "string"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "bfb5d2db-5dcd-49e0-802b-96d5495abf09",
+        "datasetName": "Dashboard Revenue Area Chart ",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 11:34:06",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "_id.recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "revenue"
+                    },
+                    {
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "margin_sar"
+                    },
+                    {
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "access_cost_sar"
+                    },
+                    {
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "ict_cost_sar"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": true,
+                        "dataField": "revenue",
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Revenue"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "margin_sar",
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Margin"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "access_cost_sar",
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Access Cost"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "ict_cost_sar",
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Interconnect Cost"
+                    },
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "b4e0fed3-b2dd-4cde-8f74-e673a1f0f7d4",
+        "datasetName": "Voice MoU Pie Chart",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 14:07:23",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "eventTypeKey",
+                        "serverColumn": "event_type",
+                        "operatorName": "eq",
+                        "defaultValue": "1",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "actual_usage"
+                    },
+                    {
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "access_cost_sar"
+                    },
+                    {
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "ict_cost_sar"
+                    },
+                    {
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "margin_sar"
+                    },
+                    {
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "revenue"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": false,
+                        "dataField": "ifrs_type",
+                        "columnName": "ifrs_type",
+                        "functionName": null,
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "IFRS Type"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "actual_usage",
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "MoU"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "access_cost_sar",
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "access_cost_sar"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "ict_cost_sar",
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "ict_cost_sar"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "margin_sar",
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "margin_sar"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "revenue",
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "revenue"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    },
+                    {
+                        "columnName": "ifrs_type",
+                        "aliasName": "ifrs_type"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "ccd873c9-6c8e-4ec2-9b78-b9826ececa26",
+        "datasetName": "revenue today and previous",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 15:24:43",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "revenue"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Recorrd Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "revenue",
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "revenue"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "8d477952-dc2e-4a7a-9389-a7e32df55dcb",
+        "datasetName": "SMS Count Pie Chart",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 16:36:39",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "eventTypeKey",
+                        "serverColumn": "event_type",
+                        "operatorName": "eq",
+                        "defaultValue": "2",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "_id.recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "actual_usage"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": false,
+                        "dataField": "ifrs_type",
+                        "columnName": "ifrs_type",
+                        "functionName": null,
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "IFRS Type"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "actual_usage",
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "MoU"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    },
+                    {
+                        "columnName": "ifrs_type",
+                        "aliasName": "ifrs_type"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "695e224a-4aed-4858-96fd-12f0d922d67c",
+        "datasetName": "Access cost today and previous",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 19:03:45",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "_id.recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "access_cost_sar"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Recorrd Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "access_cost_sar",
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Access Cost"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "1b1e2c1e-87b8-4c2d-9330-022673a92cbc",
+        "datasetName": "Interconnect Cost  today and previous",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 19:04:27",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "ict_cost_sar"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Recorrd Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "ict_cost_sar",
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Interconnect Cost"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "d44a19c7-77ad-4d8a-8c8f-94defe356925",
+        "datasetName": "Margin  today and previous",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-16 19:05:05",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "margin_sar"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Recorrd Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "margin_sar",
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Margin"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "6179e0fb-6a5b-4d03-94d4-9d36f42d9aba",
+        "datasetName": "Revenue , Interconnect, access cost and Margine table ",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 16:48:50",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "eventTypeKey",
+                        "serverColumn": "event_type",
+                        "operatorName": "in",
+                        "defaultValue": "1,2,5",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "_id.recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "access_cost_sar"
+                    },
+                    {
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "ict_cost_sar"
+                    },
+                    {
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "revenue"
+                    },
+                    {
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "margin_sar"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "access_cost_sar",
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Access Cost"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "ict_cost_sar",
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Interconnect Cost"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "revenue",
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Revenue"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "margin_sar",
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Margin"
+                    },
+                    {
+                        "measures": false,
+                        "dataField": "eventTypeKey",
+                        "columnName": "event_type",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Event Type"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    },
+                    {
+                        "columnName": "event_type",
+                        "aliasName": "eventTypeKey"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "5f4fd622-2e9a-4586-8a9b-e73edfa26bf6",
+        "datasetName": "GPRS Count Pie Chart",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 18:28:41",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "eventTypeKey",
+                        "serverColumn": "event_type",
+                        "operatorName": "eq",
+                        "defaultValue": "5",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "_id.recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "enrichFunction": "covertMBToTB",
+                        "advancedColumn": null,
+                        "aliasName": "actual_usage"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": false,
+                        "dataField": "ifrs_type",
+                        "columnName": "ifrs_type",
+                        "functionName": null,
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "IFRS Type"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "actual_usage",
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "covertMBToTB",
+                        "caption": "Usage"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    },
+                    {
+                        "columnName": "ifrs_type",
+                        "aliasName": "ifrs_type"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "54a28002-ccfd-4f63-972b-2bd4a1ad607a",
+        "datasetName": "linechart by IFRS",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 18:51:31",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "ifrs_type",
+                        "serverColumn": "ifrs_type",
+                        "operatorName": "eq",
+                        "defaultValue": "voice_international",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "actual_usage"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "actual_usage",
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "MoU"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "2a7f9f6b-a247-4816-b21c-b205fc8eae37",
+        "datasetName": "Top Countries – Voice MoU",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 19:01:43",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "eq",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "served_plmn_iso",
+                        "serverColumn": "served_plmn_iso",
+                        "operatorName": "ne",
+                        "defaultValue": "SAU",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "mou",
+                        "descending": true
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_dashboard_top_voice_mou_metric"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "mou",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "mou"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "mou",
+                        "columnName": "mou",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "mou"
+                    },
+                    {
+                        "measures": false,
+                        "dataField": "served_plmn_iso",
+                        "columnName": "served_plmn_iso",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Country"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    },
+                    {
+                        "columnName": "served_plmn_iso",
+                        "aliasName": "countryName"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "5decd917-a2a6-45eb-8ad1-0aceff5311ad",
+        "datasetName": "Top Countries – Voice Margin",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 19:08:45",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "eq",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "served_plmn_iso",
+                        "serverColumn": "served_plmn_iso",
+                        "operatorName": "ne",
+                        "defaultValue": "SAU",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "margin",
+                        "descending": true
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_dashboard_top_voice_margin_metric"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "margin",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "margin"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "margin",
+                        "columnName": "margin",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "margin"
+                    },
+                    {
+                        "measures": false,
+                        "dataField": "served_plmn_iso",
+                        "columnName": "served_plmn_iso",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Country"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    },
+                    {
+                        "columnName": "served_plmn_iso",
+                        "aliasName": "countryName"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "e86db798-838c-4c50-87e3-0cb801e3e83a",
+        "datasetName": "Top Countries – Voice Revenue",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-17 19:10:31",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "Record Date",
+                        "serverColumn": "record_date",
+                        "operatorName": "eq",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "Country Code",
+                        "serverColumn": "served_plmn_iso",
+                        "operatorName": "ne",
+                        "defaultValue": "SAU",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "revenue",
+                        "descending": true
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_dashboard_top_voice_rev_metric"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "revenue"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "revenue",
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "revenue"
+                    },
+                    {
+                        "measures": false,
+                        "dataField": "served_plmn_iso",
+                        "columnName": "served_plmn_iso",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Country"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    },
+                    {
+                        "columnName": "served_plmn_iso",
+                        "aliasName": "countryName"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "aaa4ff7e-a82e-417d-b5c8-ed908b4e909d",
+        "datasetName": "International Voice Revenue",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 01:09:20",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "ifrs_type",
+                        "serverColumn": "ifrs_type",
+                        "operatorName": "eq",
+                        "defaultValue": "voice_international",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "revenue"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "revenue",
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "revenue"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "763f07e9-5eb8-4854-8876-319b7fb33374",
+        "datasetName": "International Voice Cost",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 01:10:00",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "ifrs_type",
+                        "serverColumn": "ifrs_type",
+                        "operatorName": "eq",
+                        "defaultValue": "voice_international",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "access_cost_sar"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "access_cost_sar",
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Access Cost"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "d230ab1b-efdd-43d3-b7e5-99b47cd9feb4",
+        "datasetName": "International Voice Margin",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 01:10:35",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "ifrs_type",
+                        "serverColumn": "ifrs_type",
+                        "operatorName": "eq",
+                        "defaultValue": "voice_international",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "margin_sar"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "margin_sar",
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "margin"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "3d6e3b3e-79f2-4d57-9402-594c544bd843",
+        "datasetName": "Funel Chart Datasource",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 14:40:05",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "access_cost_sar"
+                    },
+                    {
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "ict_cost_sar"
+                    },
+                    {
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "margin_sar"
+                    },
+                    {
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "revenue"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "access_cost_sar",
+                        "columnName": "access_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "access_cost_sar"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "ict_cost_sar",
+                        "columnName": "ict_cost_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "ict_cost_sar"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "margin_sar",
+                        "columnName": "margin_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "margin_sar"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "revenue",
+                        "columnName": "revenue",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "revenue"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "c5080666-cb19-49f0-acee-95c73d7b869d",
+        "datasetName": "Subscriber Count",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 15:27:37",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "dashboard_subs_summary_daily"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "subs_cnt",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "subs_cnt"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "subs_cnt",
+                        "columnName": "subs_cnt",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Subscriber Count"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "0ae334a4-028f-4eb3-ae7d-a64625ca44b0",
+        "datasetName": "SDP Balance SAR",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 19:36:25",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": true
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "dashboard_subs_summary_daily"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "subs_bal_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "subs_bal_sar"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "subs_bal_sar",
+                        "columnName": "subs_bal_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "SDP Balance"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "dc9d9e82-afef-45e8-9b9f-08e01a9da3b7",
+        "datasetName": "SDP Balance Movement",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 19:36:55",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": true
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "dashboard_subs_summary_daily"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "bal_mov_sar",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "bal_mov_sar"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "bal_mov_sar",
+                        "columnName": "bal_mov_sar",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Balance Movement "
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "675b89d7-9cb4-4ed1-a5a5-37947fd2c9c2",
+        "datasetName": "Recharge SAR",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 19:38:21",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "recordDate",
+                        "descending": true
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "dashboard_subs_summary_daily"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "recharge_tax_excl",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "recharge_tax_excl"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "recharge_tax_excl",
+                        "columnName": "recharge_tax_excl",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Recharge"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "229ef67e-1602-4b0d-9930-b34de16d0b23",
+        "datasetName": "Revenue Assurance KPIs",
+        "datasetType": "simpleApi",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 22:29:11",
+        "config": {
+            "api": "/business/dashboard/getConfiguredRAKpiCount",
+            "apiType": "get",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "reportDate",
+                        "operatorName": "eq",
+                        "defaultValue": "20240816",
+                        "dataType": "string"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "46485c78-4db6-45ca-9437-4957a513ad9b",
+        "datasetName": "GPRS IFRS Daily Usage",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 23:05:56",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "eventTypeKey",
+                        "serverColumn": "event_type",
+                        "operatorName": "eq",
+                        "defaultValue": "5",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [
+                    {
+                        "columnName": "_id.recordDate",
+                        "descending": false
+                    }
+                ],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "ifrs_margin_analysis_dashboard"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "enrichFunction": "covertBytesToGB",
+                        "advancedColumn": null,
+                        "aliasName": "actual_usage"
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": false,
+                        "dataField": "ifrs_type",
+                        "columnName": "ifrs_type",
+                        "functionName": null,
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "IFRS Type"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "actual_usage",
+                        "columnName": "actual_usage",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "covertBytesToGB",
+                        "caption": "usage"
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "f8bee188-da2f-4c96-8c4f-8bf6580b323d",
+        "datasetName": "Fraud Rules",
+        "datasetType": "simpleApi",
+        "createdBy": "admin",
+        "creationDate": "2024-08-18 23:44:23",
+        "config": {
+            "api": "/business/dashboard/getConfiguredFraudRuleCount",
+            "apiType": "get",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "reportDate",
+                        "operatorName": "eq",
+                        "defaultValue": "20240816",
+                        "dataType": "string"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "1c416515-f732-4ba0-9245-a5498a832d2c",
+        "datasetName": "Daily Fraud Alert Distribution",
+        "datasetType": "simpleApi",
+        "createdBy": "admin",
+        "creationDate": "2024-08-19 00:53:08",
+        "config": {
+            "api": "/business/dashboard/dailyAlertDistribution",
+            "apiType": "get",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "startDate",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "endDate",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "d96c0142-3245-4a00-8cbb-746916daa98d",
+        "datasetName": "Dashboard Data Processing Summary Information",
+        "datasetType": "simpleApi",
+        "createdBy": "admin",
+        "creationDate": "2024-08-19 00:58:17",
+        "config": {
+            "api": "/business/dashboard/dailyOperationsProcessingSummary",
+            "apiType": "get",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "startDate",
+                        "operatorName": "gte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "endDate",
+                        "operatorName": "lte",
+                        "defaultValue": "",
+                        "dataType": "string"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "488af3bf-4ac4-4353-8cdb-e0597a555544",
+        "datasetName": "MSC vs CBS voice Daily",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-23 14:18:30",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "20240801",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "20240810",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "metric_msc_cbs_voice_recon_daily"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "msc_count",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "mscCount"
+                    },
+                    {
+                        "columnName": "cbs_count",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "cbsCount"
+                    },
+                    {
+                        "columnName": "msc_mou",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "mscMou"
+                    },
+                    {
+                        "columnName": "cbs_actual_mou",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "cbsMou"
+                    },
+                    {
+                        "columnName": "mouVar",
+                        "functionName": "",
+                        "enrichFunction": "",
+                        "advancedColumn": "{'$subtract': ['$cbsMou','$mscMou']}",
+                        "aliasName": "mouVar",
+                        "deriveField": true
+                    },
+                    {
+                        "columnName": "mouPercentage",
+                        "functionName": "",
+                        "enrichFunction": "applyPercentage",
+                        "advancedColumn": "{'$divide':[{'$subtract': ['$cbsMou','$mscMou']},'$cbsMou']}",
+                        "aliasName": "mouPercentage",
+                        "deriveField": true
+                    },
+                    {
+                        "columnName": "countVar",
+                        "functionName": "",
+                        "enrichFunction": "",
+                        "advancedColumn": "{'$subtract': ['$cbsCount','$mscCount']}",
+                        "aliasName": "countVar",
+                        "deriveField": true
+                    },
+                    {
+                        "columnName": "countPercentage",
+                        "functionName": "",
+                        "enrichFunction": "applyPercentage",
+                        "advancedColumn": "{'$divide':[{'$subtract': ['$cbsCount','$mscCount']},'$cbsCount']}",
+                        "aliasName": "countPercentage",
+                        "deriveField": true
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "recordDate",
+                        "columnName": "record_date",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "Record Date"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "mscCount",
+                        "columnName": "msc_count",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "MSC Count"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "cbsCount",
+                        "columnName": "cbs_count",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "CBS Count"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "mscMou",
+                        "columnName": "msc_mou",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "MSC Mou"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "cbsMou",
+                        "columnName": "cbs_actual_mou",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "CBS MoU"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "mouVar",
+                        "columnName": "mouVar",
+                        "functionName": "",
+                        "advancedColumn": "{'$subtract': ['$cbsMou','$mscMou']}",
+                        "enrichFunction": "",
+                        "caption": "MoU Varience",
+                        "deriveField": true
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "mouPercentage",
+                        "columnName": "mouPercentage",
+                        "functionName": "",
+                        "advancedColumn": "{'$divide':[{'$subtract': ['$cbsMou','$mscMou']},'$cbsMou']}",
+                        "enrichFunction": "applyPercentage",
+                        "caption": "MoU Percentage",
+                        "deriveField": true
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "countVar",
+                        "columnName": "countVar",
+                        "functionName": "",
+                        "advancedColumn": "{'$subtract': ['$cbsCount','$mscCount']}",
+                        "enrichFunction": "",
+                        "caption": "Count Varience",
+                        "deriveField": true
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "countPercentage",
+                        "columnName": "countPercentage",
+                        "functionName": "",
+                        "advancedColumn": "{'$divide':[{'$subtract': ['$cbsCount','$mscCount']},'$cbsCount']}",
+                        "enrichFunction": "applyPercentage",
+                        "caption": "Count Percentage",
+                        "deriveField": true
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "record_date",
+                        "aliasName": "recordDate"
+                    }
+                ]
+            }
+        }
+    },
+    {
+        "datasetId": "1a70ff5c-0c26-47a3-8938-810213e94679",
+        "datasetName": "MSC vs CBS voice BY SRV Type",
+        "datasetType": "querybuilder",
+        "createdBy": "admin",
+        "creationDate": "2024-08-24 12:17:15",
+        "config": {
+            "api": "/kpi/genericAggregatePaginatedKpiServiceResponse",
+            "apiType": "post",
+            "serviceId": "",
+            "queryConfig": {
+                "mapedFilters": [
+                    {
+                        "localColumn": "startDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "gte",
+                        "defaultValue": "20240801",
+                        "dataType": "string"
+                    },
+                    {
+                        "localColumn": "endDate",
+                        "serverColumn": "record_date",
+                        "operatorName": "lte",
+                        "defaultValue": "20240810",
+                        "dataType": "string"
+                    }
+                ],
+                "sorters": [],
+                "reqFields": [
+                    {
+                        "pageNumber": 1
+                    },
+                    {
+                        "pageSize": 2010
+                    },
+                    {
+                        "dbConfig": "mongo"
+                    },
+                    {
+                        "databaseName": "rafmdb"
+                    },
+                    {
+                        "tableName": "metric_msc_cbs_voice_recon_daily"
+                    }
+                ],
+                "measures": [
+                    {
+                        "columnName": "msc_count",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "mscCount"
+                    },
+                    {
+                        "columnName": "cbs_count",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "cbsCount"
+                    },
+                    {
+                        "columnName": "msc_mou",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "mscMou"
+                    },
+                    {
+                        "columnName": "cbs_actual_mou",
+                        "functionName": "sum",
+                        "enrichFunction": "",
+                        "advancedColumn": null,
+                        "aliasName": "cbsMou"
+                    },
+                    {
+                        "columnName": "mouVar",
+                        "functionName": "",
+                        "enrichFunction": "",
+                        "advancedColumn": "{'$subtract': ['$cbsMou','$mscMou']}",
+                        "aliasName": "mouVar",
+                        "deriveField": true
+                    },
+                    {
+                        "columnName": "mouPercentage",
+                        "functionName": "",
+                        "enrichFunction": "applyPercentage",
+                        "advancedColumn": "{'$divide':[{'$subtract': ['$cbsMou','$mscMou']},'$cbsMou']}",
+                        "aliasName": "mouPercentage",
+                        "deriveField": true
+                    },
+                    {
+                        "columnName": "countVar",
+                        "functionName": "",
+                        "enrichFunction": "",
+                        "advancedColumn": "{'$subtract': ['$cbsCount','$mscCount']}",
+                        "aliasName": "countVar",
+                        "deriveField": true
+                    },
+                    {
+                        "columnName": "countPercentage",
+                        "functionName": "",
+                        "enrichFunction": "applyPercentage",
+                        "advancedColumn": "{'$divide':[{'$subtract': ['$cbsCount','$mscCount']},'$cbsCount']}",
+                        "aliasName": "countPercentage",
+                        "deriveField": true
+                    }
+                ],
+                "filter": [],
+                "commonConfig": {},
+                "columns": [
+                    {
+                        "measures": false,
+                        "dataField": "srvType",
+                        "columnName": "srv_type",
+                        "functionName": "",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "SRV Type"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "mscCount",
+                        "columnName": "msc_count",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "MSC Count"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "cbsCount",
+                        "columnName": "cbs_count",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "CBS Count"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "mscMou",
+                        "columnName": "msc_mou",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "MSC Mou"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "cbsMou",
+                        "columnName": "cbs_actual_mou",
+                        "functionName": "sum",
+                        "advancedColumn": "",
+                        "enrichFunction": "",
+                        "caption": "CBS MoU"
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "mouVar",
+                        "columnName": "mouVar",
+                        "functionName": "",
+                        "advancedColumn": "{'$subtract': ['$cbsMou','$mscMou']}",
+                        "enrichFunction": "",
+                        "caption": "MoU Varience",
+                        "deriveField": true
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "mouPercentage",
+                        "columnName": "mouPercentage",
+                        "functionName": "",
+                        "advancedColumn": "{'$divide':[{'$subtract': ['$cbsMou','$mscMou']},'$cbsMou']}",
+                        "enrichFunction": "applyPercentage",
+                        "caption": "MoU Percentage",
+                        "deriveField": true
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "countVar",
+                        "columnName": "countVar",
+                        "functionName": "",
+                        "advancedColumn": "{'$subtract': ['$cbsCount','$mscCount']}",
+                        "enrichFunction": "",
+                        "caption": "Count Varience",
+                        "deriveField": true
+                    },
+                    {
+                        "measures": true,
+                        "dataField": "countPercentage",
+                        "columnName": "countPercentage",
+                        "functionName": "",
+                        "advancedColumn": "{'$divide':[{'$subtract': ['$cbsCount','$mscCount']},'$cbsCount']}",
+                        "enrichFunction": "applyPercentage",
+                        "caption": "Count Percentage",
+                        "deriveField": true
+                    }
+                ],
+                "dimensions": [
+                    {
+                        "columnName": "srv_type",
+                        "aliasName": "srvType"
+                    }
+                ]
+            }
+        }
+    }
+]

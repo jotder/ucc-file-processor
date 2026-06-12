@@ -1,0 +1,12 @@
+[
+    {
+        "alertCount": 148,
+        "moduleName": "UsageFraud",
+        "ruleName": "high_int_calls"
+    },
+    {
+        "alertCount": 13,
+        "moduleName": "UsageFraud",
+        "ruleName": "high_int-test"
+    }
+]
