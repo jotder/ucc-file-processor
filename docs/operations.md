@@ -602,8 +602,9 @@ curl -s -H "Authorization: Bearer secret" "localhost:8080/events/search?type=OBJ
 
 **Evidence — comments, attachments, RCA.** An object also carries an append-only **note** thread:
 free-text *comments* and *attachment* references (file/URL metadata — the bytes stay out of the lean
-core). An **RCA template** (`{sections[]}`, optionally authored as a `*_rca.toon`) seeds one comment per
-section, giving an investigator a structured skeleton to fill in. Notes follow the same
+core). An **RCA template** seeds one comment per section, giving an investigator a structured skeleton to
+fill in — supplied inline (`{sections[]}`) or authored as a `*_rca.toon` (loaded at startup from the same
+config paths, listed at `GET /rca/templates`, applied by `{template:"<name>"}`). Notes follow the same
 `-Dobjects.backend` toggle (their own DuckDB file `inspecto-ops-notes.db` when durable).
 
 ```bash

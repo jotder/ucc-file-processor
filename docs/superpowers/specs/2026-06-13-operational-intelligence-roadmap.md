@@ -467,10 +467,15 @@ RcaTemplate       record: name, sections[]  + load(*_rca.toon)/fromMap (reuses C
   structured skeleton an investigator completes.
 - **`SourceService`** builds a `NoteStore` on the same `-Dobjects.backend` toggle (its own DuckDB file
   `-Dobjects.notes.db.url`, default `inspecto-ops-notes.db`, for the single-writer-lock reason as links).
+- **RCA templates from disk:** `SourceService.fromArgs` scans `*_rca.toon` (mirrors `loadAlerts`) into a
+  by-name registry (`registerRcaTemplate`/`rcaTemplates`/`rcaTemplate`); `GET /rca/templates` lists them and
+  `POST /objects/{id}/rca {template:"<name>"}` applies one by name (alongside the inline `{sections[]}` /
+  `{template:{…}}` forms).
 - **Surface (`ControlApi`, CONTROL scope):** `POST`/`GET /objects/{id}/comments`,
-  `POST`/`GET /objects/{id}/attachments`, and `POST /objects/{id}/rca` (body `{sections[]}` or
-  `{template:{…}}`). Unknown object → 404; missing `body` / `name`+`uri` → 400. New event type `OBJECT_NOTE`.
-- Tested in `NoteCoreTest`, `RcaTemplateTest`, `ObjectServiceTest`, `ControlApiObjectsTest`.
+  `POST`/`GET /objects/{id}/attachments`, `POST /objects/{id}/rca` (body `{sections[]}` | `{template:{…}}`
+  | `{template:"name"}`), and `GET /rca/templates`. Unknown object/template → 404; missing `body` /
+  `name`+`uri` → 400. New event type `OBJECT_NOTE`.
+- Tested in `NoteCoreTest`, `RcaTemplateTest`, `SourceServiceRcaTest`, `ObjectServiceTest`, `ControlApiObjectsTest`.
 
 ---
 
