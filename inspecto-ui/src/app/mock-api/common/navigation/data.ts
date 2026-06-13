@@ -52,6 +52,20 @@ export const defaultNavigation: GammaNavigationItem[] = [
         link : '/alerts'
     },
     {
+        id   : 'issues',
+        title: 'Issues',
+        type : 'basic',
+        icon : 'heroicons_outline:exclamation-triangle',
+        link : '/issues'
+    },
+    {
+        id   : 'cases',
+        title: 'Cases',
+        type : 'basic',
+        icon : 'heroicons_outline:briefcase',
+        link : '/cases'
+    },
+    {
         id   : 'config',
         title: 'Config',
         type : 'basic',
