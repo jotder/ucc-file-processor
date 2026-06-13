@@ -44,4 +44,9 @@ public final class EventType {
     // ── operational-object bridge (Phase 2 ties back to here) ───────────────────────
     public static final String ALERT_FIRED     = "ALERT_FIRED";
     public static final String CONFIG_VALIDATED = "CONFIG_VALIDATED";
+
+    /** A managed object (ALERT/ISSUE/…) was created in its workflow's initial state (Phase 2). */
+    public static final String OBJECT_OPENED   = "OBJECT_OPENED";
+    /** A managed object changed state via a workflow transition (ack/resolve/…) (Phase 2). */
+    public static final String OBJECT_ACTIVITY = "OBJECT_ACTIVITY";
 }

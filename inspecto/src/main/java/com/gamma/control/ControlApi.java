@@ -26,6 +26,9 @@ import com.gamma.event.Event;
 import com.gamma.event.EventLevel;
 import com.gamma.event.EventQuery;
 import com.gamma.event.SavedView;
+import com.gamma.ops.ObjectQuery;
+import com.gamma.ops.ObjectType;
+import com.gamma.ops.OperationalObject;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
@@ -403,6 +406,15 @@ public final class ControlApi implements AutoCloseable {
             return Map.of("name", name(m), "deleted", true);
         });
         get("/events/([^/]+)", true, (e, m) -> eventById(name(m)));
+
+        // ── v4.3.0 (Phase 2): Alert Center — mutable operational objects (ALERT now; ISSUE/CASE later)
+        // with a workflow-checked lifecycle. CONTROL-scoped. Specific verbs are registered before the
+        // /objects/{id} catch so first-match-wins resolves them. ──
+        get("/objects", true, (e, m) -> toObjectMaps(service.objects().query(objectQuery(e))));
+        post("/objects/([^/]+)/ack", true, (e, m) -> transition(name(m), "ack", null, body(e)));
+        post("/objects/([^/]+)/resolve", true, (e, m) -> transition(name(m), "resolve", null, body(e)));
+        post("/objects/([^/]+)/transition", true, (e, m) -> transitionFromBody(name(m), body(e)));
+        get("/objects/([^/]+)", true, (e, m) -> objectById(name(m)));
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
@@ -1114,6 +1126,71 @@ public final class ControlApi implements AutoCloseable {
             if (v != null) filters.put(k, v);
         }
         return service.savedViews().save(new SavedView(viewName, filters, System.currentTimeMillis())).toMap();
+    }
+
+    // ── v4.3.0 (Phase 2): operational-object helpers ──────────────────────────────
+
+    private static List<Map<String, Object>> toObjectMaps(List<OperationalObject> objs) {
+        return objs.stream().map(OperationalObject::toMap).toList();
+    }
+
+    /** Build an {@link ObjectQuery} from {@code ?type=&status=&severity=&assignee=&owner=&correlationId=&q=&limit=&offset=}. */
+    private static ObjectQuery objectQuery(HttpExchange ex) {
+        return ObjectQuery.builder()
+                .objectType(parseObjectType(query(ex, "type")))
+                .status(query(ex, "status"))
+                .severity(query(ex, "severity"))
+                .assignee(query(ex, "assignee"))
+                .owner(query(ex, "owner"))
+                .correlationId(query(ex, "correlationId"))
+                .textContains(query(ex, "q"))
+                .limit(parseIntOr(query(ex, "limit"), ObjectQuery.DEFAULT_LIMIT))
+                .offset(parseIntOr(query(ex, "offset"), 0))
+                .build();
+    }
+
+    /** Parse a {@code ?type=} filter; an unknown value is a 400 rather than a silent match-everything. */
+    private static ObjectType parseObjectType(String s) {
+        try {
+            return ObjectType.of(s);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        }
+    }
+
+    /** {@code GET /objects/{id}} — the object, or 404. */
+    private Object objectById(String id) {
+        return service.objects().get(id).map(OperationalObject::toMap)
+                .orElseThrow(() -> new ApiException(404, "no object with id '" + id + "'"));
+    }
+
+    /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */
+    private Object transition(String id, String action, String target, Map<String, Object> body) {
+        return doTransition(id, action, target, str(body, "actor"));
+    }
+
+    /** {@code POST /objects/{id}/transition} — body {@code {action}} or {@code {status|to}} (+ optional {@code actor}). */
+    private Object transitionFromBody(String id, Map<String, Object> body) {
+        String action = str(body, "action");
+        String target = str(body, "status");
+        if (target == null) target = str(body, "to");
+        if (action == null && target == null)
+            throw new ApiException(400, "body must include 'action' or 'status'");
+        return doTransition(id, action, target, str(body, "actor"));
+    }
+
+    /** Apply a lifecycle transition, mapping the service's exceptions to 404 (unknown id) / 422 (illegal move). */
+    private Object doTransition(String id, String action, String target, String actor) {
+        try {
+            OperationalObject updated = (action != null)
+                    ? service.objects().transition(id, action, actor)
+                    : service.objects().transitionTo(id, target, actor);
+            return updated.toMap();
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        } catch (IllegalStateException | IllegalArgumentException illegal) {
+            throw new ApiException(422, illegal.getMessage());
+        }
     }
 
     private static ApiException notFound(String name) {

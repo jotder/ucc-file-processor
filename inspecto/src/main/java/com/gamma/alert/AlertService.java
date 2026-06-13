@@ -7,6 +7,8 @@ import com.gamma.event.Event;
 import com.gamma.event.EventLevel;
 import com.gamma.event.EventLog;
 import com.gamma.event.EventType;
+import com.gamma.ops.ObjectService;
+import com.gamma.ops.ObjectType;
 import com.gamma.service.StatusStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,18 +54,36 @@ public final class AlertService {
     private final List<AlertRule> rules;
     private final ConfigSource configs;
     private final StatusStore status;
+    /** Object store for persisting fired alerts as managed objects (Phase 2); {@code null} = events-only. */
+    private final ObjectService objects;
     private final Deque<Alert> fired = new ArrayDeque<>();
     private final int capacity;
     private final Map<String, Long> lastFired = new ConcurrentHashMap<>();
 
     public AlertService(List<AlertRule> rules, ConfigSource configs, StatusStore status) {
-        this(rules, configs, status, DEFAULT_CAPACITY);
+        this(rules, configs, status, (ObjectService) null);
+    }
+
+    /**
+     * Phase 2: also persist each fired alert as an {@link ObjectType#ALERT}
+     * {@link com.gamma.ops.OperationalObject} through {@code objects}. A {@code null} {@code objects}
+     * keeps the prior events-only behaviour (the lean path and unit tests).
+     */
+    public AlertService(List<AlertRule> rules, ConfigSource configs, StatusStore status,
+                        ObjectService objects) {
+        this(rules, configs, status, objects, DEFAULT_CAPACITY);
     }
 
     AlertService(List<AlertRule> rules, ConfigSource configs, StatusStore status, int capacity) {
+        this(rules, configs, status, null, capacity);
+    }
+
+    AlertService(List<AlertRule> rules, ConfigSource configs, StatusStore status,
+                 ObjectService objects, int capacity) {
         this.rules = List.copyOf(rules);
         this.configs = configs;
         this.status = status;
+        this.objects = objects;
         this.capacity = Math.max(1, capacity);
     }
 
@@ -122,7 +143,8 @@ public final class AlertService {
                 log.warn("[ALERT] {}", alert.message());
                 // Phase-1↔2 tie: a fired alert is also a structured operational event, so the Event
                 // Viewer shows it inline with the batch facts that triggered it (correlate via pipeline).
-                EventLog.global().emit(Event.builder(EventType.ALERT_FIRED)
+                // Built explicitly so the persisted alert object (Phase 2) can link back to its id.
+                Event firedEvent = Event.builder(EventType.ALERT_FIRED)
                         .level(EventLevel.WARN)
                         .source(AlertService.class.getName())
                         .pipeline(display)
@@ -130,10 +152,43 @@ public final class AlertService {
                         .attr("rule", rule.name())
                         .attr("metric", rule.metric())
                         .attr("value", value)
-                        .attr("severity", rule.severity()));
+                        .attr("severity", rule.severity())
+                        .build();
+                EventLog.global().emit(firedEvent);
+                persistAlertObject(rule, alert, display, value, firedEvent.eventId());
             }
         }
         return out;
+    }
+
+    /**
+     * Phase 2: promote a fired alert to a managed {@link ObjectType#ALERT}
+     * {@link com.gamma.ops.OperationalObject}, linked to the firing event via the {@code causedByEvent}
+     * attribute. No-op when no object store is wired (events-only). A still-active (non-terminal) object
+     * for the same rule+pipeline suppresses a duplicate — the cooldown throttles re-fires within a
+     * window; this guards across windows so an operator handling one breach isn't handed a clone.
+     * Never disturbs evaluation: a persistence failure is logged and swallowed.
+     */
+    private void persistAlertObject(AlertRule rule, Alert alert, String pipeline, double value,
+                                    String eventId) {
+        if (objects == null) return;
+        try {
+            boolean active = objects.active(ObjectType.ALERT, pipeline).stream()
+                    .anyMatch(o -> rule.name().equals(o.attributes().get("rule")));
+            if (active) return;
+            Map<String, String> attrs = new LinkedHashMap<>();
+            attrs.put("rule", rule.name());
+            attrs.put("metric", rule.metric());
+            attrs.put("comparator", rule.comparator());
+            attrs.put("threshold", String.valueOf(rule.threshold()));
+            attrs.put("window", rule.window());
+            attrs.put("value", String.valueOf(value));
+            if (eventId != null) attrs.put("causedByEvent", eventId);
+            objects.open(ObjectType.ALERT, rule.name() + " on " + pipeline, alert.message(),
+                    rule.severity(), pipeline, attrs);
+        } catch (RuntimeException e) {
+            log.warn("could not persist alert object for rule {}: {}", rule.name(), e.getMessage());
+        }
     }
 
     // ── metric math over ledger rows ─────────────────────────────────────────────────────

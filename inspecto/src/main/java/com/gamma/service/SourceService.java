@@ -95,6 +95,11 @@ public final class SourceService implements AutoCloseable {
     /** Operator-saved event views (Phase 1, v4.2.0) — backs {@code /events/views}. File-backed when
      *  {@code -Devents.views.file} is set, otherwise in-memory only. */
     private final SavedViewStore savedViews;
+    /** Mutable operational-object store (Phase 2, v4.3.0) — the Layer-2 Alert Center backing the
+     *  {@code /objects} API. Built from {@code -Dobjects.backend} (memory|db); closed in {@link #close()}. */
+    private final com.gamma.ops.ObjectStore objectStore;
+    /** Object Engine + Workflow Engine over {@link #objectStore} (Phase 2, v4.3.0). */
+    private final com.gamma.ops.ObjectService objects;
     /** Authoritative on-disk audit reader; also the sync source when a DB backend is used. */
     private final FileStatusStore fileStatus = new FileStatusStore();
     /** The read surface the Control API + observability query — file- or DB-backed (M5). */
@@ -226,10 +231,16 @@ public final class SourceService implements AutoCloseable {
             public List<SemanticModel> semantics() { return SourceService.this.semanticModels; }
         };
         this.configSource = configSource;
+        // Object Engine (Phase 2, v4.3.0): the mutable Layer-2 store for managed objects (alerts now;
+        // issues/cases later). Built from -Dobjects.backend (memory|db); always present so /objects
+        // works even with no alert rules. Fired alerts are promoted into it by the AlertService below.
+        this.objectStore = buildObjectStore();
+        this.objects = new com.gamma.ops.ObjectService(objectStore);
         // Alert engine (v4.1, B5): deterministic, lean-core, event-driven. Subscribed here (before
-        // start()) so it sees the first terminal batch; null when no *_alert.toon was loaded.
+        // start()) so it sees the first terminal batch; null when no *_alert.toon was loaded. Phase 2:
+        // also persists each fired alert as a managed ALERT object via the Object Engine above.
         this.alerting = alertRules.isEmpty() ? null
-                : new com.gamma.alert.AlertService(alertRules, configSource, this.status);
+                : new com.gamma.alert.AlertService(alertRules, configSource, this.status, this.objects);
         if (alerting != null) {
             bus.subscribe(alerting::onEvent);
             log.info("Alert engine armed with {} rule(s)", alertRules.size());
@@ -285,6 +296,12 @@ public final class SourceService implements AutoCloseable {
     /** Operator-saved event views (Phase 1, v4.2.0) — always present (in-memory when no file set). */
     public SavedViewStore savedViews() {
         return savedViews;
+    }
+
+    /** The Object Engine (Phase 2, v4.3.0) — managed operational objects + their workflows; backs the
+     *  {@code /objects} API and is where fired alerts are persisted as ALERT objects. */
+    public com.gamma.ops.ObjectService objects() {
+        return objects;
     }
 
     /**
@@ -628,6 +645,7 @@ public final class SourceService implements AutoCloseable {
         if (status instanceof AutoCloseable c) {       // close a DB-backed store's connection
             try { c.close(); } catch (Exception e) { log.warn("Error closing status store: {}", e.getMessage()); }
         }
+        try { objectStore.close(); } catch (Exception e) { log.warn("Error closing object store: {}", e.getMessage()); }
         log.info("SourceService stopped");
         // Close last so the "stopped" log line above is itself captured, then flushed to disk.
         try { events.close(); } catch (Exception e) { log.warn("Error closing event store: {}", e.getMessage()); }
@@ -731,6 +749,32 @@ public final class SourceService implements AutoCloseable {
             log.warn("Could not open Parquet event store at {} — falling back to in-memory: {}",
                     dir, e.getMessage());
             return new InMemoryEventStore();
+        }
+    }
+
+    /** Default DuckDB object database file when {@code objects.backend=db} and no URL is given. */
+    private static final String DEFAULT_OBJECTS_DB_URL = "jdbc:duckdb:inspecto-ops.db";
+
+    /**
+     * Select the Phase-2 object-store backend (v4.3.0): {@code -Dobjects.backend=memory} (default — an
+     * in-memory map; the lean fat-JAR keeps no extra files and tests stay light) or
+     * {@code -Dobjects.backend=db} (durable JDBC, engine chosen by {@code -Dobjects.db.url}, default
+     * {@value #DEFAULT_OBJECTS_DB_URL} — the bundled DuckDB; point at {@code jdbc:postgresql://…} with
+     * the PG driver on the classpath for a distributed deployment). A DB backend that fails to open is
+     * logged and degrades to in-memory — the Alert Center must never block service startup.
+     */
+    private static com.gamma.ops.ObjectStore buildObjectStore() {
+        String backend = System.getProperty("objects.backend", "memory");
+        if (!"db".equalsIgnoreCase(backend)) return new com.gamma.ops.InMemoryObjectStore();
+        String url = System.getProperty("objects.db.url", DEFAULT_OBJECTS_DB_URL);
+        try {
+            com.gamma.ops.ObjectStore db = com.gamma.ops.DbObjectStore.open(url,
+                    System.getProperty("objects.db.user"), System.getProperty("objects.db.password"));
+            log.info("Object backend: database ({})", url);
+            return db;
+        } catch (Exception e) {
+            log.warn("Could not open object DB at {} — falling back to in-memory: {}", url, e.getMessage());
+            return new com.gamma.ops.InMemoryObjectStore();
         }
     }
 
