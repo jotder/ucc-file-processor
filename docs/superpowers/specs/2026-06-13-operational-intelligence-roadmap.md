@@ -1,7 +1,7 @@
 # Spec: Operational Intelligence Platform — Five-Phase Implementation Roadmap
 
 > **Date:** 2026-06-13
-> **Status:** Phases 1–2 shipped on `4.x`; Phases 3–5 planned (implementation roadmap)
+> **Status:** Phases 1–3 shipped on `4.x`; Phases 4–5 planned (implementation roadmap)
 > **Branch:** `4.x`
 > **Source requirement:** [ticketing_systems_requirement.md](../../ticketing_systems_requirement.md)
 > **Builds on (confirmed seams):** `com.gamma.etl.BatchEvent` / `com.gamma.service.BatchEventBus`
@@ -108,7 +108,7 @@ So each phase is mostly **promotion + persistence + lifecycle** on top of seams 
 - **Notifications:** `NotificationService` SPI (log/webhook/email later); ack/escalation endpoints.
 - **Adds routes:** `/alerts/{id}/ack`, `/alerts/{id}/resolve`, `/objects?type=ALERT&status=…`.
 
-### Phase 3 — Issue Tracker
+### Phase 3 — Issue Tracker  ✅ shipped (v4.4.0; as built in §5)
 **Outcome:** "Manage the problem." — same `OPERATIONAL_OBJECT` table, `object_type=ISSUE`.
 - Lifecycle `OPEN→ASSIGNED→IN_PROGRESS→RESOLVED→CLOSED`; ownership/assignee/priority already columns.
 - **SLA tracking:** due-at + breach events (Phase-1 events) + a scheduled sweep on the existing
@@ -317,7 +317,70 @@ history shows inline in the Event Viewer. `active(type, correlationId)` returns 
 
 ---
 
-## 5. Development guidelines (from the requirement, applied here)
+## 5. Phase 3 — Issue Tracker (as built)
+
+Shipped on `4.x` (v4.4.0) — adds operator-managed **ISSUE** objects on the *same* Phase-2 engine and
+table. Realizes §2 Phase 3. **Zero new dependencies and zero new storage**: issues are
+`object_type=ISSUE` rows in `inspecto_ops_objects`, and the SLA deadline rides the existing
+`attributes` JSON — so `inspecto/pom.xml` and the table schema are untouched. Full reactor green:
+core 516 (+5) + agent 157 + hosted 4 = 677.
+
+### 5.1 ISSUE lifecycle (Workflow Engine)
+
+`Workflow.defaultFor(ISSUE)` replaces the placeholder with
+`OPEN --assign--> ASSIGNED --start--> IN_PROGRESS --resolve--> RESOLVED --close--> CLOSED`. Only
+`CLOSED` is terminal (sets `closedAt`); `RESOLVED` is deliberately **not** terminal, so the SLA clock
+(which stops at `RESOLVED`) is distinct from closure. As with ALERT, a `*_workflow.toon` can override
+it. No new engine code — `ObjectService.transition`/`transitionTo` already drive any workflow action.
+
+### 5.2 Issue creation (`POST /objects`)
+
+Alerts are auto-promoted; issues are operator-created, so Phase 3 adds the one missing verb:
+`POST /objects` (CONTROL scope) → `ObjectService.open(...)` in the workflow's initial state. Body
+`{type?,title,description?,severity?,priority?,owner?,assignee?,correlationId?,attributes?,dueAt?|dueInMinutes?}`:
+`type` defaults to `ISSUE`, `title` is required (else 400), an unknown `type` is a 400.
+`ObjectService.open` gained an overload carrying `priority`/`owner`/`assignee` (the prior 6-arg form
+delegates to it, so the auto-promoting `AlertService` is unchanged). Lifecycle moves use the generic
+`/objects/{id}/transition {action}` (`assign`/`start`/`resolve`/`close`).
+
+### 5.3 SLA tracking
+
+- **Deadline:** `dueAt` (epoch millis) stored as an *attribute* — set at creation from `dueAt` or
+  relative `dueInMinutes`. An attribute, not a new column, so both `InMemoryObjectStore` and
+  `DbObjectStore` round-trip it with **no migration**.
+- **Sweep:** `ObjectService.sweepIssueSla(now)` breaches every ISSUE past its `dueAt` that is still
+  being worked (not `RESOLVED`, not `CLOSED`) and not already breached; it stamps a `slaBreachedAt`
+  marker (idempotent — never re-fires) and emits a new **`OBJECT_SLA_BREACH`** event (level `WARN`)
+  onto `EventLog.global()`, so the breach surfaces in `/events` next to the issue's activity. `now`
+  is injected so the schedule and tests evaluate against the same clock.
+- **Schedule:** `SourceService.start()` arms the sweep on the existing `Scheduler.everySeconds`,
+  cadence `-Dobjects.sla.sweep.seconds` (default `60`; `<=0` disables) — the same scheduler that runs
+  the poll cycle and enrichment jobs.
+- **Impact = affected pipelines:** carried lightly via the issue's `correlationId` (the pipeline /
+  batch), as Phase 2 does, pending the first-class `OBJECT_LINK` graph in Phase 4.
+
+### 5.4 Surface (`ControlApi`, CONTROL scope)
+
+- `POST /objects` — create (above). The Phase-2 routes are unchanged and serve issues as-is:
+  `GET /objects?type=ISSUE&status=…`, `GET /objects/{id}`, `POST /objects/{id}/transition`.
+  (`/ack`, `/resolve` remain ALERT-shaped conveniences; issues use `/transition`.)
+- New event type `OBJECT_SLA_BREACH`, queryable at `GET /events/search?type=OBJECT_SLA_BREACH`.
+
+### 5.5 Acceptance (met)
+
+- An operator creates an ISSUE (`POST /objects`) and walks it
+  `OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED`, each step an `OBJECT_ACTIVITY` event; an illegal
+  move → 422, missing title / bad type → 400, auth scoped.
+- An overdue, unresolved issue breaches exactly once per deadline (idempotent across sweeps), emitting
+  `OBJECT_SLA_BREACH`; a future-due, resolved, or no-SLA issue does not breach. Tested in
+  `WorkflowTest`, `ObjectServiceTest`, `ControlApiObjectsTest`.
+- Additive-only: Phase-1/2 + `/alerts*` behaviour unchanged; no new dependency, no schema change.
+- **Deferred to Phase 4** (per §2): the first-class `OBJECT_LINK` correlation graph, plus
+  comments/attachments — Phase 3 links lightly via `correlationId`.
+
+---
+
+## 6. Development guidelines (from the requirement, applied here)
 
 - **Platform services first** — `EventStore`/`ObjectStore`/`Workflow` are SPIs, not per-product code.
 - **Separate immutable facts from operational workflows** — Parquet events vs. table objects (§0).

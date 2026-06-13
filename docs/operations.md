@@ -542,6 +542,40 @@ curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/re
 > JDBC driver on the classpath) for a multi-writer deployment. The default lifecycle can be
 > overridden with a `*_workflow.toon`.
 
+### Issue Tracker (Phase 3) — operator-created issues + SLA tracking
+
+Issues reuse the **same** `inspecto_ops_objects` table and workflow engine as alerts — only
+`object_type=ISSUE` differs, so there is no new storage or backend to configure. Where an `ALERT` is
+auto-promoted from a fired rule, an `ISSUE` is **operator-created** with `POST /objects` and walks a
+richer lifecycle `OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED` (actions `assign`/`start`/
+`resolve`/`close`; only `CLOSED` is terminal). Drive the moves through the generic
+`/objects/{id}/transition` route:
+
+```bash
+# create an issue with a 2-hour SLA (dueInMinutes; or pass an absolute dueAt in epoch millis)
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects \
+  -d '{"title":"reconcile mismatch on pipeX","severity":"HIGH","assignee":"alice","priority":"P1","dueInMinutes":120}'
+# walk the lifecycle
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/transition -d '{"action":"assign","actor":"alice"}'
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/transition -d '{"action":"start"}'
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/transition -d '{"action":"resolve"}'
+curl -s -H "Authorization: Bearer secret" "localhost:8080/objects?type=ISSUE&status=IN_PROGRESS"
+```
+
+**SLA tracking** is opt-in per issue: set `dueAt` (epoch millis) or `dueInMinutes` at creation. A
+scheduled sweep then breaches any issue that passes its deadline while still being worked (i.e. not
+yet `RESOLVED`/`CLOSED`); each breach stamps a `slaBreachedAt` marker on the object (so it fires once)
+and emits an **`OBJECT_SLA_BREACH`** event into the event log, where it surfaces in `/events`
+alongside the issue's activity. The cadence is `-Dobjects.sla.sweep.seconds` (default `60`; set `0`
+to disable):
+
+```bash
+java -cp file-processor.jar com.gamma.control.ControlApi \
+     -Dcontrol.token=secret -Dobjects.sla.sweep.seconds=30 config/
+# find breached issues via the event feed
+curl -s -H "Authorization: Bearer secret" "localhost:8080/events/search?type=OBJECT_SLA_BREACH"
+```
+
 ### Observability — metrics & structured events
 
 The Control API host also exposes `GET /metrics` (open — scrapers don't carry tokens) in **Prometheus text format**, served from a zero-dependency in-process registry. No extra agent or sidecar.
