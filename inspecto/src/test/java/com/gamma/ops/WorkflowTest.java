@@ -28,6 +28,20 @@ class WorkflowTest {
     }
 
     @Test
+    void defaultIssueLifecycle() {
+        Workflow wf = Workflow.defaultFor(ObjectType.ISSUE);
+        assertEquals("OPEN", wf.initialState());
+        assertEquals("ASSIGNED", wf.apply("OPEN", "assign").orElseThrow());
+        assertEquals("IN_PROGRESS", wf.apply("ASSIGNED", "start").orElseThrow());
+        assertEquals("RESOLVED", wf.apply("IN_PROGRESS", "resolve").orElseThrow());
+        assertEquals("CLOSED", wf.apply("RESOLVED", "close").orElseThrow());
+        assertTrue(wf.isTerminal("CLOSED"));
+        assertFalse(wf.isTerminal("RESOLVED"), "RESOLVED is not terminal — an issue can still be closed");
+        assertTrue(wf.apply("OPEN", "resolve").isEmpty(), "cannot resolve an unstarted issue");
+        assertTrue(wf.apply("CLOSED", "close").isEmpty(), "terminal state has no outgoing transitions");
+    }
+
+    @Test
     void matchingIsCaseInsensitive() {
         Workflow wf = Workflow.defaultFor(ObjectType.ALERT);
         assertEquals("ACKNOWLEDGED", wf.apply("open", "ACK").orElseThrow());

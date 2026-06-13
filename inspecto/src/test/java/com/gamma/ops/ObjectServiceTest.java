@@ -87,4 +87,65 @@ class ObjectServiceTest {
         // RESOLVED is reachable from ACKNOWLEDGED; OPEN is not reachable from ACKNOWLEDGED.
         assertThrows(IllegalStateException.class, () -> svc.transitionTo(o.id(), "OPEN", "x"));
     }
+
+    // ── Phase 3: ISSUE lifecycle + SLA sweep ────────────────────────────────────────
+
+    @Test
+    void issueLifecycleWalk() {
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        OperationalObject o = svc.open(ObjectType.ISSUE, "bad rows", "investigate", "HIGH", "P1",
+                null, "alice", "pipeC", Map.of());
+        assertEquals("OPEN", o.status());
+        assertEquals("P1", o.priority(), "the fuller open() carries priority");
+        assertEquals("alice", o.assignee(), "the fuller open() carries assignee");
+
+        assertEquals("ASSIGNED", svc.transition(o.id(), "assign", "alice").status());
+        assertEquals("IN_PROGRESS", svc.transition(o.id(), "start", "alice").status());
+        OperationalObject resolved = svc.transition(o.id(), "resolve", "alice");
+        assertEquals("RESOLVED", resolved.status());
+        assertEquals(0, resolved.closedAt(), "RESOLVED is not terminal for an ISSUE");
+        OperationalObject closed = svc.transition(o.id(), "close", "bob");
+        assertEquals("CLOSED", closed.status());
+        assertTrue(closed.isClosed(), "CLOSED is terminal → closedAt set");
+        assertThrows(IllegalStateException.class, () -> svc.transition(o.id(), "start", null),
+                "cannot reopen a closed issue");
+    }
+
+    @Test
+    void slaSweepBreachesOverdueUnresolvedIssues() {
+        InMemoryEventStore events = new InMemoryEventStore();
+        EventLog.global().installStore(events);
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+
+        long now = System.currentTimeMillis();
+        OperationalObject overdue = svc.open(ObjectType.ISSUE, "overdue", "d", "HIGH", "pipeD",
+                Map.of(ObjectService.ATTR_DUE_AT, Long.toString(now - 60_000)));
+        OperationalObject future = svc.open(ObjectType.ISSUE, "not yet", "d", "LOW", "pipeE",
+                Map.of(ObjectService.ATTR_DUE_AT, Long.toString(now + 3_600_000)));
+        OperationalObject noSla = svc.open(ObjectType.ISSUE, "no sla", "d", "LOW", "pipeF", Map.of());
+
+        assertEquals(1, svc.sweepIssueSla(now), "only the overdue issue breaches");
+        assertEquals(1, activityFor(events, EventType.OBJECT_SLA_BREACH, overdue.id()).size());
+        assertTrue(svc.get(overdue.id()).orElseThrow().attributes().containsKey(ObjectService.ATTR_SLA_BREACHED_AT));
+        assertFalse(svc.get(future.id()).orElseThrow().attributes().containsKey(ObjectService.ATTR_SLA_BREACHED_AT));
+        assertFalse(svc.get(noSla.id()).orElseThrow().attributes().containsKey(ObjectService.ATTR_SLA_BREACHED_AT));
+
+        // idempotent: a second sweep at the same instant does not re-breach or re-emit
+        assertEquals(0, svc.sweepIssueSla(now));
+        assertEquals(1, activityFor(events, EventType.OBJECT_SLA_BREACH, overdue.id()).size());
+    }
+
+    @Test
+    void slaSweepIgnoresResolvedAndClosedIssues() {
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        long now = System.currentTimeMillis();
+        OperationalObject o = svc.open(ObjectType.ISSUE, "fixed in time", "d", "HIGH", "pipeG",
+                Map.of(ObjectService.ATTR_DUE_AT, Long.toString(now - 60_000)));
+        svc.transition(o.id(), "assign", "a");
+        svc.transition(o.id(), "start", "a");
+        svc.transition(o.id(), "resolve", "a");   // RESOLVED — the SLA clock has stopped
+        assertEquals(0, svc.sweepIssueSla(now), "a resolved issue past its due time does not breach");
+        svc.transition(o.id(), "close", "a");      // CLOSED — still no breach
+        assertEquals(0, svc.sweepIssueSla(now));
+    }
 }

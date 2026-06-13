@@ -42,6 +42,20 @@ class ObjectCoreTest {
     }
 
     @Test
+    void withAttributesMergesUpdatesWinAndStaysImmutable() {
+        OperationalObject o = OperationalObject.builder(ObjectType.ISSUE).status("OPEN")
+                .attr("dueAt", "100").attr("rule", "r").build();
+        long t = o.createdAt() + 9;
+        OperationalObject merged = o.withAttributes(Map.of("dueAt", "200", "slaBreachedAt", "250"), t);
+        assertEquals("200", merged.attributes().get("dueAt"), "an update wins over the existing key");
+        assertEquals("250", merged.attributes().get("slaBreachedAt"), "a new key is added");
+        assertEquals("r", merged.attributes().get("rule"), "an untouched key is preserved");
+        assertEquals(t, merged.updatedAt());
+        assertEquals("OPEN", merged.status(), "status is unchanged");
+        assertThrows(UnsupportedOperationException.class, () -> merged.attributes().put("x", "y"));
+    }
+
+    @Test
     void requiredFieldsValidated() {
         assertThrows(IllegalArgumentException.class, () -> new OperationalObject(
                 "", ObjectType.ALERT, "t", "d", "OPEN", null, null, null, null, null, Map.of(), 1, 1, 0));

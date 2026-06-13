@@ -88,10 +88,17 @@ public record Workflow(ObjectType objectType, String initialState, Set<Transitio
     // ── built-in defaults ─────────────────────────────────────────────────────────
 
     /**
-     * The built-in workflow for {@code type}. {@link ObjectType#ALERT} is the Phase-2 lifecycle
-     * {@code OPEN → ACKNOWLEDGED → RESOLVED} (with a direct {@code OPEN → RESOLVED} for "resolve
-     * without acking"). The other types get a minimal {@code OPEN → CLOSED} placeholder that Phase 3
-     * (ISSUE) and Phase 4 (CASE) replace with their richer lifecycles, or that a {@code *_workflow.toon}
+     * The built-in workflow for {@code type}.
+     * <ul>
+     *   <li>{@link ObjectType#ALERT} (Phase 2): {@code OPEN → ACKNOWLEDGED → RESOLVED} (with a direct
+     *       {@code OPEN → RESOLVED} for "resolve without acking"); {@code RESOLVED} is terminal.</li>
+     *   <li>{@link ObjectType#ISSUE} (Phase 3): {@code OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED}
+     *       (actions {@code assign}/{@code start}/{@code resolve}/{@code close}); only {@code CLOSED} is
+     *       terminal, so a {@code RESOLVED} issue can still be reopened-then-closed by config if desired,
+     *       and the SLA clock (which stops at {@code RESOLVED}) is distinct from closure.</li>
+     * </ul>
+     * The remaining types ({@link ObjectType#CASE} Phase 4, {@link ObjectType#TASK}) get a minimal
+     * {@code OPEN → CLOSED} placeholder that a later phase replaces, or that a {@code *_workflow.toon}
      * overrides today.
      */
     public static Workflow defaultFor(ObjectType type) {
@@ -101,6 +108,14 @@ public record Workflow(ObjectType objectType, String initialState, Set<Transitio
                             new Transition("ACKNOWLEDGED", "RESOLVED", "resolve"),
                             new Transition("OPEN", "RESOLVED", "resolve")),
                     Set.of("RESOLVED"));
+        }
+        if (type == ObjectType.ISSUE) {
+            return new Workflow(ObjectType.ISSUE, "OPEN",
+                    Set.of(new Transition("OPEN", "ASSIGNED", "assign"),
+                            new Transition("ASSIGNED", "IN_PROGRESS", "start"),
+                            new Transition("IN_PROGRESS", "RESOLVED", "resolve"),
+                            new Transition("RESOLVED", "CLOSED", "close")),
+                    Set.of("CLOSED"));
         }
         return new Workflow(type, "OPEN",
                 Set.of(new Transition("OPEN", "CLOSED", "close")), Set.of("CLOSED"));

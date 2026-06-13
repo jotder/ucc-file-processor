@@ -52,6 +52,18 @@ public record OperationalObject(String id, ObjectType objectType, String title, 
                 owner, newAssignee, correlationId, attributes, createdAt, now, closedAt);
     }
 
+    /**
+     * A copy with {@code updates} merged over the current {@link #attributes()} (updates win; null keys
+     * or values are skipped); touches {@code updatedAt}. Used to stamp derived markers such as the
+     * Phase-3 {@code slaBreachedAt} without disturbing status or assignment.
+     */
+    public OperationalObject withAttributes(Map<String, String> updates, long now) {
+        Map<String, String> merged = new LinkedHashMap<>(attributes);
+        if (updates != null) updates.forEach((k, v) -> { if (k != null && v != null) merged.put(k, v); });
+        return new OperationalObject(id, objectType, title, description, status, severity, priority,
+                owner, assignee, correlationId, merged, createdAt, now, closedAt);
+    }
+
     /** {@code true} once {@link #closedAt()} is set (the object reached a terminal state). */
     public boolean isClosed() {
         return closedAt > 0;

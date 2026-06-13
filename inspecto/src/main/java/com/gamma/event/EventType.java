@@ -49,4 +49,6 @@ public final class EventType {
     public static final String OBJECT_OPENED   = "OBJECT_OPENED";
     /** A managed object changed state via a workflow transition (ack/resolve/…) (Phase 2). */
     public static final String OBJECT_ACTIVITY = "OBJECT_ACTIVITY";
+    /** An object (an ISSUE) passed its {@code dueAt} while still unresolved — an SLA breach (Phase 3). */
+    public static final String OBJECT_SLA_BREACH = "OBJECT_SLA_BREACH";
 }

@@ -95,6 +95,45 @@ class ControlApiObjectsTest {
         }
     }
 
+    @Test
+    void createIssueAndWalkLifecycle(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            // create an ISSUE via POST /objects (type defaults to ISSUE); dueInMinutes seeds the SLA deadline
+            JsonNode created = json(send(c.port, "POST", "/objects", TOKEN,
+                    "{\"title\":\"bad rows\",\"severity\":\"HIGH\",\"assignee\":\"alice\",\"dueInMinutes\":30}"));
+            String id = created.get("id").asText();
+            assertEquals("ISSUE", created.get("objectType").asText());
+            assertEquals("OPEN", created.get("status").asText());
+            assertEquals("alice", created.get("assignee").asText());
+            assertTrue(created.get("attributes").has("dueAt"), "dueInMinutes sets a dueAt attribute");
+
+            // walk OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED via the generic transition route
+            assertEquals("ASSIGNED", transition(c.port, id, "assign"));
+            assertEquals("IN_PROGRESS", transition(c.port, id, "start"));
+            assertEquals("RESOLVED", transition(c.port, id, "resolve"));
+            JsonNode closed = json(send(c.port, "POST", "/objects/" + id + "/transition", TOKEN,
+                    "{\"action\":\"close\",\"actor\":\"bob\"}"));
+            assertEquals("CLOSED", closed.get("status").asText());
+            assertTrue(closed.get("closedAt").asLong() > 0, "CLOSED is terminal → closedAt set");
+
+            // it lists under a type filter; an illegal next move → 422
+            JsonNode issues = json(send(c.port, "GET", "/objects?type=ISSUE", TOKEN, null));
+            assertTrue(issues.isArray() && issues.size() == 1 && id.equals(issues.get(0).get("id").asText()));
+            assertEquals(422, send(c.port, "POST", "/objects/" + id + "/transition", TOKEN,
+                    "{\"action\":\"start\"}").statusCode());
+
+            // missing title → 400; unknown type → 400
+            assertEquals(400, send(c.port, "POST", "/objects", TOKEN, "{\"severity\":\"LOW\"}").statusCode());
+            assertEquals(400, send(c.port, "POST", "/objects", TOKEN, "{\"title\":\"x\",\"type\":\"bogus\"}").statusCode());
+        }
+    }
+
+    /** POST a generic {action} transition and return the resulting status. */
+    private String transition(int port, String id, String action) throws Exception {
+        return json(send(port, "POST", "/objects/" + id + "/transition", TOKEN,
+                "{\"action\":\"" + action + "\"}")).get("status").asText();
+    }
+
     private HttpResponse<String> send(int port, String method, String path, String token, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (token != null) b.header("Authorization", "Bearer " + token);

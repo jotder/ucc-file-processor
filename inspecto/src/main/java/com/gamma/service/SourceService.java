@@ -383,6 +383,13 @@ public final class SourceService implements AutoCloseable {
             catch (Exception e) { log.warn("Assist agent '{}' start failed: {}", agent.name(), e.getMessage()); }
         }
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
+        // SLA sweep (Phase 3, v4.4.0): periodically breach overdue, unresolved ISSUEs — each new breach
+        // emits an OBJECT_SLA_BREACH event. Always scheduled (a cheap no-op when there are no issues);
+        // -Dobjects.sla.sweep.seconds sets the cadence (default 60), <=0 disables it.
+        long slaSweepSeconds = Long.getLong("objects.sla.sweep.seconds", 60L);
+        if (slaSweepSeconds > 0)
+            scheduler.everySeconds("sla-sweep", slaSweepSeconds, slaSweepSeconds,
+                    () -> objects.sweepIssueSla(System.currentTimeMillis()));
         log.info("SourceService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
                 registry.size(), pollSeconds, maxConcurrentRuns);
         EventLog.global().emit(Event.builder(EventType.SERVICE_STARTED)

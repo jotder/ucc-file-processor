@@ -27,6 +27,7 @@ import com.gamma.event.EventLevel;
 import com.gamma.event.EventQuery;
 import com.gamma.event.SavedView;
 import com.gamma.ops.ObjectQuery;
+import com.gamma.ops.ObjectService;
 import com.gamma.ops.ObjectType;
 import com.gamma.ops.OperationalObject;
 import com.gamma.inspector.MultiSourceProcessor;
@@ -120,6 +121,11 @@ import java.util.regex.Pattern;
  *   GET  /events/views                        list operator-saved views                     [v4.2.0]
  *   POST /events/views                        body {name,level?,type?,pipeline?,q?,…} — upsert a view [v4.2.0]
  *   POST /events/views/{name}/delete          delete a saved view                           [v4.2.0]
+ *   GET  /objects[?type=&status=&severity=&assignee=&owner=&correlationId=&q=&limit=&offset=] filtered objects [v4.3.0]
+ *   POST /objects                             body {type?,title,severity?,priority?,assignee?,dueAt?|dueInMinutes?,…} — create (ISSUE) [v4.4.0]
+ *   GET  /objects/{id}                        one object by id                              [v4.3.0]
+ *   POST /objects/{id}/ack | /resolve         fixed-action lifecycle transition (ALERT)     [v4.3.0]
+ *   POST /objects/{id}/transition             body {action} or {status|to} (+ actor?) — any workflow move [v4.3.0]
  * </pre>
  *
  * <p>The {@code /catalog*}, {@code /config/spec/*} and {@code /assist/*} routes require the
@@ -409,8 +415,10 @@ public final class ControlApi implements AutoCloseable {
 
         // ── v4.3.0 (Phase 2): Alert Center — mutable operational objects (ALERT now; ISSUE/CASE later)
         // with a workflow-checked lifecycle. CONTROL-scoped. Specific verbs are registered before the
-        // /objects/{id} catch so first-match-wins resolves them. ──
+        // /objects/{id} catch so first-match-wins resolves them. v4.4.0 (Phase 3) adds POST /objects so
+        // operators can create ISSUEs (ALERTs are auto-promoted); lifecycle moves use /transition. ──
         get("/objects", true, (e, m) -> toObjectMaps(service.objects().query(objectQuery(e))));
+        post("/objects", true, (e, m) -> createObject(body(e)));
         post("/objects/([^/]+)/ack", true, (e, m) -> transition(name(m), "ack", null, body(e)));
         post("/objects/([^/]+)/resolve", true, (e, m) -> transition(name(m), "resolve", null, body(e)));
         post("/objects/([^/]+)/transition", true, (e, m) -> transitionFromBody(name(m), body(e)));
@@ -999,6 +1007,15 @@ public final class ControlApi implements AutoCloseable {
         }
     }
 
+    private static long parseLongOr(String s, long def) {
+        if (s == null || s.isBlank()) return def;
+        try {
+            return Long.parseLong(s.trim());
+        } catch (NumberFormatException e) {
+            return def;
+        }
+    }
+
     private static MetadataGraphService.Direction direction(String s) {
         if (s == null || s.isBlank()) return MetadataGraphService.Direction.BOTH;
         try {
@@ -1162,6 +1179,51 @@ public final class ControlApi implements AutoCloseable {
     private Object objectById(String id) {
         return service.objects().get(id).map(OperationalObject::toMap)
                 .orElseThrow(() -> new ApiException(404, "no object with id '" + id + "'"));
+    }
+
+    /**
+     * {@code POST /objects} (Phase 3) — create a managed object. The complement of alert auto-promotion:
+     * ALERTs are opened by the {@code AlertService}, whereas ISSUEs are operator-created here. Body
+     * {@code {type?,title,description?,severity?,priority?,owner?,assignee?,correlationId?,attributes?,
+     * dueAt?|dueInMinutes?}} — {@code type} defaults to {@code ISSUE}, {@code title} is required, and
+     * {@code dueAt} (epoch millis) or {@code dueInMinutes} sets the SLA deadline the sweep tracks. The
+     * object opens in its workflow's initial state; lifecycle moves go through {@code /objects/{id}/transition}.
+     */
+    private Object createObject(Map<String, Object> body) {
+        String title = str(body, "title");
+        if (title == null) throw new ApiException(400, "body must include 'title'");
+        ObjectType type;
+        try {
+            type = ObjectType.of(str(body, "type"));
+        } catch (IllegalArgumentException ex) {
+            throw new ApiException(400, ex.getMessage());
+        }
+        if (type == null) type = ObjectType.ISSUE;   // the create path exists for operator-created issues
+
+        Map<String, String> attrs = new LinkedHashMap<>();
+        if (body.get("attributes") instanceof Map<?, ?> bag)
+            bag.forEach((k, v) -> { if (k != null && v != null) attrs.put(k.toString(), v.toString()); });
+        Long dueAt = parseDueAt(body);
+        if (dueAt != null) attrs.put(ObjectService.ATTR_DUE_AT, Long.toString(dueAt));
+
+        return service.objects().open(type, title, str(body, "description"), str(body, "severity"),
+                str(body, "priority"), str(body, "owner"), str(body, "assignee"),
+                str(body, "correlationId"), attrs).toMap();
+    }
+
+    /** SLA deadline from the create body: absolute {@code dueAt} (epoch millis) or relative {@code dueInMinutes}. */
+    private static Long parseDueAt(Map<String, Object> body) {
+        Object due = body.get("dueAt");
+        if (due != null) {
+            long ms = parseLongOr(due.toString(), -1L);
+            if (ms > 0) return ms;
+        }
+        Object mins = body.get("dueInMinutes");
+        if (mins != null) {
+            long m = parseLongOr(mins.toString(), -1L);
+            if (m >= 0) return System.currentTimeMillis() + m * 60_000L;
+        }
+        return null;
     }
 
     /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */
