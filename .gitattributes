@@ -1,0 +1,29 @@
+# Line-ending policy (2026-06-13): store all text as LF in the repo and check it out as
+# LF in the working tree too, so "is my tree clean?" is deterministic across Windows
+# (regardless of core.autocrlf) and Linux CI. Binaries are never converted; Windows
+# shell scripts keep CRLF.
+
+* text=auto eol=lf
+
+# Windows shells expect CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Binary assets — never apply EOL conversion
+*.jar      binary
+*.parquet  binary
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.woff     binary
+*.woff2    binary
+*.ttf      binary
+*.eot      binary
+*.zip      binary
+*.gz       binary
+*.tgz      binary
+*.tar      binary
+*.pdf      binary
