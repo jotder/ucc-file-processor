@@ -1,7 +1,8 @@
 # Spec: Operational Intelligence Platform — Five-Phase Implementation Roadmap
 
 > **Date:** 2026-06-13
-> **Status:** Phases 1–3 shipped on `4.x`; Phases 4–5 planned (implementation roadmap)
+> **Status:** Phases 1–4 shipped on `4.x` (Phase 4 = CASE + OBJECT_LINK; its comments/attachments
+> deferred); Phase 5 planned (implementation roadmap)
 > **Branch:** `4.x`
 > **Source requirement:** [ticketing_systems_requirement.md](../../ticketing_systems_requirement.md)
 > **Builds on (confirmed seams):** `com.gamma.etl.BatchEvent` / `com.gamma.service.BatchEventBus`
@@ -115,7 +116,7 @@ So each phase is mostly **promotion + persistence + lifecycle** on top of seams 
   `Scheduler`. Impact assessment = links to affected pipelines (catalog).
 - Reuses the Object Engine, Workflow Engine, search/filter, comments/activity — **no new storage**.
 
-### Phase 4 — Case Management
+### Phase 4 — Case Management  ✅ shipped (v4.5.0; as built in §6) — comments/attachments deferred
 **Outcome:** "Investigate." — `object_type=CASE`, lifecycle `OPEN→INVESTIGATING→ESCALATED→RESOLVED→CLOSED`.
 - **`OBJECT_LINK`** correlation graph (`from,from_type,to,to_type,relationship`) becomes first-class:
   `Case CONTAINS Issue`, `Issue ESCALATED_FROM Alert`, `Alert CAUSED_BY Event`. Render via the existing
@@ -380,7 +381,73 @@ delegates to it, so the auto-promoting `AlertService` is unchanged). Lifecycle m
 
 ---
 
-## 6. Development guidelines (from the requirement, applied here)
+## 6. Phase 4 — Case Management (as built)
+
+Shipped on `4.x` (v4.5.0) — the first phase to make **correlation first-class**. Adds the `CASE`
+lifecycle and a new `OBJECT_LINK` graph (the piece Phases 2–3 deferred to here), both on the existing
+ops engine. The bundled DuckDB serves the new link table, so **no new dependency** (`inspecto/pom.xml`
+untouched); additive-only. Full reactor green: core 525 (+8) + agent 157 + hosted 4 = 686.
+
+> **Scope of this slice:** the CASE lifecycle + the `OBJECT_LINK` correlation graph. **Comments,
+> attachments, and authored RCA templates** (the rest of §2 Phase 4) are deferred to a follow-up —
+> they reuse the same engine and add no new architecture.
+
+### 6.1 CASE lifecycle (Workflow Engine)
+
+`Workflow.defaultFor(CASE)` = `OPEN → INVESTIGATING → ESCALATED → RESOLVED → CLOSED` (actions
+`investigate`/`escalate`/`resolve`/`close`, plus a direct `INVESTIGATING → RESOLVED` for "resolve
+without escalating"); only `CLOSED` is terminal. Cases are operator-created via the Phase-3
+`POST /objects` (`type=CASE`) and walk via `/objects/{id}/transition` — no new lifecycle code.
+
+### 6.2 The OBJECT_LINK correlation graph (new package `com.gamma.ops.link`)
+
+```
+ObjectLink        record: from, fromType, to, toType, relationship, createdAt + of()/other()/toMap()
+LinkRelationship  const : CONTAINS, ESCALATED_FROM, CAUSED_BY, RELATED_TO  (free-form, like EventType)
+LinkStore         iface : add, incident(id), all(limit), close — APPEND-ONLY (no update/delete; the
+                          twin of EventStore, not ObjectStore)
+InMemoryLinkStore       : list-backed, newest-first; the lean default
+DbLinkStore             : JDBC over the bundled DuckDB (or BYO Postgres); table inspecto_ops_links
+```
+
+A link is an immutable directed edge between two objects — `Case CONTAINS Issue`,
+`Issue ESCALATED_FROM Alert`, `Alert CAUSED_BY Event` — exactly the requirement's
+`{from, from_type, to, to_type, relationship}` model. Relationships normalise to upper-case.
+
+### 6.3 Engine + wiring
+
+- **`ObjectService`** gained a `LinkStore` (3-arg constructor; the 1-/2-arg forms default to
+  `InMemoryLinkStore`, so every existing call site is unchanged) and three methods:
+  `link(from,to,relationship,actor)` (both endpoints must exist → 404 otherwise; idempotent on a
+  duplicate edge; emits a new `OBJECT_LINKED` event), `linksOf(id)` (incident links), and
+  `graph(rootId,depth)` — a BFS subgraph `{root,depth,nodes,edges}` where each node is a light object
+  summary, so the UI renders the graph with no extra lookups.
+- **`EventType`** gained `OBJECT_LINKED`.
+- **`SourceService`** builds a `LinkStore` on the same `-Dobjects.backend` toggle — a *separate* DuckDB
+  file (`-Dobjects.links.db.url`, default `inspecto-ops-links.db`), because a file-based DuckDB holds a
+  single-writer lock and the object store owns `inspecto-ops.db`; point both at one Postgres for a
+  distributed deployment — passes it to `ObjectService`, and closes it in `close()`.
+
+### 6.4 Surface (`ControlApi`, CONTROL scope)
+
+- `POST /objects/{id}/links` — body `{to, relationship?, actor?}` (404 unknown endpoint, 400 missing `to`).
+- `GET /objects/{id}/links` — links incident to the object.
+- `GET /objects/{id}/graph[?depth=]` — correlation subgraph (default depth 2, capped at 5; 404 unknown root).
+- New event type `OBJECT_LINKED`, queryable at `GET /events/search?type=OBJECT_LINKED`.
+
+### 6.5 Acceptance (met)
+
+- A CASE walks `OPEN → INVESTIGATING → ESCALATED → RESOLVED → CLOSED`; an Alert / Issue / Case can be
+  correlated (`POST …/links`) and the neighbourhood + multi-hop subgraph read back (`…/links`,
+  `…/graph`); each link is an `OBJECT_LINKED` event in `/events`.
+- Idempotent links; unknown endpoints → 404; additive-only (Phases 1–3 + `/alerts*` unchanged); no new
+  dependency. Tested in `WorkflowTest`, `LinkCoreTest`, `ObjectServiceTest`, `ControlApiObjectsTest`.
+- **Deferred (a Phase-4 follow-up):** `OBJECT_COMMENT` / `OBJECT_ATTACHMENT` and authored RCA `.toon`
+  templates — same engine, no new architecture.
+
+---
+
+## 7. Development guidelines (from the requirement, applied here)
 
 - **Platform services first** — `EventStore`/`ObjectStore`/`Workflow` are SPIs, not per-product code.
 - **Separate immutable facts from operational workflows** — Parquet events vs. table objects (§0).

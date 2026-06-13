@@ -576,6 +576,31 @@ java -cp file-processor.jar com.gamma.control.ControlApi \
 curl -s -H "Authorization: Bearer secret" "localhost:8080/events/search?type=OBJECT_SLA_BREACH"
 ```
 
+### Case Management (Phase 4) — correlation links & graph
+
+A `CASE` (`object_type=CASE`, lifecycle `OPEN → INVESTIGATING → ESCALATED → RESOLVED → CLOSED`) groups
+the alerts and issues of one investigation. Phase 4 makes **correlation first-class**: an append-only
+`OBJECT_LINK` graph records directed edges between objects — `Case CONTAINS Issue`, `Issue
+ESCALATED_FROM Alert`, `Alert CAUSED_BY Event` — so you can pivot from any object to everything related
+to it. Links follow the same `-Dobjects.backend` toggle (durable in their own DuckDB file
+`inspecto-ops-links.db`, or one Postgres alongside the objects).
+
+```bash
+# create a case, then link the issue it contains
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects \
+  -d '{"type":"CASE","title":"Q2 reconciliation incident","severity":"HIGH"}'
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<caseId>/links \
+  -d '{"to":"<issueId>","relationship":"contains","actor":"alice"}'
+# the case's neighbourhood, and a 2-hop correlation subgraph (nodes + edges)
+curl -s -H "Authorization: Bearer secret" "localhost:8080/objects/<caseId>/links"
+curl -s -H "Authorization: Bearer secret" "localhost:8080/objects/<caseId>/graph?depth=2"
+# every correlation also lands in the event feed
+curl -s -H "Authorization: Bearer secret" "localhost:8080/events/search?type=OBJECT_LINKED"
+```
+
+> Links are immutable facts (append-only — no edit/delete), like events. Comments, attachments, and
+> authored RCA templates are a planned Phase-4 follow-up.
+
 ### Observability — metrics & structured events
 
 The Control API host also exposes `GET /metrics` (open — scrapers don't carry tokens) in **Prometheus text format**, served from a zero-dependency in-process registry. No extra agent or sidecar.
