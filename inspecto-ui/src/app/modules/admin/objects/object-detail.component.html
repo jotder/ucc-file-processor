@@ -77,11 +77,17 @@
             <!-- Graph -->
             <mat-tab label="Graph">
                 <div class="pt-6">
+                    <div class="mb-3 flex justify-end">
+                        <button mat-stroked-button [disabled]="!canControl" (click)="openLink()">
+                            <mat-icon svgIcon="heroicons_outline:link"></mat-icon>
+                            <span class="ml-2">Link…</span>
+                        </button>
+                    </div>
                     @if (g6 && g6.nodes.length) {
                         <inspecto-graph-view [data]="g6" (nodeClick)="onNodeClick($event)"></inspecto-graph-view>
                     } @else {
                         <div class="text-secondary py-12 text-center">
-                            No correlations yet — link this object to alerts/issues via POST /objects/{{ '{' }}id{{ '}' }}/links.
+                            No correlations yet — use “Link…” to relate this object to an alert / issue / case.
                         </div>
                     }
                 </div>

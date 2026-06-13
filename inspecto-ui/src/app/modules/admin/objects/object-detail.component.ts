@@ -1,6 +1,7 @@
 import { Component, inject, OnInit, ViewEncapsulation } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -13,6 +14,7 @@ import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { fmtDateTime } from 'app/inspecto/grid';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
+import { ObjectLinkDialog } from './object-link.dialog';
 
 type TabKey = 'overview' | 'graph' | 'comments' | 'attachments';
 
@@ -43,6 +45,7 @@ export class ObjectDetailComponent implements OnInit {
     private route = inject(ActivatedRoute);
     private router = inject(Router);
     private auth = inject(InspectoAuthService);
+    private dialog = inject(MatDialog);
     private toastr = inject(ToastrService);
 
     id = '';
@@ -185,6 +188,20 @@ export class ObjectDetailComponent implements OnInit {
             },
             error: (e) => this.toastr.error(e?.error?.error ?? 'Could not apply RCA'),
         });
+    }
+
+    openLink(): void {
+        if (!this.obj) return;
+        this.dialog
+            .open(ObjectLinkDialog, {
+                data: { fromId: this.id, fromType: this.obj.objectType },
+                width: '520px',
+                maxHeight: '85vh',
+            })
+            .afterClosed()
+            .subscribe((created) => {
+                if (created) this.loadGraph();
+            });
     }
 
     onNodeClick(nodeId: string): void {
