@@ -106,6 +106,10 @@ public final class SourceService implements AutoCloseable {
     private final com.gamma.ops.note.NoteStore noteStore;
     /** Object Engine + Workflow Engine over {@link #objectStore} + {@link #linkStore} + {@link #noteStore}. */
     private final com.gamma.ops.ObjectService objects;
+    /** Loaded {@code *_rca.toon} templates by name (Phase 4) — backs {@code GET /rca/templates} and
+     *  {@code POST /objects/{id}/rca {template:<name>}}. Populated by {@link #fromArgs} or
+     *  {@link #registerRcaTemplate}; empty otherwise. */
+    private final Map<String, com.gamma.ops.rca.RcaTemplate> rcaTemplates = new ConcurrentHashMap<>();
     /** Authoritative on-disk audit reader; also the sync source when a DB backend is used. */
     private final FileStatusStore fileStatus = new FileStatusStore();
     /** The read surface the Control API + observability query — file- or DB-backed (M5). */
@@ -310,6 +314,21 @@ public final class SourceService implements AutoCloseable {
      *  {@code /objects} API and is where fired alerts are persisted as ALERT objects. */
     public com.gamma.ops.ObjectService objects() {
         return objects;
+    }
+
+    /** Register an RCA template (Phase 4), keyed by {@link com.gamma.ops.rca.RcaTemplate#name()}; {@code null} ignored. */
+    public void registerRcaTemplate(com.gamma.ops.rca.RcaTemplate template) {
+        if (template != null) rcaTemplates.put(template.name(), template);
+    }
+
+    /** All registered RCA templates by name (Phase 4) — backs {@code GET /rca/templates}. */
+    public Map<String, com.gamma.ops.rca.RcaTemplate> rcaTemplates() {
+        return Map.copyOf(rcaTemplates);
+    }
+
+    /** A registered RCA template by name, if any (Phase 4). */
+    public java.util.Optional<com.gamma.ops.rca.RcaTemplate> rcaTemplate(String name) {
+        return java.util.Optional.ofNullable(name == null ? null : rcaTemplates.get(name.trim()));
     }
 
     /**
@@ -706,8 +725,11 @@ public final class SourceService implements AutoCloseable {
         }
         long pollSeconds = Long.getLong("service.poll.seconds", 60L);
         int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
-        return new SourceService(registry, enrichJobs, jobConfigs, semantics, alertRules,
+        SourceService svc = new SourceService(registry, enrichJobs, jobConfigs, semantics, alertRules,
                 pollSeconds, maxRuns, buildStatusStore());
+        for (com.gamma.ops.rca.RcaTemplate t : loadRcaTemplates(resolveBySuffix(args, "_rca.toon")))
+            svc.registerRcaTemplate(t);
+        return svc;
     }
 
     /** Default DuckDB status database file when {@code status.backend=db} and no URL is given. */
@@ -906,6 +928,21 @@ public final class SourceService implements AutoCloseable {
             }
         }
         return rules;
+    }
+
+    /** Load each {@code *_rca.toon} (Phase 4); a bad one is warned and skipped (others still register). */
+    static List<com.gamma.ops.rca.RcaTemplate> loadRcaTemplates(List<Path> paths) {
+        List<com.gamma.ops.rca.RcaTemplate> out = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                com.gamma.ops.rca.RcaTemplate t = com.gamma.ops.rca.RcaTemplate.load(p);
+                out.add(t);
+                log.info("Loaded RCA template '{}' ({} section(s)) from {}", t.name(), t.sections().size(), p);
+            } catch (Exception e) {
+                log.warn("Could not load RCA template {}: {}", p, e.getMessage());
+            }
+        }
+        return out;
     }
 
     /** Load each {@code *_job.toon}; a bad one is warned and skipped (others still host). */

@@ -171,6 +171,30 @@ class ControlApiObjectsTest {
     }
 
     @Test
+    void rcaTemplateRegistryAndApplyByName(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            c.svc.registerRcaTemplate(com.gamma.ops.rca.RcaTemplate.fromMap(Map.of(
+                    "name", "incident", "sections", List.of("Summary", "Root cause"))));
+            OperationalObject caseObj = c.svc.objects().open(ObjectType.CASE, "inv", "d", "HIGH", null, Map.of());
+
+            // the registry lists the loaded template
+            JsonNode templates = json(send(c.port, "GET", "/rca/templates", TOKEN, null));
+            assertTrue(templates.isArray() && templates.size() == 1);
+            assertEquals("incident", templates.get(0).get("name").asText());
+
+            // apply by name → seeds one comment per section
+            JsonNode seeded = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/rca", TOKEN,
+                    "{\"template\":\"incident\",\"actor\":\"alice\"}"));
+            assertTrue(seeded.isArray() && seeded.size() == 2);
+            assertEquals(2, json(send(c.port, "GET", "/objects/" + caseObj.id() + "/comments", TOKEN, null)).size());
+
+            // an unknown template name → 404
+            assertEquals(404, send(c.port, "POST", "/objects/" + caseObj.id() + "/rca", TOKEN,
+                    "{\"template\":\"nope\"}").statusCode());
+        }
+    }
+
+    @Test
     void linkObjectsAndTraverseGraph(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             OperationalObject caseObj = c.svc.objects().open(ObjectType.CASE, "investigation", "d",

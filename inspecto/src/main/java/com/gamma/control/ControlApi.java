@@ -137,7 +137,8 @@ import java.util.regex.Pattern;
  *   GET  /objects/{id}/comments               list comments (newest-first)                  [v4.6.0]
  *   POST /objects/{id}/attachments            body {name,uri,contentType?,author?} — evidence ref [v4.6.0]
  *   GET  /objects/{id}/attachments            list attachment references                    [v4.6.0]
- *   POST /objects/{id}/rca                     body {sections[]} or {template:{…}} — seed RCA skeleton [v4.6.0]
+ *   POST /objects/{id}/rca                     body {sections[]} | {template:{…}} | {template:"name"} — seed RCA skeleton [v4.6.0]
+ *   GET  /rca/templates                       RCA templates loaded from *_rca.toon          [v4.6.0]
  * </pre>
  *
  * <p>The {@code /catalog*}, {@code /config/spec/*} and {@code /assist/*} routes require the
@@ -443,6 +444,7 @@ public final class ControlApi implements AutoCloseable {
         get("/objects/([^/]+)/attachments", true, (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.ATTACHMENT)));
         post("/objects/([^/]+)/rca", true, (e, m) -> applyRca(name(m), body(e)));
         get("/objects/([^/]+)", true, (e, m) -> objectById(name(m)));
+        get("/rca/templates", true, (e, m) -> rcaTemplateList());
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
@@ -1311,21 +1313,32 @@ public final class ControlApi implements AutoCloseable {
      * the template: {@code {template:{name,sections[]}}} or an inline {@code {name?,sections[],actor?}}.
      */
     private Object applyRca(String id, Map<String, Object> body) {
-        Map<String, Object> tmpl = new LinkedHashMap<>();
-        if (body.get("template") instanceof Map<?, ?> t) t.forEach((k, v) -> tmpl.put(String.valueOf(k), v));
-        else tmpl.putAll(body);                 // treat the body itself as the rca block
-        tmpl.putIfAbsent("name", "ad-hoc");     // an inline template needn't name itself
         RcaTemplate template;
-        try {
-            template = RcaTemplate.fromMap(tmpl);
-        } catch (IllegalArgumentException ex) {
-            throw new ApiException(400, ex.getMessage());
+        Object t = body.get("template");
+        if (t instanceof String named) {       // a *_rca.toon template referenced by name
+            template = service.rcaTemplate(named).orElseThrow(
+                    () -> new ApiException(404, "no RCA template named '" + named + "'"));
+        } else {                                // an inline template ({template:{…}} or the body itself)
+            Map<String, Object> tmpl = new LinkedHashMap<>();
+            if (t instanceof Map<?, ?> tm) tm.forEach((k, v) -> tmpl.put(String.valueOf(k), v));
+            else tmpl.putAll(body);
+            tmpl.putIfAbsent("name", "ad-hoc"); // an inline template needn't name itself
+            try {
+                template = RcaTemplate.fromMap(tmpl);
+            } catch (IllegalArgumentException ex) {
+                throw new ApiException(400, ex.getMessage());
+            }
         }
         try {
             return toNoteMaps(service.objects().applyRca(id, template, str(body, "actor")));
         } catch (java.util.NoSuchElementException notFound) {
             throw new ApiException(404, notFound.getMessage());
         }
+    }
+
+    /** {@code GET /rca/templates} (Phase 4) — the RCA templates loaded from {@code *_rca.toon}, by name. */
+    private Object rcaTemplateList() {
+        return service.rcaTemplates().values().stream().map(RcaTemplate::toMap).toList();
     }
 
     /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */
