@@ -7,8 +7,17 @@ import com.gamma.catalog.ConfigSource;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.catalog.SemanticModel;
 import com.gamma.enrich.EnrichmentConfig;
+import com.gamma.etl.BatchEvent;
 import com.gamma.etl.IngestProgress;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.event.Event;
+import com.gamma.event.EventLevel;
+import com.gamma.event.EventLog;
+import com.gamma.event.EventStore;
+import com.gamma.event.EventType;
+import com.gamma.event.InMemoryEventStore;
+import com.gamma.event.ParquetEventStore;
+import com.gamma.event.SavedViewStore;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.SourceProcessor;
 import com.gamma.job.JobConfig;
@@ -78,6 +87,14 @@ public final class SourceService implements AutoCloseable {
     private final long pollSeconds;
     private final int  maxConcurrentRuns;
     private final BatchEventBus bus = new BatchEventBus();
+    /** Append-only operational event store (Phase 1, v4.2.0) — the durable record of "what happened",
+     *  backing the {@code /events*} API. Built from {@code -Devents.backend} (memory|parquet) and
+     *  installed into the process-wide {@link EventLog} so the SLF4J capture appender and the domain
+     *  emitters share one sink. Assigned in the full constructor; closed in {@link #close()}. */
+    private final EventStore events;
+    /** Operator-saved event views (Phase 1, v4.2.0) — backs {@code /events/views}. File-backed when
+     *  {@code -Devents.views.file} is set, otherwise in-memory only. */
+    private final SavedViewStore savedViews;
     /** Authoritative on-disk audit reader; also the sync source when a DB backend is used. */
     private final FileStatusStore fileStatus = new FileStatusStore();
     /** The read surface the Control API + observability query — file- or DB-backed (M5). */
@@ -217,6 +234,15 @@ public final class SourceService implements AutoCloseable {
             bus.subscribe(alerting::onEvent);
             log.info("Alert engine armed with {} rule(s)", alertRules.size());
         }
+        // Event engine (Phase 1, v4.2.0): the append-only record of "what happened". Built from
+        // -Devents.backend (memory|parquet), installed into the process-wide EventLog so the SLF4J
+        // capture appender (INFO+) and the domain emitters below share one sink, and subscribed to the
+        // bus here (before start()) so the first terminal batch is recorded as a structured event.
+        this.events = buildEventStore();
+        EventLog.global().installStore(events);
+        bus.subscribe(this::onBatchEvent);
+        String viewsFile = System.getProperty("events.views.file");
+        this.savedViews = new SavedViewStore(viewsFile == null ? null : Path.of(viewsFile));
         CatalogOverlay.Stage2Reads stage2 = enrichment == null ? null : new CatalogOverlay.Stage2Reads() {
             public boolean hosts(String job) { return enrichment.config(job).isPresent(); }
             public List<Map<String, String>> runs(String job) { return enrichment.runs(job); }
@@ -249,6 +275,42 @@ public final class SourceService implements AutoCloseable {
     /** The bus carrying committed-batch events; subscribe before {@link #start()}. */
     public BatchEventBus eventBus() {
         return bus;
+    }
+
+    /** The append-only operational event store backing the {@code /events*} API (Phase 1, v4.2.0). */
+    public EventStore events() {
+        return events;
+    }
+
+    /** Operator-saved event views (Phase 1, v4.2.0) — always present (in-memory when no file set). */
+    public SavedViewStore savedViews() {
+        return savedViews;
+    }
+
+    /**
+     * Bus bridge: turn every terminal {@link BatchEvent} into a structured {@link Event}
+     * ({@link EventType#BATCH_COMMITTED} on SUCCESS, {@link EventType#BATCH_FAILED} otherwise), keyed
+     * by {@code correlationId = batchId} so an investigation can pivot from a batch to everything that
+     * happened around it. Subscribed before {@link #start()} so the first commit of a poll cycle is
+     * recorded.
+     */
+    private void onBatchEvent(BatchEvent e) {
+        boolean ok = "SUCCESS".equalsIgnoreCase(e.status());
+        Event.Builder b = Event.builder(ok ? EventType.BATCH_COMMITTED : EventType.BATCH_FAILED)
+                .level(ok ? EventLevel.INFO : EventLevel.ERROR)
+                .source(SourceService.class.getName())
+                .pipeline(e.pipeline())
+                .correlationId(e.batchId())
+                .message((ok ? "Batch committed: " : "Batch failed: ") + e.pipeline() + "/" + e.batchId())
+                .attr("batchId", e.batchId())
+                .attr("outputRows", e.outputRows())
+                .attr("durationMs", e.durationMs())
+                .attr("rejectedCount", e.rejectedCount())
+                .attr("partitions", e.partitions() == null ? 0 : e.partitions().size());
+        if (!ok) {
+            b.attr("error", e.error()).attr("offendingFile", e.offendingFile()).attr("errorRows", e.errorRows());
+        }
+        EventLog.global().emit(b);
     }
 
     /**
@@ -306,6 +368,12 @@ public final class SourceService implements AutoCloseable {
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
         log.info("SourceService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
                 registry.size(), pollSeconds, maxConcurrentRuns);
+        EventLog.global().emit(Event.builder(EventType.SERVICE_STARTED)
+                .source(SourceService.class.getName())
+                .message("SourceService started")
+                .attr("pipelines", registry.size())
+                .attr("pollSeconds", pollSeconds)
+                .attr("maxConcurrentRuns", maxConcurrentRuns));
     }
 
     /**
@@ -324,8 +392,8 @@ public final class SourceService implements AutoCloseable {
             List<Path> active = paused.isEmpty() ? registry : activeRegistry();
             if (active.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
             com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
-            reg.inc("ucc_poll_cycles_total", "Poll cycles run", Map.of());
-            reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), active.size());
+            reg.inc("inspecto_poll_cycles_total", "Poll cycles run", Map.of());
+            reg.setGauge("inspecto_active_runs", "Source runs currently executing", Map.of(), active.size());
             List<String> activeNames = activeNames(active);
             running.addAll(activeNames);
             MultiSourceProcessor.RunResult r;
@@ -333,11 +401,11 @@ public final class SourceService implements AutoCloseable {
                 r = MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
                 if (r.failed() > 0) {
                     log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
-                    reg.inc("ucc_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
+                    reg.inc("inspecto_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
                 }
             } finally {
                 running.removeAll(activeNames);
-                reg.setGauge("ucc_active_runs", "Source runs currently executing", Map.of(), 0);
+                reg.setGauge("inspecto_active_runs", "Source runs currently executing", Map.of(), 0);
             }
             // Refresh the status DB (if DB-backed) so this cycle's commits are queryable.
             syncStatus();
@@ -387,6 +455,10 @@ public final class SourceService implements AutoCloseable {
             ingestLock.unlock();
         }
         log.info("Registered pipeline '{}' from {} ({} pipeline(s) now active)", id, norm, registry.size());
+        EventLog.global().emit(Event.builder(EventType.PIPELINE_REGISTERED)
+                .source(SourceService.class.getName()).pipeline(id)
+                .message("Pipeline registered: " + id)
+                .attr("configPath", norm.toString()).attr("activePipelines", registry.size()));
         return id;
     }
 
@@ -514,6 +586,9 @@ public final class SourceService implements AutoCloseable {
         if (pathFor(pipelineName).isEmpty()) return false;
         paused.add(pipelineName);
         log.info("Pipeline '{}' paused", pipelineName);
+        EventLog.global().emit(Event.builder(EventType.PIPELINE_PAUSED)
+                .source(SourceService.class.getName()).pipeline(pipelineName)
+                .message("Pipeline paused: " + pipelineName));
         return true;
     }
 
@@ -522,6 +597,9 @@ public final class SourceService implements AutoCloseable {
         if (pathFor(pipelineName).isEmpty()) return false;
         paused.remove(pipelineName);
         log.info("Pipeline '{}' resumed", pipelineName);
+        EventLog.global().emit(Event.builder(EventType.PIPELINE_RESUMED)
+                .source(SourceService.class.getName()).pipeline(pipelineName)
+                .message("Pipeline resumed: " + pipelineName));
         return true;
     }
 
@@ -551,6 +629,8 @@ public final class SourceService implements AutoCloseable {
             try { c.close(); } catch (Exception e) { log.warn("Error closing status store: {}", e.getMessage()); }
         }
         log.info("SourceService stopped");
+        // Close last so the "stopped" log line above is itself captured, then flushed to disk.
+        try { events.close(); } catch (Exception e) { log.warn("Error closing event store: {}", e.getMessage()); }
     }
 
     // ── CLI ────────────────────────────────────────────────────────────────────
@@ -566,7 +646,7 @@ public final class SourceService implements AutoCloseable {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             svc.close();
             latch.countDown();
-        }, "ucc-shutdown"));
+        }, "inspecto-shutdown"));
         svc.start();
         latch.await();   // block until SIGTERM/SIGINT triggers the shutdown hook
     }
@@ -596,7 +676,9 @@ public final class SourceService implements AutoCloseable {
     }
 
     /** Default DuckDB status database file when {@code status.backend=db} and no URL is given. */
-    private static final String DEFAULT_DB_URL = "jdbc:duckdb:ucc-status.db";
+    private static final String DEFAULT_DB_URL = "jdbc:duckdb:inspecto-status.db";
+    /** Pre-rebrand default file; still used when present and the new-name file is absent. */
+    private static final String LEGACY_DB_FILE = "ucc-status.db";
 
     /**
      * Select the status backend from system properties (M5):
@@ -610,7 +692,12 @@ public final class SourceService implements AutoCloseable {
     private static StatusStore buildStatusStore() {
         String backend = System.getProperty("status.backend", "file");
         if (!"db".equalsIgnoreCase(backend)) return new FileStatusStore();
-        String url = System.getProperty("status.db.url", DEFAULT_DB_URL);
+        String url = System.getProperty("status.db.url");
+        if (url == null) {
+            url = (!Files.exists(Path.of("inspecto-status.db")) && Files.exists(Path.of(LEGACY_DB_FILE)))
+                    ? "jdbc:duckdb:" + LEGACY_DB_FILE
+                    : DEFAULT_DB_URL;
+        }
         try {
             StatusStore db = DbStatusStore.open(url,
                     System.getProperty("status.db.user"), System.getProperty("status.db.password"));
@@ -618,6 +705,32 @@ public final class SourceService implements AutoCloseable {
             return db;
         } catch (Exception e) {
             throw new IllegalStateException("Could not open status DB at " + url, e);
+        }
+    }
+
+    /** Default directory for the rolling-Parquet event store when {@code events.backend=parquet}. */
+    private static final String DEFAULT_EVENTS_DIR = "inspecto-events";
+
+    /**
+     * Select the Phase-1 event-store backend (v4.2.0): {@code -Devents.backend=memory} (default — a
+     * bounded in-memory ring; the lean fat-JAR keeps no extra files and tests stay light) or
+     * {@code -Devents.backend=parquet} (durable rolling Hive-partitioned Parquet under
+     * {@code -Devents.dir}, default {@value #DEFAULT_EVENTS_DIR}, queried via DuckDB). A parquet
+     * backend that fails to open is logged and degrades to in-memory — observability must never block
+     * the service.
+     */
+    private static EventStore buildEventStore() {
+        String backend = System.getProperty("events.backend", "memory");
+        if (!"parquet".equalsIgnoreCase(backend)) return new InMemoryEventStore();
+        Path dir = Path.of(System.getProperty("events.dir", DEFAULT_EVENTS_DIR));
+        try {
+            EventStore store = ParquetEventStore.open(dir);
+            log.info("Event backend: rolling Parquet ({})", dir.toAbsolutePath());
+            return store;
+        } catch (RuntimeException e) {
+            log.warn("Could not open Parquet event store at {} — falling back to in-memory: {}",
+                    dir, e.getMessage());
+            return new InMemoryEventStore();
         }
     }
 

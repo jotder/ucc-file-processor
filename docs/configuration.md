@@ -19,7 +19,8 @@ input; the rest of this section details each block.
 |---|---|---|---|
 | **Delimited text** (CSV, CSV.GZ, TSV, pipe-delimited) | built-in | `processing.csv_settings` + a `schema_file` (or `schemas[]` for multi-schema) | `delimiter`, `engine` (`auto`/`duckdb`/`java`), `skip_header_lines`, `skip_junk_lines`, `skip_tail_lines`, `skip_tail_columns`, `has_header`, `date_formats`, `timestamp_formats` |
 | **Messy text dumps** (SQL\*Plus exports with banners/footers, ragged columns) | built-in (Java engine) | same as above, with the messy-file knobs set | `skip_junk_lines`, `skip_tail_lines`, `skip_tail_columns` → forces `engine: java` under `auto` |
-| **Binary / proprietary / multi-event-type** (CDR blobs, fixed-width, anything one parser splits into several record types) | [plugin](plugins.md#plugin-ingester) | `processing.ingester` + `processing.segments` + optional `processing.ingester_config` | `ingester` (FQCN), per-segment schema files, free-form `ingester_config` map for format-specific settings (`record_length`, `byte_order`, …) |
+| **Fixed-width text** (column-positional records, one record per line) | built-in (native `read_csv`+`substring`) | `frontend: fixedwidth` + a `fixedwidth:` block (inline or in a `*.grammar.toon`) + a `schema_file` | `record: line`, `trim`, `min_record_length`, `fields[]{name,start,length}` |
+| **Binary / proprietary / multi-event-type** (CDR blobs, fixed-length binary, anything one parser splits into several record types) | [plugin](plugins.md#plugin-ingester) | `processing.ingester` + `processing.segments` + optional `processing.ingester_config` | `ingester` (FQCN), per-segment schema files, free-form `ingester_config` map for format-specific settings (`record_length`, `byte_order`, …) |
 
 Common to **all** formats: `dirs.*`, `output.format` (`CSV`/`PARQUET`),
 `processing.batch.*`, `processing.threads`, the `partitions[]` declaration in
@@ -333,6 +334,42 @@ processing:
 | `snappy` | Default. Fast, moderate compression — best for analytics workloads |
 | `zstd` | Higher compression ratio, slightly slower |
 | `gzip` | Maximum compatibility with external tools |
+
+---
+
+### Fixed-width frontend (`frontend: fixedwidth`)
+
+For column-positional records (no delimiter), set `frontend: fixedwidth` in the grammar/`csv_settings`
+and declare the byte/character geometry in a `fixedwidth:` block. **Only the tokenisation lives here —
+the event `_schema.toon` (field names, types, mapping rules, partitions) is authored exactly like a
+delimited source.** Slice index *i* feeds the schema field whose `selector` is *i*.
+
+```yaml
+# inline under processing.csv_settings, or in a reusable processing.grammar file
+frontend: fixedwidth          # delimited (default) | fixedwidth
+has_header: false
+date_formats[1]: "%Y-%m-%d"
+fixedwidth:
+  record: line                # line (newline-delimited text) | bytes (fixed-length binary)
+  record_length: 0            # REQUIRED when record: bytes; ignored for line
+  trim: both                  # none | left | right | both  (default both)
+  min_record_length: 0        # drop shorter lines (blanks/footers); 0 ⇒ default = widest slice end
+  fields[3]{name,start,length}:   # start is 0-based; length in chars (bytes for record: bytes)
+    ACCOUNT_NUMBER,0,6
+    EVENT_DATE,6,10
+    AMOUNT,16,8
+```
+
+- **`record: line`** (text) is parsed **natively** by DuckDB (`read_csv` reads each line as one VARCHAR
+  column — empty `delim`/`quote`/`escape` so a line is never split or quote-merged — then `substring`
+  carves each field), reusing the whole CSV streaming/union/chunk path. It is always native regardless
+  of `engine`. A field's `selector` must index a declared slice or the config fails to load.
+- **`record: bytes`** (binary) is handled by the shipped `com.gamma.ingester.FixedWidthRecordIngester`
+  plugin — wire it via `processing.ingester` + `processing.segments` + `ingester_config` (see
+  [Plugin Ingester](plugins.md#fixed-length-binary-records-fixedwidthrecordingester)), not the
+  `fixedwidth:` block above.
+- Worked example: `inspecto/config/subscriber/` (`subscriber.grammar.toon` + `subscriber_schema.toon`
+  + `subscriber_pipeline.toon`).
 
 ---
 

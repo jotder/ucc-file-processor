@@ -1,0 +1,17 @@
+name: subscriber_fixedwidth_grammar
+version: 1
+
+frontend: fixedwidth
+encoding: utf-8
+has_header: false
+date_formats[1]: "%Y-%m-%d"
+timestamp_formats[1]: "%Y-%m-%d"
+
+fixedwidth:
+  record: line
+  trim: both
+  fields[4]{name,start,length}:
+    ACCOUNT_NUMBER,0,12
+    EVENT_DATE,12,10
+    PLAN_CODE,22,6
+    BALANCE,28,12

@@ -37,7 +37,7 @@ import java.util.Map;
 @PublicApi(since = "3.0.0")
 public interface AssistAgent extends AutoCloseable {
 
-    /** Stable, human-readable name for logs and the control surface (e.g. {@code "ucc-assist"}). */
+    /** Stable, human-readable name for logs and the control surface (e.g. {@code "inspecto-assist"}). */
     String name();
 
     /**
@@ -75,7 +75,7 @@ public interface AssistAgent extends AutoCloseable {
      *
      * <p>This is an <b>additive</b> default returning an empty list, so existing providers (the M0
      * no-op, any embedder) keep compiling and behaving unchanged; an agent that does event-driven
-     * diagnosis (e.g. {@code ucc-assist}) overrides it to expose its in-memory diagnosis store.
+     * diagnosis (e.g. {@code inspecto-assist}) overrides it to expose its in-memory diagnosis store.
      *
      * @since 3.7.0
      */

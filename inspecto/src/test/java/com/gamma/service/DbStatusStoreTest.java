@@ -165,4 +165,27 @@ class DbStatusStoreTest {
         assertTrue(db.lineage(cfg, null).isEmpty());
         assertTrue(db.quarantine(cfg).isEmpty());
     }
+
+    /** Pre-rebrand ucc_status_* tables are renamed on connect and their rows survive. */
+    @Test
+    void migratesLegacyUccTablesPreservingRows() throws Exception {
+        Connection legacy = DriverManager.getConnection("jdbc:duckdb:");
+        try (var st = legacy.createStatement()) {
+            st.execute("CREATE TABLE ucc_status_commits (pipeline VARCHAR, batch_id VARCHAR)");
+            st.execute("INSERT INTO ucc_status_commits VALUES ('p1', 'b1')");
+        }
+        try (DbStatusStore store = new DbStatusStore(legacy)) {
+            assertNotNull(store);
+            try (var st = legacy.createStatement();
+                 var rs = st.executeQuery("SELECT batch_id FROM inspecto_status_commits")) {
+                assertTrue(rs.next(), "migrated row present");
+                assertEquals("b1", rs.getString(1));
+            }
+            try (var st = legacy.createStatement();
+                 var rs = st.executeQuery(
+                         "SELECT 1 FROM information_schema.tables WHERE table_name = 'ucc_status_commits'")) {
+                assertFalse(rs.next(), "legacy table gone after rename");
+            }
+        }
+    }
 }

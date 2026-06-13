@@ -22,6 +22,10 @@ import com.gamma.config.spec.Finding;
 import com.gamma.config.spec.Severity;
 import com.gamma.etl.ConfigValidator;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.event.Event;
+import com.gamma.event.EventLevel;
+import com.gamma.event.EventQuery;
+import com.gamma.event.SavedView;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
@@ -106,6 +110,13 @@ import java.util.regex.Pattern;
  *   GET  /config/spec/{type}                  declarative spec for a config type           [v3.2.0]
  *   POST /assist/{intent}                     run an assist skill (e.g. explain-entity)    [v3.3.0]
  *   POST /config/write                        body {type,config,subdir?,overwrite?} — persist a config [v4.1.0]
+ *   GET  /events[?limit=]                     recent events, newest-first (live tail)       [v4.2.0]
+ *   GET  /events/search[?level=&type=&pipeline=&correlationId=&q=&from=&to=&limit=&offset=] filtered events [v4.2.0]
+ *   GET  /events/{id}                         one event by id                               [v4.2.0]
+ *   GET  /events/export[?format=csv&…filters] export matching events (csv | json)           [v4.2.0]
+ *   GET  /events/views                        list operator-saved views                     [v4.2.0]
+ *   POST /events/views                        body {name,level?,type?,pipeline?,q?,…} — upsert a view [v4.2.0]
+ *   POST /events/views/{name}/delete          delete a saved view                           [v4.2.0]
  * </pre>
  *
  * <p>The {@code /catalog*}, {@code /config/spec/*} and {@code /assist/*} routes require the
@@ -258,7 +269,7 @@ public final class ControlApi implements AutoCloseable {
             api.close();
             svc.close();
             latch.countDown();
-        }, "ucc-shutdown"));
+        }, "inspecto-shutdown"));
         svc.start();
         api.start();
         latch.await();   // block until SIGTERM/SIGINT
@@ -377,6 +388,21 @@ public final class ControlApi implements AutoCloseable {
                 .map(a -> (Object) a.evaluateAll())
                 .orElseThrow(() -> new ApiException(503,
                         "alert engine not armed (no *_alert.toon rules loaded)")));
+
+        // ── v4.2.0 (Phase 1): Operational Event Viewer — the append-only "what happened" feed, backed
+        // by EventLog/EventStore (in-memory ring or rolling Parquet). CONTROL-scoped reads. Specific
+        // paths are registered before the /events/{id} catch so first-match-wins resolves them. ──
+        get("/events", true, (e, m) -> toMaps(service.events().recent(parseIntOr(query(e, "limit"), 50))));
+        get("/events/search", true, (e, m) -> toMaps(service.events().query(eventQuery(e, EventQuery.DEFAULT_LIMIT))));
+        get("/events/export", true, (e, m) -> exportEvents(e));
+        get("/events/views", true, (e, m) -> service.savedViews().list());
+        post("/events/views", true, (e, m) -> saveView(body(e)));
+        post("/events/views/([^/]+)/delete", true, (e, m) -> {
+            if (!service.savedViews().delete(name(m)))
+                throw new ApiException(404, "no saved view named '" + name(m) + "'");
+            return Map.of("name", name(m), "deleted", true);
+        });
+        get("/events/([^/]+)", true, (e, m) -> eventById(name(m)));
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
@@ -804,8 +830,13 @@ public final class ControlApi implements AutoCloseable {
 
     /** Write a {@code text/plain} body (Prometheus exposition) and signal it's handled. */
     private Object respondText(HttpExchange ex, String text) throws IOException {
+        return respondText(ex, text, "text/plain; version=0.0.4; charset=utf-8");
+    }
+
+    /** Write {@code text} with an explicit {@code Content-Type} (e.g. {@code text/csv}); returns {@link #HANDLED}. */
+    private Object respondText(HttpExchange ex, String text, String contentType) throws IOException {
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-        ex.getResponseHeaders().set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+        ex.getResponseHeaders().set("Content-Type", contentType);
         ex.sendResponseHeaders(200, bytes.length);
         ex.getResponseBody().write(bytes);
         return HANDLED;
@@ -996,6 +1027,93 @@ public final class ControlApi implements AutoCloseable {
     /** Build a report {@link com.gamma.report.ReportService.Window} from {@code ?from=&to=}. */
     private static com.gamma.report.ReportService.Window window(HttpExchange ex) {
         return com.gamma.report.ReportService.Window.of(query(ex, "from"), query(ex, "to"));
+    }
+
+    // ── event viewer helpers (v4.2.0, Phase 1) ───────────────────────────────────
+
+    private static List<Map<String, Object>> toMaps(List<Event> events) {
+        return events.stream().map(Event::toMap).toList();
+    }
+
+    /** Build an {@link EventQuery} from {@code ?level=&type=&pipeline=&correlationId=&q=&from=&to=&limit=&offset=}. */
+    private static EventQuery eventQuery(HttpExchange ex, int defaultLimit) {
+        String level = query(ex, "level");
+        return EventQuery.builder()
+                .minLevel(level == null ? null : EventLevel.parse(level))
+                .type(query(ex, "type"))
+                .pipeline(query(ex, "pipeline"))
+                .correlationId(query(ex, "correlationId"))
+                .textContains(query(ex, "q"))
+                .from(epochMillis(query(ex, "from")))
+                .to(epochMillis(query(ex, "to")))
+                .limit(parseIntOr(query(ex, "limit"), defaultLimit))
+                .offset(parseIntOr(query(ex, "offset"), 0))
+                .build();
+    }
+
+    /** Parse a time bound as epoch millis (all-digits) or a {@code yyyy-MM-dd[ HH:mm:ss]} string; null when blank. */
+    private static Long epochMillis(String s) {
+        if (s == null || s.isBlank()) return null;
+        String t = s.trim();
+        if (t.chars().allMatch(Character::isDigit)) {
+            try { return Long.parseLong(t); } catch (NumberFormatException ignore) { return null; }
+        }
+        try {
+            String norm = (t.length() <= 10 ? t + " 00:00:00" : t.replace('T', ' ')).substring(0, 19);
+            return java.time.LocalDateTime.parse(norm,
+                            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        } catch (RuntimeException e) {
+            throw new ApiException(400, "invalid time '" + s + "' (use epoch millis or yyyy-MM-dd[ HH:mm:ss])");
+        }
+    }
+
+    /** {@code GET /events/{id}} — scan the newest events (buffer + Parquet) for an exact id, else 404. */
+    private Object eventById(String id) {
+        return service.events().query(EventQuery.recent(EventQuery.MAX_LIMIT)).stream()
+                .filter(ev -> id.equals(ev.eventId())).findFirst()
+                .map(Event::toMap)
+                .orElseThrow(() -> new ApiException(404, "no event with id '" + id + "'"));
+    }
+
+    /** {@code GET /events/export} — {@code ?format=csv} streams CSV; otherwise returns the JSON list. */
+    private Object exportEvents(HttpExchange ex) throws IOException {
+        List<Event> rows = service.events().query(eventQuery(ex, EventQuery.MAX_LIMIT));
+        if ("csv".equalsIgnoreCase(query(ex, "format"))) {
+            return respondText(ex, eventsCsv(rows), "text/csv; charset=utf-8");
+        }
+        return toMaps(rows);
+    }
+
+    private static String eventsCsv(List<Event> rows) {
+        StringBuilder sb = new StringBuilder("timestamp,level,type,source,pipeline,correlationId,message\n");
+        for (Event e : rows) {
+            sb.append(csv(e.timestamp())).append(',').append(csv(e.level().name())).append(',')
+              .append(csv(e.type())).append(',').append(csv(e.source())).append(',')
+              .append(csv(e.pipeline())).append(',').append(csv(e.correlationId())).append(',')
+              .append(csv(e.message())).append('\n');
+        }
+        return sb.toString();
+    }
+
+    /** Minimal RFC-4180 CSV field escape. */
+    private static String csv(String v) {
+        if (v == null) return "";
+        if (v.contains(",") || v.contains("\"") || v.contains("\n") || v.contains("\r"))
+            return '"' + v.replace("\"", "\"\"") + '"';
+        return v;
+    }
+
+    /** {@code POST /events/views} — upsert a saved view from {@code {name, level?, type?, pipeline?, correlationId?, q?, from?, to?}}. */
+    private Object saveView(Map<String, Object> reqBody) {
+        String viewName = str(reqBody, "name");
+        if (viewName == null) throw new ApiException(400, "body must include 'name'");
+        Map<String, String> filters = new LinkedHashMap<>();
+        for (String k : List.of("level", "type", "pipeline", "correlationId", "q", "from", "to")) {
+            String v = str(reqBody, k);
+            if (v != null) filters.put(k, v);
+        }
+        return service.savedViews().save(new SavedView(viewName, filters, System.currentTimeMillis())).toMap();
     }
 
     private static ApiException notFound(String name) {

@@ -219,14 +219,14 @@ class ControlApiTest {
                 assertEquals(200, m.statusCode());
                 assertTrue(m.headers().firstValue("Content-Type").orElse("").startsWith("text/plain"));
                 body = m.body();
-                if (body.contains("ucc_batches_total")) break;
+                if (body.contains("inspecto_batches_total")) break;
                 Thread.sleep(150);
             }
-            assertTrue(body.contains("# TYPE ucc_batches_total counter"), "Prometheus exposition present");
-            assertTrue(body.contains("ucc_batches_total{pipeline=\"test_etl\",status=\"SUCCESS\"}"),
+            assertTrue(body.contains("# TYPE inspecto_batches_total counter"), "Prometheus exposition present");
+            assertTrue(body.contains("inspecto_batches_total{pipeline=\"test_etl\",status=\"SUCCESS\"}"),
                     "a committed batch was counted:\n" + body);
-            assertTrue(body.contains("ucc_poll_cycles_total"), "poll cycle counted");
-            assertTrue(body.contains("ucc_committed_batches{pipeline=\"test_etl\"}"),
+            assertTrue(body.contains("inspecto_poll_cycles_total"), "poll cycle counted");
+            assertTrue(body.contains("inspecto_committed_batches{pipeline=\"test_etl\"}"),
                     "scrape-time gauge populated");
         }
     }

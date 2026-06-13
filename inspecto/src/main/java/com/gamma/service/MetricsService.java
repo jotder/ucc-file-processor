@@ -28,7 +28,7 @@ public final class MetricsService {
 
     private static final Logger log    = LoggerFactory.getLogger(MetricsService.class);
     /** Dedicated logger for machine-readable batch events; route/ship separately if desired. */
-    private static final Logger events = LoggerFactory.getLogger("ucc.events");
+    private static final Logger events = LoggerFactory.getLogger("inspecto.events");
 
     private final SourceService svc;
     private final MetricRegistry reg;
@@ -49,15 +49,15 @@ public final class MetricsService {
 
     private void onBatch(BatchEvent e) {
         Map<String, String> byPipeline = Map.of("pipeline", e.pipeline());
-        reg.inc("ucc_batches_total", "Terminal batches by pipeline and status",
+        reg.inc("inspecto_batches_total", "Terminal batches by pipeline and status",
                 Map.of("pipeline", e.pipeline(), "status", e.status()));
-        reg.observe("ucc_batch_duration_seconds", "Batch wall time", byPipeline, e.durationMs() / 1000.0);
+        reg.observe("inspecto_batch_duration_seconds", "Batch wall time", byPipeline, e.durationMs() / 1000.0);
         if ("SUCCESS".equals(e.status())) {
-            reg.inc("ucc_output_rows_total", "Rows written by committed batches", byPipeline, e.outputRows());
-            reg.inc("ucc_partitions_written_total", "Output partitions written", byPipeline, e.partitions().size());
+            reg.inc("inspecto_output_rows_total", "Rows written by committed batches", byPipeline, e.outputRows());
+            reg.inc("inspecto_partitions_written_total", "Output partitions written", byPipeline, e.partitions().size());
         }
         if (e.rejectedCount() > 0)
-            reg.inc("ucc_rejected_files_total", "Quarantined member files", byPipeline, e.rejectedCount());
+            reg.inc("inspecto_rejected_files_total", "Quarantined member files", byPipeline, e.rejectedCount());
 
         // structured, correlatable event line (run/batch id, status, rows, duration)
         events.info("{\"event\":\"batch\",\"pipeline\":\"{}\",\"batch_id\":\"{}\",\"status\":\"{}\","
@@ -78,11 +78,11 @@ public final class MetricsService {
             }
             if (cfg == null) continue;
             Map<String, String> labels = Map.of("pipeline", pv.name());
-            reg.setGauge("ucc_committed_batches", "Batches committed (durable)", labels, pv.committedBatches());
-            reg.setGauge("ucc_paused", "1 if the pipeline is paused", labels, pv.paused() ? 1 : 0);
-            reg.setGauge("ucc_quarantine_files", "Files currently in quarantine", labels,
+            reg.setGauge("inspecto_committed_batches", "Batches committed (durable)", labels, pv.committedBatches());
+            reg.setGauge("inspecto_paused", "1 if the pipeline is paused", labels, pv.paused() ? 1 : 0);
+            reg.setGauge("inspecto_quarantine_files", "Files currently in quarantine", labels,
                     svc.statusStore().quarantine(cfg).size());
-            reg.setGauge("ucc_inbox_oldest_seconds", "Age of the oldest unprocessed inbox file (lag)",
+            reg.setGauge("inspecto_inbox_oldest_seconds", "Age of the oldest unprocessed inbox file (lag)",
                     labels, oldestInboxAgeSeconds(cfg.dirs().poll()));
         }
     }

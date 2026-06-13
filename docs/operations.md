@@ -285,7 +285,7 @@ triggers:
 
 Chains form naturally — set `on_pipeline` to an upstream enrichment's `name` and it fires on that enrichment's own commit. Recomputes for one job are serialised (a per-job lock), and idempotent writes make event + schedule overlap converge.
 
-**Run-level audit & lineage.** Every recompute — event, scheduled, or CLI — is recorded under a `_audit` sibling of the output root (`<output.database>_audit/`), so it never collides with the partitioned output tree. Three append-only artifacts per job, all keyed by a correlating `run_id` (which is also the chain `BatchEvent` id, linking the audit to `/metrics` and the `ucc.events` log):
+**Run-level audit & lineage.** Every recompute — event, scheduled, or CLI — is recorded under a `_audit` sibling of the output root (`<output.database>_audit/`), so it never collides with the partitioned output tree. Three append-only artifacts per job, all keyed by a correlating `run_id` (which is also the chain `BatchEvent` id, linking the audit to `/metrics` and the `inspecto.events` log):
 
 | File | Rows |
 |---|---|
@@ -433,7 +433,7 @@ curl -s -H "Authorization: Bearer secret" localhost:8080/enrichment/EVENTS_DAILY
 Beyond the fixed poll cycle, define arbitrary **jobs** in `*_job.toon` files (scanned from
 the same paths as pipelines). One uniform scheduler runs four kinds of work — `ingest`
 (a Stage-1 pipeline), `enrich` (a Stage-2 job), `report` (emit a report snapshot to the
-`ucc.events` log), and `maintenance` (built-in housekeeping) — each triggered by a cron
+`inspecto.events` log), and `maintenance` (built-in housekeeping) — each triggered by a cron
 expression, an upstream batch-commit event, and/or a manual `POST`.
 
 ```toon
@@ -443,7 +443,7 @@ job:
   type: maintenance
   cron: "0 2 * * *"          # 5 fields (min hour dom mon dow) or 6 (with leading seconds)
   task: cleanup
-  dir: /var/lib/ucc/test-status
+  dir: /var/lib/inspecto/test-status
   retention_days: 30
   glob: "*.csv"
 ```
@@ -481,26 +481,28 @@ source of truth and survives a DB outage).
 
 The DB engine is **DuckDB by default** — already bundled for ingest/enrichment, so the DB
 backend adds **no new dependency** and the same engine serves tests and production. With no
-URL given it opens a local file `ucc-status.db`:
+URL given it opens a local file `inspecto-status.db`:
 
 ```bash
 # DuckDB (default DB backend — embedded, single-process, zero extra deps)
 java -cp file-processor.jar com.gamma.control.ControlApi \
      -Dcontrol.token=secret \
      -Dstatus.backend=db \
-     -Dstatus.db.url="jdbc:duckdb:/var/lib/ucc/status.db" \
+     -Dstatus.db.url="jdbc:duckdb:/var/lib/inspecto/status.db" \
      config/
 ```
 
 The store is engine-neutral JDBC over portable SQL. It creates its schema on first connect
-(`ucc_status_{commits,batches,files,lineage,quarantine}`) and **syncs at startup and after
+(`inspecto_status_{commits,batches,files,lineage,quarantine}`; pre-rebrand `ucc_status_*`
+tables are renamed in place on first connect, and a legacy default `ucc-status.db` file is
+still picked up when no `inspecto-status.db` exists) and **syncs at startup and after
 every poll cycle**, so the DB reflects the latest committed state (up to one cycle of
 staleness) and the API/observability transparently read from it — no endpoint changes. A sync
 is a transactional DELETE-then-INSERT per pipeline, so it is idempotent and doubles as the
 migrate/backfill of existing file audit into the database.
 
 > **Future / distributed:** the same code path runs on **PostgreSQL** for a multi-writer or
-> multi-node deployment — point the URL at `jdbc:postgresql://host:5432/ucc` (with
+> multi-node deployment — point the URL at `jdbc:postgresql://host:5432/inspecto` (with
 > `-Dstatus.db.user`/`.password`) and put the PostgreSQL JDBC driver on the classpath. The
 > driver is *not* bundled (bring-your-own) to keep the default fat-JAR lean; DuckDB's
 > single-process file lock is fine for the current single-JVM service, and Postgres is what
@@ -516,22 +518,22 @@ curl -s localhost:8080/metrics
 
 | Metric | Type | Labels | Meaning |
 |---|---|---|---|
-| `ucc_batches_total` | counter | `pipeline`, `status` | terminal batches (SUCCESS + FAILED) |
-| `ucc_output_rows_total` | counter | `pipeline` | rows written by committed batches |
-| `ucc_rejected_files_total` | counter | `pipeline` | quarantined member files |
-| `ucc_partitions_written_total` | counter | `pipeline` | output partitions written |
-| `ucc_batch_duration_seconds` | histogram | `pipeline` | batch wall-clock latency |
-| `ucc_enrichment_recomputes_total` | counter | `job`, `trigger` | Stage-2 recomputes (event vs schedule) |
-| `ucc_enrichment_duration_seconds` | histogram | `job` | enrichment recompute latency |
-| `ucc_poll_cycles_total` · `ucc_source_run_failures_total` | counter | — | poll cycles run / source-run failures |
-| `ucc_active_runs` | gauge | — | source runs currently executing |
-| `ucc_committed_batches` · `ucc_quarantine_files` | gauge | `pipeline` | durable commit count / quarantine depth |
-| `ucc_inbox_oldest_seconds` | gauge | `pipeline` | **lag** — age of the oldest unprocessed inbox file |
-| `ucc_paused` | gauge | `pipeline` | 1 if paused |
+| `inspecto_batches_total` | counter | `pipeline`, `status` | terminal batches (SUCCESS + FAILED) |
+| `inspecto_output_rows_total` | counter | `pipeline` | rows written by committed batches |
+| `inspecto_rejected_files_total` | counter | `pipeline` | quarantined member files |
+| `inspecto_partitions_written_total` | counter | `pipeline` | output partitions written |
+| `inspecto_batch_duration_seconds` | histogram | `pipeline` | batch wall-clock latency |
+| `inspecto_enrichment_recomputes_total` | counter | `job`, `trigger` | Stage-2 recomputes (event vs schedule) |
+| `inspecto_enrichment_duration_seconds` | histogram | `job` | enrichment recompute latency |
+| `inspecto_poll_cycles_total` · `inspecto_source_run_failures_total` | counter | — | poll cycles run / source-run failures |
+| `inspecto_active_runs` | gauge | — | source runs currently executing |
+| `inspecto_committed_batches` · `inspecto_quarantine_files` | gauge | `pipeline` | durable commit count / quarantine depth |
+| `inspecto_inbox_oldest_seconds` | gauge | `pipeline` | **lag** — age of the oldest unprocessed inbox file |
+| `inspecto_paused` | gauge | `pipeline` | 1 if paused |
 
 Eager metrics are recorded off the batch-commit event; the point-in-time gauges (lag, quarantine depth, commit count) are computed lazily when `/metrics` is scraped, so they reflect current state without a polling loop.
 
-**Structured event log.** Alongside the human logs, the `ucc.events` logger emits one JSON line per batch — correlatable by `batch_id`:
+**Structured event log.** Alongside the human logs, the `inspecto.events` logger emits one JSON line per batch — correlatable by `batch_id`:
 
 ```json
 {"event":"batch","pipeline":"adjustment_etl","batch_id":"20260530_000652_default_0001","status":"SUCCESS","rows":3,"partitions":2,"rejected":0,"duration_ms":650}

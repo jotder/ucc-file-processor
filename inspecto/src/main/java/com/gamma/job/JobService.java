@@ -163,9 +163,9 @@ public final class JobService implements AutoCloseable {
             JobRun run = new JobRun(runId, name, job.type().name(), trigger, start,
                     LocalDateTime.now().format(TS), res.status(), res.durationMs(), res.message());
             recordRun(run);
-            MetricRegistry.global().inc("ucc_jobs_total", "Config-driven job executions",
+            MetricRegistry.global().inc("inspecto_jobs_total", "Config-driven job executions",
                     Map.of("job", name, "type", job.type().name(), "status", res.status()));
-            MetricRegistry.global().observe("ucc_job_duration_seconds", "Job wall time",
+            MetricRegistry.global().observe("inspecto_job_duration_seconds", "Job wall time",
                     Map.of("job", name), res.durationMs() / 1000.0);
             log.info("[JOB] {} ({}) {} in {}ms — {}",
                     name, trigger, res.status(), res.durationMs(), res.message());

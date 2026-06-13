@@ -81,6 +81,9 @@ public final class DuckDbCsvIngester {
      * per file, that the boundaries actually resolve before committing a batch to the native path.
      */
     public static boolean usesDuckDb(PipelineConfig cfg) {
+        // Fixed-width TEXT is parsed natively (read_csv + substring) only — the Java parser has no
+        // fixed-width path, so it is always native regardless of the engine knob.
+        if (cfg.fixedWidth() != null && !cfg.fixedWidth().binary()) return true;
         return switch (cfg.csv().engine() == null ? "auto" : cfg.csv().engine().toLowerCase()) {
             case "duckdb" -> true;
             case "java"   -> false;
@@ -99,6 +102,7 @@ public final class DuckDbCsvIngester {
      * is never native.
      */
     public static boolean decideNative(Batch batch, PipelineConfig cfg) {
+        if (cfg.fixedWidth() != null && !cfg.fixedWidth().binary()) return true;   // fixed-width text: native-only
         String engine = cfg.csv().engine() == null ? "auto" : cfg.csv().engine().toLowerCase();
         if (engine.equals("java"))   return false;
         if (engine.equals("duckdb")) return true;
@@ -185,6 +189,9 @@ public final class DuckDbCsvIngester {
     /** Build the {@code read_csv} relation + selector projection shared by {@link #ingest} and
      *  {@link #createRawInputView}. Pure string assembly — no DB contact. */
     private static ReadSpec buildReadSpec(File file, Map<String, Object> schemaConfig, PipelineConfig cfg) {
+        if (cfg.fixedWidth() != null && !cfg.fixedWidth().binary())
+            return buildFixedWidthReadSpec(file, schemaConfig, cfg);
+
         ParserSpec spec = ParserSpec.fromSchema(schemaConfig);
         List<Map<String, Object>> fields = spec.fields();
         int[] selectorIdx = spec.selectorIdx();
@@ -234,6 +241,66 @@ public final class DuckDbCsvIngester {
                 + ", store_rejects=true)";
 
         return new ReadSpec(proj.toString(), readCsv);
+    }
+
+    /**
+     * Build the fixed-width read spec: read each physical line as a single VARCHAR column {@code line}
+     * (an empty {@code delim}/{@code quote}/{@code escape} disables column-splitting and quote handling,
+     * so {@code read_csv} keeps each physical line intact regardless of its bytes), then carve each
+     * schema field with {@code substring}. Slice index =
+     * {@code raw.fields[].selector}, so the projection produces the same named columns the delimited
+     * path does and {@link DataTransformer} / {@link PartitionWriter} / {@link LineageCollector} run
+     * unchanged. Lines shorter than {@code min_record_length} (blank lines, footers, banners) are
+     * dropped by the inner {@code WHERE}. The result composes with the streaming/union/chunk callers
+     * exactly like the delimited spec (their trailing {@link #filterWhere} is empty here).
+     */
+    private static ReadSpec buildFixedWidthReadSpec(File file, Map<String, Object> schemaConfig,
+                                                    PipelineConfig cfg) {
+        ParserSpec spec = ParserSpec.fromSchema(schemaConfig);
+        List<Map<String, Object>> fields = spec.fields();
+        int[] selectorIdx = spec.selectorIdx();
+        PipelineConfig.FixedWidth fw = cfg.fixedWidth();
+        List<PipelineConfig.FixedWidth.Slice> slices = fw.slices();
+
+        int    skipLines = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
+        String filePath  = file.getAbsolutePath().replace("\\", "/");
+
+        StringBuilder proj = new StringBuilder();
+        for (int i = 0; i < fields.size(); i++) {
+            int sliceIdx = selectorIdx[i];
+            if (sliceIdx >= slices.size())
+                throw new IllegalArgumentException("fixedwidth: field '" + fields.get(i).get("name")
+                        + "' selector " + sliceIdx + " has no matching slice (only " + slices.size() + " defined)");
+            PipelineConfig.FixedWidth.Slice s = slices.get(sliceIdx);
+            if (i > 0) proj.append(", ");
+            // DuckDB substring is 1-based; config start is 0-based.
+            proj.append(trimExpr(fw.trim(), "substring(\"line\", " + (s.start() + 1) + ", " + s.length() + ")"))
+                .append(" AS \"").append(fields.get(i).get("name")).append('"');
+        }
+
+        String readCsv = "(SELECT \"line\" FROM read_csv('" + filePath + "'"
+                + ", columns={'line':'VARCHAR'}"
+                + ", delim='', quote='', escape=''"
+                + ", header=false"
+                + ", skip=" + skipLines
+                + readOptions(cfg)
+                + ", ignore_errors=true"
+                + ", null_padding=true"
+                + ", auto_detect=false"
+                + ", store_rejects=true)"
+                + " WHERE length(\"line\") >= " + fw.minRecordLength() + ") AS fw";
+
+        return new ReadSpec(proj.toString(), readCsv);
+    }
+
+    /** Wrap a substring expression in the configured trim function. */
+    private static String trimExpr(PipelineConfig.FixedWidth.Trim trim, String inner) {
+        return switch (trim) {
+            case NONE  -> inner;
+            case LEFT  -> "ltrim(" + inner + ")";
+            case RIGHT -> "rtrim(" + inner + ")";
+            case BOTH  -> "trim(" + inner + ")";
+        };
     }
 
     /**

@@ -3,6 +3,10 @@ package com.gamma.alert;
 import com.gamma.catalog.ConfigSource;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.event.Event;
+import com.gamma.event.EventLevel;
+import com.gamma.event.EventLog;
+import com.gamma.event.EventType;
 import com.gamma.service.StatusStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,6 +120,17 @@ public final class AlertService {
                 while (fired.size() > capacity) fired.removeLast();
                 out.add(alert.toMap());
                 log.warn("[ALERT] {}", alert.message());
+                // Phase-1↔2 tie: a fired alert is also a structured operational event, so the Event
+                // Viewer shows it inline with the batch facts that triggered it (correlate via pipeline).
+                EventLog.global().emit(Event.builder(EventType.ALERT_FIRED)
+                        .level(EventLevel.WARN)
+                        .source(AlertService.class.getName())
+                        .pipeline(display)
+                        .message(alert.message())
+                        .attr("rule", rule.name())
+                        .attr("metric", rule.metric())
+                        .attr("value", value)
+                        .attr("severity", rule.severity()));
             }
         }
         return out;

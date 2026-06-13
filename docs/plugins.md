@@ -235,6 +235,40 @@ processing:
 
 See `TypedRecordIngester.java` for the full source — it's deliberately compact (~120 lines) and is the recommended starting point for forking your own typed-record variant.
 
+### Fixed-length binary records (`FixedWidthRecordIngester`) {#fixed-length-binary-records-fixedwidthrecordingester}
+
+For **binary** fixed-length records (no delimiter, no newlines — each record is exactly *N* bytes), the
+repo ships `com.gamma.ingester.FixedWidthRecordIngester`. (Fixed-width **text**, one record per line, is
+handled natively by the engine — set `frontend: fixedwidth`; see
+[configuration.md](configuration.md#fixed-width-frontend-frontend-fixedwidth). Reach for this plugin only
+when records are not newline-delimited.)
+
+It reads `record_length` bytes per record and carves each field by byte `(start,length)`, decoding with
+the configured `encoding` and trimming per `trim`. Column **names/types** come from the segment schema's
+`raw.fields` (positional); the `ingester_config` supplies only the byte geometry. A trailing partial
+record is `reject`ed; an `IOException` quarantines the file as `QUARANTINED_UNREADABLE`; zero records
+emitted ⇒ `QUARANTINED_MISMATCH`.
+
+```yaml
+processing:
+  ingester: com.gamma.ingester.FixedWidthRecordIngester
+  segments:
+    REC: config/subscriber/subscriber_schema.toon   # exactly one segment
+  ingester_config:
+    record_length: 40
+    encoding: utf-8                                  # optional (default UTF-8)
+    trim: both                                       # none | left | right | both (default both)
+    fields[4]{name,start,length}:                    # positional to the segment's raw.fields
+      ACCOUNT_NUMBER,0,12
+      EVENT_DATE,12,10
+      PLAN_CODE,22,6
+      BALANCE,28,12
+```
+
+Because it's a `StreamingFileIngester`, the framework runs it in union mode (many small files) or
+generation mode (one huge file ≥ `processing.streaming.large_file_bytes`) automatically — bounded
+memory either way.
+
 ### Plugin author workflow
 
 End-to-end recipe for shipping a custom `StreamingFileIngester` to a deployed pipeline:

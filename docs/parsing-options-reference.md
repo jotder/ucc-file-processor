@@ -190,7 +190,7 @@ parsing:
     strict: true             # false → tolerate quote/column drift
     engine: auto             # auto | duckdb | java
 
-  # ── frontend: fixedwidth (positional slices over read_text) ──────────────────
+  # ── frontend: fixedwidth (positional slices; text = read_csv 1-col + substring) ──
   fixedwidth:
     record: line             # line | bytes
     record_length: 0         # for record: bytes (0 = newline-delimited)
@@ -226,9 +226,11 @@ parsing:
       record_tag: "0xA1"
 ```
 
-**Mapping to reality:** `frontend: delimited` and `frontend: plugin` are **already implemented**
-(today's `csv_settings` and `processing.ingester`/`segments`); `fixedwidth`, `json`, `text_regex`
-are the new work, and each is a thin frontend that produces VARCHAR rows for the existing backend.
+**Mapping to reality:** `frontend: delimited`, `frontend: plugin`, and **`frontend: fixedwidth`** are
+**implemented** (delimited = today's `csv_settings`; plugin = `processing.ingester`/`segments`;
+fixed-width text = the native `read_csv`+`substring` path, with binary handled by the shipped
+`com.gamma.ingester.FixedWidthRecordIngester` plugin — see §6.3); `json` and `text_regex` are the
+remaining work, each a thin frontend that produces VARCHAR rows for the existing backend.
 See §7 for the build order.
 
 ---
@@ -257,19 +259,34 @@ parsing:
 #   date_formats / timestamp_formats: "%d-%b-%Y %H:%M:%S", "%d-%b-%Y"
 ```
 
-### 6.3 Fixed-width / fixed-length records `[PROPOSED via read_text]`
-No native DuckDB fixed-width reader. Two routes:
-- **Native (no Java):** `read_text` → split into lines → `substring(line, start+1, length)` per field.
+### 6.3 Fixed-width / fixed-length records `[LIVE]`
+No native DuckDB fixed-width reader, so the engine carves slices itself. Two routes, both shipped:
+- **Fixed-width text** (`frontend: fixedwidth`, `record: line`) — **native, no Java parser.** Each
+  physical line is read into a single VARCHAR column via `read_csv` (empty `delim`/`quote`/`escape`,
+  so a line is never split or quote-merged — streaming, gz-aware, reject-capturing), then each schema
+  field is carved with `substring(line, start+1, length)`. Slice index = `raw.fields[].selector`, so
+  the event `_schema.toon` is authored exactly like a CSV source and the typing/partition/lineage
+  backend runs unchanged. `min_record_length` (default = the widest slice end) drops blank lines,
+  banners, and footers.
   ```sql
-  SELECT substring(line,1,16)  AS ACCOUNT_NUMBER,
-         substring(line,17,20) AS EVENT_DATE,
-         substring(line,37,12) AS AMOUNT
-  FROM (SELECT UNNEST(string_split(content, chr(10))) AS line FROM read_text('f.dat'))
-  WHERE length(line) > 0;
+  -- generated for a 3-field layout (start/length per field); 0-based start → substring is 1-based
+  SELECT trim(substring("line", 1, 16))  AS "ACCOUNT_NUMBER",
+         trim(substring("line", 17, 20)) AS "EVENT_DATE",
+         trim(substring("line", 37, 12)) AS "AMOUNT"
+  FROM (SELECT "line" FROM read_csv('f.dat', columns={'line':'VARCHAR'},
+               delim='', quote='', escape='', header=false, skip=0, ignore_errors=true)
+        WHERE length("line") >= 48);
   ```
-  The `fixedwidth.fields[]` grammar in §5 compiles to exactly this.
-- **Binary fixed-length** (no newlines, `record_length: N`): a `[PLUGIN]` that reads N-byte records
-  and `emit()`s slices — trivial `StreamingFileIngester`.
+  Config: `frontend: fixedwidth` + a `fixedwidth:` block (`record`, `trim`, `min_record_length`,
+  `fields[]{name,start,length}`) — inline under `csv_settings` or in a reusable `*.grammar.toon`.
+  Worked example: `inspecto/config/subscriber/`. (The earlier `read_text`+`UNNEST(string_split(...))`
+  sketch was rejected — it materialises the whole file as one VARCHAR cell; the `read_csv` single-column
+  form streams instead.)
+- **Binary fixed-length** (no newlines, `record_length: N`) — the shipped
+  `com.gamma.ingester.FixedWidthRecordIngester` (a `StreamingFileIngester`), wired via
+  `processing.ingester` + `processing.segments` + an `ingester_config` carrying `record_length`,
+  `encoding`, `trim`, and `fields[]{name,start,length}`. It reads N-byte records and `emit()`s byte
+  slices; see [plugins.md](plugins.md#fixed-length-binary-records-fixedwidthrecordingester).
 
 ### 6.4 JSON / NDJSON `[NATIVE]`
 ```yaml
@@ -337,8 +354,8 @@ modes") keeps TB-scale binaries within bounded memory.
 | CSV/TSV/pipe, well-formed | `delimited` (engine `auto`/`duckdb`) | yes | `[LIVE]` |
 | SQL*Plus / Oracle spool | `delimited` (engine `java`, skip_*) | partial | `[LIVE]` |
 | Dirty/“total chaos” text | `delimited` (Java path, null_strings) | yes | `[LIVE]` partial |
-| Fixed-width text | `fixedwidth` → `read_text`+substring | via read_text | `[PROPOSED]` |
-| Fixed-length binary | `plugin` (record slicer) | no | `[PLUGIN]` |
+| Fixed-width text | `fixedwidth` → `read_csv`(1 col)+substring | via read_csv | `[LIVE]` |
+| Fixed-length binary | `plugin` (`FixedWidthRecordIngester`) | no | `[LIVE]` (shipped ingester) |
 | JSON / NDJSON | `json` → `read_json`/`read_ndjson` | yes | `[NATIVE]`/`[PROPOSED]` |
 | Flat XML / key-value | `text_regex` | via read_text | `[PROPOSED]` |
 | Nested XML | `plugin` (StAX streaming) | no | `[PLUGIN]` |
@@ -358,8 +375,9 @@ Smallest-to-largest, each independently shippable and behavior-preserving for ex
 1. **Surface the safe `[NATIVE]` knobs on the existing CSV path** — thread `encoding`, `compression`,
    `quote`, `escape`, `comment`, `null_strings`, `strict` through `DuckDbCsvIngester.buildReadSpec`
    (and the Java `CsvIngester` where applicable). Pure additive; defaults preserve current behavior.
-2. **`fixedwidth` frontend** — a new `BatchIngestStrategy`/ingester that compiles `fields[]` offsets
-   to the `read_text`+`substring` SQL in §6.3 (text) and a byte-slicer (binary). No new dependency.
+2. **`fixedwidth` frontend** — ✅ **shipped.** A `buildReadSpec` branch compiles `fields[]` offsets to
+   the `read_csv`(1-col)+`substring` SQL in §6.3 (text, reusing the whole CSV streaming/union/chunk
+   path) and a byte-slicer (`FixedWidthRecordIngester`, binary). No new dependency.
 3. **`json` frontend** — wrap `read_json`/`read_ndjson` as a frontend; lean on `EXPR` mapping rules
    (`json_extract`) for nesting. No new dependency.
 4. **`text_regex` frontend** — `read_text` + `string_split` + `regexp_extract` with named groups;

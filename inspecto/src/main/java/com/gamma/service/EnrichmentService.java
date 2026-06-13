@@ -138,9 +138,9 @@ public final class EnrichmentService implements AutoCloseable {
             log.info("[ENRICH] {} recomputed ({}) → {} partition file(s), {} row(s)",
                     job.name(), reason, outs.size(), res.totalRows());
             // metrics: one recompute, tagged by job + trigger kind (event|schedule|cli)
-            MetricRegistry.global().inc("ucc_enrichment_recomputes_total",
+            MetricRegistry.global().inc("inspecto_enrichment_recomputes_total",
                     "Stage-2 enrichment recomputes", Map.of("job", job.name(), "trigger", trigger));
-            MetricRegistry.global().observe("ucc_enrichment_duration_seconds",
+            MetricRegistry.global().observe("inspecto_enrichment_duration_seconds",
                     "Enrichment recompute wall time", Map.of("job", job.name()),
                     (System.nanoTime() - startNanos) / 1e9);
             // durable run-level audit + lineage
@@ -154,7 +154,7 @@ public final class EnrichmentService implements AutoCloseable {
         } catch (Exception e) {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
             log.error("[ENRICH] {} recompute failed ({})", job.name(), reason, e);
-            MetricRegistry.global().inc("ucc_enrichment_failures_total",
+            MetricRegistry.global().inc("inspecto_enrichment_failures_total",
                     "Stage-2 enrichment recompute failures", Map.of("job", job.name()));
             try {
                 auditFor(job).record(new EnrichmentAuditWriter.RunRow(

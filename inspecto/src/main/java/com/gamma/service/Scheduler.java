@@ -43,7 +43,7 @@ public final class Scheduler implements AutoCloseable {
         this.exec = Executors.newScheduledThreadPool(2, new java.util.concurrent.ThreadFactory() {
             private int n = 0;
             @Override public synchronized Thread newThread(Runnable r) {
-                Thread t = new Thread(r, "ucc-scheduler-" + (++n));
+                Thread t = new Thread(r, "inspecto-scheduler-" + (++n));
                 t.setDaemon(true);
                 return t;
             }

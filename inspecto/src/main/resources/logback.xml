@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging configuration for the Inspecto core (4.2.0).
+
+  Two appenders are attached to root:
+    * CONSOLE        — preserves the human-readable console output (to stdout, so the LogSetup tee
+                       continues to capture it to the per-run log file).
+    * EVENT_STORE    — the Operational-Intelligence capture path: every INFO/WARN/ERROR record becomes
+                       a structured Event on EventLog.global(). A ThresholdFilter pins capture at INFO
+                       so DEBUG/TRACE are console-only — the "everything except debug" rule.
+
+  Root level is INFO (matching the previous slf4j-simple default). Raise a specific logger to DEBUG for
+  local troubleshooting without polluting the event store — the ThresholdFilter keeps DEBUG out of it.
+-->
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="EVENT_STORE" class="com.gamma.event.EventStoreAppender">
+        <!-- Capture INFO and above only; DEBUG/TRACE never reach the event store. -->
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="EVENT_STORE"/>
+    </root>
+
+</configuration>

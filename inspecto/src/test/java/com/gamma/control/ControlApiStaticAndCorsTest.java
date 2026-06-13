@@ -54,8 +54,8 @@ class ControlApiStaticAndCorsTest {
     private static Path spaDir(Path dir) throws Exception {
         Path ui = dir.resolve("ui");
         Files.createDirectories(ui.resolve("assets"));
-        Files.writeString(ui.resolve("index.html"), "<!doctype html><html><body>UCC UI</body></html>");
-        Files.writeString(ui.resolve("assets").resolve("app.js"), "console.log('ucc');");
+        Files.writeString(ui.resolve("index.html"), "<!doctype html><html><body>Inspecto UI</body></html>");
+        Files.writeString(ui.resolve("assets").resolve("app.js"), "console.log('inspecto');");
         return ui;
     }
 
@@ -112,7 +112,7 @@ class ControlApiStaticAndCorsTest {
             HttpResponse<String> root = send(c.port, "GET", "/", null);
             assertEquals(200, root.statusCode());
             assertTrue(ctype(root).startsWith("text/html"));
-            assertTrue(root.body().contains("UCC UI"), "index.html served at /");
+            assertTrue(root.body().contains("Inspecto UI"), "index.html served at /");
         }
     }
 
@@ -122,7 +122,7 @@ class ControlApiStaticAndCorsTest {
             HttpResponse<String> js = send(c.port, "GET", "/assets/app.js", null);
             assertEquals(200, js.statusCode());
             assertTrue(ctype(js).startsWith("text/javascript"));
-            assertTrue(js.body().contains("ucc"));
+            assertTrue(js.body().contains("inspecto"));
         }
     }
 
@@ -132,7 +132,7 @@ class ControlApiStaticAndCorsTest {
             HttpResponse<String> deep = send(c.port, "GET", "/dashboard/pipelines", null);
             assertEquals(200, deep.statusCode(), "SPA deep link resolves to index.html");
             assertTrue(ctype(deep).startsWith("text/html"));
-            assertTrue(deep.body().contains("UCC UI"));
+            assertTrue(deep.body().contains("Inspecto UI"));
         }
     }
 

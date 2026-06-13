@@ -163,6 +163,33 @@ public final class PipelineConfig {
         }
     }
 
+    /**
+     * Fixed-width parsing frontend (additive, 4.1). Non-null only when the resolved grammar/
+     * {@code csv_settings} sets {@code frontend: fixedwidth}; {@code null} for the default delimited
+     * frontend (so every existing pipeline is unaffected).
+     *
+     * <p>Each record is carved into positional {@link Slice slices}. <b>Slice index {@code i} feeds the
+     * schema field whose {@code selector} is {@code i}</b> — exactly the delimited path's
+     * {@code c<selector>} column model — so the event {@code _schema.toon} (names/types/mapping/
+     * partitions) is authored identically to a CSV source; only the tokenisation lives here.
+     *
+     * <ul>
+     *   <li>{@code binary == false} (record: line) → DuckDB-native {@code read_csv}+{@code substring}
+     *       ingest, reusing the whole CSV streaming/union/chunk path (see {@link DuckDbCsvIngester}).</li>
+     *   <li>{@code binary == true} (record: bytes) → the {@code com.gamma.ingester.FixedWidthRecordIngester}
+     *       plugin, wired via {@code processing.ingester} (it reads its layout from {@code ingester_config});
+     *       this record is then unused.</li>
+     * </ul>
+     */
+    @PublicApi(since = "4.1.0")
+    public record FixedWidth(boolean binary, int recordLength, Trim trim,
+                             int minRecordLength, List<Slice> slices) {
+        /** One positional field: {@code start} (0-based), {@code length} (chars for text, bytes for binary), optional {@code name}. */
+        public record Slice(String name, int start, int length) {}
+        /** Field whitespace trimming applied at projection time (default {@link #BOTH}). */
+        public enum Trim { NONE, LEFT, RIGHT, BOTH }
+    }
+
     // ── grouped state + accessors ──────────────────────────────────────────────
 
     private final Identity   identity;
@@ -173,6 +200,7 @@ public final class PipelineConfig {
     private final Schemas    schemas;
     private final DuckDbSettings duckdb;
     private final Chunking       chunking;
+    private final FixedWidth     fixedWidth;
 
     /**
      * The {@code status_dir} to create in {@link #prepare()} ({@code null} when status is disabled or
@@ -191,6 +219,8 @@ public final class PipelineConfig {
     public DuckDbSettings duckdb()   { return duckdb; }
     /** Optional large-file chunking config; never null ({@code maxFileBytes <= 0} ⇒ disabled). */
     public Chunking       chunking() { return chunking; }
+    /** Fixed-width frontend config, or {@code null} for the default delimited frontend. */
+    public FixedWidth     fixedWidth() { return fixedWidth; }
 
     // ── private constructor — use load() ──────────────────────────────────────
 
@@ -221,6 +251,7 @@ public final class PipelineConfig {
                         : Collections.emptyMap());
         this.duckdb   = new DuckDbSettings(b.duckMemoryLimit, b.duckTempDirectory, b.duckMaxTempSize);
         this.chunking = new Chunking(b.chunkMaxFileBytes, b.chunkTargetBytes);
+        this.fixedWidth = b.fixedWidth;
         this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
@@ -396,6 +427,8 @@ public final class PipelineConfig {
             b.excludePrefixes  = strList(csv.get("exclude_prefixes"));
             b.excludeRegex     = strList(csv.get("exclude_regex"));
             b.filterTargetColumn = toInt(csv.getOrDefault("filter_target_column", 0));
+            // 4.1 additive: fixed-width frontend (null unless frontend: fixedwidth)
+            b.fixedWidth       = parseFixedWidth(csv);
         }
 
         // ── output ────────────────────────────────────────────────────────────
@@ -454,6 +487,7 @@ public final class PipelineConfig {
                 Identifiers.validateSchema(schemaCfg, "schemas[col=" + colCount + "]");
                 if (table != null && !table.isBlank())
                     Identifiers.validate(table, "schemas[col=" + colCount + "].table");
+                validateFixedWidthSelectors(b.fixedWidth, schemaCfg, "schemas[col=" + colCount + "]");
 
                 SchemaSelector.register(byCount, byPattern, byTable,
                         colCount, filePattern, schemaCfg, table);
@@ -475,6 +509,7 @@ public final class PipelineConfig {
             b.singleSchema = (Map<String, Object>)
                     JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
             Identifiers.validateSchema(b.singleSchema, "schema_file");
+            validateFixedWidthSelectors(b.fixedWidth, b.singleSchema, "schema_file");
         }
 
         log.info("[CONFIG] Status file : {}", b.statusFilePath);
@@ -552,6 +587,80 @@ public final class PipelineConfig {
             if (!s.isEmpty()) out.add(s);
         }
         return out;
+    }
+
+    /**
+     * Parse the optional fixed-width frontend from the resolved grammar/{@code csv_settings} map.
+     * Returns {@code null} unless {@code frontend} is {@code fixedwidth}; otherwise builds an
+     * immutable {@link FixedWidth} from the {@code fixedwidth} block. Hard-fails (so a draft is
+     * rejected before any run) on a missing block, an empty/ill-formed {@code fields[]}, a
+     * negative {@code start}/non-positive {@code length}, or {@code record: bytes} without a
+     * positive {@code record_length}. {@code min_record_length} defaults to the widest slice end.
+     */
+    @SuppressWarnings("unchecked")
+    private static FixedWidth parseFixedWidth(Map<String, Object> csv) {
+        String frontend = String.valueOf(csv.getOrDefault("frontend", "delimited")).trim().toLowerCase();
+        if (!frontend.equals("fixedwidth") && !frontend.equals("fixed_width")) return null;
+
+        Object fwRaw = csv.get("fixedwidth");
+        if (!(fwRaw instanceof Map<?, ?> fwMap))
+            throw new IllegalArgumentException(
+                    "frontend 'fixedwidth' requires a 'fixedwidth:' block with fields[]{name,start,length}");
+        Map<String, Object> fw = (Map<String, Object>) fwMap;
+
+        boolean binary = "bytes".equalsIgnoreCase(String.valueOf(fw.getOrDefault("record", "line")).trim());
+        int recordLength = toInt(fw.getOrDefault("record_length", 0));
+        FixedWidth.Trim trim = parseTrim(fw.get("trim"));
+
+        if (!(fw.get("fields") instanceof List<?> list) || list.isEmpty())
+            throw new IllegalArgumentException("fixedwidth.fields[] must be a non-empty list of {name,start,length}");
+
+        List<FixedWidth.Slice> slices = new ArrayList<>();
+        int maxEnd = 0;
+        for (Object o : list) {
+            Map<String, Object> f = (Map<String, Object>) o;
+            int start  = toInt(f.getOrDefault("start", -1));
+            int length = toInt(f.getOrDefault("length", 0));
+            if (start < 0)
+                throw new IllegalArgumentException(
+                        "fixedwidth.fields[" + slices.size() + "].start must be >= 0 (got " + start + ")");
+            if (length < 1)
+                throw new IllegalArgumentException(
+                        "fixedwidth.fields[" + slices.size() + "].length must be >= 1 (got " + length + ")");
+            String name = f.get("name") == null ? null : String.valueOf(f.get("name"));
+            slices.add(new FixedWidth.Slice(name, start, length));
+            maxEnd = Math.max(maxEnd, start + length);
+        }
+        if (binary && recordLength <= 0)
+            throw new IllegalArgumentException("fixedwidth.record_length must be > 0 when record: bytes");
+
+        int minLen = toInt(fw.getOrDefault("min_record_length", 0));
+        if (minLen <= 0) minLen = maxEnd;   // default: keep any line that reaches the widest slice
+        return new FixedWidth(binary, recordLength, trim, minLen, Collections.unmodifiableList(slices));
+    }
+
+    /** Parse the {@code trim} mode; accepts the enum names or {@code true}/{@code false}; default {@code BOTH}. */
+    private static FixedWidth.Trim parseTrim(Object v) {
+        if (v == null) return FixedWidth.Trim.BOTH;
+        return switch (String.valueOf(v).trim().toLowerCase()) {
+            case "none", "false" -> FixedWidth.Trim.NONE;
+            case "left", "ltrim" -> FixedWidth.Trim.LEFT;
+            case "right", "rtrim" -> FixedWidth.Trim.RIGHT;
+            default -> FixedWidth.Trim.BOTH;   // "both" / "true" / anything else
+        };
+    }
+
+    /**
+     * For a fixed-width <em>text</em> frontend, every schema {@code raw.fields[].selector} indexes a
+     * declared slice — fail the load (clear message) if a selector has no matching slice. No-op for the
+     * delimited frontend or the binary frontend (which loads its own layout from {@code ingester_config}).
+     */
+    private static void validateFixedWidthSelectors(FixedWidth fw, Map<String, Object> schema, String label) {
+        if (fw == null || fw.binary()) return;
+        ParserSpec ps = ParserSpec.fromSchema(schema);
+        if (ps.maxSelector() >= fw.slices().size())
+            throw new IllegalArgumentException(label + ": raw.fields selector " + ps.maxSelector()
+                    + " has no matching fixedwidth slice (only " + fw.slices().size() + " slice(s) defined)");
     }
 
     /**
@@ -635,6 +744,7 @@ public final class PipelineConfig {
         List<String> excludePrefixes = new ArrayList<>();
         List<String> excludeRegex    = new ArrayList<>();
         int          filterTargetColumn = 0;
+        FixedWidth   fixedWidth;          // null ⇒ delimited frontend (the default)
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;

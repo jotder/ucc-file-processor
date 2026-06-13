@@ -125,6 +125,18 @@ public final class ConfigValidator {
                     "than trimming them; row counts may differ from the Java parser. Use engine=java " +
                     "or engine=auto if those rows must be retained.");
 
+        // Fixed-width frontend: overlapping slices (fields sharing bytes) is almost always a mistake.
+        if (cfg.fixedWidth() != null) {
+            List<PipelineConfig.FixedWidth.Slice> sorted = new ArrayList<>(cfg.fixedWidth().slices());
+            sorted.sort(java.util.Comparator.comparingInt(PipelineConfig.FixedWidth.Slice::start));
+            for (int i = 1; i < sorted.size(); i++) {
+                PipelineConfig.FixedWidth.Slice prev = sorted.get(i - 1), cur = sorted.get(i);
+                if (cur.start() < prev.start() + prev.length())
+                    warn(warnings, "fixedwidth slices overlap at byte " + cur.start() + " — '" + prev.name() +
+                            "' and '" + cur.name() + "' share bytes; check each field's start/length.");
+            }
+        }
+
         return warnings;
     }
 

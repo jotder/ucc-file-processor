@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * A {@link JobType#REPORT} job: computes a report from {@link ReportService} on a schedule
- * and emits it as a single structured line on the {@code ucc.events} logger — a periodic,
+ * and emits it as a single structured line on the {@code inspecto.events} logger — a periodic,
  * correlatable snapshot to complement the on-demand Control API report endpoints (the live
  * delivery surface). The same aggregation backs both, so the scheduled snapshot and an API
  * call agree.
@@ -20,7 +20,7 @@ import java.util.Map;
  */
 final class ReportJob implements Job {
 
-    private static final Logger events = LoggerFactory.getLogger("ucc.events");
+    private static final Logger events = LoggerFactory.getLogger("inspecto.events");
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final JobConfig cfg;
@@ -51,6 +51,6 @@ final class ReportJob implements Job {
         line.put("report", report);
         events.info(JSON.writeValueAsString(line));
         long ms = (System.nanoTime() - t0) / 1_000_000L;
-        return JobResult.ok("report '" + scope + "' emitted to ucc.events", ms);
+        return JobResult.ok("report '" + scope + "' emitted to inspecto.events", ms);
     }
 }

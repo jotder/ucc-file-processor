@@ -64,11 +64,11 @@ public final class DbStatusStore implements StatusStore, AutoCloseable {
     private static final TypeReference<LinkedHashMap<String, String>> ROW =
             new TypeReference<>() {};
 
-    private static final String T_COMMITS    = "ucc_status_commits";
-    private static final String T_BATCHES    = "ucc_status_batches";
-    private static final String T_FILES      = "ucc_status_files";
-    private static final String T_LINEAGE    = "ucc_status_lineage";
-    private static final String T_QUARANTINE = "ucc_status_quarantine";
+    private static final String T_COMMITS    = "inspecto_status_commits";
+    private static final String T_BATCHES    = "inspecto_status_batches";
+    private static final String T_FILES      = "inspecto_status_files";
+    private static final String T_LINEAGE    = "inspecto_status_lineage";
+    private static final String T_QUARANTINE = "inspecto_status_quarantine";
 
     private final Connection conn;
 
@@ -88,7 +88,7 @@ public final class DbStatusStore implements StatusStore, AutoCloseable {
      * {@link DriverManager} as-is (assumes the driver self-registers). A Postgres URL with
      * no PG driver on the classpath fails with a clear message — it is not bundled.
      *
-     * @param url  JDBC URL (e.g. {@code jdbc:duckdb:ucc-status.db})
+     * @param url  JDBC URL (e.g. {@code jdbc:duckdb:inspecto-status.db})
      * @param user username, or {@code null} for URL-embedded / no credentials
      * @param pass password, or {@code null}
      */
@@ -241,6 +241,7 @@ public final class DbStatusStore implements StatusStore, AutoCloseable {
     // ── schema + helpers ─────────────────────────────────────────────────────────
 
     private void initSchema() {
+        migrateLegacyTables();
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE IF NOT EXISTS " + T_COMMITS
                     + " (pipeline VARCHAR, batch_id VARCHAR)");
@@ -254,6 +255,36 @@ public final class DbStatusStore implements StatusStore, AutoCloseable {
                     + " (pipeline VARCHAR, seq BIGINT, payload VARCHAR)");
         } catch (SQLException e) {
             throw new IllegalStateException("Could not initialise status DB schema", e);
+        }
+    }
+
+    /**
+     * One-time rename of pre-rebrand {@code ucc_status_*} tables to {@code inspecto_status_*}
+     * so existing status databases keep their history. No-op on fresh databases.
+     */
+    private void migrateLegacyTables() {
+        String[] suffixes = {"commits", "batches", "files", "lineage", "quarantine"};
+        try (Statement st = conn.createStatement()) {
+            for (String s : suffixes) {
+                String legacy = "ucc_status_" + s;
+                String current = "inspecto_status_" + s;
+                if (tableExists(legacy) && !tableExists(current)) {
+                    st.execute("ALTER TABLE " + legacy + " RENAME TO " + current);
+                    log.info("Status DB: renamed legacy table {} -> {}", legacy, current);
+                }
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("Could not migrate legacy status tables", e);
+        }
+    }
+
+    private boolean tableExists(String table) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM information_schema.tables WHERE table_name = ?")) {
+            ps.setString(1, table);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 
