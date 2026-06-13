@@ -1,8 +1,8 @@
 # Spec: Operational Intelligence Platform — Five-Phase Implementation Roadmap
 
 > **Date:** 2026-06-13
-> **Status:** Phases 1–4 shipped on `4.x` (Phase 4 = CASE + OBJECT_LINK; its comments/attachments
-> deferred); Phase 5 planned (implementation roadmap)
+> **Status:** Phases 1–4 shipped on `4.x` (Phase 4 incl. comments/attachments/RCA — the v4.6.0
+> follow-up); Phase 5 planned (implementation roadmap)
 > **Branch:** `4.x`
 > **Source requirement:** [ticketing_systems_requirement.md](../../ticketing_systems_requirement.md)
 > **Builds on (confirmed seams):** `com.gamma.etl.BatchEvent` / `com.gamma.service.BatchEventBus`
@@ -116,7 +116,7 @@ So each phase is mostly **promotion + persistence + lifecycle** on top of seams 
   `Scheduler`. Impact assessment = links to affected pipelines (catalog).
 - Reuses the Object Engine, Workflow Engine, search/filter, comments/activity — **no new storage**.
 
-### Phase 4 — Case Management  ✅ shipped (v4.5.0; as built in §6) — comments/attachments deferred
+### Phase 4 — Case Management  ✅ shipped (v4.5.0 + v4.6.0; as built in §6)
 **Outcome:** "Investigate." — `object_type=CASE`, lifecycle `OPEN→INVESTIGATING→ESCALATED→RESOLVED→CLOSED`.
 - **`OBJECT_LINK`** correlation graph (`from,from_type,to,to_type,relationship`) becomes first-class:
   `Case CONTAINS Issue`, `Issue ESCALATED_FROM Alert`, `Alert CAUSED_BY Event`. Render via the existing
@@ -388,9 +388,9 @@ lifecycle and a new `OBJECT_LINK` graph (the piece Phases 2–3 deferred to here
 ops engine. The bundled DuckDB serves the new link table, so **no new dependency** (`inspecto/pom.xml`
 untouched); additive-only. Full reactor green: core 525 (+8) + agent 157 + hosted 4 = 686.
 
-> **Scope of this slice:** the CASE lifecycle + the `OBJECT_LINK` correlation graph. **Comments,
-> attachments, and authored RCA templates** (the rest of §2 Phase 4) are deferred to a follow-up —
-> they reuse the same engine and add no new architecture.
+> **Shipped in two slices:** v4.5.0 = the CASE lifecycle + the `OBJECT_LINK` correlation graph (§6.1–6.5);
+> v4.6.0 = the Evidence layer — comments, attachments, and RCA templates (§6.6). Both are additive and
+> reuse the same engine; together they complete §2 Phase 4.
 
 ### 6.1 CASE lifecycle (Workflow Engine)
 
@@ -442,8 +442,35 @@ A link is an immutable directed edge between two objects — `Case CONTAINS Issu
   `…/graph`); each link is an `OBJECT_LINKED` event in `/events`.
 - Idempotent links; unknown endpoints → 404; additive-only (Phases 1–3 + `/alerts*` unchanged); no new
   dependency. Tested in `WorkflowTest`, `LinkCoreTest`, `ObjectServiceTest`, `ControlApiObjectsTest`.
-- **Deferred (a Phase-4 follow-up):** `OBJECT_COMMENT` / `OBJECT_ATTACHMENT` and authored RCA `.toon`
-  templates — same engine, no new architecture.
+
+### 6.6 Evidence — comments, attachments, RCA templates (v4.6.0 follow-up)
+
+Completes §2 Phase 4's "Evidence/Notes/Attachments". New package `com.gamma.ops.note`, append-only like
+the link store — **no new dependency, no change to existing behaviour**. Full reactor green: core 533 (+8
+on top of v4.5.0) + agent 157 + hosted 4 = 694.
+
+```
+NoteKind          enum  : COMMENT, ATTACHMENT  (one notes table serves both, like one object table per type)
+ObjectNote        record: id, objectId, kind, author, body, attributes(Map), createdAt + comment()/attachment()/toMap()
+NoteStore         iface : add, forObject(id, kind?), close — APPEND-ONLY
+InMemoryNoteStore       : the lean default
+DbNoteStore             : JDBC over the bundled DuckDB (or Postgres); table inspecto_ops_notes (attribute JSON, as DbObjectStore)
+RcaTemplate       record: name, sections[]  + load(*_rca.toon)/fromMap (reuses ConfigCodec)
+```
+
+- **Comments** are free-text notes; **attachments** reference external evidence (file/URL) — the
+  metadata (`name`/`contentType`/`uri`) rides the attribute bag, so **the bytes never enter the lean
+  core**, only a reference does.
+- **`ObjectService`** gained a `NoteStore` (4-arg constructor; the shorter forms default to in-memory) and
+  `comment`/`attach`/`notesOf(id,kind?)`/`applyRca(template)`. Each note emits a new `OBJECT_NOTE` event
+  (`noteKind` attr) onto the shared `EventLog`. `applyRca` seeds one comment per template section — a
+  structured skeleton an investigator completes.
+- **`SourceService`** builds a `NoteStore` on the same `-Dobjects.backend` toggle (its own DuckDB file
+  `-Dobjects.notes.db.url`, default `inspecto-ops-notes.db`, for the single-writer-lock reason as links).
+- **Surface (`ControlApi`, CONTROL scope):** `POST`/`GET /objects/{id}/comments`,
+  `POST`/`GET /objects/{id}/attachments`, and `POST /objects/{id}/rca` (body `{sections[]}` or
+  `{template:{…}}`). Unknown object → 404; missing `body` / `name`+`uri` → 400. New event type `OBJECT_NOTE`.
+- Tested in `NoteCoreTest`, `RcaTemplateTest`, `ObjectServiceTest`, `ControlApiObjectsTest`.
 
 ---
 

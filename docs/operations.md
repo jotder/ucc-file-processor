@@ -598,8 +598,25 @@ curl -s -H "Authorization: Bearer secret" "localhost:8080/objects/<caseId>/graph
 curl -s -H "Authorization: Bearer secret" "localhost:8080/events/search?type=OBJECT_LINKED"
 ```
 
-> Links are immutable facts (append-only — no edit/delete), like events. Comments, attachments, and
-> authored RCA templates are a planned Phase-4 follow-up.
+> Links are immutable facts (append-only — no edit/delete), like events.
+
+**Evidence — comments, attachments, RCA.** An object also carries an append-only **note** thread:
+free-text *comments* and *attachment* references (file/URL metadata — the bytes stay out of the lean
+core). An **RCA template** (`{sections[]}`, optionally authored as a `*_rca.toon`) seeds one comment per
+section, giving an investigator a structured skeleton to fill in. Notes follow the same
+`-Dobjects.backend` toggle (their own DuckDB file `inspecto-ops-notes.db` when durable).
+
+```bash
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/comments \
+  -d '{"author":"alice","body":"reproduced on pipeX; investigating the reconciler"}'
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/attachments \
+  -d '{"name":"trace.log","uri":"s3://evidence/trace.log","contentType":"text/plain","author":"alice"}'
+# seed an RCA skeleton (one comment per section), then read the thread
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/rca \
+  -d '{"sections":["Summary","Timeline","Root cause","Impact","Remediation"],"actor":"alice"}'
+curl -s -H "Authorization: Bearer secret" "localhost:8080/objects/<id>/comments"
+curl -s -H "Authorization: Bearer secret" "localhost:8080/objects/<id>/attachments"
+```
 
 ### Observability — metrics & structured events
 
