@@ -8,6 +8,11 @@ import com.gamma.ops.link.InMemoryLinkStore;
 import com.gamma.ops.link.LinkRelationship;
 import com.gamma.ops.link.LinkStore;
 import com.gamma.ops.link.ObjectLink;
+import com.gamma.ops.note.InMemoryNoteStore;
+import com.gamma.ops.note.NoteKind;
+import com.gamma.ops.note.NoteStore;
+import com.gamma.ops.note.ObjectNote;
+import com.gamma.ops.rca.RcaTemplate;
 import com.gamma.ops.workflow.Workflow;
 
 import java.util.ArrayDeque;
@@ -48,25 +53,33 @@ public final class ObjectService {
 
     private final ObjectStore store;
     private final LinkStore links;
+    private final NoteStore notes;
     private final Map<ObjectType, Workflow> workflows = new EnumMap<>(ObjectType.class);
 
-    /** Build with the built-in default workflows for every {@link ObjectType} and an in-memory link store. */
+    /** Build with the built-in default workflows and in-memory link + note stores. */
     public ObjectService(ObjectStore store) {
         this(store, Map.of());
     }
 
-    /** Build with {@code overrides} over the built-in {@link Workflow#defaultFor} set; in-memory links. */
+    /** Build with workflow {@code overrides}; in-memory link + note stores. */
     public ObjectService(ObjectStore store, Map<ObjectType, Workflow> overrides) {
-        this(store, overrides, new InMemoryLinkStore());
+        this(store, overrides, new InMemoryLinkStore(), new InMemoryNoteStore());
+    }
+
+    /** Build with workflow {@code overrides} and an explicit {@link LinkStore}; in-memory note store. */
+    public ObjectService(ObjectStore store, Map<ObjectType, Workflow> overrides, LinkStore links) {
+        this(store, overrides, links, new InMemoryNoteStore());
     }
 
     /**
-     * Build with workflow {@code overrides} and an explicit {@link LinkStore} (Phase 4) — the deployment
-     * supplies a durable {@code DbLinkStore} or the lean {@link InMemoryLinkStore}, mirroring the object store.
+     * Build with workflow {@code overrides} and explicit {@link LinkStore} (Phase 4) + {@link NoteStore}
+     * (Phase 4 follow-up) — the deployment supplies durable {@code Db*} stores or the lean in-memory ones,
+     * mirroring the object store backend.
      */
-    public ObjectService(ObjectStore store, Map<ObjectType, Workflow> overrides, LinkStore links) {
+    public ObjectService(ObjectStore store, Map<ObjectType, Workflow> overrides, LinkStore links, NoteStore notes) {
         this.store = store;
         this.links = links;
+        this.notes = notes;
         for (ObjectType t : ObjectType.values()) {
             Workflow wf = overrides == null ? null : overrides.get(t);
             workflows.put(t, wf != null ? wf : Workflow.defaultFor(t));
@@ -309,6 +322,58 @@ public final class ObjectService {
         m.put("status", o.status());
         m.put("severity", o.severity());
         return m;
+    }
+
+    // ── evidence: comments / attachments / RCA (Phase 4 follow-up) ───────────────────
+
+    /** Add a free-text comment to an object (unknown id → {@link NoSuchElementException}); emits OBJECT_NOTE. */
+    public ObjectNote comment(String objectId, String author, String body) {
+        OperationalObject o = require(objectId);
+        return addNote(ObjectNote.comment(objectId, author, body), author, o.correlationId());
+    }
+
+    /**
+     * Attach a reference to external evidence (file/URL <em>metadata only</em> — the bytes stay out of the
+     * lean core) to an object; emits an {@link EventType#OBJECT_NOTE} event. Unknown id → {@link NoSuchElementException}.
+     */
+    public ObjectNote attach(String objectId, String author, String name, String contentType,
+                             String uri, String caption) {
+        OperationalObject o = require(objectId);
+        return addNote(ObjectNote.attachment(objectId, author, name, contentType, uri, caption), author,
+                o.correlationId());
+    }
+
+    /** An object's notes, newest-first; {@code kind} {@code null} returns comments and attachments alike. */
+    public List<ObjectNote> notesOf(String objectId, NoteKind kind) {
+        return notes.forObject(objectId, kind);
+    }
+
+    /**
+     * Apply an {@link RcaTemplate} to an object (typically a CASE): seed one {@link NoteKind#COMMENT} per
+     * template section, giving the investigator a structured skeleton to complete. Unknown id →
+     * {@link NoSuchElementException}. Returns the seeded notes in section order.
+     */
+    public List<ObjectNote> applyRca(String objectId, RcaTemplate template, String actor) {
+        OperationalObject o = require(objectId);
+        List<ObjectNote> seeded = new ArrayList<>();
+        for (String section : template.sections())
+            seeded.add(addNote(ObjectNote.comment(objectId, actor, "## " + section), actor, o.correlationId()));
+        return seeded;
+    }
+
+    private ObjectNote addNote(ObjectNote note, String actor, String correlationId) {
+        ObjectNote stored = notes.add(note);
+        EventLog.global().emit(Event.builder(EventType.OBJECT_NOTE)
+                .level(EventLevel.INFO)
+                .source(SOURCE)
+                .correlationId(correlationId)
+                .message(stored.kind() + " on " + stored.objectId()
+                        + (actor == null || actor.isBlank() ? "" : " by " + actor))
+                .attr("objectId", stored.objectId())
+                .attr("noteId", stored.id())
+                .attr("noteKind", stored.kind().name())
+                .attr("author", actor));
+        return stored;
     }
 
     // ── internals ──────────────────────────────────────────────────────────────────

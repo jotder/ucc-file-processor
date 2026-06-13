@@ -53,4 +53,6 @@ public final class EventType {
     public static final String OBJECT_SLA_BREACH = "OBJECT_SLA_BREACH";
     /** Two objects were correlated by an {@code OBJECT_LINK} (e.g. {@code Case CONTAINS Issue}) (Phase 4). */
     public static final String OBJECT_LINKED = "OBJECT_LINKED";
+    /** A note was added to an object — a comment or an attachment reference ({@code noteKind} attr) (Phase 4). */
+    public static final String OBJECT_NOTE = "OBJECT_NOTE";
 }

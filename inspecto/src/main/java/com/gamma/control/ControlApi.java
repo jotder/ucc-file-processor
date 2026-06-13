@@ -31,6 +31,9 @@ import com.gamma.ops.ObjectService;
 import com.gamma.ops.ObjectType;
 import com.gamma.ops.OperationalObject;
 import com.gamma.ops.link.ObjectLink;
+import com.gamma.ops.note.NoteKind;
+import com.gamma.ops.note.ObjectNote;
+import com.gamma.ops.rca.RcaTemplate;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
@@ -130,6 +133,11 @@ import java.util.regex.Pattern;
  *   POST /objects/{id}/links                  body {to,relationship?,actor?} — correlate two objects (CASE) [v4.5.0]
  *   GET  /objects/{id}/links                  links incident to this object                 [v4.5.0]
  *   GET  /objects/{id}/graph[?depth=]         correlation subgraph (nodes + edges)          [v4.5.0]
+ *   POST /objects/{id}/comments               body {body,author?} — add a comment           [v4.6.0]
+ *   GET  /objects/{id}/comments               list comments (newest-first)                  [v4.6.0]
+ *   POST /objects/{id}/attachments            body {name,uri,contentType?,author?} — evidence ref [v4.6.0]
+ *   GET  /objects/{id}/attachments            list attachment references                    [v4.6.0]
+ *   POST /objects/{id}/rca                     body {sections[]} or {template:{…}} — seed RCA skeleton [v4.6.0]
  * </pre>
  *
  * <p>The {@code /catalog*}, {@code /config/spec/*} and {@code /assist/*} routes require the
@@ -429,6 +437,11 @@ public final class ControlApi implements AutoCloseable {
         post("/objects/([^/]+)/links", true, (e, m) -> createLink(name(m), body(e)));
         get("/objects/([^/]+)/links", true, (e, m) -> toLinkMaps(service.objects().linksOf(name(m))));
         get("/objects/([^/]+)/graph", true, (e, m) -> objectGraph(name(m), e));
+        post("/objects/([^/]+)/comments", true, (e, m) -> addComment(name(m), body(e)));
+        get("/objects/([^/]+)/comments", true, (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.COMMENT)));
+        post("/objects/([^/]+)/attachments", true, (e, m) -> addAttachment(name(m), body(e)));
+        get("/objects/([^/]+)/attachments", true, (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.ATTACHMENT)));
+        post("/objects/([^/]+)/rca", true, (e, m) -> applyRca(name(m), body(e)));
         get("/objects/([^/]+)", true, (e, m) -> objectById(name(m)));
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
@@ -1257,6 +1270,59 @@ public final class ControlApi implements AutoCloseable {
         int depth = Math.min(5, Math.max(1, parseIntOr(query(ex, "depth"), 2)));
         try {
             return service.objects().graph(id, depth);
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        }
+    }
+
+    /** {@code POST /objects/{id}/comments} (Phase 4) — add a comment; body {@code {body, author?}}. */
+    private Object addComment(String id, Map<String, Object> body) {
+        String text = str(body, "body");
+        if (text == null) throw new ApiException(400, "body must include 'body'");
+        try {
+            return service.objects().comment(id, str(body, "author"), text).toMap();
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        }
+    }
+
+    /**
+     * {@code POST /objects/{id}/attachments} (Phase 4) — attach an evidence reference (metadata only);
+     * body {@code {name, uri, contentType?, author?, caption?}}.
+     */
+    private Object addAttachment(String id, Map<String, Object> body) {
+        String name = str(body, "name");
+        String uri = str(body, "uri");
+        if (name == null || uri == null) throw new ApiException(400, "body must include 'name' and 'uri'");
+        try {
+            return service.objects().attach(id, str(body, "author"), name, str(body, "contentType"),
+                    uri, str(body, "caption")).toMap();
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        }
+    }
+
+    private static List<Map<String, Object>> toNoteMaps(List<ObjectNote> notes) {
+        return notes.stream().map(ObjectNote::toMap).toList();
+    }
+
+    /**
+     * {@code POST /objects/{id}/rca} (Phase 4) — seed an RCA skeleton (one comment per section). Body is
+     * the template: {@code {template:{name,sections[]}}} or an inline {@code {name?,sections[],actor?}}.
+     */
+    private Object applyRca(String id, Map<String, Object> body) {
+        Map<String, Object> tmpl = new LinkedHashMap<>();
+        if (body.get("template") instanceof Map<?, ?> t) t.forEach((k, v) -> tmpl.put(String.valueOf(k), v));
+        else tmpl.putAll(body);                 // treat the body itself as the rca block
+        tmpl.putIfAbsent("name", "ad-hoc");     // an inline template needn't name itself
+        RcaTemplate template;
+        try {
+            template = RcaTemplate.fromMap(tmpl);
+        } catch (IllegalArgumentException ex) {
+            throw new ApiException(400, ex.getMessage());
+        }
+        try {
+            return toNoteMaps(service.objects().applyRca(id, template, str(body, "actor")));
         } catch (java.util.NoSuchElementException notFound) {
             throw new ApiException(404, notFound.getMessage());
         }

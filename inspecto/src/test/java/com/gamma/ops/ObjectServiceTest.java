@@ -6,6 +6,9 @@ import com.gamma.event.EventQuery;
 import com.gamma.event.EventType;
 import com.gamma.event.InMemoryEventStore;
 import com.gamma.ops.link.ObjectLink;
+import com.gamma.ops.note.NoteKind;
+import com.gamma.ops.note.ObjectNote;
+import com.gamma.ops.rca.RcaTemplate;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -202,5 +205,42 @@ class ObjectServiceTest {
         assertEquals(2, ((List<?>) g2.get("edges")).size());
 
         assertThrows(NoSuchElementException.class, () -> svc.graph("missing", 2));
+    }
+
+    // ── Phase 4 follow-up: comments / attachments / RCA ──────────────────────────────
+
+    @Test
+    void commentsAndAttachmentsRecordedAndQueryable() {
+        InMemoryEventStore events = new InMemoryEventStore();
+        EventLog.global().installStore(events);
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        OperationalObject caseObj = svc.open(ObjectType.CASE, "investigation", "d", "HIGH", "corr", Map.of());
+
+        ObjectNote c = svc.comment(caseObj.id(), "alice", "starting investigation");
+        assertEquals(NoteKind.COMMENT, c.kind());
+        ObjectNote a = svc.attach(caseObj.id(), "bob", "trace.log", "text/plain", "s3://x/trace.log", "tail -100");
+        assertEquals(NoteKind.ATTACHMENT, a.kind());
+        assertEquals("trace.log", a.attributes().get("name"));
+
+        assertEquals(2, svc.notesOf(caseObj.id(), null).size());
+        assertEquals(1, svc.notesOf(caseObj.id(), NoteKind.COMMENT).size());
+        assertEquals(1, svc.notesOf(caseObj.id(), NoteKind.ATTACHMENT).size());
+        assertEquals(2, activityFor(events, EventType.OBJECT_NOTE, caseObj.id()).size());
+
+        assertThrows(NoSuchElementException.class, () -> svc.comment("missing", "x", "y"));
+    }
+
+    @Test
+    void applyRcaSeedsOneCommentPerSection() {
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        OperationalObject caseObj = svc.open(ObjectType.CASE, "investigation", "d", "HIGH", null, Map.of());
+        RcaTemplate template = RcaTemplate.fromMap(Map.of("name", "incident",
+                "sections", List.of("Summary", "Root cause", "Remediation")));
+
+        List<ObjectNote> seeded = svc.applyRca(caseObj.id(), template, "alice");
+        assertEquals(3, seeded.size());
+        assertEquals("## Summary", seeded.get(0).body(), "section order preserved in the returned list");
+        assertEquals(3, svc.notesOf(caseObj.id(), NoteKind.COMMENT).size());
+        assertThrows(NoSuchElementException.class, () -> svc.applyRca("missing", template, "x"));
     }
 }

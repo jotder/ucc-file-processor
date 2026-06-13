@@ -135,6 +135,42 @@ class ControlApiObjectsTest {
     }
 
     @Test
+    void commentsAttachmentsAndRca(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            OperationalObject caseObj = c.svc.objects().open(ObjectType.CASE, "investigation", "d",
+                    "HIGH", "corr", Map.of());
+
+            // comment
+            JsonNode comment = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/comments", TOKEN,
+                    "{\"body\":\"starting\",\"author\":\"alice\"}"));
+            assertEquals("COMMENT", comment.get("kind").asText());
+            assertEquals("starting", comment.get("body").asText());
+
+            // attachment (evidence reference — metadata only)
+            JsonNode att = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/attachments", TOKEN,
+                    "{\"name\":\"trace.log\",\"uri\":\"s3://x/trace.log\",\"contentType\":\"text/plain\",\"author\":\"bob\"}"));
+            assertEquals("ATTACHMENT", att.get("kind").asText());
+            assertEquals("trace.log", att.get("attributes").get("name").asText());
+
+            // RCA seeds one comment per section (inline template)
+            JsonNode rca = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/rca", TOKEN,
+                    "{\"sections\":[\"Summary\",\"Root cause\",\"Remediation\"],\"actor\":\"alice\"}"));
+            assertTrue(rca.isArray() && rca.size() == 3);
+
+            // lists: 1 attachment; 1 manual + 3 RCA = 4 comments
+            assertEquals(1, json(send(c.port, "GET", "/objects/" + caseObj.id() + "/attachments", TOKEN, null)).size());
+            assertEquals(4, json(send(c.port, "GET", "/objects/" + caseObj.id() + "/comments", TOKEN, null)).size());
+
+            // gates: missing body → 400; attachment missing uri → 400; unknown object → 404
+            assertEquals(400, send(c.port, "POST", "/objects/" + caseObj.id() + "/comments", TOKEN, "{}").statusCode());
+            assertEquals(400, send(c.port, "POST", "/objects/" + caseObj.id() + "/attachments", TOKEN,
+                    "{\"name\":\"x\"}").statusCode());
+            assertEquals(404, send(c.port, "POST", "/objects/nope/comments", TOKEN,
+                    "{\"body\":\"x\"}").statusCode());
+        }
+    }
+
+    @Test
     void linkObjectsAndTraverseGraph(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             OperationalObject caseObj = c.svc.objects().open(ObjectType.CASE, "investigation", "d",

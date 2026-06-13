@@ -101,7 +101,10 @@ public final class SourceService implements AutoCloseable {
     /** Append-only correlation-link store (Phase 4, v4.5.0) — the OBJECT_LINK graph behind the
      *  {@code /objects/{id}/links} + {@code /graph} API. Same {@code -Dobjects.backend} toggle; closed in {@link #close()}. */
     private final com.gamma.ops.link.LinkStore linkStore;
-    /** Object Engine + Workflow Engine over {@link #objectStore} + {@link #linkStore} (Phase 2–4). */
+    /** Append-only evidence/notes store (Phase 4 follow-up, v4.6.0) — comments + attachment refs behind
+     *  {@code /objects/{id}/comments|attachments}. Same {@code -Dobjects.backend} toggle; closed in {@link #close()}. */
+    private final com.gamma.ops.note.NoteStore noteStore;
+    /** Object Engine + Workflow Engine over {@link #objectStore} + {@link #linkStore} + {@link #noteStore}. */
     private final com.gamma.ops.ObjectService objects;
     /** Authoritative on-disk audit reader; also the sync source when a DB backend is used. */
     private final FileStatusStore fileStatus = new FileStatusStore();
@@ -239,7 +242,8 @@ public final class SourceService implements AutoCloseable {
         // works even with no alert rules. Fired alerts are promoted into it by the AlertService below.
         this.objectStore = buildObjectStore();
         this.linkStore = buildLinkStore();
-        this.objects = new com.gamma.ops.ObjectService(objectStore, java.util.Map.of(), linkStore);
+        this.noteStore = buildNoteStore();
+        this.objects = new com.gamma.ops.ObjectService(objectStore, java.util.Map.of(), linkStore, noteStore);
         // Alert engine (v4.1, B5): deterministic, lean-core, event-driven. Subscribed here (before
         // start()) so it sees the first terminal batch; null when no *_alert.toon was loaded. Phase 2:
         // also persists each fired alert as a managed ALERT object via the Object Engine above.
@@ -658,6 +662,7 @@ public final class SourceService implements AutoCloseable {
         }
         try { objectStore.close(); } catch (Exception e) { log.warn("Error closing object store: {}", e.getMessage()); }
         try { linkStore.close(); } catch (Exception e) { log.warn("Error closing link store: {}", e.getMessage()); }
+        try { noteStore.close(); } catch (Exception e) { log.warn("Error closing note store: {}", e.getMessage()); }
         log.info("SourceService stopped");
         // Close last so the "stopped" log line above is itself captured, then flushed to disk.
         try { events.close(); } catch (Exception e) { log.warn("Error closing event store: {}", e.getMessage()); }
@@ -813,6 +818,31 @@ public final class SourceService implements AutoCloseable {
         } catch (Exception e) {
             log.warn("Could not open link DB at {} — falling back to in-memory: {}", url, e.getMessage());
             return new com.gamma.ops.link.InMemoryLinkStore();
+        }
+    }
+
+    /** Default DuckDB note database file when {@code objects.backend=db} and no note URL is given. */
+    private static final String DEFAULT_NOTES_DB_URL = "jdbc:duckdb:inspecto-ops-notes.db";
+
+    /**
+     * Select the Phase-4-follow-up note-store backend, mirroring {@link #buildLinkStore()}: in-memory by
+     * default, or durable JDBC under {@code -Dobjects.backend=db} in its own DuckDB file
+     * ({@code -Dobjects.notes.db.url}, default {@value #DEFAULT_NOTES_DB_URL}) — a separate file for the
+     * same single-writer-lock reason as the link store; point all three at one Postgres for a distributed
+     * deployment. A DB open that fails degrades to in-memory.
+     */
+    private static com.gamma.ops.note.NoteStore buildNoteStore() {
+        String backend = System.getProperty("objects.backend", "memory");
+        if (!"db".equalsIgnoreCase(backend)) return new com.gamma.ops.note.InMemoryNoteStore();
+        String url = System.getProperty("objects.notes.db.url", DEFAULT_NOTES_DB_URL);
+        try {
+            com.gamma.ops.note.NoteStore db = com.gamma.ops.note.DbNoteStore.open(url,
+                    System.getProperty("objects.db.user"), System.getProperty("objects.db.password"));
+            log.info("Note backend: database ({})", url);
+            return db;
+        } catch (Exception e) {
+            log.warn("Could not open note DB at {} — falling back to in-memory: {}", url, e.getMessage());
+            return new com.gamma.ops.note.InMemoryNoteStore();
         }
     }
 
