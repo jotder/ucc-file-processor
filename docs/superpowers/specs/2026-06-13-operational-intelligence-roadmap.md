@@ -133,6 +133,48 @@ So each phase is mostly **promotion + persistence + lifecycle** on top of seams 
 
 ## 3. Phase 1 — implementation detail (build this now)
 
+### 3.0 Architecture at a glance (as built)
+
+Two ingest paths converge on one process-wide sink (`EventLog.global()`), which writes to a single
+append-only `EventStore`; the backend is a deployment choice (`-Devents.backend=memory|parquet`), and
+the `/events*` API reads back through the same store.
+
+```mermaid
+flowchart TD
+    subgraph ingest["Ingest — INFO and above"]
+        SLF["SLF4J capture<br/>INFO · WARN · ERROR<br/>(DEBUG / TRACE dropped)"]
+        DOM["Domain emitters<br/>batch · alert · pipeline"]
+    end
+    LOG["EventLog.global()<br/>process-wide sink"]
+    STORE["EventStore<br/>append-only SPI"]
+    subgraph backends["Storage backend — -Devents.backend"]
+        MEM["InMemoryEventStore<br/>bounded ring · default"]
+        PQ["ParquetEventStore<br/>rolling Parquet → DuckDB"]
+    end
+    API["/events* API<br/>search · export · saved views"]
+
+    SLF --> LOG
+    DOM --> LOG
+    LOG --> STORE
+    STORE --> MEM
+    STORE --> PQ
+    STORE --> API
+
+    classDef ingest fill:#E1F5EE,stroke:#0F6E56,color:#04342C;
+    classDef engine fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
+    classDef storage fill:#EEEDFE,stroke:#534AB7,color:#26215C;
+    classDef api fill:#FAECE7,stroke:#993C1D,color:#4A1B0C;
+    class SLF,DOM ingest;
+    class LOG,STORE engine;
+    class MEM,PQ storage;
+    class API api;
+```
+
+Capture is a logback `EventStoreAppender` (ThresholdFilter at INFO — the "everything except debug"
+rule); `ParquetEventStore` buffers then flushes batches to Hive-partitioned Parquet
+(`level/year/month/day`), queried via DuckDB `read_parquet` — the immutable-event layer of §0. The
+live tail merges the not-yet-flushed in-memory buffer with the on-disk Parquet.
+
 ### 3.1 New package `com.gamma.event`
 
 ```
