@@ -1,13 +1,11 @@
-What you are describing is no longer just a "file reader." It is becoming a **Data Acquisition Framework** or **File Collection Engine**.
-
----
-
 # Data Acquisition & File Collection Requirements
 
-  * GOAL: The system guarantees that every eligible source file is collected exactly once (or according to policy), safely, efficiently, and recoverably regardless of where the file resides.
+**GOAL:**
+* **The system guarantees that every eligible data source file is collected exactly once (or according to policy), safely, efficiently, and recoverable regardless of where the file resides**
+* **There would be other source connectors like `Kafka`, `DataBase Tables` etc type of sources to create Data Lake House System (future)**
 
 
-## 1. Source Connectivity
+## 1. Data Source (File) Connectivity
 The system shall support collecting files from multiple source types through a pluggable connector architecture.
 
 **Supported Sources**
@@ -17,14 +15,21 @@ The system shall support collecting files from multiple source types through a p
   * FTP
   * SFTP
   * SSH/SCP
+  * SSH Tunneling and Proxy (future)
   * SMB/CIFS (future)
   * NFS (future)
+* **Database export file**
+  * Collect exported file from database table (Postgres) using sql template
+  * SSH Tunnel and collect exported file from database (Postgres)
 * **Object Storage**
-  * Amazon S3
-  * Google Cloud Storage
+  * Amazon S3 (future)
+  * Google Cloud Storage (future)
   * Azure Blob Storage (future)
   * MinIO (future)
-
+* **Grouping Data Source**
+  * Has different collection point and file types
+  * Tagging
+  
 **Extensibility**
 New protocols shall be introduced through connector plugins without modifying the core engine.
 
