@@ -4,13 +4,23 @@ import com.gamma.event.Event;
 import com.gamma.event.EventLevel;
 import com.gamma.event.EventLog;
 import com.gamma.event.EventType;
+import com.gamma.ops.link.InMemoryLinkStore;
+import com.gamma.ops.link.LinkRelationship;
+import com.gamma.ops.link.LinkStore;
+import com.gamma.ops.link.ObjectLink;
 import com.gamma.ops.workflow.Workflow;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The Object Engine + Workflow Engine, wired together — the orchestrator behind the Alert Center
@@ -37,16 +47,26 @@ public final class ObjectService {
     public static final String ATTR_SLA_BREACHED_AT = "slaBreachedAt";
 
     private final ObjectStore store;
+    private final LinkStore links;
     private final Map<ObjectType, Workflow> workflows = new EnumMap<>(ObjectType.class);
 
-    /** Build with the built-in default workflows for every {@link ObjectType}. */
+    /** Build with the built-in default workflows for every {@link ObjectType} and an in-memory link store. */
     public ObjectService(ObjectStore store) {
         this(store, Map.of());
     }
 
-    /** Build with {@code overrides} taking precedence over the built-in {@link Workflow#defaultFor} set. */
+    /** Build with {@code overrides} over the built-in {@link Workflow#defaultFor} set; in-memory links. */
     public ObjectService(ObjectStore store, Map<ObjectType, Workflow> overrides) {
+        this(store, overrides, new InMemoryLinkStore());
+    }
+
+    /**
+     * Build with workflow {@code overrides} and an explicit {@link LinkStore} (Phase 4) — the deployment
+     * supplies a durable {@code DbLinkStore} or the lean {@link InMemoryLinkStore}, mirroring the object store.
+     */
+    public ObjectService(ObjectStore store, Map<ObjectType, Workflow> overrides, LinkStore links) {
         this.store = store;
+        this.links = links;
         for (ObjectType t : ObjectType.values()) {
             Workflow wf = overrides == null ? null : overrides.get(t);
             workflows.put(t, wf != null ? wf : Workflow.defaultFor(t));
@@ -203,6 +223,92 @@ public final class ObjectService {
             breached++;
         }
         return breached;
+    }
+
+    // ── correlation graph (Phase 4) ──────────────────────────────────────────────────
+
+    /**
+     * Persist a directed correlation {@link ObjectLink} {@code from --relationship--> to} (e.g. a CASE
+     * {@code CONTAINS} an ISSUE) and emit an {@link EventType#OBJECT_LINKED} event so the correlation
+     * shows in the Event Viewer. Both endpoints must exist (else {@link NoSuchElementException} → 404).
+     * Idempotent: an identical edge (same {@code from}/{@code to}/{@code relationship}) is returned as-is
+     * rather than duplicated. A {@code null} {@code relationship} defaults to {@link LinkRelationship#RELATED_TO}.
+     */
+    public ObjectLink link(String fromId, String toId, String relationship, String actor) {
+        OperationalObject from = require(fromId);
+        OperationalObject to = require(toId);
+        String rel = (relationship == null || relationship.isBlank()) ? LinkRelationship.RELATED_TO : relationship;
+        for (ObjectLink existing : links.incident(fromId)) {
+            if (existing.fromId().equals(fromId) && existing.toId().equals(toId)
+                    && existing.relationship().equalsIgnoreCase(rel))
+                return existing;   // already linked — idempotent
+        }
+        ObjectLink created = links.add(ObjectLink.of(fromId, from.objectType(), toId, to.objectType(), rel));
+        EventLog.global().emit(Event.builder(EventType.OBJECT_LINKED)
+                .level(EventLevel.INFO)
+                .source(SOURCE)
+                .correlationId(from.correlationId())
+                .message(from.objectType() + " " + fromId + " " + created.relationship() + " "
+                        + to.objectType() + " " + toId + (actor == null ? "" : " (by " + actor + ")"))
+                .attr("objectId", fromId)
+                .attr("from", fromId)
+                .attr("fromType", from.objectType().name())
+                .attr("to", toId)
+                .attr("toType", to.objectType().name())
+                .attr("relationship", created.relationship())
+                .attr("actor", actor));
+        return created;
+    }
+
+    /** Every link touching {@code id} at either end, newest-first (the object's correlations). */
+    public List<ObjectLink> linksOf(String id) {
+        return links.incident(id);
+    }
+
+    /**
+     * A correlation subgraph around {@code rootId} out to {@code depth} hops (BFS over links in both
+     * directions): {@code {root, depth, nodes:[{id,objectType,title,status,severity}], edges:[link maps]}}.
+     * {@code nodes} carries a light summary of each reachable object (skipping any whose row no longer
+     * exists), so the UI can render the graph without extra lookups. Unknown root → {@link NoSuchElementException}.
+     */
+    public Map<String, Object> graph(String rootId, int depth) {
+        require(rootId);
+        int maxDepth = Math.max(1, depth);
+        Set<String> seen = new LinkedHashSet<>();
+        Set<ObjectLink> edges = new LinkedHashSet<>();
+        Deque<String> frontier = new ArrayDeque<>();
+        seen.add(rootId);
+        frontier.add(rootId);
+        for (int hop = 0; hop < maxDepth && !frontier.isEmpty(); hop++) {
+            for (int i = frontier.size(); i > 0; i--) {
+                String cur = frontier.poll();
+                for (ObjectLink l : links.incident(cur)) {
+                    edges.add(l);
+                    String other = l.other(cur);
+                    if (other != null && seen.add(other)) frontier.add(other);
+                }
+            }
+        }
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        for (String oid : seen) store.get(oid).ifPresent(o -> nodes.add(nodeSummary(o)));
+        List<Map<String, Object>> edgeMaps = new ArrayList<>();
+        for (ObjectLink l : edges) edgeMaps.add(l.toMap());
+        Map<String, Object> g = new LinkedHashMap<>();
+        g.put("root", rootId);
+        g.put("depth", maxDepth);
+        g.put("nodes", nodes);
+        g.put("edges", edgeMaps);
+        return g;
+    }
+
+    private static Map<String, Object> nodeSummary(OperationalObject o) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", o.id());
+        m.put("objectType", o.objectType().name());
+        m.put("title", o.title());
+        m.put("status", o.status());
+        m.put("severity", o.severity());
+        return m;
     }
 
     // ── internals ──────────────────────────────────────────────────────────────────

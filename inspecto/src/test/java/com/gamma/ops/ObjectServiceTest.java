@@ -5,6 +5,7 @@ import com.gamma.event.EventLog;
 import com.gamma.event.EventQuery;
 import com.gamma.event.EventType;
 import com.gamma.event.InMemoryEventStore;
+import com.gamma.ops.link.ObjectLink;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -147,5 +148,59 @@ class ObjectServiceTest {
         assertEquals(0, svc.sweepIssueSla(now), "a resolved issue past its due time does not breach");
         svc.transition(o.id(), "close", "a");      // CLOSED — still no breach
         assertEquals(0, svc.sweepIssueSla(now));
+    }
+
+    // ── Phase 4: correlation links + graph ──────────────────────────────────────────
+
+    @Test
+    void linkEmitsEventAndIsIdempotent() {
+        InMemoryEventStore events = new InMemoryEventStore();
+        EventLog.global().installStore(events);
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        OperationalObject c = svc.open(ObjectType.CASE, "investigation", "d", "HIGH", "corr", Map.of());
+        OperationalObject i = svc.open(ObjectType.ISSUE, "bad rows", "d", "HIGH", "corr", Map.of());
+
+        ObjectLink link = svc.link(c.id(), i.id(), "contains", "alice");
+        assertEquals("CONTAINS", link.relationship());
+        assertEquals(ObjectType.CASE, link.fromType());
+        assertEquals(ObjectType.ISSUE, link.toType());
+        assertEquals(1, svc.linksOf(c.id()).size());
+        assertEquals(1, svc.linksOf(i.id()).size(), "link is incident from both ends");
+        assertEquals(1, activityFor(events, EventType.OBJECT_LINKED, c.id()).stream()
+                .filter(e -> i.id().equals(e.attributes().get("to"))).count());
+
+        // idempotent: re-linking the same edge returns the existing one, no duplicate
+        svc.link(c.id(), i.id(), "CONTAINS", "bob");
+        assertEquals(1, svc.linksOf(c.id()).size(), "duplicate edge not added");
+    }
+
+    @Test
+    void linkRequiresBothEndpoints() {
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        OperationalObject c = svc.open(ObjectType.CASE, "case", "d", "HIGH", null, Map.of());
+        assertThrows(NoSuchElementException.class, () -> svc.link(c.id(), "missing", "contains", null));
+        assertThrows(NoSuchElementException.class, () -> svc.link("missing", c.id(), "contains", null));
+    }
+
+    @Test
+    void graphTraversesToDepth() {
+        ObjectService svc = new ObjectService(new InMemoryObjectStore());
+        OperationalObject c = svc.open(ObjectType.CASE, "case", "d", "HIGH", null, Map.of());
+        OperationalObject i = svc.open(ObjectType.ISSUE, "issue", "d", "HIGH", null, Map.of());
+        OperationalObject a = svc.open(ObjectType.ALERT, "alert", "d", "HIGH", null, Map.of());
+        svc.link(c.id(), i.id(), "CONTAINS", null);       // CASE — ISSUE
+        svc.link(i.id(), a.id(), "ESCALATED_FROM", null); // ISSUE — ALERT
+
+        // depth 1 from the case reaches the issue (not the alert)
+        Map<String, Object> g1 = svc.graph(c.id(), 1);
+        assertEquals(2, ((List<?>) g1.get("nodes")).size());
+        assertEquals(1, ((List<?>) g1.get("edges")).size());
+
+        // depth 2 reaches the alert too
+        Map<String, Object> g2 = svc.graph(c.id(), 2);
+        assertEquals(3, ((List<?>) g2.get("nodes")).size());
+        assertEquals(2, ((List<?>) g2.get("edges")).size());
+
+        assertThrows(NoSuchElementException.class, () -> svc.graph("missing", 2));
     }
 }

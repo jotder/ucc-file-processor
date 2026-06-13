@@ -98,7 +98,10 @@ public final class SourceService implements AutoCloseable {
     /** Mutable operational-object store (Phase 2, v4.3.0) — the Layer-2 Alert Center backing the
      *  {@code /objects} API. Built from {@code -Dobjects.backend} (memory|db); closed in {@link #close()}. */
     private final com.gamma.ops.ObjectStore objectStore;
-    /** Object Engine + Workflow Engine over {@link #objectStore} (Phase 2, v4.3.0). */
+    /** Append-only correlation-link store (Phase 4, v4.5.0) — the OBJECT_LINK graph behind the
+     *  {@code /objects/{id}/links} + {@code /graph} API. Same {@code -Dobjects.backend} toggle; closed in {@link #close()}. */
+    private final com.gamma.ops.link.LinkStore linkStore;
+    /** Object Engine + Workflow Engine over {@link #objectStore} + {@link #linkStore} (Phase 2–4). */
     private final com.gamma.ops.ObjectService objects;
     /** Authoritative on-disk audit reader; also the sync source when a DB backend is used. */
     private final FileStatusStore fileStatus = new FileStatusStore();
@@ -235,7 +238,8 @@ public final class SourceService implements AutoCloseable {
         // issues/cases later). Built from -Dobjects.backend (memory|db); always present so /objects
         // works even with no alert rules. Fired alerts are promoted into it by the AlertService below.
         this.objectStore = buildObjectStore();
-        this.objects = new com.gamma.ops.ObjectService(objectStore);
+        this.linkStore = buildLinkStore();
+        this.objects = new com.gamma.ops.ObjectService(objectStore, java.util.Map.of(), linkStore);
         // Alert engine (v4.1, B5): deterministic, lean-core, event-driven. Subscribed here (before
         // start()) so it sees the first terminal batch; null when no *_alert.toon was loaded. Phase 2:
         // also persists each fired alert as a managed ALERT object via the Object Engine above.
@@ -653,6 +657,7 @@ public final class SourceService implements AutoCloseable {
             try { c.close(); } catch (Exception e) { log.warn("Error closing status store: {}", e.getMessage()); }
         }
         try { objectStore.close(); } catch (Exception e) { log.warn("Error closing object store: {}", e.getMessage()); }
+        try { linkStore.close(); } catch (Exception e) { log.warn("Error closing link store: {}", e.getMessage()); }
         log.info("SourceService stopped");
         // Close last so the "stopped" log line above is itself captured, then flushed to disk.
         try { events.close(); } catch (Exception e) { log.warn("Error closing event store: {}", e.getMessage()); }
@@ -782,6 +787,32 @@ public final class SourceService implements AutoCloseable {
         } catch (Exception e) {
             log.warn("Could not open object DB at {} — falling back to in-memory: {}", url, e.getMessage());
             return new com.gamma.ops.InMemoryObjectStore();
+        }
+    }
+
+    /** Default DuckDB link database file when {@code objects.backend=db} and no link URL is given. */
+    private static final String DEFAULT_LINKS_DB_URL = "jdbc:duckdb:inspecto-ops-links.db";
+
+    /**
+     * Select the Phase-4 link-store backend, mirroring {@link #buildObjectStore()}: in-memory by default,
+     * or durable JDBC under {@code -Dobjects.backend=db}. The link URL is its own
+     * {@code -Dobjects.links.db.url} (default {@value #DEFAULT_LINKS_DB_URL}) — a <em>separate</em> DuckDB
+     * file, because a file-based DuckDB holds a single-writer lock and the object store already owns
+     * {@code inspecto-ops.db}; point both at one {@code jdbc:postgresql://…} for a distributed deployment.
+     * A DB open that fails degrades to in-memory — the graph must never block service startup.
+     */
+    private static com.gamma.ops.link.LinkStore buildLinkStore() {
+        String backend = System.getProperty("objects.backend", "memory");
+        if (!"db".equalsIgnoreCase(backend)) return new com.gamma.ops.link.InMemoryLinkStore();
+        String url = System.getProperty("objects.links.db.url", DEFAULT_LINKS_DB_URL);
+        try {
+            com.gamma.ops.link.LinkStore db = com.gamma.ops.link.DbLinkStore.open(url,
+                    System.getProperty("objects.db.user"), System.getProperty("objects.db.password"));
+            log.info("Link backend: database ({})", url);
+            return db;
+        } catch (Exception e) {
+            log.warn("Could not open link DB at {} — falling back to in-memory: {}", url, e.getMessage());
+            return new com.gamma.ops.link.InMemoryLinkStore();
         }
     }
 

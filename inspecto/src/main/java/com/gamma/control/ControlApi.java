@@ -30,6 +30,7 @@ import com.gamma.ops.ObjectQuery;
 import com.gamma.ops.ObjectService;
 import com.gamma.ops.ObjectType;
 import com.gamma.ops.OperationalObject;
+import com.gamma.ops.link.ObjectLink;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
@@ -126,6 +127,9 @@ import java.util.regex.Pattern;
  *   GET  /objects/{id}                        one object by id                              [v4.3.0]
  *   POST /objects/{id}/ack | /resolve         fixed-action lifecycle transition (ALERT)     [v4.3.0]
  *   POST /objects/{id}/transition             body {action} or {status|to} (+ actor?) — any workflow move [v4.3.0]
+ *   POST /objects/{id}/links                  body {to,relationship?,actor?} — correlate two objects (CASE) [v4.5.0]
+ *   GET  /objects/{id}/links                  links incident to this object                 [v4.5.0]
+ *   GET  /objects/{id}/graph[?depth=]         correlation subgraph (nodes + edges)          [v4.5.0]
  * </pre>
  *
  * <p>The {@code /catalog*}, {@code /config/spec/*} and {@code /assist/*} routes require the
@@ -422,6 +426,9 @@ public final class ControlApi implements AutoCloseable {
         post("/objects/([^/]+)/ack", true, (e, m) -> transition(name(m), "ack", null, body(e)));
         post("/objects/([^/]+)/resolve", true, (e, m) -> transition(name(m), "resolve", null, body(e)));
         post("/objects/([^/]+)/transition", true, (e, m) -> transitionFromBody(name(m), body(e)));
+        post("/objects/([^/]+)/links", true, (e, m) -> createLink(name(m), body(e)));
+        get("/objects/([^/]+)/links", true, (e, m) -> toLinkMaps(service.objects().linksOf(name(m))));
+        get("/objects/([^/]+)/graph", true, (e, m) -> objectGraph(name(m), e));
         get("/objects/([^/]+)", true, (e, m) -> objectById(name(m)));
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
@@ -1224,6 +1231,35 @@ public final class ControlApi implements AutoCloseable {
             if (m >= 0) return System.currentTimeMillis() + m * 60_000L;
         }
         return null;
+    }
+
+    /**
+     * {@code POST /objects/{id}/links} (Phase 4) — correlate this object with another: body
+     * {@code {to, relationship?, actor?}} (e.g. a CASE {@code CONTAINS} an ISSUE). A missing {@code to}
+     * → 400; an unknown {@code id} or {@code to} → 404. Idempotent (a duplicate edge returns the existing one).
+     */
+    private Object createLink(String fromId, Map<String, Object> body) {
+        String to = str(body, "to");
+        if (to == null) throw new ApiException(400, "body must include 'to'");
+        try {
+            return service.objects().link(fromId, to, str(body, "relationship"), str(body, "actor")).toMap();
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        }
+    }
+
+    private static List<Map<String, Object>> toLinkMaps(List<ObjectLink> links) {
+        return links.stream().map(ObjectLink::toMap).toList();
+    }
+
+    /** {@code GET /objects/{id}/graph?depth=} (Phase 4) — correlation subgraph (default depth 2, capped at 5). */
+    private Object objectGraph(String id, HttpExchange ex) {
+        int depth = Math.min(5, Math.max(1, parseIntOr(query(ex, "depth"), 2)));
+        try {
+            return service.objects().graph(id, depth);
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        }
     }
 
     /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */

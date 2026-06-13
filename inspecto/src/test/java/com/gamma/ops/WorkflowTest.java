@@ -42,6 +42,20 @@ class WorkflowTest {
     }
 
     @Test
+    void defaultCaseLifecycle() {
+        Workflow wf = Workflow.defaultFor(ObjectType.CASE);
+        assertEquals("OPEN", wf.initialState());
+        assertEquals("INVESTIGATING", wf.apply("OPEN", "investigate").orElseThrow());
+        assertEquals("ESCALATED", wf.apply("INVESTIGATING", "escalate").orElseThrow());
+        assertEquals("RESOLVED", wf.apply("ESCALATED", "resolve").orElseThrow());
+        assertEquals("RESOLVED", wf.apply("INVESTIGATING", "resolve").orElseThrow(), "resolve without escalating");
+        assertEquals("CLOSED", wf.apply("RESOLVED", "close").orElseThrow());
+        assertTrue(wf.isTerminal("CLOSED"));
+        assertFalse(wf.isTerminal("RESOLVED"));
+        assertTrue(wf.apply("OPEN", "escalate").isEmpty(), "cannot escalate before investigating");
+    }
+
+    @Test
     void matchingIsCaseInsensitive() {
         Workflow wf = Workflow.defaultFor(ObjectType.ALERT);
         assertEquals("ACKNOWLEDGED", wf.apply("open", "ACK").orElseThrow());

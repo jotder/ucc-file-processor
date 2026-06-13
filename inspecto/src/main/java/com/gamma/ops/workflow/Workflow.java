@@ -96,10 +96,13 @@ public record Workflow(ObjectType objectType, String initialState, Set<Transitio
      *       (actions {@code assign}/{@code start}/{@code resolve}/{@code close}); only {@code CLOSED} is
      *       terminal, so a {@code RESOLVED} issue can still be reopened-then-closed by config if desired,
      *       and the SLA clock (which stops at {@code RESOLVED}) is distinct from closure.</li>
+     *   <li>{@link ObjectType#CASE} (Phase 4): {@code OPEN → INVESTIGATING → ESCALATED → RESOLVED → CLOSED}
+     *       (actions {@code investigate}/{@code escalate}/{@code resolve}/{@code close}, plus a direct
+     *       {@code INVESTIGATING → RESOLVED} for "resolve without escalating"); only {@code CLOSED} is
+     *       terminal.</li>
      * </ul>
-     * The remaining types ({@link ObjectType#CASE} Phase 4, {@link ObjectType#TASK}) get a minimal
-     * {@code OPEN → CLOSED} placeholder that a later phase replaces, or that a {@code *_workflow.toon}
-     * overrides today.
+     * The remaining type ({@link ObjectType#TASK}) gets a minimal {@code OPEN → CLOSED} placeholder that a
+     * later phase replaces, or that a {@code *_workflow.toon} overrides today.
      */
     public static Workflow defaultFor(ObjectType type) {
         if (type == ObjectType.ALERT) {
@@ -114,6 +117,15 @@ public record Workflow(ObjectType objectType, String initialState, Set<Transitio
                     Set.of(new Transition("OPEN", "ASSIGNED", "assign"),
                             new Transition("ASSIGNED", "IN_PROGRESS", "start"),
                             new Transition("IN_PROGRESS", "RESOLVED", "resolve"),
+                            new Transition("RESOLVED", "CLOSED", "close")),
+                    Set.of("CLOSED"));
+        }
+        if (type == ObjectType.CASE) {
+            return new Workflow(ObjectType.CASE, "OPEN",
+                    Set.of(new Transition("OPEN", "INVESTIGATING", "investigate"),
+                            new Transition("INVESTIGATING", "ESCALATED", "escalate"),
+                            new Transition("ESCALATED", "RESOLVED", "resolve"),
+                            new Transition("INVESTIGATING", "RESOLVED", "resolve"),
                             new Transition("RESOLVED", "CLOSED", "close")),
                     Set.of("CLOSED"));
         }

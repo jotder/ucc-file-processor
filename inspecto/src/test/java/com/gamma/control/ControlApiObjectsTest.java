@@ -134,6 +134,38 @@ class ControlApiObjectsTest {
                 "{\"action\":\"" + action + "\"}")).get("status").asText();
     }
 
+    @Test
+    void linkObjectsAndTraverseGraph(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            OperationalObject caseObj = c.svc.objects().open(ObjectType.CASE, "investigation", "d",
+                    "HIGH", "corr", Map.of());
+            OperationalObject issue = c.svc.objects().open(ObjectType.ISSUE, "bad rows", "d",
+                    "HIGH", "corr", Map.of());
+
+            // CASE CONTAINS ISSUE
+            JsonNode link = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/links", TOKEN,
+                    "{\"to\":\"" + issue.id() + "\",\"relationship\":\"contains\",\"actor\":\"alice\"}"));
+            assertEquals("CONTAINS", link.get("relationship").asText());
+            assertEquals(caseObj.id(), link.get("from").asText());
+            assertEquals("ISSUE", link.get("toType").asText());
+
+            // links incident to the case
+            JsonNode links = json(send(c.port, "GET", "/objects/" + caseObj.id() + "/links", TOKEN, null));
+            assertTrue(links.isArray() && links.size() == 1);
+
+            // correlation subgraph around the case
+            JsonNode graph = json(send(c.port, "GET", "/objects/" + caseObj.id() + "/graph?depth=2", TOKEN, null));
+            assertEquals(2, graph.get("nodes").size());
+            assertEquals(1, graph.get("edges").size());
+
+            // missing 'to' → 400; unknown endpoint → 404; unknown graph root → 404
+            assertEquals(400, send(c.port, "POST", "/objects/" + caseObj.id() + "/links", TOKEN, "{}").statusCode());
+            assertEquals(404, send(c.port, "POST", "/objects/" + caseObj.id() + "/links", TOKEN,
+                    "{\"to\":\"nope\"}").statusCode());
+            assertEquals(404, send(c.port, "GET", "/objects/nope/graph", TOKEN, null).statusCode());
+        }
+    }
+
     private HttpResponse<String> send(int port, String method, String path, String token, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (token != null) b.header("Authorization", "Bearer " + token);

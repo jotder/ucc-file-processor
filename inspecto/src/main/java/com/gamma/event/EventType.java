@@ -51,4 +51,6 @@ public final class EventType {
     public static final String OBJECT_ACTIVITY = "OBJECT_ACTIVITY";
     /** An object (an ISSUE) passed its {@code dueAt} while still unresolved — an SLA breach (Phase 3). */
     public static final String OBJECT_SLA_BREACH = "OBJECT_SLA_BREACH";
+    /** Two objects were correlated by an {@code OBJECT_LINK} (e.g. {@code Case CONTAINS Issue}) (Phase 4). */
+    public static final String OBJECT_LINKED = "OBJECT_LINKED";
 }
