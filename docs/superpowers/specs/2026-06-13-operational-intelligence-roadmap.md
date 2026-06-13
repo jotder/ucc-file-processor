@@ -1,7 +1,7 @@
 # Spec: Operational Intelligence Platform — Five-Phase Implementation Roadmap
 
 > **Date:** 2026-06-13
-> **Status:** Design / ready-for-planning (implementation roadmap)
+> **Status:** Phases 1–2 shipped on `4.x`; Phases 3–5 planned (implementation roadmap)
 > **Branch:** `4.x`
 > **Source requirement:** [ticketing_systems_requirement.md](../../ticketing_systems_requirement.md)
 > **Builds on (confirmed seams):** `com.gamma.etl.BatchEvent` / `com.gamma.service.BatchEventBus`
@@ -81,7 +81,7 @@ So each phase is mostly **promotion + persistence + lifecycle** on top of seams 
 
 ## 2. Five-Phase Roadmap (mapped to the codebase)
 
-### Phase 1 — Operational Event Viewer  *(this spec implements it; §3)*
+### Phase 1 — Operational Event Viewer  ✅ shipped (v4.2.0; detail in §3)
 **Outcome:** "What happened?" — durable, searchable, structured events.
 - **New package `com.gamma.event`**: `Event` (immutable record), `EventLevel`, `EventType`,
   `EventStore` (SPI), `InMemoryEventStore` + `ParquetEventStore` (rolling), `EventQuery`, `EventLog`
@@ -95,7 +95,7 @@ So each phase is mostly **promotion + persistence + lifecycle** on top of seams 
 - **Correlation IDs:** `correlationId` = batchId / job-run-id, threaded through emitters.
 - **Metrics:** `inspecto_events_total{level,type}` counter on the existing `MetricRegistry`.
 
-### Phase 2 — Alert Center
+### Phase 2 — Alert Center  ✅ shipped (commit `4933542`; as built in §4)
 **Outcome:** "Should I care?" — promote alerts from a transient ring to managed objects.
 - **`com.gamma.ops.OperationalObject`** + **`ObjectStore`** (DuckDB/Postgres table, `DbStatusStore`
   JDBC pattern): one table keyed by `object_type` (`ALERT` first). Columns per requirement:
@@ -131,7 +131,7 @@ So each phase is mostly **promotion + persistence + lifecycle** on top of seams 
 
 ---
 
-## 3. Phase 1 — implementation detail (build this now)
+## 3. Phase 1 — implementation detail (as built)
 
 ### 3.0 Architecture at a glance (as built)
 
@@ -252,7 +252,72 @@ swap is unwanted. *Either way the domain emitters are built.*
 
 ---
 
-## 4. Development guidelines (from the requirement, applied here)
+## 4. Phase 2 — Alert Center (as built)
+
+Shipped on `4.x` (commit `4933542`) — promotes fired alerts from a transient ring into mutable,
+lifecycle-managed objects. Realizes §2 Phase 2 and the §0 decision (mutable objects → table store, not
+Parquet). Full reactor green: core 511 (+27) + agent 157 + hosted 4 = 672. **Zero new dependencies** —
+DuckDB JDBC + Jackson were already core, so `inspecto/pom.xml` is untouched; additive-only.
+
+### 4.1 New package `com.gamma.ops` (the Object Engine)
+
+```
+ObjectType           enum  : ALERT, ISSUE, CASE, TASK   (Phase 2 uses ALERT; one table serves all)
+OperationalObject    record: id, objectType, title, description, status, severity, priority, owner,
+                             assignee, correlationId, attributes(Map), createdAt, updatedAt, closedAt
+                             + builder, withStatus(state,now,terminal), withAssignee, toMap()
+ObjectQuery          record: objectType?, status?, severity?, assignee?, owner?, correlationId?,
+                             textContains?, limit, offset  + matches() + builder  (mirrors EventQuery)
+ObjectStore          iface : create, get, query, UPDATE, close   (mutable — the opposite of EventStore)
+InMemoryObjectStore        : map-backed; the lean default (-Dobjects.backend=memory)
+DbObjectStore              : JDBC over the bundled DuckDB (or BYO Postgres); table inspecto_ops_objects;
+                             real UPDATE on transition — the DbStatusStore idiom (§ status backend)
+```
+
+### 4.2 Workflow Engine (`com.gamma.ops.workflow`)
+
+`Workflow` is a config-driven state machine per `ObjectType`. The built-in `defaultFor(ALERT)` is
+`OPEN --ack--> ACKNOWLEDGED --resolve--> RESOLVED` (plus a direct `OPEN --resolve--> RESOLVED`); `RESOLVED`
+is terminal (sets `closedAt`). States/actions match case-insensitively. A `*_workflow.toon` overrides the
+default (`Workflow.load`, the TOON `transitions[N]{from,to,action}:` tabular form) — "configuration over
+custom code". **`ObjectService`** is the orchestrator: `open` (create in the initial state) and
+`transition`/`ack`/`resolve`/`transitionTo` (workflow-checked), each persisted via `ObjectStore` and
+recorded as a Phase-1 event (`OBJECT_OPENED` / `OBJECT_ACTIVITY`) on `EventLog.global()` — so an object's
+history shows inline in the Event Viewer. `active(type, correlationId)` returns the non-terminal objects
+(used for dedup).
+
+### 4.3 Wiring
+
+- **`AlertService`** gained a `(rules, configs, status, ObjectService)` constructor: each fired alert is
+  promoted to an `OPERATIONAL_OBJECT(ALERT, OPEN)` linked to the firing event via a `causedByEvent`
+  attribute, deduplicated while a non-terminal object exists for the same rule+pipeline. The prior 3-arg
+  constructor stays events-only (abstain-safe).
+- **`SourceService`** builds the store from `-Dobjects.backend=memory|db` (default `memory`;
+  `-Dobjects.db.url` default `jdbc:duckdb:inspecto-ops.db`, a failed DB open degrades to in-memory) and
+  exposes `objects()` — always present, so `/objects` works even with no alert rules.
+- **`EventType`** gained `OBJECT_OPENED` / `OBJECT_ACTIVITY`.
+
+### 4.4 Surface (`ControlApi`, CONTROL scope)
+
+- `GET /objects?type=&status=&severity=&assignee=&owner=&correlationId=&q=&limit=&offset=` — filtered list.
+- `GET /objects/{id}` — one object, or 404.
+- `POST /objects/{id}/ack`, `/objects/{id}/resolve` — fixed-action transitions (`{actor?}` body).
+- `POST /objects/{id}/transition` — `{action}` or `{status|to}` (+ optional `actor`).
+- Errors: 404 unknown id, 422 illegal transition, 400 bad type / empty transition body, 401 unauthenticated.
+  The existing `/alerts*` routes (fired-alert ring, rules, evaluate) are unchanged.
+
+### 4.5 Acceptance (met)
+
+- A fired alert is queryable as `OPERATIONAL_OBJECT(ALERT, OPEN)`; `ack`/`resolve` walk it
+  `OPEN → ACKNOWLEDGED → RESOLVED` with `OBJECT_ACTIVITY` events appearing in `/events`.
+- Illegal transitions → 422; auth scoped; additive-only (Phase-1 + `/alerts*` behaviour unchanged).
+- **Deferred to Phase 4** (per §2): the first-class `OBJECT_LINK` correlation graph — Phase 2 links
+  lightly via `correlationId` + `causedByEvent`. **Phase 3 (Issue Tracker)** reuses this exact table +
+  workflow engine with `object_type=ISSUE` — no new storage.
+
+---
+
+## 5. Development guidelines (from the requirement, applied here)
 
 - **Platform services first** — `EventStore`/`ObjectStore`/`Workflow` are SPIs, not per-product code.
 - **Separate immutable facts from operational workflows** — Parquet events vs. table objects (§0).

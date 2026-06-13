@@ -508,6 +508,40 @@ migrate/backfill of existing file audit into the database.
 > single-process file lock is fine for the current single-JVM service, and Postgres is what
 > you switch to when you split into separate processes/nodes.
 
+### Object backend (Alert Center) — in-memory (default) or database (`DbObjectStore`)
+
+The Alert Center (Phase 2) records **operational objects** — managed, *mutable* things with a
+lifecycle (an `ALERT` walks `OPEN → ACKNOWLEDGED → RESOLVED`), the counterpart to the immutable
+event log. Because they mutate they live in a table store, not Parquet. By default they are held
+in memory (`-Dobjects.backend=memory`); set `-Dobjects.backend=db` for a durable store — the same
+engine-neutral JDBC-over-DuckDB pattern as the status backend (no extra dependency), default file
+`inspecto-ops.db`:
+
+```bash
+java -cp file-processor.jar com.gamma.control.ControlApi \
+     -Dcontrol.token=secret \
+     -Dobjects.backend=db \
+     -Dobjects.db.url="jdbc:duckdb:/var/lib/inspecto/ops.db" \
+     config/
+```
+
+It creates table `inspecto_ops_objects` on first connect and does a real `UPDATE` on each
+transition (unlike the status store's DELETE-then-INSERT projection — these objects are the source
+of truth). A fired alert is promoted to an `OPERATIONAL_OBJECT(ALERT)` linked to the triggering
+event, and every transition emits an `OBJECT_OPENED`/`OBJECT_ACTIVITY` event so the change shows in
+the event log. Operate the objects over the Control API (CONTROL scope):
+
+```bash
+curl -s -H "Authorization: Bearer secret" "localhost:8080/objects?type=ALERT&status=OPEN"
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/ack
+curl -s -H "Authorization: Bearer secret" -X POST localhost:8080/objects/<id>/resolve
+```
+
+> **Future / distributed:** like the status backend, point `-Dobjects.db.url` at
+> `jdbc:postgresql://host:5432/inspecto` (with `-Dobjects.db.user`/`.password` and the PostgreSQL
+> JDBC driver on the classpath) for a multi-writer deployment. The default lifecycle can be
+> overridden with a `*_workflow.toon`.
+
 ### Observability — metrics & structured events
 
 The Control API host also exposes `GET /metrics` (open — scrapers don't carry tokens) in **Prometheus text format**, served from a zero-dependency in-process registry. No extra agent or sidecar.
