@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { ObjectDetailComponent } from 'app/modules/admin/objects/object-detail.component';
 import { ObjectsComponent } from 'app/modules/admin/objects/objects.component';
 
 export default [
@@ -11,4 +12,5 @@ export default [
             subtitle: 'Investigations — correlate alerts & issues and track them to resolution',
         },
     },
+    { path: ':id', component: ObjectDetailComponent },
 ] as Routes;

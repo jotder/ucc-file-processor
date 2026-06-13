@@ -5,7 +5,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
@@ -48,6 +48,7 @@ export class ObjectsComponent implements OnInit {
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     private route = inject(ActivatedRoute);
+    private router = inject(Router);
     readonly themeSvc = inject(InspectoGridThemeService);
 
     /** Object type this pane manages ('CASE' | 'ISSUE'), from route data. */
@@ -91,6 +92,11 @@ export class ObjectsComponent implements OnInit {
         actionsColumn<OperationalObject>(
             [
                 {
+                    icon: 'heroicons_outline:eye',
+                    hint: 'Open details',
+                    onClick: (o) => this.open(o),
+                },
+                {
                     icon: 'heroicons_outline:arrow-right-circle',
                     hint: (o) => {
                         const a = this.nextAction(o);
@@ -100,9 +106,18 @@ export class ObjectsComponent implements OnInit {
                     onClick: (o) => this.advance(o),
                 },
             ],
-            110,
+            150,
         ),
     ];
+
+    /** Open the detail pane for an object (also the grid's row-click target). */
+    open(o: OperationalObject): void {
+        this.router.navigate([this.type === 'CASE' ? '/cases' : '/issues', o.id]);
+    }
+
+    onRowClicked(e: { data?: OperationalObject }): void {
+        if (e.data?.id) this.open(e.data);
+    }
 
     ngOnInit(): void {
         this.load();

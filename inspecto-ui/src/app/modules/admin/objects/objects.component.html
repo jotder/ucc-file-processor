@@ -33,6 +33,7 @@
             [paginationPageSize]="25"
             [quickFilterText]="quickFilter"
             [loading]="loading"
+            (rowClicked)="onRowClicked($event)"
             (firstDataRendered)="refreshActions($event)"
             (rowDataUpdated)="refreshActions($event)"
         ></ag-grid-angular>
