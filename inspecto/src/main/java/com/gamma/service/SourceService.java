@@ -110,6 +110,9 @@ public final class SourceService implements AutoCloseable {
      *  {@code POST /objects/{id}/rca {template:<name>}}. Populated by {@link #fromArgs} or
      *  {@link #registerRcaTemplate}; empty otherwise. */
     private final Map<String, com.gamma.ops.rca.RcaTemplate> rcaTemplates = new ConcurrentHashMap<>();
+    /** Reusable connection profiles by id (Data Acquisition) — loaded from {@code *_connection.toon}; backs
+     *  {@code GET /connections} + {@code POST /connections/{id}/test} and the {@code source.connection} binding. */
+    private final Map<String, com.gamma.acquire.ConnectionProfile> connections = new ConcurrentHashMap<>();
     /** Authoritative on-disk audit reader; also the sync source when a DB backend is used. */
     private final FileStatusStore fileStatus = new FileStatusStore();
     /** The read surface the Control API + observability query — file- or DB-backed (M5). */
@@ -329,6 +332,22 @@ public final class SourceService implements AutoCloseable {
     /** A registered RCA template by name, if any (Phase 4). */
     public java.util.Optional<com.gamma.ops.rca.RcaTemplate> rcaTemplate(String name) {
         return java.util.Optional.ofNullable(name == null ? null : rcaTemplates.get(name.trim()));
+    }
+
+    /** Register a connection profile (Data Acquisition), keyed by {@link com.gamma.acquire.ConnectionProfile#id};
+     *  {@code null} ignored. A later registration with the same id replaces the earlier one. */
+    public void registerConnection(com.gamma.acquire.ConnectionProfile profile) {
+        if (profile != null) connections.put(profile.id(), profile);
+    }
+
+    /** All registered connection profiles by id — backs {@code GET /connections}. */
+    public Map<String, com.gamma.acquire.ConnectionProfile> connections() {
+        return Map.copyOf(connections);
+    }
+
+    /** A registered connection profile by id, if any — backs {@code GET /connections/{id}} + the test action. */
+    public java.util.Optional<com.gamma.acquire.ConnectionProfile> connection(String id) {
+        return java.util.Optional.ofNullable(id == null ? null : connections.get(id.trim()));
     }
 
     /**
@@ -729,6 +748,8 @@ public final class SourceService implements AutoCloseable {
                 pollSeconds, maxRuns, buildStatusStore());
         for (com.gamma.ops.rca.RcaTemplate t : loadRcaTemplates(resolveBySuffix(args, "_rca.toon")))
             svc.registerRcaTemplate(t);
+        for (com.gamma.acquire.ConnectionProfile c : loadConnections(resolveBySuffix(args, "_connection.toon")))
+            svc.registerConnection(c);
         return svc;
     }
 
@@ -940,6 +961,22 @@ public final class SourceService implements AutoCloseable {
                 log.info("Loaded RCA template '{}' ({} section(s)) from {}", t.name(), t.sections().size(), p);
             } catch (Exception e) {
                 log.warn("Could not load RCA template {}: {}", p, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    /** Load each {@code *_connection.toon} (Data Acquisition); a bad one is warned and skipped. */
+    static List<com.gamma.acquire.ConnectionProfile> loadConnections(List<Path> paths) {
+        List<com.gamma.acquire.ConnectionProfile> out = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                com.gamma.acquire.ConnectionProfile c = com.gamma.acquire.ConnectionProfile.load(p);
+                out.add(c);
+                log.info("Loaded connection profile '{}' ({} -> {}) from {}",
+                        c.id(), c.connector(), c.isRemote() ? c.testEndpoint() : "local", p);
+            } catch (Exception e) {
+                log.warn("Could not load connection profile {}: {}", p, e.getMessage());
             }
         }
         return out;

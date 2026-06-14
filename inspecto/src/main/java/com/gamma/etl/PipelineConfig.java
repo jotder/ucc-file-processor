@@ -202,12 +202,16 @@ public final class PipelineConfig {
      */
     @PublicApi(since = "4.2.0")
     public record Source(String id, String connector, List<String> includes,
-                         List<String> excludes, int recursiveDepth, Stability stability) {
+                         List<String> excludes, int recursiveDepth, Stability stability, String connection) {
         public Source {
             includes = List.copyOf(includes);
             excludes = List.copyOf(excludes);
             if (stability == null) stability = Stability.DISABLED;
         }
+
+        /** A reusable connection-profile id this source binds to ({@code source.connection}), or {@code null}
+         *  for the local filesystem. Resolved against the service's {@code *_connection.toon} registry. */
+        public boolean hasConnection() { return connection != null && !connection.isBlank(); }
     }
 
     /**
@@ -302,7 +306,7 @@ public final class PipelineConfig {
         this.chunking = new Chunking(b.chunkMaxFileBytes, b.chunkTargetBytes);
         this.fixedWidth = b.fixedWidth;
         this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
-                b.sourceExcludes, b.sourceDepth, b.sourceStability);
+                b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection);
         this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
@@ -578,6 +582,9 @@ public final class PipelineConfig {
             b.sourceExcludes  = strList(src.get("exclude"));
             Object depth = src.get("recursive_depth");
             if (depth != null) b.sourceDepth = toInt(depth);
+            // Reusable connection-profile binding (resolved against the service's *_connection.toon registry;
+            // remote-connector construction from it is roadmap Phase E — the id is parsed/stored now).
+            b.sourceConnection = opt(src, "connection", null);
 
             // ── readiness / stability (Phase B; additive sub-block, absent ⇒ DISABLED) ──────────
             Map<String, Object> stab = (Map<String, Object>) src.get("stability");
@@ -854,6 +861,7 @@ public final class PipelineConfig {
         List<String> sourceExcludes  = new ArrayList<>();
         int          sourceDepth     = -1;
         Stability    sourceStability = Stability.DISABLED;
+        String       sourceConnection;   // null ⇒ no connection-profile binding (local)
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;

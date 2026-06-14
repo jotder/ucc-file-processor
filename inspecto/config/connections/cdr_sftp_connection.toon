@@ -1,0 +1,16 @@
+connection:
+  id: CDR_SFTP_PROD
+  connector: sftp
+  host: sftp.example.com
+  port: 22
+  base_path: /cdr/outbox
+  username: cdruser
+  password: "${ENV:CDR_SFTP_PASSWORD}"
+  options:
+    auth_method: key
+    test_timeout_ms: 1500
+  tunnel:
+    host: bastion.example.com
+    port: 22
+    username: jump
+    password: "${ENV:BASTION_PASSWORD}"

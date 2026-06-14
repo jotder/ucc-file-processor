@@ -33,6 +33,8 @@ import com.gamma.ops.OperationalObject;
 import com.gamma.ops.link.ObjectLink;
 import com.gamma.ops.note.NoteKind;
 import com.gamma.ops.note.ObjectNote;
+import com.gamma.acquire.ConnectionProfile;
+import com.gamma.acquire.ConnectionTester;
 import com.gamma.ops.rca.RcaTemplate;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
@@ -139,6 +141,9 @@ import java.util.regex.Pattern;
  *   GET  /objects/{id}/attachments            list attachment references                    [v4.6.0]
  *   POST /objects/{id}/rca                     body {sections[]} | {template:{…}} | {template:"name"} — seed RCA skeleton [v4.6.0]
  *   GET  /rca/templates                       RCA templates loaded from *_rca.toon          [v4.6.0]
+ *   GET  /connections                         reusable connection profiles (secret-masked)  [v4.2.0]
+ *   GET  /connections/{id}                    one connection profile (secret-masked)        [v4.2.0]
+ *   POST /connections/{id}/test               TCP-reachability + secret-resolution test     [v4.2.0]
  * </pre>
  *
  * <p>The {@code /catalog*}, {@code /config/spec/*} and {@code /assist/*} routes require the
@@ -445,6 +450,13 @@ public final class ControlApi implements AutoCloseable {
         post("/objects/([^/]+)/rca", true, (e, m) -> applyRca(name(m), body(e)));
         get("/objects/([^/]+)", true, (e, m) -> objectById(name(m)));
         get("/rca/templates", true, (e, m) -> rcaTemplateList());
+
+        // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test.
+        // CONTROL-scoped. The specific /test verb and /{id} are registered before nothing here (distinct
+        // method/segment), mirroring the /rca wiring; profiles are returned secret-masked. ──
+        get("/connections", true, (e, m) -> connectionList());
+        post("/connections/([^/]+)/test", true, (e, m) -> testConnection(name(m)));
+        get("/connections/([^/]+)", true, (e, m) -> connectionById(name(m)));
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
@@ -1339,6 +1351,25 @@ public final class ControlApi implements AutoCloseable {
     /** {@code GET /rca/templates} (Phase 4) — the RCA templates loaded from {@code *_rca.toon}, by name. */
     private Object rcaTemplateList() {
         return service.rcaTemplates().values().stream().map(RcaTemplate::toMap).toList();
+    }
+
+    /** {@code GET /connections} — all connection profiles, secret-masked. */
+    private Object connectionList() {
+        return service.connections().values().stream().map(ConnectionProfile::toMap).toList();
+    }
+
+    /** {@code GET /connections/{id}} — one connection profile (secret-masked); 404 if unknown. */
+    private Object connectionById(String id) {
+        return service.connection(id)
+                .map(ConnectionProfile::toMap)
+                .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
+    }
+
+    /** {@code POST /connections/{id}/test} — TCP-reachability + secret-resolution test; 404 if unknown. */
+    private Object testConnection(String id) {
+        ConnectionProfile p = service.connection(id)
+                .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
+        return ConnectionTester.test(p).toMap();
     }
 
     /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */

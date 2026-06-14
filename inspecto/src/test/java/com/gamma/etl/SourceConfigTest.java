@@ -96,6 +96,21 @@ class SourceConfigTest {
     }
 
     @Test
+    void sourceConnectionBindingParses(@TempDir Path dir) throws Exception {
+        PipelineConfig none = PipelineConfig.load(writePipeline(dir, "").toString());
+        assertNull(none.source().connection(), "no source block ⇒ no connection binding");
+        assertFalse(none.source().hasConnection());
+
+        PipelineConfig bound = PipelineConfig.load(writePipeline(dir, """
+            source:
+              connector: sftp
+              connection: CDR_SFTP_PROD
+            """).toString());
+        assertEquals("CDR_SFTP_PROD", bound.source().connection());
+        assertTrue(bound.source().hasConnection());
+    }
+
+    @Test
     void noStabilityBlockIsDisabled(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, "").toString());
         assertFalse(cfg.source().stability().enabled());

@@ -363,3 +363,36 @@ No new observability *infrastructure* — only new *signals* on the existing rai
    better for date-partitioned inboxes. Recommendation: per-source, with the relative path stored for audit.
 4. **SFTP client library** for Phase E (Apache MINA SSHD vs sshj) — driven by license + transitive-dep weight;
    decide when Phase E is scheduled, not now.
+
+---
+
+## 9. Connection profiles — reusable remote-system config + connection testing  *(decided 2026-06-14)*
+
+**Status: foundation ✅ Implemented 2026-06-14** (artifact + registry + `source.connection` reference + secret-ref
+resolution + reachability tester + Control API + UI Test button; zero new deps). The protocol-level auth handshake
+(real SFTP/JDBC login, full SSH-tunnel establishment) lands with the **Phase E** connectors.
+
+**Why:** Phase E was going to inline connector details (host/port/path/credentials) into each pipeline's `source:`
+block. Instead, factor them into a **named, reusable connection profile** that many pipelines reference by id — one
+controlled place for credentials, and a natural home for a **"test connection / tunnel"** action surfaced in the UI.
+
+- **Artifact — `*_connection.toon`** (a `connection { … }` block, parsed with `ConfigCodec` exactly like
+  `*_rca.toon`): `id`, `connector` (scheme), `host`, `port`, `database`, `base_path`, `username`, `password`,
+  `options{…}`, optional `tunnel{ host, port, username, password }`. Loaded at `SourceService.fromArgs` into a
+  by-id registry (`registerConnection`/`connections`/`connection`), mirroring the RCA-template registry.
+- **Secrets — references only** (decision): credential fields hold `${ENV:NAME}` / `${SYS:prop}` / `${NAME}`
+  references resolved at runtime by a zero-dep `SecretResolver`; **nothing sensitive is stored in the file or
+  surfaced by the API/UI** (`ConnectionProfile.toMap()` shows a `${…}` ref verbatim but masks any non-ref value as
+  `***`, and never the resolved value). The resolver never logs values.
+- **Reference — `source.connection: <id>`** on a pipeline's `source:` block (additive; parsed into
+  `PipelineConfig.Source.connection`, null when absent). Resolving a profile into a *constructed remote connector*
+  is Phase E (no remote connector exists yet); the id is parsed, stored, and surfaced now.
+- **Test — `ConnectionTester`** (zero-dep): resolves the effective endpoint (the tunnel/bastion `host:port` when a
+  `tunnel` is set, else the target `host:port`) and does a `java.net.Socket` connect with a timeout → reports
+  `{reachable, latencyMs}`; also reports `secretsResolved` (whether the profile's `${…}` refs resolve in this
+  environment, without revealing them). `local` profiles report "no remote connection". Honest about scope: a
+  tunnel test checks reachability to the **jump host**; the through-tunnel login is Phase E.
+- **API:** `GET /connections` (masked list), `GET /connections/{id}` (masked), `POST /connections/{id}/test`
+  (run the tester) — CONTROL-scoped, mirroring the `/rca/templates` wiring.
+- **UI:** a Connections pane listing profiles with a **Test** button → `POST /connections/{id}/test`, rendering
+  reachable / latency / secrets-resolved.

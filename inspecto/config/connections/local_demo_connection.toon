@@ -1,0 +1,10 @@
+connection:
+  id: LOCAL_DEMO
+  connector: sftp
+  host: 127.0.0.1
+  port: 8080
+  base_path: /demo/outbox
+  username: demo
+  password: "${ENV:DEMO_SFTP_PASSWORD}"
+  options:
+    test_timeout_ms: 1500
