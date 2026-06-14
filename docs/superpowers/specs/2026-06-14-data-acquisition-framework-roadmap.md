@@ -289,17 +289,43 @@ naturally alongside Phase E.
 - **Observability:** `inspecto_duplicates_skipped_total`, `EventType.FILE_CHANGED`.
 
 ### Phase D — Collection guarantees + gap detection  *(Requirement §6)*
-**Outcome:** "no file silently missed." Ties directly into the **shipped OI Alert Center**.
-- **Guarantee levels** on top of the ledger + existing `CommitLog`: `BEST_EFFORT` (today's behaviour),
-  `AT_LEAST_ONCE` (today + ledger), `EXACTLY_ONCE` (logical — ledger marks `processed` only after the batch
-  commits in `CommitLog`; idempotent re-fetch on crash).
-- **Gap / missing-sequence detection:** `source.gap_detection.sequence` is a strftime-style template
-  (`CDR_{yyyyMMddHH}`); after discovery the engine computes the expected series between the lowest and highest
-  observed keys and flags holes → new `EventType.SEQUENCE_GAP` on `EventLog`.
-- **Reuse OI:** a `*_alert.toon` rule on `SEQUENCE_GAP` fires through the existing `AlertService`, which the
-  shipped Phase-2 Alert Center already **promotes to a managed `OPERATIONAL_OBJECT(ALERT)`** — so a missing
-  CDR hour becomes a tracked, assignable alert in the existing Cases/Issues UI with **zero new UI work**.
-- **Tests:** `EXACTLY_ONCE` survives a simulated crash between commit and finalize; gap series detection.
+**Status: D1 ✅ Implemented 2026-06-14** (engine core, zero-dep; reactor green) — the `source.guarantee` knob +
+sequence-gap detection → `SEQUENCE_GAP` event + metric. **D2 (deferred):** promoting a `SEQUENCE_GAP` to a
+*managed* ALERT object (the "tracked, assignable in Cases/Issues" promise) — see the honest scope note below.
+**Outcome:** "no file silently missed." A gap is a recorded, queryable operational fact.
+
+**As-built (D1):**
+- **Guarantee levels** — `PipelineConfig.Source.guarantee` (`source.guarantee:`) ∈ `BEST_EFFORT` (default, =today)
+  | `AT_LEAST_ONCE` | `EXACTLY_ONCE`. **Declarative knob:** the teeth already exist — the fsync'd `CommitLog`
+  gives idempotent replay after a crash, and the Phase-C fingerprint ledger (`duplicate.mode != path`) skips an
+  already-processed file. The parser **logs a warning** when a stronger-than-best-effort guarantee is declared
+  over path-only (marker) dedup (it then behaves as best-effort + commit-log replay), rather than silently
+  over-promising. No fabricated crash-recovery beyond what `CommitLog`/the ledger already provide.
+- **Gap / missing-sequence detection** — `com.gamma.acquire.GapDetector` (pure): `source.gap_detection.sequence`
+  is a literal prefix/suffix around one `{…}` token holding a Java date pattern (`CDR_{yyyyMMddHH}`). It matches
+  the discovered file names, derives the step from the finest pattern field present (s/m/H/d/M/y), enumerates the
+  expected contiguous series between the lowest and highest observed keys (capped at `MAX_SERIES`), and reports
+  the holes as full expected file names. Wired into `SourceProcessor.collect` **on the run path only** over the
+  full discovery listing (not the dedup-filtered candidates), so a hole is reported even when nothing new is
+  ingestable. `com.gamma.acquire.GapTracker.shared()` (the `StabilityGate.shared()` idiom) suppresses re-firing a
+  *persistent* gap every poll cycle and forgets a gap once its file lands (so a reopened hole fires again).
+- **Observability** — `EventType.SEQUENCE_GAP` (attrs `expected`/`sequence`/`unit`) on `EventLog` ⇒ visible in the
+  Event Viewer + `inspecto_events_total{type=SEQUENCE_GAP}`; plus a dedicated `inspecto_sequence_gaps_total{pipeline}`.
+- **Tests:** `GapDetectorTest` (hourly/daily/monthly holes, day rollover, non-matching names ignored,
+  shape-matches-but-invalid-date skipped, malformed template throws), `GapTrackerTest` (fire-once / reopen /
+  per-source isolation), `SourceConfigTest` (guarantee + gap_detection parse; run-path `SEQUENCE_GAP` emitted once
+  and not re-fired on the next cycle).
+
+**Deferred (D2) — promote `SEQUENCE_GAP` → managed ALERT object.** The roadmap originally assumed a
+`*_alert.toon` rule on `SEQUENCE_GAP` would auto-promote through `AlertService` to a managed
+`OPERATIONAL_OBJECT(ALERT)` "with zero new UI work." **Confirmed not true as-is:** `EventLog` is fire-and-forget
+(no subscriber model) and `AlertService` evaluates rules over the **batches ledger** (`BatchEvent` + metric math),
+never arbitrary `EventLog` types — so nothing bridges a gap event to an ALERT object today. D2 is that thin
+bridge, and it belongs in the **service tier** (where `ObjectService` is wired), not the lean engine core: either
+an `EventLog`→`ObjectService` subscriber for `SEQUENCE_GAP`, or a small `AlertService.promoteCondition(...)` entry
+point. Until then a gap is a first-class operational **event + metric** (Event Viewer / Prometheus), just not yet
+an assignable Cases/Issues object. The `EXACTLY_ONCE`-survives-a-crash test is a `CommitLog` concern already
+covered there; not re-litigated here.
 
 ### Phase E — Remote connectors (SFTP/FTP) + retrieval + integrity + compression  *(Requirement §1,§7,§8-partial,§9,§11,§13)*
 **Outcome:** the first non-local connector, proving the SPI on the wire.

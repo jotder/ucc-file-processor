@@ -203,17 +203,62 @@ public final class PipelineConfig {
     @PublicApi(since = "4.2.0")
     public record Source(String id, String connector, List<String> includes,
                          List<String> excludes, int recursiveDepth, Stability stability, String connection,
-                         Duplicate duplicate) {
+                         Duplicate duplicate, Guarantee guarantee, GapDetection gapDetection) {
         public Source {
             includes = List.copyOf(includes);
             excludes = List.copyOf(excludes);
             if (stability == null) stability = Stability.DISABLED;
             if (duplicate == null) duplicate = Duplicate.PATH_DEFAULT;
+            if (guarantee == null) guarantee = Guarantee.BEST_EFFORT;
+            if (gapDetection == null) gapDetection = GapDetection.DISABLED;
         }
 
         /** A reusable connection-profile id this source binds to ({@code source.connection}), or {@code null}
          *  for the local filesystem. Resolved against the service's {@code *_connection.toon} registry. */
         public boolean hasConnection() { return connection != null && !connection.isBlank(); }
+    }
+
+    /**
+     * Collection-guarantee level for a source (Data Acquisition roadmap Phase D; additive, {@code source.guarantee:}).
+     * The teeth live in machinery that already exists: the fsync'd {@link CommitLog} gives idempotent replay
+     * after a crash, and the Phase-C fingerprint ledger ({@code source.duplicate.mode != path}) skips an
+     * already-processed file. So this knob is <b>declarative</b> — {@link #AT_LEAST_ONCE}/{@link #EXACTLY_ONCE}
+     * {@linkplain #requiresLedger() require a ledger} to hold; the engine logs a warning if a stronger guarantee
+     * is declared over path-only (marker) dedup, and behaves as best-effort + commit-log replay in that case.
+     */
+    @PublicApi(since = "4.2.0")
+    public enum Guarantee {
+        /** Today's behaviour: markers + commit log, no fingerprint ledger required. */ BEST_EFFORT,
+        /** Every file is processed at least once (ledger-backed; safe to re-fetch). */  AT_LEAST_ONCE,
+        /** Logical exactly-once: the ledger marks processed only after the batch commits. */ EXACTLY_ONCE;
+
+        public static Guarantee from(String s) {
+            if (s == null || s.isBlank()) return BEST_EFFORT;
+            return switch (s.trim().toUpperCase()) {
+                case "AT_LEAST_ONCE", "AT-LEAST-ONCE" -> AT_LEAST_ONCE;
+                case "EXACTLY_ONCE", "EXACTLY-ONCE"   -> EXACTLY_ONCE;
+                default -> BEST_EFFORT;
+            };
+        }
+        /** Whether this guarantee needs the fingerprint ledger (content-based dedup) to actually hold. */
+        public boolean requiresLedger() { return this != BEST_EFFORT; }
+    }
+
+    /**
+     * Sequence-gap detection for a source (Data Acquisition roadmap Phase D; additive, {@code source.gap_detection:}).
+     * When {@link #active()} the engine, after discovery, checks the observed file names against the
+     * {@link #sequence} strftime-style template (e.g. {@code "CDR_{yyyyMMddHH}"}) and emits an
+     * {@link com.gamma.event.EventType#SEQUENCE_GAP} event per missing key — so "no file silently missed" is a
+     * recorded, queryable operational fact. See {@link com.gamma.acquire.GapDetector}.
+     *
+     * <p>{@link #DISABLED} (no {@code source.gap_detection:} block) ⇒ no series check (the legacy behaviour).
+     */
+    @PublicApi(since = "4.2.0")
+    public record GapDetection(boolean enabled, String sequence) {
+        /** No gap detection — the legacy behaviour. */
+        public static final GapDetection DISABLED = new GapDetection(false, null);
+        /** Whether gap detection should run (enabled and given a non-blank sequence template). */
+        public boolean active() { return enabled && sequence != null && !sequence.isBlank(); }
     }
 
     /**
@@ -331,7 +376,8 @@ public final class PipelineConfig {
         this.chunking = new Chunking(b.chunkMaxFileBytes, b.chunkTargetBytes);
         this.fixedWidth = b.fixedWidth;
         this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
-                b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection, b.sourceDuplicate);
+                b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection, b.sourceDuplicate,
+                b.sourceGuarantee, b.sourceGapDetection);
         this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
@@ -634,6 +680,22 @@ public final class PipelineConfig {
                         excludeTmp,
                         tmp.isEmpty() ? Stability.DEFAULT_TEMP_PATTERNS : tmp);
             }
+
+            // ── collection guarantee + gap detection (Phase D; additive, absent ⇒ best-effort / off) ──
+            b.sourceGuarantee = Guarantee.from(opt(src, "guarantee", null));
+            Map<String, Object> gap = (Map<String, Object>) src.get("gap_detection");
+            if (gap != null) {
+                boolean enabled = !"false".equalsIgnoreCase(
+                        String.valueOf(gap.getOrDefault("enabled", "true")));
+                String seq = opt(gap, "sequence", null);
+                b.sourceGapDetection = new GapDetection(enabled, seq);
+            }
+            // A stronger-than-best-effort guarantee needs the fingerprint ledger to actually hold; without it
+            // the engine falls back to commit-log replay + markers. Say so rather than silently over-promising.
+            if (b.sourceGuarantee.requiresLedger() && !b.sourceDuplicate.contentBased())
+                log.warn("[CONFIG] source.guarantee={} needs a fingerprint ledger, but source.duplicate.mode "
+                        + "is 'path' (marker-only) — behaving as best-effort + commit-log replay. Set "
+                        + "source.duplicate.mode to metadata or checksum to enforce it.", b.sourceGuarantee);
         }
 
         log.info("[CONFIG] Status file : {}", b.statusFilePath);
@@ -897,6 +959,8 @@ public final class PipelineConfig {
         Stability    sourceStability = Stability.DISABLED;
         String       sourceConnection;   // null ⇒ no connection-profile binding (local)
         Duplicate    sourceDuplicate = Duplicate.PATH_DEFAULT;
+        Guarantee    sourceGuarantee = Guarantee.BEST_EFFORT;
+        GapDetection sourceGapDetection = GapDetection.DISABLED;
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;

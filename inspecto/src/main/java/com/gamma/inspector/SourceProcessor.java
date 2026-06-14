@@ -5,6 +5,8 @@ import com.gamma.acquire.AcquisitionLedgers;
 import com.gamma.acquire.Checksums;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.DuplicatePolicy;
+import com.gamma.acquire.GapDetector;
+import com.gamma.acquire.GapTracker;
 import com.gamma.acquire.LedgerEntry;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SourceConnector;
@@ -197,6 +199,12 @@ public class SourceProcessor {
             setWaitingGauge(cfg, gated != null ? gated.waiting().size() : 0);
             if (gated != null) for (RemoteFile f : gated.newlyStable()) emitFileStable(cfg, f);
         }
+
+        // Gap detection (Phase D): over the full discovery listing (not the dedup-filtered candidates) so a
+        // hole in the expected series is reported even when nothing new is ingestable this cycle. Run path only.
+        if (emitSignals && cfg.source().gapDetection().active() && !discovered.isEmpty())
+            detectGaps(cfg, discovered);
+
         if (ready.isEmpty()) return List.of();
 
         // ── duplicate filtering (engine concern, applied on top of discovery) ──────────────────────
@@ -298,6 +306,46 @@ public class SourceProcessor {
                 .pipeline(cfg.identity().pipelineName())
                 .message("File changed: " + f.relativePath())
                 .attr("file", f.relativePath()));
+    }
+
+    /**
+     * Sequence-gap detection (Phase D): run {@link GapDetector} over the discovered file names and emit a
+     * {@link EventType#SEQUENCE_GAP} event + bump {@code inspecto_sequence_gaps_total} for each <em>newly</em>
+     * missing key. {@link GapTracker} suppresses re-firing a persistent gap on every poll cycle and forgets a
+     * gap once its file lands. A malformed sequence template is logged and skipped (never disturbs ingest).
+     */
+    private static void detectGaps(PipelineConfig cfg, List<RemoteFile> discovered) {
+        PipelineConfig.GapDetection gd = cfg.source().gapDetection();
+        List<String> names = new ArrayList<>(discovered.size());
+        for (RemoteFile f : discovered) names.add(f.name());
+
+        final GapDetector.GapReport report;
+        try {
+            report = GapDetector.findGaps(gd.sequence(), names);
+        } catch (RuntimeException badTemplate) {
+            log.warn("Gap detection skipped for {}: {}", cfg.identity().pipelineName(), badTemplate.getMessage());
+            return;
+        }
+        // Reconcile against what was already reported: only fire for keys newly missing this cycle.
+        List<String> fresh = GapTracker.shared().newGaps(cfg.source().id(), report.missing());
+        if (fresh.isEmpty()) return;
+
+        MetricRegistry.global().inc("inspecto_sequence_gaps_total", "Missing files detected in a configured sequence",
+                Map.of("pipeline", cfg.identity().pipelineName()), fresh.size());
+        for (String key : fresh) emitSequenceGap(cfg, key, gd.sequence(), report.unit().name());
+        log.warn("Sequence gap(s) for {}: {} missing key(s) in '{}' — {}",
+                cfg.identity().pipelineName(), fresh.size(), gd.sequence(), fresh);
+    }
+
+    /** Emit the {@link EventType#SEQUENCE_GAP} fact for one missing key in the configured series (Phase D). */
+    private static void emitSequenceGap(PipelineConfig cfg, String expectedKey, String sequence, String unit) {
+        EventLog.global().emit(Event.builder(EventType.SEQUENCE_GAP)
+                .source(SourceProcessor.class.getName())
+                .pipeline(cfg.identity().pipelineName())
+                .message("Missing expected file in sequence: " + expectedKey)
+                .attr("expected", expectedKey)
+                .attr("sequence", sequence)
+                .attr("unit", unit));
     }
 
     /** Refresh the per-pipeline gauge of files the readiness gate is currently holding back (Phase B). */

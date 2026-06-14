@@ -331,4 +331,58 @@ class SourceConfigTest {
                 .map(File::getName).sorted().toList();
         assertEquals(List.of("top.csv"), names);
     }
+
+    // ── Phase D: collection guarantee + sequence-gap detection ─────────────────────────────────
+
+    @Test
+    void guaranteeAndGapDetectionParse(@TempDir Path dir) throws Exception {
+        PipelineConfig none = PipelineConfig.load(writePipeline(dir, "").toString());
+        assertEquals(PipelineConfig.Guarantee.BEST_EFFORT, none.source().guarantee(), "absent ⇒ best-effort");
+        assertFalse(none.source().gapDetection().active(), "absent ⇒ no gap detection");
+
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+            source:
+              guarantee: EXACTLY_ONCE
+              duplicate:
+                mode: CHECKSUM
+              gap_detection:
+                sequence: "CDR_{yyyyMMddHH}"
+            """).toString());
+        assertEquals(PipelineConfig.Guarantee.EXACTLY_ONCE, cfg.source().guarantee());
+        assertTrue(cfg.source().guarantee().requiresLedger());
+        assertTrue(cfg.source().gapDetection().active());
+        assertEquals("CDR_{yyyyMMddHH}", cfg.source().gapDetection().sequence());
+    }
+
+    @Test
+    void gapDetectionEmitsSequenceGapOnTheRunPath(@TempDir Path dir) throws Exception {
+        com.gamma.event.InMemoryEventStore events = new com.gamma.event.InMemoryEventStore(1000);
+        com.gamma.event.EventLog.global().installStore(events);
+        com.gamma.acquire.GapTracker.shared().reset("GAP_SRC");
+
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+            source:
+              id: GAP_SRC
+              gap_detection:
+                sequence: "cdr_{yyyyMMddHH}.csv"
+            """).toString());
+        Path inbox = Path.of(cfg.dirs().poll());
+        Files.createDirectories(inbox);
+        for (String hh : List.of("00", "01", "03"))   // the 02:00 file is missing
+            Files.writeString(inbox.resolve("cdr_20260614" + hh + ".csv"), "ID,AMT,EVENT_DATE\nr,1,2020-04-03\n");
+
+        SourceProcessor.run(cfg);
+
+        List<com.gamma.event.Event> gaps = events.recent(1000).stream()
+                .filter(e -> com.gamma.event.EventType.SEQUENCE_GAP.equals(e.type()))
+                .toList();
+        assertEquals(1, gaps.size(), "exactly one hole reported (the 02:00 file)");
+        assertEquals("cdr_2026061402.csv", String.valueOf(gaps.get(0).attributes().get("expected")));
+
+        // the poll loop re-runs each cycle; a persistent gap must not re-fire
+        SourceProcessor.run(cfg);
+        long after = events.recent(1000).stream()
+                .filter(e -> com.gamma.event.EventType.SEQUENCE_GAP.equals(e.type())).count();
+        assertEquals(1, after, "a persistent gap fires once, not every poll cycle");
+    }
 }
