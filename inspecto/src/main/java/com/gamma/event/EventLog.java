@@ -4,7 +4,9 @@ import com.gamma.metrics.MetricRegistry;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Process-wide entry point for emitting {@link Event}s — the event-engine analogue of
@@ -38,7 +40,26 @@ public final class EventLog {
 
     private final AtomicReference<EventStore> store = new AtomicReference<>(new InMemoryEventStore());
 
+    /**
+     * Optional live subscribers, invoked on every {@link #emit} <em>after</em> the event is stored. The
+     * service tier registers a bridge here that promotes selected domain events (e.g. {@code SEQUENCE_GAP})
+     * to managed objects — keeping that policy out of the lean engine core that emits the event. Copy-on-write
+     * so emit never blocks a (rare) registration, and each subscriber call is individually guarded so one
+     * misbehaving listener can't break the sink (or the log appender it may sit behind).
+     */
+    private final CopyOnWriteArrayList<Consumer<Event>> subscribers = new CopyOnWriteArrayList<>();
+
     private EventLog() {}
+
+    /** Register a live subscriber invoked after each {@link #emit}. Idempotent-safe to pair with {@link #removeSubscriber}. */
+    public void addSubscriber(Consumer<Event> subscriber) {
+        if (subscriber != null) subscribers.add(subscriber);
+    }
+
+    /** Remove a previously {@linkplain #addSubscriber registered} subscriber (e.g. on service shutdown). */
+    public void removeSubscriber(Consumer<Event> subscriber) {
+        if (subscriber != null) subscribers.remove(subscriber);
+    }
 
     /** The current backing store (for the read API / tests). */
     public EventStore store() {
@@ -71,6 +92,15 @@ public final class EventLog {
                     Map.of("level", event.level().name(), "type", event.type()));
         } catch (Throwable t) {
             // Swallow: an event sink must not disturb the caller (which may be the log appender).
+        }
+        // Notify live subscribers after the event is durably recorded. Each is guarded independently so a
+        // subscriber fault (or its own re-entrant emit) can never break this sink.
+        for (Consumer<Event> s : subscribers) {
+            try {
+                s.accept(event);
+            } catch (Throwable ignore) {
+                // best effort — a listener must never break the thing it observes
+            }
         }
     }
 

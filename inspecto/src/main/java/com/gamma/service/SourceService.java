@@ -251,6 +251,11 @@ public final class SourceService implements AutoCloseable {
         this.linkStore = buildLinkStore();
         this.noteStore = buildNoteStore();
         this.objects = new com.gamma.ops.ObjectService(objectStore, java.util.Map.of(), linkStore, noteStore);
+        // Phase D2: promote selected domain events to managed objects (SEQUENCE_GAP → ALERT) via an EventLog
+        // subscriber. Registered unconditionally (independent of *_alert.toon rules — a gap is not a batch
+        // metric) and de-registered in close() so repeated service instances don't accumulate listeners.
+        this.eventObjectBridge = new com.gamma.ops.EventObjectBridge(this.objects)::onEvent;
+        EventLog.global().addSubscriber(this.eventObjectBridge);
         // Alert engine (v4.1, B5): deterministic, lean-core, event-driven. Subscribed here (before
         // start()) so it sees the first terminal batch; null when no *_alert.toon was loaded. Phase 2:
         // also persists each fired alert as a managed ALERT object via the Object Engine above.
@@ -292,6 +297,9 @@ public final class SourceService implements AutoCloseable {
 
     /** The alert execution engine (v4.1, B5), or {@code null} when no {@code *_alert.toon} loaded. */
     private final com.gamma.alert.AlertService alerting;
+
+    /** The EventLog→ObjectService bridge (Phase D2); held so {@link #close()} can de-register it. */
+    private final java.util.function.Consumer<com.gamma.event.Event> eventObjectBridge;
 
     /** The alert engine, when any {@code *_alert.toon} rules are armed — backs {@code /alerts}. */
     public java.util.Optional<com.gamma.alert.AlertService> alertService() {
@@ -694,6 +702,7 @@ public final class SourceService implements AutoCloseable {
         }
         if (jobs != null) jobs.close();               // drain in-flight job runs first
         if (enrichment != null) enrichment.close();   // drain in-flight recomputes first
+        EventLog.global().removeSubscriber(eventObjectBridge);   // de-register the D2 gap→ALERT bridge
         scheduler.close();
         if (status instanceof AutoCloseable c) {       // close a DB-backed store's connection
             try { c.close(); } catch (Exception e) { log.warn("Error closing status store: {}", e.getMessage()); }

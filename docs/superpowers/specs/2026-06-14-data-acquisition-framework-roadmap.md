@@ -289,10 +289,10 @@ naturally alongside Phase E.
 - **Observability:** `inspecto_duplicates_skipped_total`, `EventType.FILE_CHANGED`.
 
 ### Phase D — Collection guarantees + gap detection  *(Requirement §6)*
-**Status: D1 ✅ Implemented 2026-06-14** (engine core, zero-dep; reactor green) — the `source.guarantee` knob +
-sequence-gap detection → `SEQUENCE_GAP` event + metric. **D2 (deferred):** promoting a `SEQUENCE_GAP` to a
-*managed* ALERT object (the "tracked, assignable in Cases/Issues" promise) — see the honest scope note below.
-**Outcome:** "no file silently missed." A gap is a recorded, queryable operational fact.
+**Status: D1 + D2 ✅ Implemented 2026-06-14** (zero-dep; reactor green) — D1 (engine core): the `source.guarantee`
+knob + sequence-gap detection → `SEQUENCE_GAP` event + metric. D2 (service tier): the `EventLog`→`ObjectService`
+bridge that promotes a `SEQUENCE_GAP` to a *managed* ALERT object, so a missing file is a tracked, assignable
+object in the existing Cases/Issues UI. **Outcome:** "no file silently missed."
 
 **As-built (D1):**
 - **Guarantee levels** — `PipelineConfig.Source.guarantee` (`source.guarantee:`) ∈ `BEST_EFFORT` (default, =today)
@@ -316,16 +316,24 @@ sequence-gap detection → `SEQUENCE_GAP` event + metric. **D2 (deferred):** pro
   per-source isolation), `SourceConfigTest` (guarantee + gap_detection parse; run-path `SEQUENCE_GAP` emitted once
   and not re-fired on the next cycle).
 
-**Deferred (D2) — promote `SEQUENCE_GAP` → managed ALERT object.** The roadmap originally assumed a
-`*_alert.toon` rule on `SEQUENCE_GAP` would auto-promote through `AlertService` to a managed
-`OPERATIONAL_OBJECT(ALERT)` "with zero new UI work." **Confirmed not true as-is:** `EventLog` is fire-and-forget
-(no subscriber model) and `AlertService` evaluates rules over the **batches ledger** (`BatchEvent` + metric math),
-never arbitrary `EventLog` types — so nothing bridges a gap event to an ALERT object today. D2 is that thin
-bridge, and it belongs in the **service tier** (where `ObjectService` is wired), not the lean engine core: either
-an `EventLog`→`ObjectService` subscriber for `SEQUENCE_GAP`, or a small `AlertService.promoteCondition(...)` entry
-point. Until then a gap is a first-class operational **event + metric** (Event Viewer / Prometheus), just not yet
-an assignable Cases/Issues object. The `EXACTLY_ONCE`-survives-a-crash test is a `CommitLog` concern already
-covered there; not re-litigated here.
+**As-built (D2) — promote `SEQUENCE_GAP` → managed ALERT object.** The roadmap originally assumed a
+`*_alert.toon` rule on `SEQUENCE_GAP` would auto-promote through `AlertService` "with zero new UI work." That was
+**not true as-is:** `EventLog` was fire-and-forget (no subscriber model) and `AlertService` evaluates rules over
+the **batches ledger** (`BatchEvent` + metric math), never arbitrary `EventLog` types. So D2 adds the missing
+seam honestly:
+- **`EventLog` subscriber hook** — `addSubscriber`/`removeSubscriber` (copy-on-write; each listener call guarded so
+  it can never break the sink or the log appender behind it). Invoked after the event is stored.
+- **`com.gamma.ops.EventObjectBridge`** — an `EventLog` subscriber that, on a `SEQUENCE_GAP`, opens an
+  `ObjectType.ALERT` `OperationalObject` (severity `high`; attrs `rule=sequence_gap`, `expected`, `sequence`,
+  `unit`, `causedByEvent`). It de-dups exactly like `AlertService.persistAlertObject` — a still-active ALERT for
+  the same `(pipeline, expected key)` suppresses a clone (cross-restart guard; within a process `GapTracker`
+  already fires once). Deliberately **not** in `AlertService` (a gap is independent of `*_alert.toon` rules and is
+  not a batch metric) and **not** in the lean engine core (the core records the fact; the service tier decides
+  promotion). Registered unconditionally in `SourceService` (object store is always present) and de-registered in
+  `close()`. So a missing CDR hour now becomes a tracked, assignable object in the existing Cases/Issues UI with
+  **zero new UI work** — as the requirement intended, just via a real bridge rather than an assumed one.
+
+The `EXACTLY_ONCE`-survives-a-crash test is a `CommitLog` concern already covered there; not re-litigated here.
 
 ### Phase E — Remote connectors (SFTP/FTP) + retrieval + integrity + compression  *(Requirement §1,§7,§8-partial,§9,§11,§13)*
 **Outcome:** the first non-local connector, proving the SPI on the wire.
