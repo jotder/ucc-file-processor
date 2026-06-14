@@ -1,5 +1,8 @@
 package com.gamma.inspector;
 
+import com.gamma.acquire.AcquisitionLedger;
+import com.gamma.acquire.AcquisitionLedgers;
+import com.gamma.acquire.LedgerEntry;
 import com.gamma.etl.*;
 import com.gamma.util.DuckDbUtil;
 import org.slf4j.Logger;
@@ -100,6 +103,14 @@ public final class BatchProcessor {
         Path backup = (cfg.dirs().backup() != null && !cfg.dirs().backup().isBlank())
                 ? Paths.get(cfg.dirs().backup()).toAbsolutePath() : null;
 
+        // Content-based dedup (Phase C): capture each survivor's fingerprint now, while the file is still at
+        // its inbox path (the backup step below moves it), and record it to the ledger LAST — alongside the
+        // markers, after every other side-effect is durable — so a crash mid-commit doesn't leave a stranded
+        // "already processed" fingerprint. PATH mode records nothing (it uses marker sentinels).
+        boolean ledgerRecord = cfg.processing().duplicateCheckEnabled() && cfg.source().duplicate().contentBased();
+        String sourceId = cfg.source().id();
+        List<LedgerEntry> ledgerEntries = ledgerRecord ? new ArrayList<>() : null;
+
         List<BatchManifest.MemberEntry> memberEntries = new ArrayList<>();
         List<String> markerPaths = new ArrayList<>();
         for (Batch.Member m : survivors) {
@@ -109,6 +120,13 @@ public final class BatchProcessor {
                     ? backup.resolve(poll.relativize(filePath)).toString() : "";
             if (cfg.dirs().markers() != null)
                 markerPaths.add(MarkerManager.getMarkerPath(m.file(), cfg).toString());
+            if (ledgerRecord) {
+                try {
+                    ledgerEntries.add(LedgerEntry.metadata(sourceId, rel, m.file().getName(),
+                            Files.size(filePath), Files.getLastModifiedTime(filePath).toMillis(),
+                            System.currentTimeMillis()));
+                } catch (IOException ignore) { /* vanished pre-backup — skip recording this member */ }
+            }
             memberEntries.add(new BatchManifest.MemberEntry(
                     m.file().getName(), m.srcId(), rel, backupPath, "SUCCESS"));
         }
@@ -134,6 +152,12 @@ public final class BatchProcessor {
         // Markers LAST — created only after every other side-effect is durable.
         if (cfg.dirs().markers() != null)
             for (Batch.Member m : survivors) MarkerManager.createMarkerFile(m.file(), cfg);
+
+        // Fingerprint ledger LAST too (content-based dedup; same stranding-safety reason as markers).
+        if (ledgerRecord) {
+            AcquisitionLedger ledger = AcquisitionLedgers.shared();
+            for (LedgerEntry e : ledgerEntries) ledger.record(e);
+        }
     }
 
     private static void backupFile(File inputFile, PipelineConfig cfg) throws IOException {

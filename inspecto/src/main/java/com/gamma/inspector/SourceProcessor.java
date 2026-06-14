@@ -1,6 +1,10 @@
 package com.gamma.inspector;
 
+import com.gamma.acquire.AcquisitionLedger;
+import com.gamma.acquire.AcquisitionLedgers;
 import com.gamma.acquire.DiscoveryContext;
+import com.gamma.acquire.DuplicatePolicy;
+import com.gamma.acquire.LedgerEntry;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SourceConnector;
 import com.gamma.acquire.SourceConnectors;
@@ -194,10 +198,17 @@ public class SourceProcessor {
         }
         if (ready.isEmpty()) return List.of();
 
-        List<File> matched = new ArrayList<>(ready.size());
-        for (RemoteFile rf : ready) matched.add(rf.localPath().toFile());
+        // ── duplicate filtering (engine concern, applied on top of discovery) ──────────────────────
+        if (!cfg.processing().duplicateCheckEnabled()) return toFiles(ready);   // dedup off
 
-        if (!cfg.processing().duplicateCheckEnabled()) return matched;   // no marker stat to do
+        // Content-based dedup (Phase C): compare each candidate's fingerprint against the ledger keyed by
+        // (sourceId, relativePath) — detects re-uploads / changed files that the path-only marker misses.
+        if (cfg.source().duplicate().contentBased())
+            return ledgerFilter(cfg, ready, emitSignals);
+
+        // PATH mode (default): the marker-sentinel filter — byte-for-byte the legacy behaviour, split out so a
+        // large inbox runs the per-file marker stat in parallel (order need not be preserved).
+        List<File> matched = toFiles(ready);
         if (matched.size() > 1 && cfg.processing().threads() > 1) {
             return matched.parallelStream()
                     .filter(f -> !MarkerManager.isAlreadyProcessed(f, cfg))
@@ -207,6 +218,79 @@ public class SourceProcessor {
         for (File f : matched)
             if (!MarkerManager.isAlreadyProcessed(f, cfg)) candidates.add(f);
         return candidates;
+    }
+
+    private static List<File> toFiles(List<RemoteFile> ready) {
+        List<File> out = new ArrayList<>(ready.size());
+        for (RemoteFile rf : ready) out.add(rf.localPath().toFile());
+        return out;
+    }
+
+    /** Sources for which the not-yet-wired CHECKSUM mode has already been warned about (warn once each). */
+    private static final java.util.Set<String> checksumWarned = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Content-based duplicate filter (Phase C): for each candidate, look up its prior fingerprint in the
+     * {@link AcquisitionLedger} by {@code (sourceId, relativePath)} and apply {@link DuplicatePolicy}. DUPLICATEs
+     * are dropped; CHANGED files are reprocessed unless {@code on_change=ignore}; the fingerprint is recorded
+     * post-commit by {@code BatchProcessor}. Uses size+mtime only (a cheap stat — no file read), so the
+     * read-only {@code countPending} scan stays light; CHECKSUM mode falls back to metadata here until its
+     * single-read-during-ingest wiring (Phase C3).
+     */
+    private static List<File> ledgerFilter(PipelineConfig cfg, List<RemoteFile> ready, boolean emitSignals)
+            throws java.io.IOException {
+        PipelineConfig.Source src = cfg.source();
+        PipelineConfig.Duplicate dup = src.duplicate();
+        AcquisitionLedger ledger = AcquisitionLedgers.shared();
+        DuplicatePolicy.Mode mode = effectiveMode(src.id(), dup);
+        DuplicatePolicy.OnChange onChange = DuplicatePolicy.OnChange.from(dup.onChange());
+
+        List<File> out = new ArrayList<>(ready.size());
+        for (RemoteFile rf : ready) {
+            Path p = rf.localPath();
+            long size, mtime;
+            try {
+                size = Files.size(p);
+                mtime = Files.getLastModifiedTime(p).toMillis();
+            } catch (java.io.IOException vanished) {
+                continue;   // file disappeared between discovery and the dedup check — drop it
+            }
+            LedgerEntry prior = ledger.find(src.id(), rf.relativePath()).orElse(null);
+            switch (DuplicatePolicy.decide(mode, prior, size, mtime, null)) {
+                case NEW -> out.add(p.toFile());
+                case CHANGED -> {
+                    if (emitSignals && DuplicatePolicy.alertsOnChange(onChange)) emitFileChanged(cfg, rf);
+                    if (DuplicatePolicy.reprocessOnChange(onChange)) out.add(p.toFile());
+                    else if (emitSignals) incDuplicatesSkipped(cfg);
+                }
+                case DUPLICATE -> { if (emitSignals) incDuplicatesSkipped(cfg); }
+            }
+        }
+        return out;
+    }
+
+    /** CHECKSUM dedup is not yet wired (Phase C3 hashes once during ingest); fall back to metadata, warn once. */
+    private static DuplicatePolicy.Mode effectiveMode(String sourceId, PipelineConfig.Duplicate dup) {
+        DuplicatePolicy.Mode mode = DuplicatePolicy.Mode.from(dup.mode());
+        if (mode == DuplicatePolicy.Mode.CHECKSUM && checksumWarned.add(sourceId)) {
+            log.warn("source.duplicate.mode=checksum is not yet wired (Phase C wires metadata; checksum lands "
+                    + "with single-read-during-ingest) — using metadata (size+mtime) for source '{}'", sourceId);
+            return DuplicatePolicy.Mode.METADATA;
+        }
+        return mode == DuplicatePolicy.Mode.CHECKSUM ? DuplicatePolicy.Mode.METADATA : mode;
+    }
+
+    private static void incDuplicatesSkipped(PipelineConfig cfg) {
+        MetricRegistry.global().inc("inspecto_duplicates_skipped_total", "Files skipped as duplicates",
+                Map.of("pipeline", cfg.identity().pipelineName()));
+    }
+
+    private static void emitFileChanged(PipelineConfig cfg, RemoteFile f) {
+        EventLog.global().emit(Event.builder(EventType.FILE_CHANGED)
+                .source(SourceProcessor.class.getName())
+                .pipeline(cfg.identity().pipelineName())
+                .message("File changed: " + f.relativePath())
+                .attr("file", f.relativePath()));
     }
 
     /** Refresh the per-pipeline gauge of files the readiness gate is currently holding back (Phase B). */

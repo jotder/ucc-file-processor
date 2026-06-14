@@ -1,5 +1,8 @@
 package com.gamma.etl;
 
+import com.gamma.acquire.AcquisitionLedgers;
+import com.gamma.acquire.InMemoryAcquisitionLedger;
+import com.gamma.acquire.LedgerEntry;
 import com.gamma.acquire.LocalFileSystemConnector;
 import com.gamma.acquire.SourceConnector;
 import com.gamma.acquire.SourceConnectors;
@@ -43,6 +46,10 @@ class SourceConfigTest {
               duplicate_check:
                 enabled: true
               schema_file: "%s"
+              csv_settings:
+                delimiter: ","
+                date_formats[1]: "%%Y-%%m-%%d"
+                timestamp_formats[1]: "%%Y-%%m-%%d"
             """.formatted(dir, dir, dir, dir, dir, dir, dir, dir, dir,
                           sourceBlock, schema.toString().replace("\\", "/"));
         Path p = dir.resolve("src_pipeline.toon");
@@ -108,6 +115,67 @@ class SourceConfigTest {
             """).toString());
         assertEquals("CDR_SFTP_PROD", bound.source().connection());
         assertTrue(bound.source().hasConnection());
+    }
+
+    @Test
+    void metadataDedupSkipsUnchangedAndReprocessesChanged(@TempDir Path dir) throws Exception {
+        InMemoryAcquisitionLedger ledger = new InMemoryAcquisitionLedger();
+        AcquisitionLedgers.use(ledger);
+        try {
+            PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+                source:
+                  id: META_SRC
+                  duplicate:
+                    mode: METADATA
+                """).toString());
+            Path inbox = Path.of(cfg.dirs().poll());
+            Files.createDirectories(inbox);
+            Path f = inbox.resolve("a.csv");
+            Files.writeString(f, "x");
+
+            // first sight: no ledger entry ⇒ NEW ⇒ a candidate
+            assertEquals(List.of("a.csv"), candidateNames(cfg));
+
+            // simulate the post-commit record of the current fingerprint
+            ledger.record(LedgerEntry.metadata("META_SRC", "a.csv", "a.csv",
+                    Files.size(f), Files.getLastModifiedTime(f).toMillis(), 1L));
+            // unchanged ⇒ DUPLICATE ⇒ skipped
+            assertTrue(SourceProcessor.collectCandidates(cfg).isEmpty(), "unchanged file is a duplicate");
+
+            // content changes (size differs) ⇒ CHANGED ⇒ reprocessed (default on_change = reprocess)
+            Files.writeString(f, "xxxxx");
+            assertEquals(List.of("a.csv"), candidateNames(cfg), "a changed file is reprocessed");
+        } finally {
+            AcquisitionLedgers.use(new InMemoryAcquisitionLedger());   // reset the process-wide ledger
+        }
+    }
+
+    @Test
+    void fullRunRecordsFingerprintToLedger(@TempDir Path dir) throws Exception {
+        InMemoryAcquisitionLedger ledger = new InMemoryAcquisitionLedger();
+        AcquisitionLedgers.use(ledger);
+        try {
+            PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+                source:
+                  id: RUN_SRC
+                  duplicate:
+                    mode: METADATA
+                """).toString());
+            Path inbox = Path.of(cfg.dirs().poll());
+            Files.createDirectories(inbox);
+            Files.writeString(inbox.resolve("a.csv"), "ID,AMT,EVENT_DATE\nr,1,2020-04-03\n");
+
+            SourceProcessor.run(cfg);   // a full ingest cycle
+
+            assertTrue(ledger.find("RUN_SRC", "a.csv").isPresent(),
+                    "the fingerprint is recorded once the batch commits");
+        } finally {
+            AcquisitionLedgers.use(new InMemoryAcquisitionLedger());
+        }
+    }
+
+    private static List<String> candidateNames(PipelineConfig cfg) throws Exception {
+        return SourceProcessor.collectCandidates(cfg).stream().map(File::getName).sorted().toList();
     }
 
     @Test

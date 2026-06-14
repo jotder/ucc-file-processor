@@ -241,25 +241,30 @@ shippable, additive, and reactor-green-gated.
   from discovery); `SourceConfigTest` (stability parse + `ready_marker`/temp-exclusion via `collectCandidates`).
 
 ### Phase C — Fingerprint marker repository + dup/change policy  *(Requirement §2-regex, §3, §5, §6)*
-**Status: foundation ✅ Implemented 2026-06-14** — the fingerprint store + policy engine + config + checksums
-landed (reactor green); the run/commit-path **wiring** + watermark + regex are the remaining C2 increment (below).
+**Status: C1 foundation + C2 METADATA wiring ✅ Implemented 2026-06-14** (reactor green). CHECKSUM read-side
+wiring (single-read-during-ingest) + watermark + regex are the remaining **C3** increment (below).
 **Outcome:** dedup by content, detect re-uploads, incremental scans — closes the path-only data-loss gap.
 
-**As-built (C1, committed):** `com.gamma.acquire.AcquisitionLedger` SPI + `InMemoryAcquisitionLedger` (lean
-default) + `DbAcquisitionLedger` (its **own** DuckDB file, single-writer, upsert by `(source_id, relative_path)`
-— resolves §8 Q1); `Checksums` (MD5/SHA-256/CRC32 via the JDK, streamed — zero new deps); `DuplicatePolicy`
-(pure: `Mode` PATH|METADATA|CHECKSUM × prior `LedgerEntry` → `Decision` NEW|DUPLICATE|CHANGED, + `OnChange`
-IGNORE|REPROCESS|ALERT|ARCHIVE_OLD_VERSION); additive `source.duplicate` config (absent ⇒ PATH = today's
-markers); `EventType.FILE_CHANGED`. All pure/unit-tested and **not yet wired** into the run loop — the same
-seam-first rhythm as Phase A's `RetrievalPlanner`.
+**As-built (C1, committed `eef78e4`):** `com.gamma.acquire.AcquisitionLedger` SPI + `InMemoryAcquisitionLedger`
+(lean default) + `DbAcquisitionLedger` (its **own** DuckDB file, single-writer, upsert by `(source_id,
+relative_path)` — resolves §8 Q1); `Checksums` (MD5/SHA-256/CRC32 via the JDK, streamed — zero new deps);
+`DuplicatePolicy` (pure: `Mode` PATH|METADATA|CHECKSUM × prior `LedgerEntry` → `Decision` NEW|DUPLICATE|CHANGED,
++ `OnChange` IGNORE|REPROCESS|ALERT|ARCHIVE_OLD_VERSION); additive `source.duplicate` config (absent ⇒ PATH =
+today's markers); `EventType.FILE_CHANGED`.
 
-**Remaining (C2, not yet built):** wire dedup-by-content into the **processing path** (not `collectCandidates`):
-CHECKSUM mode must hash the file once *while ingesting it* and record the fingerprint **post-commit** (alongside
-`MarkerManager.createMarkerFile` in `BatchProcessor`) — so the read-only `countPending` scan stays cheap and a
-failed batch reprocesses. This needs a process-wide ledger (a `-Dacquire.ledger.backend` toggle like the OI
-stores) threaded to `BatchProcessor`, plus the `inspecto_duplicates_skipped_total` metric + `FILE_CHANGED`
-emission, the incremental **watermark** (persist max `last_modified` per source; §8 Q3 = per-source), and
-`regex:` include/exclude support.
+**As-built (C2, METADATA wired):** `AcquisitionLedgers.shared()` (process-wide ledger, `-Dacquire.ledger.backend`
+memory|db, like the OI stores). `SourceProcessor.collect` applies a content-mode **ledger filter** for
+`source.duplicate.mode != path`: per candidate, `stat` size+mtime (no file read → `countPending` stays cheap),
+`ledger.find`, `DuplicatePolicy.decide` → drop DUPLICATE, reprocess CHANGED (unless `on_change=ignore`), emit
+`FILE_CHANGED` on `alert`, bump `inspecto_duplicates_skipped_total` (run path only). `BatchProcessor.commit`
+records the fingerprint **post-commit** (captured pre-backup, written last beside the markers — same
+stranding-safety ordering). PATH mode unchanged. **CHECKSUM currently falls back to METADATA with a one-time
+warning** (its read-side hashing is C3).
+
+**Remaining (C3, not yet built):** CHECKSUM done right — hash each file **once while ingesting it** (tee the
+ingest read) and compare/record the content hash, so content changes with unchanged size+mtime are caught
+without a separate read pass; the incremental **watermark** (persist max `last_modified` per source; §8 Q3 =
+per-source) to skip `<= watermark` instead of re-walking; and `regex:` include/exclude (Java `Pattern`).
 - **`AcquisitionLedger`** (DuckDB-backed, **its own DB file + single-writer lock**, reusing the
   `DbStatusStore`/OI-store pattern): rows `{source_id, relative_path, name, size, checksum, last_modified,
   processed_at, status}`. `InMemoryAcquisitionLedger` + `DbAcquisitionLedger` (SPI twin of the note/link stores).
