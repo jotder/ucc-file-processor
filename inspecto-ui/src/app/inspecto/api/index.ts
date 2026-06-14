@@ -14,3 +14,4 @@ export * from './config.service';
 export * from './assist.service';
 export * from './alerts.service';
 export * from './objects.service';
+export * from './connections.service';

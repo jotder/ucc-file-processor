@@ -1,0 +1,84 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="text-3xl font-extrabold leading-tight tracking-tight">Connections</div>
+            <div class="text-secondary mt-1">
+                Reusable remote-system connection profiles, authored as <code>*_connection.toon</code> and
+                referenced by pipelines via <code>source.connection</code>. Credentials are
+                <code>$&#123;…&#125;</code> references resolved at runtime — never stored here. Test reachability
+                of each endpoint (or its tunnel hop).
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
+                <mat-icon [svgIcon]="'heroicons_outline:arrow-path'"></mat-icon>
+            </button>
+        </div>
+    </div>
+
+    @if (!loading && connections.length === 0) {
+        <div class="text-secondary mt-8">
+            No connection profiles loaded. Author a <code>*_connection.toon</code> next to your pipeline
+            configs — a <code>connection</code> block with <code>id</code>, <code>connector</code>,
+            <code>host</code>, <code>port</code>, … and <code>$&#123;ENV:…&#125;</code> credential references.
+        </div>
+    }
+
+    <!-- Profiles -->
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        @for (c of connections; track c.id) {
+            <div class="bg-card flex flex-col rounded-2xl p-5 shadow">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <div class="truncate font-mono text-lg font-semibold">{{ c.id }}</div>
+                        <div class="text-secondary mt-0.5 text-sm">
+                            <span class="mr-2 inline-block rounded bg-gray-200 px-2 py-0.5 font-mono text-xs uppercase dark:bg-gray-700">{{ c.connector }}</span>
+                            {{ endpoint(c) }}
+                        </div>
+                    </div>
+                    <button mat-flat-button color="primary" (click)="test(c.id)" [disabled]="testing[c.id]">
+                        @if (testing[c.id]) {
+                            <mat-spinner diameter="16" class="mr-2"></mat-spinner>
+                        }
+                        Test
+                    </button>
+                </div>
+
+                <div class="text-secondary mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+                    @if (c.database) { <div><span class="font-medium">database:</span> {{ c.database }}</div> }
+                    @if (c.basePath) { <div><span class="font-medium">base path:</span> {{ c.basePath }}</div> }
+                    @if (c.username) { <div><span class="font-medium">username:</span> {{ c.username }}</div> }
+                    @if (c.password) { <div><span class="font-medium">password:</span> <span class="font-mono">{{ c.password }}</span></div> }
+                    @for (o of optionEntries(c); track o.key) {
+                        <div><span class="font-medium">{{ o.key }}:</span> {{ o.value }}</div>
+                    }
+                    @if (c.tunnel?.host) {
+                        <div class="sm:col-span-2"><span class="font-medium">tunnel:</span> {{ c.tunnel.host }}:{{ c.tunnel.port ?? '?' }}</div>
+                    }
+                </div>
+
+                <!-- Test result -->
+                @if (results[c.id]; as r) {
+                    <div class="mt-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
+                         [class.bg-green-100]="r.reachable" [class.text-green-800]="r.reachable"
+                         [class.dark:bg-green-900]="r.reachable" [class.dark:text-green-200]="r.reachable"
+                         [class.bg-red-100]="!r.reachable" [class.text-red-800]="!r.reachable"
+                         [class.dark:bg-red-900]="!r.reachable" [class.dark:text-red-200]="!r.reachable">
+                        <mat-icon class="icon-size-5 shrink-0"
+                                  [svgIcon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"></mat-icon>
+                        <span>
+                            <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>
+                            @if (r.latencyMs != null) { · {{ r.latencyMs }} ms }
+                            · secrets {{ r.secretsResolved ? 'resolved' : 'unresolved' }}
+                            <div class="text-secondary mt-0.5">{{ r.detail }}</div>
+                        </span>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>

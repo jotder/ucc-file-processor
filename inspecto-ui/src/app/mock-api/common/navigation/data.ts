@@ -66,6 +66,13 @@ export const defaultNavigation: GammaNavigationItem[] = [
         link : '/cases'
     },
     {
+        id   : 'connections',
+        title: 'Connections',
+        type : 'basic',
+        icon : 'heroicons_outline:server-stack',
+        link : '/connections'
+    },
+    {
         id   : 'config',
         title: 'Config',
         type : 'basic',
