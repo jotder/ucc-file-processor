@@ -2,6 +2,7 @@ package com.gamma.inspector;
 
 import com.gamma.acquire.AcquisitionLedger;
 import com.gamma.acquire.AcquisitionLedgers;
+import com.gamma.acquire.Checksums;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.DuplicatePolicy;
 import com.gamma.acquire.LedgerEntry;
@@ -226,24 +227,26 @@ public class SourceProcessor {
         return out;
     }
 
-    /** Sources for which the not-yet-wired CHECKSUM mode has already been warned about (warn once each). */
-    private static final java.util.Set<String> checksumWarned = ConcurrentHashMap.newKeySet();
-
     /**
      * Content-based duplicate filter (Phase C): for each candidate, look up its prior fingerprint in the
      * {@link AcquisitionLedger} by {@code (sourceId, relativePath)} and apply {@link DuplicatePolicy}. DUPLICATEs
      * are dropped; CHANGED files are reprocessed unless {@code on_change=ignore}; the fingerprint is recorded
-     * post-commit by {@code BatchProcessor}. Uses size+mtime only (a cheap stat — no file read), so the
-     * read-only {@code countPending} scan stays light; CHECKSUM mode falls back to metadata here until its
-     * single-read-during-ingest wiring (Phase C3).
+     * post-commit by {@code BatchProcessor}.
+     *
+     * <p><b>METADATA</b> compares size+mtime — a cheap {@code stat}, no file read, so it runs on both the run
+     * cycle and the read-only {@code countPending} scan. <b>CHECKSUM</b> must read the file to hash it; that
+     * happens <em>only on the run path</em> ({@code emitSignals}), and the hash is stashed for the post-commit
+     * record so the file isn't hashed twice. On {@code countPending} CHECKSUM degrades to a metadata
+     * approximation, so a dashboard poll never hashes.
      */
     private static List<File> ledgerFilter(PipelineConfig cfg, List<RemoteFile> ready, boolean emitSignals)
             throws java.io.IOException {
         PipelineConfig.Source src = cfg.source();
         PipelineConfig.Duplicate dup = src.duplicate();
         AcquisitionLedger ledger = AcquisitionLedgers.shared();
-        DuplicatePolicy.Mode mode = effectiveMode(src.id(), dup);
+        DuplicatePolicy.Mode mode = DuplicatePolicy.Mode.from(dup.mode());
         DuplicatePolicy.OnChange onChange = DuplicatePolicy.OnChange.from(dup.onChange());
+        boolean checksum = mode == DuplicatePolicy.Mode.CHECKSUM;
 
         List<File> out = new ArrayList<>(ready.size());
         for (RemoteFile rf : ready) {
@@ -256,28 +259,32 @@ public class SourceProcessor {
                 continue;   // file disappeared between discovery and the dedup check — drop it
             }
             LedgerEntry prior = ledger.find(src.id(), rf.relativePath()).orElse(null);
-            switch (DuplicatePolicy.decide(mode, prior, size, mtime, null)) {
-                case NEW -> out.add(p.toFile());
+
+            // CHECKSUM hashes only on the run path; countPending falls back to a cheap metadata approximation.
+            String cs = null;
+            DuplicatePolicy.Mode decideMode = mode;
+            if (checksum) {
+                if (emitSignals) cs = Checksums.of(p, dup.algorithm());
+                else decideMode = DuplicatePolicy.Mode.METADATA;
+            }
+            switch (DuplicatePolicy.decide(decideMode, prior, size, mtime, cs)) {
+                case NEW -> {
+                    if (checksum && emitSignals) AcquisitionLedgers.stashChecksum(p, cs);
+                    out.add(p.toFile());
+                }
                 case CHANGED -> {
                     if (emitSignals && DuplicatePolicy.alertsOnChange(onChange)) emitFileChanged(cfg, rf);
-                    if (DuplicatePolicy.reprocessOnChange(onChange)) out.add(p.toFile());
-                    else if (emitSignals) incDuplicatesSkipped(cfg);
+                    if (DuplicatePolicy.reprocessOnChange(onChange)) {
+                        if (checksum && emitSignals) AcquisitionLedgers.stashChecksum(p, cs);
+                        out.add(p.toFile());
+                    } else if (emitSignals) {
+                        incDuplicatesSkipped(cfg);
+                    }
                 }
                 case DUPLICATE -> { if (emitSignals) incDuplicatesSkipped(cfg); }
             }
         }
         return out;
-    }
-
-    /** CHECKSUM dedup is not yet wired (Phase C3 hashes once during ingest); fall back to metadata, warn once. */
-    private static DuplicatePolicy.Mode effectiveMode(String sourceId, PipelineConfig.Duplicate dup) {
-        DuplicatePolicy.Mode mode = DuplicatePolicy.Mode.from(dup.mode());
-        if (mode == DuplicatePolicy.Mode.CHECKSUM && checksumWarned.add(sourceId)) {
-            log.warn("source.duplicate.mode=checksum is not yet wired (Phase C wires metadata; checksum lands "
-                    + "with single-read-during-ingest) — using metadata (size+mtime) for source '{}'", sourceId);
-            return DuplicatePolicy.Mode.METADATA;
-        }
-        return mode == DuplicatePolicy.Mode.CHECKSUM ? DuplicatePolicy.Mode.METADATA : mode;
     }
 
     private static void incDuplicatesSkipped(PipelineConfig cfg) {

@@ -3,6 +3,9 @@ package com.gamma.acquire;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Process-wide {@link AcquisitionLedger} accessor (Data Acquisition roadmap Phase C wiring) — the global-registry
  * idiom of {@link com.gamma.metrics.MetricRegistry#global()} / {@link StabilityGate#shared()}, so the static
@@ -37,6 +40,27 @@ public final class AcquisitionLedgers {
     /** Install a specific ledger (tests / embedders). */
     public static synchronized void use(AcquisitionLedger ledger) {
         shared = ledger;
+    }
+
+    // ── checksum handoff (Phase C3) ────────────────────────────────────────────────
+    // CHECKSUM dedup hashes each candidate once on the run path (in SourceProcessor.collect); this transient
+    // cache hands that hash to BatchProcessor.commit so the post-commit ledger record reuses it instead of
+    // re-reading the file. Keyed by absolute path; entries are removed on take. A batch that never commits
+    // leaves a small orphan entry (harmless — recomputed on the next successful run).
+    private static final ConcurrentHashMap<String, String> PENDING_CHECKSUMS = new ConcurrentHashMap<>();
+
+    /** Stash a freshly-computed checksum for {@code file}, to be consumed at commit. */
+    public static void stashChecksum(Path file, String checksum) {
+        if (checksum != null) PENDING_CHECKSUMS.put(key(file), checksum);
+    }
+
+    /** Take (and remove) a stashed checksum for {@code file}, or {@code null} if none was stashed. */
+    public static String takeChecksum(Path file) {
+        return PENDING_CHECKSUMS.remove(key(file));
+    }
+
+    private static String key(Path file) {
+        return file.toAbsolutePath().normalize().toString();
     }
 
     private static AcquisitionLedger build() {

@@ -159,6 +159,18 @@ class LocalFileSystemConnectorTest {
     }
 
     @Test
+    void regexIncludeMatchesAlongsideGlob(@TempDir Path dir) throws Exception {
+        Path poll = dir.resolve("inbox");
+        Files.createDirectories(poll);
+        Files.writeString(poll.resolve("cdr_001.dat"), "x");
+        Files.writeString(poll.resolve("cdr_002.dat"), "x");
+        Files.writeString(poll.resolve("notes.txt"), "x");
+        // a regex: include (matched against the full path) is honoured just like a glob: include
+        List<RemoteFile> found = connector(poll).discover(ctx(List.of("regex:.*\\.dat"), List.of(), -1));
+        assertEquals(Set.of("cdr_001.dat", "cdr_002.dat"), rel(found));
+    }
+
+    @Test
     void schemeReadinessAndCapabilities() throws Exception {
         LocalFileSystemConnector c =
                 new LocalFileSystemConnector(Path.of("x"), Path.of("x/errors"), Path.of("x/quarantine"));

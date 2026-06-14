@@ -108,6 +108,8 @@ public final class BatchProcessor {
         // markers, after every other side-effect is durable — so a crash mid-commit doesn't leave a stranded
         // "already processed" fingerprint. PATH mode records nothing (it uses marker sentinels).
         boolean ledgerRecord = cfg.processing().duplicateCheckEnabled() && cfg.source().duplicate().contentBased();
+        boolean checksumMode = ledgerRecord && "checksum".equals(cfg.source().duplicate().mode());
+        String dupAlgorithm = cfg.source().duplicate().algorithm();
         String sourceId = cfg.source().id();
         List<LedgerEntry> ledgerEntries = ledgerRecord ? new ArrayList<>() : null;
 
@@ -122,9 +124,16 @@ public final class BatchProcessor {
                 markerPaths.add(MarkerManager.getMarkerPath(m.file(), cfg).toString());
             if (ledgerRecord) {
                 try {
-                    ledgerEntries.add(LedgerEntry.metadata(sourceId, rel, m.file().getName(),
-                            Files.size(filePath), Files.getLastModifiedTime(filePath).toMillis(),
-                            System.currentTimeMillis()));
+                    // CHECKSUM mode: reuse the hash computed during the run-path dedup (stashed by
+                    // SourceProcessor), or compute it now from the still-in-inbox file if absent.
+                    String checksum = null;
+                    if (checksumMode) {
+                        checksum = AcquisitionLedgers.takeChecksum(filePath);
+                        if (checksum == null) checksum = com.gamma.acquire.Checksums.of(filePath, dupAlgorithm);
+                    }
+                    ledgerEntries.add(new LedgerEntry(sourceId, rel, m.file().getName(),
+                            Files.size(filePath), checksum, Files.getLastModifiedTime(filePath).toMillis(),
+                            System.currentTimeMillis(), LedgerEntry.PROCESSED));
                 } catch (IOException ignore) { /* vanished pre-backup — skip recording this member */ }
             }
             memberEntries.add(new BatchManifest.MemberEntry(

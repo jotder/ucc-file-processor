@@ -241,8 +241,9 @@ shippable, additive, and reactor-green-gated.
   from discovery); `SourceConfigTest` (stability parse + `ready_marker`/temp-exclusion via `collectCandidates`).
 
 ### Phase C — Fingerprint marker repository + dup/change policy  *(Requirement §2-regex, §3, §5, §6)*
-**Status: C1 foundation + C2 METADATA wiring ✅ Implemented 2026-06-14** (reactor green). CHECKSUM read-side
-wiring (single-read-during-ingest) + watermark + regex are the remaining **C3** increment (below).
+**Status: C1 + C2 + C3 ✅ Implemented 2026-06-14** (reactor green) — PATH/METADATA/CHECKSUM dedup all live,
+plus `regex:` include/exclude. The incremental **watermark** is the only deferred piece (C4 below; it pays off
+mainly with remote LISTs in Phase E).
 **Outcome:** dedup by content, detect re-uploads, incremental scans — closes the path-only data-loss gap.
 
 **As-built (C1, committed `eef78e4`):** `com.gamma.acquire.AcquisitionLedger` SPI + `InMemoryAcquisitionLedger`
@@ -258,13 +259,21 @@ memory|db, like the OI stores). `SourceProcessor.collect` applies a content-mode
 `ledger.find`, `DuplicatePolicy.decide` → drop DUPLICATE, reprocess CHANGED (unless `on_change=ignore`), emit
 `FILE_CHANGED` on `alert`, bump `inspecto_duplicates_skipped_total` (run path only). `BatchProcessor.commit`
 records the fingerprint **post-commit** (captured pre-backup, written last beside the markers — same
-stranding-safety ordering). PATH mode unchanged. **CHECKSUM currently falls back to METADATA with a one-time
-warning** (its read-side hashing is C3).
+stranding-safety ordering). PATH mode unchanged.
 
-**Remaining (C3, not yet built):** CHECKSUM done right — hash each file **once while ingesting it** (tee the
-ingest read) and compare/record the content hash, so content changes with unchanged size+mtime are caught
-without a separate read pass; the incremental **watermark** (persist max `last_modified` per source; §8 Q3 =
-per-source) to skip `<= watermark` instead of re-walking; and `regex:` include/exclude (Java `Pattern`).
+**As-built (C3, CHECKSUM + regex):** CHECKSUM hashes each candidate via
+`Checksums.of(algorithm)` **on the run path only** (`countPending` degrades to a metadata approximation so a
+dashboard poll never hashes) and compares the digest against the ledger — catching content changes that
+size+mtime hide. The hash is handed to `BatchProcessor` via `AcquisitionLedgers.stashChecksum`/`takeChecksum`
+so the post-commit record reuses it (no second read). *Note:* the default CSV path ingests via DuckDB's own
+reader, so the dedup hash can't be teed off the ingest read — CHECKSUM is inherently one extra streamed read
+per candidate (opt-in, heavier; METADATA stays the cheap default). `regex:` include/exclude already worked
+through the `LocalFileSystemConnector` matcher (Phase A passes `regex:`/`glob:` prefixes through) — now tested.
+
+**Remaining (C4, not yet built):** the incremental **watermark** — persist max `last_modified` per source (§8
+Q3 = per-source) and skip `<= watermark` at discovery. Marginal for a local `Files.walk` (it still walks the
+tree) but a real win for remote connectors, where it lets a LIST request only recent objects — so it lands
+naturally alongside Phase E.
 - **`AcquisitionLedger`** (DuckDB-backed, **its own DB file + single-writer lock**, reusing the
   `DbStatusStore`/OI-store pattern): rows `{source_id, relative_path, name, size, checksum, last_modified,
   processed_at, status}`. `InMemoryAcquisitionLedger` + `DbAcquisitionLedger` (SPI twin of the note/link stores).

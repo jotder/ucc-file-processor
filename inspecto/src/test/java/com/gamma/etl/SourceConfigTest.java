@@ -1,6 +1,7 @@
 package com.gamma.etl;
 
 import com.gamma.acquire.AcquisitionLedgers;
+import com.gamma.acquire.Checksums;
 import com.gamma.acquire.InMemoryAcquisitionLedger;
 import com.gamma.acquire.LedgerEntry;
 import com.gamma.acquire.LocalFileSystemConnector;
@@ -169,6 +170,71 @@ class SourceConfigTest {
 
             assertTrue(ledger.find("RUN_SRC", "a.csv").isPresent(),
                     "the fingerprint is recorded once the batch commits");
+        } finally {
+            AcquisitionLedgers.use(new InMemoryAcquisitionLedger());
+        }
+    }
+
+    @Test
+    void checksumDetectsContentChangeEvenWhenSizeAndMtimeUnchanged(@TempDir Path dir) throws Exception {
+        InMemoryAcquisitionLedger ledger = new InMemoryAcquisitionLedger();
+        AcquisitionLedgers.use(ledger);
+        try {
+            PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+                source:
+                  id: CS_SRC
+                  duplicate:
+                    mode: CHECKSUM
+                    algorithm: SHA256
+                """).toString());
+            Path inbox = Path.of(cfg.dirs().poll());
+            Files.createDirectories(inbox);
+            Path f = inbox.resolve("a.csv");
+            Files.writeString(f, "ID,AMT,EVENT_DATE\nr,1,2020-04-03\n");
+            var mtime = Files.getLastModifiedTime(f);
+            long size = Files.size(f);
+            String originalCs = Checksums.of(f, "SHA256");
+
+            // pretend it was already processed with the original content
+            ledger.record(new LedgerEntry("CS_SRC", "a.csv", "a.csv", size, originalCs,
+                    mtime.toMillis(), 1L, LedgerEntry.PROCESSED));
+
+            // content changes (same byte length), mtime forced back — METADATA would call this a duplicate
+            Files.writeString(f, "ID,AMT,EVENT_DATE\nr,2,2020-04-03\n");
+            Files.setLastModifiedTime(f, mtime);
+            assertEquals(size, Files.size(f));
+
+            // the real run path hashes the file, sees a different digest ⇒ CHANGED ⇒ reprocessed + re-recorded
+            SourceProcessor.run(cfg);
+
+            String afterCs = ledger.find("CS_SRC", "a.csv").orElseThrow().checksum();
+            assertNotEquals(originalCs, afterCs,
+                    "checksum mode reprocessed a content change that size+mtime hide");
+        } finally {
+            AcquisitionLedgers.use(new InMemoryAcquisitionLedger());
+        }
+    }
+
+    @Test
+    void checksumFullRunRecordsTheContentHash(@TempDir Path dir) throws Exception {
+        InMemoryAcquisitionLedger ledger = new InMemoryAcquisitionLedger();
+        AcquisitionLedgers.use(ledger);
+        try {
+            PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+                source:
+                  id: CSRUN_SRC
+                  duplicate:
+                    mode: CHECKSUM
+                """).toString());
+            Path inbox = Path.of(cfg.dirs().poll());
+            Files.createDirectories(inbox);
+            Files.writeString(inbox.resolve("a.csv"), "ID,AMT,EVENT_DATE\nr,1,2020-04-03\n");
+
+            SourceProcessor.run(cfg);
+
+            LedgerEntry e = ledger.find("CSRUN_SRC", "a.csv").orElseThrow();
+            assertNotNull(e.checksum(), "CHECKSUM mode records the content hash post-commit");
+            assertFalse(e.checksum().isBlank());
         } finally {
             AcquisitionLedgers.use(new InMemoryAcquisitionLedger());
         }
