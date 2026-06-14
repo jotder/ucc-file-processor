@@ -111,6 +111,26 @@ class SourceConfigTest {
     }
 
     @Test
+    void duplicateBlockParsesModeAlgorithmAndOnChange(@TempDir Path dir) throws Exception {
+        PipelineConfig none = PipelineConfig.load(writePipeline(dir, "").toString());
+        assertEquals("path", none.source().duplicate().mode(), "absent block ⇒ path (legacy)");
+        assertFalse(none.source().duplicate().contentBased());
+
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+            source:
+              duplicate:
+                mode: CHECKSUM
+                algorithm: SHA256
+                on_change: REPROCESS
+            """).toString());
+        PipelineConfig.Duplicate d = cfg.source().duplicate();
+        assertEquals("checksum", d.mode());
+        assertEquals("SHA256", d.algorithm());
+        assertEquals("reprocess", d.onChange());
+        assertTrue(d.contentBased());
+    }
+
+    @Test
     void noStabilityBlockIsDisabled(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, "").toString());
         assertFalse(cfg.source().stability().enabled());

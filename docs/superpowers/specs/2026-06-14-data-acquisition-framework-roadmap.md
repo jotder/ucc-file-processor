@@ -241,7 +241,25 @@ shippable, additive, and reactor-green-gated.
   from discovery); `SourceConfigTest` (stability parse + `ready_marker`/temp-exclusion via `collectCandidates`).
 
 ### Phase C — Fingerprint marker repository + dup/change policy  *(Requirement §2-regex, §3, §5, §6)*
+**Status: foundation ✅ Implemented 2026-06-14** — the fingerprint store + policy engine + config + checksums
+landed (reactor green); the run/commit-path **wiring** + watermark + regex are the remaining C2 increment (below).
 **Outcome:** dedup by content, detect re-uploads, incremental scans — closes the path-only data-loss gap.
+
+**As-built (C1, committed):** `com.gamma.acquire.AcquisitionLedger` SPI + `InMemoryAcquisitionLedger` (lean
+default) + `DbAcquisitionLedger` (its **own** DuckDB file, single-writer, upsert by `(source_id, relative_path)`
+— resolves §8 Q1); `Checksums` (MD5/SHA-256/CRC32 via the JDK, streamed — zero new deps); `DuplicatePolicy`
+(pure: `Mode` PATH|METADATA|CHECKSUM × prior `LedgerEntry` → `Decision` NEW|DUPLICATE|CHANGED, + `OnChange`
+IGNORE|REPROCESS|ALERT|ARCHIVE_OLD_VERSION); additive `source.duplicate` config (absent ⇒ PATH = today's
+markers); `EventType.FILE_CHANGED`. All pure/unit-tested and **not yet wired** into the run loop — the same
+seam-first rhythm as Phase A's `RetrievalPlanner`.
+
+**Remaining (C2, not yet built):** wire dedup-by-content into the **processing path** (not `collectCandidates`):
+CHECKSUM mode must hash the file once *while ingesting it* and record the fingerprint **post-commit** (alongside
+`MarkerManager.createMarkerFile` in `BatchProcessor`) — so the read-only `countPending` scan stays cheap and a
+failed batch reprocesses. This needs a process-wide ledger (a `-Dacquire.ledger.backend` toggle like the OI
+stores) threaded to `BatchProcessor`, plus the `inspecto_duplicates_skipped_total` metric + `FILE_CHANGED`
+emission, the incremental **watermark** (persist max `last_modified` per source; §8 Q3 = per-source), and
+`regex:` include/exclude support.
 - **`AcquisitionLedger`** (DuckDB-backed, **its own DB file + single-writer lock**, reusing the
   `DbStatusStore`/OI-store pattern): rows `{source_id, relative_path, name, size, checksum, last_modified,
   processed_at, status}`. `InMemoryAcquisitionLedger` + `DbAcquisitionLedger` (SPI twin of the note/link stores).

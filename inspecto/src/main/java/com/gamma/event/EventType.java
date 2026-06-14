@@ -36,6 +36,8 @@ public final class EventType {
     public static final String FILE_QUARANTINED = "FILE_QUARANTINED";
     /** A discovered file passed the readiness gate — quiescent / size-stable, safe to ingest (Phase B). */
     public static final String FILE_STABLE      = "FILE_STABLE";
+    /** A file at a known path was re-seen with changed content (size/mtime/checksum differs) (Phase C). */
+    public static final String FILE_CHANGED     = "FILE_CHANGED";
 
     // ── job / enrichment ────────────────────────────────────────────────────────────
     public static final String JOB_STARTED   = "JOB_STARTED";

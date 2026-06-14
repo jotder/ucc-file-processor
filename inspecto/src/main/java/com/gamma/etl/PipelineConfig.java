@@ -202,16 +202,41 @@ public final class PipelineConfig {
      */
     @PublicApi(since = "4.2.0")
     public record Source(String id, String connector, List<String> includes,
-                         List<String> excludes, int recursiveDepth, Stability stability, String connection) {
+                         List<String> excludes, int recursiveDepth, Stability stability, String connection,
+                         Duplicate duplicate) {
         public Source {
             includes = List.copyOf(includes);
             excludes = List.copyOf(excludes);
             if (stability == null) stability = Stability.DISABLED;
+            if (duplicate == null) duplicate = Duplicate.PATH_DEFAULT;
         }
 
         /** A reusable connection-profile id this source binds to ({@code source.connection}), or {@code null}
          *  for the local filesystem. Resolved against the service's {@code *_connection.toon} registry. */
         public boolean hasConnection() { return connection != null && !connection.isBlank(); }
+    }
+
+    /**
+     * Duplicate-detection + change policy for a source (Data Acquisition roadmap Phase C; additive,
+     * {@code source.duplicate:}). {@code mode} selects how a re-seen path is judged — {@code path} (default =
+     * today's {@code MarkerManager} sentinel), {@code metadata} (name+size+mtime), or {@code checksum}
+     * ({@code algorithm} ∈ MD5/SHA256/CRC32, computed at processing time). {@code on_change} chooses what
+     * happens when a known path's content changed: {@code ignore}/{@code reprocess}/{@code alert}/
+     * {@code archive_old_version}. Parsed into {@link com.gamma.acquire.DuplicatePolicy} enums by the engine.
+     *
+     * <p>{@link #PATH_DEFAULT} (no {@code source.duplicate:} block) reproduces today's behaviour exactly.
+     */
+    @PublicApi(since = "4.2.0")
+    public record Duplicate(String mode, String algorithm, String onChange) {
+        /** Path-keyed dedup via marker sentinels — the legacy default. */
+        public static final Duplicate PATH_DEFAULT = new Duplicate("path", "SHA256", "reprocess");
+        public Duplicate {
+            mode      = (mode == null || mode.isBlank()) ? "path" : mode.trim().toLowerCase();
+            algorithm = (algorithm == null || algorithm.isBlank()) ? "SHA256" : algorithm.trim();
+            onChange  = (onChange == null || onChange.isBlank()) ? "reprocess" : onChange.trim().toLowerCase();
+        }
+        /** Whether content-based dedup (a fingerprint ledger) is in effect (vs. the path-only default). */
+        public boolean contentBased() { return !"path".equals(mode); }
     }
 
     /**
@@ -306,7 +331,7 @@ public final class PipelineConfig {
         this.chunking = new Chunking(b.chunkMaxFileBytes, b.chunkTargetBytes);
         this.fixedWidth = b.fixedWidth;
         this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
-                b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection);
+                b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection, b.sourceDuplicate);
         this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
@@ -586,6 +611,15 @@ public final class PipelineConfig {
             // remote-connector construction from it is roadmap Phase E — the id is parsed/stored now).
             b.sourceConnection = opt(src, "connection", null);
 
+            // ── duplicate-detection / change policy (Phase C; additive, absent ⇒ PATH = today) ─────────
+            Map<String, Object> dupBlock = (Map<String, Object>) src.get("duplicate");
+            if (dupBlock != null) {
+                b.sourceDuplicate = new Duplicate(
+                        opt(dupBlock, "mode", "path"),
+                        opt(dupBlock, "algorithm", "SHA256"),
+                        opt(dupBlock, "on_change", "reprocess"));
+            }
+
             // ── readiness / stability (Phase B; additive sub-block, absent ⇒ DISABLED) ──────────
             Map<String, Object> stab = (Map<String, Object>) src.get("stability");
             if (stab != null) {
@@ -862,6 +896,7 @@ public final class PipelineConfig {
         int          sourceDepth     = -1;
         Stability    sourceStability = Stability.DISABLED;
         String       sourceConnection;   // null ⇒ no connection-profile binding (local)
+        Duplicate    sourceDuplicate = Duplicate.PATH_DEFAULT;
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;
