@@ -2,3 +2,4 @@
 # when this optional module is on the classpath.
 com.gamma.acquire.connectors.SftpConnectorFactory
 com.gamma.acquire.connectors.FtpConnectorFactory
+com.gamma.acquire.connectors.DbExportConnectorFactory

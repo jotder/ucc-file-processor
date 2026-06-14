@@ -65,6 +65,31 @@ curl -s -X POST localhost:8080/connections/prod_sftp/test   # TCP reachability +
 
 The Connections pane in the UI lists profiles with a per-row **Test** action over the same endpoints.
 
+### DB-export source (SQL → CSV)
+
+A `connector: db` profile turns a **database query** into an acquired file: the connector runs `options.query`
+against a JDBC database and materialises the result set as CSV, which then flows through the normal batch path.
+The PostgreSQL driver ships in the connectors module (default target), but the connector is JDBC-generic — any
+driver on the classpath works.
+
+```yaml
+connection:
+  id: cdr_export
+  connector: db
+  options:
+    jdbc_url: jdbc:postgresql://db.example.com:5432/warehouse   # or omit + set host/port/database
+    query: "SELECT * FROM cdr WHERE event_date = '{yyyy-MM-dd}'"  # {…} = a date pattern, resolved per run
+    export_name: "cdr_{yyyyMMdd}.csv"                              # stable per-slice name ⇒ dedup re-exports once
+    # driver: org.postgresql.Driver        # optional explicit driver class
+  username: warehouse_ro
+  password: ${ENV:WAREHOUSE_PW}
+  tunnel: { host: bastion.example.com, username: jump, password: ${ENV:BASTION_PW} }   # optional SSH tunnel to the DB
+```
+
+The date-templated `query`/`export_name` give idempotent **per-slice** export (each cycle exports a fresh slice;
+the marker/ledger dedup re-runs the same slice only once). It is a `STREAM`-only source — there's no source-side
+file to move/delete, so leave `source.post_action` unset.
+
 ---
 
 ## DuckLake Integration

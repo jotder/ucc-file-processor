@@ -8,12 +8,9 @@ import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SecretResolver;
 import com.gamma.acquire.SourceConnector;
 import net.schmizz.sshj.SSHClient;
-import net.schmizz.sshj.connection.channel.direct.LocalPortForwarder;
-import net.schmizz.sshj.connection.channel.direct.Parameters;
 import net.schmizz.sshj.sftp.FileAttributes;
 import net.schmizz.sshj.sftp.RemoteResourceInfo;
 import net.schmizz.sshj.sftp.SFTPClient;
-import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +19,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -58,11 +54,7 @@ public final class SftpConnector implements SourceConnector {
 
     private SSHClient ssh;
     private SFTPClient sftp;
-    // bastion resources, when a tunnel is configured
-    private SSHClient bastion;
-    private LocalPortForwarder forwarder;
-    private ServerSocket forwardSocket;
-    private Thread forwardThread;
+    private SshTunnel tunnel;   // non-null only when an SSH bastion is configured
 
     public SftpConnector(ConnectionProfile profile, String readyMarker) {
         this.profile = profile;
@@ -204,14 +196,8 @@ public final class SftpConnector implements SourceConnector {
         IOException first = null;
         first = quietClose(sftp, first);
         first = quietClose(ssh, first);
-        if (forwarder != null) {
-            // LocalPortForwarder is Closeable-shaped but does not implement AutoCloseable.
-            try { forwarder.close(); } catch (IOException e) { if (first == null) first = e; }
-        }
-        if (forwardSocket != null) first = quietClose(forwardSocket, first);
-        if (forwardThread != null) forwardThread.interrupt();
-        first = quietClose(bastion, first);
-        sftp = null; ssh = null; forwarder = null; forwardSocket = null; bastion = null;
+        first = quietClose(tunnel, first);
+        sftp = null; ssh = null; tunnel = null;
         if (first != null) throw new AcquisitionException("Error closing SFTP connection", first);
     }
 
@@ -223,11 +209,12 @@ public final class SftpConnector implements SourceConnector {
             String host = profile.host();
             int port = profile.port() > 0 ? profile.port() : DEFAULT_PORT;
             if (profile.tunnel() != null && profile.tunnel().host() != null && !profile.tunnel().host().isBlank()) {
-                InetSocketAddress local = openTunnel(profile.tunnel(), host, port);
+                tunnel = SshTunnel.open(profile.tunnel(), host, port, this::authenticate);
+                InetSocketAddress local = tunnel.localEndpoint();
                 host = local.getHostString();
                 port = local.getPort();
             }
-            ssh = newClient();
+            ssh = SshTunnel.newClient();
             ssh.connect(host, port);
             authenticate(ssh, profile.username(), profile.password());
             sftp = ssh.newSFTPClient();
@@ -236,38 +223,6 @@ public final class SftpConnector implements SourceConnector {
             try { close(); } catch (AcquisitionException ignore) { /* surface the connect failure below */ }
             throw new AcquisitionException("Cannot connect SFTP to " + profile.host() + ": " + e.getMessage(), e);
         }
-    }
-
-    /** Stand up an SSH bastion and a loopback port-forward to the real target; return the local endpoint. */
-    private InetSocketAddress openTunnel(ConnectionProfile.Tunnel tunnel, String targetHost, int targetPort)
-            throws IOException {
-        bastion = newClient();
-        bastion.connect(tunnel.host(), tunnel.port() > 0 ? tunnel.port() : DEFAULT_PORT);
-        authenticate(bastion, tunnel.username(), tunnel.password());
-
-        forwardSocket = new ServerSocket();
-        forwardSocket.setReuseAddress(true);
-        forwardSocket.bind(new InetSocketAddress("127.0.0.1", 0));   // ephemeral loopback port
-        int localPort = forwardSocket.getLocalPort();
-
-        Parameters params = new Parameters("127.0.0.1", localPort, targetHost, targetPort);
-        forwarder = bastion.newLocalPortForwarder(params, forwardSocket);
-        forwardThread = new Thread(() -> {
-            try { forwarder.listen(); }
-            catch (IOException closed) { /* normal on close() */ }
-        }, "sftp-tunnel-" + profile.id());
-        forwardThread.setDaemon(true);
-        forwardThread.start();
-        log.info("SFTP tunnel: 127.0.0.1:{} → {} → {}:{}", localPort, tunnel.endpoint(), targetHost, targetPort);
-        return new InetSocketAddress("127.0.0.1", localPort);
-    }
-
-    private static SSHClient newClient() {
-        SSHClient c = new SSHClient();
-        // Endpoints are operator-configured connection profiles; accept the host key rather than requiring a
-        // pre-seeded known_hosts on every deployment. (Strict host-key pinning is a future hardening option.)
-        c.addHostKeyVerifier(new PromiscuousVerifier());
-        return c;
     }
 
     private void authenticate(SSHClient client, String user, String passwordRef) throws IOException {

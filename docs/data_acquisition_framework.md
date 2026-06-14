@@ -10,8 +10,11 @@
 > fingerprint ledger + content dedup (C); collection-guarantee knob + sequence-gap→alert (D); **SFTP + FTP**
 > connectors in the optional `inspecto-connectors` module + connection profiles + integrity + `.bz2`/`.zip` (E);
 > retry/circuit-breaker/dead-letter + source-side post-actions + parallel fetch + rate limit (F).
+> **Plus (post-roadmap, 2026-06-15):** the **DB-export source** (`DbExportConnector`, scheme `db`) — runs a SQL
+> query against a JDBC database (Postgres driver bundled; JDBC-generic) and materialises the result as CSV, with
+> date-templated query/name and an optional SSH tunnel.
 > **Still future** (this SPI makes each non-disruptive): object storage (S3/GCS/Azure/MinIO), NFS/SMB/CIFS, the
-> DB-export source, the incremental watermark, FTPS, and strict SSH host-key pinning.
+> incremental watermark, FTPS, and strict SSH host-key pinning.
 
 **GOAL:**
 * **The system guarantees that every eligible data source file is collected exactly once (or according to policy), safely, efficiently, and recoverable regardless of where the file resides**

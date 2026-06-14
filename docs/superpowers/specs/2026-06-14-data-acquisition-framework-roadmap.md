@@ -417,13 +417,27 @@ pieces shipped in one commit, including parallel multi-session fetch.
   **end-to-end `SourceProcessor.run` over SFTP with `parallel_fetch: 2` + `post_action: MOVE`** asserting both
   ingest and the source files relocated into `archive/` on the server.
 
+### Post-roadmap connectors (on the same SPI, after A–F)
+
+- **DB-export source — ✅ Implemented 2026-06-15** (reactor green; connectors 21). `DbExportConnector` (scheme
+  `db`) in the optional `inspecto-connectors` module: runs a SQL `query` against a JDBC database and materialises
+  the result set as RFC-4180 CSV, which then flows through the unchanged batch path. **JDBC-generic** — the
+  PostgreSQL driver ships in the module as the default target, but any driver on the classpath works (tested
+  against an embedded DuckDB, so no embedded Postgres in CI). `query` and `export_name` are **date-templated**
+  (`{yyyyMMdd}` → a `DateTimeFormatter` pattern), giving idempotent per-slice export via the existing marker/ledger
+  dedup. Optional **SSH tunnel** to the DB, reusing the new shared `SshTunnel` helper (extracted from
+  `SftpConnector` in the same change). `STREAM`-only capability (a query result has no source-side file to
+  delete/move/rename). Config lives in the `*_connection.toon` profile's `options` (`jdbc_url`/`query`/
+  `export_name`/`driver`). Tests: `DbExportConnectorTest` (query→CSV, `open` stream, date-token resolution,
+  fail-fast on missing query, end-to-end `SourceProcessor.run` ingesting the export). The incremental
+  **watermark** (export only rows newer than the last run) remains the deferred C4 piece.
+
 ### Future (explicitly out of scope here — requirement marks these "(future)")
-Object storage (S3/GCS/Azure/MinIO) connectors; NFS/SMB/CIFS; SSH tunneling/proxy; **event-notification**
-discovery (S3 events/inotify) as an alternative to polling; the **DB-export-file** source (SQL-template export
-+ SSH tunnel to Postgres); "grouping data source" (one logical source spanning multiple collection points +
-tagging). All are *additional `SourceConnector` implementations* — the SPI from Phase A is what makes them
-non-disruptive, satisfying the requirement's extensibility clause ("new protocols via connector plugins
-without modifying the core engine").
+Object storage (S3/GCS/Azure/MinIO) connectors; NFS/SMB/CIFS; **event-notification** discovery (S3 events/inotify)
+as an alternative to polling; "grouping data source" (one logical source spanning multiple collection points +
+tagging); the incremental watermark (C4); FTPS; strict SSH host-key pinning. All connectors are *additional
+`SourceConnector` implementations* — the SPI from Phase A is what makes them non-disruptive, satisfying the
+requirement's extensibility clause ("new protocols via connector plugins without modifying the core engine").
 
 ---
 

@@ -30,6 +30,7 @@
     <properties>
         <sshj.version>0.39.0</sshj.version>
         <commons-net.version>3.6</commons-net.version>
+        <postgresql.version>42.7.4</postgresql.version>
         <!-- test-only embedded servers -->
         <sshd.version>2.12.1</sshd.version>
         <ftpserver.version>1.2.0</ftpserver.version>
@@ -55,6 +56,14 @@
             <groupId>commons-net</groupId>
             <artifactId>commons-net</artifactId>
             <version>${commons-net.version}</version>
+        </dependency>
+
+        <!-- PostgreSQL JDBC driver (BSD-2) for the DB-export source. The connector itself is JDBC-generic
+             (any driver on the classpath auto-registers); this is the default target. Confined to this module. -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgresql.version}</version>
         </dependency>
 
         <!-- ── test: embedded servers so the real clients are exercised end-to-end ── -->
