@@ -1,5 +1,9 @@
 package com.gamma.inspector;
 
+import com.gamma.acquire.DiscoveryContext;
+import com.gamma.acquire.RemoteFile;
+import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.SourceConnectors;
 import com.gamma.api.PublicApi;
 import com.gamma.etl.*;
 import com.gamma.util.LogSetup;
@@ -12,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * ETL entry point. Reads a {@code .toon} pipeline config, scans the inbox for
@@ -137,23 +140,22 @@ public class SourceProcessor {
      * "pending" work without side effects. Returns empty when the poll root does not exist yet.
      */
     public static List<File> collectCandidates(PipelineConfig cfg) throws java.io.IOException {
-        Path root = Paths.get(cfg.dirs().poll()).toAbsolutePath();
-        if (!Files.exists(root)) return List.of();
-        Path errorsDir     = Paths.get(cfg.dirs().errors()).toAbsolutePath();
-        Path quarantineDir = Paths.get(cfg.dirs().quarantine()).toAbsolutePath();
-        PathMatcher matcher = FileSystems.getDefault().getPathMatcher(cfg.processing().filePattern());
-
-        // One tree walk to collect matching files (see run(): the per-file marker stat is split out
-        // so a large inbox can run the duplicate check in parallel; order need not be preserved).
-        List<File> matched = new ArrayList<>();
-        try (Stream<Path> walk = Files.walk(root)) {
-            walk.filter(Files::isRegularFile)
-                .filter(p -> !p.startsWith(errorsDir))
-                .filter(p -> !p.startsWith(quarantineDir))
-                .filter(matcher::matches)
-                .map(Path::toFile)
-                .forEach(matched::add);
+        // Discovery is delegated to the configured source connector — the built-in LOCAL connector
+        // reproduces the legacy poll-dir tree-walk exactly (regular files under poll, excluding the
+        // errors/quarantine trees, matched against the include patterns). Duplicate-marker filtering stays
+        // an engine concern applied on top, and is split out from the listing so a large inbox can run the
+        // per-file marker stat in parallel (order need not be preserved).
+        DiscoveryContext ctx = new DiscoveryContext(
+                cfg.source().includes(), cfg.source().excludes(), cfg.source().recursiveDepth());
+        final List<RemoteFile> discovered;
+        try (SourceConnector connector = SourceConnectors.forConfig(cfg)) {
+            discovered = connector.discover(ctx);
         }
+        if (discovered.isEmpty()) return List.of();
+
+        List<File> matched = new ArrayList<>(discovered.size());
+        for (RemoteFile rf : discovered) matched.add(rf.localPath().toFile());
+
         if (!cfg.processing().duplicateCheckEnabled()) return matched;   // no marker stat to do
         if (matched.size() > 1 && cfg.processing().threads() > 1) {
             return matched.parallelStream()

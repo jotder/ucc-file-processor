@@ -190,6 +190,25 @@ public final class PipelineConfig {
         public enum Trim { NONE, LEFT, RIGHT, BOTH }
     }
 
+    /**
+     * Data-acquisition source binding (Data Acquisition roadmap Phase A; additive). <b>Never null</b> — a
+     * pipeline with no {@code source:} block defaults to the local filesystem reading {@code dirs.poll} with
+     * {@code includes = [processing.file_pattern]}, no excludes and unbounded depth: exactly the legacy scan.
+     *
+     * <p>{@code connector} selects the {@link com.gamma.acquire.SourceConnector} ({@code "local"} built-in;
+     * other schemes via the optional connector module). {@code includes}/{@code excludes} are glob/regex
+     * patterns (see {@link com.gamma.acquire.DiscoveryContext}); {@code recursiveDepth} of {@code -1} is
+     * unbounded.
+     */
+    @PublicApi(since = "4.2.0")
+    public record Source(String id, String connector, List<String> includes,
+                         List<String> excludes, int recursiveDepth) {
+        public Source {
+            includes = List.copyOf(includes);
+            excludes = List.copyOf(excludes);
+        }
+    }
+
     // ── grouped state + accessors ──────────────────────────────────────────────
 
     private final Identity   identity;
@@ -201,6 +220,7 @@ public final class PipelineConfig {
     private final DuckDbSettings duckdb;
     private final Chunking       chunking;
     private final FixedWidth     fixedWidth;
+    private final Source         source;
 
     /**
      * The {@code status_dir} to create in {@link #prepare()} ({@code null} when status is disabled or
@@ -221,6 +241,8 @@ public final class PipelineConfig {
     public Chunking       chunking() { return chunking; }
     /** Fixed-width frontend config, or {@code null} for the default delimited frontend. */
     public FixedWidth     fixedWidth() { return fixedWidth; }
+    /** Data-acquisition source binding; never null (defaults to local-FS over {@code dirs.poll}). */
+    public Source         source()     { return source; }
 
     // ── private constructor — use load() ──────────────────────────────────────
 
@@ -252,6 +274,8 @@ public final class PipelineConfig {
         this.duckdb   = new DuckDbSettings(b.duckMemoryLimit, b.duckTempDirectory, b.duckMaxTempSize);
         this.chunking = new Chunking(b.chunkMaxFileBytes, b.chunkTargetBytes);
         this.fixedWidth = b.fixedWidth;
+        this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
+                b.sourceExcludes, b.sourceDepth);
         this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
@@ -512,6 +536,23 @@ public final class PipelineConfig {
             validateFixedWidthSelectors(b.fixedWidth, b.singleSchema, "schema_file");
         }
 
+        // ── source / connector (additive; absent ⇒ implicit LOCAL reading dirs.poll) ──────────────
+        // A pipeline with no `source:` block scans the local poll dir exactly as before: the single
+        // processing.file_pattern glob, no excludes, unbounded depth. A `source:` block selects a
+        // connector and overrides discovery (include/exclude/recursive_depth).
+        b.sourceId       = b.pipelineName;
+        b.sourceIncludes = new ArrayList<>(List.of(b.filePattern));
+        Map<String, Object> src = (Map<String, Object>) raw.get("source");
+        if (src != null) {
+            b.sourceId        = opt(src, "id", b.pipelineName);
+            b.sourceConnector = opt(src, "connector", "local").toLowerCase();
+            List<String> inc  = strList(src.get("include"));
+            if (!inc.isEmpty()) b.sourceIncludes = inc;
+            b.sourceExcludes  = strList(src.get("exclude"));
+            Object depth = src.get("recursive_depth");
+            if (depth != null) b.sourceDepth = toInt(depth);
+        }
+
         log.info("[CONFIG] Status file : {}", b.statusFilePath);
         PipelineConfig cfg = new PipelineConfig(b);
         ConfigValidator.validate(cfg);  // non-fatal: logs warnings for suspicious-but-legal patterns
@@ -745,6 +786,11 @@ public final class PipelineConfig {
         List<String> excludeRegex    = new ArrayList<>();
         int          filterTargetColumn = 0;
         FixedWidth   fixedWidth;          // null ⇒ delimited frontend (the default)
+        String       sourceId;
+        String       sourceConnector = "local";
+        List<String> sourceIncludes  = new ArrayList<>();
+        List<String> sourceExcludes  = new ArrayList<>();
+        int          sourceDepth     = -1;
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;

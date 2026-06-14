@@ -1,0 +1,117 @@
+package com.gamma.etl;
+
+import com.gamma.acquire.LocalFileSystemConnector;
+import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.SourceConnectors;
+import com.gamma.inspector.SourceProcessor;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/** Phase-A config: the additive {@code source:} block + connector resolution (and legacy default). */
+class SourceConfigTest {
+
+    /** Minimal pipeline with an optional top-level {@code source:} block injected at {@code sourceBlock}. */
+    private static Path writePipeline(Path dir, String sourceBlock) throws Exception {
+        Path schema = dir.resolve("mini_schema.toon");
+        Files.writeString(schema, PipelineConfigBatchTest.miniSchema());
+        String toon = """
+            name: SRC_ETL
+            version: 1
+            dirs:
+              poll: %s/inbox
+              database: %s/db
+              backup: %s/backup
+              temp: %s/temp
+              errors: %s/errors
+              quarantine: %s/quarantine
+              markers: %s/markers
+              status_dir: %s/status
+              log_dir: %s/logs
+            %s
+            output:
+              format: CSV
+            processing:
+              threads: 2
+              file_pattern: "glob:**/*.csv"
+              duplicate_check:
+                enabled: true
+              schema_file: "%s"
+            """.formatted(dir, dir, dir, dir, dir, dir, dir, dir, dir,
+                          sourceBlock, schema.toString().replace("\\", "/"));
+        Path p = dir.resolve("src_pipeline.toon");
+        Files.writeString(p, toon);
+        return p;
+    }
+
+    @Test
+    void noSourceBlockDefaultsToLocalWithLegacyDiscovery(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, "").toString());
+        PipelineConfig.Source s = cfg.source();
+        assertEquals("src_etl", s.id());
+        assertEquals("local", s.connector());
+        assertEquals(List.of("glob:**/*.csv"), s.includes(), "includes default to processing.file_pattern");
+        assertTrue(s.excludes().isEmpty());
+        assertEquals(-1, s.recursiveDepth(), "unbounded by default");
+        try (SourceConnector c = SourceConnectors.forConfig(cfg)) {
+            assertInstanceOf(LocalFileSystemConnector.class, c);
+        }
+    }
+
+    @Test
+    void sourceBlockOverridesDiscovery(@TempDir Path dir) throws Exception {
+        String block = """
+            source:
+              id: CDR_LOCAL
+              connector: local
+              include[1]: "glob:**/*.dat"
+              exclude[2]: "*.tmp", "*.partial"
+              recursive_depth: 2
+            """;
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, block).toString());
+        PipelineConfig.Source s = cfg.source();
+        assertEquals("CDR_LOCAL", s.id());
+        assertEquals("local", s.connector());
+        assertEquals(List.of("glob:**/*.dat"), s.includes());
+        assertEquals(List.of("*.tmp", "*.partial"), s.excludes());
+        assertEquals(2, s.recursiveDepth());
+    }
+
+    @Test
+    void unknownConnectorFailsFastWithClearMessage(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+            source:
+              connector: sftp
+            """).toString());
+        assertEquals("sftp", cfg.source().connector());
+        IllegalArgumentException ex =
+                assertThrows(IllegalArgumentException.class, () -> SourceConnectors.forConfig(cfg));
+        assertTrue(ex.getMessage().contains("sftp"), ex.getMessage());
+    }
+
+    @Test
+    void collectCandidatesHonoursExcludeAndRecursiveDepth(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+            source:
+              include[1]: "glob:**/*"
+              exclude[1]: "*.tmp"
+              recursive_depth: 1
+            """).toString());
+
+        Path inbox = Path.of(cfg.dirs().poll());
+        Files.createDirectories(inbox.resolve("sub"));
+        Files.writeString(inbox.resolve("top.csv"), "x");          // depth 1, included
+        Files.writeString(inbox.resolve("skip.tmp"), "x");         // depth 1, excluded by *.tmp
+        Files.writeString(inbox.resolve("sub/deep.csv"), "x");     // depth 2, excluded by recursive_depth:1
+
+        List<String> names = SourceProcessor.collectCandidates(cfg).stream()
+                .map(File::getName).sorted().toList();
+        assertEquals(List.of("top.csv"), names);
+    }
+}
