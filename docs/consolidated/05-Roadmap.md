@@ -2,7 +2,7 @@
 metadata:
   document_id: 05-ROADMAP
   title: Roadmap
-  last_updated_date: 2026-06-13
+  last_updated_date: 2026-06-15
   sources_used:
     - docs/v3-plan.md
     - docs/v3-agent-mvp.md
@@ -113,3 +113,11 @@ rule-of-three:
 - The **alert execution engine** (`diagnose-and-alert` drafts → armed rules), deferred as a separate
   arc in the assist-improvement plan (B5), has **shipped** (`AlertRule`/`AlertService` + `GET
   /alerts`).
+- The **pluggable acquisition / remote sources** wish (FTP/SFTP, dedup, collection guarantees), long a
+  v2-backlog "future" item, has **shipped** as the Data Acquisition framework Phases **A–F** (2026-06-14/15):
+  `SourceConnector` SPI, stability gate, fingerprint dedup, gap detection, **SFTP+FTP** connectors in the
+  optional `inspecto-connectors` module, retry/circuit-breaker/post-actions/parallel-fetch. See Implementation
+  Status §12. Object storage (S3/GCS/Azure), NFS/SMB, and the DB-export source remain future connectors on the
+  same SPI (still listed in §4 below).
+- The **Operational Intelligence platform** (managed Alert/Issue/Case objects + links + RCA, on
+  `com.gamma.ops`) has **shipped** (Phases 2–4) — see Implementation Status §12.

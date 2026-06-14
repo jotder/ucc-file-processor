@@ -2,7 +2,7 @@
 metadata:
   document_id: 04-IMPLEMENTATION-STATUS
   title: Implementation Status
-  last_updated_date: 2026-06-13
+  last_updated_date: 2026-06-15
   sources_used:
     - docs/v3-plan.md
     - docs/refactor-blueprint-v4.md
@@ -169,3 +169,34 @@ Coverage (v3.9.0): core ETL data-path ~87% line / ~76% branch; assist agent ~86%
   object storage; distributed/multi-node — all deferred (Roadmap).
 - agent-kernel `1.0` consumer upgrade ("U2") and any kernel-side reshape gated on a 2nd consumer —
   the project consumes 1.0.0; bump to the released 1.1.0 is optional.
+
+## 12. Post-consolidation work (2026-06-14 / 06-15, branch `4.x`) — ✅ Built
+
+Shipped after this snapshot's 2026-06-13 cutoff; on `4.x` (pushed unless noted).
+
+**Operational Intelligence (OI) Platform — managed objects, on the new `com.gamma.ops` engine:**
+
+| Phase | Capability | Notes |
+|---|---|---|
+| 2 | **Alert Center** — mutable object store (DuckDB) + config-driven workflow engine + `/objects` lifecycle API; fired alerts promoted to managed `ALERT` objects | |
+| 3 | **Issue Tracker** — operator-created `ISSUE` lifecycle (`OPEN→…→CLOSED`) + SLA tracking (`dueAt` attribute, idempotent sweep → `OBJECT_SLA_BREACH`) | |
+| 4 | **Case Management** — first-class `OBJECT_LINK` graph (`LinkStore`, CONTAINS/CAUSED_BY/…), `CASE` lifecycle, BFS `graph` API; **Evidence** — append-only notes/attachments + `*_rca.toon` RCA templates (apply seeds a comment per section) | own DuckDB files, single-writer |
+
+UI: Cases/Issues list + type-agnostic detail pane (Overview/Graph/Comments/Attachments), create + link
+dialogs, G6 graph reuse — all live-verified. Zero new core deps.
+
+**Data Acquisition & File Collection framework (Phases A–F) — ✅ COMPLETE:**
+
+| Phase | Capability |
+|---|---|
+| A | `SourceConnector` SPI (`com.gamma.acquire`) + `LocalFileSystemConnector` byte-for-byte parity; additive `source:` config |
+| B | Readiness/stability gate — never ingest a half-written file (`ready_marker`, size/mtime quiescence) |
+| C | Fingerprint ledger + dedup by PATH/METADATA/CHECKSUM + `on_change` policy + `regex:` includes |
+| D | Collection-guarantee knob + sequence-gap detection → `SEQUENCE_GAP` promoted to a managed ALERT object |
+| E | First remote connectors **SFTP (sshj) + FTP (commons-net)** in the optional `inspecto-connectors` module; reusable `*_connection.toon` profiles + `/connections` API/UI; integrity check; `.bz2`/`.zip` read path |
+| F | Retry/backoff (jitter) + per-source circuit breaker + dead-letter quarantine + source-side post-actions (DELETE/MOVE/RENAME) + parallel multi-session fetch + token-bucket rate limit |
+
+All additive — a `source:`-less pipeline is byte-for-byte unchanged. Network deps isolated in the optional
+connector module so the core fat-JAR stays lean. Detail: `docs/data_acquisition_framework.md` (requirement) +
+`docs/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md` (as-built). Still future-scope: object
+storage (S3/GCS/Azure), NFS/SMB, DB-export connectors, incremental watermark, FTPS, strict SSH host-key pinning.

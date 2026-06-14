@@ -1,6 +1,71 @@
-# Integrations: DuckLake & Warehouse Query Layer
+# Integrations: Remote Sources, DuckLake & Warehouse Query Layer
 
 > Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
+
+## Remote source connectors (SFTP / FTP)
+
+Inspecto can pull input files from remote SFTP/FTP servers instead of a local `dirs.poll` tree. The connectors
+live in the **optional `inspecto-connectors` module** (artifact `file-processor-connectors`) so their network
+dependencies — sshj (+BouncyCastle) for SFTP, Apache commons-net for FTP — never bloat the lean core JAR. Put
+that JAR on the classpath and the connectors are discovered automatically via `ServiceLoader`; without it, only
+the built-in `local` connector exists. New protocols (S3/GCS/Azure, NFS/SMB, DB-export) are future connectors
+that plug into the same SPI without touching the core engine.
+
+### 1. Define a connection profile (`<name>_connection.toon`)
+
+Reachability and credentials live in a reusable profile, referenced by one or more pipelines. **Secrets are
+references, never literals** — `${ENV:VAR}` reads an environment variable, `${SYS:prop}` a JVM system property.
+
+```yaml
+connection:
+  id: prod_sftp
+  connector: sftp                 # sftp | ftp
+  host: sftp.partner.example.com
+  port: 22
+  base_path: /outbound/cdr        # listing root
+  username: inspecto
+  password: ${ENV:SFTP_PASSWORD}  # reference; resolved at connect, masked in API output
+  options:
+    private_key: /etc/inspecto/id_ed25519   # SFTP: switches to public-key auth
+    # active: false   binary: true           # FTP-only knobs (passive + binary default)
+  tunnel:                          # optional SSH bastion (SFTP); omit for a direct connection
+    host: bastion.example.com
+    port: 22
+    username: jump
+    password: ${ENV:BASTION_PASSWORD}
+```
+
+> **No `#` comment lines** in `*_connection.toon` (or any `ConfigCodec` file) — JToon rejects them.
+
+### 2. Bind a pipeline to it
+
+```yaml
+source:
+  connector: sftp
+  connection: prod_sftp
+  stability: { ready_marker: "{name}.done" }   # only fetch files the sender has finished writing
+  duplicate: { mode: METADATA }                 # don't re-fetch unchanged files
+  fetch:     { parallel_fetch: 4, rate_limit: 50MBps }
+  retry:     { count: 5, backoff: EXPONENTIAL }
+  post_action: { on_success: MOVE, archive_path: archive/yyyy/MM/dd }
+```
+
+The full set of `source:` knobs (stability, dedup, integrity, retry, circuit breaker, post-actions, parallel
+fetch, rate limit) is documented in [configuration.md](configuration.md#data-acquisition--the-source-block).
+Remote files are fetched into the local staging tree and then flow through the *exact same* batch/dedup/backup
+engine as local files — nothing downstream special-cases them.
+
+### 3. Verify reachability before a run
+
+```bash
+curl -s localhost:8080/connections                  # list loaded profiles (secrets masked)
+curl -s localhost:8080/connections/prod_sftp         # one profile
+curl -s -X POST localhost:8080/connections/prod_sftp/test   # TCP reachability + latency + secret resolution
+```
+
+The Connections pane in the UI lists profiles with a per-row **Test** action over the same endpoints.
+
+---
 
 ## DuckLake Integration
 

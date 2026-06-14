@@ -184,6 +184,11 @@ Files that cannot be processed at all are moved out of the inbox into `quarantin
 |---|---|---|
 | `QUARANTINED_MISMATCH` | 0 valid rows parsed — every row fails field validation | `quarantine/<source_path>/field_mismatch/` |
 | `QUARANTINED_UNREADABLE` | `IOException` thrown while opening or streaming the file | `quarantine/<source_path>/unreadable/` |
+| *(corrupt download)* | a fetched remote file fails its integrity check (size/checksum) | `quarantine/<source_path>/corrupt_download/` |
+
+The `corrupt_download` reason is the acquisition-stage **dead-letter** (Data Acquisition Phase F): a fetched file
+whose bytes don't match the listing size or server checksum is quarantined for inspection rather than ingested or
+silently deleted; if no quarantine directory is configured it is deleted so it is never processed corrupt.
 
 `QUARANTINED_MISMATCH` catches two cases:
 - **Appender rejection** — rows reach the appender but fail column-count (`errorRows > 0`)
@@ -641,6 +646,14 @@ curl -s localhost:8080/metrics
 | `inspecto_committed_batches` · `inspecto_quarantine_files` | gauge | `pipeline` | durable commit count / quarantine depth |
 | `inspecto_inbox_oldest_seconds` | gauge | `pipeline` | **lag** — age of the oldest unprocessed inbox file |
 | `inspecto_paused` | gauge | `pipeline` | 1 if paused |
+| `inspecto_files_waiting_stability` | gauge | `pipeline` | discovered files held back by the readiness gate |
+| `inspecto_duplicates_skipped_total` | counter | `pipeline` | files skipped by content-based dedup |
+| `inspecto_sequence_gaps_total` | counter | `pipeline` | missing files detected in a configured sequence |
+| `inspecto_files_discovered_total` · `inspecto_files_downloaded_total` | counter | `pipeline` | remote files listed / fetched+validated |
+| `inspecto_downloads_failed_total` · `inspecto_post_actions_failed_total` | counter | `pipeline` | fetch/integrity failures / failed source post-actions |
+| `inspecto_bytes_transferred_total` | counter | `pipeline` | bytes retrieved from source connectors |
+| `inspecto_fetch_seconds` | histogram | `pipeline` | time to fetch one remote file |
+| `inspecto_active_connections` | gauge | `pipeline` | open source-connector sessions |
 
 Eager metrics are recorded off the batch-commit event; the point-in-time gauges (lag, quarantine depth, commit count) are computed lazily when `/metrics` is scraped, so they reflect current state without a polling loop.
 
@@ -651,6 +664,12 @@ Eager metrics are recorded off the batch-commit event; the point-in-time gauges 
 ```
 
 Route that logger to a file or shipper to stream batch events into a log pipeline.
+
+**Acquisition lifecycle events.** When a `source:` block is configured, the `EventLog` emits structured facts
+for the file-acquisition lifecycle (queryable via `GET /events`): `FILE_DISCOVERED` → `FILE_STABLE` →
+`FILE_FETCHED` → `FILE_VALIDATED` → (`FILE_CHANGED`) → `FILE_ARCHIVED`, plus the failure/operational facts
+`FILE_FETCH_FAILED`, `SEQUENCE_GAP`, and `SOURCE_CIRCUIT_OPEN`. A `SEQUENCE_GAP` is automatically promoted to a
+managed ALERT object (trackable in Cases/Issues) by the service tier.
 
 ### Audit files written to `dirs.status_dir`
 

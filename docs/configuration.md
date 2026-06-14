@@ -337,6 +337,113 @@ processing:
 
 ---
 
+### Data acquisition — the `source:` block
+
+By default a pipeline acquires files exactly as it always has: it scans the local `dirs.poll` tree for
+`processing.file_pattern`. An **optional, additive** top-level `source:` block makes acquisition pluggable —
+selecting a connector (local / SFTP / FTP), gating half-written files, deduplicating by content, detecting gaps
+in an expected series, and (for remote sources) fetching with retries, integrity checks, parallelism, rate
+limits, and source-side post-actions. **A pipeline with no `source:` block is byte-for-byte unchanged** — every
+sub-block below defaults to today's behaviour, and each is parsed only when present, so features can be adopted
+one at a time.
+
+```yaml
+source:
+  connector: sftp                 # local (default) | sftp | ftp
+  connection: prod_sftp           # id of a *_connection.toon profile (remote connectors only)
+  include[1]: "glob:**/*.csv"     # defaults to processing.file_pattern; glob: or regex: prefixes
+  exclude[1]: "glob:**/_*"        # patterns removed from discovery
+  recursive_depth: -1             # -1 = unbounded
+  stability:                      # readiness gate — never ingest a still-arriving file
+    window: 30s
+    size_checks: 2
+    ready_marker: "{name}.done"
+    exclude_temp_files: true      # also drops *.tmp,*.partial,*.filepart,.~lock.*
+  duplicate:                      # dedup / change policy
+    mode: CHECKSUM                # PATH (default = today's markers) | METADATA | CHECKSUM
+    algorithm: SHA256             # MD5 | SHA256 | CRC32
+    on_change: REPROCESS          # IGNORE | REPROCESS | ALERT | ARCHIVE_OLD_VERSION
+  guarantee: EXACTLY_ONCE         # BEST_EFFORT (default) | AT_LEAST_ONCE | EXACTLY_ONCE
+  gap_detection:                  # alert on a hole in an expected series
+    enabled: true
+    sequence: "CDR_{yyyyMMddHH}"
+  integrity:                      # verify fetched bytes (remote)
+    size_check: true
+    checksum: SHA256
+  fetch:                          # retrieval tuning (remote)
+    parallel_fetch: 8             # >1 ⇒ pool of independent connector sessions
+    rate_limit: 50MBps            # token-bucket; 50MB/s, 512KBps, or a bare bytes/s number
+  retry:                          # transient-fault retry/backoff (remote)
+    count: 5
+    backoff: EXPONENTIAL          # EXPONENTIAL | LINEAR | FIXED (all full-jittered)
+    initial_delay: 30s
+    max_delay: 15m
+  circuit_breaker:                # stop hammering a dead endpoint
+    failure_threshold: 5
+    cooldown: 5m
+  post_action:                    # finalize the source file after success (remote)
+    on_success: MOVE              # RETAIN (default) | DELETE | MOVE | RENAME | TAG
+    archive_path: archive/yyyy/MM/dd
+    on_unsupported: WARN_AND_CONTINUE  # FAIL | WARN_AND_CONTINUE | IGNORE
+```
+
+**`connector`** — `local` (default) reads `dirs.poll`. `sftp`/`ftp` are served by the optional
+`inspecto-connectors` module (see *Integrations*); these require a `connection` profile. An unknown connector
+fails fast at startup.
+
+**`connection`** — the id of a reusable `*_connection.toon` profile (host/port/base_path/credentials/tunnel),
+resolved at runtime. Secrets in a profile are **references** (`${ENV:…}`/`${SYS:…}`), never literals in the file.
+
+**`include` / `exclude` / `recursive_depth`** — discovery filters. A bare pattern or `glob:` is a path glob;
+`regex:` is a Java regex over the forward-slash relative path. `include` defaults to `processing.file_pattern`.
+
+**`stability`** — the readiness gate (the single biggest production safety win): a discovered file is held back
+until it has been quiescent for `window` *and* seen at the same size on `size_checks` consecutive poll cycles, so
+a file mid-write is never ingested. `ready_marker` (`{name}.done` sibling) is a native readiness signal that
+short-circuits the size/mtime wait. The gate is idempotent under repeated polling — a dashboard "pending" count
+never steals a hot file's progress.
+
+**`duplicate`** — `PATH` (default) is today's `.processed` marker. `METADATA` keys on name+size+mtime (a cheap
+`stat`, no read). `CHECKSUM` hashes content (catches re-uploads that size+mtime hide; one extra read per file, so
+it is opt-in). `on_change` decides what happens when a known path's content changed. The fingerprint lives in a
+dedicated DuckDB ledger (its own file, single-writer).
+
+**`guarantee`** — declarative; `AT_LEAST_ONCE`/`EXACTLY_ONCE` need a content-based `duplicate.mode` (metadata or
+checksum) to hold. The engine **warns** if a stronger guarantee is set over path-only dedup and behaves as
+best-effort + commit-log replay in that case.
+
+**`gap_detection`** — checks discovered names against a `sequence` template (literal text around one `{…}`
+Java-date token) and emits a `SEQUENCE_GAP` event per missing key in the series; the service tier promotes that
+to a managed ALERT object (trackable in Cases/Issues) with no extra config.
+
+**`integrity`** *(remote)* — every fetched file is checked (size vs. the listing, checksum vs. the server etag
+when present). A failure discards the bytes to quarantine (`corrupt_download`) and skips the file — never
+processed corrupt.
+
+**`fetch`** *(remote)* — `parallel_fetch > 1` fetches over a pool of independent connector sessions (the clients
+hold one non-thread-safe session each, so concurrency uses extra sessions, not shared reuse). `rate_limit` is a
+shared token bucket in bytes/s — accepts `50MBps`, `50MB/s`, `512KBps`, `2GBps`, or a bare bytes/s number (KB/MB/GB
+are 1024-based).
+
+**`retry`** *(remote)* — `count` retries with `backoff` (full jitter, bounded `initial_delay`…`max_delay`) wrap
+discovery and each fetch, so a transient SFTP/FTP hiccup doesn't fail the cycle. Absent ⇒ a single attempt.
+
+**`circuit_breaker`** *(remote)* — after `failure_threshold` consecutive connectivity failures the source trips
+OPEN and is skipped for `cooldown` (then one trial), emitting `SOURCE_CIRCUIT_OPEN`, instead of hammering a dead
+endpoint every cycle.
+
+**`post_action`** *(remote)* — after a file is fetched, validated, and staged, optionally finalize the
+**source-side** copy: `DELETE`, `MOVE` (into a date-resolved `archive_path`), `RENAME` (`processed_<name>`), or
+`TAG`. The action is validated once per cycle against the connector's capabilities; `on_unsupported=FAIL` stops
+the run before any byte moves, the others degrade to RETAIN. A runtime post-action failure never discards
+already-staged good data.
+
+> **Compression on the read path:** alongside `.gz`, the streaming Java ingest path now also transparently reads
+> **`.bz2`** and **`.zip`** (first entry) inputs — list them in `processing.file_pattern` (e.g.
+> `glob:**/*.{csv,csv.gz,csv.bz2,csv.zip}`). DuckDB's native path already handles `.gz`.
+
+---
+
 ### Fixed-width frontend (`frontend: fixedwidth`)
 
 For column-positional records (no delimiter), set `frontend: fixedwidth` in the grammar/`csv_settings`

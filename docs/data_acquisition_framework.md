@@ -1,5 +1,18 @@
 # Data Acquisition & File Collection Requirements
 
+> **Status (2026-06-15): the framework is built — Phases A–F shipped on `4.x`.** This document is the original
+> *requirement*; the as-built design + phase log live in
+> [`docs/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md`](superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md),
+> and the operator-facing config/runbook are in
+> [`configuration.md`](configuration.md#data-acquisition--the-source-block) and
+> [`integrations.md`](integrations.md#remote-source-connectors-sftp--ftp).
+> **Delivered:** the `SourceConnector` SPI (`com.gamma.acquire`) + local parity (A); readiness/stability gate (B);
+> fingerprint ledger + content dedup (C); collection-guarantee knob + sequence-gap→alert (D); **SFTP + FTP**
+> connectors in the optional `inspecto-connectors` module + connection profiles + integrity + `.bz2`/`.zip` (E);
+> retry/circuit-breaker/dead-letter + source-side post-actions + parallel fetch + rate limit (F).
+> **Still future** (this SPI makes each non-disruptive): object storage (S3/GCS/Azure/MinIO), NFS/SMB/CIFS, the
+> DB-export source, the incremental watermark, FTPS, and strict SSH host-key pinning.
+
 **GOAL:**
 * **The system guarantees that every eligible data source file is collected exactly once (or according to policy), safely, efficiently, and recoverable regardless of where the file resides**
 * **There would be other source connectors like `Kafka`, `DataBase Tables` etc type of sources to create Data Lake House System (future)**
