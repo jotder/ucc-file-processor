@@ -4,6 +4,7 @@ import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.ConnectionRegistry;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.IntegrityChecker;
+import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SourceConnector;
 import org.apache.sshd.server.SshServer;
@@ -160,7 +161,78 @@ class SftpConnectorTest {
         }
     }
 
+    // ── Phase F: source-side post-actions ────────────────────────────────────────
+
+    @Test
+    void postDeleteRemovesTheSourceFile() throws Exception {
+        Files.writeString(serverRoot.resolve("d.csv"), "x\n");
+        try (SourceConnector c = connector()) {
+            RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
+            c.post(rf, PostAction.RETAIN);
+            assertTrue(Files.exists(serverRoot.resolve("d.csv")), "RETAIN leaves it");
+            c.post(rf, new PostAction(PostAction.Kind.DELETE, null, java.util.Map.of()));
+            assertFalse(Files.exists(serverRoot.resolve("d.csv")), "DELETE removes the source file");
+        }
+    }
+
+    @Test
+    void postMoveRelocatesIntoTheArchiveTree() throws Exception {
+        Files.writeString(serverRoot.resolve("m.csv"), "y\n");
+        try (SourceConnector c = connector()) {
+            RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
+            c.post(rf, PostAction.move("archive/2026/06/14"));
+            assertFalse(Files.exists(serverRoot.resolve("m.csv")), "moved out of the root");
+            assertTrue(Files.exists(serverRoot.resolve("archive/2026/06/14/m.csv")), "landed under the dated archive");
+        }
+    }
+
+    @Test
+    void postRenameAddsTheProcessedPrefix() throws Exception {
+        Files.writeString(serverRoot.resolve("r.csv"), "z\n");
+        try (SourceConnector c = connector()) {
+            RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
+            c.post(rf, new PostAction(PostAction.Kind.RENAME, null, java.util.Map.of()));
+            assertFalse(Files.exists(serverRoot.resolve("r.csv")));
+            assertTrue(Files.exists(serverRoot.resolve("processed_r.csv")), "renamed in place");
+        }
+    }
+
+    @Test
+    void endToEndParallelFetchWithMovePostAction(@TempDir Path dir) throws Exception {
+        // Three CSVs, fetched 2-at-a-time (pool of 2 sessions), then MOVEd into archive/ on the server after each
+        // is ingested. Proves parallel fetch + post-action wiring through SourceProcessor.run.
+        for (int i = 1; i <= 3; i++)
+            Files.writeString(serverRoot.resolve("2020040" + i + "_feed.csv"),
+                    "ID,AMT,EVENT_DATE\nr" + i + "," + i + ".0,2020-04-0" + i + "\n");
+
+        ConnectionRegistry.register(profile());
+        try {
+            com.gamma.etl.PipelineConfig cfg = com.gamma.etl.PipelineConfig.load(
+                    writeSftpPipeline(dir, "  fetch:\n    parallel_fetch: 2\n  post_action:\n    on_success: MOVE\n    archive_path: archive\n").toString());
+
+            com.gamma.inspector.SourceProcessor.run(cfg);
+
+            try (var w = Files.walk(Path.of(cfg.dirs().database()))) {
+                long outs = w.filter(p -> p.getFileName().toString().endsWith("_out.csv")).count();
+                assertTrue(outs >= 1, "the fetched SFTP files were ingested to output(s)");
+            }
+            // Every source file was MOVEd out of the root into the dated archive after processing.
+            for (int i = 1; i <= 3; i++) {
+                assertFalse(Files.exists(serverRoot.resolve("2020040" + i + "_feed.csv")),
+                        "source file " + i + " moved out of the root by the MOVE post-action");
+                assertTrue(Files.exists(serverRoot.resolve("archive/2020040" + i + "_feed.csv")),
+                        "source file " + i + " landed under archive/");
+            }
+        } finally {
+            ConnectionRegistry.remove("test-sftp");
+        }
+    }
+
     private Path writeSftpPipeline(Path dir) throws Exception {
+        return writeSftpPipeline(dir, "");
+    }
+
+    private Path writeSftpPipeline(Path dir, String extraSourceBlock) throws Exception {
         Path schema = dir.resolve("mini_schema.toon");
         Files.writeString(schema, """
             partitionKey: EVENT_DATE
@@ -195,6 +267,7 @@ class SftpConnectorTest {
             source:
               connector: sftp
               connection: test-sftp
+            %s
             output:
               format: CSV
             processing:
@@ -215,7 +288,7 @@ class SftpConnectorTest {
                 date_formats[1]: "%%Y-%%m-%%d"
                 timestamp_formats[1]: "%%Y-%%m-%%d"
             """.formatted(dir, dir, dir, dir, dir, dir, dir, dir, dir,
-                          schema.toString().replace("\\", "/"));
+                          extraSourceBlock, schema.toString().replace("\\", "/"));
         Path p = dir.resolve("sftp_pipeline.toon");
         Files.writeString(p, toon);
         return p;

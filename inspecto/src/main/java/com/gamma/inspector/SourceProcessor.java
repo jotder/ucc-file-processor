@@ -3,16 +3,20 @@ package com.gamma.inspector;
 import com.gamma.acquire.AcquisitionLedger;
 import com.gamma.acquire.AcquisitionLedgers;
 import com.gamma.acquire.Checksums;
+import com.gamma.acquire.CircuitBreaker;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.DuplicatePolicy;
 import com.gamma.acquire.GapDetector;
 import com.gamma.acquire.GapTracker;
 import com.gamma.acquire.IntegrityChecker;
 import com.gamma.acquire.LedgerEntry;
+import com.gamma.acquire.PostAction;
+import com.gamma.acquire.RateLimiter;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SourceConnector;
 import com.gamma.acquire.SourceConnectors;
 import com.gamma.acquire.StabilityGate;
+import com.gamma.acquire.retry.RetryPolicy;
 import com.gamma.api.PublicApi;
 import com.gamma.etl.*;
 import com.gamma.event.Event;
@@ -185,11 +189,38 @@ public class SourceProcessor {
             excludes.addAll(st.tempPatterns());
         }
         DiscoveryContext ctx = new DiscoveryContext(src.includes(), excludes, src.recursiveDepth());
+        RetryPolicy retry = RetryPolicy.from(src.retry());
 
         // The connector stays open through materialisation: a remote connector holds a session for the lifetime
         // of the cycle, and fetchTo() needs it. (The local connector holds nothing — close is a no-op.)
         try (SourceConnector connector = SourceConnectors.forConfig(cfg)) {
-            List<RemoteFile> discovered = connector.discover(ctx);
+            boolean remote = !"local".equalsIgnoreCase(connector.scheme());
+
+            // Circuit breaker (Phase F): if this source's breaker is OPEN (repeated connectivity failures), skip
+            // the whole cycle rather than hammering a dead endpoint — it half-opens for one trial after cooldown.
+            PipelineConfig.CircuitBreaker cb = src.circuitBreaker();
+            if (remote && cb.enabled() && !CircuitBreaker.shared().allow(src.id(), cb.cooldownMillis())) {
+                if (emitSignals)
+                    log.warn("Source {} circuit OPEN — skipping this cycle (cooldown {}ms)",
+                            cfg.identity().pipelineName(), cb.cooldownMillis());
+                return List.of();
+            }
+
+            // Discover, with retry/backoff (Phase F) for transient remote faults. Connectivity success/failure
+            // feeds the breaker so a flapping endpoint trips it; the local connector never throws here.
+            List<RemoteFile> discovered;
+            try {
+                discovered = retry.execute(() -> connector.discover(ctx));
+                if (remote && cb.enabled()) CircuitBreaker.shared().recordSuccess(src.id());
+            } catch (Exception e) {
+                if (remote && cb.enabled()
+                        && CircuitBreaker.shared().recordFailure(src.id(), cb.failureThreshold()) && emitSignals)
+                    emitCircuitOpen(cfg, e.getMessage());
+                if (e instanceof java.io.IOException io) throw io;
+                if (e instanceof RuntimeException re) throw re;
+                throw new java.io.IOException("Discovery failed for " + cfg.identity().pipelineName(), e);
+            }
+
             StabilityGate.StabilityResult gated = (st.enabled() && !discovered.isEmpty())
                     ? StabilityGate.shared().filter(src.id(), discovered, connector, st.windowMillis(), st.sizeChecks())
                     : null;
@@ -212,9 +243,9 @@ public class SourceProcessor {
             // engine — dedup, markers, ledger, backup — treats them exactly like local files with no further
             // change. Discovery for a remote source uses the connector (not a poll walk), so staged files are
             // never re-listed. A read-only pending scan NEVER fetches — it returns a count-only approximation.
-            if (!"local".equalsIgnoreCase(connector.scheme())) {
+            if (remote) {
                 if (!emitSignals) return pendingRemoteApprox(cfg, ready);
-                ready = materializeRemote(cfg, connector, ready);
+                ready = materializeRemote(cfg, connector, ready, retry);
                 if (ready.isEmpty()) return List.of();
             }
 
@@ -254,32 +285,166 @@ public class SourceProcessor {
      * so {@link #dedupLocal} and the downstream batch path handle them with no special-casing. The
      * {@code inspecto_active_connections} gauge is held at 1 for the duration.
      */
-    private static List<RemoteFile> materializeRemote(PipelineConfig cfg, SourceConnector connector,
-                                                      List<RemoteFile> ready) {
+    private static List<RemoteFile> materializeRemote(PipelineConfig cfg, SourceConnector primary,
+                                                      List<RemoteFile> ready, RetryPolicy retry) {
         Path pollRoot = Paths.get(cfg.dirs().poll()).toAbsolutePath().normalize();
         String etagAlgo = cfg.source().duplicate().algorithm();
-        List<RemoteFile> staged = new ArrayList<>(ready.size());
-        setActiveConnections(cfg, 1);
+        PipelineConfig.Fetch fetch = cfg.source().fetch();
+
+        // Resolve + capability-validate the post-action once. on_unsupported=FAIL stops the cycle here, before any
+        // bytes move; WARN_AND_CONTINUE/IGNORE degrade to RETAIN (null ⇒ apply nothing).
+        PostAction postAction = resolvePostAction(cfg, primary);
+
+        // Pre-fetch dedup: skip a known duplicate without spending bandwidth (no network). FILE_DISCOVERED is
+        // emitted for every listed file; only the survivors are fetched.
+        List<RemoteFile> toFetch = new ArrayList<>(ready.size());
+        for (RemoteFile rf : ready) {
+            emitFileEvent(cfg, EventType.FILE_DISCOVERED, "File discovered: " + rf.relativePath(), rf.relativePath());
+            incDiscovered(cfg);
+            if (isKnownDuplicate(cfg, rf, pollRoot)) { incDuplicatesSkipped(cfg); continue; }
+            toFetch.add(rf);
+        }
+        if (toFetch.isEmpty()) return List.of();
+
+        RateLimiter limiter = fetch.rateLimited() ? RateLimiter.perSecond(fetch.rateLimitBytesPerSec()) : null;
+        int parallelism = Math.max(1, Math.min(fetch.parallelFetch(), toFetch.size()));
+        List<RemoteFile> staged = java.util.Collections.synchronizedList(new ArrayList<>(toFetch.size()));
+
+        // Sequential (the Phase-E default): the single already-open session does everything.
+        if (parallelism == 1) {
+            setActiveConnections(cfg, 1);
+            try {
+                for (RemoteFile rf : toFetch)
+                    fetchOne(cfg, primary, rf, pollRoot, etagAlgo, retry, limiter, postAction, staged);
+            } finally {
+                setActiveConnections(cfg, 0);
+            }
+            return new ArrayList<>(staged);
+        }
+
+        // Parallel fetch (Phase F): the SPI's connectors each hold ONE non-thread-safe session, so concurrency is
+        // a POOL of independent sessions, not shared reuse. The primary (already open, used for discovery) is one
+        // pool member and is closed by the caller; the extras are owned and closed here. Taking from a bounded
+        // pool naturally caps concurrency to the pool size — no separate semaphore needed.
+        java.util.concurrent.BlockingQueue<SourceConnector> pool = new java.util.concurrent.LinkedBlockingQueue<>();
+        List<SourceConnector> extras = new ArrayList<>();
+        pool.add(primary);
         try {
-            for (RemoteFile rf : ready) {
-                emitFileEvent(cfg, EventType.FILE_DISCOVERED, "File discovered: " + rf.relativePath(), rf.relativePath());
-                if (isKnownDuplicate(cfg, rf, pollRoot)) { incDuplicatesSkipped(cfg); continue; }
-
-                Path target = pollRoot.resolve(rf.relativePath()).normalize();
-                Path fetched = fetchAndVerify(cfg, connector, rf, target, etagAlgo);
-                if (fetched == null) continue;   // fetch/integrity failure already logged + emitted; not lost silently
-
-                if (rf.lastModified() != null) {
-                    try {
-                        Files.setLastModifiedTime(fetched, java.nio.file.attribute.FileTime.from(rf.lastModified()));
-                    } catch (java.io.IOException ignore) { /* best-effort: mtime preservation keeps METADATA dedup stable */ }
+            for (int i = 1; i < parallelism; i++) {
+                SourceConnector c = SourceConnectors.forConfig(cfg);
+                extras.add(c);
+                pool.add(c);
+            }
+            setActiveConnections(cfg, parallelism);
+            try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {
+                List<Future<?>> futures = new ArrayList<>(toFetch.size());
+                for (RemoteFile rf : toFetch) {
+                    futures.add(ex.submit(() -> {
+                        SourceConnector c = pool.take();   // blocks until a session frees up ⇒ bounds concurrency
+                        try {
+                            fetchOne(cfg, c, rf, pollRoot, etagAlgo, retry, limiter, postAction, staged);
+                        } finally {
+                            pool.put(c);
+                        }
+                        return null;
+                    }));
                 }
-                staged.add(rf.withLocalPath(fetched));
+                for (Future<?> f : futures) {
+                    try { f.get(); }
+                    catch (Exception e) { log.error("Parallel fetch worker failed on {}", cfg.identity().pipelineName(), e); }
+                }
             }
         } finally {
             setActiveConnections(cfg, 0);
+            for (SourceConnector c : extras) {
+                try { c.close(); } catch (Exception ignore) { /* best-effort: each extra session is owned here */ }
+            }
         }
-        return staged;
+        return new ArrayList<>(staged);
+    }
+
+    /**
+     * Retrieve one ready remote file: rate-limit (Phase F), fetch+integrity-verify (with retry), preserve the
+     * source mtime, apply the source-side post-action, and add the local path to {@code staged}. A fetch/integrity
+     * failure is already logged, metered and (for a corrupt download) quarantined inside {@link #fetchAndVerify};
+     * the file is simply skipped. Called from one connector session that the caller has confined to this thread.
+     */
+    private static void fetchOne(PipelineConfig cfg, SourceConnector connector, RemoteFile rf, Path pollRoot,
+                                 String etagAlgo, RetryPolicy retry, RateLimiter limiter, PostAction postAction,
+                                 List<RemoteFile> staged) {
+        if (limiter != null && rf.hasSize()) {
+            try { limiter.acquire(rf.size()); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        }
+        Path target = pollRoot.resolve(rf.relativePath()).normalize();
+        Path fetched = fetchAndVerify(cfg, connector, rf, target, etagAlgo, retry);
+        if (fetched == null) return;   // failure already handled (event + metric + quarantine/skip)
+
+        if (rf.lastModified() != null) {
+            try {
+                Files.setLastModifiedTime(fetched, java.nio.file.attribute.FileTime.from(rf.lastModified()));
+            } catch (java.io.IOException ignore) { /* best-effort: mtime preservation keeps METADATA dedup stable */ }
+        }
+        applyPostAction(cfg, connector, rf, postAction);
+        staged.add(rf.withLocalPath(fetched));
+    }
+
+    /**
+     * Resolve the configured {@code source.post_action} into a concrete {@link PostAction} for this cycle, or
+     * {@code null} when nothing should be applied (RETAIN, an unknown kind, or an unsupported action under
+     * {@code on_unsupported != FAIL}). The required {@link SourceConnector.Capability} is validated against the
+     * connector; {@code on_unsupported=FAIL} throws to stop the cycle, the others degrade to RETAIN. A MOVE's
+     * {@code archive_path} template is date-resolved against now.
+     */
+    private static PostAction resolvePostAction(PipelineConfig cfg, SourceConnector connector) {
+        PipelineConfig.PostActionConfig pac = cfg.source().postAction();
+        if (!pac.active()) return null;
+        PostAction.Kind kind;
+        try {
+            kind = PostAction.Kind.valueOf(pac.onSuccess());
+        } catch (IllegalArgumentException bad) {
+            log.warn("Unknown source.post_action.on_success '{}' for {} — retaining source files",
+                    pac.onSuccess(), cfg.identity().pipelineName());
+            return null;
+        }
+        if (kind == PostAction.Kind.RETAIN) return null;
+
+        SourceConnector.Capability needed = switch (kind) {
+            case DELETE -> SourceConnector.Capability.DELETE;
+            case MOVE   -> SourceConnector.Capability.MOVE;
+            case RENAME -> SourceConnector.Capability.RENAME;
+            case TAG    -> SourceConnector.Capability.TAG;
+            case RETAIN -> null;
+        };
+        if (needed != null && !connector.capabilities().contains(needed)) {
+            String msg = "source.post_action.on_success=" + kind + " but connector '" + connector.scheme()
+                    + "' lacks capability " + needed;
+            switch (pac.onUnsupported()) {
+                case "FAIL"   -> throw new IllegalStateException(msg + " (on_unsupported=FAIL)");
+                case "IGNORE" -> { return null; }
+                default       -> { log.warn("[CONFIG] {} — retaining source files (on_unsupported=WARN_AND_CONTINUE)", msg); return null; }
+            }
+        }
+        String archive = PostAction.resolveTemplate(pac.archivePath(), java.time.ZonedDateTime.now());
+        return new PostAction(kind, archive, pac.tags());
+    }
+
+    /**
+     * Apply the source-side post-action (Phase F) for a successfully fetched + validated file via
+     * {@code connector.post}. A runtime failure here does <em>not</em> discard the file — the bytes are already
+     * safely staged locally — it is logged + metered and the file proceeds to ingest. Emits {@code FILE_ARCHIVED}
+     * on success.
+     */
+    private static void applyPostAction(PipelineConfig cfg, SourceConnector connector, RemoteFile rf, PostAction action) {
+        if (action == null) return;
+        try {
+            connector.post(rf, action);
+            emitFileArchived(cfg, rf, action.kind().name());
+        } catch (Exception e) {
+            incPostActionsFailed(cfg);
+            log.warn("Post-action {} failed for {} on {}: {} — file already staged, continuing",
+                    action.kind(), rf.relativePath(), cfg.identity().pipelineName(), e.getMessage());
+        }
     }
 
     /**
@@ -323,11 +488,12 @@ public class SourceProcessor {
      * extends {@code IOException}, so the single catch covers protocol and local-IO faults alike.
      */
     private static Path fetchAndVerify(PipelineConfig cfg, SourceConnector connector, RemoteFile rf,
-                                       Path target, String etagAlgo) {
+                                       Path target, String etagAlgo, RetryPolicy retry) {
         long t0 = System.nanoTime();
         try {
             if (target.getParent() != null) Files.createDirectories(target.getParent());
-            Path got = connector.fetchTo(rf, target);
+            // Retry/backoff (Phase F): a transient fetch fault is retried before the file is given up on.
+            Path got = retry.execute(() -> connector.fetchTo(rf, target));
             long bytes;
             try { bytes = Files.size(got); } catch (java.io.IOException e) { bytes = rf.hasSize() ? rf.size() : 0L; }
             recordFetch(cfg, bytes, (System.nanoTime() - t0) / 1_000_000_000.0);
@@ -335,21 +501,41 @@ public class SourceProcessor {
 
             IntegrityChecker.Result r = IntegrityChecker.verify(rf, got, etagAlgo);
             if (!r.ok()) {
+                incDownloadsFailed(cfg);
                 emitFileEvent(cfg, EventType.FILE_FETCH_FAILED,
                         "Integrity check failed: " + rf.relativePath() + " (" + r.detail() + ")", rf.relativePath());
-                log.warn("Integrity check failed for {} on {}: {} — skipping",
+                log.warn("Integrity check failed for {} on {}: {} — quarantining (dead-letter)",
                         rf.relativePath(), cfg.identity().pipelineName(), r.detail());
-                try { Files.deleteIfExists(got); } catch (java.io.IOException ignore) { }
+                quarantineCorrupt(cfg, got, rf);   // dead-letter (Phase F): preserve the corrupt bytes for inspection
                 return null;
             }
+            incDownloaded(cfg);
             emitFileEvent(cfg, EventType.FILE_VALIDATED, "File validated: " + rf.relativePath(), rf.relativePath());
             return got;
-        } catch (java.io.IOException e) {
+        } catch (Exception e) {
+            // AcquisitionException (an IOException) from fetchTo, or a wrapped retry failure: skip this cycle.
+            incDownloadsFailed(cfg);
             emitFileEvent(cfg, EventType.FILE_FETCH_FAILED,
                     "Fetch failed: " + rf.relativePath() + " (" + e.getMessage() + ")", rf.relativePath());
-            log.warn("Failed to fetch {} on {}: {} — skipping this cycle",
+            log.warn("Failed to fetch {} on {} after retries: {} — skipping this cycle",
                     rf.relativePath(), cfg.identity().pipelineName(), e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Dead-letter a corrupt download (Phase F): move the integrity-failed staged file into the quarantine tree
+     * under the {@code corrupt_download} reason so the bytes survive for inspection, rather than silently
+     * deleting them. If quarantine itself fails (e.g. no quarantine dir configured), fall back to deleting the
+     * bad file so it is never ingested.
+     */
+    private static void quarantineCorrupt(PipelineConfig cfg, Path got, RemoteFile rf) {
+        try {
+            com.gamma.etl.QuarantineManager.quarantine(
+                    got.toFile(), com.gamma.etl.QuarantineManager.REASON_CORRUPT_DOWNLOAD, false, cfg);
+        } catch (java.io.IOException q) {
+            log.warn("Could not quarantine corrupt download {} ({}) — deleting", rf.relativePath(), q.getMessage());
+            try { Files.deleteIfExists(got); } catch (java.io.IOException ignore) { /* best-effort */ }
         }
     }
 
@@ -520,6 +706,49 @@ public class SourceProcessor {
     private static void setActiveConnections(PipelineConfig cfg, int n) {
         MetricRegistry.global().setGauge("inspecto_active_connections",
                 "Open source-connector sessions", Map.of("pipeline", cfg.identity().pipelineName()), n);
+    }
+
+    /** Count a file listed by a connector's discovery this cycle (Phase F observability). */
+    private static void incDiscovered(PipelineConfig cfg) {
+        MetricRegistry.global().inc("inspecto_files_discovered_total", "Files listed by source discovery",
+                Map.of("pipeline", cfg.identity().pipelineName()));
+    }
+
+    /** Count a file successfully fetched + integrity-validated this cycle (Phase F observability). */
+    private static void incDownloaded(PipelineConfig cfg) {
+        MetricRegistry.global().inc("inspecto_files_downloaded_total", "Files fetched and validated from a source",
+                Map.of("pipeline", cfg.identity().pipelineName()));
+    }
+
+    /** Count a fetch or integrity-validation failure this cycle (Phase F observability). */
+    private static void incDownloadsFailed(PipelineConfig cfg) {
+        MetricRegistry.global().inc("inspecto_downloads_failed_total", "Fetch/integrity failures",
+                Map.of("pipeline", cfg.identity().pipelineName()));
+    }
+
+    /** Count a source-side post-action that failed at runtime (the file is still ingested) (Phase F). */
+    private static void incPostActionsFailed(PipelineConfig cfg) {
+        MetricRegistry.global().inc("inspecto_post_actions_failed_total", "Source post-actions that failed",
+                Map.of("pipeline", cfg.identity().pipelineName()));
+    }
+
+    /** Emit {@link EventType#FILE_ARCHIVED} when a source-side post-action finalized a processed file (Phase F). */
+    private static void emitFileArchived(PipelineConfig cfg, RemoteFile f, String action) {
+        EventLog.global().emit(Event.builder(EventType.FILE_ARCHIVED)
+                .source(SourceProcessor.class.getName())
+                .pipeline(cfg.identity().pipelineName())
+                .message("Source file finalized (" + action + "): " + f.relativePath())
+                .attr("file", f.relativePath())
+                .attr("action", action));
+    }
+
+    /** Emit {@link EventType#SOURCE_CIRCUIT_OPEN} the moment a source's breaker trips OPEN (Phase F). */
+    private static void emitCircuitOpen(PipelineConfig cfg, String reason) {
+        EventLog.global().emit(Event.builder(EventType.SOURCE_CIRCUIT_OPEN)
+                .source(SourceProcessor.class.getName())
+                .pipeline(cfg.identity().pipelineName())
+                .message("Source circuit breaker tripped OPEN: " + reason)
+                .attr("source", cfg.source().id()));
     }
 
     /** Count of {@link #collectCandidates(PipelineConfig) pending} inbox files; {@code -1} if the scan fails. */

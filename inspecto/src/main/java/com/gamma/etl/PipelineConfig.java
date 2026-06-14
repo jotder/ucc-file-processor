@@ -203,7 +203,8 @@ public final class PipelineConfig {
     @PublicApi(since = "4.2.0")
     public record Source(String id, String connector, List<String> includes,
                          List<String> excludes, int recursiveDepth, Stability stability, String connection,
-                         Duplicate duplicate, Guarantee guarantee, GapDetection gapDetection) {
+                         Duplicate duplicate, Guarantee guarantee, GapDetection gapDetection,
+                         Fetch fetch, Retry retry, CircuitBreaker circuitBreaker, PostActionConfig postAction) {
         public Source {
             includes = List.copyOf(includes);
             excludes = List.copyOf(excludes);
@@ -211,6 +212,10 @@ public final class PipelineConfig {
             if (duplicate == null) duplicate = Duplicate.PATH_DEFAULT;
             if (guarantee == null) guarantee = Guarantee.BEST_EFFORT;
             if (gapDetection == null) gapDetection = GapDetection.DISABLED;
+            if (fetch == null) fetch = Fetch.DEFAULT;
+            if (retry == null) retry = Retry.DISABLED;
+            if (circuitBreaker == null) circuitBreaker = CircuitBreaker.DISABLED;
+            if (postAction == null) postAction = PostActionConfig.RETAIN;
         }
 
         /** A reusable connection-profile id this source binds to ({@code source.connection}), or {@code null}
@@ -310,6 +315,93 @@ public final class PipelineConfig {
         }
     }
 
+    /**
+     * Retrieval tuning for a remote source (Data Acquisition roadmap Phase E/F; additive, {@code source.fetch:}).
+     * {@code parallelFetch} > 1 fetches ready files concurrently over a pool of independent connector sessions
+     * (each connector instance holds one non-thread-safe session, so concurrency = a pool, not shared reuse);
+     * {@code rateLimitBytesPerSec} > 0 throttles aggregate transfer via a token bucket. {@code mode} is advisory
+     * (the file-based batch path needs a local copy, so a remote source always stages).
+     *
+     * <p>{@link #DEFAULT} (no block) ⇒ sequential, unthrottled — exactly the Phase-E behaviour.
+     */
+    @PublicApi(since = "4.2.0")
+    public record Fetch(String mode, String stagingDir, int parallelFetch, long rateLimitBytesPerSec) {
+        public static final Fetch DEFAULT = new Fetch("STAGE", null, 1, 0L);
+        public Fetch {
+            mode = (mode == null || mode.isBlank()) ? "STAGE" : mode.trim().toUpperCase();
+            if (parallelFetch < 1) parallelFetch = 1;
+            if (rateLimitBytesPerSec < 0) rateLimitBytesPerSec = 0L;
+        }
+        /** Whether more than one file should be fetched at a time (needs a connector-session pool). */
+        public boolean parallel() { return parallelFetch > 1; }
+        /** Whether aggregate transfer is rate-limited. */
+        public boolean rateLimited() { return rateLimitBytesPerSec > 0; }
+    }
+
+    /**
+     * Retry/backoff policy for transient acquisition faults (Data Acquisition roadmap Phase F; additive,
+     * {@code source.retry:}). Wraps connectivity-sensitive operations (discover, per-file fetch); {@code count}
+     * is the number of <em>retries</em> after the first attempt, {@code backoff} ∈ {@code EXPONENTIAL|LINEAR|FIXED}
+     * with full jitter, bounded by {@code initialDelay}…{@code maxDelay}. Realised by
+     * {@link com.gamma.acquire.retry.RetryPolicy}.
+     *
+     * <p>{@link #DISABLED} (no block, {@code count == 0}) ⇒ a single attempt — exactly today's behaviour.
+     */
+    @PublicApi(since = "4.2.0")
+    public record Retry(int count, String backoff, long initialDelayMillis, long maxDelayMillis) {
+        public static final Retry DISABLED = new Retry(0, "EXPONENTIAL", 1_000L, 60_000L);
+        public Retry {
+            if (count < 0) count = 0;
+            backoff = (backoff == null || backoff.isBlank()) ? "EXPONENTIAL" : backoff.trim().toUpperCase();
+            if (initialDelayMillis <= 0) initialDelayMillis = 1_000L;
+            if (maxDelayMillis < initialDelayMillis) maxDelayMillis = initialDelayMillis;
+        }
+        /** Whether any retry is configured (vs. a single attempt). */
+        public boolean enabled() { return count > 0; }
+    }
+
+    /**
+     * Per-source circuit breaker (Data Acquisition roadmap Phase F; additive, {@code source.circuit_breaker:}).
+     * After {@code failureThreshold} consecutive connectivity failures the source is tripped OPEN and skipped for
+     * {@code cooldownMillis} (then a single HALF_OPEN trial) instead of hammering a dead endpoint. Realised by the
+     * process-wide {@link com.gamma.acquire.CircuitBreaker#shared()}.
+     *
+     * <p>{@link #DISABLED} (no block) ⇒ never trips — exactly today's behaviour.
+     */
+    @PublicApi(since = "4.2.0")
+    public record CircuitBreaker(boolean enabled, int failureThreshold, long cooldownMillis) {
+        public static final CircuitBreaker DISABLED = new CircuitBreaker(false, 5, 300_000L);
+        public CircuitBreaker {
+            if (failureThreshold < 1) failureThreshold = 1;
+            if (cooldownMillis < 0) cooldownMillis = 0L;
+        }
+    }
+
+    /**
+     * Source-side post-processing action applied after a fetched file is integrity-validated and staged
+     * (Data Acquisition roadmap Phase F; additive, {@code source.post_action:}). {@code onSuccess} ∈
+     * {@code RETAIN|DELETE|MOVE|RENAME|TAG} (validated against the connector's
+     * {@link com.gamma.acquire.SourceConnector.Capability capabilities}); {@code onUnsupported} ∈
+     * {@code FAIL|WARN_AND_CONTINUE|IGNORE} decides what happens when the connector can't perform it.
+     * {@code archivePath} (a {@code yyyy/MM/dd}-style template) is used by {@code MOVE}; {@code tags} by {@code TAG}.
+     *
+     * <p>{@link #RETAIN} (no block) leaves the source untouched — exactly today's behaviour.
+     */
+    @PublicApi(since = "4.2.0")
+    public record PostActionConfig(String onSuccess, String archivePath, Map<String, String> tags,
+                                   String onUnsupported) {
+        public static final PostActionConfig RETAIN =
+                new PostActionConfig("RETAIN", null, Map.of(), "WARN_AND_CONTINUE");
+        public PostActionConfig {
+            onSuccess     = (onSuccess == null || onSuccess.isBlank()) ? "RETAIN" : onSuccess.trim().toUpperCase();
+            onUnsupported = (onUnsupported == null || onUnsupported.isBlank())
+                    ? "WARN_AND_CONTINUE" : onUnsupported.trim().toUpperCase();
+            tags = (tags == null) ? Map.of() : Map.copyOf(tags);
+        }
+        /** Whether a non-RETAIN finalization should run on the source-side file after success. */
+        public boolean active() { return !"RETAIN".equals(onSuccess); }
+    }
+
     // ── grouped state + accessors ──────────────────────────────────────────────
 
     private final Identity   identity;
@@ -377,7 +469,8 @@ public final class PipelineConfig {
         this.fixedWidth = b.fixedWidth;
         this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
                 b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection, b.sourceDuplicate,
-                b.sourceGuarantee, b.sourceGapDetection);
+                b.sourceGuarantee, b.sourceGapDetection,
+                b.sourceFetch, b.sourceRetry, b.sourceCircuitBreaker, b.sourcePostAction);
         this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
@@ -696,6 +789,47 @@ public final class PipelineConfig {
                 log.warn("[CONFIG] source.guarantee={} needs a fingerprint ledger, but source.duplicate.mode "
                         + "is 'path' (marker-only) — behaving as best-effort + commit-log replay. Set "
                         + "source.duplicate.mode to metadata or checksum to enforce it.", b.sourceGuarantee);
+
+            // ── retrieval tuning: parallel fetch + rate limit (Phase E/F; additive, absent ⇒ sequential/unthrottled) ──
+            Map<String, Object> fetchBlock = (Map<String, Object>) src.get("fetch");
+            if (fetchBlock != null) {
+                b.sourceFetch = new Fetch(
+                        opt(fetchBlock, "mode", "STAGE"),
+                        opt(fetchBlock, "staging_dir", null),
+                        Math.max(1, toInt(fetchBlock.getOrDefault("parallel_fetch", 1))),
+                        parseRate(opt(fetchBlock, "rate_limit", null)));
+            }
+
+            // ── retry / backoff (Phase F; additive, absent ⇒ a single attempt) ──────────────────
+            Map<String, Object> retryBlock = (Map<String, Object>) src.get("retry");
+            if (retryBlock != null) {
+                b.sourceRetry = new Retry(
+                        toInt(retryBlock.getOrDefault("count", 0)),
+                        opt(retryBlock, "backoff", "EXPONENTIAL"),
+                        toMillis(opt(retryBlock, "initial_delay", "1s")),
+                        toMillis(opt(retryBlock, "max_delay", "60s")));
+            }
+
+            // ── circuit breaker (Phase F; additive, absent ⇒ never trips) ───────────────────────
+            Map<String, Object> cbBlock = (Map<String, Object>) src.get("circuit_breaker");
+            if (cbBlock != null) {
+                b.sourceCircuitBreaker = new CircuitBreaker(true,
+                        Math.max(1, toInt(cbBlock.getOrDefault("failure_threshold", 5))),
+                        toMillis(opt(cbBlock, "cooldown", "5m")));
+            }
+
+            // ── post-processing action (Phase F; additive, absent ⇒ RETAIN = leave the source) ──
+            Map<String, Object> paBlock = (Map<String, Object>) src.get("post_action");
+            if (paBlock != null) {
+                Map<String, Object> rawTags = (Map<String, Object>) paBlock.get("tags");
+                Map<String, String> tags = new java.util.LinkedHashMap<>();
+                if (rawTags != null) rawTags.forEach((k, v) -> tags.put(k, String.valueOf(v)));
+                b.sourcePostAction = new PostActionConfig(
+                        opt(paBlock, "on_success", "RETAIN"),
+                        opt(paBlock, "archive_path", null),
+                        tags,
+                        opt(paBlock, "on_unsupported", "WARN_AND_CONTINUE"));
+            }
         }
 
         log.info("[CONFIG] Status file : {}", b.statusFilePath);
@@ -763,6 +897,32 @@ public final class PipelineConfig {
             case 'd' -> n * 86_400_000L;
             default  -> throw new IllegalArgumentException("not a duration (expected Ns/Nm/Nh/Nd): " + d);
         };
+    }
+
+    /**
+     * Parse a transfer-rate string to <b>bytes per second</b> (Phase F {@code source.fetch.rate_limit}). Accepts a
+     * size with an optional {@code /s} or {@code ps} suffix: {@code "50MBps"}, {@code "50MB/s"}, {@code "1GBps"},
+     * {@code "512KBps"}, or a bare number (bytes/s). KB/MB/GB are binary (1024-based). {@code null}/blank ⇒ 0
+     * (unlimited).
+     */
+    static long parseRate(String r) {
+        if (r == null || r.isBlank()) return 0L;
+        String s = r.trim();
+        // strip a trailing per-second marker: "/s", "ps", "/sec"
+        String lower = s.toLowerCase();
+        if (lower.endsWith("/s"))   s = s.substring(0, s.length() - 2);
+        else if (lower.endsWith("ps")) s = s.substring(0, s.length() - 2);
+        else if (lower.endsWith("/sec")) s = s.substring(0, s.length() - 4);
+        s = s.trim();
+        long mult = 1L;
+        String u = s.toUpperCase();
+        if (u.endsWith("GB"))      { mult = 1L << 30; s = s.substring(0, s.length() - 2); }
+        else if (u.endsWith("MB")) { mult = 1L << 20; s = s.substring(0, s.length() - 2); }
+        else if (u.endsWith("KB")) { mult = 1L << 10; s = s.substring(0, s.length() - 2); }
+        else if (u.endsWith("B"))  { s = s.substring(0, s.length() - 1); }
+        s = s.trim();
+        if (s.isEmpty()) return 0L;
+        return (long) (Double.parseDouble(s) * mult);
     }
 
     /** Trim a config value to a String; {@code null}/blank ⇒ {@code null}. */
@@ -961,6 +1121,10 @@ public final class PipelineConfig {
         Duplicate    sourceDuplicate = Duplicate.PATH_DEFAULT;
         Guarantee    sourceGuarantee = Guarantee.BEST_EFFORT;
         GapDetection sourceGapDetection = GapDetection.DISABLED;
+        Fetch           sourceFetch = Fetch.DEFAULT;
+        Retry           sourceRetry = Retry.DISABLED;
+        CircuitBreaker  sourceCircuitBreaker = CircuitBreaker.DISABLED;
+        PostActionConfig sourcePostAction = PostActionConfig.RETAIN;
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;

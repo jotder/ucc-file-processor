@@ -43,8 +43,12 @@ public final class EventType {
     public static final String FILE_VALIDATED   = "FILE_VALIDATED";
     /** Retrieval (or integrity validation) of a remote file failed; it was skipped this cycle (Phase E). */
     public static final String FILE_FETCH_FAILED = "FILE_FETCH_FAILED";
-    /** A processed source file was archived/retained via a post-action (Phase F; constant defined here). */
+    /** A processed source file was finalized on the source side via a post-action — moved/renamed/deleted (Phase F).
+     *  The {@code action} attribute carries the kind (DELETE/MOVE/RENAME/TAG). */
     public static final String FILE_ARCHIVED    = "FILE_ARCHIVED";
+    /** A source's circuit breaker tripped OPEN after repeated connectivity failures; the source is being skipped
+     *  until its cooldown elapses (Phase F). */
+    public static final String SOURCE_CIRCUIT_OPEN = "SOURCE_CIRCUIT_OPEN";
     /** A discovered file passed the readiness gate — quiescent / size-stable, safe to ingest (Phase B). */
     public static final String FILE_STABLE      = "FILE_STABLE";
     /** A file at a known path was re-seen with changed content (size/mtime/checksum differs) (Phase C). */

@@ -28,6 +28,14 @@ public final class QuarantineManager {
 
     private QuarantineManager() {}
 
+    // ── parse-stage reasons (legacy) ──────────────────────────────────────────
+    /** A row failed field/type validation against the schema. */ public static final String REASON_FIELD_MISMATCH = "field_mismatch";
+    /** The file could not be read/parsed at all. */              public static final String REASON_UNREADABLE     = "unreadable";
+
+    // ── acquisition-stage reasons (Data Acquisition roadmap Phase F dead-letter) ──
+    /** A fetched file failed its post-download integrity check (size/checksum mismatch). */
+    public static final String REASON_CORRUPT_DOWNLOAD = "corrupt_download";
+
     /**
      * Move {@code inputFile} into the quarantine tree.
      *

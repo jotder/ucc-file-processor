@@ -3,6 +3,7 @@ package com.gamma.acquire.connectors;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.IntegrityChecker;
+import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SourceConnector;
 import org.apache.ftpserver.FtpServer;
@@ -113,6 +114,40 @@ class FtpConnectorTest {
             try (InputStream in = c.open(rf)) {
                 assertEquals(body, new String(in.readAllBytes(), StandardCharsets.UTF_8));
             }
+        }
+    }
+
+    // ── Phase F: source-side post-actions ────────────────────────────────────────
+
+    @Test
+    void postDeleteRemovesTheSourceFile() throws Exception {
+        Files.writeString(serverRoot.resolve("d.csv"), "x\n");
+        try (SourceConnector c = connector()) {
+            RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
+            c.post(rf, new PostAction(PostAction.Kind.DELETE, null, Map.of()));
+            assertFalse(Files.exists(serverRoot.resolve("d.csv")), "DELETE removes the source file");
+        }
+    }
+
+    @Test
+    void postMoveRelocatesIntoTheArchiveTree() throws Exception {
+        Files.writeString(serverRoot.resolve("m.csv"), "y\n");
+        try (SourceConnector c = connector()) {
+            RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
+            c.post(rf, PostAction.move("archive/2026/06/14"));
+            assertFalse(Files.exists(serverRoot.resolve("m.csv")), "moved out of the root");
+            assertTrue(Files.exists(serverRoot.resolve("archive/2026/06/14/m.csv")), "landed under the dated archive");
+        }
+    }
+
+    @Test
+    void postRenameAddsTheProcessedPrefix() throws Exception {
+        Files.writeString(serverRoot.resolve("r.csv"), "z\n");
+        try (SourceConnector c = connector()) {
+            RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
+            c.post(rf, new PostAction(PostAction.Kind.RENAME, null, Map.of()));
+            assertFalse(Files.exists(serverRoot.resolve("r.csv")));
+            assertTrue(Files.exists(serverRoot.resolve("processed_r.csv")), "renamed in place");
         }
     }
 }

@@ -31,4 +31,21 @@ public record PostAction(Kind kind, String archiveTemplate, Map<String, String> 
     public static PostAction move(String archiveTemplate) {
         return new PostAction(Kind.MOVE, archiveTemplate, Map.of());
     }
+
+    /**
+     * Resolve date placeholders in an {@code archive_path} template against {@code when} so a configured
+     * {@code archive/yyyy/MM/dd} lands in a dated sub-tree. Supported tokens (longest-first so {@code yyyy} is not
+     * eaten by {@code yy}): {@code yyyy yy MM dd HH mm ss}. A {@code null}/blank template returns {@code null}.
+     */
+    public static String resolveTemplate(String template, java.time.ZonedDateTime when) {
+        if (template == null || template.isBlank()) return null;
+        return template
+                .replace("yyyy", String.format("%04d", when.getYear()))
+                .replace("yy",   String.format("%02d", when.getYear() % 100))
+                .replace("MM",   String.format("%02d", when.getMonthValue()))
+                .replace("dd",   String.format("%02d", when.getDayOfMonth()))
+                .replace("HH",   String.format("%02d", when.getHour()))
+                .replace("mm",   String.format("%02d", when.getMinute()))
+                .replace("ss",   String.format("%02d", when.getSecond()));
+    }
 }

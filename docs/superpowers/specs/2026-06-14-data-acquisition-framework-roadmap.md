@@ -379,18 +379,43 @@ The `EXACTLY_ONCE`-survives-a-crash test is a `CommitLog` concern already covere
   common re-poll case via the ledger); FTPS; strict SSH host-key pinning (currently accept-on-connect).
 
 ### Phase F — Resilience + post-actions + parallel/rate-limit  *(Requirement §8,§10,§11-actions,§12)*
+**Status: ✅ Implemented 2026-06-14** (reactor green — core 645 / agent 157 / hosted 4 / connectors 16). All five
+pieces shipped in one commit, including parallel multi-session fetch.
 **Outcome:** production-grade fault tolerance and source-side finalization.
-- **Retry/backoff:** `com.gamma.acquire.retry.RetryPolicy` (exponential w/ jitter, `count`/`initial`/`max`) —
-  zero-dep; wraps `discover`/`stage`/`post`.
-- **Circuit breaker:** per `source.id`, open after `failure_threshold`, cool down `cooldown`; a tripped source
-  is skipped (logged + `EventType` emitted) instead of hammering a dead endpoint.
-- **Dead-letter:** extend `QuarantineManager` with acquisition-stage reasons (`FAILED_FETCH`, `FAILED_DELETE`,
-  `FAILED_MOVE`, `CORRUPT_DOWNLOAD`) — distinct from today's parse-stage reasons (`field_mismatch`,`unreadable`).
-- **Post-processing actions (§11):** `post_action.on_success` ∈ `RETAIN | DELETE | MOVE | RENAME | TAG` via
-  `connector.post()`; `on_unsupported` ∈ `FAIL | WARN_AND_CONTINUE | IGNORE` validated against
-  `connector.capabilities()`.
-- **Parallel fetch + rate limiting (§10):** per-connector `parallel_fetch` permits (reusing the existing
-  semaphore model) + a token-bucket `rate_limit`; multipart download where the connector supports it.
+- **Retry/backoff (zero-dep):** `com.gamma.acquire.retry.RetryPolicy` — `EXPONENTIAL`/`LINEAR`/`FIXED` curve with
+  **full jitter** (sleep ∈ `[0, base]`), bounded `initial_delay…max_delay`, saturating (no overflow) on long
+  failure runs. Injectable `Sleeper` + jitter for deterministic tests; `RetryPolicy.NONE` = a single attempt (no
+  block ⇒ today's behaviour). Wraps `discover` and per-file `fetchTo` (`source.retry:`, `count` = retries).
+- **Circuit breaker:** process-wide `com.gamma.acquire.CircuitBreaker.shared()` (the `StabilityGate.shared()`
+  idiom) keyed by `source.id`, CLOSED→OPEN after `failure_threshold` consecutive connectivity failures, one
+  HALF_OPEN trial after `cooldown`. A tripped source is **skipped** (return empty, `SOURCE_CIRCUIT_OPEN` event
+  fired once on the trip) rather than hammered. Thresholds passed per-call (not stored) so one instance serves
+  every pipeline. Injectable clock. **Scoped to discover-level connectivity** — per-file fetch faults are handled
+  by retry + dead-letter, not the breaker (a single bad file shouldn't trip the whole source).
+- **Dead-letter:** a corrupt download (integrity-check fail) is now **quarantined** under
+  `QuarantineManager.REASON_CORRUPT_DOWNLOAD` (`corrupt_download`) — the bytes survive for inspection instead of
+  being silently deleted; falls back to delete if no quarantine dir. Parse-stage reasons (`field_mismatch`,
+  `unreadable`) are now named constants too. (`FAILED_FETCH` has no local file to dead-letter — it's an event +
+  `inspecto_downloads_failed_total`; remote `MOVE`/`DELETE` failures are logged but never discard already-staged
+  good data.)
+- **Post-processing actions (§11):** `source.post_action.on_success` ∈ `RETAIN|DELETE|MOVE|RENAME|TAG` applied via
+  `connector.post()` **after a file is integrity-validated + staged** (the bytes are then the engine's system of
+  record, so finalising the remote source is safe) — `MOVE`'s `archive_path` is **date-resolved**
+  (`archive/yyyy/MM/dd` via `PostAction.resolveTemplate`). `on_unsupported` ∈ `FAIL|WARN_AND_CONTINUE|IGNORE`
+  validated **once per cycle** against `connector.capabilities()` (FAIL throws before any byte moves; the others
+  degrade to RETAIN). Applies to remote sources; local poll files keep using the existing backup/marker flow.
+  `FILE_ARCHIVED` carries the `action`.
+- **Parallel fetch + rate limiting (§10):** `source.fetch.parallel_fetch > 1` fetches over a **pool of independent
+  connector sessions** (the SPI's connectors hold one non-thread-safe session each, so concurrency is extra
+  sessions, not shared reuse — the primary discovery session is one pool member, extras are owned + closed by the
+  materialise loop; a bounded `BlockingQueue` caps concurrency with no separate semaphore). `source.fetch.rate_limit`
+  (`50MBps`/`50MB/s`/bytes, binary units) is a shared token-bucket `com.gamma.acquire.RateLimiter` (1s burst,
+  injectable clock/sleeper) consulted before each fetch. New metrics: `inspecto_files_discovered_total`,
+  `inspecto_files_downloaded_total`, `inspecto_downloads_failed_total`, `inspecto_post_actions_failed_total`.
+- **Tested:** `RetryPolicyTest`/`CircuitBreakerTest`/`RateLimiterTest`/`PhaseFConfigTest` (core, deterministic via
+  injected clocks/sleepers); connector-module post-action DELETE/MOVE/RENAME over embedded SFTP **and** FTP, plus an
+  **end-to-end `SourceProcessor.run` over SFTP with `parallel_fetch: 2` + `post_action: MOVE`** asserting both
+  ingest and the source files relocated into `archive/` on the server.
 
 ### Future (explicitly out of scope here — requirement marks these "(future)")
 Object storage (S3/GCS/Azure/MinIO) connectors; NFS/SMB/CIFS; SSH tunneling/proxy; **event-notification**
