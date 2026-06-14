@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>file-processor-connectors</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Inspecto — remote source connectors (optional)</name>
+    <description>
+        OPTIONAL remote SourceConnector implementations (Data Acquisition roadmap Phase E):
+        SFTP (over sshj) and FTP/FTPS (over Apache commons-net), discovered via the core's
+        SourceConnectorFactory ServiceLoader seam.
+
+        This module exists so the lean core (file-processor) stays dep-free: the network client
+        libraries (sshj + its BouncyCastle transitive deps, commons-net) live HERE only. The
+        default deployment ships the core fat-JAR with the built-in local connector; dropping THIS
+        jar on the classpath is what lights up the sftp:/ftp: source schemes. No core code changes
+        either way — exactly how inspecto-agent-hosted isolates the hosted-model SDKs.
+    </description>
+
+    <properties>
+        <sshj.version>0.39.0</sshj.version>
+        <commons-net.version>3.6</commons-net.version>
+        <!-- test-only embedded servers -->
+        <sshd.version>2.12.1</sshd.version>
+        <ftpserver.version>1.2.0</ftpserver.version>
+    </properties>
+
+    <dependencies>
+        <!-- The core: the SourceConnector SPI, ConnectionProfile, SecretResolver, RetrievalPlan. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- SFTP client (Apache 2.0). Pulls BouncyCastle transitively — confined to this module. -->
+        <dependency>
+            <groupId>com.hierynomus</groupId>
+            <artifactId>sshj</artifactId>
+            <version>${sshj.version}</version>
+        </dependency>
+
+        <!-- FTP/FTPS client (Apache 2.0), already in the local .m2 cache. -->
+        <dependency>
+            <groupId>commons-net</groupId>
+            <artifactId>commons-net</artifactId>
+            <version>${commons-net.version}</version>
+        </dependency>
+
+        <!-- ── test: embedded servers so the real clients are exercised end-to-end ── -->
+        <!-- In-process SFTP server (Apache MINA SSHD) — the server side; the client under test is sshj. -->
+        <dependency>
+            <groupId>org.apache.sshd</groupId>
+            <artifactId>sshd-core</artifactId>
+            <version>${sshd.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.sshd</groupId>
+            <artifactId>sshd-sftp</artifactId>
+            <version>${sshd.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- In-process FTP server (Apache FtpServer) — the server side; the client under test is commons-net. -->
+        <dependency>
+            <groupId>org.apache.ftpserver</groupId>
+            <artifactId>ftpserver-core</artifactId>
+            <version>${ftpserver.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

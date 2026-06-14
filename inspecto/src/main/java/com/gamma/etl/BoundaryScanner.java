@@ -59,9 +59,7 @@ public final class BoundaryScanner {
         CsvParser parser = CsvIngester.buildParser(cfg.csv().delimiter());
 
         try (InputStream rawIs = new FileInputStream(file);
-             InputStream is = file.getName().endsWith(".gz")
-                     ? new GZIPInputStream(new BufferedInputStream(rawIs, 1 << 20))
-                     : rawIs;
+             InputStream is = Compression.decompress(file, rawIs, 1 << 20);
              BufferedReader br = new BufferedReader(
                      new InputStreamReader(is, charset(cfg.csv().encoding())), 1 << 20)) {
 

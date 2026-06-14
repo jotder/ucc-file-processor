@@ -34,6 +34,17 @@ public final class EventType {
     public static final String BATCH_FAILED     = "BATCH_FAILED";
     public static final String FILE_RECEIVED    = "FILE_RECEIVED";
     public static final String FILE_QUARANTINED = "FILE_QUARANTINED";
+    /** A source connector listed a candidate file during discovery (Phase E). */
+    public static final String FILE_DISCOVERED  = "FILE_DISCOVERED";
+    /** A remote file's bytes were retrieved (staged/streamed) from the source connector (Phase E). The
+     *  {@code bytes} attribute carries the transferred size. */
+    public static final String FILE_FETCHED     = "FILE_FETCHED";
+    /** A fetched file passed its integrity check — size match and/or checksum verified (Phase E). */
+    public static final String FILE_VALIDATED   = "FILE_VALIDATED";
+    /** Retrieval (or integrity validation) of a remote file failed; it was skipped this cycle (Phase E). */
+    public static final String FILE_FETCH_FAILED = "FILE_FETCH_FAILED";
+    /** A processed source file was archived/retained via a post-action (Phase F; constant defined here). */
+    public static final String FILE_ARCHIVED    = "FILE_ARCHIVED";
     /** A discovered file passed the readiness gate — quiescent / size-stable, safe to ingest (Phase B). */
     public static final String FILE_STABLE      = "FILE_STABLE";
     /** A file at a known path was re-seen with changed content (size/mtime/checksum differs) (Phase C). */

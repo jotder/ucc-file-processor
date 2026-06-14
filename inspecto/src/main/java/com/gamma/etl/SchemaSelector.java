@@ -143,8 +143,7 @@ public final class SchemaSelector {
         int maxCols = 0;
         int scanned = 0;
         try (InputStream rawIs = new FileInputStream(file);
-             InputStream is    = file.getName().endsWith(".gz")
-                                 ? new GZIPInputStream(rawIs) : rawIs;
+             InputStream is    = Compression.decompress(file, rawIs, 0);
              BufferedReader br = new BufferedReader(
                      new InputStreamReader(is, StandardCharsets.UTF_8))) {
 

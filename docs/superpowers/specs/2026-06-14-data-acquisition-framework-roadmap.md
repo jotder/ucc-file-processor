@@ -335,20 +335,48 @@ seam honestly:
 
 The `EXACTLY_ONCE`-survives-a-crash test is a `CommitLog` concern already covered there; not re-litigated here.
 
-### Phase E — Remote connectors (SFTP/FTP) + retrieval + integrity + compression  *(Requirement §1,§7,§8-partial,§9,§11,§13)*
-**Outcome:** the first non-local connector, proving the SPI on the wire.
-- **`SftpConnector` / `FtpConnector`** implementing `SourceConnector`. *(Dependency note: SFTP needs an SSH
-  client lib — e.g. Apache MINA SSHD or sshj. This is the first phase that may require a **new dependency**;
-  gate it behind the optional connector module so the lean core stays dep-free — see Phase-packaging note below.)*
-- **Retrieval modes (§7):** `STREAM` (direct `open()` into the ingester), `STAGE` (`stage()` → `dirs.temp` →
-  process), `CHUNKED` (resumable segmented download where `RESUMABLE` is supported).
-- **Integrity (§11):** size check (source size == bytes received) + checksum (MessageDigest during
-  stage/stream, compared to connector-reported `etag`/sidecar). Content probes already exist (CSV header via
-  `CsvIngester`; ASN.1/Parquet are decoder-specific via `StreamingFileIngester`).
-- **Compression (§9):** add `.zip` + `.bz2` to the decompression path. `TarInboxPreparer` already uses **Apache
-  Commons Compress** — confirm and reuse it so `.bz2`/`.zip` are **zero-new-dep**.
-- **Observability:** `inspecto_bytes_transferred_total`, `inspecto_fetch_seconds` histogram,
-  `inspecto_active_connections` gauge; `EventType.FILE_FETCHED`, `FILE_VALIDATED`.
+### Phase E — Remote connectors (SFTP/FTP) + retrieval + integrity + compression  ✅ Implemented 2026-06-14  *(Requirement §1,§7,§8-partial,§9,§11,§13)*
+**Outcome:** the first non-local connectors, proving the SPI on the wire. **As-built (unpushed on `4.x`):**
+
+- **New optional module `inspecto-connectors`** (artifactId `file-processor-connectors`) — the network client
+  libs (**sshj** for SFTP + its BouncyCastle transitive deps; **commons-net** for FTP) live here ONLY, so the
+  lean core fat-JAR stays dep-free; dropping this jar on the classpath lights up the `sftp:`/`ftp:` schemes
+  (exactly how `inspecto-agent-hosted` isolates the hosted-model SDKs). SSH-lib decision (open question #4):
+  **sshj** (client-focused API). Connectors are `ServiceLoader`-discovered via the Phase-A `SourceConnectorFactory`.
+- **`SftpConnector` (sshj):** lazy session; recursive `discover` (ls attrs → size/mtime); `open` streams with no
+  local copy; `fetchTo` materialises once and **resumes a partial download** (RESUMABLE); optional **SSH bastion
+  tunnel** via a loopback `LocalPortForwarder`; `post` delete/move/rename. Caps STREAM/RANDOM_ACCESS/RESUMABLE/
+  DELETE/MOVE/RENAME. **`FtpConnector` (commons-net):** passive by default, recursive LIST, `retrieveFileStream`/
+  `retrieveFile`, REST-offset resume. Both resolve `ConnectionProfile` host/credentials via `SecretResolver` at
+  connect time (refs only, never logged). Includes/excludes applied by `PatternFilter` (glob→regex with correct
+  `**`/`{a,b}` semantics over the relative path).
+- **The bridge that lights up the SPI on the run path:** new core **`ConnectionRegistry.shared()`** (same idiom as
+  `AcquisitionLedgers.shared()`) — `SourceService` publishes each `*_connection.toon` profile into it, and the
+  static `SourceConnectors.forConfig` resolves a pipeline's `source.connection` to a `ConnectionProfile` and hands
+  it to a new `SourceConnectorFactory.create(cfg, profile)` overload (default delegates to `create(cfg)`).
+- **Retrieval wiring (§7):** `SourceProcessor.collect` now **materialises** a remote connector's ready files into
+  the local staging tree (the poll root, mirrored at each `relativePath`, source **mtime preserved**) — so the
+  whole downstream engine (dedup, markers, ledger, backup, `BatchProcessor`'s poll-relative recording) treats them
+  as local files with **no further change**. Pre-fetch dedup skips a known duplicate without spending bandwidth
+  (PATH marker / METADATA listing); CHECKSUM decides post-fetch. `countPending` **never fetches** (count-only
+  approximation). `RetrievalPlanner`'s STREAM/STAGE policy holds; the file-based batch path needs a local copy, so
+  remote = stage. CHUNKED = the connectors' resumable `fetchTo`.
+- **Integrity (§11):** `IntegrityChecker` (size vs listing + checksum vs `etag`, JDK `MessageDigest`, zero-dep) on
+  every staged file; a failure discards the bytes, emits `FILE_FETCH_FAILED`, and skips (never processed corrupt).
+- **Compression (§9):** new `com.gamma.etl.Compression` centralises decompression for the streaming Java read path
+  (`CsvIngester`/`SchemaSelector`/`BoundaryScanner`/`FileChunker`): `.gz` (JDK) + **`.bz2`** (Commons Compress,
+  already a core dep) + **`.zip`** (first entry) — **zero-new-dep**. `stripExtensions` broadened. (DuckDB's native
+  path already handles `.gz`; `.bz2`/`.zip` go through this streaming path.)
+- **Observability:** `inspecto_bytes_transferred_total` (counter), `inspecto_fetch_seconds` (histogram via
+  `observe`), `inspecto_active_connections` (gauge); events `FILE_DISCOVERED`/`FILE_FETCHED`/`FILE_VALIDATED`/
+  `FILE_FETCH_FAILED` (+ `FILE_ARCHIVED` constant for Phase F).
+- **Tested:** embedded **Apache MINA SSHD** + **Apache FtpServer** (test scope) drive the real clients —
+  discover/depth/fetch/open/**resume**/integrity, plus an **end-to-end `SourceProcessor.run` over SFTP** (proves
+  the materialise wiring + `ConnectionRegistry` + ServiceLoader + re-run dedup together). Core: `Compression`,
+  `IntegrityChecker`, `ConnectionRegistry`. Reactor green (core 628 / agent 157 / hosted 4 / connectors 9).
+- **Deferred to Phase F (per the original split):** post-action *wiring* into the run loop, retry/circuit-breaker,
+  parallel fetch + rate-limit. **Not yet done:** the C4 incremental watermark (pre-fetch skip already covers the
+  common re-poll case via the ledger); FTPS; strict SSH host-key pinning (currently accept-on-connect).
 
 ### Phase F — Resilience + post-actions + parallel/rate-limit  *(Requirement §8,§10,§11-actions,§12)*
 **Outcome:** production-grade fault tolerance and source-side finalization.
@@ -428,7 +456,8 @@ No new observability *infrastructure* — only new *signals* on the existing rai
 3. **Watermark scope** — per `source.id` or per (source, relative-dir)? Per-source is simpler; per-dir scales
    better for date-partitioned inboxes. Recommendation: per-source, with the relative path stored for audit.
 4. **SFTP client library** for Phase E (Apache MINA SSHD vs sshj) — driven by license + transitive-dep weight;
-   decide when Phase E is scheduled, not now.
+   decide when Phase E is scheduled, not now. **RESOLVED 2026-06-14: sshj** (client-focused API; both are
+   Apache-2.0). Confined to the optional `inspecto-connectors` module, so its BouncyCastle deps never touch core.
 
 ---
 

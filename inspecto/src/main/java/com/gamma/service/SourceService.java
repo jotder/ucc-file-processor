@@ -345,7 +345,12 @@ public final class SourceService implements AutoCloseable {
     /** Register a connection profile (Data Acquisition), keyed by {@link com.gamma.acquire.ConnectionProfile#id};
      *  {@code null} ignored. A later registration with the same id replaces the earlier one. */
     public void registerConnection(com.gamma.acquire.ConnectionProfile profile) {
-        if (profile != null) connections.put(profile.id(), profile);
+        if (profile != null) {
+            connections.put(profile.id(), profile);
+            // Also publish into the process-wide registry so the static poll path (SourceConnectors.forConfig)
+            // can resolve a pipeline's source.connection binding to a remote connector (Phase E).
+            com.gamma.acquire.ConnectionRegistry.register(profile);
+        }
     }
 
     /** All registered connection profiles by id — backs {@code GET /connections}. */

@@ -64,9 +64,8 @@ final class FileChunker implements Closeable {
         this.targetBytes = target > 0 ? target : Long.MAX_VALUE;
         Files.createDirectories(outDir);
 
-        InputStream in = Files.newInputStream(source.toPath());
-        if (source.getName().toLowerCase().endsWith(".gz"))
-            in = new GZIPInputStream(in, 1 << 16);
+        InputStream in = com.gamma.etl.Compression.decompress(
+                source, Files.newInputStream(source.toPath()), 1 << 16);
         this.reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8), 1 << 20);
 
         // Capture the leading context reproduced on every chunk: skip_header_lines preamble

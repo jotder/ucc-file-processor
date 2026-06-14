@@ -34,6 +34,7 @@
         <module>inspecto</module>
         <module>inspecto-agent</module>
         <module>inspecto-agent-hosted</module>
+        <module>inspecto-connectors</module>
     </modules>
 
     <properties>

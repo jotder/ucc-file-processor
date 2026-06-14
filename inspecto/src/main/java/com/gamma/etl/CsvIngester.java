@@ -93,12 +93,9 @@ public final class CsvIngester {
         PrintWriter errOut = null;
 
         try (InputStream rawIs = new FileInputStream(file);
-             // For .gz files: buffer 8 MB of compressed data before the GZIPInputStream
-             // so the decompressor reads in large chunks instead of 512-byte syscall bursts.
-             InputStream is    = file.getName().endsWith(".gz")
-                                 ? new GZIPInputStream(
-                                         new BufferedInputStream(rawIs, 8 * 1024 * 1024))
-                                 : rawIs;
+             // For compressed files (.gz/.bz2/.zip): buffer 8 MB of compressed data before the decompressor
+             // so it reads in large chunks instead of 512-byte syscall bursts. Plain files pass through.
+             InputStream is    = Compression.decompress(file, rawIs, 8 * 1024 * 1024);
              // 2 MB char buffer: ~500 refill calls per GB vs ~125,000 with the default 8 KB.
              BufferedReader br = new BufferedReader(
                      new InputStreamReader(is, StandardCharsets.UTF_8), 2 * 1024 * 1024)) {
@@ -262,12 +259,13 @@ public final class CsvIngester {
         return new CsvParser(s);
     }
 
-    private static final java.util.regex.Pattern GZ_SUFFIX  = java.util.regex.Pattern.compile("\\.gz$");
+    private static final java.util.regex.Pattern COMPRESS_SUFFIX =
+            java.util.regex.Pattern.compile("\\.(gz|bz2|zip)$", java.util.regex.Pattern.CASE_INSENSITIVE);
     private static final java.util.regex.Pattern EXT_SUFFIX = java.util.regex.Pattern.compile("\\.[^.]+$");
 
-    /** Strips {@code .gz} then the remaining extension. */
+    /** Strips a compression suffix ({@code .gz}/{@code .bz2}/{@code .zip}) then the remaining extension. */
     public static String stripExtensions(String fileName) {
-        return EXT_SUFFIX.matcher(GZ_SUFFIX.matcher(fileName).replaceAll(""))
+        return EXT_SUFFIX.matcher(COMPRESS_SUFFIX.matcher(fileName).replaceAll(""))
                 .replaceAll("");
     }
 

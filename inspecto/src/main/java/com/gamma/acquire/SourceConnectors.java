@@ -30,8 +30,13 @@ public final class SourceConnectors {
             // sibling marker exists); null when no source.stability block ⇒ readiness UNKNOWN as before.
             return new LocalFileSystemConnector(poll, errors, quarantine, cfg.source().stability().readyMarker());
         }
+        // Resolve the source.connection binding (if any) against the process-wide registry the service
+        // publishes into, so the static poll path can hand a remote connector its host/credentials/base path.
+        ConnectionProfile profile = cfg.source().hasConnection()
+                ? ConnectionRegistry.find(cfg.source().connection()).orElse(null)
+                : null;
         for (SourceConnectorFactory f : ServiceLoader.load(SourceConnectorFactory.class)) {
-            if (f.scheme().equalsIgnoreCase(scheme)) return f.create(cfg);
+            if (f.scheme().equalsIgnoreCase(scheme)) return f.create(cfg, profile);
         }
         throw new IllegalArgumentException(
                 "No source connector registered for connector '" + scheme + "' (built-in: local). "

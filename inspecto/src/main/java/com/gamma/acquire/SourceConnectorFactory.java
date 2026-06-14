@@ -20,4 +20,15 @@ public interface SourceConnectorFactory {
 
     /** Build a connector bound to {@code cfg}'s {@code source:} block. */
     SourceConnector create(PipelineConfig cfg);
+
+    /**
+     * Build a connector bound to {@code cfg}, given the {@link ConnectionProfile} its {@code source.connection}
+     * resolved to (Phase E). A remote connector (SFTP/FTP/…) needs the profile's host / port / credentials /
+     * base path; {@code profile} is {@code null} when the pipeline declares no {@code source.connection}. The
+     * default ignores the profile and delegates to {@link #create(PipelineConfig)}, so existing factories that
+     * read everything from {@code cfg} keep working unchanged.
+     */
+    default SourceConnector create(PipelineConfig cfg, ConnectionProfile profile) {
+        return create(cfg);
+    }
 }

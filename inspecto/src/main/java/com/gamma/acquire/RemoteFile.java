@@ -39,4 +39,10 @@ public record RemoteFile(String name,
     public boolean hasSize() {
         return size >= 0;
     }
+
+    /** A copy pointing at a now-local copy of the bytes (after {@link SourceConnector#fetchTo}), preserving the
+     *  protocol-agnostic identity (name / relativePath / listing metadata). */
+    public RemoteFile withLocalPath(Path local) {
+        return new RemoteFile(name, relativePath, size, lastModified, etag, version, local);
+    }
 }

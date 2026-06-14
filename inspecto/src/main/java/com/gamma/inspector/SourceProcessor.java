@@ -7,6 +7,7 @@ import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.DuplicatePolicy;
 import com.gamma.acquire.GapDetector;
 import com.gamma.acquire.GapTracker;
+import com.gamma.acquire.IntegrityChecker;
 import com.gamma.acquire.LedgerEntry;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SourceConnector;
@@ -185,38 +186,54 @@ public class SourceProcessor {
         }
         DiscoveryContext ctx = new DiscoveryContext(src.includes(), excludes, src.recursiveDepth());
 
-        final List<RemoteFile> discovered;
-        final StabilityGate.StabilityResult gated;
+        // The connector stays open through materialisation: a remote connector holds a session for the lifetime
+        // of the cycle, and fetchTo() needs it. (The local connector holds nothing — close is a no-op.)
         try (SourceConnector connector = SourceConnectors.forConfig(cfg)) {
-            discovered = connector.discover(ctx);
-            gated = (st.enabled() && !discovered.isEmpty())
+            List<RemoteFile> discovered = connector.discover(ctx);
+            StabilityGate.StabilityResult gated = (st.enabled() && !discovered.isEmpty())
                     ? StabilityGate.shared().filter(src.id(), discovered, connector, st.windowMillis(), st.sizeChecks())
                     : null;
+            List<RemoteFile> ready = (gated != null) ? gated.ready() : discovered;
+
+            if (emitSignals && st.enabled()) {
+                setWaitingGauge(cfg, gated != null ? gated.waiting().size() : 0);
+                if (gated != null) for (RemoteFile f : gated.newlyStable()) emitFileStable(cfg, f);
+            }
+
+            // Gap detection (Phase D): over the full discovery listing (not the dedup-filtered candidates) so a
+            // hole in the expected series is reported even when nothing new is ingestable this cycle. Run path only.
+            if (emitSignals && cfg.source().gapDetection().active() && !discovered.isEmpty())
+                detectGaps(cfg, discovered);
+
+            if (ready.isEmpty()) return List.of();
+
+            // Remote sources (SFTP/FTP/…) — Phase E: materialise the bytes into the local staging tree (the poll
+            // root, mirrored at each file's relativePath, with the source mtime preserved) so the rest of the
+            // engine — dedup, markers, ledger, backup — treats them exactly like local files with no further
+            // change. Discovery for a remote source uses the connector (not a poll walk), so staged files are
+            // never re-listed. A read-only pending scan NEVER fetches — it returns a count-only approximation.
+            if (!"local".equalsIgnoreCase(connector.scheme())) {
+                if (!emitSignals) return pendingRemoteApprox(cfg, ready);
+                ready = materializeRemote(cfg, connector, ready);
+                if (ready.isEmpty()) return List.of();
+            }
+
+            return dedupLocal(cfg, ready, emitSignals);
         }
-        List<RemoteFile> ready = (gated != null) ? gated.ready() : discovered;
+    }
 
-        if (emitSignals && st.enabled()) {
-            setWaitingGauge(cfg, gated != null ? gated.waiting().size() : 0);
-            if (gated != null) for (RemoteFile f : gated.newlyStable()) emitFileStable(cfg, f);
-        }
-
-        // Gap detection (Phase D): over the full discovery listing (not the dedup-filtered candidates) so a
-        // hole in the expected series is reported even when nothing new is ingestable this cycle. Run path only.
-        if (emitSignals && cfg.source().gapDetection().active() && !discovered.isEmpty())
-            detectGaps(cfg, discovered);
-
-        if (ready.isEmpty()) return List.of();
-
-        // ── duplicate filtering (engine concern, applied on top of discovery) ──────────────────────
+    /**
+     * Engine-side duplicate filtering applied on top of discovery — unchanged from the original local flow, now
+     * also reached by staged remote files (which look identical: an on-disk file under the poll root). Dedup off
+     * ⇒ every file; content-based ⇒ the fingerprint {@link #ledgerFilter}; otherwise the PATH marker-sentinel
+     * filter (parallelised for a large inbox).
+     */
+    private static List<File> dedupLocal(PipelineConfig cfg, List<RemoteFile> ready, boolean emitSignals)
+            throws java.io.IOException {
         if (!cfg.processing().duplicateCheckEnabled()) return toFiles(ready);   // dedup off
-
-        // Content-based dedup (Phase C): compare each candidate's fingerprint against the ledger keyed by
-        // (sourceId, relativePath) — detects re-uploads / changed files that the path-only marker misses.
         if (cfg.source().duplicate().contentBased())
             return ledgerFilter(cfg, ready, emitSignals);
 
-        // PATH mode (default): the marker-sentinel filter — byte-for-byte the legacy behaviour, split out so a
-        // large inbox runs the per-file marker stat in parallel (order need not be preserved).
         List<File> matched = toFiles(ready);
         if (matched.size() > 1 && cfg.processing().threads() > 1) {
             return matched.parallelStream()
@@ -227,6 +244,113 @@ public class SourceProcessor {
         for (File f : matched)
             if (!MarkerManager.isAlreadyProcessed(f, cfg)) candidates.add(f);
         return candidates;
+    }
+
+    /**
+     * Retrieve each ready remote file into the local staging tree (Phase E). For every file: emit FILE_DISCOVERED;
+     * skip without spending bandwidth if it is already a known duplicate ({@link #isKnownDuplicate}); else
+     * {@link #fetchAndVerify fetch + integrity-check} it to {@code <poll>/<relativePath>} and preserve the source
+     * mtime so METADATA dedup stays stable across cycles. The returned {@link RemoteFile}s carry the local path,
+     * so {@link #dedupLocal} and the downstream batch path handle them with no special-casing. The
+     * {@code inspecto_active_connections} gauge is held at 1 for the duration.
+     */
+    private static List<RemoteFile> materializeRemote(PipelineConfig cfg, SourceConnector connector,
+                                                      List<RemoteFile> ready) {
+        Path pollRoot = Paths.get(cfg.dirs().poll()).toAbsolutePath().normalize();
+        String etagAlgo = cfg.source().duplicate().algorithm();
+        List<RemoteFile> staged = new ArrayList<>(ready.size());
+        setActiveConnections(cfg, 1);
+        try {
+            for (RemoteFile rf : ready) {
+                emitFileEvent(cfg, EventType.FILE_DISCOVERED, "File discovered: " + rf.relativePath(), rf.relativePath());
+                if (isKnownDuplicate(cfg, rf, pollRoot)) { incDuplicatesSkipped(cfg); continue; }
+
+                Path target = pollRoot.resolve(rf.relativePath()).normalize();
+                Path fetched = fetchAndVerify(cfg, connector, rf, target, etagAlgo);
+                if (fetched == null) continue;   // fetch/integrity failure already logged + emitted; not lost silently
+
+                if (rf.lastModified() != null) {
+                    try {
+                        Files.setLastModifiedTime(fetched, java.nio.file.attribute.FileTime.from(rf.lastModified()));
+                    } catch (java.io.IOException ignore) { /* best-effort: mtime preservation keeps METADATA dedup stable */ }
+                }
+                staged.add(rf.withLocalPath(fetched));
+            }
+        } finally {
+            setActiveConnections(cfg, 0);
+        }
+        return staged;
+    }
+
+    /**
+     * Count-only pending approximation for a remote source on the read-only {@code countPending} path — it must
+     * never fetch over the network. Returns the would-be staging paths of the ready files that pre-fetch dedup
+     * wouldn't immediately skip; the caller only reads {@code size()}.
+     */
+    private static List<File> pendingRemoteApprox(PipelineConfig cfg, List<RemoteFile> ready) {
+        Path pollRoot = Paths.get(cfg.dirs().poll()).toAbsolutePath().normalize();
+        List<File> out = new ArrayList<>(ready.size());
+        for (RemoteFile rf : ready)
+            if (!isKnownDuplicate(cfg, rf, pollRoot)) out.add(pollRoot.resolve(rf.relativePath()).toFile());
+        return out;
+    }
+
+    /**
+     * Would this remote file be skipped as a known duplicate <em>before</em> spending bandwidth to fetch it?
+     * PATH dedup: a marker for its staging location already exists. METADATA dedup: the listing's size+mtime
+     * match the ledger fingerprint. CHECKSUM can't decide without the bytes, so it never pre-skips (the file is
+     * fetched and {@link #ledgerFilter} decides on content). Dedup off ⇒ never a duplicate.
+     */
+    private static boolean isKnownDuplicate(PipelineConfig cfg, RemoteFile rf, Path pollRoot) {
+        if (!cfg.processing().duplicateCheckEnabled()) return false;
+        PipelineConfig.Duplicate dup = cfg.source().duplicate();
+        if (!dup.contentBased())
+            return MarkerManager.isAlreadyProcessed(pollRoot.resolve(rf.relativePath()).toFile(), cfg);
+        if (DuplicatePolicy.Mode.from(dup.mode()) == DuplicatePolicy.Mode.METADATA
+                && rf.hasSize() && rf.lastModified() != null) {
+            LedgerEntry prior = AcquisitionLedgers.shared().find(cfg.source().id(), rf.relativePath()).orElse(null);
+            return DuplicatePolicy.decide(DuplicatePolicy.Mode.METADATA, prior, rf.size(),
+                    rf.lastModified().toEpochMilli(), null) == DuplicatePolicy.Decision.DUPLICATE;
+        }
+        return false;
+    }
+
+    /**
+     * Fetch one remote file to {@code target} (materialise once, in its final/staging home — the I/O-minimisation
+     * rule), record transfer metrics + a FILE_FETCHED event, then verify integrity (size vs. listing, checksum vs.
+     * etag). On any failure the bytes are discarded, a FILE_FETCH_FAILED event is emitted, and {@code null} is
+     * returned so the file is skipped this cycle rather than processed corrupt. {@code AcquisitionException}
+     * extends {@code IOException}, so the single catch covers protocol and local-IO faults alike.
+     */
+    private static Path fetchAndVerify(PipelineConfig cfg, SourceConnector connector, RemoteFile rf,
+                                       Path target, String etagAlgo) {
+        long t0 = System.nanoTime();
+        try {
+            if (target.getParent() != null) Files.createDirectories(target.getParent());
+            Path got = connector.fetchTo(rf, target);
+            long bytes;
+            try { bytes = Files.size(got); } catch (java.io.IOException e) { bytes = rf.hasSize() ? rf.size() : 0L; }
+            recordFetch(cfg, bytes, (System.nanoTime() - t0) / 1_000_000_000.0);
+            emitFileFetched(cfg, rf, bytes);
+
+            IntegrityChecker.Result r = IntegrityChecker.verify(rf, got, etagAlgo);
+            if (!r.ok()) {
+                emitFileEvent(cfg, EventType.FILE_FETCH_FAILED,
+                        "Integrity check failed: " + rf.relativePath() + " (" + r.detail() + ")", rf.relativePath());
+                log.warn("Integrity check failed for {} on {}: {} — skipping",
+                        rf.relativePath(), cfg.identity().pipelineName(), r.detail());
+                try { Files.deleteIfExists(got); } catch (java.io.IOException ignore) { }
+                return null;
+            }
+            emitFileEvent(cfg, EventType.FILE_VALIDATED, "File validated: " + rf.relativePath(), rf.relativePath());
+            return got;
+        } catch (java.io.IOException e) {
+            emitFileEvent(cfg, EventType.FILE_FETCH_FAILED,
+                    "Fetch failed: " + rf.relativePath() + " (" + e.getMessage() + ")", rf.relativePath());
+            log.warn("Failed to fetch {} on {}: {} — skipping this cycle",
+                    rf.relativePath(), cfg.identity().pipelineName(), e.getMessage());
+            return null;
+        }
     }
 
     private static List<File> toFiles(List<RemoteFile> ready) {
@@ -362,6 +486,40 @@ public class SourceProcessor {
                 .pipeline(cfg.identity().pipelineName())
                 .message("File stable: " + f.relativePath())
                 .attr("file", f.relativePath()));
+    }
+
+    /** Emit a remote-acquisition lifecycle fact (DISCOVERED/VALIDATED/FETCH_FAILED) carrying the relative path (Phase E). */
+    private static void emitFileEvent(PipelineConfig cfg, String type, String message, String file) {
+        EventLog.global().emit(Event.builder(type)
+                .source(SourceProcessor.class.getName())
+                .pipeline(cfg.identity().pipelineName())
+                .message(message)
+                .attr("file", file));
+    }
+
+    /** Emit {@link EventType#FILE_FETCHED} with the transferred byte count (Phase E). */
+    private static void emitFileFetched(PipelineConfig cfg, RemoteFile f, long bytes) {
+        EventLog.global().emit(Event.builder(EventType.FILE_FETCHED)
+                .source(SourceProcessor.class.getName())
+                .pipeline(cfg.identity().pipelineName())
+                .message("File fetched: " + f.relativePath())
+                .attr("file", f.relativePath())
+                .attr("bytes", Long.toString(bytes)));
+    }
+
+    /** Record per-fetch transfer metrics: total bytes transferred + the fetch-duration histogram (Phase E). */
+    private static void recordFetch(PipelineConfig cfg, long bytes, double seconds) {
+        Map<String, String> labels = Map.of("pipeline", cfg.identity().pipelineName());
+        MetricRegistry.global().inc("inspecto_bytes_transferred_total",
+                "Bytes retrieved from source connectors", labels, bytes);
+        MetricRegistry.global().observe("inspecto_fetch_seconds",
+                "Time to fetch one file from a source connector (seconds)", labels, seconds);
+    }
+
+    /** Set the gauge of currently-open source-connector sessions for this pipeline (Phase E). */
+    private static void setActiveConnections(PipelineConfig cfg, int n) {
+        MetricRegistry.global().setGauge("inspecto_active_connections",
+                "Open source-connector sessions", Map.of("pipeline", cfg.identity().pipelineName()), n);
     }
 
     /** Count of {@link #collectCandidates(PipelineConfig) pending} inbox files; {@code -1} if the scan fails. */
