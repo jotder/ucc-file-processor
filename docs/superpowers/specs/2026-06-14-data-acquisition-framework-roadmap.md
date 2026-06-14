@@ -205,6 +205,7 @@ deliver value *before any remote work*, then remote I/O and resilience (E, F). E
 shippable, additive, and reactor-green-gated.
 
 ### Phase A — Connector SPI + Local parity  *(keystone refactor; zero behaviour change)*
+**Status: ✅ Implemented 2026-06-14** (`com.gamma.acquire` SPI + `LocalFileSystemConnector` + `RetrievalPlanner` + additive `source:` config; reactor green).
 **Outcome:** acquisition is pluggable; nothing observable changes.
 - New `com.gamma.acquire` package: `SourceConnector` SPI + records (§2); `LocalFileSystemConnector`.
 - `ServiceLoader`-based registry keyed by `scheme()` (copy the `StreamingFileIngester` discovery path).
@@ -215,14 +216,29 @@ shippable, additive, and reactor-green-gated.
   `Source` config round-trips; existing pipeline integration tests unchanged.
 
 ### Phase B — Readiness: stability detection + temp-file exclusion  *(Requirement §3-readiness, §4)*
+**Status: ✅ Implemented 2026-06-14** (`StabilityGate` + `source.stability` config + `ready_marker` on the local connector + `FILE_STABLE`/`inspecto_files_waiting_stability`; reactor green).
 **Outcome:** never ingest a half-written file — the requirement's stated "biggest production problem."
 - Engine-side `StabilityGate` (in `com.gamma.acquire`): for each candidate, when `connector.readiness()` is
   `UNKNOWN`, require **N consecutive `size_checks` unchanged across `window`** and skip files modified inside
   the `window`. Connectors that know natively (later: S3 finalized / SFTP completion) short-circuit via `READY`.
-- **Temp-file exclusion:** `source.exclude` defaults gain `*.tmp,*.partial,*.filepart,.~lock.*`; `ready_marker`
-  ("process only when `<name>.done` exists") supported on the local connector.
-- **Observability:** new `EventType.FILE_STABLE`; metric `inspecto_files_waiting_stability` gauge.
-- **Tests:** a file still growing is held then released; temp patterns excluded; `ready_marker` gating.
+  **As-built note:** the release decision is **wall-clock driven** (a file is released only once
+  `now - mtime >= window` *and* it has been seen at the same size on `size_checks` consecutive cycles), which
+  makes `filter()` idempotent under repeated evaluation — the read-only `countPending` scan and the real poll
+  cycle can both call it without one stealing the other's progress. Observations live in a process-wide
+  per-`(sourceId, relativePath)` map on the `StabilityGate.shared()` instance (the same shape as
+  `IngestProgress`'s per-pipeline state); `Clock`/`Probe` are injectable for deterministic tests. The gate
+  stats a file **only** when gating is on *and* readiness is `UNKNOWN`, reusing listing size/mtime when a
+  connector already provided them — keeping discovery I/O at the minimum.
+- **Temp-file exclusion:** when `source.stability` is on, the discovery excludes gain
+  `*.tmp,*.partial,*.filepart,.~lock.*` (`exclude_temp_files: true` by default; override via
+  `exclude_temp_patterns`); `ready_marker` ("process only when `{name}.done` exists") is a native readiness
+  signal on the local connector — marker files are themselves never offered as candidates.
+- **Observability:** new `EventType.FILE_STABLE` (emitted per file the gate releases, on the real `run` path
+  only — `countPending` stays side-effect-free); gauge `inspecto_files_waiting_stability{pipeline}`.
+- **Tests:** `StabilityGateTest` (held-then-released growing file, `size_checks` gating, polling pressure can't
+  release a hot file, connector-native short-circuit without probing, vanished-file drop, per-source isolation,
+  listing-metadata probe); `LocalFileSystemConnectorTest` (`ready_marker` READY/NOT_READY + marker excluded
+  from discovery); `SourceConfigTest` (stability parse + `ready_marker`/temp-exclusion via `collectCandidates`).
 
 ### Phase C — Fingerprint marker repository + dup/change policy  *(Requirement §2-regex, §3, §5, §6)*
 **Outcome:** dedup by content, detect re-uploads, incremental scans — closes the path-only data-loss gap.

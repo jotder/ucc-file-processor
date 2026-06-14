@@ -4,8 +4,13 @@ import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SourceConnector;
 import com.gamma.acquire.SourceConnectors;
+import com.gamma.acquire.StabilityGate;
 import com.gamma.api.PublicApi;
 import com.gamma.etl.*;
+import com.gamma.event.Event;
+import com.gamma.event.EventLog;
+import com.gamma.event.EventType;
+import com.gamma.metrics.MetricRegistry;
 import com.gamma.util.LogSetup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +19,7 @@ import java.io.File;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
@@ -68,8 +74,10 @@ public class SourceProcessor {
 
         MarkerManager.cleanupStaleMarkers(cfg);
 
-        // The set of inbox files this cycle will ingest (matching, not already-processed).
-        List<File> candidates = collectCandidates(cfg);
+        // The set of inbox files this cycle will ingest (matching, ready/stable, not already-processed).
+        // The real run path emits readiness signals (FILE_STABLE + the waiting-stability gauge); the
+        // read-only countPending scan does not.
+        List<File> candidates = collect(cfg, true);
 
         if (candidates.isEmpty()) {
             log.info("No new files to process in {}", root);
@@ -140,21 +148,54 @@ public class SourceProcessor {
      * "pending" work without side effects. Returns empty when the poll root does not exist yet.
      */
     public static List<File> collectCandidates(PipelineConfig cfg) throws java.io.IOException {
-        // Discovery is delegated to the configured source connector — the built-in LOCAL connector
-        // reproduces the legacy poll-dir tree-walk exactly (regular files under poll, excluding the
-        // errors/quarantine trees, matched against the include patterns). Duplicate-marker filtering stays
-        // an engine concern applied on top, and is split out from the listing so a large inbox can run the
-        // per-file marker stat in parallel (order need not be preserved).
-        DiscoveryContext ctx = new DiscoveryContext(
-                cfg.source().includes(), cfg.source().excludes(), cfg.source().recursiveDepth());
+        return collect(cfg, false);   // read-only scan: no FILE_STABLE events, no gauge writes
+    }
+
+    /**
+     * Discover → readiness-gate → duplicate-filter. Discovery is delegated to the configured source connector
+     * (the built-in LOCAL connector reproduces the legacy poll-dir tree-walk exactly). When a
+     * {@code source.stability} block is configured, {@link StabilityGate} holds back any file that is still
+     * arriving (size/mtime not yet quiescent, or a {@code ready_marker} absent) so a half-written file is never
+     * ingested; absent that block, every discovered file is a candidate immediately — Phase-A behaviour.
+     * Duplicate-marker filtering then stays an engine concern applied on top, split out from the listing so a
+     * large inbox can run the per-file marker stat in parallel (order need not be preserved).
+     *
+     * @param emitSignals {@code true} only on the real {@link #run} path — it then emits a
+     *                    {@link EventType#FILE_STABLE} event per file the gate just released and refreshes the
+     *                    {@code inspecto_files_waiting_stability} gauge; {@code countPending} passes
+     *                    {@code false} so a dashboard poll stays side-effect-free.
+     */
+    private static List<File> collect(PipelineConfig cfg, boolean emitSignals) throws java.io.IOException {
+        PipelineConfig.Source src = cfg.source();
+        PipelineConfig.Stability st = src.stability();
+
+        // When stability gating is on, fold the temp/in-flight excludes (*.tmp/*.partial/…) into discovery so
+        // a file mid-write is never even listed; absent a stability block this stays empty ⇒ discovery unchanged.
+        List<String> excludes = src.excludes();
+        if (st.enabled() && st.excludeTempFiles()) {
+            excludes = new ArrayList<>(excludes);
+            excludes.addAll(st.tempPatterns());
+        }
+        DiscoveryContext ctx = new DiscoveryContext(src.includes(), excludes, src.recursiveDepth());
+
         final List<RemoteFile> discovered;
+        final StabilityGate.StabilityResult gated;
         try (SourceConnector connector = SourceConnectors.forConfig(cfg)) {
             discovered = connector.discover(ctx);
+            gated = (st.enabled() && !discovered.isEmpty())
+                    ? StabilityGate.shared().filter(src.id(), discovered, connector, st.windowMillis(), st.sizeChecks())
+                    : null;
         }
-        if (discovered.isEmpty()) return List.of();
+        List<RemoteFile> ready = (gated != null) ? gated.ready() : discovered;
 
-        List<File> matched = new ArrayList<>(discovered.size());
-        for (RemoteFile rf : discovered) matched.add(rf.localPath().toFile());
+        if (emitSignals && st.enabled()) {
+            setWaitingGauge(cfg, gated != null ? gated.waiting().size() : 0);
+            if (gated != null) for (RemoteFile f : gated.newlyStable()) emitFileStable(cfg, f);
+        }
+        if (ready.isEmpty()) return List.of();
+
+        List<File> matched = new ArrayList<>(ready.size());
+        for (RemoteFile rf : ready) matched.add(rf.localPath().toFile());
 
         if (!cfg.processing().duplicateCheckEnabled()) return matched;   // no marker stat to do
         if (matched.size() > 1 && cfg.processing().threads() > 1) {
@@ -166,6 +207,22 @@ public class SourceProcessor {
         for (File f : matched)
             if (!MarkerManager.isAlreadyProcessed(f, cfg)) candidates.add(f);
         return candidates;
+    }
+
+    /** Refresh the per-pipeline gauge of files the readiness gate is currently holding back (Phase B). */
+    private static void setWaitingGauge(PipelineConfig cfg, int waiting) {
+        MetricRegistry.global().setGauge("inspecto_files_waiting_stability",
+                "Discovered files held back pending stability",
+                Map.of("pipeline", cfg.identity().pipelineName()), waiting);
+    }
+
+    /** Emit the {@link EventType#FILE_STABLE} lifecycle fact for a file the gate just released (Phase B). */
+    private static void emitFileStable(PipelineConfig cfg, RemoteFile f) {
+        EventLog.global().emit(Event.builder(EventType.FILE_STABLE)
+                .source(SourceProcessor.class.getName())
+                .pipeline(cfg.identity().pipelineName())
+                .message("File stable: " + f.relativePath())
+                .attr("file", f.relativePath()));
     }
 
     /** Count of {@link #collectCandidates(PipelineConfig) pending} inbox files; {@code -1} if the scan fails. */

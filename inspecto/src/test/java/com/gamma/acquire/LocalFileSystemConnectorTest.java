@@ -127,7 +127,39 @@ class LocalFileSystemConnectorTest {
     }
 
     @Test
-    void schemeReadinessAndCapabilities() {
+    void readyMarkerGatesReadinessAndMarkerFilesAreNotDiscovered(@TempDir Path dir) throws Exception {
+        Path poll = dir.resolve("inbox").toAbsolutePath().normalize();
+        Files.createDirectories(poll);
+        Files.writeString(poll.resolve("a.csv"), "x");
+        LocalFileSystemConnector c = new LocalFileSystemConnector(
+                poll, poll.resolve("errors"), poll.resolve("quarantine"), "{name}.done");
+
+        // the data file is discovered; with no sibling sentinel it is NOT_READY (held by the gate)
+        List<RemoteFile> found = c.discover(ctx(List.of("glob:**/*.csv"), List.of(), -1));
+        assertEquals(Set.of("a.csv"), rel(found));
+        RemoteFile a = found.get(0);
+        assertEquals(SourceConnector.Readiness.NOT_READY, c.readiness(a));
+
+        // drop the sentinel ⇒ READY; and the sentinel itself is never offered as a candidate
+        Files.writeString(poll.resolve("a.csv.done"), "");
+        assertEquals(SourceConnector.Readiness.READY, c.readiness(a));
+        assertEquals(Set.of("a.csv"), rel(c.discover(ctx(List.of("glob:**/*"), List.of(), -1))),
+                "the .done marker is excluded from discovery even under a match-all include");
+    }
+
+    @Test
+    void withoutReadyMarkerReadinessIsUnknown(@TempDir Path dir) throws Exception {
+        Path poll = dir.resolve("inbox");
+        Files.createDirectories(poll);
+        Files.writeString(poll.resolve("a.csv"), "x");
+        LocalFileSystemConnector c = connector(poll);   // 3-arg ctor ⇒ no ready_marker
+        RemoteFile a = c.discover(ctx(List.of("glob:**/*.csv"), List.of(), -1)).get(0);
+        assertEquals(SourceConnector.Readiness.UNKNOWN, c.readiness(a),
+                "no ready_marker ⇒ defer to the engine's size/mtime stabilization");
+    }
+
+    @Test
+    void schemeReadinessAndCapabilities() throws Exception {
         LocalFileSystemConnector c =
                 new LocalFileSystemConnector(Path.of("x"), Path.of("x/errors"), Path.of("x/quarantine"));
         assertEquals("local", c.scheme());

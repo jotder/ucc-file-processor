@@ -202,10 +202,37 @@ public final class PipelineConfig {
      */
     @PublicApi(since = "4.2.0")
     public record Source(String id, String connector, List<String> includes,
-                         List<String> excludes, int recursiveDepth) {
+                         List<String> excludes, int recursiveDepth, Stability stability) {
         public Source {
             includes = List.copyOf(includes);
             excludes = List.copyOf(excludes);
+            if (stability == null) stability = Stability.DISABLED;
+        }
+    }
+
+    /**
+     * Readiness / stability detection for a source (Data Acquisition roadmap Phase B; additive,
+     * {@code source.stability:}). When {@link #enabled} the engine holds a discovered file back until it has
+     * stopped changing — {@link com.gamma.acquire.StabilityGate} releases it only once it has been quiescent
+     * for {@link #windowMillis} and seen at the same size on {@link #sizeChecks} consecutive cycles — so a
+     * half-written file is never ingested. A connector that knows readiness natively (or a {@link #readyMarker}
+     * sentinel on the local connector) short-circuits this. {@code excludeTempFiles} merges
+     * {@link #DEFAULT_TEMP_PATTERNS} (or {@code tempPatterns}) into the discovery excludes.
+     *
+     * <p>{@link #DISABLED} (no {@code source.stability:} block) is the legacy behaviour: a matched file is a
+     * candidate immediately and nothing is stat'd for stability.
+     */
+    @PublicApi(since = "4.2.0")
+    public record Stability(boolean enabled, long windowMillis, int sizeChecks,
+                            String readyMarker, boolean excludeTempFiles, List<String> tempPatterns) {
+        /** Temp / in-flight patterns excluded by default when stability gating is on (filename globs). */
+        public static final List<String> DEFAULT_TEMP_PATTERNS =
+                List.of("*.tmp", "*.partial", "*.filepart", ".~lock.*");
+        /** No stability gating — the legacy "process a matched file at once" behaviour. */
+        public static final Stability DISABLED =
+                new Stability(false, 0L, 0, null, false, List.of());
+        public Stability {
+            tempPatterns = List.copyOf(tempPatterns);
         }
     }
 
@@ -275,7 +302,7 @@ public final class PipelineConfig {
         this.chunking = new Chunking(b.chunkMaxFileBytes, b.chunkTargetBytes);
         this.fixedWidth = b.fixedWidth;
         this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
-                b.sourceExcludes, b.sourceDepth);
+                b.sourceExcludes, b.sourceDepth, b.sourceStability);
         this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
@@ -551,6 +578,21 @@ public final class PipelineConfig {
             b.sourceExcludes  = strList(src.get("exclude"));
             Object depth = src.get("recursive_depth");
             if (depth != null) b.sourceDepth = toInt(depth);
+
+            // ── readiness / stability (Phase B; additive sub-block, absent ⇒ DISABLED) ──────────
+            Map<String, Object> stab = (Map<String, Object>) src.get("stability");
+            if (stab != null) {
+                long windowMs = toMillis(opt(stab, "window", "30s"));
+                int  checks   = Math.max(1, toInt(stab.getOrDefault("size_checks", 2)));
+                String marker = opt(stab, "ready_marker", null);
+                boolean excludeTmp = !"false".equalsIgnoreCase(
+                        String.valueOf(stab.getOrDefault("exclude_temp_files", "true")));
+                List<String> tmp = strList(stab.get("exclude_temp_patterns"));
+                b.sourceStability = new Stability(true, windowMs, checks,
+                        (marker == null || marker.isBlank()) ? null : marker.trim(),
+                        excludeTmp,
+                        tmp.isEmpty() ? Stability.DEFAULT_TEMP_PATTERNS : tmp);
+            }
         }
 
         log.info("[CONFIG] Status file : {}", b.statusFilePath);
@@ -598,6 +640,26 @@ public final class PipelineConfig {
         if (v == null) return 0;
         String s = String.valueOf(v).trim();
         return s.isEmpty() ? 0 : Long.parseLong(s);
+    }
+
+    /**
+     * Parse a duration string to milliseconds, using the same {@code s/m/h/d} suffix grammar as
+     * {@code AlertRule.window} (e.g. {@code "30s"}, {@code "5m"}, {@code "2h"}, {@code "1d"}); a bare number is
+     * read as seconds. {@code null}/blank ⇒ 0.
+     */
+    private static long toMillis(String d) {
+        if (d == null || d.isBlank()) return 0L;
+        d = d.trim();
+        char last = d.charAt(d.length() - 1);
+        if (Character.isDigit(last)) return Long.parseLong(d) * 1000L;   // bare number ⇒ seconds
+        long n = Long.parseLong(d.substring(0, d.length() - 1).trim());
+        return switch (Character.toLowerCase(last)) {
+            case 's' -> n * 1_000L;
+            case 'm' -> n * 60_000L;
+            case 'h' -> n * 3_600_000L;
+            case 'd' -> n * 86_400_000L;
+            default  -> throw new IllegalArgumentException("not a duration (expected Ns/Nm/Nh/Nd): " + d);
+        };
     }
 
     /** Trim a config value to a String; {@code null}/blank ⇒ {@code null}. */
@@ -791,6 +853,7 @@ public final class PipelineConfig {
         List<String> sourceIncludes  = new ArrayList<>();
         List<String> sourceExcludes  = new ArrayList<>();
         int          sourceDepth     = -1;
+        Stability    sourceStability = Stability.DISABLED;
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;

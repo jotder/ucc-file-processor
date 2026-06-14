@@ -26,7 +26,9 @@ public final class SourceConnectors {
             Path poll = abs(cfg.dirs().poll());
             Path errors = abs(cfg.dirs().errors());
             Path quarantine = abs(cfg.dirs().quarantine());
-            return new LocalFileSystemConnector(poll, errors, quarantine);
+            // ready_marker (Phase B) makes the local connector answer readiness natively (READY iff the
+            // sibling marker exists); null when no source.stability block ⇒ readiness UNKNOWN as before.
+            return new LocalFileSystemConnector(poll, errors, quarantine, cfg.source().stability().readyMarker());
         }
         for (SourceConnectorFactory f : ServiceLoader.load(SourceConnectorFactory.class)) {
             if (f.scheme().equalsIgnoreCase(scheme)) return f.create(cfg);

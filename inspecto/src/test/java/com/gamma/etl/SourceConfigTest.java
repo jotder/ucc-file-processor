@@ -96,6 +96,54 @@ class SourceConfigTest {
     }
 
     @Test
+    void noStabilityBlockIsDisabled(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, "").toString());
+        assertFalse(cfg.source().stability().enabled());
+        assertEquals(PipelineConfig.Stability.DISABLED, cfg.source().stability());
+    }
+
+    @Test
+    void stabilityBlockParsesWindowChecksMarkerAndTempExclusion(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+            source:
+              stability:
+                window: 5m
+                size_checks: 3
+                ready_marker: "{name}.ok"
+                exclude_temp_files: true
+            """).toString());
+        PipelineConfig.Stability st = cfg.source().stability();
+        assertTrue(st.enabled());
+        assertEquals(300_000L, st.windowMillis(), "5m → 300_000ms");
+        assertEquals(3, st.sizeChecks());
+        assertEquals("{name}.ok", st.readyMarker());
+        assertTrue(st.excludeTempFiles());
+        assertTrue(st.tempPatterns().contains("*.tmp"), "default temp patterns applied");
+    }
+
+    @Test
+    void collectCandidatesGatesByReadyMarkerAndExcludesTempFiles(@TempDir Path dir) throws Exception {
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+            source:
+              include[1]: "glob:**/*"
+              stability:
+                ready_marker: "{name}.done"
+            """).toString());
+
+        Path inbox = Path.of(cfg.dirs().poll());
+        Files.createDirectories(inbox);
+        Files.writeString(inbox.resolve("data.csv"), "x");
+        Files.writeString(inbox.resolve("data.csv.done"), "");   // sentinel ⇒ data.csv is READY
+        Files.writeString(inbox.resolve("pending.csv"), "x");    // no sentinel ⇒ held (NOT_READY)
+        Files.writeString(inbox.resolve("scratch.tmp"), "x");    // temp-file ⇒ excluded at discovery
+
+        List<String> names = SourceProcessor.collectCandidates(cfg).stream()
+                .map(File::getName).sorted().toList();
+        assertEquals(List.of("data.csv"), names,
+                "only the marked file is ready; pending is held, the .tmp is excluded, the .done sentinel is not a candidate");
+    }
+
+    @Test
     void collectCandidatesHonoursExcludeAndRecursiveDepth(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
             source:
