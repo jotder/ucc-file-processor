@@ -67,34 +67,13 @@
 
             <span class="flex-auto"></span>
 
+            <button mat-stroked-button [matMenuTriggerFor]="viewsMenu" matTooltip="Saved views">
+                <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
+                <span class="ml-2">Views</span>
+            </button>
             <button mat-stroked-button (click)="exportCsv()" matTooltip="Download matching events as CSV">
                 <mat-icon svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
                 <span class="ml-2">Export CSV</span>
-            </button>
-        </div>
-
-        <!-- Saved views + active correlation chip -->
-        <div class="mb-4 flex flex-wrap items-center gap-3">
-            <mat-form-field class="gamma-mat-dense w-52" subscriptSizing="dynamic">
-                <mat-label>Saved view</mat-label>
-                <mat-select [(ngModel)]="selectedView" (selectionChange)="applyView($event.value)">
-                    <mat-option value="">—</mat-option>
-                    @for (v of views; track v.name) {
-                        <mat-option [value]="v.name">{{ v.name }}</mat-option>
-                    }
-                </mat-select>
-            </mat-form-field>
-            <button mat-icon-button (click)="deleteView()" [disabled]="!selectedView" matTooltip="Delete the selected view" aria-label="Delete the selected view">
-                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
-            </button>
-
-            <mat-form-field class="gamma-mat-dense w-52" subscriptSizing="dynamic">
-                <mat-label>Save current as…</mat-label>
-                <input matInput [(ngModel)]="saveName" placeholder="view name" (keyup.enter)="saveView()" />
-            </mat-form-field>
-            <button mat-stroked-button (click)="saveView()">
-                <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
-                <span class="ml-2">Save view</span>
             </button>
 
             @if (fCorrelation) {
@@ -106,6 +85,45 @@
                 </span>
             }
         </div>
+
+        <!-- Saved-views menu (collapses the former second toolbar row) -->
+        <mat-menu #viewsMenu="matMenu">
+            <div class="min-w-72">
+                @for (v of views; track v.name) {
+                    <div class="flex items-center">
+                        <button mat-menu-item class="flex-auto" (click)="applyView(v.name)">
+                            <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
+                            <span>{{ v.name }}</span>
+                        </button>
+                        <button
+                            mat-icon-button
+                            class="mr-1"
+                            (click)="$event.stopPropagation(); selectedView = v.name; deleteView()"
+                            [attr.aria-label]="'Delete view ' + v.name"
+                        >
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                        </button>
+                    </div>
+                } @empty {
+                    <div class="text-secondary px-4 py-2 text-sm">No saved views yet.</div>
+                }
+                <div class="mt-1 flex items-center gap-2 border-t px-3 pt-2" (click)="$event.stopPropagation()">
+                    <mat-form-field class="gamma-mat-dense flex-auto" subscriptSizing="dynamic">
+                        <mat-label>Save current as…</mat-label>
+                        <input
+                            matInput
+                            [(ngModel)]="saveName"
+                            placeholder="view name"
+                            (keydown)="$event.stopPropagation()"
+                            (keyup.enter)="saveView()"
+                        />
+                    </mat-form-field>
+                    <button mat-icon-button (click)="saveView()" aria-label="Save current view">
+                        <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                    </button>
+                </div>
+            </div>
+        </mat-menu>
 
         @if (!loading && events.length === 0) {
             <inspecto-empty-state
