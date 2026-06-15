@@ -7,6 +7,7 @@ import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SecretResolver;
 import com.gamma.acquire.SourceConnector;
+import net.schmizz.sshj.SSHClient;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
@@ -20,6 +21,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -50,6 +52,14 @@ import static com.gamma.acquire.SourceConnector.Capability.*;
  * ({@code PBSZ 0} + {@code PROT P}). Server certificates are validated against the JVM trust store by default;
  * {@code options.tls_trust=all} accepts any certificate (for self-signed / internal-CA servers — still
  * encrypted, but not authenticated).
+ *
+ * <p><b>SSH bastion.</b> An optional {@link ConnectionProfile.Tunnel} is honoured by forwarding the FTP control
+ * connection through the bastion (host key verified per {@link HostKeyPolicy}). Because FTP opens <em>separate
+ * passive data connections</em>, the server's passive port range must also be tunnelled: set
+ * {@code options.passive_ports} (e.g. {@code "30000-30009"}) to the range the server is configured to hand out —
+ * each is forwarded loopback→server and a passive NAT-workaround makes the client dial the loopback. (The server
+ * must be configured with that fixed passive range.) Active mode cannot traverse a tunnel, so a tunnelled
+ * connection is always passive.
  */
 public final class FtpConnector implements SourceConnector {
 
@@ -61,9 +71,11 @@ public final class FtpConnector implements SourceConnector {
     private final boolean passive;
     private final boolean binary;
     private final TlsMode tls;
-    private final String tlsTrust;   // options.tls_trust: "all" ⇒ accept any cert; else JVM default trust
+    private final String tlsTrust;       // options.tls_trust: "all" ⇒ accept any cert; else JVM default trust
+    private final int[] passivePorts;    // options.passive_ports: server's passive range, forwarded over a tunnel
 
     private FTPClient ftp;
+    private SshTunnel tunnel;             // non-null only when an SSH bastion is configured
 
     public FtpConnector(ConnectionProfile profile, String readyMarker) {
         this(profile, readyMarker, TlsMode.NONE);
@@ -78,6 +90,7 @@ public final class FtpConnector implements SourceConnector {
         this.binary  = !"false".equalsIgnoreCase(profile.options().getOrDefault("binary", "true"));
         this.tls     = TlsMode.from(profile.options().get("tls"), defaultTls);
         this.tlsTrust = profile.options().get("tls_trust");
+        this.passivePorts = parsePorts(profile.options().get("passive_ports"));
     }
 
     @Override
@@ -207,14 +220,22 @@ public final class FtpConnector implements SourceConnector {
 
     @Override
     public void close() throws AcquisitionException {
-        if (ftp == null) return;
-        try {
-            if (ftp.isConnected()) { ftp.logout(); ftp.disconnect(); }
-        } catch (IOException e) {
-            throw new AcquisitionException("Error closing FTP connection", e);
-        } finally {
-            ftp = null;
+        AcquisitionException err = null;
+        if (ftp != null) {
+            try {
+                if (ftp.isConnected()) { ftp.logout(); ftp.disconnect(); }
+            } catch (IOException e) {
+                err = new AcquisitionException("Error closing FTP connection", e);
+            } finally {
+                ftp = null;
+            }
         }
+        if (tunnel != null) {
+            try { tunnel.close(); }
+            catch (IOException e) { if (err == null) err = new AcquisitionException("Error closing FTP SSH tunnel", e); }
+            finally { tunnel = null; }
+        }
+        if (err != null) throw err;
     }
 
     // ── connection ────────────────────────────────────────────────────────────
@@ -222,9 +243,27 @@ public final class FtpConnector implements SourceConnector {
     private synchronized FTPClient ensureConnected() throws AcquisitionException {
         if (ftp != null && ftp.isConnected()) return ftp;
         FTPClient client = newClient();
+        String host = profile.host();
+        int port = profile.port() > 0 ? profile.port() : tls.defaultPort();
+        boolean tunnelled = profile.tunnel() != null && profile.tunnel().host() != null
+                && !profile.tunnel().host().isBlank();
         try {
-            int port = profile.port() > 0 ? profile.port() : tls.defaultPort();
-            client.connect(profile.host(), port);   // FTPSClient negotiates AUTH TLS (explicit) / TLS-first (implicit) here
+            if (tunnelled) {
+                // Forward the control connection through the bastion; host_key/known_hosts pin the bastion.
+                tunnel = SshTunnel.open(profile.tunnel(), host, port, FtpConnector::bastionAuth,
+                        HostKeyPolicy.from(profile));
+                // FTP's passive data connections need their own forwards: one loopback→server per passive port.
+                for (int p : passivePorts) tunnel.addForward(p, host, p);
+                if (passivePorts.length == 0)
+                    log.warn("FTP source '{}' tunnels the control connection but no options.passive_ports are set "
+                            + "— passive data transfers will fail unless the server's data ports are independently "
+                            + "reachable. Set options.passive_ports to the server's configured passive range.",
+                            profile.id());
+                InetSocketAddress local = tunnel.localEndpoint();
+                host = local.getHostString();
+                port = local.getPort();
+            }
+            client.connect(host, port);   // FTPSClient negotiates AUTH TLS (explicit) / TLS-first (implicit) here
             if (!FTPReply.isPositiveCompletion(client.getReplyCode())) {
                 client.disconnect();
                 throw new IOException("server refused connection: " + client.getReplyString());
@@ -240,12 +279,22 @@ public final class FtpConnector implements SourceConnector {
                 ftps.execPBSZ(0);        // protection buffer size (0 for TLS)
                 ftps.execPROT("P");      // encrypt the data channel too, not just the control channel
             }
-            if (passive) client.enterLocalPassiveMode(); else client.enterLocalActiveMode();
+            if (tunnelled) {
+                // Ignore the server-advertised PASV address (an unreachable server-side IP) and dial the loopback
+                // forwards instead. Active mode can't traverse a tunnel, so a tunnelled connection is passive.
+                client.setPassiveNatWorkaroundStrategy(h -> "127.0.0.1");
+                client.enterLocalPassiveMode();
+            } else if (passive) {
+                client.enterLocalPassiveMode();
+            } else {
+                client.enterLocalActiveMode();
+            }
             client.setFileType(binary ? FTP.BINARY_FILE_TYPE : FTP.ASCII_FILE_TYPE);
             this.ftp = client;
             return client;
         } catch (IOException e) {
             try { if (client.isConnected()) client.disconnect(); } catch (IOException ignore) { }
+            if (tunnel != null) { try { tunnel.close(); } catch (IOException ignore) { } tunnel = null; }
             throw new AcquisitionException("Cannot connect " + scheme().toUpperCase() + " to "
                     + profile.host() + ": " + e.getMessage(), e);
         }
@@ -257,6 +306,34 @@ public final class FtpConnector implements SourceConnector {
         FTPSClient ftps = new FTPSClient(tls == TlsMode.IMPLICIT);
         if ("all".equalsIgnoreCase(tlsTrust)) ftps.setTrustManager(TrustManagerUtils.getAcceptAllTrustManager());
         return ftps;
+    }
+
+    /** Authenticate the SSH bastion with the tunnel's username + password reference (resolved at connect). */
+    private static void bastionAuth(SSHClient client, String user, String passwordRef) throws IOException {
+        String password = SecretResolver.resolve(passwordRef);
+        if (password == null) throw new IOException("no usable credential for FTP SSH-tunnel user '" + user + "'");
+        client.authPassword(user, password);
+    }
+
+    /** Parse {@code options.passive_ports} — a comma list and/or {@code a-b} ranges (e.g. {@code "30000-30009"}). */
+    static int[] parsePorts(String spec) {
+        if (spec == null || spec.isBlank()) return new int[0];
+        List<Integer> ports = new ArrayList<>();
+        for (String part : spec.split(",")) {
+            part = part.trim();
+            if (part.isEmpty()) continue;
+            int dash = part.indexOf('-');
+            if (dash > 0) {
+                int a = Integer.parseInt(part.substring(0, dash).trim());
+                int b = Integer.parseInt(part.substring(dash + 1).trim());
+                for (int p = Math.min(a, b); p <= Math.max(a, b); p++) ports.add(p);
+            } else {
+                ports.add(Integer.parseInt(part));
+            }
+        }
+        int[] out = new int[ports.size()];
+        for (int i = 0; i < out.length; i++) out[i] = ports.get(i);
+        return out;
     }
 
     // ── path helpers ────────────────────────────────────────────────────────────

@@ -458,6 +458,14 @@ pieces shipped in one commit, including parallel multi-session fetch.
     hop). Default (nothing configured, non-strict) = accept-on-connect, so existing profiles still connect. Tested
     against the embedded MINA SSHD with a known generated host key: correct fingerprint connects, a wrong
     fingerprint and `strict_host_key` without a pin are both refused.
+  - **FTP/FTPS through an SSH bastion** (added 2026-06-15) — `FtpConnector` now honours the profile `tunnel:`
+    block like SFTP/DB. The wrinkle is FTP's separate passive data connections: `SshTunnel` grew `addForward`
+    (multiple loopback forwards over one bastion), the connector forwards each `options.passive_ports` port
+    loopback→server, and sets a passive NAT-workaround (`setPassiveNatWorkaroundStrategy → 127.0.0.1`) so the
+    client dials the loopback rather than the server's advertised (unreachable) PASV address; a tunnelled
+    connection is forced passive (active can't traverse a tunnel). Without `passive_ports` only the control
+    channel is forwarded (warned). Tested e2e: FTP discover+fetch through an embedded MINA bastion (forwarding
+    filter on) to an embedded Apache FtpServer + a `parsePorts` range/list unit test. Connectors 27 → **29**.
 
 ### Future (explicitly out of scope here — requirement marks these "(future)")
 Object storage (S3/GCS/Azure/MinIO) connectors; NFS/SMB/CIFS; **event-notification** discovery (S3 events/inotify)

@@ -16,8 +16,10 @@
 > (`source.incremental.watermark: last_modified`) — each scan skips files modified before the source's
 > high-watermark (max `last_modified` recorded in the fingerprint ledger), so remote sources spend no fetch
 > bandwidth re-collecting history; and **connector hardening** — **FTPS** (`connector: ftps`, or
-> `options.tls: explicit|implicit`; encrypts control + data channels) and **strict SSH host-key pinning**
-> (`options.host_key`/`known_hosts`/`strict_host_key`) on the SFTP/tunnel path.
+> `options.tls: explicit|implicit`; encrypts control + data channels), **strict SSH host-key pinning**
+> (`options.host_key`/`known_hosts`/`strict_host_key`), and **FTP/FTPS through an SSH bastion**
+> (`tunnel:` + `options.passive_ports` for the passive data range) — so all of SFTP/FTP/FTPS/DB-export can
+> traverse a bastion.
 > **Still future** (this SPI makes each non-disruptive): object storage (S3/GCS/Azure/MinIO), NFS/SMB/CIFS,
 > and the etag/version watermark dimensions.
 

@@ -80,8 +80,8 @@ defence against a man-in-the-middle or a silently changed host). Pin it via the 
 | `strict_host_key: true` | When set and neither of the above is configured, **refuse to connect** rather than silently accept any key. |
 
 Over an SSH tunnel, a single `host_key` fingerprint pins the **target** SFTP server (a fingerprint matches one
-host); use `known_hosts` to verify the bastion as well. For a `db`-export profile reached through a tunnel,
-`host_key`/`known_hosts` pin the **bastion** (the only SSH hop). With none of these set, the legacy
+host); use `known_hosts` to verify the bastion as well. For a `db`-export or `ftp`/`ftps` profile reached through
+a tunnel, `host_key`/`known_hosts` pin the **bastion** (its only SSH hop). With none of these set, the legacy
 accept-on-connect behaviour is unchanged — pinning is purely additive.
 
 ### FTPS (FTP over TLS)
@@ -102,6 +102,36 @@ connection:
   password: ${ENV:FTPS_PASSWORD}
   options: { tls_trust: all }     # for a self-signed / internal-CA server
 ```
+
+### FTP / FTPS through an SSH bastion
+
+`sftp`, `db`, **and now `ftp`/`ftps`** honour the profile `tunnel:` block. FTP is the special case: it opens a
+**control** connection *and* separate **passive data** connections, so the bastion must carry both. Set
+`options.passive_ports` to the range the FTP server is configured to advertise (its `PassivePorts`) — each port
+is forwarded loopback→server over the bastion, and the client is told to dial the loopback (a passive
+NAT-workaround) instead of the server's advertised, unreachable address. Active mode can't traverse a tunnel, so
+a tunnelled FTP connection is always passive.
+
+```yaml
+connection:
+  id: partner_ftps_via_bastion
+  connector: ftps
+  host: ftps.internal.example.com     # only reachable from the bastion
+  username: inspecto
+  password: ${ENV:FTPS_PASSWORD}
+  options:
+    tls_trust: all
+    passive_ports: "30000-30009"      # MUST match the server's configured passive range
+  tunnel:
+    host: bastion.example.com
+    username: jump
+    password: ${ENV:BASTION_PASSWORD}
+    # known_hosts: /etc/inspecto/known_hosts   strict_host_key: true   # pin the bastion
+```
+
+> If you tunnel FTP **without** `passive_ports`, only the control channel is forwarded — data transfers will fail
+> unless the server's passive ports happen to be independently reachable from the Inspecto host (the connector
+> logs a warning). For a bastion-only server, always set `passive_ports`.
 
 ### DB-export source (SQL → CSV)
 
