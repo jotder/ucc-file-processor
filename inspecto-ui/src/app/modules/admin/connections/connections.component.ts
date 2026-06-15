@@ -108,7 +108,13 @@ export class ConnectionsComponent implements OnInit {
     }
 
     async remove(c: ConnectionProfile): Promise<void> {
-        if (!(await this.confirm.confirm(`Delete connection "${c.id}"?`, 'Delete connection'))) return;
+        if (
+            !(await this.confirm.confirmDestructive(
+                `Delete connection "${c.id}"? This removes its connection profile.`,
+                { title: 'Delete connection' },
+            ))
+        )
+            return;
         this.api.remove(c.id).subscribe({
             next: () => {
                 this.toastr.success(`Connection "${c.id}" deleted`);

@@ -251,7 +251,7 @@ export class EventsComponent implements OnInit, OnDestroy {
             return;
         }
         const name = this.selectedView;
-        if (!(await this.confirm.confirm(`Delete saved view "${name}"?`, 'Delete view'))) return;
+        if (!(await this.confirm.confirmDestructive(`Delete saved view "${name}"?`, { title: 'Delete view' }))) return;
         this.api.deleteView(name).subscribe({
             next: () => {
                 this.toastr.success(`Deleted "${name}"`);
