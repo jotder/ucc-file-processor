@@ -2,14 +2,14 @@
 
 > Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
 
-## Remote source connectors (SFTP / FTP)
+## Remote source connectors (SFTP / FTP / FTPS)
 
-Inspecto can pull input files from remote SFTP/FTP servers instead of a local `dirs.poll` tree. The connectors
-live in the **optional `inspecto-connectors` module** (artifact `file-processor-connectors`) so their network
-dependencies — sshj (+BouncyCastle) for SFTP, Apache commons-net for FTP — never bloat the lean core JAR. Put
-that JAR on the classpath and the connectors are discovered automatically via `ServiceLoader`; without it, only
-the built-in `local` connector exists. New protocols (S3/GCS/Azure, NFS/SMB, DB-export) are future connectors
-that plug into the same SPI without touching the core engine.
+Inspecto can pull input files from remote SFTP/FTP/FTPS servers instead of a local `dirs.poll` tree. The
+connectors live in the **optional `inspecto-connectors` module** (artifact `file-processor-connectors`) so their
+network dependencies — sshj (+BouncyCastle) for SFTP, Apache commons-net for FTP/FTPS — never bloat the lean core
+JAR. Put that JAR on the classpath and the connectors are discovered automatically via `ServiceLoader`; without
+it, only the built-in `local` connector exists. New protocols (S3/GCS/Azure, NFS/SMB) are future connectors that
+plug into the same SPI without touching the core engine.
 
 ### 1. Define a connection profile (`<name>_connection.toon`)
 
@@ -19,7 +19,7 @@ references, never literals** — `${ENV:VAR}` reads an environment variable, `${
 ```yaml
 connection:
   id: prod_sftp
-  connector: sftp                 # sftp | ftp
+  connector: sftp                 # sftp | ftp | ftps
   host: sftp.partner.example.com
   port: 22
   base_path: /outbound/cdr        # listing root
@@ -27,7 +27,10 @@ connection:
   password: ${ENV:SFTP_PASSWORD}  # reference; resolved at connect, masked in API output
   options:
     private_key: /etc/inspecto/id_ed25519   # SFTP: switches to public-key auth
-    # active: false   binary: true           # FTP-only knobs (passive + binary default)
+    host_key: "SHA256:abc…"                  # SFTP: pin the server key (fingerprint) — reject anything else
+    # known_hosts: /etc/inspecto/known_hosts  strict_host_key: true   # alternatives (see below)
+    # tls: explicit   tls_trust: all          # FTPS knobs (see below); explicit|implicit
+    # active: false   binary: true            # FTP-only knobs (passive + binary default)
   tunnel:                          # optional SSH bastion (SFTP); omit for a direct connection
     host: bastion.example.com
     port: 22
@@ -64,6 +67,41 @@ curl -s -X POST localhost:8080/connections/prod_sftp/test   # TCP reachability +
 ```
 
 The Connections pane in the UI lists profiles with a per-row **Test** action over the same endpoints.
+
+### SSH host-key pinning (SFTP)
+
+By default the SFTP client accepts whatever host key the server presents on first connect (convenient, but no
+defence against a man-in-the-middle or a silently changed host). Pin it via the profile `options`:
+
+| Option | Effect |
+|---|---|
+| `host_key` | A key fingerprint (`SHA256:<base64>` or OpenSSH MD5 colon-hex). The presented key must match exactly — best for a single direct host. |
+| `known_hosts` | Path to an OpenSSH `known_hosts` file; the host must have an entry. Works across hops (a bastion **and** a target). |
+| `strict_host_key: true` | When set and neither of the above is configured, **refuse to connect** rather than silently accept any key. |
+
+Over an SSH tunnel, a single `host_key` fingerprint pins the **target** SFTP server (a fingerprint matches one
+host); use `known_hosts` to verify the bastion as well. For a `db`-export profile reached through a tunnel,
+`host_key`/`known_hosts` pin the **bastion** (the only SSH hop). With none of these set, the legacy
+accept-on-connect behaviour is unchanged — pinning is purely additive.
+
+### FTPS (FTP over TLS)
+
+Set `connector: ftps` (defaults to explicit/`AUTH TLS`), or keep `connector: ftp` and add `options.tls`:
+
+| Option | Values | Effect |
+|---|---|---|
+| `tls` | `explicit` (FTPES, port 21) · `implicit` (TLS-first, port 990) · `none` | Enables TLS; the control **and** data channels are encrypted (`PBSZ 0` + `PROT P`). |
+| `tls_trust` | `all` · *(unset)* | `all` accepts any server certificate (self-signed / internal CA — still encrypted, **not** authenticated). Unset validates against the JVM trust store (the secure default; works for publicly-signed certs out of the box). |
+
+```yaml
+connection:
+  id: partner_ftps
+  connector: ftps                 # explicit AUTH TLS by default
+  host: ftps.partner.example.com
+  username: inspecto
+  password: ${ENV:FTPS_PASSWORD}
+  options: { tls_trust: all }     # for a self-signed / internal-CA server
+```
 
 ### DB-export source (SQL → CSV)
 

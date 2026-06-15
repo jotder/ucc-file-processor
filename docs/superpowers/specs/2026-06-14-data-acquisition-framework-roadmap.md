@@ -385,8 +385,8 @@ The `EXACTLY_ONCE`-survives-a-crash test is a `CommitLog` concern already covere
   the materialise wiring + `ConnectionRegistry` + ServiceLoader + re-run dedup together). Core: `Compression`,
   `IntegrityChecker`, `ConnectionRegistry`. Reactor green (core 628 / agent 157 / hosted 4 / connectors 9).
 - **Deferred to Phase F (per the original split):** post-action *wiring* into the run loop, retry/circuit-breaker,
-  parallel fetch + rate-limit (all shipped in F). **C4 incremental watermark now done (2026-06-15);** still open:
-  FTPS; strict SSH host-key pinning (currently accept-on-connect).
+  parallel fetch + rate-limit (all shipped in F). **C4 incremental watermark (2026-06-15), FTPS, and strict SSH
+  host-key pinning (2026-06-15) now done** — see the post-roadmap section below.
 
 ### Phase F — Resilience + post-actions + parallel/rate-limit  *(Requirement §8,§10,§11-actions,§12)*
 **Status: ✅ Implemented 2026-06-14** (reactor green — core 645 / agent 157 / hosted 4 / connectors 16). All five
@@ -443,11 +443,27 @@ pieces shipped in one commit, including parallel multi-session fetch.
   high-watermark applies here too (per-slice export name + mtime); a **row-level** incremental (push a
   `WHERE last_modified > :watermark` into the SQL itself) is a separate future refinement.
 
+- **Connector hardening — ✅ Implemented 2026-06-15** (reactor green; connectors 27). Two security additions on
+  the existing connectors, additive and opt-in (existing profiles unchanged):
+  - **FTPS** — `FtpConnector` gained a `TlsMode` (NONE/EXPLICIT/IMPLICIT). `options.tls=explicit` (FTPES: `AUTH
+    TLS` after connect, port 21) or `implicit` (TLS-first, port 990) builds a commons-net `FTPSClient` and
+    encrypts the data channel too (`execPBSZ(0)`+`execPROT("P")`); a new **`ftps`** scheme/factory defaults to
+    explicit. `options.tls_trust=all` accepts a self-signed/internal-CA cert (still encrypted, not authenticated);
+    otherwise the JVM trust store validates. Tested e2e against an embedded Apache FtpServer with TLS (throwaway
+    self-signed keystore in test resources) — discover+fetch over the encrypted channel.
+  - **Strict SSH host-key pinning** — new `HostKeyPolicy` (from `options.host_key` fingerprint / `known_hosts`
+    file / `strict_host_key` flag) replaces the unconditional `PromiscuousVerifier`. Threaded through
+    `SshTunnel.newClient`/`open` and applied by `SftpConnector` (target via full policy, bastion via
+    `bastionView()` since a single fingerprint pins one host) and `DbExportConnector` (the bastion is the only SSH
+    hop). Default (nothing configured, non-strict) = accept-on-connect, so existing profiles still connect. Tested
+    against the embedded MINA SSHD with a known generated host key: correct fingerprint connects, a wrong
+    fingerprint and `strict_host_key` without a pin are both refused.
+
 ### Future (explicitly out of scope here — requirement marks these "(future)")
 Object storage (S3/GCS/Azure/MinIO) connectors; NFS/SMB/CIFS; **event-notification** discovery (S3 events/inotify)
 as an alternative to polling; "grouping data source" (one logical source spanning multiple collection points +
-tagging); the **etag/version** watermark dimensions (the `last_modified` watermark, C4, is done); FTPS; strict
-SSH host-key pinning. All connectors are *additional
+tagging); the **etag/version** watermark dimensions (the `last_modified` watermark, C4, is done). FTPS and strict
+SSH host-key pinning are now done (above). All connectors are *additional
 `SourceConnector` implementations* — the SPI from Phase A is what makes them non-disruptive, satisfying the
 requirement's extensibility clause ("new protocols via connector plugins without modifying the core engine").
 

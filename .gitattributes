@@ -12,6 +12,7 @@
 
 # Binary assets — never apply EOL conversion
 *.jar      binary
+*.jks      binary
 *.parquet  binary
 *.png      binary
 *.jpg      binary

@@ -4,7 +4,6 @@ import com.gamma.acquire.ConnectionProfile;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.connection.channel.direct.LocalPortForwarder;
 import net.schmizz.sshj.connection.channel.direct.Parameters;
-import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,8 +18,9 @@ import java.net.ServerSocket;
  * its traffic carried over the tunnel. Shared by {@link SftpConnector} and {@link DbExportConnector}.
  *
  * <p>Open with {@link #open}, point the client at {@link #localEndpoint()}, and {@link #close()} when done
- * (closing the forwarder, the listening socket, the bastion, and interrupting the accept thread). The host-key
- * verifier is accept-on-connect (operator-configured profiles); strict pinning is a future hardening option.
+ * (closing the forwarder, the listening socket, the bastion, and interrupting the accept thread). The bastion's
+ * host key is verified per the supplied {@link HostKeyPolicy} (pin via {@code known_hosts}/{@code strict_host_key},
+ * or accept-on-connect when unset).
  */
 public final class SshTunnel implements AutoCloseable {
 
@@ -48,21 +48,21 @@ public final class SshTunnel implements AutoCloseable {
         this.local = local;
     }
 
-    /** A fresh sshj client with an accept-on-connect host-key verifier (shared by the connectors). */
-    public static SSHClient newClient() {
+    /** A fresh sshj client with the host-key verifier dictated by {@code policy} (shared by the connectors). */
+    public static SSHClient newClient(HostKeyPolicy policy) throws IOException {
         SSHClient c = new SSHClient();
-        c.addHostKeyVerifier(new PromiscuousVerifier());
+        policy.apply(c);
         return c;
     }
 
     /**
      * Open a tunnel: connect to {@code tunnel}'s bastion, authenticate with {@code auth}, and forward a loopback
      * port to {@code targetHost:targetPort}. Returns a started tunnel whose {@link #localEndpoint()} is what the
-     * downstream client should connect to.
+     * downstream client should connect to. The bastion's host key is verified per {@code bastionPolicy}.
      */
     public static SshTunnel open(ConnectionProfile.Tunnel tunnel, String targetHost, int targetPort,
-                                 Authenticator auth) throws IOException {
-        SSHClient bastion = newClient();
+                                 Authenticator auth, HostKeyPolicy bastionPolicy) throws IOException {
+        SSHClient bastion = newClient(bastionPolicy);
         ServerSocket socket = null;
         try {
             bastion.connect(tunnel.host(), tunnel.port() > 0 ? tunnel.port() : DEFAULT_SSH_PORT);

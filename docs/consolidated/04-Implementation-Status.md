@@ -199,5 +199,7 @@ dialogs, G6 graph reuse — all live-verified. Zero new core deps.
 All additive — a `source:`-less pipeline is byte-for-byte unchanged. Network deps isolated in the optional
 connector module so the core fat-JAR stays lean. Detail: `docs/data_acquisition_framework.md` (requirement) +
 `docs/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md` (as-built). Post-roadmap (also shipped):
-the **DB-export source** (`connector: db`, SQL→CSV) and the **C4 incremental high-watermark**. Still future-scope:
-object storage (S3/GCS/Azure), NFS/SMB, etag/version watermark dimensions, FTPS, strict SSH host-key pinning.
+the **DB-export source** (`connector: db`, SQL→CSV), the **C4 incremental high-watermark**, and **connector
+hardening** — **FTPS** (`connector: ftps` / `options.tls`) + **strict SSH host-key pinning** (`options.host_key`/
+`known_hosts`/`strict_host_key`). Still future-scope: object storage (S3/GCS/Azure), NFS/SMB, and the
+etag/version watermark dimensions.

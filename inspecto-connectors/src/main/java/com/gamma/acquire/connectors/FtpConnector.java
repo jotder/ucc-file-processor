@@ -11,6 +11,8 @@ import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
+import org.apache.commons.net.ftp.FTPSClient;
+import org.apache.commons.net.util.TrustManagerUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,33 +42,47 @@ import static com.gamma.acquire.SourceConnector.Capability.*;
  *
  * <p>The control connection is opened lazily and held for the connector's lifetime. {@link #fetchTo} resumes a
  * partial download via {@code REST} when the server supports it ({@link Capability#RESUMABLE}); {@link #open}
- * streams directly. Plain FTP only — FTPS hardening is a future option.
+ * streams directly.
+ *
+ * <p><b>FTPS</b> (TLS) is enabled via {@code options.tls} = {@code explicit} (FTPES: {@code AUTH TLS} after
+ * connect) or {@code implicit} (TLS from the first byte, port 990) — or simply by binding the source to a
+ * {@code connector: ftps} profile, which defaults to explicit. With TLS the data channel is also encrypted
+ * ({@code PBSZ 0} + {@code PROT P}). Server certificates are validated against the JVM trust store by default;
+ * {@code options.tls_trust=all} accepts any certificate (for self-signed / internal-CA servers — still
+ * encrypted, but not authenticated).
  */
 public final class FtpConnector implements SourceConnector {
 
     private static final Logger log = LoggerFactory.getLogger(FtpConnector.class);
-    private static final int DEFAULT_PORT = 21;
 
     private final ConnectionProfile profile;
     private final String basePath;
     private final String readyMarker;
     private final boolean passive;
     private final boolean binary;
+    private final TlsMode tls;
+    private final String tlsTrust;   // options.tls_trust: "all" ⇒ accept any cert; else JVM default trust
 
     private FTPClient ftp;
 
     public FtpConnector(ConnectionProfile profile, String readyMarker) {
+        this(profile, readyMarker, TlsMode.NONE);
+    }
+
+    public FtpConnector(ConnectionProfile profile, String readyMarker, TlsMode defaultTls) {
         this.profile = profile;
         String bp = profile.basePath();
         this.basePath = (bp == null || bp.isBlank()) ? "" : trimTrailingSlash(bp.trim());
         this.readyMarker = (readyMarker == null || readyMarker.isBlank()) ? null : readyMarker.trim();
         this.passive = !"true".equalsIgnoreCase(profile.options().getOrDefault("active", "false"));
         this.binary  = !"false".equalsIgnoreCase(profile.options().getOrDefault("binary", "true"));
+        this.tls     = TlsMode.from(profile.options().get("tls"), defaultTls);
+        this.tlsTrust = profile.options().get("tls_trust");
     }
 
     @Override
     public String scheme() {
-        return "ftp";
+        return tls.secure() ? "ftps" : "ftp";
     }
 
     @Override
@@ -205,10 +221,10 @@ public final class FtpConnector implements SourceConnector {
 
     private synchronized FTPClient ensureConnected() throws AcquisitionException {
         if (ftp != null && ftp.isConnected()) return ftp;
-        FTPClient client = new FTPClient();
+        FTPClient client = newClient();
         try {
-            int port = profile.port() > 0 ? profile.port() : DEFAULT_PORT;
-            client.connect(profile.host(), port);
+            int port = profile.port() > 0 ? profile.port() : tls.defaultPort();
+            client.connect(profile.host(), port);   // FTPSClient negotiates AUTH TLS (explicit) / TLS-first (implicit) here
             if (!FTPReply.isPositiveCompletion(client.getReplyCode())) {
                 client.disconnect();
                 throw new IOException("server refused connection: " + client.getReplyString());
@@ -220,14 +236,27 @@ public final class FtpConnector implements SourceConnector {
                 client.disconnect();
                 throw new IOException("login failed for user '" + user + "': " + client.getReplyString());
             }
+            if (client instanceof FTPSClient ftps) {
+                ftps.execPBSZ(0);        // protection buffer size (0 for TLS)
+                ftps.execPROT("P");      // encrypt the data channel too, not just the control channel
+            }
             if (passive) client.enterLocalPassiveMode(); else client.enterLocalActiveMode();
             client.setFileType(binary ? FTP.BINARY_FILE_TYPE : FTP.ASCII_FILE_TYPE);
             this.ftp = client;
             return client;
         } catch (IOException e) {
             try { if (client.isConnected()) client.disconnect(); } catch (IOException ignore) { }
-            throw new AcquisitionException("Cannot connect FTP to " + profile.host() + ": " + e.getMessage(), e);
+            throw new AcquisitionException("Cannot connect " + scheme().toUpperCase() + " to "
+                    + profile.host() + ": " + e.getMessage(), e);
         }
+    }
+
+    /** A plain {@link FTPClient}, or an {@link FTPSClient} (explicit/implicit) when {@code options.tls} is set. */
+    private FTPClient newClient() {
+        if (!tls.secure()) return new FTPClient();
+        FTPSClient ftps = new FTPSClient(tls == TlsMode.IMPLICIT);
+        if ("all".equalsIgnoreCase(tlsTrust)) ftps.setTrustManager(TrustManagerUtils.getAcceptAllTrustManager());
+        return ftps;
     }
 
     // ── path helpers ────────────────────────────────────────────────────────────

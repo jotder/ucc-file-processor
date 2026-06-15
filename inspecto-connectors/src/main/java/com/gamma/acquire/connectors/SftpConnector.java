@@ -208,13 +208,16 @@ public final class SftpConnector implements SourceConnector {
         try {
             String host = profile.host();
             int port = profile.port() > 0 ? profile.port() : DEFAULT_PORT;
+            // host_key/known_hosts pin the target SFTP server; over a bastion the fingerprint is target-specific
+            // (see HostKeyPolicy.bastionView), while a known_hosts file can verify both hops.
+            HostKeyPolicy hostKeys = HostKeyPolicy.from(profile);
             if (profile.tunnel() != null && profile.tunnel().host() != null && !profile.tunnel().host().isBlank()) {
-                tunnel = SshTunnel.open(profile.tunnel(), host, port, this::authenticate);
+                tunnel = SshTunnel.open(profile.tunnel(), host, port, this::authenticate, hostKeys.bastionView());
                 InetSocketAddress local = tunnel.localEndpoint();
                 host = local.getHostString();
                 port = local.getPort();
             }
-            ssh = SshTunnel.newClient();
+            ssh = SshTunnel.newClient(hostKeys);
             ssh.connect(host, port);
             authenticate(ssh, profile.username(), profile.password());
             sftp = ssh.newSFTPClient();

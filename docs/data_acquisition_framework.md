@@ -15,9 +15,11 @@
 > date-templated query/name and an optional SSH tunnel; and the **C4 incremental high-watermark**
 > (`source.incremental.watermark: last_modified`) — each scan skips files modified before the source's
 > high-watermark (max `last_modified` recorded in the fingerprint ledger), so remote sources spend no fetch
-> bandwidth re-collecting history.
+> bandwidth re-collecting history; and **connector hardening** — **FTPS** (`connector: ftps`, or
+> `options.tls: explicit|implicit`; encrypts control + data channels) and **strict SSH host-key pinning**
+> (`options.host_key`/`known_hosts`/`strict_host_key`) on the SFTP/tunnel path.
 > **Still future** (this SPI makes each non-disruptive): object storage (S3/GCS/Azure/MinIO), NFS/SMB/CIFS,
-> etag/version watermark dimensions, FTPS, and strict SSH host-key pinning.
+> and the etag/version watermark dimensions.
 
 **GOAL:**
 * **The system guarantees that every eligible data source file is collected exactly once (or according to policy), safely, efficiently, and recoverable regardless of where the file resides**

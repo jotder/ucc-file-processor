@@ -165,7 +165,9 @@ public final class DbExportConnector implements SourceConnector {
             int port = profile.port() > 0 ? profile.port() : DEFAULT_PG_PORT;
             if (profile.tunnel() != null && profile.tunnel().host() != null && !profile.tunnel().host().isBlank()) {
                 try {
-                    tunnel = SshTunnel.open(profile.tunnel(), host, port, DbExportConnector::sshAuth);
+                    // the bastion is the only SSH hop here, so host_key/known_hosts pin it directly.
+                    tunnel = SshTunnel.open(profile.tunnel(), host, port, DbExportConnector::sshAuth,
+                            HostKeyPolicy.from(profile));
                 } catch (IOException e) {
                     throw new SQLException("SSH tunnel for DB export '" + profile.id() + "' failed", e);
                 }

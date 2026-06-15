@@ -1,5 +1,6 @@
 package com.gamma.acquire.connectors;
 
+import com.gamma.acquire.AcquisitionException;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.ConnectionRegistry;
 import com.gamma.acquire.DiscoveryContext;
@@ -7,8 +8,9 @@ import com.gamma.acquire.IntegrityChecker;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SourceConnector;
+import net.schmizz.sshj.common.SecurityUtils;
+import org.apache.sshd.common.keyprovider.KeyPairProvider;
 import org.apache.sshd.server.SshServer;
-import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
 import org.apache.sshd.sftp.server.SftpSubsystemFactory;
 import org.junit.jupiter.api.AfterEach;
@@ -20,6 +22,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.util.List;
 import java.util.Map;
 
@@ -34,14 +38,16 @@ class SftpConnectorTest {
     private SshServer sshd;
     private Path serverRoot;
     private int port;
+    private KeyPair hostKey;   // the server's host key — generated here so the test knows its fingerprint
 
     @BeforeEach
     void startServer(@TempDir Path tmp) throws Exception {
         serverRoot = Files.createDirectories(tmp.resolve("sftproot"));
+        hostKey = KeyPairGenerator.getInstance("RSA").genKeyPair();
         sshd = SshServer.setUpDefaultServer();
         sshd.setHost("127.0.0.1");
         sshd.setPort(0);
-        sshd.setKeyPairProvider(new SimpleGeneratorHostKeyProvider(tmp.resolve("hostkey.ser")));
+        sshd.setKeyPairProvider(KeyPairProvider.wrap(hostKey));
         sshd.setPasswordAuthenticator((u, p, s) -> "user".equals(u) && "pw".equals(p));
         sshd.setSubsystemFactories(List.of(new SftpSubsystemFactory()));
         sshd.setFileSystemFactory(new VirtualFileSystemFactory(serverRoot));
@@ -54,13 +60,69 @@ class SftpConnectorTest {
         if (sshd != null) sshd.stop(true);
     }
 
+    /** The server host key's fingerprint, in the same form the sshj client verifier compares against. */
+    private String serverFingerprint() {
+        return SecurityUtils.getFingerprint(hostKey.getPublic());
+    }
+
     private ConnectionProfile profile() {
+        return profile(Map.of());
+    }
+
+    private ConnectionProfile profile(Map<String, String> options) {
         return new ConnectionProfile("test-sftp", "sftp", "127.0.0.1", port, null, "/",
-                "user", "pw", Map.of(), null);
+                "user", "pw", options, null);
     }
 
     private SftpConnector connector() {
         return new SftpConnector(profile(), null);
+    }
+
+    private SftpConnector connector(Map<String, String> options) {
+        return new SftpConnector(profile(options), null);
+    }
+
+    private static DiscoveryContext anyCsv() {
+        return new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED);
+    }
+
+    // ── host-key pinning (security hardening) ────────────────────────────────────
+
+    @Test
+    void pinnedHostKeyFingerprintAllowsConnect() throws Exception {
+        Files.writeString(serverRoot.resolve("a.csv"), "ID\n1\n");
+        try (SourceConnector c = connector(Map.of("host_key", serverFingerprint()))) {
+            assertEquals(1, c.discover(anyCsv()).size(), "the matching pinned fingerprint connects");
+        }
+    }
+
+    @Test
+    void wrongHostKeyFingerprintRejectsConnect() {
+        try (SourceConnector c = connector(Map.of(
+                "host_key", "00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff"))) {
+            assertThrows(AcquisitionException.class, () -> c.discover(anyCsv()),
+                    "a host key that doesn't match the pin is refused (MITM defence)");
+        } catch (AcquisitionException closeFailure) {
+            // close() of a never-connected connector is a no-op; nothing to assert here
+        }
+    }
+
+    @Test
+    void strictHostKeyWithoutAnyPinRefusesConnect() {
+        try (SourceConnector c = connector(Map.of("strict_host_key", "true"))) {
+            assertThrows(AcquisitionException.class, () -> c.discover(anyCsv()),
+                    "strict mode refuses accept-on-connect when no host_key/known_hosts is configured");
+        } catch (AcquisitionException closeFailure) {
+            // no-op
+        }
+    }
+
+    @Test
+    void noPinStillConnectsAcceptOnConnect() throws Exception {
+        Files.writeString(serverRoot.resolve("a.csv"), "ID\n1\n");
+        try (SourceConnector c = connector()) {   // empty options ⇒ legacy accept-on-connect
+            assertEquals(1, c.discover(anyCsv()).size(), "unpinned profiles keep working (backward compatible)");
+        }
     }
 
     @Test
