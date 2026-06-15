@@ -59,6 +59,24 @@
             </div>
         }
 
+        @if (acqCards.length) {
+            <!-- Data acquisition summary -->
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <div class="mb-4 flex items-center justify-between">
+                    <div class="font-semibold">Data acquisition</div>
+                    <a class="text-primary text-sm hover:underline" [routerLink]="['/sources']">Sources</a>
+                </div>
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    @for (c of acqCards; track c.label) {
+                        <div>
+                            <div class="text-secondary text-sm">{{ c.label }}</div>
+                            <div class="mt-1 text-2xl font-bold tracking-tight">{{ c.value }}</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         @if (report) {
             <!-- Charts -->
             <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -69,6 +87,26 @@
                 <div class="bg-card rounded-2xl p-6 shadow">
                     <div class="font-semibold">Batch outcomes ({{ report.totalBatches }} total)</div>
                     <inspecto-chart class="mt-4" type="doughnut" [data]="outcomeData"></inspecto-chart>
+                </div>
+            </div>
+        }
+
+        @if (recentEvents.length) {
+            <!-- Recent activity feed -->
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <div class="mb-3 flex items-center justify-between">
+                    <div class="font-semibold">Recent activity</div>
+                    <a class="text-primary text-sm hover:underline" [routerLink]="['/events']">View all</a>
+                </div>
+                <div class="flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
+                    @for (e of recentEvents; track e.eventId) {
+                        <div class="flex items-center gap-3 py-2 text-sm">
+                            <span class="text-secondary w-24 shrink-0 tabular-nums">{{ fmtTime(e.ts) }}</span>
+                            <span class="shrink-0 rounded px-2 py-0.5 text-xs font-bold {{ levelClass(e.level) }}">{{ e.level }}</span>
+                            <span class="text-secondary w-44 shrink-0 truncate font-mono text-xs">{{ e.type }}</span>
+                            <span class="truncate">{{ e.message || e.pipeline || '—' }}</span>
+                        </div>
+                    }
                 </div>
             </div>
         }
