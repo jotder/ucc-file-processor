@@ -1,6 +1,7 @@
 package com.gamma.acquire;
 
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * The fingerprint repository (Data Acquisition roadmap Phase C): a durable record of which files a source has
@@ -23,6 +24,21 @@ public interface AcquisitionLedger extends AutoCloseable {
 
     /** Record (insert or replace) a file's fingerprint for its {@code (sourceId, relativePath)} key. */
     void record(LedgerEntry entry);
+
+    /**
+     * The source's <b>high-watermark</b> for incremental discovery (Data Acquisition roadmap Phase C4): the
+     * greatest {@link LedgerEntry#lastModified()} recorded for {@code sourceId}, or empty if the source has no
+     * recorded files yet. The engine ({@code source.incremental.watermark: last_modified}) skips any
+     * freshly-discovered file modified strictly before this, so a re-scan re-examines only the recent frontier
+     * instead of the whole history.
+     *
+     * <p>Derived from what the ledger already holds — no separate watermark column — so it is only meaningful in
+     * a content-based duplicate mode (the path-only default never records here). The default implementation
+     * returns empty, which safely disables the optimisation for a ledger that does not track it.
+     */
+    default OptionalLong highWatermark(String sourceId) {
+        return OptionalLong.empty();
+    }
 
     /** Release resources (e.g. a DuckDB connection). Idempotent; no-op for in-memory. */
     @Override

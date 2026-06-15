@@ -236,6 +236,13 @@ public class SourceProcessor {
             if (emitSignals && cfg.source().gapDetection().active() && !discovered.isEmpty())
                 detectGaps(cfg, discovered);
 
+            // Incremental discovery (Phase C4): when source.incremental.watermark is set, drop candidates modified
+            // strictly before the source's high-watermark (the max last_modified the ledger has recorded). Applied
+            // BEFORE the remote/local split so a remote source spends no fetch bandwidth on old objects; gap
+            // detection above already saw the full listing, so a hole is still reported.
+            if (cfg.source().incremental().enabled() && !ready.isEmpty())
+                ready = watermarkFilter(cfg, ready, emitSignals);
+
             if (ready.isEmpty()) return List.of();
 
             // Remote sources (SFTP/FTP/…) — Phase E: materialise the bytes into the local staging tree (the poll
@@ -608,6 +615,50 @@ public class SourceProcessor {
     private static void incDuplicatesSkipped(PipelineConfig cfg) {
         MetricRegistry.global().inc("inspecto_duplicates_skipped_total", "Files skipped as duplicates",
                 Map.of("pipeline", cfg.identity().pipelineName()));
+    }
+
+    /**
+     * Incremental high-watermark filter (Phase C4): drop candidates whose modification time is strictly older
+     * than the source's high-watermark — the greatest {@code last_modified} the {@link AcquisitionLedger} has
+     * recorded for this source. A single cheap aggregate lookup, no file read, so it runs on both the run cycle
+     * and the read-only {@code countPending} scan; the {@code inspecto_watermark_skipped_total} counter bumps on
+     * the run path only.
+     *
+     * <p>Remote listings carry {@code lastModified}; a local file leaves it {@code null} at discovery (see
+     * {@link RemoteFile}), so its mtime is {@code stat}'d here on demand. A file whose mtime cannot be
+     * determined is kept (never skipped) — correctness over the optimisation. The frontier ({@code == watermark})
+     * passes through to the ledger for exact dedup, so the newest slice is never blindly dropped.
+     */
+    private static List<RemoteFile> watermarkFilter(PipelineConfig cfg, List<RemoteFile> ready, boolean emitSignals) {
+        java.util.OptionalLong wm = AcquisitionLedgers.shared().highWatermark(cfg.source().id());
+        if (wm.isEmpty()) return ready;            // nothing recorded yet — the first run sees everything
+        long watermark = wm.getAsLong();
+        List<RemoteFile> out = new ArrayList<>(ready.size());
+        int skipped = 0;
+        for (RemoteFile rf : ready) {
+            java.util.OptionalLong mtime = effectiveMtime(rf);
+            if (mtime.isPresent() && mtime.getAsLong() < watermark) skipped++;
+            else out.add(rf);
+        }
+        if (emitSignals && skipped > 0)
+            MetricRegistry.global().inc("inspecto_watermark_skipped_total",
+                    "Files skipped by the incremental high-watermark",
+                    Map.of("pipeline", cfg.identity().pipelineName()), skipped);
+        return out;
+    }
+
+    /** The file's modification time in epoch millis for the watermark check: from the listing if the connector
+     *  supplied it, else {@code stat}'d from the local copy, else empty (mtime unknown ⇒ never skipped). */
+    private static java.util.OptionalLong effectiveMtime(RemoteFile rf) {
+        if (rf.lastModified() != null) return java.util.OptionalLong.of(rf.lastModified().toEpochMilli());
+        if (rf.isLocal()) {
+            try {
+                return java.util.OptionalLong.of(Files.getLastModifiedTime(rf.localPath()).toMillis());
+            } catch (java.io.IOException statFailed) {
+                return java.util.OptionalLong.empty();
+            }
+        }
+        return java.util.OptionalLong.empty();
     }
 
     private static void emitFileChanged(PipelineConfig cfg, RemoteFile f) {

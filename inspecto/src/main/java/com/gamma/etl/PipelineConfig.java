@@ -204,7 +204,8 @@ public final class PipelineConfig {
     public record Source(String id, String connector, List<String> includes,
                          List<String> excludes, int recursiveDepth, Stability stability, String connection,
                          Duplicate duplicate, Guarantee guarantee, GapDetection gapDetection,
-                         Fetch fetch, Retry retry, CircuitBreaker circuitBreaker, PostActionConfig postAction) {
+                         Fetch fetch, Retry retry, CircuitBreaker circuitBreaker, PostActionConfig postAction,
+                         Incremental incremental) {
         public Source {
             includes = List.copyOf(includes);
             excludes = List.copyOf(excludes);
@@ -216,6 +217,7 @@ public final class PipelineConfig {
             if (retry == null) retry = Retry.DISABLED;
             if (circuitBreaker == null) circuitBreaker = CircuitBreaker.DISABLED;
             if (postAction == null) postAction = PostActionConfig.RETAIN;
+            if (incremental == null) incremental = Incremental.DISABLED;
         }
 
         /** A reusable connection-profile id this source binds to ({@code source.connection}), or {@code null}
@@ -287,6 +289,37 @@ public final class PipelineConfig {
         }
         /** Whether content-based dedup (a fingerprint ledger) is in effect (vs. the path-only default). */
         public boolean contentBased() { return !"path".equals(mode); }
+    }
+
+    /**
+     * Incremental discovery / high-watermark for a source (Data Acquisition roadmap Phase C4; additive,
+     * {@code source.incremental:}). When {@link #enabled()} the engine drops any discovered candidate whose
+     * modification time is <em>strictly older</em> than the source's <b>high-watermark</b> — the greatest
+     * {@code last_modified} of any file the {@linkplain com.gamma.acquire.AcquisitionLedger fingerprint ledger}
+     * has already recorded for this source — so a re-scan only re-examines the recent frontier instead of
+     * re-LIST'ing/re-fetching (remote) or re-stat'ing the deep history (local).
+     *
+     * <p>The watermark is <em>derived</em> from the ledger (max recorded {@code last_modified}), so this knob
+     * only has effect alongside a content-based {@code source.duplicate} mode (metadata/checksum) — with the
+     * path-only default the ledger is empty and the filter no-ops. It is an optimisation for monotonic-arrival
+     * sources (timestamps that only increase, e.g. {@code CDR_<ts>} feeds); a file re-uploaded <em>below</em>
+     * the watermark is intentionally skipped, so leave it off if you must catch arbitrarily back-dated
+     * re-uploads. The frontier ({@code == watermark}) is never blindly skipped — it passes through to the
+     * ledger for exact dedup.
+     *
+     * <p>{@link #DISABLED} (no {@code source.incremental:} block) ⇒ the full discovery listing (legacy behaviour).
+     */
+    @PublicApi(since = "4.2.0")
+    public record Incremental(String watermark) {
+        /** The high-watermark dimension; {@code last_modified} is the only one implemented (etag/version future). */
+        public static final String LAST_MODIFIED = "last_modified";
+        /** No incremental filtering — the legacy full-listing behaviour. */
+        public static final Incremental DISABLED = new Incremental(null);
+        public Incremental {
+            watermark = (watermark == null || watermark.isBlank()) ? null : watermark.trim().toLowerCase();
+        }
+        /** Whether incremental high-watermark filtering should run. */
+        public boolean enabled() { return LAST_MODIFIED.equals(watermark); }
     }
 
     /**
@@ -470,7 +503,7 @@ public final class PipelineConfig {
         this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
                 b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection, b.sourceDuplicate,
                 b.sourceGuarantee, b.sourceGapDetection,
-                b.sourceFetch, b.sourceRetry, b.sourceCircuitBreaker, b.sourcePostAction);
+                b.sourceFetch, b.sourceRetry, b.sourceCircuitBreaker, b.sourcePostAction, b.sourceIncremental);
         this.statusDirToPrepare = b.statusDirToPrepare;
     }
 
@@ -830,6 +863,16 @@ public final class PipelineConfig {
                         tags,
                         opt(paBlock, "on_unsupported", "WARN_AND_CONTINUE"));
             }
+
+            // ── incremental discovery / high-watermark (Phase C4; additive, absent ⇒ full listing) ──
+            Map<String, Object> incBlock = (Map<String, Object>) src.get("incremental");
+            if (incBlock != null)
+                b.sourceIncremental = new Incremental(opt(incBlock, "watermark", null));
+            if (b.sourceIncremental.enabled() && !b.sourceDuplicate.contentBased())
+                log.warn("[CONFIG] source.incremental.watermark is set but source.duplicate.mode is 'path' "
+                        + "(marker-only) — the watermark is derived from the fingerprint ledger, which path mode "
+                        + "does not populate, so incremental filtering will not engage. Set source.duplicate.mode "
+                        + "to metadata or checksum.");
         }
 
         log.info("[CONFIG] Status file : {}", b.statusFilePath);
@@ -1125,6 +1168,7 @@ public final class PipelineConfig {
         Retry           sourceRetry = Retry.DISABLED;
         CircuitBreaker  sourceCircuitBreaker = CircuitBreaker.DISABLED;
         PostActionConfig sourcePostAction = PostActionConfig.RETAIN;
+        Incremental     sourceIncremental = Incremental.DISABLED;
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;

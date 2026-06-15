@@ -648,6 +648,7 @@ curl -s localhost:8080/metrics
 | `inspecto_paused` | gauge | `pipeline` | 1 if paused |
 | `inspecto_files_waiting_stability` | gauge | `pipeline` | discovered files held back by the readiness gate |
 | `inspecto_duplicates_skipped_total` | counter | `pipeline` | files skipped by content-based dedup |
+| `inspecto_watermark_skipped_total` | counter | `pipeline` | files skipped by the incremental high-watermark (modified before the last recorded slice) |
 | `inspecto_sequence_gaps_total` | counter | `pipeline` | missing files detected in a configured sequence |
 | `inspecto_files_discovered_total` · `inspecto_files_downloaded_total` | counter | `pipeline` | remote files listed / fetched+validated |
 | `inspecto_downloads_failed_total` · `inspecto_post_actions_failed_total` | counter | `pipeline` | fetch/integrity failures / failed source post-actions |

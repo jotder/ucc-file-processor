@@ -363,6 +363,8 @@ source:
     mode: CHECKSUM                # PATH (default = today's markers) | METADATA | CHECKSUM
     algorithm: SHA256             # MD5 | SHA256 | CRC32
     on_change: REPROCESS          # IGNORE | REPROCESS | ALERT | ARCHIVE_OLD_VERSION
+  incremental:                    # only re-examine the recent frontier each scan
+    watermark: last_modified      # last_modified (etag/version future); needs a content-based duplicate.mode
   guarantee: EXACTLY_ONCE         # BEST_EFFORT (default) | AT_LEAST_ONCE | EXACTLY_ONCE
   gap_detection:                  # alert on a hole in an expected series
     enabled: true
@@ -407,6 +409,16 @@ never steals a hot file's progress.
 `stat`, no read). `CHECKSUM` hashes content (catches re-uploads that size+mtime hide; one extra read per file, so
 it is opt-in). `on_change` decides what happens when a known path's content changed. The fingerprint lives in a
 dedicated DuckDB ledger (its own file, single-writer).
+
+**`incremental`** — the high-watermark optimisation: `watermark: last_modified` makes each scan skip any file
+modified **strictly before** the source's high-watermark — the greatest `last_modified` the ledger has recorded
+for the source. So a re-scan only re-examines the recent frontier instead of re-LIST'ing/re-fetching (remote) or
+re-stat'ing (local) the whole history; for a remote source the skip happens **before fetch**, so old objects cost
+no bandwidth. The watermark is *derived* from the ledger, so this needs a content-based `duplicate.mode`
+(metadata/checksum) — over the path-only default the ledger is empty and it no-ops (the engine warns). It is an
+optimisation for **monotonic-arrival** sources (timestamps that only increase); a file re-uploaded below the
+watermark is intentionally skipped, so leave it off if you must catch arbitrarily back-dated re-uploads. Skips
+are counted in `inspecto_watermark_skipped_total`.
 
 **`guarantee`** — declarative; `AT_LEAST_ONCE`/`EXACTLY_ONCE` need a content-based `duplicate.mode` (metadata or
 checksum) to hold. The engine **warns** if a stronger guarantee is set over path-only dedup and behaves as

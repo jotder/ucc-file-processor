@@ -191,12 +191,13 @@ dialogs, G6 graph reuse — all live-verified. Zero new core deps.
 |---|---|
 | A | `SourceConnector` SPI (`com.gamma.acquire`) + `LocalFileSystemConnector` byte-for-byte parity; additive `source:` config |
 | B | Readiness/stability gate — never ingest a half-written file (`ready_marker`, size/mtime quiescence) |
-| C | Fingerprint ledger + dedup by PATH/METADATA/CHECKSUM + `on_change` policy + `regex:` includes |
+| C | Fingerprint ledger + dedup by PATH/METADATA/CHECKSUM + `on_change` policy + `regex:` includes + incremental high-watermark (`source.incremental.watermark`, C4) |
 | D | Collection-guarantee knob + sequence-gap detection → `SEQUENCE_GAP` promoted to a managed ALERT object |
 | E | First remote connectors **SFTP (sshj) + FTP (commons-net)** in the optional `inspecto-connectors` module; reusable `*_connection.toon` profiles + `/connections` API/UI; integrity check; `.bz2`/`.zip` read path |
 | F | Retry/backoff (jitter) + per-source circuit breaker + dead-letter quarantine + source-side post-actions (DELETE/MOVE/RENAME) + parallel multi-session fetch + token-bucket rate limit |
 
 All additive — a `source:`-less pipeline is byte-for-byte unchanged. Network deps isolated in the optional
 connector module so the core fat-JAR stays lean. Detail: `docs/data_acquisition_framework.md` (requirement) +
-`docs/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md` (as-built). Still future-scope: object
-storage (S3/GCS/Azure), NFS/SMB, DB-export connectors, incremental watermark, FTPS, strict SSH host-key pinning.
+`docs/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md` (as-built). Post-roadmap (also shipped):
+the **DB-export source** (`connector: db`, SQL→CSV) and the **C4 incremental high-watermark**. Still future-scope:
+object storage (S3/GCS/Azure), NFS/SMB, etag/version watermark dimensions, FTPS, strict SSH host-key pinning.

@@ -244,6 +244,84 @@ class SourceConfigTest {
         return SourceProcessor.collectCandidates(cfg).stream().map(File::getName).sorted().toList();
     }
 
+    // ── Phase C4: incremental high-watermark ──────────────────────────────────────────────────
+
+    @Test
+    void incrementalBlockParsesWatermark(@TempDir Path dir) throws Exception {
+        PipelineConfig none = PipelineConfig.load(writePipeline(dir, "").toString());
+        assertFalse(none.source().incremental().enabled(), "absent ⇒ full listing");
+        assertEquals(PipelineConfig.Incremental.DISABLED, none.source().incremental());
+
+        PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+            source:
+              duplicate:
+                mode: METADATA
+              incremental:
+                watermark: last_modified
+            """).toString());
+        assertTrue(cfg.source().incremental().enabled());
+        assertEquals("last_modified", cfg.source().incremental().watermark());
+    }
+
+    @Test
+    void watermarkSkipsFilesOlderThanTheLedgerHighWatermark(@TempDir Path dir) throws Exception {
+        InMemoryAcquisitionLedger ledger = new InMemoryAcquisitionLedger();
+        AcquisitionLedgers.use(ledger);
+        try {
+            PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+                source:
+                  id: WM_SRC
+                  include[1]: "glob:**/*.csv"
+                  duplicate:
+                    mode: METADATA
+                  incremental:
+                    watermark: last_modified
+                """).toString());
+            Path inbox = Path.of(cfg.dirs().poll());
+            Files.createDirectories(inbox);
+            writeWithMtime(inbox.resolve("old.csv"), 1_000L);
+            writeWithMtime(inbox.resolve("edge.csv"), 3_000L);   // == watermark ⇒ passes (frontier re-examined)
+            writeWithMtime(inbox.resolve("new.csv"), 5_000L);
+
+            // seed the high-watermark at 3_000 via a previously-recorded (different) file for this source
+            ledger.record(LedgerEntry.metadata("WM_SRC", "seed.csv", "seed.csv", 1L, 3_000L, 1L));
+
+            assertEquals(List.of("edge.csv", "new.csv"), candidateNames(cfg),
+                    "files modified strictly before the watermark are skipped; the frontier and newer pass");
+        } finally {
+            AcquisitionLedgers.use(new InMemoryAcquisitionLedger());
+        }
+    }
+
+    @Test
+    void watermarkIsOptInSoOldFilesAreSeenWithoutTheBlock(@TempDir Path dir) throws Exception {
+        InMemoryAcquisitionLedger ledger = new InMemoryAcquisitionLedger();
+        AcquisitionLedgers.use(ledger);
+        try {
+            PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
+                source:
+                  id: NOWM_SRC
+                  include[1]: "glob:**/*.csv"
+                  duplicate:
+                    mode: METADATA
+                """).toString());
+            Path inbox = Path.of(cfg.dirs().poll());
+            Files.createDirectories(inbox);
+            writeWithMtime(inbox.resolve("old.csv"), 1_000L);
+            ledger.record(LedgerEntry.metadata("NOWM_SRC", "seed.csv", "seed.csv", 1L, 9_999L, 1L));
+
+            assertEquals(List.of("old.csv"), candidateNames(cfg),
+                    "without source.incremental, a high ledger watermark never filters (the knob is opt-in)");
+        } finally {
+            AcquisitionLedgers.use(new InMemoryAcquisitionLedger());
+        }
+    }
+
+    private static void writeWithMtime(Path file, long mtimeMillis) throws Exception {
+        Files.writeString(file, "ID,AMT,EVENT_DATE\nr,1,2020-04-03\n");
+        Files.setLastModifiedTime(file, java.nio.file.attribute.FileTime.fromMillis(mtimeMillis));
+    }
+
     @Test
     void duplicateBlockParsesModeAlgorithmAndOnChange(@TempDir Path dir) throws Exception {
         PipelineConfig none = PipelineConfig.load(writePipeline(dir, "").toString());

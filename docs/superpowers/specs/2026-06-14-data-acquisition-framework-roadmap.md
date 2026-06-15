@@ -241,9 +241,8 @@ shippable, additive, and reactor-green-gated.
   from discovery); `SourceConfigTest` (stability parse + `ready_marker`/temp-exclusion via `collectCandidates`).
 
 ### Phase C — Fingerprint marker repository + dup/change policy  *(Requirement §2-regex, §3, §5, §6)*
-**Status: C1 + C2 + C3 ✅ Implemented 2026-06-14** (reactor green) — PATH/METADATA/CHECKSUM dedup all live,
-plus `regex:` include/exclude. The incremental **watermark** is the only deferred piece (C4 below; it pays off
-mainly with remote LISTs in Phase E).
+**Status: C1 + C2 + C3 ✅ Implemented 2026-06-14, C4 ✅ Implemented 2026-06-15** (reactor green) —
+PATH/METADATA/CHECKSUM dedup all live, plus `regex:` include/exclude and the incremental high-watermark.
 **Outcome:** dedup by content, detect re-uploads, incremental scans — closes the path-only data-loss gap.
 
 **As-built (C1, committed `eef78e4`):** `com.gamma.acquire.AcquisitionLedger` SPI + `InMemoryAcquisitionLedger`
@@ -270,10 +269,21 @@ reader, so the dedup hash can't be teed off the ingest read — CHECKSUM is inhe
 per candidate (opt-in, heavier; METADATA stays the cheap default). `regex:` include/exclude already worked
 through the `LocalFileSystemConnector` matcher (Phase A passes `regex:`/`glob:` prefixes through) — now tested.
 
-**Remaining (C4, not yet built):** the incremental **watermark** — persist max `last_modified` per source (§8
-Q3 = per-source) and skip `<= watermark` at discovery. Marginal for a local `Files.walk` (it still walks the
-tree) but a real win for remote connectors, where it lets a LIST request only recent objects — so it lands
-naturally alongside Phase E.
+**As-built (C4, incremental high-watermark — Implemented 2026-06-15):** `source.incremental.watermark:
+last_modified` (a `PipelineConfig.Incremental` record; absent ⇒ full listing). The watermark is **derived**, not
+separately stored — `AcquisitionLedger.highWatermark(sourceId)` returns `MAX(last_modified)` over the source's
+recorded rows (in-mem scan; DB `SELECT MAX(...)`; the interface default is empty, so a custom ledger disables it
+safely). `SourceProcessor.collect` runs a `watermarkFilter` over the candidate set **before the remote/local
+split** — so a remote source skips old objects **before fetch** (no bandwidth) — dropping files with
+mtime **strictly < watermark**; the frontier (`== watermark`) passes through to the ledger for exact dedup, and a
+file whose mtime can't be determined is kept (correctness over the optimisation). Remote listings carry
+`lastModified`; a local file (null at discovery) is `stat`'d on demand. Gap detection still runs over the full
+listing. Skips bump `inspecto_watermark_skipped_total` (run path only). **§8 Q3 resolved: per-source scope.**
+Because it derives from the ledger, it needs a content-based `duplicate.mode` (the engine warns otherwise); it
+is for monotonic-arrival sources (a re-upload *below* the watermark is intentionally skipped). Deferred within
+C4: the **etag/version** watermark dimensions (S3/GCS object-version discovery — land with those connectors).
+Tests: `AcquisitionLedgerWatermarkTest` (derivation across in-mem/DuckDB/default) +
+`SourceConfigTest` (parse + skip-old/keep-frontier + opt-in).
 - **`AcquisitionLedger`** (DuckDB-backed, **its own DB file + single-writer lock**, reusing the
   `DbStatusStore`/OI-store pattern): rows `{source_id, relative_path, name, size, checksum, last_modified,
   processed_at, status}`. `InMemoryAcquisitionLedger` + `DbAcquisitionLedger` (SPI twin of the note/link stores).
@@ -375,8 +385,8 @@ The `EXACTLY_ONCE`-survives-a-crash test is a `CommitLog` concern already covere
   the materialise wiring + `ConnectionRegistry` + ServiceLoader + re-run dedup together). Core: `Compression`,
   `IntegrityChecker`, `ConnectionRegistry`. Reactor green (core 628 / agent 157 / hosted 4 / connectors 9).
 - **Deferred to Phase F (per the original split):** post-action *wiring* into the run loop, retry/circuit-breaker,
-  parallel fetch + rate-limit. **Not yet done:** the C4 incremental watermark (pre-fetch skip already covers the
-  common re-poll case via the ledger); FTPS; strict SSH host-key pinning (currently accept-on-connect).
+  parallel fetch + rate-limit (all shipped in F). **C4 incremental watermark now done (2026-06-15);** still open:
+  FTPS; strict SSH host-key pinning (currently accept-on-connect).
 
 ### Phase F — Resilience + post-actions + parallel/rate-limit  *(Requirement §8,§10,§11-actions,§12)*
 **Status: ✅ Implemented 2026-06-14** (reactor green — core 645 / agent 157 / hosted 4 / connectors 16). All five
@@ -429,13 +439,15 @@ pieces shipped in one commit, including parallel multi-session fetch.
   `SftpConnector` in the same change). `STREAM`-only capability (a query result has no source-side file to
   delete/move/rename). Config lives in the `*_connection.toon` profile's `options` (`jdbc_url`/`query`/
   `export_name`/`driver`). Tests: `DbExportConnectorTest` (query→CSV, `open` stream, date-token resolution,
-  fail-fast on missing query, end-to-end `SourceProcessor.run` ingesting the export). The incremental
-  **watermark** (export only rows newer than the last run) remains the deferred C4 piece.
+  fail-fast on missing query, end-to-end `SourceProcessor.run` ingesting the export). The file-level C4
+  high-watermark applies here too (per-slice export name + mtime); a **row-level** incremental (push a
+  `WHERE last_modified > :watermark` into the SQL itself) is a separate future refinement.
 
 ### Future (explicitly out of scope here — requirement marks these "(future)")
 Object storage (S3/GCS/Azure/MinIO) connectors; NFS/SMB/CIFS; **event-notification** discovery (S3 events/inotify)
 as an alternative to polling; "grouping data source" (one logical source spanning multiple collection points +
-tagging); the incremental watermark (C4); FTPS; strict SSH host-key pinning. All connectors are *additional
+tagging); the **etag/version** watermark dimensions (the `last_modified` watermark, C4, is done); FTPS; strict
+SSH host-key pinning. All connectors are *additional
 `SourceConnector` implementations* — the SPI from Phase A is what makes them non-disruptive, satisfying the
 requirement's extensibility clause ("new protocols via connector plugins without modifying the core engine").
 

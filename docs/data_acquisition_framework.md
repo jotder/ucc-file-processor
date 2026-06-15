@@ -12,9 +12,12 @@
 > retry/circuit-breaker/dead-letter + source-side post-actions + parallel fetch + rate limit (F).
 > **Plus (post-roadmap, 2026-06-15):** the **DB-export source** (`DbExportConnector`, scheme `db`) — runs a SQL
 > query against a JDBC database (Postgres driver bundled; JDBC-generic) and materialises the result as CSV, with
-> date-templated query/name and an optional SSH tunnel.
-> **Still future** (this SPI makes each non-disruptive): object storage (S3/GCS/Azure/MinIO), NFS/SMB/CIFS, the
-> incremental watermark, FTPS, and strict SSH host-key pinning.
+> date-templated query/name and an optional SSH tunnel; and the **C4 incremental high-watermark**
+> (`source.incremental.watermark: last_modified`) — each scan skips files modified before the source's
+> high-watermark (max `last_modified` recorded in the fingerprint ledger), so remote sources spend no fetch
+> bandwidth re-collecting history.
+> **Still future** (this SPI makes each non-disruptive): object storage (S3/GCS/Azure/MinIO), NFS/SMB/CIFS,
+> etag/version watermark dimensions, FTPS, and strict SSH host-key pinning.
 
 **GOAL:**
 * **The system guarantees that every eligible data source file is collected exactly once (or according to policy), safely, efficiently, and recoverable regardless of where the file resides**

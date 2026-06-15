@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * Database-backed {@link AcquisitionLedger} — durable fingerprint repository over the already-bundled DuckDB
@@ -91,6 +92,24 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
         } catch (SQLException ex) {
             throw new IllegalStateException(
                     "could not record ledger entry " + e.sourceId() + "/" + e.relativePath() + ": " + ex.getMessage(), ex);
+        }
+    }
+
+    @Override
+    public synchronized OptionalLong highWatermark(String sourceId) {
+        String sql = "SELECT MAX(last_modified) FROM " + TABLE + " WHERE source_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, sourceId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long v = rs.getLong(1);
+                    if (!rs.wasNull()) return OptionalLong.of(v);   // MAX over an empty set is SQL NULL
+                }
+                return OptionalLong.empty();
+            }
+        } catch (SQLException e) {
+            log.warn("watermark lookup failed for {}: {}", sourceId, e.getMessage());
+            return OptionalLong.empty();   // degrade safely: an unavailable watermark just means no skipping
         }
     }
 
