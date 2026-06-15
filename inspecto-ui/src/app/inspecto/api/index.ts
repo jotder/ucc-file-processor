@@ -17,3 +17,4 @@ export * from './objects.service';
 export * from './connections.service';
 export * from './sources.service';
 export * from './acquisition-metrics.service';
+export * from './events.service';

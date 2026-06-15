@@ -1,0 +1,130 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <div class="text-3xl font-extrabold leading-none tracking-tight">Events &amp; Activity</div>
+            <div class="text-secondary mt-1.5">The operational event stream — ingest, acquisition, jobs, alerts and object lifecycle</div>
+        </div>
+        <div class="mt-4 flex items-center gap-3 sm:mt-0">
+            <mat-slide-toggle [checked]="live" (change)="toggleLive($event.checked)" matTooltip="Auto-refresh the newest events every 5s">
+                Live tail
+            </mat-slide-toggle>
+            <button mat-stroked-button (click)="load()">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                <span class="ml-2">Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        <!-- Filter toolbar -->
+        <div class="mb-4 flex flex-wrap items-center gap-3">
+            <mat-form-field class="gamma-mat-dense w-32" subscriptSizing="dynamic">
+                <mat-label>Min level</mat-label>
+                <mat-select [(ngModel)]="fLevel">
+                    <mat-option value="">All</mat-option>
+                    @for (l of levels; track l) {
+                        <mat-option [value]="l">{{ l }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+
+            <mat-form-field class="gamma-mat-dense w-52" subscriptSizing="dynamic">
+                <mat-label>Type</mat-label>
+                <mat-select [(ngModel)]="fType">
+                    <mat-option value="">All types</mat-option>
+                    @for (t of types; track t) {
+                        <mat-option [value]="t">{{ t }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+
+            <mat-form-field class="gamma-mat-dense w-44" subscriptSizing="dynamic">
+                <mat-label>Pipeline</mat-label>
+                <input matInput [(ngModel)]="fPipeline" placeholder="exact name" (keyup.enter)="load()" />
+            </mat-form-field>
+
+            <mat-form-field class="gamma-mat-dense w-64" subscriptSizing="dynamic">
+                <mat-label>Search</mat-label>
+                <input matInput [(ngModel)]="fq" placeholder="message or source contains…" (keyup.enter)="load()" />
+            </mat-form-field>
+
+            <mat-form-field class="gamma-mat-dense w-28" subscriptSizing="dynamic">
+                <mat-label>Limit</mat-label>
+                <mat-select [(ngModel)]="fLimit">
+                    @for (n of limitOptions; track n) {
+                        <mat-option [value]="n">{{ n }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+
+            <button mat-flat-button color="primary" (click)="load()">
+                <mat-icon svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                <span class="ml-2">Search</span>
+            </button>
+            <button mat-button (click)="resetFilters()">Reset</button>
+
+            <span class="flex-auto"></span>
+
+            <button mat-stroked-button (click)="exportCsv()" matTooltip="Download matching events as CSV">
+                <mat-icon svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+                <span class="ml-2">Export CSV</span>
+            </button>
+        </div>
+
+        <!-- Saved views + active correlation chip -->
+        <div class="mb-4 flex flex-wrap items-center gap-3">
+            <mat-form-field class="gamma-mat-dense w-52" subscriptSizing="dynamic">
+                <mat-label>Saved view</mat-label>
+                <mat-select [(ngModel)]="selectedView" (selectionChange)="applyView($event.value)">
+                    <mat-option value="">—</mat-option>
+                    @for (v of views; track v.name) {
+                        <mat-option [value]="v.name">{{ v.name }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+            <button mat-icon-button (click)="deleteView()" [disabled]="!selectedView" matTooltip="Delete the selected view">
+                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+            </button>
+
+            <mat-form-field class="gamma-mat-dense w-52" subscriptSizing="dynamic">
+                <mat-label>Save current as…</mat-label>
+                <input matInput [(ngModel)]="saveName" placeholder="view name" (keyup.enter)="saveView()" />
+            </mat-form-field>
+            <button mat-stroked-button (click)="saveView()">
+                <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
+                <span class="ml-2">Save view</span>
+            </button>
+
+            @if (fCorrelation) {
+                <span class="flex items-center gap-1 rounded-full bg-primary-100 px-3 py-1 text-sm text-primary-800 dark:bg-primary-900 dark:text-primary-200">
+                    correlation: <span class="font-mono text-xs">{{ fCorrelation }}</span>
+                    <button class="ml-1" (click)="clearCorrelation()" matTooltip="Clear correlation filter">
+                        <mat-icon class="icon-size-4" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                    </button>
+                </span>
+            }
+        </div>
+
+        @if (!loading && events.length === 0) {
+            <inspecto-empty-state
+                icon="heroicons_outline:queue-list"
+                message="No events match the current filters."
+            ></inspecto-empty-state>
+        } @else {
+            <ag-grid-angular
+                class="h-[42rem] w-full"
+                [theme]="themeSvc.theme()"
+                [rowData]="events"
+                [columnDefs]="columnDefs"
+                [defaultColDef]="defaultColDef"
+                [pagination]="true"
+                [paginationPageSize]="50"
+                [loading]="loading"
+                (firstDataRendered)="refreshActions($event)"
+                (rowDataUpdated)="refreshActions($event)"
+            ></ag-grid-angular>
+        }
+    </div>
+</div>
