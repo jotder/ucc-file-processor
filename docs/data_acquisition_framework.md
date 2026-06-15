@@ -15,7 +15,10 @@
 > date-templated query/name and an optional SSH tunnel; and the **C4 incremental high-watermark**
 > (`source.incremental.watermark: last_modified`) — each scan skips files modified before the source's
 > high-watermark (max `last_modified` recorded in the fingerprint ledger), so remote sources spend no fetch
-> bandwidth re-collecting history; and **connector hardening** — **FTPS** (`connector: ftps`, or
+> bandwidth re-collecting history; the **DB-export row-level watermark** (`options.watermark_column` +
+> a `:watermark` bind in the query) — resumable incremental export of only rows newer than the last *committed*
+> run (advances post-commit ⇒ at-least-once on crash), which the file-level C4 watermark can't do for DB sources;
+> and **connector hardening** — **FTPS** (`connector: ftps`, or
 > `options.tls: explicit|implicit`; encrypts control + data channels), **strict SSH host-key pinning**
 > (`options.host_key`/`known_hosts`/`strict_host_key`), and **FTP/FTPS through an SSH bastion**
 > (`tunnel:` + `options.passive_ports` for the passive data range) — so all of SFTP/FTP/FTPS/DB-export can

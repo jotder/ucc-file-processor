@@ -63,6 +63,29 @@ public final class AcquisitionLedgers {
         return file.toAbsolutePath().normalize().toString();
     }
 
+    // ── DB-export row-level watermark handoff ──────────────────────────────────────
+    // Mirrors the checksum handoff above: a DB-export connector computes the new max watermark while writing its
+    // CSV in fetchTo and stashes it here, keyed by the staged file. BatchProcessor.commit takes it AFTER the batch
+    // is durable and persists it to the ledger (recordDbWatermark) — so the watermark advances only on commit
+    // (a crash mid-ingest re-exports the slice; at-least-once / resumable). A batch that never commits leaves a
+    // small orphan entry (harmless — recomputed on the next successful run). The connection-profile id travels
+    // with the value so the commit side stays source-type-agnostic (it just forwards the key+value).
+
+    /** A stashed DB-export watermark: the connection-profile {@code key} it belongs to and its opaque {@code value}. */
+    public record DbWatermark(String key, String value) {}
+
+    private static final ConcurrentHashMap<String, DbWatermark> PENDING_DB_WATERMARKS = new ConcurrentHashMap<>();
+
+    /** Stash the freshly-computed watermark for {@code dest} (the staged export file), to be persisted at commit. */
+    public static void stashDbWatermark(Path dest, String sourceKey, String value) {
+        if (sourceKey != null && value != null) PENDING_DB_WATERMARKS.put(key(dest), new DbWatermark(sourceKey, value));
+    }
+
+    /** Take (and remove) the stashed watermark for {@code dest}, or empty if none was stashed for that file. */
+    public static java.util.Optional<DbWatermark> takeDbWatermark(Path dest) {
+        return java.util.Optional.ofNullable(PENDING_DB_WATERMARKS.remove(key(dest)));
+    }
+
     private static AcquisitionLedger build() {
         String backend = System.getProperty("acquire.ledger.backend", "memory");
         if (!"db".equalsIgnoreCase(backend)) return new InMemoryAcquisitionLedger();

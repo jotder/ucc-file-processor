@@ -1,8 +1,11 @@
 package com.gamma.acquire.connectors;
 
+import com.gamma.acquire.AcquisitionLedger;
+import com.gamma.acquire.AcquisitionLedgers;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.ConnectionRegistry;
 import com.gamma.acquire.DiscoveryContext;
+import com.gamma.acquire.InMemoryAcquisitionLedger;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SourceConnector;
 import org.junit.jupiter.api.Test;
@@ -42,6 +45,17 @@ class DbExportConnectorTest {
     private static ConnectionProfile profile(String id, String url, String query, String exportName) {
         return new ConnectionProfile(id, "db", null, 0, null, null, null, null,
                 Map.of("jdbc_url", url, "query", query, "export_name", exportName), null);
+    }
+
+    /** Run extra SQL against the seeded DuckDB (only while no connector connection is open — DuckDB is single-writer). */
+    private static void exec(String url, String sql) throws Exception {
+        try (Connection c = DriverManager.getConnection(url); Statement st = c.createStatement()) {
+            for (String s : sql.split(";")) if (!s.isBlank()) st.execute(s);
+        }
+    }
+
+    private static RemoteFile only(SourceConnector c) throws Exception {
+        return c.discover(new DiscoveryContext(List.of(), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
     }
 
     @Test
@@ -94,6 +108,82 @@ class DbExportConnectorTest {
         ConnectionProfile noQuery = new ConnectionProfile("x", "db", null, 0, null, null, null, null,
                 Map.of("jdbc_url", "jdbc:duckdb:", "export_name", "x.csv"), null);
         assertThrows(IllegalArgumentException.class, () -> new DbExportConnector(noQuery));
+    }
+
+    @Test
+    void watermarkColumnWithoutPlaceholderFailsFast() {
+        ConnectionProfile p = new ConnectionProfile("bad", "db", null, 0, null, null, null, null,
+                Map.of("jdbc_url", "jdbc:duckdb:", "query", "SELECT * FROM t", "export_name", "x.csv",
+                        "watermark_column", "updated_at"), null);
+        assertThrows(IllegalArgumentException.class, () -> new DbExportConnector(p),
+                "watermark_column with no :watermark placeholder is a misconfiguration");
+    }
+
+    @Test
+    void rewritesWatermarkPlaceholderToQuestionMark() {
+        assertEquals("SELECT * FROM t WHERE c > ? ORDER BY c",
+                DbExportConnector.bindPlaceholders("SELECT * FROM t WHERE c > :watermark ORDER BY c"));
+        assertEquals("a > ? OR b > ?",
+                DbExportConnector.bindPlaceholders("a > :watermark OR b > :watermark"), "every placeholder rewrites");
+        assertEquals("x = :watermark_col",
+                DbExportConnector.bindPlaceholders("x = :watermark_col"), "a longer identifier is left alone");
+    }
+
+    /**
+     * Row-level incremental export: the stored watermark is bound into {@code :watermark}, only newer rows are
+     * exported, and the watermark advances strictly after a (simulated) commit — never before. The third cycle
+     * proves an empty result leaves the frontier untouched.
+     */
+    @Test
+    void incrementalExportBindsWatermarkAndAdvancesOnlyOnCommit(@TempDir Path dir) throws Exception {
+        String url = seedDuckDb(dir, """
+            CREATE TABLE events(ID INTEGER, PAYLOAD VARCHAR, UPDATED_AT INTEGER);
+            INSERT INTO events VALUES (1,'a',1),(2,'b',2),(3,'c',3);
+            """);
+        ConnectionProfile p = new ConnectionProfile("inc-db", "db", null, 0, null, null, null, null,
+                Map.of("jdbc_url", url, "export_name", "events.csv",
+                        "query", "SELECT ID, PAYLOAD, UPDATED_AT FROM events WHERE UPDATED_AT > :watermark ORDER BY UPDATED_AT",
+                        "watermark_column", "UPDATED_AT", "watermark_type", "long", "watermark_initial", "0"), null);
+
+        AcquisitionLedger original = AcquisitionLedgers.shared();
+        AcquisitionLedgers.use(new InMemoryAcquisitionLedger());
+        try {
+            // Cycle 1: floor (initial 0) ⇒ all three rows; a watermark of 3 is stashed but NOT yet persisted.
+            Path dest1 = dir.resolve("out/events_1.csv");
+            try (SourceConnector c = new DbExportConnector(p)) { c.fetchTo(only(c), dest1); }
+            assertEquals(4, Files.readAllLines(dest1).size(), "header + 3 rows on the first cycle");
+            assertTrue(AcquisitionLedgers.shared().dbWatermark("inc-db").isEmpty(),
+                    "watermark must NOT advance before the batch commits");
+
+            // Simulate the post-commit hook in BatchProcessor.
+            AcquisitionLedgers.DbWatermark w1 = AcquisitionLedgers.takeDbWatermark(dest1).orElseThrow();
+            assertEquals("inc-db", w1.key());
+            assertEquals("3", w1.value());
+            AcquisitionLedgers.shared().recordDbWatermark(w1.key(), w1.value());
+
+            // New rows arrive (no connector connection open ⇒ no DuckDB single-writer clash).
+            exec(url, "INSERT INTO events VALUES (4,'d',4),(5,'e',5);");
+
+            // Cycle 2: bound watermark 3 ⇒ only rows 4 and 5.
+            Path dest2 = dir.resolve("out/events_2.csv");
+            try (SourceConnector c = new DbExportConnector(p)) { c.fetchTo(only(c), dest2); }
+            List<String> lines2 = Files.readAllLines(dest2, StandardCharsets.UTF_8);
+            assertEquals(3, lines2.size(), "header + 2 new rows");
+            assertEquals("\"4\",\"d\",\"4\"", lines2.get(1));
+            assertEquals("\"5\",\"e\",\"5\"", lines2.get(2));
+            AcquisitionLedgers.DbWatermark w2 = AcquisitionLedgers.takeDbWatermark(dest2).orElseThrow();
+            assertEquals("5", w2.value());
+            AcquisitionLedgers.shared().recordDbWatermark(w2.key(), w2.value());
+
+            // Cycle 3: nothing newer than 5 ⇒ header only, and nothing stashed (frontier stays at 5).
+            Path dest3 = dir.resolve("out/events_3.csv");
+            try (SourceConnector c = new DbExportConnector(p)) { c.fetchTo(only(c), dest3); }
+            assertEquals(1, Files.readAllLines(dest3).size(), "header only — no rows past the frontier");
+            assertTrue(AcquisitionLedgers.takeDbWatermark(dest3).isEmpty(), "empty result ⇒ nothing stashed");
+            assertEquals("5", AcquisitionLedgers.shared().dbWatermark("inc-db").orElseThrow(), "frontier unchanged");
+        } finally {
+            AcquisitionLedgers.use(original);
+        }
     }
 
     @Test

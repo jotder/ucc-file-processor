@@ -158,6 +158,36 @@ The date-templated `query`/`export_name` give idempotent **per-slice** export (e
 the marker/ledger dedup re-runs the same slice only once). It is a `STREAM`-only source — there's no source-side
 file to move/delete, so leave `source.post_action` unset.
 
+#### Row-level incremental export (watermark)
+
+For a continuously-changing table, date-slicing is clumsy — you want "export only rows that changed since the last
+run." Set `watermark_column` and reference a `:watermark` placeholder in the query; the connector binds the stored
+watermark, exports only newer rows, and advances the watermark **after the batch commits** (so a crash mid-ingest
+re-exports the slice rather than skipping it — at-least-once / resumable):
+
+```yaml
+connection:
+  id: cdr_export
+  connector: db
+  options:
+    jdbc_url: jdbc:postgresql://db.example.com:5432/warehouse
+    query: "SELECT * FROM cdr WHERE updated_at > :watermark ORDER BY updated_at"  # :watermark = the bind placeholder
+    export_name: "cdr_{yyyyMMdd_HHmmss}.csv"     # keep a unique name per cycle (the rows differ each run)
+    watermark_column: updated_at                 # the result column whose max is tracked + bound; enables this mode
+    watermark_type: timestamp                    # string (default) | long | timestamp — bind precision + ordering
+    # watermark_initial: "1970-01-01 00:00:00"   # optional first-run lower bound (else a type floor ⇒ export all)
+```
+
+- The watermark is bound as a JDBC parameter (`:watermark` → `?`), so it is **SQL-injection-safe**; it composes with
+  the `{…}` date tokens (date tokens are literal substitution applied first, the watermark is a bind).
+- The new max is persisted per **connection-profile id** in the acquisition ledger DB
+  (`-Dacquire.ledger.backend=db`; the in-memory default is lost on restart). An empty result leaves the frontier
+  untouched.
+- **Gap-free only over an append-only / monotonic column** (the compare is strictly `>`). Prefer an ingestion
+  timestamp or sequence over an event-time column — a late, back-dated row whose timestamp is below the frontier
+  would be missed. This is orthogonal to the file-level `source.incremental.watermark` (which can't help DB export,
+  since the export file's mtime is always "now") and needs no `source.duplicate` mode.
+
 ---
 
 ## DuckLake Integration

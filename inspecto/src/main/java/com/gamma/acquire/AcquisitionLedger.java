@@ -40,6 +40,27 @@ public interface AcquisitionLedger extends AutoCloseable {
         return OptionalLong.empty();
     }
 
+    /**
+     * The stored <b>row-level DB watermark</b> for {@code sourceKey} (the DB-export connector's connection-profile
+     * id), or empty if none has been recorded yet. Unlike {@link #highWatermark(String)} this is <em>not</em>
+     * derived from file metadata — it is an opaque value (the max of a monotonic result column such as
+     * {@code updated_at} / {@code id}) that {@code DbExportConnector} persists after a batch commits and reads back
+     * to bind into {@code … WHERE col > :watermark} on the next cycle, so only newer rows are exported.
+     *
+     * <p>The value is stored as text; the connector owns its type (string / long / timestamp). The default
+     * implementation returns empty, which safely disables row-watermarking for a ledger that does not track it.
+     */
+    default Optional<String> dbWatermark(String sourceKey) {
+        return Optional.empty();
+    }
+
+    /**
+     * Record (insert or replace) the row-level DB watermark for {@code sourceKey}. Called only <b>after</b> the
+     * batch carrying those rows has committed (so a crash mid-ingest re-exports the slice rather than skipping it —
+     * at-least-once / resumable). The default implementation is a no-op.
+     */
+    default void recordDbWatermark(String sourceKey, String value) {}
+
     /** Release resources (e.g. a DuckDB connection). Idempotent; no-op for in-memory. */
     @Override
     default void close() {}

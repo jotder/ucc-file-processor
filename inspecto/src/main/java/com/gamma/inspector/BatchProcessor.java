@@ -167,6 +167,19 @@ public final class BatchProcessor {
             AcquisitionLedger ledger = AcquisitionLedgers.shared();
             for (LedgerEntry e : ledgerEntries) ledger.record(e);
         }
+
+        // Row-level DB-export watermark LAST too, and independently of dedup mode: a DB-export connector stashes the
+        // new max watermark during fetchTo; advance it only now that the batch is durable (resumable). Source-type-
+        // agnostic — takeDbWatermark is empty for any file no connector stashed.
+        AcquisitionLedger wmLedger = null;
+        for (Batch.Member m : survivors) {
+            Path filePath = m.file().toPath().toAbsolutePath().normalize();
+            var wm = AcquisitionLedgers.takeDbWatermark(filePath);
+            if (wm.isPresent()) {
+                if (wmLedger == null) wmLedger = AcquisitionLedgers.shared();
+                wmLedger.recordDbWatermark(wm.get().key(), wm.get().value());
+            }
+        }
     }
 
     private static void backupFile(File inputFile, PipelineConfig cfg) throws IOException {

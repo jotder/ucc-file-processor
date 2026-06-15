@@ -1,6 +1,7 @@
 package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.AcquisitionException;
+import com.gamma.acquire.AcquisitionLedgers;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
@@ -19,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -27,6 +29,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 import static com.gamma.acquire.SourceConnector.Capability.STREAM;
 
@@ -50,6 +54,15 @@ import static com.gamma.acquire.SourceConnector.Capability.STREAM;
  *   <li>{@code driver} — optional explicit JDBC driver class to load.</li>
  *   <li>{@code tunnel} — an optional SSH bastion (host/port path only); the connector forwards a loopback port and
  *       points the JDBC URL at it.</li>
+ *   <li>{@code watermark_column} — optional; enables <b>row-level incremental export</b>. The result column whose
+ *       max is tracked and bound into a {@code :watermark} placeholder, e.g.
+ *       {@code SELECT * FROM cdr WHERE updated_at > :watermark ORDER BY updated_at}. The connector reads the stored
+ *       watermark (per connection-profile id) before the query and persists the new max <em>after the batch
+ *       commits</em> ({@link AcquisitionLedgers}), so a crash mid-ingest re-exports the slice rather than skipping
+ *       it (at-least-once / resumable). Gap-free only over an append-only/monotonic column (strictly {@code >}).</li>
+ *   <li>{@code watermark_initial} — optional first-run lower bound (used until a value is stored).</li>
+ *   <li>{@code watermark_type} — optional {@code string} (default) | {@code long} | {@code timestamp}; controls how
+ *       the bound value is typed and how the running max is compared.</li>
  * </ul>
  *
  * <p>The result is a single logical "file" per cycle, so this connector is {@link Capability#STREAM}-only — there
@@ -60,10 +73,17 @@ public final class DbExportConnector implements SourceConnector {
     private static final Logger log = LoggerFactory.getLogger(DbExportConnector.class);
     private static final int DEFAULT_PG_PORT = 5432;
 
+    /** The bind placeholder for the row-level watermark; not followed by an identifier char (so {@code :watermark2} is left alone). */
+    private static final Pattern WATERMARK_TOKEN = Pattern.compile(":watermark(?![A-Za-z0-9_])");
+
     private final ConnectionProfile profile;
     private final String queryTemplate;
     private final String nameTemplate;
-    private final String driverClass;   // optional explicit driver
+    private final String driverClass;       // optional explicit driver
+
+    private final String watermarkColumn;   // null ⇒ row-level watermarking off
+    private final String watermarkInitial;  // first-run lower bound (may be null ⇒ type floor)
+    private final WatermarkType watermarkType;
 
     private Connection conn;
     private SshTunnel tunnel;
@@ -73,10 +93,17 @@ public final class DbExportConnector implements SourceConnector {
         this.queryTemplate = profile.options().get("query");
         this.nameTemplate = profile.options().get("export_name");
         this.driverClass = profile.options().get("driver");
+        String wc = profile.options().get("watermark_column");
+        this.watermarkColumn = (wc == null || wc.isBlank()) ? null : wc.trim();
+        this.watermarkInitial = profile.options().get("watermark_initial");
+        this.watermarkType = WatermarkType.from(profile.options().get("watermark_type"));
         if (queryTemplate == null || queryTemplate.isBlank())
             throw new IllegalArgumentException("db-export connection '" + profile.id() + "' needs options.query");
         if (nameTemplate == null || nameTemplate.isBlank())
             throw new IllegalArgumentException("db-export connection '" + profile.id() + "' needs options.export_name");
+        if (watermarkColumn != null && !WATERMARK_TOKEN.matcher(queryTemplate).find())
+            throw new IllegalArgumentException("db-export connection '" + profile.id()
+                    + "' sets options.watermark_column but options.query has no :watermark placeholder");
     }
 
     @Override
@@ -126,13 +153,42 @@ public final class DbExportConnector implements SourceConnector {
         try {
             if (dest.getParent() != null) Files.createDirectories(dest.getParent());
             Connection c = ensureConnected();
-            try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(sql)) {
-                long rows = writeCsv(rs, dest);
-                log.info("DB export {}: {} row(s) → {}", profile.id(), rows, dest.getFileName());
-            }
+            Export e = (watermarkColumn != null)
+                    ? exportIncremental(c, sql, dest)
+                    : exportAll(c, sql, dest);
+            // Advance the watermark only after the batch commits — stash it for BatchProcessor to persist. Empty
+            // result ⇒ no max ⇒ nothing stashed ⇒ watermark unchanged (correct: no rows past the frontier).
+            if (watermarkColumn != null && e.rows() > 0 && e.maxWatermark() != null)
+                AcquisitionLedgers.stashDbWatermark(dest, profile.id(), e.maxWatermark());
             return dest;
         } catch (SQLException | IOException e) {
             throw new AcquisitionException("DB export failed for '" + profile.id() + "' → " + dest + ": " + e.getMessage(), e);
+        }
+    }
+
+    /** The full, non-incremental export (current behaviour): plain {@link Statement}, no watermark tracking. */
+    private Export exportAll(Connection c, String sql, Path dest) throws SQLException, IOException {
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(sql)) {
+            Export e = writeCsv(rs, dest, null, null);
+            log.info("DB export {}: {} row(s) → {}", profile.id(), e.rows(), dest.getFileName());
+            return e;
+        }
+    }
+
+    /** Row-level incremental export: bind the stored watermark into {@code :watermark} and track the new max. */
+    private Export exportIncremental(Connection c, String sql, Path dest) throws SQLException, IOException {
+        String bound = AcquisitionLedgers.shared().dbWatermark(profile.id())
+                .orElse(watermarkInitial != null ? watermarkInitial : watermarkType.floor());
+        String prepared = bindPlaceholders(sql);
+        int binds = countMatches(WATERMARK_TOKEN, sql);
+        try (PreparedStatement ps = c.prepareStatement(prepared)) {
+            for (int i = 1; i <= binds; i++) watermarkType.bind(ps, i, bound);
+            try (ResultSet rs = ps.executeQuery()) {
+                Export e = writeCsv(rs, dest, watermarkColumn, watermarkType);
+                log.info("DB export {} (incremental, {} > {}): {} row(s) → {}",
+                        profile.id(), watermarkColumn, bound, e.rows(), dest.getFileName());
+                return e;
+            }
         }
     }
 
@@ -191,11 +247,21 @@ public final class DbExportConnector implements SourceConnector {
 
     // ── CSV materialisation ─────────────────────────────────────────────────────
 
-    /** Write the full result set to {@code dest} as RFC-4180 CSV (header + fully-quoted fields); returns the row count. */
-    private static long writeCsv(ResultSet rs, Path dest) throws SQLException, IOException {
+    /** Outcome of one export: the row count and (when row-watermarking) the max watermark value seen, else null. */
+    private record Export(long rows, String maxWatermark) {}
+
+    /**
+     * Write the full result set to {@code dest} as RFC-4180 CSV (header + fully-quoted fields). When
+     * {@code watermarkColumn} is non-null, also track the maximum value of that column (compared per
+     * {@code wmType}) so the caller can advance the watermark; returns both the row count and that max.
+     */
+    private static Export writeCsv(ResultSet rs, Path dest, String watermarkColumn, WatermarkType wmType)
+            throws SQLException, IOException {
         ResultSetMetaData md = rs.getMetaData();
         int cols = md.getColumnCount();
+        int wmIdx = (watermarkColumn == null) ? -1 : columnIndex(md, cols, watermarkColumn);
         long rows = 0;
+        String maxWm = null;
         try (BufferedWriter w = Files.newBufferedWriter(dest, StandardCharsets.UTF_8)) {
             for (int i = 1; i <= cols; i++) {
                 if (i > 1) w.write(',');
@@ -210,13 +276,77 @@ public final class DbExportConnector implements SourceConnector {
                 }
                 w.write('\n');
                 rows++;
+                if (wmIdx > 0) {
+                    String v = rs.getString(wmIdx);
+                    if (v != null && (maxWm == null || wmType.compare(v, maxWm) > 0)) maxWm = v;
+                }
             }
         }
-        return rows;
+        return new Export(rows, maxWm);
+    }
+
+    /** 1-based index of the column whose label matches {@code name} (case-insensitive); fails loud if absent. */
+    private static int columnIndex(ResultSetMetaData md, int cols, String name) throws SQLException {
+        for (int i = 1; i <= cols; i++) {
+            if (md.getColumnLabel(i).equalsIgnoreCase(name)) return i;
+        }
+        throw new SQLException("watermark_column '" + name + "' is not in the query result");
+    }
+
+    /** Rewrite each {@code :watermark} bind placeholder to a JDBC positional {@code ?}. Package-private for tests. */
+    static String bindPlaceholders(String sql) {
+        return WATERMARK_TOKEN.matcher(sql).replaceAll("?");
+    }
+
+    private static int countMatches(Pattern p, String s) {
+        int n = 0;
+        var m = p.matcher(s);
+        while (m.find()) n++;
+        return n;
     }
 
     private static String quote(String s) {
         return '"' + s.replace("\"", "\"\"") + '"';
+    }
+
+    /**
+     * How a row-level watermark value is bound into the query and compared when tracking the running max. Stored as
+     * text (the value comes from {@link ResultSet#getString}); the type controls binding precision and ordering —
+     * {@code string}/{@code timestamp} bind as text (the DB casts) and sort lexically (ISO timestamps sort right);
+     * {@code long} binds numerically and compares numerically (so {@code "10" > "9"}).
+     */
+    enum WatermarkType {
+        STRING {
+            @Override void bind(PreparedStatement ps, int i, String v) throws SQLException { ps.setString(i, v); }
+            @Override int compare(String a, String b) { return a.compareTo(b); }
+            @Override String floor() { return ""; }
+        },
+        LONG {
+            @Override void bind(PreparedStatement ps, int i, String v) throws SQLException {
+                try { ps.setLong(i, Long.parseLong(v.trim())); }
+                catch (NumberFormatException e) { throw new SQLException("watermark '" + v + "' is not a long", e); }
+            }
+            @Override int compare(String a, String b) { return Long.compare(Long.parseLong(a.trim()), Long.parseLong(b.trim())); }
+            @Override String floor() { return Long.toString(Long.MIN_VALUE); }
+        },
+        TIMESTAMP {
+            @Override void bind(PreparedStatement ps, int i, String v) throws SQLException { ps.setString(i, v); }
+            @Override int compare(String a, String b) { return a.compareTo(b); }
+            @Override String floor() { return "0001-01-01 00:00:00"; }
+        };
+
+        abstract void bind(PreparedStatement ps, int i, String v) throws SQLException;
+        abstract int compare(String a, String b);
+        abstract String floor();
+
+        static WatermarkType from(String s) {
+            if (s == null || s.isBlank()) return STRING;
+            return switch (s.trim().toLowerCase(Locale.ROOT)) {
+                case "long", "int", "integer", "number", "bigint" -> LONG;
+                case "timestamp", "datetime", "date" -> TIMESTAMP;
+                default -> STRING;
+            };
+        }
     }
 
     /**

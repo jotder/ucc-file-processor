@@ -440,8 +440,28 @@ pieces shipped in one commit, including parallel multi-session fetch.
   delete/move/rename). Config lives in the `*_connection.toon` profile's `options` (`jdbc_url`/`query`/
   `export_name`/`driver`). Tests: `DbExportConnectorTest` (query→CSV, `open` stream, date-token resolution,
   fail-fast on missing query, end-to-end `SourceProcessor.run` ingesting the export). The file-level C4
-  high-watermark applies here too (per-slice export name + mtime); a **row-level** incremental (push a
-  `WHERE last_modified > :watermark` into the SQL itself) is a separate future refinement.
+  high-watermark applies here too (per-slice export name + mtime); the **row-level** incremental refinement is now
+  also done (next bullet).
+
+- **DB-export row-level watermark — ✅ Implemented 2026-06-15** (reactor green; connectors 29 → **32**). Resumable
+  incremental export: only rows newer than the last successful run, distinct from the file-level C4 watermark
+  (which can't help DB export — the export file's mtime is always "now"). Config in the `db` profile `options`:
+  `watermark_column` (the result column whose max is tracked + bound; presence enables the mode), optional
+  `watermark_initial` (first-run floor) and `watermark_type` (`string` default / `long` / `timestamp`, controlling
+  bind precision + max ordering). The query carries a **`:watermark` bind placeholder** (`… WHERE updated_at >
+  :watermark ORDER BY updated_at`) — rewritten to a JDBC `?` and bound via `PreparedStatement` (injection-safe;
+  composes with the `{…}` date tokens, which are applied first). **Persistence reuses the checksum-stash seam:** the
+  connector tracks the running max while writing the CSV in `fetchTo` and stashes it
+  (`AcquisitionLedgers.stashDbWatermark`, keyed by the staged file); `BatchProcessor.commit` takes it **last**
+  (after every side-effect is durable) and persists it via two new `AcquisitionLedger` methods
+  (`dbWatermark`/`recordDbWatermark`, backed by a dedicated `inspecto_acquisition_db_watermark` table in the ledger
+  DB, in-mem map for the default). So the watermark advances **only on commit** — a crash mid-ingest re-exports the
+  slice (at-least-once / resumable); an empty result leaves the frontier untouched. Keyed by **connection-profile
+  id**, so the connector owns it end-to-end and `BatchProcessor` stays a source-type-agnostic relay. **Gap-free only
+  over an append-only/monotonic column** (strictly `>`; late back-dated rows below the frontier are missed —
+  documented). No `source.duplicate` mode required (unlike C4). Tests: `DbExportConnectorTest` two-cycle incremental
+  + empty-cycle, `:watermark`→`?` rewrite, watermark-without-placeholder fail-fast; `AcquisitionLedgerTest`
+  watermark round-trip + upsert for both backends.
 
 - **Connector hardening — ✅ Implemented 2026-06-15** (reactor green; connectors 27). Two security additions on
   the existing connectors, additive and opt-in (existing profiles unchanged):

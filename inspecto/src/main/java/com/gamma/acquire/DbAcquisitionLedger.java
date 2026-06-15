@@ -30,6 +30,7 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
 
     private static final String TABLE = "inspecto_acquisition_ledger";
     private static final String COLS = "source_id, relative_path, name, size, checksum, last_modified, processed_at, status";
+    private static final String WM_TABLE = "inspecto_acquisition_db_watermark";
 
     private final Connection conn;
 
@@ -114,6 +115,42 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
     }
 
     @Override
+    public synchronized Optional<String> dbWatermark(String sourceKey) {
+        String sql = "SELECT watermark_value FROM " + WM_TABLE + " WHERE source_key = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, sourceKey);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.ofNullable(rs.getString(1)) : Optional.empty();
+            }
+        } catch (SQLException e) {
+            log.warn("db-watermark lookup failed for {}: {}", sourceKey, e.getMessage());
+            return Optional.empty();   // degrade safely: an unavailable watermark just re-exports from the floor
+        }
+    }
+
+    @Override
+    public synchronized void recordDbWatermark(String sourceKey, String value) {
+        if (value == null) return;
+        try {
+            try (PreparedStatement del = conn.prepareStatement(
+                    "DELETE FROM " + WM_TABLE + " WHERE source_key = ?")) {
+                del.setString(1, sourceKey);
+                del.executeUpdate();
+            }
+            try (PreparedStatement ins = conn.prepareStatement(
+                    "INSERT INTO " + WM_TABLE + " (source_key, watermark_value, advanced_at) VALUES (?,?,?)")) {
+                ins.setString(1, sourceKey);
+                ins.setString(2, value);
+                ins.setLong(3, System.currentTimeMillis());
+                ins.executeUpdate();
+            }
+        } catch (SQLException ex) {
+            throw new IllegalStateException(
+                    "could not record db watermark for " + sourceKey + ": " + ex.getMessage(), ex);
+        }
+    }
+
+    @Override
     public void close() {
         try {
             conn.close();
@@ -130,6 +167,11 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
                     + "source_id VARCHAR, relative_path VARCHAR, name VARCHAR, size BIGINT, "
                     + "checksum VARCHAR, last_modified BIGINT, processed_at BIGINT, status VARCHAR, "
                     + "PRIMARY KEY (source_id, relative_path))");
+            // Row-level DB-export watermark (resumable incremental export): one opaque value per source key,
+            // advanced only after a batch commits. Its own table, not a fake row in the fingerprint table.
+            st.execute("CREATE TABLE IF NOT EXISTS " + WM_TABLE + " ("
+                    + "source_key VARCHAR, watermark_value VARCHAR, advanced_at BIGINT, "
+                    + "PRIMARY KEY (source_key))");
         } catch (SQLException e) {
             throw new IllegalStateException("Could not initialise acquisition-ledger DB schema", e);
         }

@@ -28,6 +28,23 @@ class AcquisitionLedgerTest {
 
         // keyed by (sourceId, relativePath): a different source does not collide
         assertTrue(ledger.find("OTHER", "a/b.csv").isEmpty());
+
+        dbWatermarkContract(ledger);
+    }
+
+    /** The row-level DB-export watermark contract: empty until recorded, then read-back + upsert, keyed per source. */
+    private static void dbWatermarkContract(AcquisitionLedger ledger) {
+        assertTrue(ledger.dbWatermark("db-src").isEmpty(), "unknown source ⇒ no watermark");
+
+        ledger.recordDbWatermark("db-src", "2020-04-03 00:00:00");
+        assertEquals("2020-04-03 00:00:00", ledger.dbWatermark("db-src").orElseThrow());
+
+        // upsert: a newer watermark replaces the prior one for the same source key
+        ledger.recordDbWatermark("db-src", "2020-04-04 00:00:00");
+        assertEquals("2020-04-04 00:00:00", ledger.dbWatermark("db-src").orElseThrow());
+
+        // keyed per source: a different source key is independent
+        assertTrue(ledger.dbWatermark("other-src").isEmpty());
     }
 
     @Test
