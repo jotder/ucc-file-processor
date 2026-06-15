@@ -29,6 +29,7 @@
             <!-- Navigation toggle button -->
             <button
                 mat-icon-button
+                aria-label="Toggle navigation"
                 (click)="toggleNavigation('mainNavigation')"
             >
                 <mat-icon [svgIcon]="'heroicons_outline:bars-3'"></mat-icon>
@@ -37,6 +38,7 @@
             <button
                 class="hidden md:inline-flex"
                 mat-icon-button
+                aria-label="Toggle navigation appearance"
                 (click)="toggleNavigationAppearance()"
             >
                 <mat-icon

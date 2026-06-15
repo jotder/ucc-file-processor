@@ -52,7 +52,7 @@
                 <div>
                     <div class="flex items-center justify-between font-semibold">
                         SQL
-                        <button mat-icon-button (click)="copy(sql)">
+                        <button mat-icon-button aria-label="Copy" (click)="copy(sql)">
                             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:clipboard-document"></mat-icon>
                         </button>
                     </div>
@@ -69,7 +69,7 @@
                             <thead>
                                 <tr>
                                     @for (c of sampleColumns; track c) {
-                                        <th class="border-b px-2 py-1 text-left">{{ c }}</th>
+                                        <th scope="col" class="border-b px-2 py-1 text-left">{{ c }}</th>
                                     }
                                 </tr>
                             </thead>
@@ -92,7 +92,7 @@
                 <div>
                     <div class="flex items-center justify-between font-semibold">
                         Draft config (.toon)
-                        <button mat-icon-button (click)="copy(draftToon)">
+                        <button mat-icon-button aria-label="Copy" (click)="copy(draftToon)">
                             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:clipboard-document"></mat-icon>
                         </button>
                     </div>
@@ -119,9 +119,9 @@
                     <table class="mt-1 w-full text-xs">
                         <thead>
                             <tr>
-                                <th class="border-b px-2 py-1 text-left">Severity</th>
-                                <th class="border-b px-2 py-1 text-left">Field</th>
-                                <th class="border-b px-2 py-1 text-left">Message</th>
+                                <th scope="col" class="border-b px-2 py-1 text-left">Severity</th>
+                                <th scope="col" class="border-b px-2 py-1 text-left">Field</th>
+                                <th scope="col" class="border-b px-2 py-1 text-left">Message</th>
                             </tr>
                         </thead>
                         <tbody>

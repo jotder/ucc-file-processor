@@ -14,7 +14,7 @@ import { ToastrService } from 'ngx-toastr';
 import { DEFAULT_REFRESH_MS, PipelinesService, PipelineView, visibleInterval } from 'app/inspecto/api';
 import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
-import { actionsColumn, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
+import { actionsColumn, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
 import { ReprocessDialog } from './reprocess.dialog';
 
 /**
@@ -52,6 +52,12 @@ export class PipelinesComponent implements OnInit {
     autoRefresh = true;
     quickFilter = '';
     private dialogOpen = false;
+
+    /** Empty-state overlay shown when no pipelines are configured. */
+    readonly noRows = noRowsOverlay(
+        'No pipelines configured',
+        'Pipelines are defined by *_pipeline.toon configs on the server.',
+    );
 
     get canControl(): boolean {
         return this.auth.hasControl();
@@ -106,8 +112,9 @@ export class PipelinesComponent implements OnInit {
                 this.pipelines = p;
                 this.loading = false;
             },
-            error: () => {
+            error: (e) => {
                 this.loading = false;
+                this.toastr.error(e?.error?.error ?? 'Failed to load pipelines');
             },
         });
     }

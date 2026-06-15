@@ -1,7 +1,7 @@
 <div class="flex min-w-0 flex-auto flex-col">
     <!-- Header -->
     <div class="bg-card border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
-        <div class="text-3xl font-extrabold leading-none tracking-tight">Configuration</div>
+        <h1 class="text-3xl font-extrabold leading-none tracking-tight">Configuration</h1>
         <div class="text-secondary mt-1.5">Spec-driven authoring: draft → validate → copy the .toon</div>
     </div>
 
@@ -29,9 +29,14 @@
                     </div>
 
                     @if (specLoading) {
-                        <div class="mt-4 flex items-center gap-3">
-                            <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
-                            <span class="text-secondary">Loading spec…</span>
+                        <!-- Skeleton mirrors the dynamic field grid rendered once the spec loads. -->
+                        <div class="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2" aria-busy="true">
+                            @for (i of [0, 1, 2, 3, 4, 5]; track i) {
+                                <div>
+                                    <inspecto-skeleton width="40%" height="0.875rem" />
+                                    <inspecto-skeleton class="mt-2" height="2.5rem" />
+                                </div>
+                            }
                         </div>
                     }
 
@@ -141,9 +146,9 @@
                     <table class="mt-2 w-full text-sm">
                         <thead>
                             <tr>
-                                <th class="border-b px-2 py-1 text-left">Severity</th>
-                                <th class="border-b px-2 py-1 text-left">Field</th>
-                                <th class="border-b px-2 py-1 text-left">Message</th>
+                                <th scope="col" class="border-b px-2 py-1 text-left">Severity</th>
+                                <th scope="col" class="border-b px-2 py-1 text-left">Field</th>
+                                <th scope="col" class="border-b px-2 py-1 text-left">Message</th>
                             </tr>
                         </thead>
                         <tbody>

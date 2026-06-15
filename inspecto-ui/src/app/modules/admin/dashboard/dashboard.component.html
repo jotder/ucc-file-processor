@@ -2,13 +2,13 @@
     <!-- Header -->
     <div class="bg-card flex items-center justify-between border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
         <div>
-            <div class="text-3xl font-extrabold leading-none tracking-tight">Dashboard</div>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Dashboard</h1>
             <div class="text-secondary mt-1.5">Service health, throughput and error-rate overview</div>
         </div>
         <div class="flex items-center gap-4">
             <mat-slide-toggle [(ngModel)]="autoRefresh"
                               matTooltip="Auto-refresh (pauses when the tab is hidden)">Auto</mat-slide-toggle>
-            <button mat-icon-button matTooltip="Refresh now" (click)="refresh()">
+            <button mat-icon-button matTooltip="Refresh now" aria-label="Refresh now" (click)="refresh()">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>
         </div>
@@ -17,9 +17,22 @@
     <!-- Main -->
     <div class="flex flex-auto flex-col gap-6 p-6 sm:p-10">
         @if (loading && !status) {
-            <div class="flex items-center gap-3">
-                <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
-                <span class="text-secondary">Loading service status…</span>
+            <!-- Skeleton mirrors the KPI tiles + charts below so the layout doesn't jump on load. -->
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6" aria-busy="true">
+                @for (i of [0, 1, 2, 3, 4, 5]; track i) {
+                    <div class="bg-card rounded-2xl p-4 shadow">
+                        <inspecto-skeleton width="70%" height="0.875rem" />
+                        <inspecto-skeleton class="mt-3" width="45%" height="1.5rem" />
+                    </div>
+                }
+            </div>
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2" aria-busy="true">
+                @for (i of [0, 1]; track i) {
+                    <div class="bg-card rounded-2xl p-6 shadow">
+                        <inspecto-skeleton width="40%" height="1rem" />
+                        <inspecto-skeleton class="mt-4" height="12rem" />
+                    </div>
+                }
             </div>
         }
 
@@ -64,7 +77,7 @@
             <div class="bg-card rounded-2xl p-6 shadow">
                 <div class="mb-4 flex items-center justify-between">
                     <div class="font-semibold">Data acquisition</div>
-                    <a class="text-primary text-sm hover:underline" [routerLink]="['/sources']">Sources</a>
+                    <a class="text-primary dark:text-primary-400 text-sm hover:underline" [routerLink]="['/sources']">Sources</a>
                 </div>
                 <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
                     @for (c of acqCards; track c.label) {
@@ -96,13 +109,13 @@
             <div class="bg-card rounded-2xl p-6 shadow">
                 <div class="mb-3 flex items-center justify-between">
                     <div class="font-semibold">Recent activity</div>
-                    <a class="text-primary text-sm hover:underline" [routerLink]="['/events']">View all</a>
+                    <a class="text-primary dark:text-primary-400 text-sm hover:underline" [routerLink]="['/events']">View all</a>
                 </div>
                 <div class="flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
                     @for (e of recentEvents; track e.eventId) {
                         <div class="flex items-center gap-3 py-2 text-sm">
                             <span class="text-secondary w-24 shrink-0 tabular-nums">{{ fmtTime(e.ts) }}</span>
-                            <span class="shrink-0 rounded px-2 py-0.5 text-xs font-bold {{ levelClass(e.level) }}">{{ e.level }}</span>
+                            <inspecto-status-badge [value]="e.level" />
                             <span class="text-secondary w-44 shrink-0 truncate font-mono text-xs">{{ e.type }}</span>
                             <span class="truncate">{{ e.message || e.pipeline || '—' }}</span>
                         </div>

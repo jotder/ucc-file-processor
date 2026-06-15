@@ -12,9 +12,17 @@
         -webkit-text-rendering: optimizeLegibility;
         -webkit-tap-highlight-color: transparent;
 
-        /* Remove the focus ring */
-        &:focus {
+        /* Suppress the default outline for pointer/programmatic focus, but keep a clearly
+           visible focus indicator for keyboard users (WCAG 2.2 — 2.4.7 Focus Visible /
+           2.4.11 Focus Appearance). The :focus-visible ring is intentionally not removed. */
+        &:focus:not(:focus-visible) {
             outline: none !important;
+        }
+
+        &:focus-visible {
+            outline: 2px solid rgba(var(--gamma-primary-rgb), 1) !important;
+            outline-offset: 2px;
+            border-radius: 2px;
         }
     }
 

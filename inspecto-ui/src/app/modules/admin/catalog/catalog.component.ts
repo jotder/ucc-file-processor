@@ -19,7 +19,7 @@ import {
     MetadataNode,
     NodeKind,
 } from 'app/inspecto/api';
-import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, fmtDateTime } from 'app/inspecto/grid';
+import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, fmtDateTime, noRowsOverlay } from 'app/inspecto/grid';
 import { G6GraphData, legendFor, toG6Data } from './catalog-graph';
 import { GraphViewComponent } from './graph-view.component';
 import { NodeDetailDialog } from './node-detail.dialog';
@@ -68,6 +68,10 @@ export class CatalogComponent implements OnInit {
     nodes: MetadataNode[] = [];
     kpis: KpiCatalogEntry[] = [];
     search = '';
+
+    /** Empty-state overlays for the Tables / KPIs grids. */
+    readonly noRowsTables = noRowsOverlay('No tables found', 'No catalog tables match the current filter.');
+    readonly noRowsKpis = noRowsOverlay('No KPIs found', 'No KPI definitions are registered in the catalog.');
 
     // graph traversal
     graphFrom = '';

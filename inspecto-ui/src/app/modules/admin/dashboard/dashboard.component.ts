@@ -4,12 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ChartData } from 'chart.js';
+import { ToastrService } from 'ngx-toastr';
 import { forkJoin } from 'rxjs';
 import {
     AcquisitionMetrics,
@@ -25,6 +25,8 @@ import {
     visibleInterval,
 } from 'app/inspecto/api';
 import { InspectoChartComponent } from 'app/inspecto/components/chart.component';
+import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
+import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, fmtDateTime } from 'app/inspecto/grid';
 import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
 
@@ -39,11 +41,12 @@ import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
         RouterLink,
         MatButtonModule,
         MatIconModule,
-        MatProgressSpinnerModule,
         MatSlideToggleModule,
         MatTooltipModule,
         AgGridAngular,
         InspectoChartComponent,
+        InspectoSkeletonComponent,
+        StatusBadgeComponent,
     ],
     templateUrl: './dashboard.component.html',
 })
@@ -52,6 +55,7 @@ export class DashboardComponent implements OnInit {
     private reports = inject(ReportsService);
     private acqApi = inject(AcquisitionMetricsService);
     private eventsApi = inject(EventsService);
+    private toastr = inject(ToastrService);
     private destroyRef = inject(DestroyRef);
     readonly gridTheme = inject(InspectoGridThemeService);
     readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
@@ -127,6 +131,7 @@ export class DashboardComponent implements OnInit {
             },
             error: () => {
                 this.loading = false;
+                this.toastr.error('Failed to load service status. The backend may be unreachable.');
             },
         });
 
@@ -186,19 +191,5 @@ export class DashboardComponent implements OnInit {
     /** Short clock time for the activity feed. */
     fmtTime(ts: number): string {
         return new Date(ts).toLocaleTimeString();
-    }
-
-    /** Tailwind badge classes per event level (literal strings so the JIT scanner keeps them). */
-    levelClass(level: string): string {
-        switch (level) {
-            case 'ERROR':
-                return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-            case 'WARN':
-                return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
-            case 'INFO':
-                return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-            default:
-                return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
-        }
     }
 }

@@ -51,6 +51,27 @@ export const INSPECTO_GRID_DARK: Theme =
 /** Shared column defaults for Inspecto grids. */
 export const INSPECTO_DEFAULT_COL_DEF: ColDef = { sortable: true, resizable: true };
 
+/**
+ * Build an ag-Grid "no rows" overlay so an empty grid reads as an intentional empty state
+ * instead of a blank panel. Bind via `[overlayNoRowsTemplate]` on grids that don't already
+ * swap in `<inspecto-empty-state>`. Colors inherit the gamma `--gamma-*` scheme tokens, and
+ * the message is HTML-escaped to keep callers from injecting markup.
+ */
+export function noRowsOverlay(title = 'No data to display', hint?: string): string {
+    const esc = (s: string) =>
+        s.replace(/[&<>"']/g, (c) =>
+            ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
+        );
+    const hintHtml = hint
+        ? `<span style="opacity:.75;max-width:32rem;">${esc(hint)}</span>`
+        : '';
+    return (
+        `<div role="status" style="display:flex;flex-direction:column;align-items:center;gap:6px;` +
+        `padding:32px 24px;text-align:center;color:var(--gamma-text-secondary);font-size:13px;line-height:1.5;">` +
+        `<span style="font-weight:600;color:var(--gamma-text-default);">${esc(title)}</span>${hintHtml}</div>`
+    );
+}
+
 /** Grid date-time column formatter (epoch millis or ISO string). */
 export function fmtDateTime(value: unknown): string {
     if (!value) return '';
@@ -100,6 +121,7 @@ export interface InspectoRowAction<T = unknown> {
                 mat-icon-button
                 class="inspecto-row-action"
                 [matTooltip]="resolve(a.hint)"
+                [attr.aria-label]="resolve(a.hint)"
                 [disabled]="a.disabled?.(row)"
                 (click)="$event.stopPropagation(); a.onClick(row)"
             >

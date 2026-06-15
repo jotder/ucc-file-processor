@@ -351,7 +351,9 @@ const theming = plugin.withOptions(
                             light: {
                                 'text-default': colors.slate[800],
                                 'text-secondary': colors.slate[500],
-                                'text-hint': colors.slate[400],
+                                // slate-500 (not 400) so hint/placeholder text clears WCAG AA 4.5:1
+                                // on white cards; slate-400 measured ~2.56:1 and failed.
+                                'text-hint': colors.slate[500],
                                 'text-disabled': colors.slate[400],
                                 border: colors.slate[200],
                                 divider: colors.slate[200],
@@ -361,7 +363,9 @@ const theming = plugin.withOptions(
                             dark: {
                                 'text-default': '#FFFFFF',
                                 'text-secondary': colors.slate[400],
-                                'text-hint': colors.slate[500],
+                                // slate-400 (not 500) so hint/placeholder text clears AA on dark
+                                // cards; slate-500 measured ~3.07:1 and failed normal-text contrast.
+                                'text-hint': colors.slate[400],
                                 'text-disabled': colors.slate[600],
                                 border: chroma(colors.slate[100])
                                     .alpha(0.12)

@@ -2,7 +2,7 @@
     <!-- Header -->
     <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
         <div>
-            <div class="text-3xl font-extrabold leading-none tracking-tight">Events &amp; Activity</div>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Events &amp; Activity</h1>
             <div class="text-secondary mt-1.5">The operational event stream — ingest, acquisition, jobs, alerts and object lifecycle</div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
@@ -84,7 +84,7 @@
                     }
                 </mat-select>
             </mat-form-field>
-            <button mat-icon-button (click)="deleteView()" [disabled]="!selectedView" matTooltip="Delete the selected view">
+            <button mat-icon-button (click)="deleteView()" [disabled]="!selectedView" matTooltip="Delete the selected view" aria-label="Delete the selected view">
                 <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
             </button>
 
@@ -100,7 +100,7 @@
             @if (fCorrelation) {
                 <span class="flex items-center gap-1 rounded-full bg-primary-100 px-3 py-1 text-sm text-primary-800 dark:bg-primary-900 dark:text-primary-200">
                     correlation: <span class="font-mono text-xs">{{ fCorrelation }}</span>
-                    <button class="ml-1" (click)="clearCorrelation()" matTooltip="Clear correlation filter">
+                    <button class="ml-1" (click)="clearCorrelation()" matTooltip="Clear correlation filter" aria-label="Clear correlation filter">
                         <mat-icon class="icon-size-4" svgIcon="heroicons_outline:x-mark"></mat-icon>
                     </button>
                 </span>

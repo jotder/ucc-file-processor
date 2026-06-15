@@ -1,7 +1,7 @@
 <div class="flex min-w-0 flex-auto flex-col">
     <!-- Header -->
     <div class="bg-card border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
-        <div class="text-3xl font-extrabold leading-none tracking-tight">Catalog</div>
+        <h1 class="text-3xl font-extrabold leading-none tracking-tight">Catalog</h1>
         <div class="text-secondary mt-1.5">Metadata graph — tables, KPIs and lineage traversal</div>
     </div>
 
@@ -35,6 +35,7 @@
                 [quickFilterText]="search"
                 [pagination]="true"
                 [paginationPageSize]="25"
+                [overlayNoRowsTemplate]="noRowsTables"
                 (rowClicked)="onNodeRowClicked($event)">
             </ag-grid-angular>
         }
@@ -51,7 +52,8 @@
                 [rowData]="kpis"
                 [columnDefs]="kpiColumns"
                 [defaultColDef]="defaultColDef"
-                [quickFilterText]="search">
+                [quickFilterText]="search"
+                [overlayNoRowsTemplate]="noRowsKpis">
             </ag-grid-angular>
         }
 

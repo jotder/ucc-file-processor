@@ -5,11 +5,11 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ToastrService } from 'ngx-toastr';
 import { ConfigService, ConfigSpec, ConfigType, FieldSpec, ValidateResult } from 'app/inspecto/api';
+import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 
 const CONFIG_TYPES: ConfigType[] = ['pipeline', 'enrichment', 'job', 'schema', 'meta'];
 
@@ -29,9 +29,9 @@ const CONFIG_TYPES: ConfigType[] = ['pipeline', 'enrichment', 'job', 'schema', '
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
-        MatProgressSpinnerModule,
         MatSelectModule,
         MatTabsModule,
+        InspectoSkeletonComponent,
     ],
     templateUrl: './config.component.html',
     encapsulation: ViewEncapsulation.None,

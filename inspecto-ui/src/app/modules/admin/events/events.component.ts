@@ -22,6 +22,7 @@ import {
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import {
     actionsColumn,
     fmtDateTime,
@@ -59,17 +60,6 @@ const LIVE_TAIL_MS = 5000;
     ],
     templateUrl: './events.component.html',
     encapsulation: ViewEncapsulation.None,
-    styles: [`
-        .evt-badge { display:inline-block; padding:0.1rem 0.5rem; border-radius:0.375rem; font-size:0.7rem; font-weight:700; letter-spacing:0.03em; }
-        .evt-trace, .evt-debug { background:#e5e7eb; color:#374151; }
-        .evt-info  { background:#dbeafe; color:#1e40af; }
-        .evt-warn  { background:#fef3c7; color:#92400e; }
-        .evt-error { background:#fee2e2; color:#991b1b; }
-        .dark .evt-trace, .dark .evt-debug { background:#374151; color:#d1d5db; }
-        .dark .evt-info  { background:#1e3a8a; color:#bfdbfe; }
-        .dark .evt-warn  { background:#78350f; color:#fde68a; }
-        .dark .evt-error { background:#7f1d1d; color:#fecaca; }
-    `],
 })
 export class EventsComponent implements OnInit, OnDestroy {
     private api = inject(EventsService);
@@ -108,8 +98,7 @@ export class EventsComponent implements OnInit, OnDestroy {
             field: 'level',
             headerName: 'Level',
             width: 96,
-            cellRenderer: (p: ICellRendererParams<EventRow>) =>
-                `<span class="evt-badge evt-${String(p.value).toLowerCase()}">${p.value ?? ''}</span>`,
+            cellRenderer: (p: ICellRendererParams<EventRow>) => statusBadgeHtml(p.value as string),
         },
         { field: 'type', headerName: 'Type', width: 180 },
         { field: 'pipeline', headerName: 'Pipeline', width: 140, valueFormatter: (p) => p.value ?? '—' },

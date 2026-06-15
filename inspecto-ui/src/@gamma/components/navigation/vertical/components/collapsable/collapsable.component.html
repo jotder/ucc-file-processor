@@ -5,9 +5,14 @@
 >
     <div
         class="gamma-vertical-navigation-item"
+        role="button"
+        tabindex="0"
+        [attr.aria-expanded]="!isCollapsed"
         [ngClass]="{ 'gamma-vertical-navigation-item-disabled': item.disabled }"
         [matTooltip]="item.tooltip || ''"
         (click)="toggleCollapsable()"
+        (keydown.enter)="toggleCollapsable()"
+        (keydown.space)="$event.preventDefault(); toggleCollapsable()"
     >
         <!-- Icon -->
         @if (item.icon) {

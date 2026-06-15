@@ -1,5 +1,5 @@
 <!-- Notifications toggle -->
-<button mat-icon-button (click)="openPanel()" #notificationsOrigin>
+<button mat-icon-button aria-label="Notifications" (click)="openPanel()" #notificationsOrigin>
     @if (unreadCount > 0) {
         <span
             class="absolute left-0 right-0 top-0 flex h-3 items-center justify-center"
@@ -24,7 +24,7 @@
             class="flex shrink-0 items-center bg-primary py-4 pl-6 pr-4 text-on-primary"
         >
             <div class="-ml-1 mr-3 sm:hidden">
-                <button mat-icon-button (click)="closePanel()">
+                <button mat-icon-button aria-label="Close" (click)="closePanel()">
                     <mat-icon
                         class="text-current icon-size-5"
                         [svgIcon]="'heroicons_solid:x-mark'"

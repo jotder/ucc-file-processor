@@ -2,7 +2,7 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
         <div>
-            <div class="text-3xl font-extrabold leading-tight tracking-tight">Alerts</div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Alerts</h1>
             <div class="text-secondary mt-1">
                 Fired alert-rule breaches over the batch ledger. Rules are armed by saving a
                 reviewed <code>*_alert.toon</code> (draft one from the Assistant's
@@ -46,6 +46,8 @@
             [defaultColDef]="defaultColDef"
             [pagination]="true"
             [paginationPageSize]="25"
+            [loading]="loading"
+            [overlayNoRowsTemplate]="noRows"
         ></ag-grid-angular>
     </div>
 </div>

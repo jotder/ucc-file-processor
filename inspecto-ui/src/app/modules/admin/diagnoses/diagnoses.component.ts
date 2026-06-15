@@ -5,12 +5,11 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, RowClickedEvent } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { AssistService, Diagnosis } from 'app/inspecto/api';
-import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
+import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
 import { DiagnosisDetailDialog } from './diagnosis-detail.dialog';
 
 /**
@@ -26,7 +25,6 @@ import { DiagnosisDetailDialog } from './diagnosis-detail.dialog';
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
-        MatProgressSpinnerModule,
         AgGridAngular,
     ],
     templateUrl: './diagnoses.component.html',
@@ -42,6 +40,12 @@ export class DiagnosesComponent implements OnInit {
     loading = false;
     limit = 50;
     quickFilter = '';
+
+    /** Empty-state overlay shown when the grid has no diagnoses. */
+    readonly noRows = noRowsOverlay(
+        'No diagnoses yet',
+        'None recorded, or the assist agent is not running.',
+    );
 
     readonly columnDefs: ColDef<Diagnosis>[] = [
         {

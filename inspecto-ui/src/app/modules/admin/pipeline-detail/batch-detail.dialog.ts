@@ -26,7 +26,7 @@ import { autoColumns, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 
                         <tbody>
                             @for (kv of batchSummary; track kv.key) {
                                 <tr>
-                                    <th class="pr-4 text-left align-top">{{ kv.key }}</th>
+                                    <th scope="row" class="pr-4 text-left align-top">{{ kv.key }}</th>
                                     <td>{{ kv.value }}</td>
                                 </tr>
                             }

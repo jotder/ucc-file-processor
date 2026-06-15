@@ -40,11 +40,15 @@
     @if (!item.link && item.function && !item.disabled) {
         <div
             class="gamma-vertical-navigation-item"
+            role="button"
+            tabindex="0"
             [ngClass]="{
                 'gamma-vertical-navigation-item-active-forced': item.active,
             }"
             [matTooltip]="item.tooltip || ''"
             (click)="item.function(item)"
+            (keydown.enter)="item.function(item)"
+            (keydown.space)="$event.preventDefault(); item.function(item)"
         >
             <ng-container *ngTemplateOutlet="itemTemplate"></ng-container>
         </div>

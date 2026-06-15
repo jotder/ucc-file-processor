@@ -2,11 +2,11 @@
     <!-- Header -->
     <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
         <div class="flex min-w-0 items-center gap-3">
-            <button mat-icon-button (click)="back()">
+            <button mat-icon-button aria-label="Back" (click)="back()">
                 <mat-icon svgIcon="heroicons_outline:arrow-left"></mat-icon>
             </button>
             <div class="min-w-0">
-                <div class="truncate text-2xl font-extrabold leading-none tracking-tight">{{ obj?.title || id }}</div>
+                <h1 class="truncate text-2xl font-extrabold leading-none tracking-tight">{{ obj?.title || id }}</h1>
                 <div class="text-secondary mt-1.5">
                     {{ obj?.objectType }} · {{ obj?.status }}@if (obj?.severity) { · {{ obj?.severity }}}
                 </div>
@@ -71,6 +71,15 @@
                             }
                         </div>
                     }
+                } @else if (loading) {
+                    <div class="grid grid-cols-1 gap-x-8 gap-y-1 pt-6 sm:grid-cols-2" aria-busy="true">
+                        @for (i of [0, 1, 2, 3, 4, 5, 6, 7]; track i) {
+                            <div class="flex items-center justify-between border-b py-2">
+                                <inspecto-skeleton width="30%" height="0.875rem" />
+                                <inspecto-skeleton width="40%" height="0.875rem" />
+                            </div>
+                        }
+                    </div>
                 }
             </mat-tab>
 
@@ -111,7 +120,7 @@
                                 @for (e of relatedEvents; track e.eventId) {
                                     <div class="flex items-center gap-3 py-2 text-sm">
                                         <span class="text-secondary w-44 shrink-0 tabular-nums">{{ fmt(e.ts) }}</span>
-                                        <span class="shrink-0 rounded px-2 py-0.5 text-xs font-bold {{ levelClass(e.level) }}">{{ e.level }}</span>
+                                        <inspecto-status-badge [value]="e.level" />
                                         <span class="text-secondary w-44 shrink-0 truncate font-mono text-xs">{{ e.type }}</span>
                                         <span class="truncate">{{ e.message || e.pipeline || '—' }}</span>
                                     </div>
@@ -169,7 +178,7 @@
                                 <div class="truncate font-medium">{{ a.attributes?.['name'] || a.body || a.id }}</div>
                                 <div class="text-secondary truncate text-sm">{{ a.attributes?.['uri'] }}</div>
                             </div>
-                            <a mat-icon-button [href]="a.attributes?.['uri']" target="_blank" rel="noopener" matTooltip="Open">
+                            <a mat-icon-button [href]="a.attributes?.['uri']" target="_blank" rel="noopener" matTooltip="Open" aria-label="Open">
                                 <mat-icon svgIcon="heroicons_outline:arrow-top-right-on-square"></mat-icon>
                             </a>
                         </div>

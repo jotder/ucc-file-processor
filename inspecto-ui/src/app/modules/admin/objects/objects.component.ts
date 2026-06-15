@@ -17,6 +17,7 @@ import {
     fmtDateTime,
     INSPECTO_DEFAULT_COL_DEF,
     InspectoGridThemeService,
+    noRowsOverlay,
     refreshActionsCells,
 } from 'app/inspecto/grid';
 import { ObjectCreateDialog } from './object-create.dialog';
@@ -59,6 +60,12 @@ export class ObjectsComponent implements OnInit {
     objects: OperationalObject[] = [];
     loading = false;
     quickFilter = '';
+
+    /** Empty-state overlay shown when the grid has no rows. */
+    readonly noRows = noRowsOverlay(
+        `No ${this.createLabel}s yet`,
+        `New ${this.createLabel}s will appear here once they're created.`,
+    );
 
     get canControl(): boolean {
         return this.auth.hasControl();

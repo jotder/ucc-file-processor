@@ -4,6 +4,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { EventRow } from 'app/inspecto/api';
+import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { fmtDateTime } from 'app/inspecto/grid';
 
 /** A filter the pane should apply after the dialog closes (drill-down by correlation id or type). */
@@ -20,10 +21,10 @@ export interface EventDrilldown {
 @Component({
     selector: 'app-event-detail-dialog',
     standalone: true,
-    imports: [MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule],
+    imports: [MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule, StatusBadgeComponent],
     template: `
         <h2 mat-dialog-title class="flex items-center gap-3">
-            <span class="evt-badge evt-{{ data.level.toLowerCase() }}">{{ data.level }}</span>
+            <inspecto-status-badge [value]="data.level" />
             <span class="font-mono text-base">{{ data.type }}</span>
         </h2>
         <mat-dialog-content class="space-y-4">

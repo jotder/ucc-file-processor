@@ -34,7 +34,7 @@ const INTENTS: IntentMeta[] = [
         <div class="flex min-w-0 flex-auto flex-col">
             <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
                 <div>
-                    <div class="text-3xl font-extrabold leading-none tracking-tight">Assistant</div>
+                    <h1 class="text-3xl font-extrabold leading-none tracking-tight">Assistant</h1>
                     <div class="text-secondary mt-1.5">Draft-only AI assist skills</div>
                 </div>
                 <mat-form-field class="gamma-mat-dense mt-4 w-72 sm:mt-0" subscriptSizing="dynamic">

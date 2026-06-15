@@ -16,10 +16,10 @@ import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.compo
         <mat-dialog-content>
             <table class="mb-4 text-sm">
                 <tbody>
-                    <tr><th class="pr-4 text-left">Pipeline</th><td>{{ d.pipeline }}</td></tr>
-                    <tr><th class="pr-4 text-left">Batch</th><td>{{ d.batchId }}</td></tr>
-                    <tr><th class="pr-4 text-left">Severity</th><td>{{ d.severity }}</td></tr>
-                    <tr><th class="pr-4 text-left">Heuristic only</th><td>{{ d.heuristicOnly }}</td></tr>
+                    <tr><th scope="row" class="pr-4 text-left">Pipeline</th><td>{{ d.pipeline }}</td></tr>
+                    <tr><th scope="row" class="pr-4 text-left">Batch</th><td>{{ d.batchId }}</td></tr>
+                    <tr><th scope="row" class="pr-4 text-left">Severity</th><td>{{ d.severity }}</td></tr>
+                    <tr><th scope="row" class="pr-4 text-left">Heuristic only</th><td>{{ d.heuristicOnly }}</td></tr>
                 </tbody>
             </table>
 

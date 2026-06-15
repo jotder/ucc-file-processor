@@ -11,6 +11,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { EventRow, EventsService, NodeKind, ObjectGraph, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
 import { InspectoAuthService } from 'app/inspecto/auth.service';
+import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
+import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { fmtDateTime } from 'app/inspecto/grid';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
@@ -36,6 +38,8 @@ type TabKey = 'overview' | 'graph' | 'events' | 'comments' | 'attachments';
         MatTabsModule,
         MatTooltipModule,
         GraphViewComponent,
+        InspectoSkeletonComponent,
+        StatusBadgeComponent,
     ],
     templateUrl: './object-detail.component.html',
     encapsulation: ViewEncapsulation.None,
@@ -145,20 +149,6 @@ export class ObjectDetailComponent implements OnInit {
                 this.eventsLoaded = true;
             },
         });
-    }
-
-    /** Tailwind badge classes per event level (literal strings so the JIT scanner keeps them). */
-    levelClass(level: string): string {
-        switch (level) {
-            case 'ERROR':
-                return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-            case 'WARN':
-                return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
-            case 'INFO':
-                return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-            default:
-                return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
-        }
     }
 
     loadGraph(): void {

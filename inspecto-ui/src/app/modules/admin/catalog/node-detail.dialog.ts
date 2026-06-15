@@ -26,14 +26,14 @@ import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.compo
             }
             @if (detail && !loading) {
                 <table class="text-sm">
-                    <tr><th class="pr-4 text-left align-top">Id</th><td>{{ detail.node.id }}</td></tr>
-                    <tr><th class="pr-4 text-left align-top">Kind</th><td>{{ detail.node.kind }}</td></tr>
+                    <tr><th scope="row" class="pr-4 text-left align-top">Id</th><td>{{ detail.node.id }}</td></tr>
+                    <tr><th scope="row" class="pr-4 text-left align-top">Kind</th><td>{{ detail.node.kind }}</td></tr>
                     @if (detail.node.description) {
-                        <tr><th class="pr-4 text-left align-top">Description</th><td>{{ detail.node.description?.text }}</td></tr>
+                        <tr><th scope="row" class="pr-4 text-left align-top">Description</th><td>{{ detail.node.description?.text }}</td></tr>
                     }
                     @if (detail.node.overlay) {
-                        <tr><th class="pr-4 text-left align-top">Freshness</th><td>{{ detail.node.overlay?.freshness || '—' }}</td></tr>
-                        <tr><th class="pr-4 text-left align-top">Row count</th><td>{{ detail.node.overlay?.rowCount ?? '—' }}</td></tr>
+                        <tr><th scope="row" class="pr-4 text-left align-top">Freshness</th><td>{{ detail.node.overlay?.freshness || '—' }}</td></tr>
+                        <tr><th scope="row" class="pr-4 text-left align-top">Row count</th><td>{{ detail.node.overlay?.rowCount ?? '—' }}</td></tr>
                     }
                 </table>
 

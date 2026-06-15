@@ -1,11 +1,11 @@
 <div class="flex min-w-0 flex-auto flex-col">
     <!-- Header -->
     <div class="bg-card flex items-center gap-3 border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
-        <button mat-icon-button (click)="back()" matTooltip="Back to pipelines">
+        <button mat-icon-button aria-label="Back" (click)="back()" matTooltip="Back to pipelines">
             <mat-icon svgIcon="heroicons_outline:arrow-left"></mat-icon>
         </button>
         <div>
-            <div class="text-3xl font-extrabold leading-none tracking-tight">{{ name }}</div>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">{{ name }}</h1>
             <div class="text-secondary mt-1.5">Audit: batches, files, lineage, quarantine, commits, report</div>
         </div>
     </div>
@@ -57,23 +57,23 @@
                 <table class="mt-6 w-fit text-sm [&_td]:px-3 [&_td]:py-1.5 [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left">
                     <tbody>
                         <tr class="border-b">
-                            <th>Total batches</th><td>{{ report.totalBatches }}</td>
-                            <th>Success</th><td>{{ report.success }}</td>
-                            <th>Failed</th><td>{{ report.failed }}</td>
+                            <th scope="row">Total batches</th><td>{{ report.totalBatches }}</td>
+                            <th scope="row">Success</th><td>{{ report.success }}</td>
+                            <th scope="row">Failed</th><td>{{ report.failed }}</td>
                         </tr>
                         <tr class="border-b">
-                            <th>Error rate</th><td>{{ (report.errorRate * 100).toFixed(1) }}%</td>
-                            <th>Output rows</th><td>{{ report.totalOutputRows }}</td>
-                            <th>Output files</th><td>{{ report.totalOutputFiles ?? '—' }}</td>
+                            <th scope="row">Error rate</th><td>{{ (report.errorRate * 100).toFixed(1) }}%</td>
+                            <th scope="row">Output rows</th><td>{{ report.totalOutputRows }}</td>
+                            <th scope="row">Output files</th><td>{{ report.totalOutputFiles ?? '—' }}</td>
                         </tr>
                         <tr class="border-b">
-                            <th>p50 (ms)</th><td>{{ report.p50DurationMs }}</td>
-                            <th>p95 (ms)</th><td>{{ report.p95DurationMs }}</td>
-                            <th>p99 (ms)</th><td>{{ report.p99DurationMs }}</td>
+                            <th scope="row">p50 (ms)</th><td>{{ report.p50DurationMs }}</td>
+                            <th scope="row">p95 (ms)</th><td>{{ report.p95DurationMs }}</td>
+                            <th scope="row">p99 (ms)</th><td>{{ report.p99DurationMs }}</td>
                         </tr>
                         <tr>
-                            <th>Window from</th><td colspan="2">{{ report.windowFrom }}</td>
-                            <th>Window to</th><td colspan="2">{{ report.windowTo }}</td>
+                            <th scope="row">Window from</th><td colspan="2">{{ report.windowFrom }}</td>
+                            <th scope="row">Window to</th><td colspan="2">{{ report.windowTo }}</td>
                         </tr>
                     </tbody>
                 </table>

@@ -7,7 +7,7 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { AlertRule, AlertsService, FiredAlert } from 'app/inspecto/api';
-import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
+import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
 
 /**
  * Alerts — the core alert engine's surface (v4.1, B5): recent fired alerts (GET /alerts) over the
@@ -37,6 +37,12 @@ export class AlertsComponent implements OnInit {
     rules: AlertRule[] = [];
     loading = false;
     evaluating = false;
+
+    /** Empty-state overlay shown when no alerts have fired. */
+    readonly noRows = noRowsOverlay(
+        'No alerts fired',
+        'Breaches of the armed alert rules will appear here.',
+    );
 
     readonly columnDefs: ColDef<FiredAlert>[] = [
         {
