@@ -21,6 +21,8 @@
 
 # Local build / deploy artifacts and ad-hoc run output
 /file-processor-deploy.zip
+/file-processor-deploy/
+/.graalvm-cache/
 /file-processor-4.0/
 /data/
 
@@ -33,6 +35,9 @@
 
 # Editor-local config (VS Code)
 /.vscode/
+
+# graphify knowledge-graph output (generated; regenerate with `graphify update .`)
+graphify-out/
 
 # Session-local working notes (*.local.* files are intentionally never committed)
 *.local.md
