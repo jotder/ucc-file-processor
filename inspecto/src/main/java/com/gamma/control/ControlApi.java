@@ -451,11 +451,19 @@ public final class ControlApi implements AutoCloseable {
         get("/objects/([^/]+)", true, (e, m) -> objectById(name(m)));
         get("/rca/templates", true, (e, m) -> rcaTemplateList());
 
-        // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test.
-        // CONTROL-scoped. The specific /test verb and /{id} are registered before nothing here (distinct
-        // method/segment), mirroring the /rca wiring; profiles are returned secret-masked. ──
+        // ── Acquisition / Sources UI: a flat view of every pipeline's source acquisition config +
+        // a JSON acquisition-metrics snapshot (the Prometheus /metrics is text-only). CONTROL-scoped. ──
+        get("/sources", true, (e, m) -> service.sources());
+        get("/metrics/acquisition", true, (e, m) -> acquisitionMetrics());
+
+        // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test +
+        // create/update/delete (CONTROL-scoped; write-back jailed under -Dassist.write.root). The specific
+        // /test verb and /{id} are registered before the bare collection; profiles are returned secret-masked. ──
         get("/connections", true, (e, m) -> connectionList());
+        post("/connections", true, (e, m) -> createConnection(body(e)));
         post("/connections/([^/]+)/test", true, (e, m) -> testConnection(name(m)));
+        put("/connections/([^/]+)", true, (e, m) -> updateConnection(name(m), body(e)));
+        delete("/connections/([^/]+)", true, (e, m) -> deleteConnection(name(m)));
         get("/connections/([^/]+)", true, (e, m) -> connectionById(name(m)));
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
@@ -902,7 +910,7 @@ public final class ControlApi implements AutoCloseable {
     private void applyCors(HttpExchange ex) {
         var h = ex.getResponseHeaders();
         h.set("Access-Control-Allow-Origin", corsOrigin);
-        h.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        h.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         h.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Token");
         h.set("Access-Control-Max-Age", "600");
         if (!"*".equals(corsOrigin)) h.set("Vary", "Origin");
@@ -1372,6 +1380,156 @@ public final class ControlApi implements AutoCloseable {
         return ConnectionTester.test(p).toMap();
     }
 
+    /** Acquisition metric names exposed (as JSON) by {@code GET /metrics/acquisition}. */
+    private static final java.util.Set<String> ACQ_METRICS = java.util.Set.of(
+            "inspecto_files_discovered_total", "inspecto_files_downloaded_total", "inspecto_downloads_failed_total",
+            "inspecto_post_actions_failed_total", "inspecto_watermark_skipped_total", "inspecto_bytes_transferred_total",
+            "inspecto_fetch_seconds", "inspecto_active_connections", "inspecto_files_waiting_stability");
+
+    /** {@code GET /metrics/acquisition} — the acquisition counters/gauges/histogram as JSON (UI dashboard). */
+    private Object acquisitionMetrics() {
+        return com.gamma.metrics.MetricRegistry.global().snapshot(ACQ_METRICS::contains);
+    }
+
+    /** {@code POST /connections} — create a new connection profile (write-root gated); 409 if the id exists. */
+    private Object createConnection(Map<String, Object> body) throws IOException {
+        requireWriteRoot();
+        String id = str(body, "id");
+        if (id == null) throw new ApiException(400, "body must include 'id'");
+        if (service.connection(id).isPresent())
+            throw new ApiException(409, "connection '" + id + "' already exists (use PUT to update)");
+        ConnectionProfile p = connectionFromBody(id, body, null);
+        persistConnection(p);
+        return p.toMap();
+    }
+
+    /** {@code PUT /connections/{id}} — replace a profile (masked secrets preserved); 404 if unknown. */
+    private Object updateConnection(String id, Map<String, Object> body) throws IOException {
+        requireWriteRoot();
+        ConnectionProfile existing = service.connection(id)
+                .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
+        ConnectionProfile p = connectionFromBody(id, body, existing);
+        persistConnection(p);
+        return p.toMap();
+    }
+
+    /** {@code DELETE /connections/{id}} — remove a profile; 404 if unknown, 409 if a pipeline source uses it. */
+    private Object deleteConnection(String id) throws IOException {
+        requireWriteRoot();
+        if (service.connection(id).isEmpty())
+            throw new ApiException(404, "no connection profile '" + id + "'");
+        if (service.connectionInUse(id))
+            throw new ApiException(409, "connection '" + id + "' is in use by a pipeline source");
+        boolean removed = Files.deleteIfExists(connectionFile(id));
+        service.unregisterConnection(id);
+        return Map.of("id", id, "deleted", true, "fileRemoved", removed);
+    }
+
+    private void requireWriteRoot() {
+        if (writeRoot == null)
+            throw new ApiException(503, "connection write disabled: set -Dassist.write.root to enable");
+    }
+
+    /** The jailed {@code <id>_connection.toon} path under the write root; 422 on an unsafe id, 403 on escape. */
+    private Path connectionFile(String id) {
+        String safe = id.trim();
+        if (safe.contains("..") || !safe.matches("[A-Za-z0-9][A-Za-z0-9._-]*"))
+            throw new ApiException(422, "unsafe connection id '" + id + "' (allowed: letters, digits, '.', '_', '-')");
+        Path target = writeRoot.resolve(safe + "_connection.toon").normalize();
+        if (!target.startsWith(writeRoot)) throw new ApiException(403, "resolved path escapes the write root");
+        return target;
+    }
+
+    /**
+     * Build a validated {@link ConnectionProfile} from a request body (the secret-masked API shape). Masked secret
+     * values ({@code ***}) are replaced with the stored reference from {@code existing} so an unchanged secret is
+     * never clobbered; secrets must otherwise be {@code ${ENV:…}} references (never raw values).
+     */
+    @SuppressWarnings("unchecked")
+    private ConnectionProfile connectionFromBody(String id, Map<String, Object> body, ConnectionProfile existing) {
+        Map<String, Object> c = new LinkedHashMap<>();
+        c.put("id", id);
+        c.put("connector", str(body, "connector"));
+        c.put("host", str(body, "host"));
+        if (body.get("port") != null) c.put("port", body.get("port"));
+        c.put("database", str(body, "database"));
+        String basePath = str(body, "basePath");
+        if (basePath == null) basePath = str(body, "base_path");
+        c.put("base_path", basePath);
+        c.put("username", str(body, "username"));
+        c.put("password", keepSecret(str(body, "password"), existing == null ? null : existing.password()));
+        if (body.get("options") instanceof Map<?, ?> opts) {
+            Map<String, String> priorOpts = existing == null ? Map.of() : existing.options();
+            Map<String, Object> merged = new LinkedHashMap<>();
+            opts.forEach((k, v) -> {
+                String key = String.valueOf(k);
+                merged.put(key, keepSecret(v == null ? null : String.valueOf(v), priorOpts.get(key)));
+            });
+            c.put("options", merged);
+        }
+        if (body.get("tunnel") instanceof Map<?, ?> t) {
+            Map<String, Object> tun = new LinkedHashMap<>((Map<String, Object>) t);
+            String priorPw = (existing != null && existing.tunnel() != null) ? existing.tunnel().password() : null;
+            Object pw = tun.get("password");
+            tun.put("password", keepSecret(pw == null ? null : String.valueOf(pw), priorPw));
+            c.put("tunnel", tun);
+        }
+        try {
+            return ConnectionProfile.fromMap(c);
+        } catch (IllegalArgumentException ex) {
+            throw new ApiException(400, ex.getMessage());
+        }
+    }
+
+    /** Preserve a stored secret reference when the UI re-submits the mask sentinel ({@code ***}); else take new. */
+    private static String keepSecret(String incoming, String existing) {
+        return "***".equals(incoming) ? existing : incoming;
+    }
+
+    /** Encode the profile as a {@code connection { … }} TOON doc and write it atomically under the write root. */
+    private void persistConnection(ConnectionProfile p) throws IOException {
+        Path target = connectionFile(p.id());
+        byte[] bytes = ConfigCodec.toToon(Map.of("connection", connectionDoc(p))).getBytes(StandardCharsets.UTF_8);
+        Files.createDirectories(target.getParent());
+        Path tmp = Files.createTempFile(target.getParent(), ".conn-", ".tmp");
+        try {
+            Files.write(tmp, bytes);
+            try {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException notAtomic) {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
+        service.registerConnection(p);
+        log.info("[CONNECTION-WRITE] wrote {} ({} bytes)",
+                writeRoot.relativize(target).toString().replace('\\', '/'), bytes.length);
+    }
+
+    /** The on-disk (unmasked, references preserved) {@code connection} block map for {@link ConfigCodec#toToon}. */
+    private static Map<String, Object> connectionDoc(ConnectionProfile p) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", p.id());
+        m.put("connector", p.connector());
+        if (p.host() != null) m.put("host", p.host());
+        if (p.port() > 0) m.put("port", p.port());
+        if (p.database() != null) m.put("database", p.database());
+        if (p.basePath() != null) m.put("base_path", p.basePath());
+        if (p.username() != null) m.put("username", p.username());
+        if (p.password() != null) m.put("password", p.password());
+        if (!p.options().isEmpty()) m.put("options", new LinkedHashMap<>(p.options()));
+        if (p.tunnel() != null) {
+            Map<String, Object> t = new LinkedHashMap<>();
+            t.put("host", p.tunnel().host());
+            if (p.tunnel().port() > 0) t.put("port", p.tunnel().port());
+            if (p.tunnel().username() != null) t.put("username", p.tunnel().username());
+            if (p.tunnel().password() != null) t.put("password", p.tunnel().password());
+            m.put("tunnel", t);
+        }
+        return m;
+    }
+
     /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */
     private Object transition(String id, String action, String target, Map<String, Object> body) {
         return doTransition(id, action, target, str(body, "actor"));
@@ -1435,6 +1593,8 @@ public final class ControlApi implements AutoCloseable {
     private void post(String pattern, Scope scope, Handler h) { routes.add(new Route("POST", Pattern.compile("^" + pattern + "$"), scope, h)); }
     private void get (String pattern, boolean auth, Handler h)  { get (pattern, auth ? Scope.CONTROL : Scope.PUBLIC, h); }
     private void post(String pattern, boolean auth, Handler h)  { post(pattern, auth ? Scope.CONTROL : Scope.PUBLIC, h); }
+    private void put   (String pattern, boolean auth, Handler h) { routes.add(new Route("PUT",    Pattern.compile("^" + pattern + "$"), auth ? Scope.CONTROL : Scope.PUBLIC, h)); }
+    private void delete(String pattern, boolean auth, Handler h) { routes.add(new Route("DELETE", Pattern.compile("^" + pattern + "$"), auth ? Scope.CONTROL : Scope.PUBLIC, h)); }
 
     @FunctionalInterface
     private interface Handler { Object handle(HttpExchange ex, Matcher m) throws Exception; }

@@ -66,6 +66,13 @@ export const defaultNavigation: GammaNavigationItem[] = [
         link : '/cases'
     },
     {
+        id   : 'sources',
+        title: 'Sources',
+        type : 'basic',
+        icon : 'heroicons_outline:inbox-arrow-down',
+        link : '/sources'
+    },
+    {
         id   : 'connections',
         title: 'Connections',
         type : 'basic',

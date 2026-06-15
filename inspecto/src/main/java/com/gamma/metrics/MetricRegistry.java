@@ -1,5 +1,7 @@
 package com.gamma.metrics;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -7,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.DoubleAdder;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Predicate;
 
 /**
  * Tiny, dependency-free metrics registry that exposes counters, gauges, and
@@ -101,6 +104,60 @@ public final class MetricRegistry {
         return sb.toString();
     }
 
+    /**
+     * Structured JSON-ready snapshot of every series whose name matches {@code nameFilter} (runs the scrape-time
+     * collectors first, like {@link #scrape()}). Each entry is {@code name -> {type, help, series:[…]}} where a
+     * series row carries the Prometheus-style {@code labels} string and a {@code value} (counter/gauge) or
+     * {@code sum}/{@code count} (histogram). Backs a JSON metrics API (e.g. the acquisition dashboard) without
+     * making callers parse the Prometheus text format.
+     */
+    public Map<String, Object> snapshot(Predicate<String> nameFilter) {
+        for (Runnable c : collectors) {
+            try { c.run(); } catch (Exception ignore) { /* a bad collector must not break the snapshot */ }
+        }
+        Map<String, Object> out = new TreeMap<>();
+        counters.forEach((name, series) -> {
+            if (!nameFilter.test(name)) return;
+            List<Map<String, Object>> rows = new ArrayList<>();
+            series.forEach((labels, v) -> rows.add(seriesRow(labels, "value", v.sum())));
+            out.put(name, metricEntry("counter", name, rows));
+        });
+        gauges.forEach((name, series) -> {
+            if (!nameFilter.test(name)) return;
+            List<Map<String, Object>> rows = new ArrayList<>();
+            series.forEach((labels, v) -> rows.add(seriesRow(labels, "value", v)));
+            out.put(name, metricEntry("gauge", name, rows));
+        });
+        histos.forEach((name, series) -> {
+            if (!nameFilter.test(name)) return;
+            List<Map<String, Object>> rows = new ArrayList<>();
+            series.forEach((labels, h) -> {
+                Map<String, Object> r = new LinkedHashMap<>();
+                r.put("labels", labels);
+                r.put("sum", h.sum());
+                r.put("count", h.count());
+                rows.add(r);
+            });
+            out.put(name, metricEntry("histogram", name, rows));
+        });
+        return out;
+    }
+
+    private Map<String, Object> metricEntry(String type, String name, List<Map<String, Object>> series) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("type", type);
+        m.put("help", help.getOrDefault(name, name));
+        m.put("series", series);
+        return m;
+    }
+
+    private static Map<String, Object> seriesRow(String labels, String valueKey, double value) {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("labels", labels);
+        r.put(valueKey, value);
+        return r;
+    }
+
     private void header(StringBuilder sb, String name, String type) {
         String h = help.getOrDefault(name, name);
         sb.append("# HELP ").append(name).append(' ').append(h).append('\n');
@@ -146,6 +203,9 @@ public final class MetricRegistry {
             sum.add(v); count.increment();
             for (int i = 0; i < BUCKETS.length; i++) if (v <= BUCKETS[i]) bucket[i].increment();
         }
+
+        double sum()  { return sum.sum(); }
+        long   count() { return count.sum(); }
 
         void render(StringBuilder sb, String name, String labels) {
             // Each observation increments every bucket whose le >= v, so bucket[i] is

@@ -1,0 +1,64 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <div class="text-3xl font-extrabold leading-none tracking-tight">Acquisition &amp; Sources</div>
+            <div class="text-secondary mt-1.5">Configured acquisition sources and collection metrics</div>
+        </div>
+        <div class="mt-4 flex items-center gap-3 sm:mt-0">
+            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                <mat-label>Search</mat-label>
+                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
+            </mat-form-field>
+            <button mat-stroked-button (click)="load()">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                <span class="ml-2">Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        <!-- Acquisition metrics strip -->
+        @if (cards.length) {
+            <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+                @for (c of cards; track c.label) {
+                    <div class="bg-card flex flex-col rounded-2xl p-4 shadow">
+                        <div class="text-secondary text-sm">{{ c.label }}</div>
+                        <div class="mt-1 text-2xl font-extrabold tracking-tight">{{ c.value }}</div>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (discoveredData) {
+            <div class="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div class="bg-card rounded-2xl p-5 shadow">
+                    <div class="mb-3 font-medium">Discovered vs downloaded vs failed</div>
+                    <inspecto-chart type="bar" [data]="discoveredData"></inspecto-chart>
+                </div>
+            </div>
+        }
+
+        @if (unavailable) {
+            <inspecto-empty-state
+                icon="heroicons_outline:inbox-arrow-down"
+                message="No acquisition sources are configured (no pipeline declares a source block)."
+            ></inspecto-empty-state>
+        } @else {
+            <ag-grid-angular
+                class="h-[42rem] w-full"
+                [theme]="themeSvc.theme()"
+                [rowData]="sources"
+                [columnDefs]="columnDefs"
+                [defaultColDef]="defaultColDef"
+                [pagination]="true"
+                [paginationPageSize]="25"
+                [quickFilterText]="quickFilter"
+                [loading]="loading"
+                (firstDataRendered)="refreshActions($event)"
+                (rowDataUpdated)="refreshActions($event)"
+            ></ag-grid-angular>
+        }
+    </div>
+</div>

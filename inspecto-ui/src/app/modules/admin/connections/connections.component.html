@@ -17,8 +17,21 @@
             <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
                 <mat-icon [svgIcon]="'heroicons_outline:arrow-path'"></mat-icon>
             </button>
+            @if (!writesDisabled) {
+                <button mat-flat-button color="primary" (click)="create()">
+                    <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                    <span class="ml-2">New connection</span>
+                </button>
+            }
         </div>
     </div>
+
+    @if (writesDisabled) {
+        <div class="mt-4 flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+            <mat-icon class="icon-size-5 shrink-0" svgIcon="heroicons_outline:lock-closed"></mat-icon>
+            <span>Connection editing is disabled on this server (no write root configured). Listing and Test remain available.</span>
+        </div>
+    }
 
     @if (!loading && connections.length === 0) {
         <div class="text-secondary mt-8">
@@ -40,12 +53,22 @@
                             {{ endpoint(c) }}
                         </div>
                     </div>
-                    <button mat-flat-button color="primary" (click)="test(c.id)" [disabled]="testing[c.id]">
-                        @if (testing[c.id]) {
-                            <mat-spinner diameter="16" class="mr-2"></mat-spinner>
+                    <div class="flex items-center gap-1">
+                        <button mat-flat-button color="primary" (click)="test(c.id)" [disabled]="testing[c.id]">
+                            @if (testing[c.id]) {
+                                <mat-spinner diameter="16" class="mr-2"></mat-spinner>
+                            }
+                            Test
+                        </button>
+                        @if (!writesDisabled) {
+                            <button mat-icon-button (click)="edit(c)" matTooltip="Edit" aria-label="Edit">
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                            </button>
+                            <button mat-icon-button (click)="remove(c)" matTooltip="Delete" aria-label="Delete">
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                            </button>
                         }
-                        Test
-                    </button>
+                    </div>
                 </div>
 
                 <div class="text-secondary mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">

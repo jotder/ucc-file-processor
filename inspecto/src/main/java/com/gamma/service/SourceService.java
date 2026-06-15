@@ -645,6 +645,60 @@ public final class SourceService implements AutoCloseable {
         return configRegistry.get(pipelineName);
     }
 
+    /**
+     * Flatten each registered pipeline's source acquisition config for the Acquisition/Sources UI
+     * ({@code GET /sources}). Pure config read (no I/O) plus, for a {@code db} source bound to a connection,
+     * the current row-level DB watermark derived from the acquisition ledger.
+     */
+    public List<Map<String, Object>> sources() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (ConfigRegistry.Entry e : configRegistry.all()) {
+            PipelineConfig.Source s = e.config().source();
+            if (s == null) continue;
+            Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("pipeline", e.id());
+            m.put("id", s.id());
+            m.put("connector", s.connector());
+            m.put("connection", s.connection());
+            m.put("includes", s.includes());
+            m.put("excludes", s.excludes());
+            m.put("recursiveDepth", s.recursiveDepth());
+            m.put("duplicateMode", s.duplicate().mode());
+            m.put("duplicateOnChange", s.duplicate().onChange());
+            m.put("guarantee", s.guarantee().name());
+            m.put("incrementalWatermark", s.incremental().watermark());   // null when disabled
+            m.put("fetchParallel", s.fetch().parallelFetch());
+            m.put("fetchRateLimit", s.fetch().rateLimitBytesPerSec());
+            m.put("postAction", s.postAction().onSuccess());
+            // Row-level DB watermark (db sources only): keyed by the bound connection-profile id.
+            String dbWatermark = null;
+            if (s.hasConnection() && "db".equals(s.connector()))
+                dbWatermark = com.gamma.acquire.AcquisitionLedgers.shared().dbWatermark(s.connection()).orElse(null);
+            m.put("dbWatermarkCurrent", dbWatermark);
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** Whether any registered pipeline's source binds to this connection id (blocks a UI delete). */
+    public boolean connectionInUse(String id) {
+        if (id == null) return false;
+        String t = id.trim();
+        for (ConfigRegistry.Entry e : configRegistry.all()) {
+            PipelineConfig.Source s = e.config().source();
+            if (s != null && t.equals(s.connection())) return true;
+        }
+        return false;
+    }
+
+    /** Drop a connection profile from the in-memory registries (UI delete); idempotent. */
+    public void unregisterConnection(String id) {
+        if (id != null) {
+            connections.remove(id.trim());
+            com.gamma.acquire.ConnectionRegistry.remove(id);
+        }
+    }
+
     /** The registry path of a pipeline by name, if registered — O(1). */
     public Optional<Path> pathFor(String pipelineName) {
         return configRegistry.getPath(pipelineName);

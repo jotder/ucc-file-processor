@@ -58,4 +58,25 @@ export class ConnectionsService {
     test(id: string): Observable<ConnectionTestResult> {
         return this.http.post<ConnectionTestResult>(apiUrl(`/connections/${encodeURIComponent(id)}/test`), {});
     }
+
+    /**
+     * Create a connection profile (write-root gated). Secrets must be `${ENV:…}` references; the response
+     * is the secret-masked profile map. 503 = writes disabled, 409 = duplicate id, 400/422 = bad input.
+     */
+    create(p: ConnectionProfile): Observable<ConnectionProfile> {
+        return this.http.post<ConnectionProfile>(apiUrl('/connections'), p);
+    }
+
+    /**
+     * Update a connection profile (write-root gated). Submitting `'***'` for a secret preserves the stored
+     * value. 503 = writes disabled, 404 = unknown, 400/422 = bad input.
+     */
+    update(id: string, p: ConnectionProfile): Observable<ConnectionProfile> {
+        return this.http.put<ConnectionProfile>(apiUrl(`/connections/${encodeURIComponent(id)}`), p);
+    }
+
+    /** Delete a connection profile (write-root gated). 503 = writes disabled, 404 = unknown, 409 = in use. */
+    remove(id: string): Observable<unknown> {
+        return this.http.delete(apiUrl(`/connections/${encodeURIComponent(id)}`));
+    }
 }
