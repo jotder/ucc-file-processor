@@ -10,88 +10,49 @@ export const defaultNavigation: GammaNavigationItem[] = [
         link : '/dashboard'
     },
     {
-        id   : 'pipelines',
-        title: 'Pipelines',
-        type : 'basic',
-        icon : 'heroicons_outline:arrows-right-left',
-        link : '/pipelines'
+        id      : 'pipelines-group',
+        title   : 'Pipelines',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:arrows-right-left',
+        children: [
+            { id: 'pipelines',  title: 'Pipelines',  type: 'basic', icon: 'heroicons_outline:arrows-right-left',      link: '/pipelines' },
+            { id: 'jobs',       title: 'Jobs',       type: 'basic', icon: 'heroicons_outline:clock',                  link: '/jobs' },
+            { id: 'enrichment', title: 'Enrichment', type: 'basic', icon: 'heroicons_outline:funnel',                 link: '/enrichment' },
+            { id: 'catalog',    title: 'Catalog',    type: 'basic', icon: 'heroicons_outline:share',                  link: '/catalog' }
+        ]
     },
     {
-        id   : 'jobs',
-        title: 'Jobs',
-        type : 'basic',
-        icon : 'heroicons_outline:clock',
-        link : '/jobs'
+        id      : 'acquisition-group',
+        title   : 'Acquisition',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:inbox-arrow-down',
+        children: [
+            { id: 'sources',     title: 'Sources',     type: 'basic', icon: 'heroicons_outline:inbox-arrow-down', link: '/sources' },
+            { id: 'connections', title: 'Connections', type: 'basic', icon: 'heroicons_outline:server-stack',     link: '/connections' }
+        ]
     },
     {
-        id   : 'enrichment',
-        title: 'Enrichment',
-        type : 'basic',
-        icon : 'heroicons_outline:funnel',
-        link : '/enrichment'
+        id      : 'operations-group',
+        title   : 'Operations',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:bolt',
+        children: [
+            { id: 'events',    title: 'Events',    type: 'basic', icon: 'heroicons_outline:queue-list',            link: '/events' },
+            { id: 'diagnoses', title: 'Diagnoses', type: 'basic', icon: 'heroicons_outline:wrench-screwdriver',    link: '/diagnoses' },
+            { id: 'alerts',    title: 'Alerts',    type: 'basic', icon: 'heroicons_outline:bell-alert',            link: '/alerts' },
+            { id: 'issues',    title: 'Issues',    type: 'basic', icon: 'heroicons_outline:exclamation-triangle',  link: '/issues' },
+            { id: 'cases',     title: 'Cases',     type: 'basic', icon: 'heroicons_outline:briefcase',             link: '/cases' }
+        ]
     },
     {
-        id   : 'catalog',
-        title: 'Catalog',
-        type : 'basic',
-        icon : 'heroicons_outline:share',
-        link : '/catalog'
-    },
-    {
-        id   : 'diagnoses',
-        title: 'Diagnoses',
-        type : 'basic',
-        icon : 'heroicons_outline:wrench-screwdriver',
-        link : '/diagnoses'
-    },
-    {
-        id   : 'events',
-        title: 'Events',
-        type : 'basic',
-        icon : 'heroicons_outline:queue-list',
-        link : '/events'
-    },
-    {
-        id   : 'alerts',
-        title: 'Alerts',
-        type : 'basic',
-        icon : 'heroicons_outline:bell-alert',
-        link : '/alerts'
-    },
-    {
-        id   : 'issues',
-        title: 'Issues',
-        type : 'basic',
-        icon : 'heroicons_outline:exclamation-triangle',
-        link : '/issues'
-    },
-    {
-        id   : 'cases',
-        title: 'Cases',
-        type : 'basic',
-        icon : 'heroicons_outline:briefcase',
-        link : '/cases'
-    },
-    {
-        id   : 'sources',
-        title: 'Sources',
-        type : 'basic',
-        icon : 'heroicons_outline:inbox-arrow-down',
-        link : '/sources'
-    },
-    {
-        id   : 'connections',
-        title: 'Connections',
-        type : 'basic',
-        icon : 'heroicons_outline:server-stack',
-        link : '/connections'
-    },
-    {
-        id   : 'config',
-        title: 'Config',
-        type : 'basic',
-        icon : 'heroicons_outline:adjustments-horizontal',
-        link : '/config'
+        id      : 'settings-group',
+        title   : 'Settings',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:cog-8-tooth',
+        children: [
+            { id: 'config',         title: 'Config',         type: 'basic', icon: 'heroicons_outline:adjustments-horizontal', link: '/config' },
+            { id: 'model-settings', title: 'Model Settings', type: 'basic', icon: 'heroicons_outline:cpu-chip',               link: '/settings/models' }
+        ]
     },
     {
         id   : 'assist',
@@ -99,13 +60,6 @@ export const defaultNavigation: GammaNavigationItem[] = [
         type : 'basic',
         icon : 'heroicons_outline:sparkles',
         link : '/assist'
-    },
-    {
-        id   : 'model-settings',
-        title: 'Model Settings',
-        type : 'basic',
-        icon : 'heroicons_outline:cpu-chip',
-        link : '/settings/models'
     }
 ];
 // The alternate layouts reuse the same Inspecto navigation.

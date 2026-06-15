@@ -4,7 +4,12 @@
         <button mat-icon-button aria-label="Back" (click)="back()" matTooltip="Back to pipelines">
             <mat-icon svgIcon="heroicons_outline:arrow-left"></mat-icon>
         </button>
-        <div>
+        <div class="min-w-0">
+            <nav class="text-secondary mb-1 flex items-center gap-1 text-xs" aria-label="Breadcrumb">
+                <a class="hover:underline" [routerLink]="['/pipelines']">Pipelines</a>
+                <span>/</span>
+                <span class="truncate font-mono">{{ name }}</span>
+            </nav>
             <h1 class="text-3xl font-extrabold leading-none tracking-tight">{{ name }}</h1>
             <div class="text-secondary mt-1.5">Audit: batches, files, lineage, quarantine, commits, report</div>
         </div>

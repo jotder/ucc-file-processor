@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { EventRow, EventsService, NodeKind, ObjectGraph, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
 import { InspectoAuthService } from 'app/inspecto/auth.service';
@@ -37,6 +37,7 @@ type TabKey = 'overview' | 'graph' | 'events' | 'comments' | 'attachments';
         MatTabsModule,
         MatTooltipModule,
         ReactiveFormsModule,
+        RouterLink,
         GraphViewComponent,
         InspectoSkeletonComponent,
         StatusBadgeComponent,
@@ -252,9 +253,19 @@ export class ObjectDetailComponent implements OnInit {
         this.router.navigate(['/' + base, nodeId]);
     }
 
+    /** The owning list route (`issues` / `cases`) this detail was opened from. */
+    get listBase(): string {
+        return this.router.url.split('/')[1] || 'issues';
+    }
+
+    /** Title-cased label for the breadcrumb (e.g. `Issues`). */
+    get listLabel(): string {
+        const b = this.listBase;
+        return b.charAt(0).toUpperCase() + b.slice(1);
+    }
+
     back(): void {
-        const base = this.router.url.split('/')[1] || 'issues';
-        this.router.navigate(['/' + base]);
+        this.router.navigate(['/' + this.listBase]);
     }
 
     private toG6(g: ObjectGraph): G6GraphData {
