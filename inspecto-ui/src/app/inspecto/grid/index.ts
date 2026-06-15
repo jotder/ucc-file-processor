@@ -19,8 +19,34 @@ import {
 // One-time community-module registration for every Inspecto grid.
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-export const INSPECTO_GRID_LIGHT: Theme = themeQuartz;
-export const INSPECTO_GRID_DARK: Theme = themeQuartz.withPart(colorSchemeDark);
+/**
+ * Quartz params wired to the gamma/Fuse design tokens (the `--gamma-*` custom properties the template
+ * sets on `body.light`/`.dark`), so every Inspecto grid matches the app's surface, border, accent and
+ * typography instead of ag-Grid's stock palette/font. The vars themselves switch with the scheme, so the
+ * same params serve both the light and dark theme variants below.
+ */
+const GAMMA_GRID_PARAMS = {
+    fontFamily: 'inherit',
+    fontSize: '13px',
+    headerFontSize: '12px',
+    headerFontWeight: 600,
+    foregroundColor: 'var(--gamma-text-default)',
+    backgroundColor: 'var(--gamma-bg-card)',
+    borderColor: 'var(--gamma-border)',
+    chromeBackgroundColor: 'var(--gamma-bg-default)',
+    headerBackgroundColor: 'var(--gamma-bg-default)',
+    headerTextColor: 'var(--gamma-text-secondary)',
+    accentColor: 'var(--gamma-primary)',
+    rowHoverColor: 'var(--gamma-bg-hover)',
+    selectedRowBackgroundColor: 'rgba(var(--gamma-primary-rgb), 0.12)',
+    oddRowBackgroundColor: 'transparent',
+    wrapperBorderRadius: '12px',
+    borderRadius: '6px',
+} as const;
+
+export const INSPECTO_GRID_LIGHT: Theme = themeQuartz.withParams(GAMMA_GRID_PARAMS);
+export const INSPECTO_GRID_DARK: Theme =
+    themeQuartz.withPart(colorSchemeDark).withParams(GAMMA_GRID_PARAMS);
 
 /** Shared column defaults for Inspecto grids. */
 export const INSPECTO_DEFAULT_COL_DEF: ColDef = { sortable: true, resizable: true };
