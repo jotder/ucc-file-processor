@@ -13,8 +13,9 @@
 #      (or use the bundled run.bat / run.sh — they cd to the bundle root automatically)
 #
 param(
-    [switch]$NoBuild,  # skip mvn build; use existing JAR in target/
-    [switch]$NoUi      # skip the Angular UI build/bundle (inspecto-ui/ is optional)
+    [switch]$NoBuild,   # skip mvn build; use existing JAR in target/
+    [switch]$NoUi,      # skip the Angular UI build/bundle (inspecto-ui/ is optional)
+    [switch]$NoRuntime  # skip embedding a trimmed Java runtime (target server must then provide Java 24+)
 )
 
 Set-StrictMode -Version Latest
@@ -161,7 +162,8 @@ if [ -z "$PIPELINE" ]; then
     exit 1
 fi
 echo "[run.sh] Using pipeline: $PIPELINE"
-exec java --enable-native-access=ALL-UNNAMED \
+JAVA="java"; [ -x "runtime/bin/java" ] && JAVA="runtime/bin/java"
+exec "$JAVA" --enable-native-access=ALL-UNNAMED \
           -jar file-processor.jar \
           "$PIPELINE"
 '@ | Set-Content -Path "$bundleDir\run.sh" -NoNewline
@@ -187,7 +189,9 @@ if not defined PIPELINE (
     exit /b 1
 )
 echo [run.bat] Using pipeline: %PIPELINE%
-java --enable-native-access=ALL-UNNAMED ^
+set "JAVA=java"
+if exist "runtime\bin\java.exe" set "JAVA=runtime\bin\java.exe"
+"%JAVA%" --enable-native-access=ALL-UNNAMED ^
      -jar file-processor.jar ^
      "%PIPELINE%"
 '@
@@ -214,7 +218,8 @@ java --enable-native-access=ALL-UNNAMED ^
 #   ./ura.sh create-schema    adjustment  samples/adj_sample.csv  config/adjustment/adj_gen.toon
 set -euo pipefail
 cd "$(dirname "$0")"
-exec java --enable-native-access=ALL-UNNAMED \
+JAVA="java"; [ -x "runtime/bin/java" ] && JAVA="runtime/bin/java"
+exec "$JAVA" --enable-native-access=ALL-UNNAMED \
           -cp file-processor.jar \
           com.gamma.util.MainApp "$@"
 '@ | Set-Content -Path "$bundleDir\ura.sh" -NoNewline
@@ -228,7 +233,9 @@ rem             create-schema, move-by-date, extract-unknown, extract-move, help
 rem   Run 'ura.bat help' for full command reference.
 setlocal
 cd /d "%~dp0"
-java --enable-native-access=ALL-UNNAMED ^
+set "JAVA=java"
+if exist "runtime\bin\java.exe" set "JAVA=runtime\bin\java.exe"
+"%JAVA%" --enable-native-access=ALL-UNNAMED ^
      -cp file-processor.jar ^
      com.gamma.util.MainApp %*
 '@
@@ -257,8 +264,9 @@ JAVA_OPTS=(--enable-native-access=ALL-UNNAMED "-Dcontrol.port=${PORT}")
 [ -n "${CONTROL_TOKEN:-}" ] && JAVA_OPTS+=("-Dcontrol.token=${CONTROL_TOKEN}")
 [ -n "${ASSIST_TOKEN:-}" ]  && JAVA_OPTS+=("-Dassist.read.token=${ASSIST_TOKEN}")
 [ -n "${CORS_ORIGIN:-}" ]   && JAVA_OPTS+=("-Dcontrol.cors=${CORS_ORIGIN}")
+JAVA="java"; [ -x "runtime/bin/java" ] && JAVA="runtime/bin/java"
 echo "[serve.sh] ControlApi on :${PORT}  (UI: $([ -d ui ] && echo ./ui || echo none))"
-exec java "${JAVA_OPTS[@]}" -cp file-processor.jar com.gamma.control.ControlApi "${ARGS[@]}"
+exec "$JAVA" "${JAVA_OPTS[@]}" -cp file-processor.jar com.gamma.control.ControlApi "${ARGS[@]}"
 '@ | Set-Content -Path "$bundleDir\serve.sh" -NoNewline
 
 $serveBatContent = @'
@@ -276,14 +284,45 @@ if exist ui set "OPTS=%OPTS% -Dui.dir=./ui"
 if not "%CONTROL_TOKEN%"=="" set "OPTS=%OPTS% -Dcontrol.token=%CONTROL_TOKEN%"
 if not "%ASSIST_TOKEN%"=="" set "OPTS=%OPTS% -Dassist.read.token=%ASSIST_TOKEN%"
 if not "%CORS_ORIGIN%"=="" set "OPTS=%OPTS% -Dcontrol.cors=%CORS_ORIGIN%"
+set "JAVA=java"
+if exist "runtime\bin\java.exe" set "JAVA=runtime\bin\java.exe"
 echo [serve.bat] ControlApi on :%PORT%
-java %OPTS% -cp file-processor.jar com.gamma.control.ControlApi %ARGS%
+"%JAVA%" %OPTS% -cp file-processor.jar com.gamma.control.ControlApi %ARGS%
 '@
 [System.IO.File]::WriteAllText(
     "$bundleDir\serve.bat",
     $serveBatContent.Replace("`n", "`r`n"),
     [System.Text.Encoding]::ASCII
 )
+
+# ── step 6c: embed a trimmed Java runtime (jlink) so the bundle is self-contained ──
+# Produces bundle/runtime/ — the run/serve/ura scripts auto-prefer it over system java.
+# NOTE: jlink output is OS-specific. Built from the Windows GraalVM JDK, this image runs on
+# Windows only; the bundled *.sh launchers fall back to system java on Linux.
+if (-not $NoRuntime) {
+    # Module set = jdeps core for file-processor.jar (java.base, java.compiler, java.desktop,
+    # java.naming, java.scripting, java.sql, jdk.httpserver) + runtime-only safety modules that
+    # jdeps cannot see in a fat JAR: jdk.crypto.ec (TLS/JDBC ciphers), jdk.unsupported
+    # (sun.misc.Unsafe), java.net.http (HttpClient), jdk.zipfs (.zip via NIO), java.management (JMX).
+    $runtimeModules = 'java.base,java.compiler,java.desktop,java.naming,java.scripting,java.sql,jdk.httpserver,jdk.crypto.ec,jdk.unsupported,java.net.http,jdk.zipfs,java.management'
+
+    # Locate a jlink: prefer the repo's GraalVM cache, then JAVA_HOME, then PATH.
+    $jlink = Get-ChildItem -Path (Join-Path $sandboxRoot '.graalvm-cache') -Filter 'jlink.exe' -Recurse -ErrorAction SilentlyContinue |
+             Select-Object -First 1 -ExpandProperty FullName
+    if (-not $jlink -and $env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin\jlink.exe")) { $jlink = "$env:JAVA_HOME\bin\jlink.exe" }
+    if (-not $jlink) { $jlink = (Get-Command jlink.exe -ErrorAction SilentlyContinue).Source }
+    if (-not $jlink) { throw "jlink.exe not found (looked in .graalvm-cache, JAVA_HOME, PATH). Re-run with -NoRuntime to skip embedding a JVM." }
+
+    Write-Host "Embedding trimmed Java runtime via $jlink ..." -ForegroundColor Cyan
+    $runtimeOut = Join-Path $bundleDir 'runtime'
+    if (Test-Path $runtimeOut) { Remove-Item $runtimeOut -Recurse -Force }
+    & $jlink --add-modules $runtimeModules --strip-debug --no-header-files --no-man-pages --compress=zip-9 --output $runtimeOut
+    if ($LASTEXITCODE -ne 0) { throw "jlink failed" }
+    $rtSize = [math]::Round(((Get-ChildItem $runtimeOut -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), 1)
+    Write-Host "Embedded runtime ready: $runtimeOut (${rtSize} MB, Windows-only)" -ForegroundColor Green
+} else {
+    Write-Host "  (-NoRuntime: skipping embedded JVM; target server must provide Java 24+)" -ForegroundColor Yellow
+}
 
 # ── step 7: copy README + docs tree ─────────────────────────────────────────────
 # In the repo the README lives in inspecto/ and links to ../docs/. In the
@@ -323,4 +362,9 @@ Write-Host "       bash ura.sh help        (Linux)"
 Write-Host "       bash ura.sh search  config/adjustment/adjustment_pipeline.toon"
 Write-Host "       bash ura.sh backup  config/voucher/voucher_pipeline.toon"
 Write-Host ""
-Write-Host "Java 24+ required on the target server.  No other dependencies needed."
+if (-not $NoRuntime) {
+    Write-Host "Embedded Java runtime included (bundle\runtime\) — no JVM needed on the Windows target." -ForegroundColor Green
+    Write-Host "The run/serve/ura launchers auto-prefer it; on Linux they fall back to system Java 24+."
+} else {
+    Write-Host "Java 24+ required on the target server.  No other dependencies needed."
+}
