@@ -1,0 +1,169 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex flex-col border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+        <h1 class="text-3xl font-extrabold leading-none tracking-tight">Design System</h1>
+        <div class="text-secondary mt-1.5">
+            Living reference for the shared Inspecto UI patterns. Reuse these instead of re-rolling status
+            colors, empty states, skeletons, grids or forms — the
+            <code>npm run lint:tokens</code> guard enforces it in CI.
+        </div>
+    </div>
+
+    <div class="flex flex-auto flex-col gap-10 p-6 sm:p-10">
+        <!-- ── Status badge ─────────────────────────────────────────────────────────────── -->
+        <section>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">Status badge</h2>
+                <button mat-stroked-button (click)="copy(snippets.badge)">
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard"></mat-icon>
+                    <span class="ml-1">Copy snippet</span>
+                </button>
+            </div>
+            <p class="text-secondary mb-4 text-sm">
+                Single source of truth for status / severity / level colors
+                (<code>inspecto/components/status-badge.component.ts</code>). Maps any token to one of five
+                AA-contrast tones in both schemes.
+            </p>
+
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <div class="mb-1 text-sm font-medium">Tones</div>
+                <div class="mb-6 flex flex-wrap gap-3">
+                    @for (t of tones; track t) {
+                        <inspecto-status-badge [value]="t" />
+                    }
+                </div>
+                <div class="mb-1 text-sm font-medium">Token → tone classification</div>
+                <div class="flex flex-wrap gap-3">
+                    @for (tok of tokenExamples; track tok) {
+                        <inspecto-status-badge [value]="tok" />
+                    }
+                </div>
+            </div>
+
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.badge }}</code></pre>
+        </section>
+
+        <!-- ── Empty state ──────────────────────────────────────────────────────────────── -->
+        <section>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">Empty state</h2>
+                <button mat-stroked-button (click)="copy(snippets.empty)">
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard"></mat-icon>
+                    <span class="ml-1">Copy snippet</span>
+                </button>
+            </div>
+            <p class="text-secondary mb-4 text-sm">
+                <code>&lt;inspecto-empty-state&gt;</code> for "nothing here yet" / recoverable-error
+                placeholders — instead of ad-hoc dashed boxes.
+            </p>
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <inspecto-empty-state
+                    icon="heroicons_outline:queue-list"
+                    title="No events yet"
+                    message="Events will appear here as pipelines run."
+                    actionLabel="Refresh"
+                    (action)="copy('refresh()')"
+                ></inspecto-empty-state>
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.empty }}</code></pre>
+        </section>
+
+        <!-- ── Skeleton ─────────────────────────────────────────────────────────────────── -->
+        <section>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">Skeleton</h2>
+                <button mat-stroked-button (click)="copy(snippets.skeleton)">
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard"></mat-icon>
+                    <span class="ml-1">Copy snippet</span>
+                </button>
+            </div>
+            <p class="text-secondary mb-4 text-sm">
+                <code>&lt;inspecto-skeleton&gt;</code> shaped like the real layout for page / card / form
+                loading. Grids use ag-Grid <code>[loading]</code> instead.
+            </p>
+            <div class="bg-card grid gap-8 rounded-2xl p-6 shadow sm:grid-cols-3">
+                <div>
+                    <div class="text-secondary mb-2 text-xs font-medium">Label</div>
+                    <inspecto-skeleton width="60%" height="0.875rem" />
+                </div>
+                <div>
+                    <div class="text-secondary mb-2 text-xs font-medium">Paragraph</div>
+                    <inspecto-skeleton [lines]="4" />
+                </div>
+                <div>
+                    <div class="text-secondary mb-2 text-xs font-medium">Block</div>
+                    <inspecto-skeleton height="6rem" />
+                </div>
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.skeleton }}</code></pre>
+        </section>
+
+        <!-- ── Grid / table ─────────────────────────────────────────────────────────────── -->
+        <section>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">Data grid</h2>
+                <div class="flex items-center gap-2">
+                    <button mat-stroked-button (click)="showEmpty = !showEmpty">
+                        <mat-icon class="icon-size-4" svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                        <span class="ml-1">{{ showEmpty ? 'Show rows' : 'Show empty' }}</span>
+                    </button>
+                    <button mat-stroked-button (click)="copy(snippets.grid)">
+                        <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard"></mat-icon>
+                        <span class="ml-1">Copy snippet</span>
+                    </button>
+                </div>
+            </div>
+            <p class="text-secondary mb-4 text-sm">
+                Shared ag-Grid theme (<code>InspectoGridThemeService</code>, gamma tokens),
+                <code>INSPECTO_DEFAULT_COL_DEF</code>, <code>actionsColumn</code>, status via
+                <code>statusBadgeHtml</code>, and the <code>noRowsOverlay</code> empty state. Toggle "Show
+                empty" to see the overlay.
+            </p>
+            <div class="bg-card rounded-2xl p-2 shadow">
+                <ag-grid-angular
+                    class="h-72 w-full"
+                    [theme]="themeSvc.theme()"
+                    [rowData]="gridRows"
+                    [columnDefs]="columnDefs"
+                    [defaultColDef]="defaultColDef"
+                    [overlayNoRowsTemplate]="emptyOverlay"
+                    (firstDataRendered)="refreshActions($event)"
+                    (rowDataUpdated)="refreshActions($event)"
+                ></ag-grid-angular>
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.grid }}</code></pre>
+        </section>
+
+        <!-- ── Reactive form + inline mat-error ─────────────────────────────────────────── -->
+        <section>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">Reactive form</h2>
+                <button mat-stroked-button (click)="copy(snippets.form)">
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard"></mat-icon>
+                    <span class="ml-1">Copy snippet</span>
+                </button>
+            </div>
+            <p class="text-secondary mb-4 text-sm">
+                Reactive forms with inline <code>&lt;mat-error&gt;</code> and
+                <code>markAllAsTouched()</code> on invalid submit. Submit empty or with a bad character to see
+                the errors.
+            </p>
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <form [formGroup]="form" (ngSubmit)="submitForm()" class="flex flex-wrap items-start gap-3">
+                    <mat-form-field class="w-72">
+                        <mat-label>Connection id</mat-label>
+                        <input matInput formControlName="id" placeholder="e.g. prod-sftp" />
+                        @if (form.controls.id.hasError('required')) {
+                            <mat-error>An id is required.</mat-error>
+                        }
+                        @if (form.controls.id.hasError('pattern')) {
+                            <mat-error>Letters, digits, dot, dash, underscore; must start alphanumeric.</mat-error>
+                        }
+                    </mat-form-field>
+                    <button mat-flat-button color="primary" class="mt-1" type="submit">Validate</button>
+                </form>
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.form }}</code></pre>
+        </section>
+    </div>
+</div>

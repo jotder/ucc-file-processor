@@ -37,6 +37,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Design-system governance guard: no hardcoded colors / status-color helpers in
+      # inspecto-authored source (use --gamma-* vars, Tailwind, <inspecto-status-badge>,
+      # chart-tokens.ts). Pure Node, fast — fails early before the heavier steps.
+      - name: Design-system guard
+        run: npm run lint:tokens
+
       # Unit tests (Vitest via @angular/build:unit-test, jsdom); single run, no watch.
       # The guarded e2e backend smoke (src/e2e) self-skips without E2E_BASE_URL.
       - name: Unit tests
