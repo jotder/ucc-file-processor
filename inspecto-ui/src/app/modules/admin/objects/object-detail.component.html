@@ -136,15 +136,18 @@
             <!-- Comments -->
             <mat-tab label="Comments">
                 <div class="flex flex-col gap-4 pt-6">
-                    <div class="flex items-start gap-3">
+                    <form [formGroup]="commentForm" (ngSubmit)="addComment()" class="flex items-start gap-3">
                         <mat-form-field class="flex-auto" subscriptSizing="dynamic">
                             <mat-label>Add a comment</mat-label>
-                            <textarea matInput rows="2" [(ngModel)]="newComment"></textarea>
+                            <textarea matInput rows="2" formControlName="body" required></textarea>
+                            @if (commentForm.get('body')?.hasError('required')) {
+                                <mat-error>Enter a comment before adding.</mat-error>
+                            }
                         </mat-form-field>
-                        <button mat-flat-button color="primary" class="mt-1" [disabled]="!canControl || !newComment.trim()" (click)="addComment()">
+                        <button type="submit" mat-flat-button color="primary" class="mt-1" [disabled]="!canControl">
                             Add
                         </button>
-                    </div>
+                    </form>
                     @for (c of comments; track c.id) {
                         <div class="bg-card rounded-lg border p-4">
                             <div class="text-secondary mb-1 text-sm">{{ c.author || 'unknown' }} · {{ fmt(c.createdAt) }}</div>
@@ -159,19 +162,25 @@
             <!-- Attachments -->
             <mat-tab label="Attachments">
                 <div class="flex flex-col gap-4 pt-6">
-                    <div class="flex flex-wrap items-start gap-3">
+                    <form [formGroup]="attachForm" (ngSubmit)="addAttachment()" class="flex flex-wrap items-start gap-3">
                         <mat-form-field subscriptSizing="dynamic">
                             <mat-label>Name</mat-label>
-                            <input matInput [(ngModel)]="newAttName" placeholder="evidence.log" />
+                            <input matInput formControlName="name" placeholder="evidence.log" required />
+                            @if (attachForm.get('name')?.hasError('required')) {
+                                <mat-error>Name is required.</mat-error>
+                            }
                         </mat-form-field>
                         <mat-form-field class="flex-auto" subscriptSizing="dynamic">
                             <mat-label>URI</mat-label>
-                            <input matInput [(ngModel)]="newAttUri" placeholder="s3://… or https://…" />
+                            <input matInput formControlName="uri" placeholder="s3://… or https://…" required />
+                            @if (attachForm.get('uri')?.hasError('required')) {
+                                <mat-error>URI is required.</mat-error>
+                            }
                         </mat-form-field>
-                        <button mat-flat-button color="primary" class="mt-1" [disabled]="!canControl || !newAttName.trim() || !newAttUri.trim()" (click)="addAttachment()">
+                        <button type="submit" mat-flat-button color="primary" class="mt-1" [disabled]="!canControl">
                             Attach
                         </button>
-                    </div>
+                    </form>
                     @for (a of attachments; track a.id) {
                         <div class="bg-card flex items-center justify-between rounded-lg border p-4">
                             <div class="min-w-0">

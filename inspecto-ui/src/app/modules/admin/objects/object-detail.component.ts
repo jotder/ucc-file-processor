@@ -1,5 +1,5 @@
 import { Component, inject, OnInit, ViewEncapsulation } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -30,13 +30,13 @@ type TabKey = 'overview' | 'graph' | 'events' | 'comments' | 'attachments';
     selector: 'app-object-detail',
     standalone: true,
     imports: [
-        FormsModule,
         MatButtonModule,
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
         MatTabsModule,
         MatTooltipModule,
+        ReactiveFormsModule,
         GraphViewComponent,
         InspectoSkeletonComponent,
         StatusBadgeComponent,
@@ -52,6 +52,7 @@ export class ObjectDetailComponent implements OnInit {
     private auth = inject(InspectoAuthService);
     private dialog = inject(MatDialog);
     private toastr = inject(ToastrService);
+    private fb = inject(FormBuilder);
 
     id = '';
     obj: OperationalObject | null = null;
@@ -75,9 +76,13 @@ export class ObjectDetailComponent implements OnInit {
     eventsLoaded = false;
     g6: G6GraphData | null = null;
 
-    newComment = '';
-    newAttName = '';
-    newAttUri = '';
+    readonly commentForm: FormGroup = this.fb.group({
+        body: ['', Validators.required],
+    });
+    readonly attachForm: FormGroup = this.fb.group({
+        name: ['', Validators.required],
+        uri: ['', Validators.required],
+    });
 
     readonly fmt = fmtDateTime;
 
@@ -183,11 +188,15 @@ export class ObjectDetailComponent implements OnInit {
     }
 
     addComment(): void {
-        const body = this.newComment.trim();
+        if (this.commentForm.invalid) {
+            this.commentForm.markAllAsTouched();
+            return;
+        }
+        const body = (this.commentForm.value.body as string).trim();
         if (!body) return;
         this.api.addComment(this.id, body).subscribe({
             next: () => {
-                this.newComment = '';
+                this.commentForm.reset({ body: '' });
                 this.loadComments();
             },
             error: (e) => this.toastr.error(e?.error?.error ?? 'Could not add comment'),
@@ -195,13 +204,16 @@ export class ObjectDetailComponent implements OnInit {
     }
 
     addAttachment(): void {
-        const name = this.newAttName.trim();
-        const uri = this.newAttUri.trim();
+        if (this.attachForm.invalid) {
+            this.attachForm.markAllAsTouched();
+            return;
+        }
+        const name = (this.attachForm.value.name as string).trim();
+        const uri = (this.attachForm.value.uri as string).trim();
         if (!name || !uri) return;
         this.api.addAttachment(this.id, { name, uri }).subscribe({
             next: () => {
-                this.newAttName = '';
-                this.newAttUri = '';
+                this.attachForm.reset({ name: '', uri: '' });
                 this.loadAttachments();
             },
             error: (e) => this.toastr.error(e?.error?.error ?? 'Could not add attachment'),

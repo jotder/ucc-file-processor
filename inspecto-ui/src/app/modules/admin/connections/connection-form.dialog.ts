@@ -46,15 +46,25 @@ export interface ConnectionFormResult {
                 <div class="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
                     <mat-form-field subscriptSizing="dynamic">
                         <mat-label>Id</mat-label>
-                        <input matInput formControlName="id" />
+                        <input matInput formControlName="id" required />
+                        @if (form.get('id'); as c) {
+                            @if (c.hasError('required')) {
+                                <mat-error>Id is required.</mat-error>
+                            } @else if (c.hasError('pattern')) {
+                                <mat-error>Start with a letter or digit; then letters, digits, <code>. _ -</code> only.</mat-error>
+                            }
+                        }
                     </mat-form-field>
                     <mat-form-field subscriptSizing="dynamic">
                         <mat-label>Connector</mat-label>
-                        <mat-select formControlName="connector">
+                        <mat-select formControlName="connector" required>
                             @for (c of connectors; track c) {
                                 <mat-option [value]="c">{{ c }}</mat-option>
                             }
                         </mat-select>
+                        @if (form.get('connector')?.hasError('required')) {
+                            <mat-error>Choose a connector.</mat-error>
+                        }
                     </mat-form-field>
                     <mat-form-field subscriptSizing="dynamic">
                         <mat-label>Host</mat-label>
@@ -161,7 +171,10 @@ export class ConnectionFormDialog {
     saving = false;
 
     form: FormGroup = this.fb.group({
-        id: [{ value: '', disabled: this.isEdit }, Validators.required],
+        id: [
+            { value: '', disabled: this.isEdit },
+            [Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)],
+        ],
         connector: ['local', Validators.required],
         host: [''],
         port: [null as number | null],
@@ -251,7 +264,10 @@ export class ConnectionFormDialog {
     }
 
     submit(): void {
-        if (this.form.invalid) return;
+        if (this.form.invalid) {
+            this.form.markAllAsTouched(); // surface inline mat-error messages
+            return;
+        }
         const profile = this.build();
         this.saving = true;
         const req$ = this.isEdit ? this.api.update(profile.id, profile) : this.api.create(profile);
