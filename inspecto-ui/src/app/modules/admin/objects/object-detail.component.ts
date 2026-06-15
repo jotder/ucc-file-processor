@@ -9,14 +9,14 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
-import { NodeKind, ObjectGraph, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
+import { EventRow, EventsService, NodeKind, ObjectGraph, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
 import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { fmtDateTime } from 'app/inspecto/grid';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
 import { ObjectLinkDialog } from './object-link.dialog';
 
-type TabKey = 'overview' | 'graph' | 'comments' | 'attachments';
+type TabKey = 'overview' | 'graph' | 'events' | 'comments' | 'attachments';
 
 /**
  * Operational-object detail (Phase 2–4) — one object with its lifecycle actions, its correlation
@@ -42,6 +42,7 @@ type TabKey = 'overview' | 'graph' | 'comments' | 'attachments';
 })
 export class ObjectDetailComponent implements OnInit {
     private api = inject(ObjectsService);
+    private eventsApi = inject(EventsService);
     private route = inject(ActivatedRoute);
     private router = inject(Router);
     private auth = inject(InspectoAuthService);
@@ -55,6 +56,7 @@ export class ObjectDetailComponent implements OnInit {
     readonly tabs: { id: TabKey; label: string }[] = [
         { id: 'overview', label: 'Overview' },
         { id: 'graph', label: 'Graph' },
+        { id: 'events', label: 'Events' },
         { id: 'comments', label: 'Comments' },
         { id: 'attachments', label: 'Attachments' },
     ];
@@ -65,6 +67,8 @@ export class ObjectDetailComponent implements OnInit {
 
     comments: ObjectNote[] = [];
     attachments: ObjectNote[] = [];
+    relatedEvents: EventRow[] = [];
+    eventsLoaded = false;
     g6: G6GraphData | null = null;
 
     newComment = '';
@@ -117,8 +121,44 @@ export class ObjectDetailComponent implements OnInit {
 
     onTabChange(): void {
         if (this.activeTab === 'graph') this.loadGraph();
+        else if (this.activeTab === 'events') this.loadEvents();
         else if (this.activeTab === 'comments') this.loadComments();
         else if (this.activeTab === 'attachments') this.loadAttachments();
+    }
+
+    /** Events sharing this object's correlation id — the engine-level timeline behind the object. */
+    loadEvents(): void {
+        this.eventsLoaded = false;
+        const cid = this.obj?.correlationId;
+        if (!cid) {
+            this.relatedEvents = [];
+            this.eventsLoaded = true;
+            return;
+        }
+        this.eventsApi.search({ correlationId: cid, limit: 200 }).subscribe({
+            next: (e) => {
+                this.relatedEvents = e;
+                this.eventsLoaded = true;
+            },
+            error: () => {
+                this.relatedEvents = [];
+                this.eventsLoaded = true;
+            },
+        });
+    }
+
+    /** Tailwind badge classes per event level (literal strings so the JIT scanner keeps them). */
+    levelClass(level: string): string {
+        switch (level) {
+            case 'ERROR':
+                return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+            case 'WARN':
+                return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+            case 'INFO':
+                return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+            default:
+                return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
+        }
     }
 
     loadGraph(): void {

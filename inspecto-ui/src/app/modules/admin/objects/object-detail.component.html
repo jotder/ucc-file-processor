@@ -93,6 +93,37 @@
                 </div>
             </mat-tab>
 
+            <!-- Events -->
+            <mat-tab label="Events">
+                <div class="pt-6">
+                    @if (!obj?.correlationId) {
+                        <div class="text-secondary py-12 text-center">
+                            This {{ obj?.objectType?.toLowerCase() || 'object' }} has no correlation id, so it can't be
+                            tied to engine events.
+                        </div>
+                    } @else {
+                        <div class="text-secondary mb-3 text-sm">
+                            Events sharing correlation
+                            <span class="font-mono">{{ obj?.correlationId }}</span>
+                        </div>
+                        @if (relatedEvents.length) {
+                            <div class="flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
+                                @for (e of relatedEvents; track e.eventId) {
+                                    <div class="flex items-center gap-3 py-2 text-sm">
+                                        <span class="text-secondary w-44 shrink-0 tabular-nums">{{ fmt(e.ts) }}</span>
+                                        <span class="shrink-0 rounded px-2 py-0.5 text-xs font-bold {{ levelClass(e.level) }}">{{ e.level }}</span>
+                                        <span class="text-secondary w-44 shrink-0 truncate font-mono text-xs">{{ e.type }}</span>
+                                        <span class="truncate">{{ e.message || e.pipeline || '—' }}</span>
+                                    </div>
+                                }
+                            </div>
+                        } @else if (eventsLoaded) {
+                            <div class="text-secondary py-12 text-center">No events recorded for this correlation id.</div>
+                        }
+                    }
+                </div>
+            </mat-tab>
+
             <!-- Comments -->
             <mat-tab label="Comments">
                 <div class="flex flex-col gap-4 pt-6">
