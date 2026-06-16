@@ -76,6 +76,28 @@ class SourceServiceTest {
     }
 
     @Test
+    void inactivePipelineIsSkippedByTheCycle(@TempDir Path dir) throws Exception {
+        Path a = source(dir.resolve("a"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n");
+        // Flip the activation gate off on disk (TestConfigs emits `active: true`).
+        Files.writeString(a, Files.readString(a).replace("active: true", "active: false"));
+        try (SourceService svc = new SourceService(List.of(a), 3600, 1)) {
+            MultiSourceProcessor.RunResult r = svc.runAllOnce();
+            assertEquals(0, r.total(), "an inactive (active:false) pipeline is not run");
+            assertEquals(0, outputCsvCount(dir.resolve("a")), "an inactive pipeline produces no output");
+        }
+    }
+
+    @Test
+    void pipelineWithNoActiveKeyDefaultsInactive(@TempDir Path dir) throws Exception {
+        Path a = source(dir.resolve("a"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n");
+        // Remove the activation key entirely — the default is OFF (opt-in).
+        Files.writeString(a, Files.readString(a).replace("active: true\n", ""));
+        try (SourceService svc = new SourceService(List.of(a), 3600, 1)) {
+            assertEquals(0, svc.runAllOnce().total(), "absent `active` key defaults to not-run");
+        }
+    }
+
+    @Test
     void startSchedulesAPollCycle(@TempDir Path dir) throws Exception {
         Path a = source(dir.resolve("a"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n");
         try (SourceService svc = new SourceService(List.of(a), 1, 1)) {

@@ -216,6 +216,7 @@ enrichment** (`*_enrich.toon`, hand-written SQL over the partitioned output).
 
 ```yaml
 name: <data_source>_ETL
+active: true        # opt-in execution gate — see "Activation" below
 version: 1
 
 dirs:
@@ -334,6 +335,29 @@ processing:
 | `snappy` | Default. Fast, moderate compression — best for analytics workloads |
 | `zstd` | Higher compression ratio, slightly slower |
 | `gzip` | Maximum compatibility with external tools |
+
+---
+
+### Activation (`active:`) and config caching
+
+**`active`** is a top-level boolean that gates whether the pipeline is **executed**:
+
+| `active` | Behaviour |
+|---|---|
+| `true` | The pipeline runs on every poll cycle (and via the `MultiSourceProcessor` CLI). |
+| `false` *(default — key absent ⇒ `false`)* | The pipeline is still parsed, indexed and visible in `GET /pipelines`, but **never executed**. |
+
+The default is **off** so a freshly-dropped or half-edited config never runs until you explicitly arm it
+with `active: true`. Toggling it requires no restart — the change is picked up on the next cycle (see below).
+An operator who explicitly triggers a single pipeline (`POST /pipelines/{name}/trigger`) runs it regardless of
+`active` — the gate only governs the *automatic* poll cycle and the multi-source CLI.
+
+**Config caching / hot-reload.** Pipeline configs and the schema / grammar / segment files they reference are
+**parsed once and cached**, not re-read every cycle. Each poll cycle re-checks the modification time of every
+config file; a pipeline is re-parsed only when its `*_pipeline.toon` *or* one of its referenced files actually
+changes on disk (so edits — including flipping `active` — are picked up automatically), and an unchanged
+pipeline incurs no disk I/O and no schema-reload logging. Each run still gets its own run-timestamped
+status/batch/lineage CSVs; only the parse is cached.
 
 ---
 

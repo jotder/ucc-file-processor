@@ -69,6 +69,7 @@ public final class TestConfigs {
 
         String toon = """
                 name: TEST_ETL
+                active: true
                 version: 1
                 dirs:
                   poll: %s/inbox

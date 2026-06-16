@@ -1,4 +1,5 @@
 name: VOUCHER_UNKNOWN_ETL
+active: true
 version: 1
 
 dirs:

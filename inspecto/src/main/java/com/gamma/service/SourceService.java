@@ -469,19 +469,33 @@ public final class SourceService implements AutoCloseable {
     public MultiSourceProcessor.RunResult runAllOnce() {
         ingestLock.lock();   // never overlap with another cycle / operator trigger (see field doc)
         try {
-            // Re-index configs once per cycle (picks up edits/additions; fires catalog invalidation
-            // via the registry callback), replacing the former per-call O(n) re-parse scans.
+            // Re-index configs once per cycle — now an mtime-cached rebuild, so a steady-state cycle
+            // re-parses nothing (and re-reads no schema files); an edited pipeline/schema reloads on the
+            // next tick. Fires catalog invalidation via the registry callback.
             configRegistry.rebuild(registry);
-            List<Path> active = paused.isEmpty() ? registry : activeRegistry();
-            if (active.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
+            // Build the run set from the cached index: skip paused pipelines and any not yet activated
+            // (`active: true`). Each runnable config is re-stamped with a fresh run timestamp for this
+            // cycle (cheap copy; no re-parse), so every cycle still gets its own status/batch/lineage CSVs.
+            // Iterate the registered paths (not the id-keyed index) so two files are both run even if
+            // they declare the same name — matching the prior path-level run semantics.
+            List<PipelineConfig> toRun = new ArrayList<>();
+            List<String> activeNames  = new ArrayList<>();
+            for (Path p : registry) {
+                PipelineConfig cfg = configRegistry.configForPath(p).orElse(null);
+                if (cfg == null) continue;                                   // unloadable — already warned
+                String id = cfg.identity().pipelineName();
+                if (paused.contains(id) || !cfg.active()) continue;          // paused or not activated
+                toRun.add(cfg.forNewRun());                                  // fresh per-cycle timestamp
+                activeNames.add(id);
+            }
+            if (toRun.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
             com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
             reg.inc("inspecto_poll_cycles_total", "Poll cycles run", Map.of());
-            reg.setGauge("inspecto_active_runs", "Source runs currently executing", Map.of(), active.size());
-            List<String> activeNames = activeNames(active);
+            reg.setGauge("inspecto_active_runs", "Source runs currently executing", Map.of(), toRun.size());
             running.addAll(activeNames);
             MultiSourceProcessor.RunResult r;
             try {
-                r = MultiSourceProcessor.runAll(active, maxConcurrentRuns, bus.sink());
+                r = MultiSourceProcessor.runConfigs(toRun, maxConcurrentRuns, bus.sink());
                 if (r.failed() > 0) {
                     log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
                     reg.inc("inspecto_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
@@ -623,13 +637,6 @@ public final class SourceService implements AutoCloseable {
                 IngestProgress.current(cfg.identity().pipelineName())));
     }
 
-    /** The pipeline names for a set of active registry paths (skips paths with no indexed identity). */
-    private List<String> activeNames(List<Path> active) {
-        List<String> names = new ArrayList<>();
-        for (Path p : active) configRegistry.idForPath(p).ifPresent(names::add);
-        return names;
-    }
-
     /** List each registered pipeline with its current paused state and commit count. */
     public List<PipelineView> pipelines() {
         List<PipelineView> out = new ArrayList<>();
@@ -738,19 +745,6 @@ public final class SourceService implements AutoCloseable {
                 .source(SourceService.class.getName()).pipeline(pipelineName)
                 .message("Pipeline resumed: " + pipelineName));
         return true;
-    }
-
-    /** Registry paths whose pipeline is not currently paused (resolved via the O(1) index;
-     *  a path with no indexed identity — i.e. unloadable — is kept rather than silently dropped). */
-    private List<Path> activeRegistry() {
-        List<Path> active = new ArrayList<>();
-        for (Path p : registry) {
-            String id = configRegistry.idForPath(p).orElse(null);
-            if (id == null || !paused.contains(id)) {
-                active.add(p);
-            }
-        }
-        return active;
     }
 
     @Override

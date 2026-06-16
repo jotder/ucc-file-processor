@@ -449,6 +449,24 @@ public final class PipelineConfig {
     private final Source         source;
 
     /**
+     * Whether this pipeline is activated for execution ({@code active:} top-level key, v4.7.0). Only
+     * activated pipelines are run by the poll cycle / multi-source orchestrator; an inactive pipeline
+     * is still parsed, indexed and queryable (it shows in {@code /pipelines}) but never executed.
+     *
+     * <p><b>Default is {@code false}</b> — a pipeline must opt in with {@code active: true}. This is a
+     * deliberate fail-safe so a freshly-dropped or half-edited config never runs until explicitly armed.
+     */
+    private final boolean active;
+
+    /**
+     * Other config files this pipeline read at parse time (schema / grammar / segment {@code .toon}s),
+     * as given in the file (not absolutised). Used by {@link com.gamma.service.ConfigRegistry} to detect
+     * on-disk changes (mtime) and reload only when something actually changed. The pipeline file itself
+     * is tracked separately by the registry (it owns that path). Never null.
+     */
+    private final List<Path> referencedFiles;
+
+    /**
      * The {@code status_dir} to create in {@link #prepare()} ({@code null} when status is disabled or
      * a literal {@code status_file} was used). Holding it here keeps {@link #fromMap} free of the one
      * filesystem side-effect that {@code load} historically performed inline.
@@ -469,6 +487,10 @@ public final class PipelineConfig {
     public FixedWidth     fixedWidth() { return fixedWidth; }
     /** Data-acquisition source binding; never null (defaults to local-FS over {@code dirs.poll}). */
     public Source         source()     { return source; }
+    /** Whether this pipeline is activated for execution ({@code active:}, default {@code false}). */
+    public boolean        active()     { return active; }
+    /** The schema/grammar/segment files this config referenced at parse time (for change-watching). */
+    public List<Path>     referencedFiles() { return referencedFiles; }
 
     // ── private constructor — use load() ──────────────────────────────────────
 
@@ -505,6 +527,57 @@ public final class PipelineConfig {
                 b.sourceGuarantee, b.sourceGapDetection,
                 b.sourceFetch, b.sourceRetry, b.sourceCircuitBreaker, b.sourcePostAction, b.sourceIncremental);
         this.statusDirToPrepare = b.statusDirToPrepare;
+        this.active = b.active;
+        this.referencedFiles = List.copyOf(b.referencedFiles);
+    }
+
+    /**
+     * Copy constructor used by {@link #forNewRun()} — clones every parsed group verbatim but stamps a
+     * fresh {@code runTimestamp} and recomputes the run-timestamped status/batch/lineage/manifest paths
+     * (the persistent commit log is left as-is). Performs <b>no disk I/O</b>: schemas, grammar and dirs
+     * are reused from {@code src}, so re-running a cached config each cycle costs only a few string ops.
+     */
+    private PipelineConfig(PipelineConfig src, String runTimestamp) {
+        this.identity = new Identity(src.identity.name(), src.identity.pipelineName(), runTimestamp);
+        Dirs d = src.dirs;
+        if (src.statusDirToPrepare != null && !src.statusDirToPrepare.isBlank()) {
+            String pn = src.identity.pipelineName();
+            String statusFile = Paths.get(src.statusDirToPrepare,
+                    pn + "_status_" + runTimestamp + ".csv").toString();
+            Path parent = Paths.get(statusFile).toAbsolutePath().getParent();
+            this.dirs = new Dirs(d.poll(), d.database(), d.backup(), d.temp(), d.errors(),
+                    d.quarantine(), d.markers(), d.logDir(),
+                    statusFile,
+                    parent.resolve(pn + "_batches_" + runTimestamp + ".csv").toString(),
+                    parent.resolve(pn + "_lineage_" + runTimestamp + ".csv").toString(),
+                    parent.resolve("manifests").toString(),
+                    d.commitLogPath());   // persistent — never run-timestamped
+        } else {
+            this.dirs = d;   // literal status_file (or status disabled): nothing is run-timestamped
+        }
+        this.processing = src.processing;
+        this.csv = src.csv;
+        this.output = src.output;
+        this.schemas = src.schemas;
+        this.duckdb = src.duckdb;
+        this.chunking = src.chunking;
+        this.fixedWidth = src.fixedWidth;
+        this.source = src.source;
+        this.statusDirToPrepare = src.statusDirToPrepare;
+        this.active = src.active;
+        this.referencedFiles = src.referencedFiles;
+    }
+
+    /**
+     * Return a copy of this config stamped with a fresh run timestamp (and the run-timestamped status
+     * paths recomputed). Lets the orchestrator re-run a <em>cached</em> config every poll cycle — giving
+     * each cycle its own status/batch/lineage CSVs — without re-parsing the file or re-reading schemas.
+     * The status directory already exists (created by the original {@link #load}/{@link #prepare}), so
+     * no directory creation is needed.
+     */
+    public PipelineConfig forNewRun() {
+        String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        return new PipelineConfig(this, ts);
     }
 
     // ── static factory ────────────────────────────────────────────────────────
@@ -562,6 +635,11 @@ public final class PipelineConfig {
         b.pipelineName  = b.name.toLowerCase().replace(' ', '_');
         b.runTimestamp  = LocalDateTime.now()
                                        .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+
+        // ── activation gate (additive, v4.7.0; absent ⇒ false = not executed) ──
+        // Only an activated pipeline is run by the poll cycle / MultiSourceProcessor. The default is
+        // OFF so a freshly-dropped or half-edited config never executes until explicitly armed.
+        b.active = Boolean.parseBoolean(String.valueOf(raw.getOrDefault("active", "false")));
 
         // ── dirs ──────────────────────────────────────────────────────────────
         Map<String, Object> dirs = ToonHelper.requireSection(raw, "dirs");
@@ -655,6 +733,8 @@ public final class PipelineConfig {
         // The delimited parse grammar may live inline under processing.csv_settings, in a separate
         // reusable file referenced by processing.grammar, or both (inline keys win). resolveGrammar
         // returns the effective map (or null when neither is present — defaults then apply).
+        String grammarRef = blankToNull(proc.get("grammar"));
+        if (grammarRef != null) b.referencedFiles.add(Paths.get(grammarRef));
         Map<String, Object> csv = resolveGrammar(proc);
         if (csv != null) {
             b.delimiter       = opt(csv, "delimiter", ",");
@@ -705,6 +785,7 @@ public final class PipelineConfig {
             for (var entry : ((Map<?,?>) segsRaw).entrySet()) {
                 String key        = (String) entry.getKey();
                 String schemaPath = (String) entry.getValue();
+                b.referencedFiles.add(Paths.get(schemaPath));
                 if (!Files.exists(Paths.get(schemaPath)))
                     throw new FileNotFoundException("Segment schema not found for '" + key + "': " + schemaPath);
                 Map<String, Object> schema = (Map<String, Object>)
@@ -732,6 +813,7 @@ public final class PipelineConfig {
                 String table       = (String) entry.get("table");
                 String filePattern = (String) entry.get("file_pattern");
 
+                b.referencedFiles.add(Paths.get(schemaPath));
                 if (!Files.exists(Paths.get(schemaPath)))
                     throw new FileNotFoundException("Schema file not found: " + schemaPath);
                 Map<String, Object> schemaCfg = (Map<String, Object>)
@@ -756,6 +838,7 @@ public final class PipelineConfig {
         } else {
             // Legacy single-schema
             String schemaPath = (String) proc.get("schema_file");
+            if (schemaPath != null) b.referencedFiles.add(Paths.get(schemaPath));
             if (!Files.exists(Paths.get(schemaPath)))
                 throw new FileNotFoundException("Schema file not found: " + schemaPath);
             b.singleSchema = (Map<String, Object>)
@@ -1106,6 +1189,8 @@ public final class PipelineConfig {
         String name          = "";
         String pipelineName  = "";
         String runTimestamp  = "";
+        boolean active       = false;   // opt-in: a pipeline runs only with `active: true`
+        final List<Path> referencedFiles = new ArrayList<>();   // schema/grammar/segment files read at parse
         String pollDir       = "";
         String databaseDir   = "";
         String backupDir;

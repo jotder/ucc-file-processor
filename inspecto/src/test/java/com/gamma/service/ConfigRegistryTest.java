@@ -65,6 +65,57 @@ class ConfigRegistryTest {
     }
 
     @Test
+    void unchangedFilesReuseTheParsedConfig(@TempDir Path dir) throws Exception {
+        Path p = PipelineConfigBatchTest.writePipeline(dir, "");
+        ConfigRegistry reg = new ConfigRegistry();
+        reg.rebuild(List.of(p));
+        var first = reg.get("mini_etl").orElseThrow();
+        reg.rebuild(List.of(p));   // nothing changed on disk
+        assertSame(first, reg.get("mini_etl").orElseThrow(),
+                "an unchanged config (and its schemas) is not re-parsed across rebuilds");
+    }
+
+    @Test
+    void editingThePipelineFileReloads(@TempDir Path dir) throws Exception {
+        Path p = PipelineConfigBatchTest.writePipeline(dir, "");
+        ConfigRegistry reg = new ConfigRegistry();
+        reg.rebuild(List.of(p));
+        var first = reg.get("mini_etl").orElseThrow();
+        bumpMtime(p);
+        reg.rebuild(List.of(p));
+        assertNotSame(first, reg.get("mini_etl").orElseThrow(), "a changed pipeline file is re-parsed");
+    }
+
+    @Test
+    void editingAReferencedSchemaReloads(@TempDir Path dir) throws Exception {
+        Path p = PipelineConfigBatchTest.writePipeline(dir, "");
+        ConfigRegistry reg = new ConfigRegistry();
+        reg.rebuild(List.of(p));
+        var first = reg.get("mini_etl").orElseThrow();
+        bumpMtime(dir.resolve("mini_schema.toon"));   // a referenced schema, not the pipeline file
+        reg.rebuild(List.of(p));
+        assertNotSame(first, reg.get("mini_etl").orElseThrow(),
+                "editing a referenced schema file re-parses the pipeline");
+    }
+
+    @Test
+    void configForPathResolvesBothCollidingNames(@TempDir Path dir) throws Exception {
+        Path a = PipelineConfigBatchTest.writePipeline(Files.createDirectories(dir.resolve("a")), "");
+        Path b = PipelineConfigBatchTest.writePipeline(Files.createDirectories(dir.resolve("b")), "");
+        ConfigRegistry reg = new ConfigRegistry();
+        reg.rebuild(List.of(a, b));   // both declare name MINI_ETL
+        assertTrue(reg.configForPath(a).isPresent(), "the shadowed path is still resolvable by path");
+        assertTrue(reg.configForPath(b).isPresent());
+        assertTrue(reg.configForPath(dir.resolve("nope_pipeline.toon")).isEmpty());
+    }
+
+    /** Push a file's mtime forward so the change is detected regardless of filesystem timestamp granularity. */
+    private static void bumpMtime(Path p) throws Exception {
+        long t = Files.getLastModifiedTime(p).toMillis() + 5_000L;
+        Files.setLastModifiedTime(p, java.nio.file.attribute.FileTime.fromMillis(t));
+    }
+
+    @Test
     void emptyRegistryReadsAreSafe() {
         ConfigRegistry reg = new ConfigRegistry();
         assertEquals(0, reg.size());

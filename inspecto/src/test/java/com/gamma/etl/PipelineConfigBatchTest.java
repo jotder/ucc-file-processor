@@ -54,6 +54,7 @@ public class PipelineConfigBatchTest {
         Files.writeString(schema, miniSchema());
         String toon = """
             name: MINI_ETL
+            active: true
             version: 1
             dirs:
               poll: %s/inbox

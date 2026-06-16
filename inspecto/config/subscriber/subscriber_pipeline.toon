@@ -1,4 +1,5 @@
 name: SUBSCRIBER_ETL
+active: true
 version: 1
 
 dirs:

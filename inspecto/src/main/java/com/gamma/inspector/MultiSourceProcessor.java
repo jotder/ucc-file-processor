@@ -65,15 +65,40 @@ public final class MultiSourceProcessor {
             System.err.println("Usage: MultiSourceProcessor [-Dsources.max=N] <pipeline.toon | dir> [more ...]");
             System.exit(1);
         }
-        List<Path> configs = resolveConfigs(args);
-        if (configs.isEmpty()) {
+        List<Path> paths = resolveConfigs(args);
+        if (paths.isEmpty()) {
             System.err.println("No *_pipeline.toon files found in: " + String.join(", ", args));
             System.exit(1);
         }
-        int maxConcurrent = Integer.getInteger("sources.max", configs.size());
-        log.info("Running {} source(s), up to {} concurrently", configs.size(), maxConcurrent);
+        // Load every resolved config, then run only the activated ones (`active: true`). An inactive
+        // or unloadable config is reported and skipped, never executed.
+        List<PipelineConfig> active = new ArrayList<>();
+        int skipped = 0;
+        for (Path p : paths) {
+            try {
+                PipelineConfig cfg = PipelineConfig.load(p.toString());
+                if (cfg.active()) {
+                    active.add(cfg);
+                } else {
+                    skipped++;
+                    log.info("Skipping inactive pipeline '{}' ({}) — set `active: true` to run it",
+                            cfg.identity().pipelineName(), p);
+                }
+            } catch (Exception e) {
+                skipped++;
+                log.error("Could not load config {}: {}", p, e.getMessage());
+            }
+        }
+        if (active.isEmpty()) {
+            System.err.println("No active *_pipeline.toon (of " + paths.size()
+                    + " resolved) — set `active: true` on the pipeline(s) you want to run.");
+            System.exit(1);
+        }
+        int maxConcurrent = Integer.getInteger("sources.max", active.size());
+        log.info("Running {} active source(s) ({} skipped), up to {} concurrently",
+                active.size(), skipped, maxConcurrent);
 
-        RunResult result = runAll(configs, maxConcurrent);
+        RunResult result = runConfigs(active, maxConcurrent, null);
         log.info("Multi-source run complete: {} succeeded, {} failed (of {})",
                 result.succeeded(), result.failed(), result.total());
         if (result.failed() > 0) {
@@ -119,6 +144,52 @@ public final class MultiSourceProcessor {
                     } catch (Exception e) {
                         failed.incrementAndGet();
                         log.error("Source {} failed to run", cfgPath, e);
+                    } finally {
+                        permits.release();
+                    }
+                    return null;
+                }));
+            }
+            for (Future<?> f : futures) {
+                try {
+                    f.get();
+                } catch (Exception e) {
+                    failed.incrementAndGet();
+                    log.error("Source task error", e);
+                }
+            }
+        }
+        return new RunResult(configs.size(), failed.get());
+    }
+
+    /**
+     * Run a set of <b>already-loaded</b> configs concurrently — the cached-config counterpart of
+     * {@link #runAll(List, int, java.util.function.Consumer)}. The service layer loads/caches each
+     * pipeline once (re-parsing only when the file changes) and passes the configs here, so a poll
+     * cycle no longer re-parses every {@code .toon} and re-reads every schema. Each config should
+     * already carry its own per-run timestamp (see {@link PipelineConfig#forNewRun()}); isolation and
+     * failure accounting are identical to {@code runAll}.
+     */
+    public static RunResult runConfigs(List<PipelineConfig> configs, int maxConcurrent,
+                                       java.util.function.Consumer<com.gamma.etl.BatchEvent> onCommit) {
+        Semaphore permits    = new Semaphore(Math.max(1, maxConcurrent));
+        AtomicInteger failed = new AtomicInteger();
+
+        try (ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<?>> futures = new ArrayList<>();
+            for (PipelineConfig cfg : configs) {
+                futures.add(exec.submit(() -> {
+                    permits.acquire();
+                    try {
+                        SourceProcessor.run(cfg, onCommit);
+                        log.info("Source '{}' completed", cfg.identity().pipelineName());
+                    } catch (SourceProcessor.BatchProcessingException e) {
+                        failed.incrementAndGet();
+                        log.error("Source '{}' had batch failures: {}",
+                                cfg.identity().pipelineName(), e.getMessage());
+                    } catch (Exception e) {
+                        failed.incrementAndGet();
+                        log.error("Source '{}' failed to run", cfg.identity().pipelineName(), e);
                     } finally {
                         permits.release();
                     }
