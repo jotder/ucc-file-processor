@@ -1,0 +1,39 @@
+#!/bin/sh
+# .githooks/pre-push — git-native enforcement of the branch/release policy (docs/BRANCHING.md).
+# Portable POSIX sh (no python/bash deps) so every teammate + agent gets it.
+#
+# Enforces:
+#   - HARD-BLOCK any push whose target ref is a RETIRED/EOL line (1.x, 2.x, 3.x).
+#   - Prints the merge-forward reminder for supported pushes.
+#
+# Activate once per clone:   git config core.hooksPath .githooks
+# Override (humans only):    UCC_RELEASE_GUARD_DISABLE=1 git push ...   (document the exception)
+
+[ "${UCC_RELEASE_GUARD_DISABLE:-0}" = "1" ] && exit 0
+
+RETIRED="${UCC_RETIRED_BRANCHES:-1.x 2.x 3.x}"
+status=0
+
+# pre-push feeds: <local_ref> <local_oid> <remote_ref> <remote_oid>
+while read -r local_ref local_oid remote_ref remote_oid; do
+  [ -z "$remote_ref" ] && continue
+  case "$remote_ref" in
+    refs/heads/*) target=${remote_ref#refs/heads/} ;;
+    *)            target=$remote_ref ;;
+  esac
+  for r in $RETIRED; do
+    if [ "$target" = "$r" ]; then
+      echo "pre-push: refusing to push to RETIRED/EOL branch '$r' (docs/BRANCHING.md)." >&2
+      echo "          Supported lines: the current N.x maintenance branch + master." >&2
+      echo "          A security backport to an EOL line needs a human to set" >&2
+      echo "          UCC_RELEASE_GUARD_DISABLE=1 and document the exception." >&2
+      status=1
+    fi
+  done
+done
+
+[ "$status" -ne 0 ] && exit 1
+
+echo "pre-push: branch/release policy — fixes use MERGE-FORWARD (oldest supported -> master);" >&2
+echo "          editions are build flavors, not branches. See docs/BRANCHING.md." >&2
+exit 0

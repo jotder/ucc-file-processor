@@ -1,8 +1,10 @@
 # Branch, Version & Release Strategy — STRICT (humans + agents)
 
-> **This is binding.** Agents do most of the coding here; this policy is enforced both by
-> `.claude/hooks/pre-tool-git-release-guard.sh` (on every `git commit` / `git push` / `git tag`)
-> and by the mandatory section in [`CLAUDE.md`](../CLAUDE.md). Read it before you commit.
+> **This is binding.** Agents do most of the coding here; this policy is enforced by three layers
+> (see §8): a Claude Code hook (agent reminder), a git `pre-push` hook (local block), and CI (the
+> un-bypassable backstop). Read it before you commit.
+>
+> **One-time per clone:** `git config core.hooksPath .githooks`
 
 ---
 
@@ -148,3 +150,19 @@ After a new MINOR/MAJOR on `master`, if it cuts a new major, create the maintena
 A genuine security backport to an EOL line, or any other deviation, requires a **human** to override the
 guard with `UCC_RELEASE_GUARD_DISABLE=1` for that command and to record the exception in the PR/commit
 body. Agents must not set this flag on their own — they must ask.
+
+---
+
+## 8. Enforcement (three layers)
+
+| Layer | What | Scope | Bypass |
+|---|---|---|---|
+| **1. Claude Code hook** | `.claude/hooks/pre-tool-git-release-guard.sh` — injects the commit/push checklist and blocks commit/push/tag on retired lines | Claude Code agents on this machine (`.claude/` is gitignored — local only) | `UCC_RELEASE_GUARD_DISABLE=1` |
+| **2. git `pre-push` hook** | `.githooks/pre-push` — blocks pushes whose target ref is a retired line; prints the merge-forward reminder | Any human/agent using plain git, once `core.hooksPath` is set | `--no-verify` or `UCC_RELEASE_GUARD_DISABLE=1` |
+| **3. CI** | `.github/workflows/branch-policy.yml` — rejects retired branches; lints Conventional Commits on PRs | Everyone; runs server-side | none (this is the backstop) |
+
+**Activate layer 2 once per clone:** `git config core.hooksPath .githooks`
+
+**Pom version consistency** is enforced implicitly by the Maven reactor build in
+`.github/workflows/ci.yml`: a partial/mismatched version bump across modules fails the build (a child's
+`<parent><version>` must equal the parent pom version), so no separate check is needed.
