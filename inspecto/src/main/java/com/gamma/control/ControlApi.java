@@ -53,7 +53,6 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -72,19 +71,13 @@ import java.util.regex.Pattern;
  * resume pipelines, query runs/batches/files/lineage/quarantine via the
  * {@link com.gamma.service.StatusStore}, reprocess a batch, and validate a config.
  *
- * <h3>Auth (v3.0: scoped + fail-closed)</h3>
- * Routes carry a {@link Scope}. {@code /health}, {@code /ready} and {@code /metrics} are
- * {@code PUBLIC} (no token). Every other current route requires the {@code CONTROL} scope.
- * Tokens are supplied per scope via {@link Tokens} (CLI: {@code -Dcontrol.token},
- * {@code -Dassist.read.token}, {@code -Dassist.write.token}); present one as
- * {@code Authorization: Bearer <token>} or {@code X-Api-Token: <token>}. Scopes are
- * hierarchical — {@code CONTROL} satisfies any scope; {@code assist.write} satisfies
- * {@code assist.read}. Comparison is constant-time ({@link MessageDigest#isEqual}).
- *
- * <p><b>Fail-closed:</b> unlike 2.x there is no open-by-default mode. If a scope has no
- * token configured, its routes return {@code 401} (locked) rather than running open. Set
- * {@code -Dcontrol.token} to use the control plane. The {@code assist.*} scopes back the
- * {@code /assist/*} and read-only catalog/spec routes (M3, v3.3.0).
+ * <h3>Authentication</h3>
+ * The core (Personal edition) is <b>auth-free</b> — every route is open. The bearer-token
+ * scopes that earlier versions enforced inline have been removed; authentication and
+ * authorization are now an <em>edition</em> concern. The Standard / Enterprise editions
+ * re-introduce them out-of-band via the security module (OIDC resource-server validating
+ * IAM-issued JWTs + RBAC/ABAC), without the core engine carrying any auth code. See
+ * {@code docs/EDITIONS.md}.
  *
  * <h3>Routes</h3>
  * <pre>
@@ -178,7 +171,6 @@ public final class ControlApi implements AutoCloseable {
 
     private final HttpServer http;
     private final SourceService service;
-    private final Tokens tokens;
     private final ObjectMapper json = new ObjectMapper();
     private final List<Route> routes = new ArrayList<>();
     /** Allowed CORS origin ({@code -Dcontrol.cors}); {@code null} ⇒ CORS disabled (default). */
@@ -192,51 +184,12 @@ public final class ControlApi implements AutoCloseable {
      */
     private final Path writeRoot;
 
-    /** Authorization scope for a route (v3.0). {@link #PUBLIC} routes need no token. */
-    @PublicApi(since = "3.0.0")
-    public enum Scope {
-        PUBLIC("public"), CONTROL("control"), ASSIST_READ("assist.read"), ASSIST_WRITE("assist.write");
-        final String label;
-        Scope(String label) { this.label = label; }
-    }
-
-    /**
-     * Per-scope bearer tokens (v3.0). A {@code null}/blank token <b>locks</b> that scope
-     * (fail-closed — its routes return 401). The control token is the superuser: it
-     * satisfies every scope. {@code assistWrite} also satisfies {@code assist.read}.
-     */
-    @PublicApi(since = "3.0.0")
-    public record Tokens(String control, String assistRead, String assistWrite) {
-        /** Only the control plane is enabled; assist scopes are locked. */
-        public static Tokens controlOnly(String control) { return new Tokens(control, null, null); }
-        /** Read {@code -Dcontrol.token} / {@code -Dassist.read.token} / {@code -Dassist.write.token}. */
-        public static Tokens fromSystemProperties() {
-            return new Tokens(System.getProperty("control.token"),
-                              System.getProperty("assist.read.token"),
-                              System.getProperty("assist.write.token"));
-        }
-    }
-
-    /**
-     * Convenience constructor: a single control token (assist scopes locked). Equivalent to
-     * {@code new ControlApi(service, port, Tokens.controlOnly(token))}.
-     *
-     * @param service the running service to control
-     * @param port    TCP port (0 = ephemeral; read back via {@link #port()})
-     * @param token   the {@code CONTROL}-scope bearer token; {@code null}/blank locks control routes
-     */
-    public ControlApi(SourceService service, int port, String token) throws IOException {
-        this(service, port, Tokens.controlOnly(token));
-    }
-
     /**
      * @param service the running service to control
      * @param port    TCP port (0 = ephemeral; read back via {@link #port()})
-     * @param tokens  per-scope bearer tokens; a locked scope (null token) fails closed (401)
      */
-    public ControlApi(SourceService service, int port, Tokens tokens) throws IOException {
+    public ControlApi(SourceService service, int port) throws IOException {
         this.service = service;
-        this.tokens  = tokens != null ? tokens : new Tokens(null, null, null);
         String cors  = System.getProperty("control.cors");
         this.corsOrigin = blank(cors) ? null : cors.trim();
         String ui    = System.getProperty("ui.dir");
@@ -253,14 +206,8 @@ public final class ControlApi implements AutoCloseable {
 
     public void start() {
         http.start();
-        String control = tokens.control();
-        if (control == null || control.isBlank())
-            log.warn("ControlApi on port {}: no control token — CONTROL routes are LOCKED (401). "
-                    + "Set -Dcontrol.token to enable them. Public: /health, /ready, /metrics", port());
-        else
-            log.info("ControlApi started on port {} (scoped bearer auth: control{}{})", port(),
-                    blank(tokens.assistRead())  ? "" : " +assist.read",
-                    blank(tokens.assistWrite()) ? "" : " +assist.write");
+        log.info("ControlApi started on port {} (no authentication — Personal/core edition). "
+                + "Authorization is added by the Standard/Enterprise security module.", port());
     }
 
     private static boolean blank(String s) { return s == null || s.isBlank(); }
@@ -277,19 +224,19 @@ public final class ControlApi implements AutoCloseable {
      * Run the service <em>with</em> the control plane attached:
      * <pre>
      *   java -cp file-processor.jar com.gamma.control.ControlApi \
-     *        [-Dcontrol.port=8080] [-Dcontrol.token=secret] \
+     *        [-Dcontrol.port=8080] \
      *        [-Dservice.poll.seconds=N] [-Dservice.max.runs=M] &lt;config.toon | dir&gt; ...
      * </pre>
      */
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
-            System.err.println("Usage: ControlApi [-Dcontrol.port=8080] [-Dcontrol.token=secret] "
+            System.err.println("Usage: ControlApi [-Dcontrol.port=8080] "
                     + "[-Dservice.poll.seconds=N] [-Dservice.max.runs=M] <pipeline.toon | dir> [more ...]");
             System.exit(1);
         }
         SourceService svc = SourceService.fromArgs(args);
         int port = Integer.getInteger("control.port", 8080);
-        ControlApi api = new ControlApi(svc, port, Tokens.fromSystemProperties());
+        ControlApi api = new ControlApi(svc, port);
 
         java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -305,37 +252,37 @@ public final class ControlApi implements AutoCloseable {
     // ── routes ───────────────────────────────────────────────────────────────────
 
     private void registerRoutes() {
-        get ("/health", false, (e, m) -> Map.of("status", "UP"));
-        get ("/ready",  false, (e, m) -> Map.of("status", "READY", "pipelines", service.pipelines().size()));
+        get ("/health", (e, m) -> Map.of("status", "UP"));
+        get ("/ready",  (e, m) -> Map.of("status", "READY", "pipelines", service.pipelines().size()));
         // Prometheus scrape endpoint — text exposition, open (scrapers don't carry tokens)
-        get("/metrics", false, (e, m) ->
+        get("/metrics", (e, m) ->
                 respondText(e, com.gamma.metrics.MetricRegistry.global().scrape()));
 
-        get ("/pipelines", true, (e, m) -> service.pipelines());
+        get ("/pipelines", (e, m) -> service.pipelines());
         // Register a new pipeline from a config on disk under the write root (control scope).
-        post("/pipelines", true, (e, m) -> createPipeline(e, body(e)));
-        post("/pipelines/([^/]+)/trigger", true, (e, m) ->
+        post("/pipelines", (e, m) -> createPipeline(e, body(e)));
+        post("/pipelines/([^/]+)/trigger", (e, m) ->
                 service.runPipeline(name(m)).orElseThrow(() -> notFound(name(m))));
-        post("/pipelines/([^/]+)/pause", true, (e, m) -> {
+        post("/pipelines/([^/]+)/pause", (e, m) -> {
             if (!service.pause(name(m))) throw notFound(name(m));
             return Map.of("pipeline", name(m), "paused", true);
         });
-        post("/pipelines/([^/]+)/resume", true, (e, m) -> {
+        post("/pipelines/([^/]+)/resume", (e, m) -> {
             if (!service.resume(name(m))) throw notFound(name(m));
             return Map.of("pipeline", name(m), "paused", false);
         });
 
-        get("/pipelines/([^/]+)/commits",    true, (e, m) -> service.statusStore().committedBatches(cfg(m)));
-        get("/pipelines/([^/]+)/batches",    true, (e, m) -> service.statusStore().batches(cfg(m)));
-        get("/pipelines/([^/]+)/files",      true, (e, m) -> service.statusStore().files(cfg(m)));
-        get("/pipelines/([^/]+)/lineage",    true, (e, m) -> service.statusStore().lineage(cfg(m), query(e, "batchId")));
-        get("/pipelines/([^/]+)/quarantine", true, (e, m) -> service.statusStore().quarantine(cfg(m)));
+        get("/pipelines/([^/]+)/commits",    (e, m) -> service.statusStore().committedBatches(cfg(m)));
+        get("/pipelines/([^/]+)/batches",    (e, m) -> service.statusStore().batches(cfg(m)));
+        get("/pipelines/([^/]+)/files",      (e, m) -> service.statusStore().files(cfg(m)));
+        get("/pipelines/([^/]+)/lineage",    (e, m) -> service.statusStore().lineage(cfg(m), query(e, "batchId")));
+        get("/pipelines/([^/]+)/quarantine", (e, m) -> service.statusStore().quarantine(cfg(m)));
         // Inbox/processing status: files still pending (matched, not yet processed) + whether the
         // pipeline is currently ingesting. Complements the audit-backed /files (processed history).
-        get("/pipelines/([^/]+)/pending",    true, (e, m) ->
+        get("/pipelines/([^/]+)/pending",    (e, m) ->
                 service.inboxStatus(name(m)).orElseThrow(() -> notFound(name(m))));
 
-        post("/pipelines/([^/]+)/reprocess", true, (e, m) -> {
+        post("/pipelines/([^/]+)/reprocess", (e, m) -> {
             var path = service.pathFor(name(m)).orElseThrow(() -> notFound(name(m)));
             String batchId = str(body(e), "batchId");
             if (batchId == null) throw new ApiException(400, "body must include 'batchId'");
@@ -343,75 +290,75 @@ public final class ControlApi implements AutoCloseable {
             return Map.of("pipeline", name(m), "batchId", batchId, "status", "reprocessed");
         });
 
-        post("/trigger", true, (e, m) -> service.runAllOnce());
+        post("/trigger", (e, m) -> service.runAllOnce());
 
         // ── v2.8.0: aggregated reports (status snapshot + batch-audit rollup) ──
         // v2.10.0: ?from=&to= scope the rollup to a date range (inclusive; date or datetime).
-        get("/status", true, (e, m) -> service.reports().statusReport());
-        get("/report", true, (e, m) -> service.reports().serviceReport(window(e)));
-        get("/pipelines/([^/]+)/report", true, (e, m) -> {
+        get("/status", (e, m) -> service.reports().statusReport());
+        get("/report", (e, m) -> service.reports().serviceReport(window(e)));
+        get("/pipelines/([^/]+)/report", (e, m) -> {
             cfg(m);   // 404 if no such pipeline
             return service.reports().batchReport(name(m), window(e));
         });
 
         // ── v2.8.0: config-driven jobs (cron / event / manual) ──
-        get("/jobs", true, (e, m) -> jobs().jobs());
-        get("/jobs/([^/]+)/runs", true, (e, m) -> jobs().runsFor(name(m)));
-        post("/jobs/([^/]+)/trigger", true, (e, m) -> {
+        get("/jobs", (e, m) -> jobs().jobs());
+        get("/jobs/([^/]+)/runs", (e, m) -> jobs().runsFor(name(m)));
+        post("/jobs/([^/]+)/trigger", (e, m) -> {
             if (!jobs().trigger(name(m)))
                 throw new ApiException(404, "no job named '" + name(m) + "'");
             return Map.of("job", name(m), "status", "triggered");
         });
 
         // ── v2.9.0: Stage-2 enrichment run audit + lineage + rollup ──
-        get("/enrichment", true, (e, m) -> enrichment().views());
-        get("/enrichment/([^/]+)/runs", true, (e, m) -> enrichment().runs(enrichJob(m)));
-        get("/enrichment/([^/]+)/lineage", true, (e, m) ->
+        get("/enrichment", (e, m) -> enrichment().views());
+        get("/enrichment/([^/]+)/runs", (e, m) -> enrichment().runs(enrichJob(m)));
+        get("/enrichment/([^/]+)/lineage", (e, m) ->
                 enrichment().lineage(enrichJob(m), query(e, "runId")));
-        get("/enrichment/([^/]+)/report", true, (e, m) ->
+        get("/enrichment/([^/]+)/report", (e, m) ->
                 service.reports().enrichmentReport(enrichJob(m), window(e)));
 
         // ── v3.2.0: metadata graph / data catalog (scope assist.read; control satisfies it) ──
-        get("/catalog", Scope.ASSIST_READ, (e, m) -> service.catalog().tables());
-        get("/catalog/kpis", Scope.ASSIST_READ, (e, m) -> catalogKpis());
-        get("/catalog/graph", Scope.ASSIST_READ, (e, m) -> service.catalog().traverse(
+        get("/catalog", (e, m) -> service.catalog().tables());
+        get("/catalog/kpis", (e, m) -> catalogKpis());
+        get("/catalog/graph", (e, m) -> service.catalog().traverse(
                 query(e, "from"),
                 parseIntOr(query(e, "depth"), 1),
                 direction(query(e, "direction")),
                 nodeKinds(query(e, "kinds")),
                 edgeKinds(query(e, "edgeKinds")),
                 "true".equalsIgnoreCase(query(e, "overlay"))));
-        get("/catalog/tables/(.+)", Scope.ASSIST_READ, (e, m) -> catalogNodeDetail(name(m)));
+        get("/catalog/tables/(.+)", (e, m) -> catalogNodeDetail(name(m)));
 
         // ── v3.2.0: declarative config spec (UI form rendering + LLM-constrained authoring) ──
-        get("/config/spec/(.+)", Scope.ASSIST_READ, (e, m) -> {
+        get("/config/spec/(.+)", (e, m) -> {
             ConfigSpec spec = ConfigSpecs.forType(name(m));
             if (spec == null) throw new ApiException(404, "unknown config type: " + name(m));
             return spec;
         });
 
         // Validate a saved file ({"configPath":"…"}) OR an unsaved draft ({"type":…,"config":{…}}).
-        post("/validate", true, (e, m) -> validate(body(e)));
+        post("/validate", (e, m) -> validate(body(e)));
 
         // Persist a validated config draft to disk (scope assist.write; jailed under -Dassist.write.root).
-        post("/config/write", Scope.ASSIST_WRITE, (e, m) -> writeConfig(e, body(e)));
+        post("/config/write", (e, m) -> writeConfig(e, body(e)));
 
         // ── v3.3.0: embedded assist agent — POST /assist/{intent} (scope assist.read) ──
         // ── v3.7.0: recent failure diagnoses (read-only) — registered before the POST catch-all ──
-        get("/assist/diagnoses", Scope.ASSIST_READ, (e, m) ->
+        get("/assist/diagnoses", (e, m) ->
                 service.assistAgent()
                         .map(a -> (Object) a.recentDiagnoses(parseIntOr(query(e, "limit"), 50)))
                         .orElse(List.of()));
         // ── v4.1 (B5): alert execution engine — operator-saved *_alert.toon rules evaluated against
         // the batches ledger. Read-only listings + a manual evaluation sweep; the engine itself is
         // event-driven off the batch bus and lives in the lean core (no agent required). ──
-        get("/alerts", true, (e, m) -> service.alertService()
+        get("/alerts", (e, m) -> service.alertService()
                 .map(a -> (Object) a.recent(parseIntOr(query(e, "limit"), 50)))
                 .orElse(List.of()));
-        get("/alerts/rules", true, (e, m) -> service.alertService()
+        get("/alerts/rules", (e, m) -> service.alertService()
                 .map(a -> (Object) a.rules())
                 .orElse(List.of()));
-        post("/alerts/evaluate", true, (e, m) -> service.alertService()
+        post("/alerts/evaluate", (e, m) -> service.alertService()
                 .map(a -> (Object) a.evaluateAll())
                 .orElseThrow(() -> new ApiException(503,
                         "alert engine not armed (no *_alert.toon rules loaded)")));
@@ -419,66 +366,66 @@ public final class ControlApi implements AutoCloseable {
         // ── v4.2.0 (Phase 1): Operational Event Viewer — the append-only "what happened" feed, backed
         // by EventLog/EventStore (in-memory ring or rolling Parquet). CONTROL-scoped reads. Specific
         // paths are registered before the /events/{id} catch so first-match-wins resolves them. ──
-        get("/events", true, (e, m) -> toMaps(service.events().recent(parseIntOr(query(e, "limit"), 50))));
-        get("/events/search", true, (e, m) -> toMaps(service.events().query(eventQuery(e, EventQuery.DEFAULT_LIMIT))));
-        get("/events/export", true, (e, m) -> exportEvents(e));
-        get("/events/views", true, (e, m) -> service.savedViews().list());
-        post("/events/views", true, (e, m) -> saveView(body(e)));
-        post("/events/views/([^/]+)/delete", true, (e, m) -> {
+        get("/events", (e, m) -> toMaps(service.events().recent(parseIntOr(query(e, "limit"), 50))));
+        get("/events/search", (e, m) -> toMaps(service.events().query(eventQuery(e, EventQuery.DEFAULT_LIMIT))));
+        get("/events/export", (e, m) -> exportEvents(e));
+        get("/events/views", (e, m) -> service.savedViews().list());
+        post("/events/views", (e, m) -> saveView(body(e)));
+        post("/events/views/([^/]+)/delete", (e, m) -> {
             if (!service.savedViews().delete(name(m)))
                 throw new ApiException(404, "no saved view named '" + name(m) + "'");
             return Map.of("name", name(m), "deleted", true);
         });
-        get("/events/([^/]+)", true, (e, m) -> eventById(name(m)));
+        get("/events/([^/]+)", (e, m) -> eventById(name(m)));
 
         // ── v4.3.0 (Phase 2): Alert Center — mutable operational objects (ALERT now; ISSUE/CASE later)
         // with a workflow-checked lifecycle. CONTROL-scoped. Specific verbs are registered before the
         // /objects/{id} catch so first-match-wins resolves them. v4.4.0 (Phase 3) adds POST /objects so
         // operators can create ISSUEs (ALERTs are auto-promoted); lifecycle moves use /transition. ──
-        get("/objects", true, (e, m) -> toObjectMaps(service.objects().query(objectQuery(e))));
-        post("/objects", true, (e, m) -> createObject(body(e)));
-        post("/objects/([^/]+)/ack", true, (e, m) -> transition(name(m), "ack", null, body(e)));
-        post("/objects/([^/]+)/resolve", true, (e, m) -> transition(name(m), "resolve", null, body(e)));
-        post("/objects/([^/]+)/transition", true, (e, m) -> transitionFromBody(name(m), body(e)));
-        post("/objects/([^/]+)/links", true, (e, m) -> createLink(name(m), body(e)));
-        get("/objects/([^/]+)/links", true, (e, m) -> toLinkMaps(service.objects().linksOf(name(m))));
-        get("/objects/([^/]+)/graph", true, (e, m) -> objectGraph(name(m), e));
-        post("/objects/([^/]+)/comments", true, (e, m) -> addComment(name(m), body(e)));
-        get("/objects/([^/]+)/comments", true, (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.COMMENT)));
-        post("/objects/([^/]+)/attachments", true, (e, m) -> addAttachment(name(m), body(e)));
-        get("/objects/([^/]+)/attachments", true, (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.ATTACHMENT)));
-        post("/objects/([^/]+)/rca", true, (e, m) -> applyRca(name(m), body(e)));
-        get("/objects/([^/]+)", true, (e, m) -> objectById(name(m)));
-        get("/rca/templates", true, (e, m) -> rcaTemplateList());
+        get("/objects", (e, m) -> toObjectMaps(service.objects().query(objectQuery(e))));
+        post("/objects", (e, m) -> createObject(body(e)));
+        post("/objects/([^/]+)/ack", (e, m) -> transition(name(m), "ack", null, body(e)));
+        post("/objects/([^/]+)/resolve", (e, m) -> transition(name(m), "resolve", null, body(e)));
+        post("/objects/([^/]+)/transition", (e, m) -> transitionFromBody(name(m), body(e)));
+        post("/objects/([^/]+)/links", (e, m) -> createLink(name(m), body(e)));
+        get("/objects/([^/]+)/links", (e, m) -> toLinkMaps(service.objects().linksOf(name(m))));
+        get("/objects/([^/]+)/graph", (e, m) -> objectGraph(name(m), e));
+        post("/objects/([^/]+)/comments", (e, m) -> addComment(name(m), body(e)));
+        get("/objects/([^/]+)/comments", (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.COMMENT)));
+        post("/objects/([^/]+)/attachments", (e, m) -> addAttachment(name(m), body(e)));
+        get("/objects/([^/]+)/attachments", (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.ATTACHMENT)));
+        post("/objects/([^/]+)/rca", (e, m) -> applyRca(name(m), body(e)));
+        get("/objects/([^/]+)", (e, m) -> objectById(name(m)));
+        get("/rca/templates", (e, m) -> rcaTemplateList());
 
         // ── Acquisition / Sources UI: a flat view of every pipeline's source acquisition config +
         // a JSON acquisition-metrics snapshot (the Prometheus /metrics is text-only). CONTROL-scoped. ──
-        get("/sources", true, (e, m) -> service.sources());
-        get("/metrics/acquisition", true, (e, m) -> acquisitionMetrics());
+        get("/sources", (e, m) -> service.sources());
+        get("/metrics/acquisition", (e, m) -> acquisitionMetrics());
 
         // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test +
         // create/update/delete (CONTROL-scoped; write-back jailed under -Dassist.write.root). The specific
         // /test verb and /{id} are registered before the bare collection; profiles are returned secret-masked. ──
-        get("/connections", true, (e, m) -> connectionList());
-        post("/connections", true, (e, m) -> createConnection(body(e)));
-        post("/connections/([^/]+)/test", true, (e, m) -> testConnection(name(m)));
-        put("/connections/([^/]+)", true, (e, m) -> updateConnection(name(m), body(e)));
-        delete("/connections/([^/]+)", true, (e, m) -> deleteConnection(name(m)));
-        get("/connections/([^/]+)", true, (e, m) -> connectionById(name(m)));
+        get("/connections", (e, m) -> connectionList());
+        post("/connections", (e, m) -> createConnection(body(e)));
+        post("/connections/([^/]+)/test", (e, m) -> testConnection(name(m)));
+        put("/connections/([^/]+)", (e, m) -> updateConnection(name(m), body(e)));
+        delete("/connections/([^/]+)", (e, m) -> deleteConnection(name(m)));
+        get("/connections/([^/]+)", (e, m) -> connectionById(name(m)));
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
-        get("/assist/settings", Scope.ASSIST_READ, (e, m) -> assistAgentOr503().settings());
-        get("/assist/metrics", Scope.ASSIST_READ, (e, m) -> assistAgentOr503().metrics());
-        post("/assist/settings/test", Scope.ASSIST_WRITE, (e, m) -> assistAgentOr503().testSettings());
-        post("/assist/settings", Scope.ASSIST_WRITE, (e, m) -> {
+        get("/assist/settings", (e, m) -> assistAgentOr503().settings());
+        get("/assist/metrics", (e, m) -> assistAgentOr503().metrics());
+        post("/assist/settings/test", (e, m) -> assistAgentOr503().testSettings());
+        post("/assist/settings", (e, m) -> {
             try {
                 return assistAgentOr503().updateSettings(body(e));
             } catch (IllegalArgumentException ex) {
                 throw new ApiException(400, ex.getMessage());
             }
         });
-        post("/assist/(.+)", Scope.ASSIST_READ, (e, m) -> assist(name(m), body(e)));
+        post("/assist/(.+)", (e, m) -> assist(name(m), body(e)));
     }
 
     /**
@@ -827,7 +774,6 @@ public final class ControlApi implements AutoCloseable {
                 if (!m.matches()) continue;
                 pathMatched = true;
                 if (!r.method.equals(method)) continue;
-                if (r.scope != Scope.PUBLIC) requireAuth(r.scope, ex);
                 Object result = r.handler.handle(ex, m);
                 if (result != HANDLED) respond(ex, 200, result);
                 return;
@@ -844,49 +790,6 @@ public final class ControlApi implements AutoCloseable {
         } finally {
             ex.close();
         }
-    }
-
-    /**
-     * Enforce the route's {@link Scope}. Fail-closed: a scope with no configured token is
-     * locked (401), never open. The presented token is matched constant-time
-     * ({@link MessageDigest#isEqual}) against every token that satisfies the scope under the
-     * hierarchy (control ⊇ assist.write ⊇ assist.read).
-     */
-    private void requireAuth(Scope scope, HttpExchange ex) {
-        List<String> acceptable = acceptableTokens(scope);
-        if (acceptable.isEmpty())
-            throw new ApiException(401, "unauthorized: no " + scope.label + " token configured");
-        String presented = presentedToken(ex);
-        if (presented == null) throw new ApiException(401, "unauthorized");
-        byte[] p = presented.getBytes(StandardCharsets.UTF_8);
-        for (String t : acceptable)
-            if (MessageDigest.isEqual(t.getBytes(StandardCharsets.UTF_8), p)) return;
-        throw new ApiException(401, "unauthorized");
-    }
-
-    /** Tokens that satisfy a scope, widest-privilege first; empty ⇒ scope is locked. */
-    private List<String> acceptableTokens(Scope scope) {
-        List<String> out = new ArrayList<>();
-        switch (scope) {
-            case CONTROL      -> addToken(out, tokens.control());
-            case ASSIST_WRITE -> { addToken(out, tokens.assistWrite()); addToken(out, tokens.control()); }
-            case ASSIST_READ  -> { addToken(out, tokens.assistRead()); addToken(out, tokens.assistWrite());
-                                   addToken(out, tokens.control()); }
-            case PUBLIC       -> { /* no token required */ }
-        }
-        return out;
-    }
-
-    private static void addToken(List<String> list, String t) {
-        if (t != null && !t.isBlank()) list.add(t);
-    }
-
-    /** The bearer token presented on the request ({@code Authorization: Bearer} or {@code X-Api-Token}). */
-    private static String presentedToken(HttpExchange ex) {
-        String auth = ex.getRequestHeaders().getFirst("Authorization");
-        return (auth != null && auth.startsWith("Bearer "))
-                ? auth.substring("Bearer ".length()).trim()
-                : ex.getRequestHeaders().getFirst("X-Api-Token");
     }
 
     private void respond(HttpExchange ex, int status, Object body) throws IOException {
@@ -1593,19 +1496,17 @@ public final class ControlApi implements AutoCloseable {
         return null;
     }
 
-    // Scope-typed registration (used by M2 assist routes). The boolean overloads below
-    // keep every existing route registration unchanged: false → PUBLIC, true → CONTROL.
-    private void get (String pattern, Scope scope, Handler h) { routes.add(new Route("GET",  Pattern.compile("^" + pattern + "$"), scope, h)); }
-    private void post(String pattern, Scope scope, Handler h) { routes.add(new Route("POST", Pattern.compile("^" + pattern + "$"), scope, h)); }
-    private void get (String pattern, boolean auth, Handler h)  { get (pattern, auth ? Scope.CONTROL : Scope.PUBLIC, h); }
-    private void post(String pattern, boolean auth, Handler h)  { post(pattern, auth ? Scope.CONTROL : Scope.PUBLIC, h); }
-    private void put   (String pattern, boolean auth, Handler h) { routes.add(new Route("PUT",    Pattern.compile("^" + pattern + "$"), auth ? Scope.CONTROL : Scope.PUBLIC, h)); }
-    private void delete(String pattern, boolean auth, Handler h) { routes.add(new Route("DELETE", Pattern.compile("^" + pattern + "$"), auth ? Scope.CONTROL : Scope.PUBLIC, h)); }
+    // Route registration. The core (Personal edition) is auth-free — every route is open.
+    // Standard/Enterprise editions re-introduce authorization out-of-band via the security module.
+    private void get (String pattern, Handler h) { routes.add(new Route("GET",    Pattern.compile("^" + pattern + "$"), h)); }
+    private void post(String pattern, Handler h) { routes.add(new Route("POST",   Pattern.compile("^" + pattern + "$"), h)); }
+    private void put   (String pattern, Handler h) { routes.add(new Route("PUT",    Pattern.compile("^" + pattern + "$"), h)); }
+    private void delete(String pattern, Handler h) { routes.add(new Route("DELETE", Pattern.compile("^" + pattern + "$"), h)); }
 
     @FunctionalInterface
     private interface Handler { Object handle(HttpExchange ex, Matcher m) throws Exception; }
 
-    private record Route(String method, Pattern pattern, Scope scope, Handler handler) {}
+    private record Route(String method, Pattern pattern, Handler handler) {}
 
     /** Maps to an HTTP status + JSON {@code {"error": …}} body. */
     private static final class ApiException extends RuntimeException {

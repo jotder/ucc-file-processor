@@ -1,4 +1,6 @@
-<!-- Global connectivity banner (offline / backend-down) — shown above every layout, self-hides when healthy -->
+<!-- Global connectivity banner (offline / backend-down) — shown above every layout, self-hides when healthy.
+     The banner host is `display:contents` (see ConnectivityBannerComponent) so it consumes no layout space when
+     hidden; `layout` is a flex COLUMN (layout.component.scss) so when shown its alert stacks full-width on top. -->
 <inspecto-connectivity-banner></inspecto-connectivity-banner>
 
 <!-- ----------------------------------------------------------------------------------------------------- -->

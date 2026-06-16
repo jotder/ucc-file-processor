@@ -1,9 +1,6 @@
 import { Route } from '@angular/router';
-import { inspectoAuthGuard } from 'app/inspecto/auth.service';
 import { initialDataResolver } from 'app/app.resolvers';
 import { LayoutComponent } from 'app/layout/layout.component';
-import { DefaultCallbackComponent } from './modules/auth/default-callback/default-callback.component';
-import { UserPermissionService } from './modules/auth/user-permission/user-permission.service';
 
 // @formatter:off
 /* eslint-disable max-len */
@@ -38,33 +35,10 @@ export const appRoutes: Route[] = [
     //     ]
     // },
 
-    // Auth routes for authenticated users
+    // Inspecto inspector routes. The backend ControlApi is fully open (no auth) — the app is
+    // single-user with no login, no token, and no route guard.
     {
         path: '',
-        canActivate: [UserPermissionService],
-        canActivateChild: [UserPermissionService],
-        component: LayoutComponent,
-        data: {
-            layout: 'empty'
-        },
-        children: [
-            // {path: 'sign-out', loadChildren: () => import('app/modules/auth/sign-out/sign-out.routes')},
-            // {path: 'unlock-session', loadChildren: () => import('app/modules/auth/unlock-session/unlock-session.routes')}
-        ]
-    },
-
-    // Inspecto inspector routes. ControlApi uses operator tokens (X-Api-Token), not the Pronto OAuth
-    // flow the template's guard redirects to — so these use the Inspecto token guard instead.
-    {
-        path: 'connect',
-        component: LayoutComponent,
-        data: { layout: 'empty' },
-        loadChildren: () => import('app/modules/admin/connect/connect.routes')
-    },
-    {
-        path: '',
-        canActivate: [inspectoAuthGuard],
-        canActivateChild: [inspectoAuthGuard],
         component: LayoutComponent,
         resolve: {
             initialData: initialDataResolver

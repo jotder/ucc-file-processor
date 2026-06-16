@@ -10,7 +10,6 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, EventRow, EventsService, NodeKind, ObjectGraph, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
-import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { fmtDateTime } from 'app/inspecto/grid';
@@ -50,7 +49,6 @@ export class ObjectDetailComponent implements OnInit {
     private eventsApi = inject(EventsService);
     private route = inject(ActivatedRoute);
     private router = inject(Router);
-    private auth = inject(InspectoAuthService);
     private dialog = inject(MatDialog);
     private toastr = inject(ToastrService);
     private fb = inject(FormBuilder);
@@ -86,10 +84,6 @@ export class ObjectDetailComponent implements OnInit {
     });
 
     readonly fmt = fmtDateTime;
-
-    get canControl(): boolean {
-        return this.auth.hasControl();
-    }
 
     /** Legal next workflow actions from the current status, per object type (backend re-validates). */
     private static readonly TRANSITIONS: Record<string, Record<string, string[]>> = {

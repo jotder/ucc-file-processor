@@ -27,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ControlApiEventsTest {
 
-    private static final String TOKEN = "secret";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -42,7 +41,7 @@ class ControlApiEventsTest {
         Files.writeString(inbox.resolve("data.csv"),
                 "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n2,20,2020-01-01\n3,30,2020-02-05\n");
         SourceService svc = new SourceService(List.of(toon), 3600, 1);
-        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port(), "test_etl");
     }
@@ -50,10 +49,10 @@ class ControlApiEventsTest {
     @Test
     void eventsFeedSearchDetailAndExport(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            assertEquals(200, send(c.port, "POST", "/pipelines/" + c.name + "/trigger", TOKEN, null).statusCode());
+            assertEquals(200, send(c.port, "POST", "/pipelines/" + c.name + "/trigger", null).statusCode());
 
             // live-tail feed: non-empty, carries a BATCH_COMMITTED domain event
-            JsonNode recent = json(send(c.port, "GET", "/events?limit=200", TOKEN, null));
+            JsonNode recent = json(send(c.port, "GET", "/events?limit=200", null));
             assertTrue(recent.isArray() && recent.size() > 0, "events recorded");
             String commitId = null;
             for (JsonNode e : recent) {
@@ -62,54 +61,50 @@ class ControlApiEventsTest {
             assertNotNull(commitId, "a BATCH_COMMITTED event is present");
 
             // filtered search by type
-            JsonNode byType = json(send(c.port, "GET", "/events/search?type=BATCH_COMMITTED", TOKEN, null));
+            JsonNode byType = json(send(c.port, "GET", "/events/search?type=BATCH_COMMITTED", null));
             assertTrue(byType.size() >= 1);
             assertEquals("BATCH_COMMITTED", byType.get(0).get("type").asText());
             assertEquals(c.name, byType.get(0).get("pipeline").asText());
             assertFalse(byType.get(0).get("correlationId").asText().isBlank(), "batchId threaded as correlationId");
 
             // event-by-id: hit + miss
-            assertEquals(200, send(c.port, "GET", "/events/" + commitId, TOKEN, null).statusCode());
-            assertEquals(404, send(c.port, "GET", "/events/no-such-id", TOKEN, null).statusCode());
+            assertEquals(200, send(c.port, "GET", "/events/" + commitId, null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/events/no-such-id", null).statusCode());
 
             // CSV export
             HttpResponse<String> csv = send(c.port, "GET",
-                    "/events/export?format=csv&type=BATCH_COMMITTED", TOKEN, null);
+                    "/events/export?format=csv&type=BATCH_COMMITTED", null);
             assertEquals(200, csv.statusCode());
             assertTrue(csv.headers().firstValue("Content-Type").orElse("").startsWith("text/csv"));
             assertTrue(csv.body().startsWith("timestamp,level,type,source,pipeline,correlationId,message"));
             assertTrue(csv.body().contains("BATCH_COMMITTED"), "exported row present");
-
-            // auth enforced
-            assertEquals(401, send(c.port, "GET", "/events", null, null).statusCode());
         }
     }
 
     @Test
     void savedViewsCrud(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            JsonNode created = json(send(c.port, "POST", "/events/views", TOKEN,
+            JsonNode created = json(send(c.port, "POST", "/events/views",
                     "{\"name\":\"errors\",\"level\":\"ERROR\",\"q\":\"fail\"}"));
             assertEquals("errors", created.get("name").asText());
             assertEquals("ERROR", created.get("filters").get("level").asText());
 
-            JsonNode list = json(send(c.port, "GET", "/events/views", TOKEN, null));
+            JsonNode list = json(send(c.port, "GET", "/events/views", null));
             assertTrue(list.isArray() && list.size() == 1);
             assertEquals("errors", list.get(0).get("name").asText());
 
-            assertEquals(200, send(c.port, "POST", "/events/views/errors/delete", TOKEN, null).statusCode());
-            assertEquals(0, json(send(c.port, "GET", "/events/views", TOKEN, null)).size());
-            assertEquals(404, send(c.port, "POST", "/events/views/errors/delete", TOKEN, null).statusCode(),
+            assertEquals(200, send(c.port, "POST", "/events/views/errors/delete", null).statusCode());
+            assertEquals(0, json(send(c.port, "GET", "/events/views", null)).size());
+            assertEquals(404, send(c.port, "POST", "/events/views/errors/delete", null).statusCode(),
                     "deleting a missing view → 404");
 
-            assertEquals(400, send(c.port, "POST", "/events/views", TOKEN, "{}").statusCode(),
+            assertEquals(400, send(c.port, "POST", "/events/views", "{}").statusCode(),
                     "name is required");
         }
     }
 
-    private HttpResponse<String> send(int port, String method, String path, String token, String body) throws Exception {
+    private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         if (body != null) b.header("Content-Type", "application/json").method(method, BodyPublishers.ofString(body));
         else b.method(method, BodyPublishers.noBody());
         return client.send(b.build(), BodyHandlers.ofString());

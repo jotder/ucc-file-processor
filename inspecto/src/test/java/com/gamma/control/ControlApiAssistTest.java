@@ -31,7 +31,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ControlApiAssistTest {
 
-    private static final String TOKEN = "secret";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -71,38 +70,25 @@ class ControlApiAssistTest {
         Path pipe = PipelineConfigBatchTest.writePipeline(dir, "");
         SourceService svc = new SourceService(List.of(pipe), 3600, 1);
         if (withAgent) svc.registerAgent(new StubAgent());
-        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port());
     }
 
-    private HttpResponse<String> post(int port, String path, String token, String body) throws Exception {
+    private HttpResponse<String> post(int port, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
     }
 
-    private HttpResponse<String> get(int port, String path, String token) throws Exception {
+    private HttpResponse<String> get(int port, String path) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.GET().build(), BodyHandlers.ofString());
-    }
-
-    @Test
-    void assistRouteIsScopedAssistRead(@TempDir Path dir) throws Exception {
-        try (Ctx c = open(dir, true)) {
-            String body = "{\"userText\":\"hi\"}";
-            assertEquals(401, post(c.port, "/assist/echo", null, body).statusCode(), "no token -> locked");
-            assertEquals(401, post(c.port, "/assist/echo", "wrong", body).statusCode(), "bad token -> 401");
-            assertEquals(200, post(c.port, "/assist/echo", TOKEN, body).statusCode(),
-                    "control token satisfies assist.read");
-        }
     }
 
     @Test
     void noAgentRegisteredReturns503(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, false)) {
-            HttpResponse<String> r = post(c.port, "/assist/echo", TOKEN, "{\"userText\":\"hi\"}");
+            HttpResponse<String> r = post(c.port, "/assist/echo", "{\"userText\":\"hi\"}");
             assertEquals(503, r.statusCode(), "auth passes, but no agent on the classpath");
             assertTrue(JSON.readTree(r.body()).get("error").asText().contains("not available"));
         }
@@ -111,7 +97,7 @@ class ControlApiAssistTest {
     @Test
     void okIntentReturnsResultBody(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, true)) {
-            HttpResponse<String> r = post(c.port, "/assist/echo", TOKEN, "{\"userText\":\"hello\"}");
+            HttpResponse<String> r = post(c.port, "/assist/echo", "{\"userText\":\"hello\"}");
             assertEquals(200, r.statusCode());
             JsonNode out = JSON.readTree(r.body());
             assertEquals("echo", out.get("intent").asText());
@@ -126,7 +112,7 @@ class ControlApiAssistTest {
     @Test
     void draftResultCarriesStructuredDataPayload(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, true)) {
-            HttpResponse<String> r = post(c.port, "/assist/draft", TOKEN, "{\"userText\":\"weekdays 6am\"}");
+            HttpResponse<String> r = post(c.port, "/assist/draft", "{\"userText\":\"weekdays 6am\"}");
             assertEquals(200, r.statusCode());
             JsonNode out = JSON.readTree(r.body());
             assertEquals("OK", out.get("status").asText());
@@ -146,7 +132,7 @@ class ControlApiAssistTest {
     @Test
     void unknownIntentIs404(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, true)) {
-            HttpResponse<String> r = post(c.port, "/assist/no-such-skill", TOKEN, "{}");
+            HttpResponse<String> r = post(c.port, "/assist/no-such-skill", "{}");
             assertEquals(404, r.statusCode());
             assertTrue(JSON.readTree(r.body()).get("error").asText().contains("unknown assist intent"));
         }
@@ -155,7 +141,7 @@ class ControlApiAssistTest {
     @Test
     void modelUnavailableIs503WithMessage(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, true)) {
-            HttpResponse<String> r = post(c.port, "/assist/down", TOKEN, "{}");
+            HttpResponse<String> r = post(c.port, "/assist/down", "{}");
             assertEquals(503, r.statusCode());
             assertEquals("model offline", JSON.readTree(r.body()).get("error").asText());
         }
@@ -166,8 +152,7 @@ class ControlApiAssistTest {
     @Test
     void diagnosesRouteIsScopedAndReturnsAgentDiagnoses(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, true)) {
-            assertEquals(401, get(c.port, "/assist/diagnoses", null).statusCode(), "no token -> locked");
-            HttpResponse<String> r = get(c.port, "/assist/diagnoses", TOKEN);
+            HttpResponse<String> r = get(c.port, "/assist/diagnoses");
             assertEquals(200, r.statusCode());
             JsonNode out = JSON.readTree(r.body());
             assertTrue(out.isArray() && out.size() == 1, "the agent's recent diagnoses come through as JSON");
@@ -182,7 +167,7 @@ class ControlApiAssistTest {
     @Test
     void diagnosesRouteReturnsEmptyWhenNoAgent(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, false)) {
-            HttpResponse<String> r = get(c.port, "/assist/diagnoses", TOKEN);
+            HttpResponse<String> r = get(c.port, "/assist/diagnoses");
             assertEquals(200, r.statusCode(), "no agent -> empty list, not an error");
             assertTrue(JSON.readTree(r.body()).isArray());
             assertEquals(0, JSON.readTree(r.body()).size());

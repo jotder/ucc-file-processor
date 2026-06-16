@@ -30,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ControlApiObjectsTest {
 
-    private static final String TOKEN = "secret";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -41,7 +40,7 @@ class ControlApiObjectsTest {
     private Ctx open(Path dir) throws Exception {
         Path toon = TestConfigs.csv(dir, PipelineConfigBatchTest.miniSchema()).write();
         SourceService svc = new SourceService(List.of(toon), 3600, 1);
-        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port());
     }
@@ -53,33 +52,31 @@ class ControlApiObjectsTest {
                     "CRITICAL", "pipeA", Map.of("rule", "r1"));
 
             // list + filter
-            JsonNode list = json(send(c.port, "GET", "/objects?type=ALERT&status=OPEN", TOKEN, null));
+            JsonNode list = json(send(c.port, "GET", "/objects?type=ALERT&status=OPEN", null));
             assertTrue(list.isArray() && list.size() == 1);
             assertEquals(seed.id(), list.get(0).get("id").asText());
             assertEquals("CRITICAL", list.get(0).get("severity").asText());
 
             // by id: hit + miss
-            assertEquals(200, send(c.port, "GET", "/objects/" + seed.id(), TOKEN, null).statusCode());
-            assertEquals(404, send(c.port, "GET", "/objects/none", TOKEN, null).statusCode());
+            assertEquals(200, send(c.port, "GET", "/objects/" + seed.id(), null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/objects/none", null).statusCode());
 
             // ack → ACKNOWLEDGED
-            JsonNode acked = json(send(c.port, "POST", "/objects/" + seed.id() + "/ack", TOKEN,
+            JsonNode acked = json(send(c.port, "POST", "/objects/" + seed.id() + "/ack",
                     "{\"actor\":\"alice\"}"));
             assertEquals("ACKNOWLEDGED", acked.get("status").asText());
 
             // resolve → RESOLVED (terminal: closedAt set)
-            JsonNode resolved = json(send(c.port, "POST", "/objects/" + seed.id() + "/resolve", TOKEN, null));
+            JsonNode resolved = json(send(c.port, "POST", "/objects/" + seed.id() + "/resolve", null));
             assertEquals("RESOLVED", resolved.get("status").asText());
             assertTrue(resolved.get("closedAt").asLong() > 0);
 
             // illegal transition (ack a resolved alert) → 422
-            assertEquals(422, send(c.port, "POST", "/objects/" + seed.id() + "/ack", TOKEN, null).statusCode());
+            assertEquals(422, send(c.port, "POST", "/objects/" + seed.id() + "/ack", null).statusCode());
             // unknown id transition → 404
-            assertEquals(404, send(c.port, "POST", "/objects/none/ack", TOKEN, null).statusCode());
+            assertEquals(404, send(c.port, "POST", "/objects/none/ack", null).statusCode());
             // bad type filter → 400
-            assertEquals(400, send(c.port, "GET", "/objects?type=bogus", TOKEN, null).statusCode());
-            // auth enforced
-            assertEquals(401, send(c.port, "GET", "/objects", null, null).statusCode());
+            assertEquals(400, send(c.port, "GET", "/objects?type=bogus", null).statusCode());
         }
     }
 
@@ -87,11 +84,11 @@ class ControlApiObjectsTest {
     void genericTransitionByTargetStatus(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             OperationalObject seed = c.svc.objects().open(ObjectType.ALERT, "t", "d", "INFO", "pipeB", Map.of());
-            JsonNode out = json(send(c.port, "POST", "/objects/" + seed.id() + "/transition", TOKEN,
+            JsonNode out = json(send(c.port, "POST", "/objects/" + seed.id() + "/transition",
                     "{\"status\":\"ACKNOWLEDGED\",\"actor\":\"bob\"}"));
             assertEquals("ACKNOWLEDGED", out.get("status").asText());
             // neither action nor status → 400
-            assertEquals(400, send(c.port, "POST", "/objects/" + seed.id() + "/transition", TOKEN, "{}").statusCode());
+            assertEquals(400, send(c.port, "POST", "/objects/" + seed.id() + "/transition", "{}").statusCode());
         }
     }
 
@@ -99,7 +96,7 @@ class ControlApiObjectsTest {
     void createIssueAndWalkLifecycle(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             // create an ISSUE via POST /objects (type defaults to ISSUE); dueInMinutes seeds the SLA deadline
-            JsonNode created = json(send(c.port, "POST", "/objects", TOKEN,
+            JsonNode created = json(send(c.port, "POST", "/objects",
                     "{\"title\":\"bad rows\",\"severity\":\"HIGH\",\"assignee\":\"alice\",\"dueInMinutes\":30}"));
             String id = created.get("id").asText();
             assertEquals("ISSUE", created.get("objectType").asText());
@@ -111,26 +108,26 @@ class ControlApiObjectsTest {
             assertEquals("ASSIGNED", transition(c.port, id, "assign"));
             assertEquals("IN_PROGRESS", transition(c.port, id, "start"));
             assertEquals("RESOLVED", transition(c.port, id, "resolve"));
-            JsonNode closed = json(send(c.port, "POST", "/objects/" + id + "/transition", TOKEN,
+            JsonNode closed = json(send(c.port, "POST", "/objects/" + id + "/transition",
                     "{\"action\":\"close\",\"actor\":\"bob\"}"));
             assertEquals("CLOSED", closed.get("status").asText());
             assertTrue(closed.get("closedAt").asLong() > 0, "CLOSED is terminal → closedAt set");
 
             // it lists under a type filter; an illegal next move → 422
-            JsonNode issues = json(send(c.port, "GET", "/objects?type=ISSUE", TOKEN, null));
+            JsonNode issues = json(send(c.port, "GET", "/objects?type=ISSUE", null));
             assertTrue(issues.isArray() && issues.size() == 1 && id.equals(issues.get(0).get("id").asText()));
-            assertEquals(422, send(c.port, "POST", "/objects/" + id + "/transition", TOKEN,
+            assertEquals(422, send(c.port, "POST", "/objects/" + id + "/transition",
                     "{\"action\":\"start\"}").statusCode());
 
             // missing title → 400; unknown type → 400
-            assertEquals(400, send(c.port, "POST", "/objects", TOKEN, "{\"severity\":\"LOW\"}").statusCode());
-            assertEquals(400, send(c.port, "POST", "/objects", TOKEN, "{\"title\":\"x\",\"type\":\"bogus\"}").statusCode());
+            assertEquals(400, send(c.port, "POST", "/objects", "{\"severity\":\"LOW\"}").statusCode());
+            assertEquals(400, send(c.port, "POST", "/objects", "{\"title\":\"x\",\"type\":\"bogus\"}").statusCode());
         }
     }
 
     /** POST a generic {action} transition and return the resulting status. */
     private String transition(int port, String id, String action) throws Exception {
-        return json(send(port, "POST", "/objects/" + id + "/transition", TOKEN,
+        return json(send(port, "POST", "/objects/" + id + "/transition",
                 "{\"action\":\"" + action + "\"}")).get("status").asText();
     }
 
@@ -141,31 +138,31 @@ class ControlApiObjectsTest {
                     "HIGH", "corr", Map.of());
 
             // comment
-            JsonNode comment = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/comments", TOKEN,
+            JsonNode comment = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/comments",
                     "{\"body\":\"starting\",\"author\":\"alice\"}"));
             assertEquals("COMMENT", comment.get("kind").asText());
             assertEquals("starting", comment.get("body").asText());
 
             // attachment (evidence reference — metadata only)
-            JsonNode att = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/attachments", TOKEN,
+            JsonNode att = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/attachments",
                     "{\"name\":\"trace.log\",\"uri\":\"s3://x/trace.log\",\"contentType\":\"text/plain\",\"author\":\"bob\"}"));
             assertEquals("ATTACHMENT", att.get("kind").asText());
             assertEquals("trace.log", att.get("attributes").get("name").asText());
 
             // RCA seeds one comment per section (inline template)
-            JsonNode rca = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/rca", TOKEN,
+            JsonNode rca = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/rca",
                     "{\"sections\":[\"Summary\",\"Root cause\",\"Remediation\"],\"actor\":\"alice\"}"));
             assertTrue(rca.isArray() && rca.size() == 3);
 
             // lists: 1 attachment; 1 manual + 3 RCA = 4 comments
-            assertEquals(1, json(send(c.port, "GET", "/objects/" + caseObj.id() + "/attachments", TOKEN, null)).size());
-            assertEquals(4, json(send(c.port, "GET", "/objects/" + caseObj.id() + "/comments", TOKEN, null)).size());
+            assertEquals(1, json(send(c.port, "GET", "/objects/" + caseObj.id() + "/attachments", null)).size());
+            assertEquals(4, json(send(c.port, "GET", "/objects/" + caseObj.id() + "/comments", null)).size());
 
             // gates: missing body → 400; attachment missing uri → 400; unknown object → 404
-            assertEquals(400, send(c.port, "POST", "/objects/" + caseObj.id() + "/comments", TOKEN, "{}").statusCode());
-            assertEquals(400, send(c.port, "POST", "/objects/" + caseObj.id() + "/attachments", TOKEN,
+            assertEquals(400, send(c.port, "POST", "/objects/" + caseObj.id() + "/comments", "{}").statusCode());
+            assertEquals(400, send(c.port, "POST", "/objects/" + caseObj.id() + "/attachments",
                     "{\"name\":\"x\"}").statusCode());
-            assertEquals(404, send(c.port, "POST", "/objects/nope/comments", TOKEN,
+            assertEquals(404, send(c.port, "POST", "/objects/nope/comments",
                     "{\"body\":\"x\"}").statusCode());
         }
     }
@@ -178,18 +175,18 @@ class ControlApiObjectsTest {
             OperationalObject caseObj = c.svc.objects().open(ObjectType.CASE, "inv", "d", "HIGH", null, Map.of());
 
             // the registry lists the loaded template
-            JsonNode templates = json(send(c.port, "GET", "/rca/templates", TOKEN, null));
+            JsonNode templates = json(send(c.port, "GET", "/rca/templates", null));
             assertTrue(templates.isArray() && templates.size() == 1);
             assertEquals("incident", templates.get(0).get("name").asText());
 
             // apply by name → seeds one comment per section
-            JsonNode seeded = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/rca", TOKEN,
+            JsonNode seeded = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/rca",
                     "{\"template\":\"incident\",\"actor\":\"alice\"}"));
             assertTrue(seeded.isArray() && seeded.size() == 2);
-            assertEquals(2, json(send(c.port, "GET", "/objects/" + caseObj.id() + "/comments", TOKEN, null)).size());
+            assertEquals(2, json(send(c.port, "GET", "/objects/" + caseObj.id() + "/comments", null)).size());
 
             // an unknown template name → 404
-            assertEquals(404, send(c.port, "POST", "/objects/" + caseObj.id() + "/rca", TOKEN,
+            assertEquals(404, send(c.port, "POST", "/objects/" + caseObj.id() + "/rca",
                     "{\"template\":\"nope\"}").statusCode());
         }
     }
@@ -203,32 +200,31 @@ class ControlApiObjectsTest {
                     "HIGH", "corr", Map.of());
 
             // CASE CONTAINS ISSUE
-            JsonNode link = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/links", TOKEN,
+            JsonNode link = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/links",
                     "{\"to\":\"" + issue.id() + "\",\"relationship\":\"contains\",\"actor\":\"alice\"}"));
             assertEquals("CONTAINS", link.get("relationship").asText());
             assertEquals(caseObj.id(), link.get("from").asText());
             assertEquals("ISSUE", link.get("toType").asText());
 
             // links incident to the case
-            JsonNode links = json(send(c.port, "GET", "/objects/" + caseObj.id() + "/links", TOKEN, null));
+            JsonNode links = json(send(c.port, "GET", "/objects/" + caseObj.id() + "/links", null));
             assertTrue(links.isArray() && links.size() == 1);
 
             // correlation subgraph around the case
-            JsonNode graph = json(send(c.port, "GET", "/objects/" + caseObj.id() + "/graph?depth=2", TOKEN, null));
+            JsonNode graph = json(send(c.port, "GET", "/objects/" + caseObj.id() + "/graph?depth=2", null));
             assertEquals(2, graph.get("nodes").size());
             assertEquals(1, graph.get("edges").size());
 
             // missing 'to' → 400; unknown endpoint → 404; unknown graph root → 404
-            assertEquals(400, send(c.port, "POST", "/objects/" + caseObj.id() + "/links", TOKEN, "{}").statusCode());
-            assertEquals(404, send(c.port, "POST", "/objects/" + caseObj.id() + "/links", TOKEN,
+            assertEquals(400, send(c.port, "POST", "/objects/" + caseObj.id() + "/links", "{}").statusCode());
+            assertEquals(404, send(c.port, "POST", "/objects/" + caseObj.id() + "/links",
                     "{\"to\":\"nope\"}").statusCode());
-            assertEquals(404, send(c.port, "GET", "/objects/nope/graph", TOKEN, null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/objects/nope/graph", null).statusCode());
         }
     }
 
-    private HttpResponse<String> send(int port, String method, String path, String token, String body) throws Exception {
+    private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         if (body != null) b.header("Content-Type", "application/json").method(method, BodyPublishers.ofString(body));
         else b.method(method, BodyPublishers.noBody());
         return client.send(b.build(), BodyHandlers.ofString());

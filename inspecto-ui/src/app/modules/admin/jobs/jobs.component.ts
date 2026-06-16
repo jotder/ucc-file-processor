@@ -10,7 +10,6 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, JobsService, JobView } from 'app/inspecto/api';
-import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { AssistDialog } from 'app/inspecto/components/assist.dialog';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
@@ -40,7 +39,6 @@ import { JobRunsDialog } from './job-runs.dialog';
 })
 export class JobsComponent implements OnInit {
     private api = inject(JobsService);
-    private auth = inject(InspectoAuthService);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
@@ -50,14 +48,6 @@ export class JobsComponent implements OnInit {
     loading = false;
     unavailable = false;
     quickFilter = '';
-
-    get canControl(): boolean {
-        return this.auth.hasControl();
-    }
-
-    get canAssist(): boolean {
-        return this.auth.hasAssist();
-    }
 
     openSchedule(): void {
         this.dialog.open(AssistDialog, {
@@ -85,7 +75,6 @@ export class JobsComponent implements OnInit {
             {
                 icon: 'heroicons_outline:play',
                 hint: 'Run now',
-                visible: () => this.canControl,
                 onClick: (j) => this.trigger(j),
             },
             {

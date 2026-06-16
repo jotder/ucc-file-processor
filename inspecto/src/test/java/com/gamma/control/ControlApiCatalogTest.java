@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Integration tests for the v3.2.0 {@code /catalog*} routes over real HTTP (P6). */
 class ControlApiCatalogTest {
 
-    private static final String TOKEN = "secret";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -42,30 +41,20 @@ class ControlApiCatalogTest {
         Path pipe = PipelineConfigBatchTest.writePipeline(dir, "");
         SourceService svc = new SourceService(List.of(pipe), List.of(), List.of(),
                 List.of(semantics()), 3600, 1, null);
-        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port());
     }
 
-    private HttpResponse<String> get(int port, String path, String token) throws Exception {
+    private HttpResponse<String> get(int port, String path) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("GET", BodyPublishers.noBody()).build(), BodyHandlers.ofString());
-    }
-
-    @Test
-    void catalogRoutesAreScopedAssistRead(@TempDir Path dir) throws Exception {
-        try (Ctx c = open(dir)) {
-            assertEquals(401, get(c.port, "/catalog", null).statusCode(), "no token -> locked");
-            assertEquals(401, get(c.port, "/catalog", "wrong").statusCode(), "bad token -> 401");
-            assertEquals(200, get(c.port, "/catalog", TOKEN).statusCode(), "control token satisfies assist.read");
-        }
     }
 
     @Test
     void catalogListsEmittedTables(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            JsonNode body = JSON.readTree(get(c.port, "/catalog", TOKEN).body());
+            JsonNode body = JSON.readTree(get(c.port, "/catalog").body());
             assertTrue(body.isArray());
             boolean hasEvent = false;
             for (JsonNode n : body) if ("event:mini_etl/mini".equals(n.get("id").asText())) hasEvent = true;
@@ -77,7 +66,7 @@ class ControlApiCatalogTest {
     void graphTraversesFromKpiDownToSource(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             HttpResponse<String> r = get(c.port,
-                    "/catalog/graph?from=kpi:daily&depth=5&direction=both", TOKEN);
+                    "/catalog/graph?from=kpi:daily&depth=5&direction=both");
             assertEquals(200, r.statusCode());
             JsonNode g = JSON.readTree(r.body());
             boolean reachesSource = false;
@@ -89,7 +78,7 @@ class ControlApiCatalogTest {
     @Test
     void tableDetailReturnsNodeAndNeighbours(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            HttpResponse<String> r = get(c.port, "/catalog/tables/event:mini_etl/mini", TOKEN);
+            HttpResponse<String> r = get(c.port, "/catalog/tables/event:mini_etl/mini");
             assertEquals(200, r.statusCode());
             JsonNode body = JSON.readTree(r.body());
             assertEquals("event:mini_etl/mini", body.get("node").get("id").asText());
@@ -101,7 +90,7 @@ class ControlApiCatalogTest {
     @Test
     void kpisEndpointReturnsCatalogAndDomain(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            JsonNode body = JSON.readTree(get(c.port, "/catalog/kpis", TOKEN).body());
+            JsonNode body = JSON.readTree(get(c.port, "/catalog/kpis").body());
             JsonNode kpis = body.get("kpis");
             assertEquals(1, kpis.size());
             assertEquals("daily", kpis.get(0).get("name").asText());
@@ -114,9 +103,9 @@ class ControlApiCatalogTest {
     @Test
     void unknownNodeIs404AndBadFilterIs400(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            assertEquals(404, get(c.port, "/catalog/tables/kpi:nope", TOKEN).statusCode());
-            assertEquals(400, get(c.port, "/catalog/graph?direction=sideways", TOKEN).statusCode());
-            assertEquals(400, get(c.port, "/catalog/graph?kinds=BOGUS", TOKEN).statusCode());
+            assertEquals(404, get(c.port, "/catalog/tables/kpi:nope").statusCode());
+            assertEquals(400, get(c.port, "/catalog/graph?direction=sideways").statusCode());
+            assertEquals(400, get(c.port, "/catalog/graph?kinds=BOGUS").statusCode());
         }
     }
 }

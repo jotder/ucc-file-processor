@@ -26,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ControlApiConfigSpecTest {
 
-    private static final String TOKEN = "secret";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -37,51 +36,39 @@ class ControlApiConfigSpecTest {
     private Ctx open(Path dir) throws Exception {
         Path pipe = PipelineConfigBatchTest.writePipeline(dir, "");
         SourceService svc = new SourceService(List.of(pipe), 3600, 1);
-        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port(), "mini_etl");
     }
 
-    private HttpResponse<String> get(int port, String path, String token) throws Exception {
+    private HttpResponse<String> get(int port, String path) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("GET", BodyPublishers.noBody()).build(), BodyHandlers.ofString());
     }
 
-    private HttpResponse<String> post(int port, String path, String token, String body) throws Exception {
+    private HttpResponse<String> post(int port, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
-    }
-
-    @Test
-    void configSpecRouteIsScopedAssistRead(@TempDir Path dir) throws Exception {
-        try (Ctx c = open(dir)) {
-            assertEquals(401, get(c.port, "/config/spec/pipeline", null).statusCode(), "no token -> locked");
-            assertEquals(401, get(c.port, "/config/spec/pipeline", "wrong").statusCode(), "bad token -> 401");
-            assertEquals(200, get(c.port, "/config/spec/pipeline", TOKEN).statusCode(),
-                    "control token satisfies assist.read");
-        }
     }
 
     @Test
     void specFetchForEveryTypeAndUnknownIs404(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             for (String type : List.of("pipeline", "enrichment", "job", "schema", "meta")) {
-                HttpResponse<String> r = get(c.port, "/config/spec/" + type, TOKEN);
+                HttpResponse<String> r = get(c.port, "/config/spec/" + type);
                 assertEquals(200, r.statusCode(), type);
                 JsonNode spec = JSON.readTree(r.body());
                 assertEquals(type, spec.get("type").asText());
                 assertTrue(spec.get("fields").size() > 0, type + " has fields");
             }
-            assertEquals(404, get(c.port, "/config/spec/bogus", TOKEN).statusCode());
+            assertEquals(404, get(c.port, "/config/spec/bogus").statusCode());
         }
     }
 
     @Test
     void specExposesCrossFieldRuleCatalogWithoutThePredicate(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            JsonNode spec = JSON.readTree(get(c.port, "/config/spec/pipeline", TOKEN).body());
+            JsonNode spec = JSON.readTree(get(c.port, "/config/spec/pipeline").body());
             JsonNode rules = spec.get("rules");
             assertTrue(rules.size() >= 1);
             JsonNode rule = rules.get(0);
@@ -99,7 +86,7 @@ class ControlApiConfigSpecTest {
                        "name":"X",
                        "dirs":{"poll":"/in","database":"/out"},
                        "processing":{"ingester":"com.x.Plugin","threads":1}}}""";
-            HttpResponse<String> r = post(c.port, "/validate", TOKEN, body);
+            HttpResponse<String> r = post(c.port, "/validate", body);
             assertEquals(200, r.statusCode());
             JsonNode out = JSON.readTree(r.body());
             assertEquals("pipeline", out.get("type").asText());
@@ -119,7 +106,7 @@ class ControlApiConfigSpecTest {
                        "name":"X",
                        "dirs":{"poll":"/in","database":"/out"},
                        "processing":{"threads":1}}}""";
-            JsonNode out = JSON.readTree(post(c.port, "/validate", TOKEN, body).body());
+            JsonNode out = JSON.readTree(post(c.port, "/validate", body).body());
             assertTrue(out.get("clean").asBoolean(), "clean draft: " + out.get("findings"));
             assertEquals(0, out.get("findings").size());
         }
@@ -135,7 +122,7 @@ class ControlApiConfigSpecTest {
                        "dirs":{"poll":"/in","database":"/out","backup":"//evil/share"},
                        "processing":{"threads":1}},
                      "safety":true}""";
-            HttpResponse<String> r = post(c.port, "/validate", TOKEN, body);
+            HttpResponse<String> r = post(c.port, "/validate", body);
             assertEquals(200, r.statusCode());
             JsonNode out = JSON.readTree(r.body());
             assertTrue(out.get("safetyChecked").asBoolean(), "safety gate ran");
@@ -157,7 +144,7 @@ class ControlApiConfigSpecTest {
                        "name":"X",
                        "dirs":{"poll":"/in","database":"/out","backup":"//evil/share"},
                        "processing":{"threads":1}}}""";
-            JsonNode out = JSON.readTree(post(c.port, "/validate", TOKEN, body).body());
+            JsonNode out = JSON.readTree(post(c.port, "/validate", body).body());
             assertFalse(out.get("safetyChecked").asBoolean(), "gate not run by default");
             assertTrue(out.get("clean").asBoolean(), "spec-only path is unchanged: " + out.get("findings"));
         }
@@ -166,9 +153,9 @@ class ControlApiConfigSpecTest {
     @Test
     void validateBadDraftShapeIs400AndUnknownTypeIs404(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            assertEquals(400, post(c.port, "/validate", TOKEN, "{}").statusCode(),
+            assertEquals(400, post(c.port, "/validate", "{}").statusCode(),
                     "neither configPath nor type+config");
-            assertEquals(404, post(c.port, "/validate", TOKEN,
+            assertEquals(404, post(c.port, "/validate",
                     "{\"type\":\"bogus\",\"config\":{}}").statusCode());
         }
     }
@@ -178,7 +165,7 @@ class ControlApiConfigSpecTest {
         try (Ctx c = open(dir)) {
             Path toon = c.svc.pathFor(c.name).orElseThrow();
             String body = "{\"configPath\":\"" + toon.toString().replace("\\", "/") + "\"}";
-            HttpResponse<String> r = post(c.port, "/validate", TOKEN, body);
+            HttpResponse<String> r = post(c.port, "/validate", body);
             assertEquals(200, r.statusCode());
             JsonNode out = JSON.readTree(r.body());
             assertEquals(c.name, out.get("pipeline").asText());

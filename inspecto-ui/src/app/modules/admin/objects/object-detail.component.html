@@ -19,7 +19,7 @@
         </div>
         <div class="mt-4 flex flex-wrap items-center gap-2 sm:mt-0">
             @for (a of actions; track a) {
-                <button mat-stroked-button [disabled]="!canControl" (click)="transition(a)">
+                <button mat-stroked-button (click)="transition(a)">
                     <mat-icon svgIcon="heroicons_outline:arrow-right-circle"></mat-icon>
                     <span class="ml-2">{{ a }}</span>
                 </button>
@@ -27,7 +27,6 @@
             <button
                 mat-flat-button
                 color="primary"
-                [disabled]="!canControl"
                 matTooltip="Seed an RCA skeleton (one comment per section)"
                 (click)="applyRca()"
             >
@@ -92,7 +91,7 @@
             <mat-tab label="Graph">
                 <div class="pt-6">
                     <div class="mb-3 flex justify-end">
-                        <button mat-stroked-button [disabled]="!canControl" (click)="openLink()">
+                        <button mat-stroked-button (click)="openLink()">
                             <mat-icon svgIcon="heroicons_outline:link"></mat-icon>
                             <span class="ml-2">Link…</span>
                         </button>
@@ -149,7 +148,7 @@
                                 <mat-error>Enter a comment before adding.</mat-error>
                             }
                         </mat-form-field>
-                        <button type="submit" mat-flat-button color="primary" class="mt-1" [disabled]="!canControl">
+                        <button type="submit" mat-flat-button color="primary" class="mt-1">
                             Add
                         </button>
                     </form>
@@ -182,7 +181,7 @@
                                 <mat-error>URI is required.</mat-error>
                             }
                         </mat-form-field>
-                        <button type="submit" mat-flat-button color="primary" class="mt-1" [disabled]="!canControl">
+                        <button type="submit" mat-flat-button color="primary" class="mt-1">
                             Attach
                         </button>
                     </form>

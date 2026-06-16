@@ -35,6 +35,20 @@ The core engine never contains `if (edition == …)` branches; it depends on SPI
 `SecretsProvider`, …) and the **build** decides which implementation ships. One SemVer version spans all
 editions; artifacts differ by classifier (`-personal` / `-standard`).
 
+## Status — core is auth-free (2026-06-16)
+
+The hand-rolled bearer-token control plane that earlier versions baked into `ControlApi`
+(per-route `Scope` + `Tokens` + `requireAuth`, `-Dcontrol.token` / `-Dassist.*.token`, the
+Angular token-paste `/connect` screen + `authInterceptor` + route guard) has been **removed
+from the common core / `master`**. The Personal edition is now genuinely auth-free: every
+ControlApi route is open and the SPA boots straight to the dashboard with no login.
+
+Authentication is no longer a core concern — it becomes an **edition** concern. The
+Standard/Enterprise editions re-introduce it out-of-band (see below) behind an `Authenticator`
+SPI seam (to be added in the `inspecto-security` module), so the engine keeps no auth code and
+fixes/features land once in common. This realigns the code with the model already described
+here: editions add modules; they are never branches.
+
 ## Security direction (Standard)
 
 Authentication is **delegated to an external IAM** — the app validates IAM-issued JWTs (Nimbus + JWKS:

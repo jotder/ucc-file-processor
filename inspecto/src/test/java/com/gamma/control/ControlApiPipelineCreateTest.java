@@ -28,7 +28,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ControlApiPipelineCreateTest {
 
-    private static final String TOKEN = "secret";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -54,7 +53,7 @@ class ControlApiPipelineCreateTest {
             System.clearProperty("assist.safety.roots");
         }
         SourceService svc = new SourceService(List.of(pipe), 3600, 1);
-        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        ControlApi api = new ControlApi(svc, 0);
         api.start();   // HTTP only; we never start svc polling, so registration adds without ingesting
         return new Ctx(svc, api, api.port());
     }
@@ -70,15 +69,13 @@ class ControlApiPipelineCreateTest {
         return out;
     }
 
-    private HttpResponse<String> post(int port, String path, String token, String body) throws Exception {
+    private HttpResponse<String> post(int port, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
     }
 
-    private HttpResponse<String> get(int port, String path, String token) throws Exception {
+    private HttpResponse<String> get(int port, String path) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("GET", BodyPublishers.noBody()).build(), BodyHandlers.ofString());
     }
 
@@ -89,7 +86,7 @@ class ControlApiPipelineCreateTest {
     @Test
     void disabledWhenNoWriteRootConfigured(@TempDir Path cfg) throws Exception {
         try (Ctx c = open(cfg, null)) {
-            assertEquals(503, post(c.port, "/pipelines", TOKEN, body("x.toon")).statusCode(),
+            assertEquals(503, post(c.port, "/pipelines", body("x.toon")).statusCode(),
                     "no -Dassist.write.root ⇒ registration disabled");
         }
     }
@@ -100,7 +97,7 @@ class ControlApiPipelineCreateTest {
             assertEquals(1, c.svc.pipelines().size(), "only the startup pipeline at first");
             authorPipeline(root, "orders.toon", "ORDERS");
 
-            HttpResponse<String> r = post(c.port, "/pipelines", TOKEN, body("orders.toon"));
+            HttpResponse<String> r = post(c.port, "/pipelines", body("orders.toon"));
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
             assertTrue(out.get("registered").asBoolean());
@@ -110,7 +107,7 @@ class ControlApiPipelineCreateTest {
 
             // Live: the service now lists it and GET /pipelines reflects it — no restart.
             assertEquals(2, c.svc.pipelines().size());
-            JsonNode list = JSON.readTree(get(c.port, "/pipelines", TOKEN).body());
+            JsonNode list = JSON.readTree(get(c.port, "/pipelines").body());
             boolean found = false;
             for (JsonNode p : list) if ("orders".equals(p.get("name").asText())) found = true;
             assertTrue(found, "registered pipeline appears in GET /pipelines: " + list);
@@ -121,8 +118,8 @@ class ControlApiPipelineCreateTest {
     void registrationIsIdempotentOnTheSamePath(@TempDir Path cfg, @TempDir Path root) throws Exception {
         try (Ctx c = open(cfg, root)) {
             authorPipeline(root, "orders.toon", "ORDERS");
-            assertEquals(200, post(c.port, "/pipelines", TOKEN, body("orders.toon")).statusCode());
-            assertEquals(200, post(c.port, "/pipelines", TOKEN, body("orders.toon")).statusCode(),
+            assertEquals(200, post(c.port, "/pipelines", body("orders.toon")).statusCode());
+            assertEquals(200, post(c.port, "/pipelines", body("orders.toon")).statusCode(),
                     "re-registering the same file is a no-op success");
             assertEquals(2, c.svc.pipelines().size(), "not double-counted");
         }
@@ -133,7 +130,7 @@ class ControlApiPipelineCreateTest {
         try (Ctx c = open(cfg, root)) {
             // A different file whose in-file name collides with the startup MINI_ETL.
             authorPipeline(root, "shadow.toon", "MINI_ETL");
-            assertEquals(409, post(c.port, "/pipelines", TOKEN, body("shadow.toon")).statusCode(),
+            assertEquals(409, post(c.port, "/pipelines", body("shadow.toon")).statusCode(),
                     "must not silently shadow a registered pipeline");
         }
     }
@@ -141,10 +138,10 @@ class ControlApiPipelineCreateTest {
     @Test
     void missingPathIs400AndEscapingPathIs403AndAbsentFileIs404(@TempDir Path cfg, @TempDir Path root) throws Exception {
         try (Ctx c = open(cfg, root)) {
-            assertEquals(400, post(c.port, "/pipelines", TOKEN, "{}").statusCode(), "no configPath");
-            assertEquals(403, post(c.port, "/pipelines", TOKEN, body("../escape.toon")).statusCode(),
+            assertEquals(400, post(c.port, "/pipelines", "{}").statusCode(), "no configPath");
+            assertEquals(403, post(c.port, "/pipelines", body("../escape.toon")).statusCode(),
                     "path escaping the write root is blocked");
-            assertEquals(404, post(c.port, "/pipelines", TOKEN, body("ghost.toon")).statusCode(),
+            assertEquals(404, post(c.port, "/pipelines", body("ghost.toon")).statusCode(),
                     "no file at the resolved path");
         }
     }
@@ -164,7 +161,7 @@ class ControlApiPipelineCreateTest {
                       threads: 1
                     """.formatted(r, r);
             Files.writeString(root.resolve("broken.toon"), bad);
-            assertEquals(422, post(c.port, "/pipelines", TOKEN, body("broken.toon")).statusCode());
+            assertEquals(422, post(c.port, "/pipelines", body("broken.toon")).statusCode());
             assertEquals(1, c.svc.pipelines().size(), "nothing registered on an invalid config");
         }
     }
@@ -181,7 +178,7 @@ class ControlApiPipelineCreateTest {
                     .replaceAll("schema_file: \"[^\"]*\"", "schema_file: \"" + ghost + "\"");
             Files.writeString(root.resolve("ghosted.toon"), toon);
 
-            HttpResponse<String> r = post(c.port, "/pipelines", TOKEN, body("ghosted.toon"));
+            HttpResponse<String> r = post(c.port, "/pipelines", body("ghosted.toon"));
             assertEquals(422, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
             assertFalse(out.get("registered").asBoolean());
@@ -194,23 +191,4 @@ class ControlApiPipelineCreateTest {
         }
     }
 
-    @Test
-    void scopeIsControlNotAssistRead(@TempDir Path cfg, @TempDir Path root) throws Exception {
-        // control=null ⇒ control routes locked; an assist.read token must NOT satisfy them.
-        ControlApi.Tokens tokens = new ControlApi.Tokens(null, "read-only", "write-tok");
-        Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
-        System.setProperty("assist.write.root", root.toString());
-        System.setProperty("assist.safety.roots", root.toString());
-        SourceService svc = new SourceService(List.of(pipe), 3600, 1);
-        ControlApi api = new ControlApi(svc, 0, tokens);
-        api.start();
-        try (Ctx c = new Ctx(svc, api, api.port())) {
-            authorPipeline(root, "orders.toon", "ORDERS");
-            assertEquals(401, post(c.port, "/pipelines", null, body("orders.toon")).statusCode());
-            assertEquals(401, post(c.port, "/pipelines", "read-only", body("orders.toon")).statusCode(),
-                    "assist.read does not satisfy control");
-            assertEquals(401, post(c.port, "/pipelines", "write-tok", body("orders.toon")).statusCode(),
-                    "assist.write does not satisfy control either");
-        }
-    }
 }

@@ -17,6 +17,11 @@ import { ConnectivityService } from 'app/inspecto/api/connectivity.service';
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule],
+    // The shell applies a global `display:flex; flex:1 1 auto` to layout-level elements; without this the
+    // (usually empty) banner host would grab flex space and shove the whole layout aside. `display:contents`
+    // makes the host generate no box at all — it contributes nothing when hidden, and when shown its inner
+    // alert participates directly in the parent flex-column, sitting full-width above the layout.
+    styles: [':host { display: contents; }'],
     template: `
         @if (conn.degraded()) {
             <div

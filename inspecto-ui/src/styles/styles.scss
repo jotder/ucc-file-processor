@@ -2,3 +2,27 @@
 /*  @ Import/write your custom styles here.
 /*  @ Styles from this file will override 'vendors.scss' and Gamma's base styles.
 /* ----------------------------------------------------------------------------------------------------- */
+
+/* Material overlay panels (mat-select / mat-menu / mat-autocomplete) render with a transparent surface in
+ * this theme, so open dropdowns showed the content behind them. Give every overlay surface the solid card
+ * background + the shared border token so they read as proper popovers. (Uses --gamma-* vars, scheme-aware.) */
+.mat-mdc-select-panel,
+.mat-mdc-menu-panel,
+.mat-mdc-autocomplete-panel {
+    // !important: MDC's `.mdc-menu-surface { background-color }` has equal specificity and loads later.
+    background-color: var(--gamma-bg-card) !important;
+    border: 1px solid var(--gamma-border);
+}
+
+/* The global `*:focus-visible` ring (2px primary, 2px offset — @gamma/styles/tailwind.scss) is right for
+ * buttons/links, but on a native control INSIDE a Material form field it drew a second box inset within the
+ * field's own border ("box inside a box"). Suppress the inner ring on field controls and move the keyboard
+ * focus indicator to the field wrapper, so there's still exactly one clearly visible WCAG focus affordance. */
+.mat-mdc-form-field :is(input, textarea, .mat-mdc-select, .mat-mdc-select-trigger):focus-visible {
+    outline: none !important;
+}
+.mat-mdc-text-field-wrapper:has(:focus-visible) {
+    outline: 2px solid rgba(var(--gamma-primary-rgb), 1);
+    outline-offset: 2px;
+    border-radius: 6px;
+}

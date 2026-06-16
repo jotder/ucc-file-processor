@@ -36,7 +36,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class KpiToSqlEndToEndTest {
 
-    private static final String TOKEN = "secret";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -57,7 +56,7 @@ class KpiToSqlEndToEndTest {
         seedEventPartition(dir);
         SourceService svc = new SourceService(List.of(pipe), 60, 1);
         svc.registerAgent(new UccAssistAgent(router));
-        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port());
     }
@@ -69,9 +68,8 @@ class KpiToSqlEndToEndTest {
         Files.writeString(part.resolve("part-0.csv"), "id,amt\n1,10\n2,20\n3,30\n");
     }
 
-    private HttpResponse<String> post(int port, String path, String token, String body) throws Exception {
+    private HttpResponse<String> post(int port, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
     }
 
@@ -81,7 +79,7 @@ class KpiToSqlEndToEndTest {
             String body = """
                     {"screenContext":{"kpiDescription":"count of mini events",
                      "catalogRefs":["event:mini_etl/mini"]}}""";
-            HttpResponse<String> r = post(c.port, "/assist/kpi-to-sql", TOKEN, body);
+            HttpResponse<String> r = post(c.port, "/assist/kpi-to-sql", body);
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
             assertEquals("kpi-to-sql", out.get("intent").asText());
@@ -101,25 +99,13 @@ class KpiToSqlEndToEndTest {
     }
 
     @Test
-    void routeIsScopedAssistRead(@TempDir Path dir) throws Exception {
-        try (Ctx c = open(dir, ModelRouter.of(FakeModelProvider.canned(GOOD_SQL)))) {
-            String body = """
-                    {"screenContext":{"kpiDescription":"x","catalogRefs":["event:mini_etl/mini"]}}""";
-            assertEquals(401, post(c.port, "/assist/kpi-to-sql", null, body).statusCode(), "no token → locked");
-            assertEquals(401, post(c.port, "/assist/kpi-to-sql", "wrong", body).statusCode(), "bad token → 401");
-            assertEquals(200, post(c.port, "/assist/kpi-to-sql", TOKEN, body).statusCode(),
-                    "control token satisfies assist.read");
-        }
-    }
-
-    @Test
     void unsafeQueryIsNeverSurfacedOverHttp(@TempDir Path dir) throws Exception {
         ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                 "{\"sql\":\"SELECT * FROM read_csv('/etc/passwd')\"}"));
         try (Ctx c = open(dir, router)) {
             String body = """
                     {"screenContext":{"kpiDescription":"x","catalogRefs":["event:mini_etl/mini"]}}""";
-            HttpResponse<String> r = post(c.port, "/assist/kpi-to-sql", TOKEN, body);
+            HttpResponse<String> r = post(c.port, "/assist/kpi-to-sql", body);
             assertEquals(503, r.statusCode(), "an always-unsafe model yields a graceful failure");
             assertFalse(r.body().contains("/etc/passwd"), "the attack SQL is never echoed to the client");
         }

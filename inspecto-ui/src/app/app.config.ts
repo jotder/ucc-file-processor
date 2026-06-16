@@ -19,7 +19,6 @@ import { provideToastr } from 'ngx-toastr';
 import { firstValueFrom } from 'rxjs';
 import { TranslocoHttpLoader } from './core/transloco/transloco.http-loader';
 import { AUTH_HTTP_CLIENT } from './modules/auth/auth-http-client.token';
-import { authInterceptor as inspectoAuthInterceptor } from './inspecto/api/auth.interceptor';
 import { errorInterceptor as inspectoErrorInterceptor } from './inspecto/api/error.interceptor';
 
 export const appConfig: ApplicationConfig = {
@@ -27,14 +26,13 @@ export const appConfig: ApplicationConfig = {
         // Zone.js change detection (explicit opt-in for Angular 21)
         provideZoneChangeDetection({ eventCoalescing: true }),
 
-        // Main HttpClient — Inspecto inspector interceptors (X-Api-Token bearer + 401 handling).
-        // The template's Pronto-OAuth authInterceptor is not wired: ControlApi uses operator
-        // tokens (TokenStore), and the OAuth refresh→logout flow would misfire on our 401s.
+        // Main HttpClient — ControlApi is fully open (no auth), so the only global interceptor is
+        // the error/connectivity tracker. No bearer token is attached and there is no 401 handling.
         provideHttpClient(
-            withInterceptors([inspectoAuthInterceptor, inspectoErrorInterceptor])
+            withInterceptors([inspectoErrorInterceptor])
         ),
 
-        // Interceptor-free HttpClient for AuthService only.
+        // Interceptor-free HttpClient for the vendored template AuthService only.
         // Uses HttpBackend directly, which skips the entire interceptor chain.
         {
             provide: AUTH_HTTP_CLIENT,

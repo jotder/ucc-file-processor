@@ -17,7 +17,6 @@ import {
     SourceView,
     SourcesService,
 } from 'app/inspecto/api';
-import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ToastrService } from 'ngx-toastr';
 import { InspectoChartComponent } from 'app/inspecto/components/chart.component';
@@ -58,7 +57,6 @@ export class SourcesComponent implements OnInit {
     private api = inject(SourcesService);
     private metricsApi = inject(AcquisitionMetricsService);
     private pipelines = inject(PipelinesService);
-    private auth = inject(InspectoAuthService);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
@@ -71,10 +69,6 @@ export class SourcesComponent implements OnInit {
 
     cards: MetricCard[] = [];
     discoveredData: ChartData | null = null;
-
-    get canControl(): boolean {
-        return this.auth.hasControl();
-    }
 
     readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<SourceView>[] = [
@@ -99,7 +93,6 @@ export class SourcesComponent implements OnInit {
             {
                 icon: 'heroicons_outline:play',
                 hint: 'Run now',
-                visible: () => this.canControl,
                 onClick: (s) => this.trigger(s),
             },
             {

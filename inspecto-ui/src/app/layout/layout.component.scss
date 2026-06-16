@@ -1,5 +1,8 @@
 layout {
     display: flex;
+    // Column so the global connectivity banner (first child, display:contents when hidden) stacks
+    // full-width ABOVE the chosen layout, which then fills the remaining height via the `> *` rule below.
+    flex-direction: column;
     flex: 1 1 auto;
     width: 100%;
     max-width: 100%;

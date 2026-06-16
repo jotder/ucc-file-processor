@@ -29,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class AssistEndToEndTest {
 
-    private static final String TOKEN = "secret";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -41,20 +40,18 @@ class AssistEndToEndTest {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         SourceService svc = new SourceService(List.of(pipe), 60, 1);
         svc.registerAgent(new UccAssistAgent(router));   // bypass ServiceLoader; inject the fake
-        ControlApi api = new ControlApi(svc, 0, TOKEN);
+        ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port());
     }
 
-    private HttpResponse<String> post(int port, String path, String token, String body) throws Exception {
+    private HttpResponse<String> post(int port, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.method("POST", BodyPublishers.ofString(body)).build(), BodyHandlers.ofString());
     }
 
-    private HttpResponse<String> get(int port, String path, String token) throws Exception {
+    private HttpResponse<String> get(int port, String path) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         return client.send(b.GET().build(), BodyHandlers.ofString());
     }
 
@@ -65,7 +62,7 @@ class AssistEndToEndTest {
             String body = """
                     {"screenContext":{"entityType":"table","id":"event:mini_etl/mini"},
                      "userText":"what does this table contain?"}""";
-            HttpResponse<String> r = post(c.port, "/assist/explain-entity", TOKEN, body);
+            HttpResponse<String> r = post(c.port, "/assist/explain-entity", body);
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
             assertEquals("explain-entity", out.get("intent").asText());
@@ -87,7 +84,7 @@ class AssistEndToEndTest {
                 "{\"name\":\"weekday-report\",\"cron\":\"0 6 * * MON-FRI\",\"job_type\":\"report\"}"));
         try (Ctx c = open(dir, router)) {
             String body = "{\"userText\":\"every weekday at 6am\"}";
-            HttpResponse<String> r = post(c.port, "/assist/nl-to-schedule", TOKEN, body);
+            HttpResponse<String> r = post(c.port, "/assist/nl-to-schedule", body);
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
             assertEquals("nl-to-schedule", out.get("intent").asText());
@@ -109,11 +106,8 @@ class AssistEndToEndTest {
         ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                 "{\"name\":\"j\",\"cron\":\"0 2 * * *\",\"job_type\":\"maintenance\"}"));
         try (Ctx c = open(dir, router)) {
-            // Fail-closed: no/!valid token is rejected before the agent is ever consulted.
-            assertEquals(401, post(c.port, "/assist/nl-to-schedule", null, "{\"userText\":\"daily 2am\"}").statusCode());
-            assertEquals(401, post(c.port, "/assist/nl-to-schedule", "wrong", "{\"userText\":\"daily 2am\"}").statusCode());
-            // With the scoped token it answers, but nothing is persisted — the suggestion is a draft.
-            HttpResponse<String> ok = post(c.port, "/assist/nl-to-schedule", TOKEN, "{\"userText\":\"daily 2am\"}");
+            // It answers, but nothing is persisted — the suggestion is a draft.
+            HttpResponse<String> ok = post(c.port, "/assist/nl-to-schedule", "{\"userText\":\"daily 2am\"}");
             assertEquals(200, ok.statusCode(), ok.body());
             int jobCount = c.svc.jobService().map(js -> js.jobs().size()).orElse(0);
             assertEquals(0, jobCount, "draft-only: the suggestion is a draft, no job was created");
@@ -131,10 +125,7 @@ class AssistEndToEndTest {
                    {"name":"job.type","value":"maintenance","rationale":"cleanup","confidence":"medium"}
                 ]}"""));
         try (Ctx c = open(dir, router)) {
-            assertEquals(401, post(c.port, "/assist/suggest-config", null,
-                    "{\"screenContext\":{\"configType\":\"job\"}}").statusCode(), "fail-closed");
-
-            HttpResponse<String> r = post(c.port, "/assist/suggest-config", TOKEN,
+            HttpResponse<String> r = post(c.port, "/assist/suggest-config",
                     "{\"screenContext\":{\"configType\":\"job\"}}");
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
@@ -155,10 +146,7 @@ class AssistEndToEndTest {
                 "{\"name\":\"high-error-rate\",\"metric\":\"error_rate\",\"comparator\":\"gt\","
                         + "\"threshold\":0.05,\"window\":\"1h\",\"severity\":\"CRITICAL\"}"));
         try (Ctx c = open(dir, router)) {
-            assertEquals(401, post(c.port, "/assist/diagnose-and-alert", null,
-                    "{\"userText\":\"warn at 5%\"}").statusCode(), "fail-closed");
-
-            HttpResponse<String> r = post(c.port, "/assist/diagnose-and-alert", TOKEN,
+            HttpResponse<String> r = post(c.port, "/assist/diagnose-and-alert",
                     "{\"userText\":\"warn when the error rate exceeds 5%\"}");
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
@@ -180,9 +168,8 @@ class AssistEndToEndTest {
         ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                 "Input columns no longer match the configured schema; reconcile the selectors."));
         try (Ctx c = open(dir, router)) {
-            assertEquals(401, get(c.port, "/assist/diagnoses", null).statusCode(), "fail-closed");
-            assertEquals(200, get(c.port, "/assist/diagnoses", TOKEN).statusCode());
-            assertEquals(0, JSON.readTree(get(c.port, "/assist/diagnoses", TOKEN).body()).size(),
+            assertEquals(200, get(c.port, "/assist/diagnoses").statusCode());
+            assertEquals(0, JSON.readTree(get(c.port, "/assist/diagnoses").body()).size(),
                     "no failures yet");
 
             c.svc.eventBus().publish(new BatchEvent("MINI_ETL", "B1", "FAILED", List.of(),
@@ -192,7 +179,7 @@ class AssistEndToEndTest {
             JsonNode arr = null;
             long deadline = System.nanoTime() + 5_000_000_000L;
             while (System.nanoTime() < deadline) {
-                arr = JSON.readTree(get(c.port, "/assist/diagnoses", TOKEN).body());
+                arr = JSON.readTree(get(c.port, "/assist/diagnoses").body());
                 if (arr.size() > 0) break;
                 Thread.sleep(20);
             }
@@ -215,13 +202,10 @@ class AssistEndToEndTest {
                 "{\"sql\":\"SELECT status, COUNT(*) AS n FROM batches GROUP BY status\","
                         + "\"logicExplanation\":\"count batches by terminal status\"}"));
         try (Ctx c = open(dir, router)) {
-            assertEquals(401, post(c.port, "/assist/report-sql", null,
-                    "{\"screenContext\":{\"pipeline\":\"MINI_ETL\"}}").statusCode(), "fail-closed");
-
             String body = """
                     {"screenContext":{"pipeline":"MINI_ETL"},
                      "userText":"how many batches per status?"}""";
-            HttpResponse<String> r = post(c.port, "/assist/report-sql", TOKEN, body);
+            HttpResponse<String> r = post(c.port, "/assist/report-sql", body);
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
             assertEquals("report-sql", out.get("intent").asText());
@@ -243,10 +227,7 @@ class AssistEndToEndTest {
         ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                 "No batches have run yet: 0 total, 0 succeeded, 0 failed."));
         try (Ctx c = open(dir, router)) {
-            assertEquals(401, post(c.port, "/assist/report-narrative", null,
-                    "{\"screenContext\":{\"reportType\":\"service\"}}").statusCode(), "fail-closed");
-
-            HttpResponse<String> r = post(c.port, "/assist/report-narrative", TOKEN,
+            HttpResponse<String> r = post(c.port, "/assist/report-narrative",
                     "{\"screenContext\":{\"reportType\":\"service\"}}");
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
@@ -261,17 +242,9 @@ class AssistEndToEndTest {
     }
 
     @Test
-    void scopedAuthEnforced(@TempDir Path dir) throws Exception {
-        try (Ctx c = open(dir, ModelRouter.of(FakeModelProvider.canned("ok")))) {
-            assertEquals(401, post(c.port, "/assist/explain-entity", null, "{}").statusCode());
-            assertEquals(401, post(c.port, "/assist/explain-entity", "wrong", "{}").statusCode());
-        }
-    }
-
-    @Test
     void unknownIntentIs404(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, ModelRouter.of(FakeModelProvider.canned("ok")))) {
-            assertEquals(404, post(c.port, "/assist/no-such-skill", TOKEN, "{}").statusCode());
+            assertEquals(404, post(c.port, "/assist/no-such-skill", "{}").statusCode());
         }
     }
 
@@ -279,7 +252,7 @@ class AssistEndToEndTest {
     void modelUnavailableIs503(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, ModelRouter.of(FakeModelProvider.down()))) {
             String body = "{\"screenContext\":{\"id\":\"event:mini_etl/mini\"},\"userText\":\"explain\"}";
-            HttpResponse<String> r = post(c.port, "/assist/explain-entity", TOKEN, body);
+            HttpResponse<String> r = post(c.port, "/assist/explain-entity", body);
             assertEquals(503, r.statusCode(), r.body());
         }
     }

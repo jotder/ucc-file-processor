@@ -29,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ControlApiSourcesAndConnectionsTest {
 
-    private static final String TOKEN = "secret";
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
@@ -44,7 +43,7 @@ class ControlApiSourcesAndConnectionsTest {
         else System.clearProperty("assist.write.root");
         try {
             SourceService svc = new SourceService(List.of(pipe), 3600, 1);
-            ControlApi api = new ControlApi(svc, 0, TOKEN);   // writeRoot captured in the constructor
+            ControlApi api = new ControlApi(svc, 0);   // writeRoot captured in the constructor
             api.start();
             return new Ctx(svc, api, api.port());
         } finally {
@@ -92,8 +91,7 @@ class ControlApiSourcesAndConnectionsTest {
     }
 
     private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {
-        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
-                .header("Authorization", "Bearer " + TOKEN);
+        HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         HttpRequest.BodyPublisher pub = body == null ? BodyPublishers.noBody() : BodyPublishers.ofString(body);
         return client.send(b.method(method, pub).build(), BodyHandlers.ofString());
     }

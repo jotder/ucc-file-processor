@@ -10,7 +10,6 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ObjectsService, OperationalObject } from 'app/inspecto/api';
-import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import {
     actionsColumn,
@@ -44,7 +43,6 @@ import { ObjectCreateDialog } from './object-create.dialog';
 })
 export class ObjectsComponent implements OnInit {
     private api = inject(ObjectsService);
-    private auth = inject(InspectoAuthService);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
@@ -66,10 +64,6 @@ export class ObjectsComponent implements OnInit {
         `No ${this.createLabel}s yet`,
         `New ${this.createLabel}s will appear here once they're created.`,
     );
-
-    get canControl(): boolean {
-        return this.auth.hasControl();
-    }
 
     get createLabel(): string {
         return this.type === 'CASE' ? 'case' : this.type === 'ISSUE' ? 'issue' : 'object';
@@ -109,7 +103,7 @@ export class ObjectsComponent implements OnInit {
                         const a = this.nextAction(o);
                         return a ? `Advance: ${a}` : 'No further action';
                     },
-                    visible: (o) => this.canControl && !!this.nextAction(o),
+                    visible: (o) => !!this.nextAction(o),
                     onClick: (o) => this.advance(o),
                 },
             ],

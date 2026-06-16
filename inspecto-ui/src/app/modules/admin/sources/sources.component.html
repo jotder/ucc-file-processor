@@ -47,12 +47,13 @@
             ></inspecto-empty-state>
         } @else {
             <ag-grid-angular
-                class="h-[42rem] w-full"
+                class="w-full"
+                [domLayout]="'autoHeight'"
                 [theme]="themeSvc.theme()"
                 [rowData]="sources"
                 [columnDefs]="columnDefs"
                 [defaultColDef]="defaultColDef"
-                [pagination]="true"
+                [pagination]="sources.length > 25"
                 [paginationPageSize]="25"
                 [quickFilterText]="quickFilter"
                 [loading]="loading"

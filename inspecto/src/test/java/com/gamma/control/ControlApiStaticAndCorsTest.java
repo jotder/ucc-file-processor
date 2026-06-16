@@ -24,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ControlApiStaticAndCorsTest {
 
-    private static final String TOKEN = "secret";
     private final HttpClient client = HttpClient.newHttpClient();
 
     private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
@@ -41,7 +40,7 @@ class ControlApiStaticAndCorsTest {
         if (cors  != null) System.setProperty("control.cors", cors); else System.clearProperty("control.cors");
         try {
             SourceService svc = new SourceService(List.of(), 3600, 1);
-            ControlApi api = new ControlApi(svc, 0, TOKEN);
+            ControlApi api = new ControlApi(svc, 0);
             api.start();
             return new Ctx(svc, api, api.port());
         } finally {
@@ -59,9 +58,8 @@ class ControlApiStaticAndCorsTest {
         return ui;
     }
 
-    private HttpResponse<String> send(int port, String method, String path, String token) throws Exception {
+    private HttpResponse<String> send(int port, String method, String path) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
-        if (token != null) b.header("Authorization", "Bearer " + token);
         b.method(method, BodyPublishers.noBody());
         return client.send(b.build(), BodyHandlers.ofString());
     }
@@ -77,29 +75,29 @@ class ControlApiStaticAndCorsTest {
     @Test
     void corsPreflightAnsweredWhenEnabled(@TempDir Path dir) throws Exception {
         try (Ctx c = open(null, "http://localhost:4200")) {
-            HttpResponse<String> pre = send(c.port, "OPTIONS", "/pipelines", null);
+            HttpResponse<String> pre = send(c.port, "OPTIONS", "/pipelines");
             assertEquals(204, pre.statusCode(), "preflight short-circuits with 204");
             assertEquals("http://localhost:4200", acao(pre), "echoes the configured origin");
             // a real GET also carries the CORS header
-            assertEquals("http://localhost:4200", acao(send(c.port, "GET", "/health", null)));
+            assertEquals("http://localhost:4200", acao(send(c.port, "GET", "/health")));
         }
     }
 
     @Test
     void noCorsHeadersWhenDisabled(@TempDir Path dir) throws Exception {
         try (Ctx c = open(null, null)) {
-            HttpResponse<String> health = send(c.port, "GET", "/health", null);
+            HttpResponse<String> health = send(c.port, "GET", "/health");
             assertEquals(200, health.statusCode());
             assertNull(acao(health), "no CORS header when -Dcontrol.cors is unset");
             // OPTIONS is not short-circuited; it is just an unsupported method on a known path
-            assertNotEquals(204, send(c.port, "OPTIONS", "/health", null).statusCode());
+            assertNotEquals(204, send(c.port, "OPTIONS", "/health").statusCode());
         }
     }
 
     @Test
     void knownRouteStillReturnsJson(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
-            HttpResponse<String> health = send(c.port, "GET", "/health", null);
+            HttpResponse<String> health = send(c.port, "GET", "/health");
             assertEquals(200, health.statusCode());
             assertTrue(ctype(health).startsWith("application/json"), "API route stays JSON even with a UI dir");
             assertTrue(health.body().contains("\"status\""));
@@ -109,7 +107,7 @@ class ControlApiStaticAndCorsTest {
     @Test
     void rootServesIndexHtml(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
-            HttpResponse<String> root = send(c.port, "GET", "/", null);
+            HttpResponse<String> root = send(c.port, "GET", "/");
             assertEquals(200, root.statusCode());
             assertTrue(ctype(root).startsWith("text/html"));
             assertTrue(root.body().contains("Inspecto UI"), "index.html served at /");
@@ -119,7 +117,7 @@ class ControlApiStaticAndCorsTest {
     @Test
     void assetServedWithMimeType(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
-            HttpResponse<String> js = send(c.port, "GET", "/assets/app.js", null);
+            HttpResponse<String> js = send(c.port, "GET", "/assets/app.js");
             assertEquals(200, js.statusCode());
             assertTrue(ctype(js).startsWith("text/javascript"));
             assertTrue(js.body().contains("inspecto"));
@@ -129,7 +127,7 @@ class ControlApiStaticAndCorsTest {
     @Test
     void extensionlessDeepLinkFallsBackToIndex(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
-            HttpResponse<String> deep = send(c.port, "GET", "/dashboard/pipelines", null);
+            HttpResponse<String> deep = send(c.port, "GET", "/dashboard/pipelines");
             assertEquals(200, deep.statusCode(), "SPA deep link resolves to index.html");
             assertTrue(ctype(deep).startsWith("text/html"));
             assertTrue(deep.body().contains("Inspecto UI"));
@@ -140,7 +138,7 @@ class ControlApiStaticAndCorsTest {
     void unknownApiPathStaysJson404NotIndex(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
             // matches the /pipelines/{n}/commits route → handler 404 (no such pipeline), as JSON
-            HttpResponse<String> r = send(c.port, "GET", "/pipelines/nope/commits", TOKEN);
+            HttpResponse<String> r = send(c.port, "GET", "/pipelines/nope/commits");
             assertEquals(404, r.statusCode());
             assertTrue(ctype(r).startsWith("application/json"), "API 404 is JSON, not the SPA shell");
             assertFalse(r.body().contains("<html"), "must not serve index.html for an API path");
@@ -152,7 +150,7 @@ class ControlApiStaticAndCorsTest {
         // The SPA addresses routes as "/api/..."; served same-origin (no proxy) the backend must
         // strip the prefix and hit the real route, returning JSON — not the index.html SPA shell.
         try (Ctx c = open(spaDir(dir).toString(), null)) {
-            HttpResponse<String> r = send(c.port, "GET", "/api/pipelines", TOKEN);
+            HttpResponse<String> r = send(c.port, "GET", "/api/pipelines");
             assertEquals(200, r.statusCode());
             assertTrue(ctype(r).startsWith("application/json"), "/api/* resolves to the JSON route, not index.html");
             assertFalse(r.body().contains("<html"), "must not serve the SPA shell for an /api path");
@@ -160,13 +158,11 @@ class ControlApiStaticAndCorsTest {
     }
 
     @Test
-    void staticIsPublicButApiStillRequiresToken(@TempDir Path dir) throws Exception {
+    void staticIsPublicAndApiIsReachable(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
-            assertEquals(200, send(c.port, "GET", "/", null).statusCode(), "SPA shell loads without a token");
-            assertEquals(401, send(c.port, "GET", "/pipelines", null).statusCode(),
-                    "CONTROL route still 401s without a token");
-            assertEquals(200, send(c.port, "GET", "/pipelines", TOKEN).statusCode(),
-                    "and 200s with the control token");
+            assertEquals(200, send(c.port, "GET", "/").statusCode(), "SPA shell loads");
+            assertEquals(200, send(c.port, "GET", "/pipelines").statusCode(),
+                    "CONTROL route is reachable");
         }
     }
 
@@ -174,7 +170,7 @@ class ControlApiStaticAndCorsTest {
     void noStaticServingWhenUiDirUnset(@TempDir Path dir) throws Exception {
         try (Ctx c = open(null, null)) {
             // no -Dui.dir → an unmatched GET is a plain JSON 404 (legacy behaviour preserved)
-            HttpResponse<String> r = send(c.port, "GET", "/", null);
+            HttpResponse<String> r = send(c.port, "GET", "/");
             assertEquals(404, r.statusCode());
             assertTrue(ctype(r).startsWith("application/json"));
         }

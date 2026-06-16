@@ -12,7 +12,6 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, DEFAULT_REFRESH_MS, optimisticMutate, PipelinesService, PipelineView, visibleInterval } from 'app/inspecto/api';
-import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { actionsColumn, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
 import { ReprocessDialog } from './reprocess.dialog';
@@ -20,7 +19,6 @@ import { ReprocessDialog } from './reprocess.dialog';
 /**
  * Pipelines — every configured pipeline with lifecycle actions (trigger / pause / resume /
  * reprocess) and a "Run all" toolbar (ported from inspector-ui onto the gamma shell).
- * CONTROL-scoped actions are disabled when only an assist token is held.
  */
 @Component({
     selector: 'app-pipelines',
@@ -39,7 +37,6 @@ import { ReprocessDialog } from './reprocess.dialog';
 })
 export class PipelinesComponent implements OnInit {
     private api = inject(PipelinesService);
-    private auth = inject(InspectoAuthService);
     private router = inject(Router);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
@@ -59,10 +56,6 @@ export class PipelinesComponent implements OnInit {
         'Pipelines are defined by *_pipeline.toon configs on the server.',
     );
 
-    get canControl(): boolean {
-        return this.auth.hasControl();
-    }
-
     readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<PipelineView>[] = [
         { field: 'name', headerName: 'Pipeline', flex: 1 },
@@ -73,19 +66,16 @@ export class PipelinesComponent implements OnInit {
             {
                 icon: 'heroicons_outline:play',
                 hint: 'Trigger',
-                disabled: () => !this.canControl,
                 onClick: (p) => this.trigger(p.name),
             },
             {
                 icon: (p) => (p.paused ? 'heroicons_outline:play-circle' : 'heroicons_outline:pause-circle'),
                 hint: (p) => (p.paused ? 'Resume' : 'Pause'),
-                disabled: () => !this.canControl,
                 onClick: (p) => this.togglePause(p),
             },
             {
                 icon: 'heroicons_outline:arrow-path',
                 hint: 'Reprocess batch',
-                disabled: () => !this.canControl,
                 onClick: (p) => this.openReprocess(p.name),
             },
             {
