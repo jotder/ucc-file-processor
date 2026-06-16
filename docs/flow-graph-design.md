@@ -92,7 +92,10 @@ An edge is `{ from: <nodeId>, rel: <relationship>, to: <nodeId> }`. `rel` defaul
   - `success` / `failure` — terminal batch outcome (failure → quarantine / dead-letter node).
   - `unmatched` — parser could not match a schema/column-count (→ quarantine or a fallback parser).
   - `gap` — sequence-gap detected (→ `gap`/`alert` node).
-  - `on_commit` — batch committed (→ `enrichment` / downstream flow trigger).
+  - `on_commit` — batch committed (→ `enrichment` / downstream flow trigger). **Cross-flow only:** an `on_commit`
+    edge targets a *different* flow's entry (a trigger), never an ancestor in the same graph — otherwise it would
+    form an execution cycle the data-edge-only DAG check (D10) cannot see. The validator must reject an `on_commit`
+    edge whose target is reachable within the same `FlowGraph` ([§13 R5](#13-open-risks--corrections-2026-06-16-review)).
 - **named data relationships (content-based routing)** — a `transform.route` node emits **operator-defined**
   relationships (e.g. `emea` / `apac` / `other`), each an outgoing `data` edge. This is how records *split* by
   content (NiFi's RouteOnAttribute/RouteOnContent). Routing has two modes (§3.4): **`case`** (default, exclusive —
@@ -109,8 +112,12 @@ explicitly defaulted).
 
 - A node with **no inbound `data` edge** is a **trigger** (typically `acquisition`); a poll cycle starts there.
 - Per cycle, the executor performs a **topological walk** of `data` edges, handing each node its upstream
-  batch(es), and routes outcomes along control edges. This reuses `MultiSourceProcessor`'s virtual-thread fan-out
-  for independent branches.
+  batch(es), and routes outcomes along control edges. **This is new scheduling code.** Today's
+  [`MultiSourceProcessor.runConfigs`](../inspecto/src/main/java/com/gamma/inspector/MultiSourceProcessor.java)
+  fan-out is **per source/config** — one virtual thread per `PipelineConfig`, each fully isolated — so it
+  parallelises *sources*, not *branches*; there is no intra-pipeline branch concept to reuse. The intra-flow
+  topological walk (and any branch-level parallelism) is built fresh; only the virtual-thread-pool + permit
+  pattern is reused, not the branch topology. See [§13 R3](#13-open-risks--corrections-2026-06-16-review).
 - **Gating:** `active:` (already implemented, top-level, default `false`) arms the whole flow; a future per-node
   `enabled:` mirrors NiFi start/stop of a single processor.
 - No inter-node queues in v1 — a batch is processed to completion through its reachable subgraph within the cycle,
@@ -121,8 +128,18 @@ explicitly defaulted).
 `transform` is **not one node** — it is a family of single-purpose, **field-level** record operators that chain
 freely (`parse → filter → derive → route → …`), so a flow can carry **many** transformations, in any order, each
 independently authored and testable. Every operator works over the batch's **record fields (columns)** and
-**compiles to a DuckDB SQL fragment** — `TransformCompiler` already models transform types as SQL-expression
-functions in a registry, so a new operator is a registry addition, not engine surgery.
+**compiles to a DuckDB SQL fragment**.
+
+> **Scope honesty (review 2026-06-16).** The existing
+> [`TransformCompiler`](../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) registry is **column-scalar
+> only** (`DIRECT`/`EXPR`/`CONCAT_DT`/`FILENAME_DATE`), and
+> [`DataTransformer`](../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) assembles exactly one fixed
+> shape — `CREATE TABLE dest AS SELECT <cols> FROM <one source>`. So only **`transform.derive` and
+> `transform.select`** are true "registry additions." The **row-shaping operators** (`filter`=`WHERE`,
+> `route`=multi-output, `validate`=two-output, `dedup`=`QUALIFY`, `split`=`UNNEST`, `merge`=multi-input join) need
+> **new SQL-assembly machinery and a new node-output contract** — a node that emits *multiple named relations*,
+> which `DataTransformer` cannot do today (it returns one table). The chain-fusion below is likewise new. This is
+> real Phase-3 engine work, not a one-line registry entry; see [§13 R1](#13-open-risks--corrections-2026-06-16-review).
 
 | Operator | Does | Compiles to | Emits |
 |---|---|---|---|
@@ -281,8 +298,18 @@ the pull/admission back-pressure model instead of bypassing it. A flow never ove
 
 ### 3.7 Commit units & clone failure (decided)
 
-The committable unit is **`(batch, branch)`** — today's commit-log / ledger key extended with the destination
-branch/sink id. For a `route` **clone** where one branch's sink fails, the v1 behaviour is:
+The committable unit is **`(batch, branch)`**. **This is a new dimension, not a key extension (review 2026-06-16):**
+today nothing carries a branch/sink id — [`CommitLog`](../inspecto/src/main/java/com/gamma/etl/CommitLog.java) is
+keyed on `batch_id` alone, the acquisition ledger on `(sourceId, relPath)` per file, and
+[`BatchProcessor.commit`](../inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java) writes **one** output
+set then finalises the file through a single crash-ordered sequence (register → manifest → backup → markers →
+ledger → watermark, "markers LAST"). Supporting `(batch, branch)` therefore means (a) adding a branch dimension to
+the commit log, the ledger `PROCESSED` state, markers and the manifest; (b) introducing a **partial-commit** state
+that none of those model today; and (c) **splitting `commit()`** into a per-branch part (register/manifest) and a
+source-finalisation part (backup/markers/ledger/watermark/post-action) gated on *all branches done* — a refactor of
+the most crash-sensitive path in the engine, whose ordering invariant must be preserved. Tracked as
+[§13 R2](#13-open-risks--corrections-2026-06-16-review). For a `route` **clone** where one branch's sink fails, the
+v1 behaviour is:
 
 - healthy branches **stay committed** — no rollback, no re-write;
 - the failed branch **retries / circuit-breaks independently** and dead-letters;
@@ -295,6 +322,76 @@ This yields exactly-once **per `(file, branch)`** and isolates a flaky destinati
 sinks. Cross-branch **all-or-nothing** (transactional multi-sink) is **explicitly out of scope** — it would force
 re-writing healthy sinks on any failure — and is recorded as a known limitation (§12, B9); it can be added later as
 an opt-in if a real use case needs it.
+
+### 3.8 Pipelines vs Jobs — two drivers over one shared store (formalised 2026-06-17)
+
+A **pipeline** and a **job** are both processing definitions, but they own **different halves of the data's life**
+and are run by **different schedulers**. Conflating them is the confusion this section removes. A pipeline is
+*passive* — it never runs itself; something *drives* it.
+
+| | Pipeline (`*_pipeline.toon`) | Job (`*_job.toon`) |
+|---|---|---|
+| Is | the **ETL itself** — the flow graph: acquire → parse → **enrich / filter / route** → sync → store | a **downstream hop over the output** — often **ad-hoc / bespoke plugin** logic consuming pipeline-produced data (`enrich` / `report` / derive) |
+| Operates on | source / sync feeds — data **in motion** (lands it in the store) | the store the pipeline already landed — data **at rest** |
+| Driven by | the **poll loop only** ([`SourceService.runAllOnce`](../inspecto/src/main/java/com/gamma/service/SourceService.java), `Scheduler.everySeconds`), gated by `active:` — NiFi-style, its own schedule | the **job scheduler only** (cron / event / manual via [`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java)) |
+| Schedule grain | all `active` pipelines share the one global poll interval | per-job `cron`, or fires on an upstream `on_commit` |
+| Role | **producer** | **consumer** — *"a job works on the data the pipeline provides"* |
+
+**Clean rules (decided 2026-06-17):**
+1. **A pipeline is the ETL and is poll-driven, period.** The whole acquire → parse → enrich/filter/route → sync →
+   store chain (the flow graph itself) runs on the loop schedule when `active: true`; it is **not** driven by the job
+   scheduler. (This is why `active:` gates only the poll path, [SourceService.java:487](../inspecto/src/main/java/com/gamma/service/SourceService.java#L487).)
+2. **A job is job-driven, period**, and operates on **stored data at rest, not the inbox** — a downstream consumer of
+   pipeline output, and the natural home for **ad-hoc / bespoke plugin** logic (`enrich`/`report`/derive via the
+   plugin SPI, §12 B6), never a re-acquisition.
+   - *Note — `enrich`/`filter`/`route` appear on both sides by design:* in a **pipeline** they are **in-motion**
+     flow operators (§3.4, compiled into the ETL pass); as a **job** they are **at-rest** operators over the already
+     stored data. The dividing line is **in-motion (pipeline) vs at-rest (job)**, not the operation's name.
+3. The two **share the data store** but touch **different slices at different times** — *like two SQL statements over
+   one table.* Concurrent **append/read** on disjoint, partitioned slices is safe.
+4. **The one hazard is deletion.** A job (or a `maintenance` task) that **deletes or overwrites** a slice another
+   driver is reading/writing is the only real race. Deletes must be **fenced** — slice-disjoint, scheduled in a quiet
+   window, or ordered strictly after the producer's commit. `maintenance` jobs (the deleters) **stay standalone**
+   (§3.1, decided 2026-06-17) and own this fence; they have no dataflow shape.
+
+**Two schedulers, one responsibility each (decided 2026-06-17):**
+- **The loop scheduler** — fixed-delay or no-delay ([`Scheduler.everySeconds`](../inspecto/src/main/java/com/gamma/service/Scheduler.java),
+  the poll-all cycle) — drives **pipeline nodes only**, over every `active` flow. **Ingest / acquisition lives here
+  exclusively.**
+- **The custom-function scheduler** — cron / event / manual ([`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java)) —
+  drives **jobs only** = bespoke plugin functions over stored data. **It never ingests.**
+
+This **removes the `ingest` job type**: a job can no longer re-run a pipeline. **Ingestion is the pipeline's sole
+responsibility** (loop scheduler); jobs are strictly downstream custom functions (custom-function scheduler). This
+is the resolution of [§13 R6](#13-open-risks--corrections-2026-06-16-review) / [T23](#14-things-to-do-implementation-checklist) —
+**deprecate `JobType.INGEST`, do not gate it.** In the flow-graph model (§3.6) the two schedulers are simply which
+trigger an entry node carries: `schedule:{every}` → loop scheduler; `cron`/`event`/`manual` → custom-function scheduler.
+
+**Scheduler implementation = the existing `Scheduler` + `JobService`, not Quartz (decided 2026-06-17).** Both
+schedulers are the home-grown [`Scheduler`](../inspecto/src/main/java/com/gamma/service/Scheduler.java) (fixed-delay
+`everySeconds` + a drift-free self-re-arming `cron` over [`CronExpression`](../inspecto/src/main/java/com/gamma/service/CronExpression.java)),
+with [`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java) adding event/manual triggers, per-job
+non-overlap (`LockingRunner` → `SKIPPED`), and **job-execution reporting that already exists**: a durable
+`jobs_runs.csv` (`CsvLedger<JobRun>`) + per-job in-memory history + `inspecto_jobs_total` /
+`inspecto_job_duration_seconds` metrics + the Control API `jobs()` / `runsFor()` surface. **Quartz is rejected** —
+its value-adds (JDBC schedule persistence, clustering, misfire) are either **redundant** (schedules are
+config-driven `*_job.toon`, re-armed deterministically at startup — the file *is* the durable schedule) or
+**premature** (single-node; distribution is a future edition), and Quartz gives no execution reporting regardless.
+Two small, **no-new-dep** extensions are tracked instead: **misfire/catch-up** ([T26](#14-things-to-do-implementation-checklist))
+and a **DuckDB-backed Jobs reporting pane** ([T27](#14-things-to-do-implementation-checklist)).
+
+**Combined visualisation — they are one graph, not two.** Pipeline and job meet at the **same store/table**: the
+pipeline's `sink(store)` node *is* the job's `source(store)` node. That is exactly the lineage-graph join (§2 — the
+flow graph compiles down into `PRODUCES`/`FEEDS`), so the combined view renders as **pipeline-flow → shared table
+node → job-flow(s)**, with the `on_commit` edge drawn as the producer→consumer trigger. This is the realisation of
+"it should be combined and visualised."
+
+**In the flow-graph model the duality disappears** into the entry-node trigger (§3.6): a pipeline is a flow whose
+entry `acquisition` node carries a `schedule`/poll trigger; a job is a downstream flow whose entry node reads the
+shared store under an `event:{on_commit}` (or its own `cron`) trigger. One scheduler, one graph, the store as the
+join — which is why this is formalised here rather than as a second mechanism. See the reconciliation item
+[§13 R6](#13-open-risks--corrections-2026-06-16-review) (today's `ingest` job re-runs full acquisition and must be
+reframed) and tasks [§14 T23–T25](#14-things-to-do-implementation-checklist).
 
 ## 4. Configuration model
 
@@ -380,10 +477,20 @@ A large installed base of `*_pipeline.toon` (and ~80 test fixtures) must keep ru
 - **`FlowGraph` IR** — an internal `record FlowGraph(String name, boolean active, List<FlowNode> nodes,
   List<FlowEdge> edges)`; `FlowNode(id, type, Map<String,Object> config, String use)`,
   `FlowEdge(from, rel, to)`. This is the single object the executor, the validator, and the visualiser consume.
-- **Legacy lift** — at load time a `*_pipeline.toon` is *auto-lifted* into a 4-node linear `FlowGraph`
-  (`acquisition → parser → transform → sink`), plus the control edges its existing flags imply (post-action →
-  `failure` edge, gap-detection → `gap` edge, enrichment trigger → `on_commit` edge). **No file rewrite** — the
-  lift is internal.
+- **Legacy lift** — at load time a `*_pipeline.toon` is *auto-lifted* into a `FlowGraph`, plus the control edges its
+  existing flags imply (post-action → `failure` edge, gap-detection → `gap` edge, enrichment trigger → `on_commit`
+  edge). **No file rewrite** — the lift is internal. **The lift is not always 4-node-linear (review 2026-06-16):**
+  a single pipeline already fans into **N schemas** via `segments`/`selector`
+  ([`MetadataGraphService.rebuildStructural`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java)
+  handles segments/selector/single today), and a plugin ingester emits multiple segment tables — so many shipped
+  configs lift to a **fan-out** (one `acquisition` → N `parser`/`transform`/`sink` paths), not a line. The 4-node
+  shape is only the single-schema case.
+- **Enrichment crosses the file boundary.** Stage-2 enrichment is a **separate** config type
+  ([`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java)), discovered and triggered
+  independently (`on_commit`/schedule/event). So an authored flow that contains an `enrichment` node + `on_commit`
+  edge spans **two of today's files**; lifting a `*_pipeline.toon` alone will **not** pull its enrichment in. The
+  lift must either (a) join pipeline + enrichment configs that reference each other into one `FlowGraph`, or (b)
+  represent them as two flows linked by an `on_commit` edge — decide this in Phase 1 ([§13 R4](#13-open-risks--corrections-2026-06-16-review)).
 - **Compile-back** — the executor compiles a `FlowGraph` (lifted or authored) back to the *exact* primitives
   `SourceProcessor` runs today, so old configs are byte-for-byte equivalent in behaviour. Parity is proven by
   running the existing suite against the lifted path.
@@ -435,14 +542,23 @@ node logic** (no divergent test path). In-memory or scratch output only.
 ## 8. Phased roadmap (each shippable, risk-ordered)
 
 1. **Flow IR + legacy lift (backend, invisible).** Define `FlowGraph`/`FlowNode`/`FlowEdge`; lift
-   `*_pipeline.toon` into it; compile back to today's execution. Prove parity against the existing suite.
-   *No behaviour change.*
+   `*_pipeline.toon` into it; compile back to today's execution. *No behaviour change.* **Acceptance bar
+   (review 2026-06-16):** the lift must encode *every* shipped capability — multi-schema `segments`/`selector`
+   fan-out, plugin-ingester segment tables, CSV row-filters, post-action, gap, watermark, dedup, **and** the
+   pipeline↔enrichment file boundary — proven by the **full existing suite (incl. the plugin-ingester and
+   multi-schema fixtures) running green through the lifted path**, against a written capability-coverage checklist
+   ([§14 T1](#14-things-to-do-implementation-checklist)). This is the gate; "4-node linear" is only the
+   single-schema case (§5).
 2. **Component registry + `use:` references.** Extract `transforms/` and `sinks/` component types; generalise the
    connection/grammar/schema reference resolution; extend the `referencedFiles()` mtime-watch to all referenced
    components. **Dedup lands here.**
 3. **`*_flow.toon` authoring + topological executor** with `success`/`failure`/`unmatched`/`gap`/`on_commit`
    routing (replaces buried flags with wired edges), **entry-node triggers** (schedule/cron/event/manual, §3.6)
-   with event-coalescing, and **`(batch, branch)` commit semantics** (§3.7). Per-node `enabled:`.
+   with event-coalescing, and **`(batch, branch)` commit semantics** (§3.7). Per-node `enabled:`. **This is the
+   heavy phase (review 2026-06-16):** it carries the new branch-aware executor (R3), the multi-output node-output
+   contract + row-shaping SQL assembly for `filter`/`route`/`validate`/`dedup`/`split`/`merge` (R1), and the
+   `commit()` split into per-branch + source-finalisation with a partial-commit state (R2). Sequence R1→R2→R3 as
+   sub-steps; do **not** estimate it as "wire up edges."
 4. **Flow-graph API + G6 visualisation + node inspector** (read-only first).
 5. **Per-component dry-run/test endpoints**, then **component + flow CRUD from the UI** (build-and-test UX).
 
@@ -558,8 +674,105 @@ These are **deliberate non-goals for v1**, stated plainly so users and implement
 capability in the IR. If a real config uses something the IR cannot express, that gap must be closed (or explicitly
 excepted) before phase 1 is "done" — the existing test suite passing against the lifted path is the gate.
 
+## 13. Open risks & corrections (2026-06-16 review)
+
+A grounded review against the current engine found that several "thin shape over existing machinery" claims are
+stronger than the code supports. **None changes a §9 decision or a §12 boundary** — they re-scope *cost and
+sequencing* so the phased roadmap stays honest. Each correction is also threaded back into the relevant section
+above.
+
+| # | Sev | Claim as written | Reality in the code today | Correction / action |
+|---|-----|------------------|---------------------------|---------------------|
+| R1 | High | A new `transform.*` operator is "a registry addition, not engine surgery" (§3.4). | [`TransformCompiler`](../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) is **column-scalar only** (`DIRECT`/`EXPR`/`CONCAT_DT`/`FILENAME_DATE`); [`DataTransformer`](../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) emits one fixed `SELECT … FROM <one source>` and returns **one** table. No `WHERE`/`CASE`-route/`QUALIFY`/`UNNEST`/multi-input exist. | Only `derive`/`select` are registry additions. `filter`/`route`/`validate`/`dedup`/`split`/`merge` need new SQL-assembly + a **multi-named-relation node-output contract** + chain-fusion. Re-scoped in §3.4 + §8 Phase 3. |
+| R2 | High | `(batch, branch)` commit is "today's commit-log / ledger key extended" (§3.7). | [`CommitLog`](../inspecto/src/main/java/com/gamma/etl/CommitLog.java) keyed on `batch_id` only; ledger on `(sourceId, relPath)`; [`BatchProcessor.commit`](../inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java) writes one output set and finalises the file in one crash-ordered sequence ("markers LAST"). No branch dimension, no partial-commit state. | New branch dimension across commit-log/ledger/markers/manifest **+** a partial-commit state **+** a `commit()` split (per-branch vs source-finalisation) preserving the ordering invariant. Re-scoped in §3.7 + §8 Phase 3. |
+| R3 | Med | The topological walk "reuses `MultiSourceProcessor`'s virtual-thread fan-out for independent branches" (§3.3). | [`runConfigs`](../inspecto/src/main/java/com/gamma/inspector/MultiSourceProcessor.java) fans out **per `PipelineConfig`** (one isolated vthread per source). No intra-pipeline branch concept. | Branch scheduling is new; only the pool/permit pattern is reused. Corrected in §3.3. |
+| R4 | Med-High | A `*_pipeline.toon` "auto-lifts into a 4-node linear `FlowGraph`" (§5). | A pipeline already fans into N schemas via `segments`/`selector` ([`rebuildStructural`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java)); plugin ingesters emit multiple segment tables; **enrichment is a separate config file** ([`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java)). | Lift is a fan-out for multi-schema configs; decide pipeline↔enrichment join vs two-flows-linked-by-`on_commit`. Corrected in §5; gates Phase 1 (§8). |
+| R5 | Low | "DAG over `data` edges; control edges excluded from the cycle walk" (D10) vs. `on_commit` feeding a downstream flow (§3.6). | An `on_commit` edge re-entering the same graph is a cycle the data-edge-only check won't catch. | `on_commit` is **cross-flow only**; validator rejects same-graph targets. Clarified in §3.2. |
+| R6 | Med | The `ingest` job type is "what runs when" over a pipeline (§3.6) — implying a job can drive a pipeline. | [`IngestJob.run`](../inspecto/src/main/java/com/gamma/job/IngestJob.java) calls `MultiSourceProcessor.runAll(List.of(config),…)` — a **full pipeline re-run incl. acquisition**, over the *same inbox* the poll loop works, on a separate scheduler with no shared lock. This violates the §3.8 clean model (the pipeline *is* the ETL and owns ingest, poll-driven only). | **Decided 2026-06-17: remove the `ingest` job type.** Ingest/acquisition is pipeline-exclusive (loop scheduler); jobs are custom functions over stored data (custom-function scheduler), never a re-acquisition. Delete `IngestJob` + `JobType.INGEST`; migrate any `ingest` job to an `active:true` pipeline. See T23. |
+
+**Credit (genuinely de-risked, no action):** the `MetadataGraphService` projection seam already iterates
+`pipelines()` + `enrichments()` and understands multi-schema, so the §6 flow projection is additive; the
+`ConfigRegistry` mtime-cache + `referencedFiles()` + `active:` gate already shipped, so Phase-2 dedup/reload builds
+on real infrastructure; the `CommitLog` fsync + "markers LAST" ordering is a sound invariant worth preserving
+(which is *why* R2 is expensive). The §11.4 conservation invariant is a real win but **not free** — it needs the
+per-edge counters that don't exist yet (`LineageRow` is transform→write only), so it stays a Phase-4.5/6 item.
+
+## 14. Things to do (implementation checklist)
+
+Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not started.
+
+### Phase 1 — Flow IR + legacy lift (the de-risker; gate before anything else)
+- [ ] **T1 (the gate).** Write a **capability-coverage checklist** enumerating every `*_pipeline.toon` feature
+  (single/`selector`/`segments` schemas, plugin ingester, CSV row-filters, partitions, post-action, gap, watermark,
+  dedup modes, enrichment trigger) and map each to its IR representation. *Done = checklist complete and reviewed.*
+- [ ] **T2.** Define `FlowGraph`/`FlowNode`/`FlowEdge` records + the `FlowNodeType` ServiceLoader SPI (`com.gamma.flow`).
+- [ ] **T3.** Implement the lift: single-schema → linear; **multi-schema/`segments`/`selector` → fan-out** (R4);
+  imply control edges from existing flags (post-action→`failure`, gap→`gap`, enrichment→`on_commit`).
+- [ ] **T4.** Decide & implement the **pipeline↔enrichment** boundary (R4): join referencing configs into one
+  `FlowGraph`, or two flows linked by `on_commit`. Record the decision in §5.
+- [ ] **T5.** Implement compile-back to today's `SourceProcessor` primitives; **run the full existing suite
+  (core + connectors + plugin-ingester + multi-schema fixtures) green through the lifted path** — the parity gate.
+
+### Phase 2 — Component registry + `use:` references (dedup lands here)
+- [ ] **T6.** Extract `transforms/` and `sinks/` component types; generalise connection/grammar/schema reference
+  resolution to in-file `<type>/<name>` identity (D9), reusing `ConfigRegistry` reconciliation.
+- [ ] **T7.** Extend the `referencedFiles()` mtime-watch to all referenced components (edit-once reload).
+- [ ] **T8.** Generalise the `connectionInUse` 409 guard to "what references this component?" safe-delete.
+
+### Phase 3 — `*_flow.toon` authoring + topological executor (the heavy phase — sequence R1→R2→R3)
+- [ ] **T9 (R1a).** New **node-output contract**: a node may emit multiple *named relations* (the thing
+  `DataTransformer` can't do). This unblocks every row-shaping operator.
+- [ ] **T10 (R1b).** Row-shaping SQL assembly: `filter`(`WHERE`), `route`(`case`/`clone`), `validate`(two-output),
+  `dedup`(`QUALIFY`), `split`(`UNNEST`), `merge`(multi-input join) + linear `derive`/`select` **chain-fusion**.
+- [ ] **T11 (R2).** Split `BatchProcessor.commit` into per-branch (register/manifest) + source-finalisation
+  (backup/markers/ledger/watermark/post-action) gated on *all branches committed*; add the **partial-commit state**
+  to commit-log + ledger + markers + manifest; preserve the "markers LAST" ordering; idempotent per `(file,branch)`.
+- [ ] **T12 (R3).** Branch-aware **topological executor** (new scheduling over the existing vthread-pool/permit
+  pattern) with `success`/`failure`/`unmatched`/`gap`/`on_commit` routing replacing the buried flags.
+- [ ] **T13.** Entry-node **triggers** (schedule/cron/event/manual, §3.6) + event coalescing under the
+  non-overlapping `ingestLock`; the `adapter` land-then-ack node; per-node `enabled:`.
+- [ ] **T14 (R5).** Validator: DAG over `data` edges, reject cycles, reject illegal wiring (emit/accept rels), and
+  reject same-graph `on_commit` targets.
+- [ ] **T15.** Adaptive back-pressure defaults (§3.5) as configurable, not hard-coded.
+
+### Phase 4 — Flow-graph API + G6 visualisation (read-first)
+- [ ] **T16.** `GET /flows/{id}/graph` projection → reuse the G6 renderer (solid `data` / dashed control edges).
+- [ ] **T17.** Node inspector panel (effective config resolved through `use:`); live last-run overlay via `OverlaySource`.
+
+### Phase 5 — Per-component dry-run/test + CRUD-from-UI (build-and-test UX)
+- [ ] **T18.** `preview(sample)` per node type (reuse production logic, scratch-only); the `/components/{type}/{id}/test`
+  + `/flows/{id}/dry-run` endpoints (§7.2).
+- [ ] **T19.** Component + flow CRUD from the UI (generalise the write-root-gated, atomic, secret-masking connections pattern).
+
+### Phase 4.5 / 6 — Data plane (provenance overlay; not required for 1–3)
+- [ ] **T20.** Per-edge counters at every node boundary (`recordsIn`/`recordsOut`/`diverted` tagged by relationship) — §11.3.
+- [ ] **T21.** Unified provenance key (correlation id + runId) joining acquisition events + lineage matrix + enrichment.
+- [ ] **T22.** `GET /provenance?file=…` graph-shaped query + Sankey overlay on the G6 canvas; surface conservation-imbalance
+  (§11.4) and unexpected amplification as events/alerts.
+
+### Model — pipelines vs jobs (formalised §3.8; spans phases 1/3/4)
+- [ ] **T23 (R6, decided).** **Remove the `ingest` job type** (`JobType.INGEST` + `IngestJob`) — ingest is
+  pipeline-exclusive. Implement the **two-scheduler split** (§3.8): the **loop scheduler** drives pipeline nodes
+  only; the **custom-function scheduler** ([`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java))
+  drives jobs only (custom plugin functions over stored data). Migrate existing `ingest` jobs to `active:true`
+  pipelines; drop `INGEST` from `JobType` and from `JobService.build`.
+- [ ] **T24.** **Combined pipeline+job visualisation** (§3.8): join the pipeline `sink(store)` node and the job
+  `source(store)` node at the shared table in the flow/lineage projection (§6), drawing `on_commit` as the
+  producer→consumer edge — one topology, not two.
+- [ ] **T25.** **Deletion fence on the shared store** (§3.8 rule 4): keep `maintenance`/delete jobs standalone;
+  guarantee they are slice-disjoint or quiet-windowed, and surface a conflict warning/alert when a delete targets a
+  slice with an active reader/writer. (Append/read on disjoint slices needs no fence.)
+- [ ] **T26.** **Misfire / catch-up** (the one real Quartz gap, §3.8): on startup compare `lastRunOf(job)` against
+  the cron schedule; if a fire was missed and the job is `catch_up: true`, submit one run immediately. A few lines
+  over `CronExpression.next()` + the existing history — **no new dep, no Quartz.**
+- [ ] **T27.** **Job-execution reporting**: project `JobRun` into a **DuckDB** table (mirror `DbStatusStore` /
+  `EventStore`); expose query endpoints (success rate, p50/p95 duration, failure trends over time); build a **Jobs
+  pane** in `inspecto-ui` reusing the shipped **Events/Activity viewer** template (ag-Grid + filter toolbar +
+  live-tail + CSV export + detail dialog). The run data is already captured (`jobs_runs.csv`); this is the projection + UI.
+
 ---
 
-**Last Updated**: 2026-06-16
-**Status**: design finalised (decisions §9, boundaries §12); phase 1 (Flow IR + legacy lift) is the next
-implementation step.
+**Last Updated**: 2026-06-17
+**Status**: design finalised (decisions §9, boundaries §12); **reviewed 2026-06-16 against the engine — corrections
++ re-scoping in §13, implementation checklist in §14; pipeline-vs-job execution model formalised 2026-06-17 in §3.8
+(R6 / T23–T25).** Phase 1 (Flow IR + legacy lift, gated by T1/T5) is the next implementation step.
