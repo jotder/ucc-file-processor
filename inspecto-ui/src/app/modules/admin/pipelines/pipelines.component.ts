@@ -11,7 +11,7 @@ import { Router } from '@angular/router';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, DEFAULT_REFRESH_MS, PipelinesService, PipelineView, visibleInterval } from 'app/inspecto/api';
+import { apiErrorMessage, DEFAULT_REFRESH_MS, optimisticMutate, PipelinesService, PipelineView, visibleInterval } from 'app/inspecto/api';
 import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { actionsColumn, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
@@ -150,15 +150,28 @@ export class PipelinesComponent implements OnInit {
     }
 
     async togglePause(p: PipelineView): Promise<void> {
-        const verb = p.paused ? 'Resume' : 'Pause';
+        const wasPaused = p.paused;
+        const verb = wasPaused ? 'Resume' : 'Pause';
         if (!(await this.confirm.confirm(`${verb} pipeline "${p.name}"?`, `${verb} pipeline`))) return;
-        const call = p.paused ? this.api.resume(p.name) : this.api.pause(p.name);
-        call.subscribe({
-            next: (r) => {
-                this.toastr.success(`${p.name} ${r.paused ? 'paused' : 'resumed'}`);
-                this.load();
+        // Optimistic: flip the local paused state now (snappy toggle, no refetch); the call selection
+        // is based on the pre-flip value, and we roll back + toast only on failure.
+        const call = wasPaused ? this.api.resume(p.name) : this.api.pause(p.name);
+        const render = () => (this.pipelines = [...this.pipelines]); // new ref so the grid re-renders
+        optimisticMutate({
+            apply: () => {
+                p.paused = !wasPaused;
+                render();
             },
-            error: (e) => this.toastr.error(apiErrorMessage(e, `${verb} failed for ${p.name}`)),
+            commit: call,
+            reconcile: (r) => {
+                p.paused = r.paused;
+                render();
+            },
+            rollback: () => {
+                p.paused = wasPaused;
+                render();
+            },
+            onError: (e) => this.toastr.error(apiErrorMessage(e, `${verb} failed for ${p.name}`)),
         });
     }
 

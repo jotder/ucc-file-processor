@@ -14,6 +14,7 @@ import { GammaPlatformService } from '@gamma/services/platform';
 // import { GAMMA_VERSION } from '@gamma/version';
 import { Subject, combineLatest, filter, map, takeUntil } from 'rxjs';
 // import { SettingsComponent } from './common/settings/settings.component';
+import { ConnectivityBannerComponent } from 'app/inspecto/components/connectivity-banner.component';
 import { EmptyLayoutComponent } from './layouts/empty/empty.component';
 import { ClassicLayoutComponent } from './layouts/vertical/classic/classic.component';
 import { DenseLayoutComponent } from './layouts/vertical/dense/dense.component';
@@ -25,6 +26,7 @@ import { DenseLayoutComponent } from './layouts/vertical/dense/dense.component';
     styleUrls: ['./layout.component.scss'],
     encapsulation: ViewEncapsulation.None,
     imports: [
+        ConnectivityBannerComponent,
         EmptyLayoutComponent,
         ClassicLayoutComponent,
         DenseLayoutComponent,

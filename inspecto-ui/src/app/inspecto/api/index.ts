@@ -4,6 +4,8 @@ export * from './auto-refresh';
 export * from './token-store.service';
 export * from './auth.interceptor';
 export * from './error.interceptor';
+export * from './connectivity.service';
+export * from './optimistic';
 export * from './pipelines.service';
 export * from './reports.service';
 export * from './health.service';
