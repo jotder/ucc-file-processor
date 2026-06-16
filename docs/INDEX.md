@@ -13,6 +13,11 @@
 
 Add topic files in `docs/learnings/` and list them here.
 
+## Design docs
+
+- [`flow-graph-design.md`](flow-graph-design.md) — pipeline-as-graph (NiFi-style nodes + edges, component
+  registry with `use:` refs, flow visualisation, per-component create/test). Agreed design; phase 1 not yet built.
+
 ---
 
-**Last Updated**: 2026-06-14
+**Last Updated**: 2026-06-16
