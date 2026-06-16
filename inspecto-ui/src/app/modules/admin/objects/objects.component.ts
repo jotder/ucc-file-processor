@@ -9,7 +9,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { ObjectsService, OperationalObject } from 'app/inspecto/api';
+import { apiErrorMessage, ObjectsService, OperationalObject } from 'app/inspecto/api';
 import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import {
@@ -166,7 +166,7 @@ export class ObjectsComponent implements OnInit {
                 this.toastr.success(`${o.title}: ${u.status}`);
                 this.load();
             },
-            error: (e) => this.toastr.error(e?.error?.error ?? 'Transition failed'),
+            error: (e) => this.toastr.error(apiErrorMessage(e, 'Transition failed')),
         });
     }
 

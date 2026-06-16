@@ -148,6 +148,18 @@ class ControlApiStaticAndCorsTest {
     }
 
     @Test
+    void apiPrefixIsStrippedToMatchRoutes(@TempDir Path dir) throws Exception {
+        // The SPA addresses routes as "/api/..."; served same-origin (no proxy) the backend must
+        // strip the prefix and hit the real route, returning JSON — not the index.html SPA shell.
+        try (Ctx c = open(spaDir(dir).toString(), null)) {
+            HttpResponse<String> r = send(c.port, "GET", "/api/pipelines", TOKEN);
+            assertEquals(200, r.statusCode());
+            assertTrue(ctype(r).startsWith("application/json"), "/api/* resolves to the JSON route, not index.html");
+            assertFalse(r.body().contains("<html"), "must not serve the SPA shell for an /api path");
+        }
+    }
+
+    @Test
     void staticIsPublicButApiStillRequiresToken(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
             assertEquals(200, send(c.port, "GET", "/", null).statusCode(), "SPA shell loads without a token");

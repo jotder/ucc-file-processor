@@ -9,6 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { ToastrService } from 'ngx-toastr';
 import {
+    apiErrorMessage,
     AssistService,
     AssistSettings,
     AssistSettingsTest,
@@ -155,7 +156,7 @@ export class ModelSettingsComponent implements OnInit {
             },
             error: (e) => {
                 this.saving = false;
-                this.toastr.error(e?.error?.error ?? 'Save failed — check the control token scope (assist.write)');
+                this.toastr.error(apiErrorMessage(e, 'Save failed — check the control token scope (assist.write)'));
             },
         });
     }
@@ -173,7 +174,7 @@ export class ModelSettingsComponent implements OnInit {
             },
             error: (e) => {
                 this.testing = false;
-                this.toastr.error(e?.error?.error ?? 'Test failed — check the control token scope (assist.write)');
+                this.toastr.error(apiErrorMessage(e, 'Test failed — check the control token scope (assist.write)'));
             },
         });
     }

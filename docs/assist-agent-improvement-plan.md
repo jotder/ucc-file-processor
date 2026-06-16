@@ -42,7 +42,7 @@ Product rename ahead of the feature work so all new code/config lands under the 
 2. **Artifact tier (medium)**
    - Maven: rename artifactIds (`file-processor` → `inspecto-core` or keep module dirs
      and change `<name>`/`<description>` only — **decision below**), fat-JAR final name,
-     version stays `4.1.0-SNAPSHOT`.
+     version stays `4.0.0-SNAPSHOT`.
    - npm package name in `inspecto-ui/package.json`.
 3. **Identifier tier (high churn — recommend deferring)**
    - Java package `com.gamma.*` namespaces, `ucc`-prefixed env vars

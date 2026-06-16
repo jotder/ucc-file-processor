@@ -6,7 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { AlertRule, AlertsService, FiredAlert } from 'app/inspecto/api';
+import { AlertRule, AlertsService, apiErrorMessage, FiredAlert } from 'app/inspecto/api';
 import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
 
 /**
@@ -97,7 +97,7 @@ export class AlertsComponent implements OnInit {
             },
             error: (e) => {
                 this.evaluating = false;
-                this.toastr.warning(e?.error?.error ?? 'No alert rules armed (save a *_alert.toon next to the configs)');
+                this.toastr.warning(apiErrorMessage(e, 'No alert rules armed (save a *_alert.toon next to the configs)'));
             },
         });
     }

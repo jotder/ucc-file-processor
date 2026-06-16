@@ -98,7 +98,10 @@ export class DesignSystemComponent {
         refreshActionsCells(e);
         // Static rowData renders synchronously, hitting the same ag-Grid + Angular 21 initial-render
         // skip that affects the actions column — force the string-renderer status cells too.
-        setTimeout(() => e.api.refreshCells({ force: true, columns: ['status'] }));
+        setTimeout(() => {
+            if (e.api.isDestroyed()) return;
+            e.api.refreshCells({ force: true, columns: ['status'] });
+        });
     }
 
     // ── Reactive form + inline mat-error ─────────────────────────────────────────────────────

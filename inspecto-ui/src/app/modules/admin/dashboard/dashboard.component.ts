@@ -10,7 +10,8 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ChartData } from 'chart.js';
 import { ToastrService } from 'ngx-toastr';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import {
     AcquisitionMetrics,
     AcquisitionMetricsService,
@@ -97,17 +98,19 @@ export class DashboardComponent implements OnInit {
 
     refresh(): void {
         this.loading = true;
+        // Each source degrades independently — a single failing endpoint shouldn't blank the whole
+        // dashboard. forkJoin then always completes; we warn only if every core call failed.
         forkJoin({
-            ready: this.health.ready(),
-            status: this.reports.status(),
-            report: this.reports.serviceReport(),
-            metrics: this.health.metrics(),
-        }).subscribe({
-            next: ({ ready, status, report, metrics }) => {
-                this.ready = ready;
-                this.status = status;
-                this.report = report;
-                this.metricsText = metrics;
+            ready: this.health.ready().pipe(catchError(() => of(null))),
+            status: this.reports.status().pipe(catchError(() => of(null))),
+            report: this.reports.serviceReport().pipe(catchError(() => of(null))),
+            metrics: this.health.metrics().pipe(catchError(() => of(null))),
+        }).subscribe(({ ready, status, report, metrics }) => {
+            this.ready = ready;
+            this.status = status;
+            this.report = report;
+            this.metricsText = metrics ?? '';
+            if (report) {
                 this.latencyData = {
                     labels: ['p50', 'p95', 'p99'],
                     datasets: [
@@ -127,12 +130,11 @@ export class DashboardComponent implements OnInit {
                         },
                     ],
                 };
-                this.loading = false;
-            },
-            error: () => {
-                this.loading = false;
+            }
+            this.loading = false;
+            if (!ready && !status && !report && metrics === null) {
                 this.toastr.error('Failed to load service status. The backend may be unreachable.');
-            },
+            }
         });
 
         // Acquisition summary + recent activity — fetched independently so a failure (or a

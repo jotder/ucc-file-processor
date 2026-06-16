@@ -156,7 +156,10 @@ export class InspectoActionsCell implements ICellRendererAngularComp {
  * TODO: re-test when bumping ag-grid / Angular and drop if fixed upstream.
  */
 export function refreshActionsCells(e: { api: GridApi }): void {
-    setTimeout(() => e.api.refreshCells({ force: true, columns: ['actions'] }));
+    setTimeout(() => {
+        if (e.api.isDestroyed()) return;
+        e.api.refreshCells({ force: true, columns: ['actions'] });
+    });
 }
 
 /** Derive simple columns from the keys of loose-map rows (audit rows etc.). */

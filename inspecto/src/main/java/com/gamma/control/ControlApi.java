@@ -808,6 +808,12 @@ public final class ControlApi implements AutoCloseable {
     private void dispatch(HttpExchange ex) throws IOException {
         String path   = ex.getRequestURI().getPath();
         String method = ex.getRequestMethod();
+        // Accept an optional "/api" prefix so a single SPA build works in both deployment modes:
+        // behind the ng-serve dev proxy (which rewrites "/api" → "") and when served same-origin by
+        // ControlApi itself (no proxy). The Angular app addresses every route as "/api/...", so strip
+        // the prefix here before route matching. Static assets never carry "/api", so they're untouched.
+        if (path.startsWith("/api/")) path = path.substring(4);
+        else if (path.equals("/api")) path = "/";
         if (corsOrigin != null) applyCors(ex);     // rides every response written below
         try {
             // CORS preflight: answer before route matching (no token, no body).

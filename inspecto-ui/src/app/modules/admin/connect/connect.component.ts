@@ -56,9 +56,12 @@ export class ConnectComponent {
 
     onSubmit(e: Event): void {
         e.preventDefault();
-        const result = this.auth.connect(this.controlToken || null, this.assistToken || null);
-        if (!result.isOk) {
-            this.toastr.error(result.message);
-        }
+        this.loading = true;
+        this.auth.connect(this.controlToken || null, this.assistToken || null).subscribe((result) => {
+            this.loading = false;
+            if (!result.isOk) {
+                this.toastr.error(result.message);
+            }
+        });
     }
 }

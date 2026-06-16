@@ -9,7 +9,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
-import { EventRow, EventsService, NodeKind, ObjectGraph, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
+import { apiErrorMessage, EventRow, EventsService, NodeKind, ObjectGraph, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
 import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
@@ -184,7 +184,7 @@ export class ObjectDetailComponent implements OnInit {
                 this.obj = o;
                 this.toastr.success(`${o.title}: ${o.status}`);
             },
-            error: (e) => this.toastr.error(e?.error?.error ?? 'Transition failed'),
+            error: (e) => this.toastr.error(apiErrorMessage(e, 'Transition failed')),
         });
     }
 
@@ -200,7 +200,7 @@ export class ObjectDetailComponent implements OnInit {
                 this.commentForm.reset({ body: '' });
                 this.loadComments();
             },
-            error: (e) => this.toastr.error(e?.error?.error ?? 'Could not add comment'),
+            error: (e) => this.toastr.error(apiErrorMessage(e, 'Could not add comment')),
         });
     }
 
@@ -217,7 +217,7 @@ export class ObjectDetailComponent implements OnInit {
                 this.attachForm.reset({ name: '', uri: '' });
                 this.loadAttachments();
             },
-            error: (e) => this.toastr.error(e?.error?.error ?? 'Could not add attachment'),
+            error: (e) => this.toastr.error(apiErrorMessage(e, 'Could not add attachment')),
         });
     }
 
@@ -229,7 +229,7 @@ export class ObjectDetailComponent implements OnInit {
                 this.selectedIndex = this.tabs.findIndex((t) => t.id === 'comments');
                 this.loadComments();
             },
-            error: (e) => this.toastr.error(e?.error?.error ?? 'Could not apply RCA'),
+            error: (e) => this.toastr.error(apiErrorMessage(e, 'Could not apply RCA')),
         });
     }
 

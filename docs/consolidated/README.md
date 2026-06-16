@@ -2,7 +2,7 @@
 
 Authoritative, deduplicated document set synthesized from 44 source markdown files across the
 sandbox (engine, agent, UI, and planning docs). Built for stakeholder review; reflects the
-**current truth** of the project as of **2026-06-13** (v4.x · `4.1.0-SNAPSHOT` · Java 25+ · DuckDB).
+**current truth** of the project as of **2026-06-13** (v4.x · `4.0.0-SNAPSHOT` · Java 25+ · DuckDB).
 
 ## Consolidated documents
 1. [01-Executive-Summary](01-Executive-Summary.md) — vision, current phase, value proposition, quick status

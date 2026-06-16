@@ -5,7 +5,7 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { ToastrService } from 'ngx-toastr';
-import { ObjectsService, OperationalObject } from 'app/inspecto/api';
+import { apiErrorMessage, ObjectsService, OperationalObject } from 'app/inspecto/api';
 
 /** Create a correlation link from one object to another — POST /objects/{id}/links. */
 @Component({
@@ -67,7 +67,7 @@ export class ObjectLinkDialog implements OnInit {
             },
             error: (e) => {
                 this.saving = false;
-                this.toastr.error(e?.error?.error ?? 'Link failed');
+                this.toastr.error(apiErrorMessage(e, 'Link failed'));
             },
         });
     }

@@ -6,7 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { ToastrService } from 'ngx-toastr';
-import { CreateObject, ObjectsService } from 'app/inspecto/api';
+import { apiErrorMessage, CreateObject, ObjectsService } from 'app/inspecto/api';
 
 /** Create dialog for an operator-created object (an ISSUE or a CASE) — POST /objects. */
 @Component({
@@ -90,7 +90,7 @@ export class ObjectCreateDialog {
             },
             error: (e) => {
                 this.saving = false;
-                this.toastr.error(e?.error?.error ?? 'Create failed');
+                this.toastr.error(apiErrorMessage(e, 'Create failed'));
             },
         });
     }

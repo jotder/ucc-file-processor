@@ -4,8 +4,12 @@
 
 export const environment = {
     production: false,
-    // Inspecto inspector backend (ControlApi). '/api' is proxied to :8080 by ng serve (proxy.conf.json);
-    // in production the SPA is served by ControlApi itself, so this becomes '' (same-origin).
+    // Inspecto inspector backend (ControlApi). All API calls are prefixed with '/api':
+    //  - dev (ng serve): proxy.conf.json rewrites '/api' → '' and forwards to :8080.
+    //  - packaged (SPA served same-origin by ControlApi): the backend strips the '/api' prefix
+    //    before route matching, so the same build works without a proxy.
+    // Keep this as '/api' for both modes. (There are no angular.json fileReplacements, so this
+    // environment.ts is the one that actually ships.)
     apiBaseUrl: '/api',
     hmr: false,
     apiVersion: '/api/v1',

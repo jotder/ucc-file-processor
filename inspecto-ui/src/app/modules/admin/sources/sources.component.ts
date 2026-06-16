@@ -12,6 +12,7 @@ import { ChartData } from 'chart.js';
 import {
     AcquisitionMetrics,
     AcquisitionMetricsService,
+    apiErrorMessage,
     PipelinesService,
     SourceView,
     SourcesService,
@@ -194,7 +195,7 @@ export class SourcesComponent implements OnInit {
                 this.toastr.success(`${source.pipeline}: ${r.status}`);
                 this.load();
             },
-            error: (e) => this.toastr.error(e?.error?.error ?? `Run failed for ${source.pipeline}`),
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Run failed for ${source.pipeline}`)),
         });
     }
 

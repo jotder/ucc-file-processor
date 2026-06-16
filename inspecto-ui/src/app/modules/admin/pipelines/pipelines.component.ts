@@ -11,7 +11,7 @@ import { Router } from '@angular/router';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { DEFAULT_REFRESH_MS, PipelinesService, PipelineView, visibleInterval } from 'app/inspecto/api';
+import { apiErrorMessage, DEFAULT_REFRESH_MS, PipelinesService, PipelineView, visibleInterval } from 'app/inspecto/api';
 import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { actionsColumn, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
@@ -114,7 +114,7 @@ export class PipelinesComponent implements OnInit {
             },
             error: (e) => {
                 this.loading = false;
-                this.toastr.error(e?.error?.error ?? 'Failed to load pipelines');
+                this.toastr.error(apiErrorMessage(e, 'Failed to load pipelines'));
             },
         });
     }
@@ -127,7 +127,7 @@ export class PipelinesComponent implements OnInit {
                 r.failed ? this.toastr.warning(msg) : this.toastr.success(msg);
                 this.load();
             },
-            error: (e) => this.toastr.error(e?.error?.error ?? `Trigger failed for ${name}`),
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Trigger failed for ${name}`)),
         });
     }
 
@@ -144,7 +144,7 @@ export class PipelinesComponent implements OnInit {
             },
             error: (e) => {
                 this.loading = false;
-                this.toastr.error(e?.error?.error ?? 'Run all failed');
+                this.toastr.error(apiErrorMessage(e, 'Run all failed'));
             },
         });
     }
@@ -158,7 +158,7 @@ export class PipelinesComponent implements OnInit {
                 this.toastr.success(`${p.name} ${r.paused ? 'paused' : 'resumed'}`);
                 this.load();
             },
-            error: (e) => this.toastr.error(e?.error?.error ?? `${verb} failed for ${p.name}`),
+            error: (e) => this.toastr.error(apiErrorMessage(e, `${verb} failed for ${p.name}`)),
         });
     }
 
@@ -173,7 +173,7 @@ export class PipelinesComponent implements OnInit {
                     this.toastr.success(`Reprocess requested for ${name} / ${batchId.trim()}`);
                     this.load();
                 },
-                error: (e) => this.toastr.error(e?.error?.error ?? `Reprocess failed for ${name}`),
+                error: (e) => this.toastr.error(apiErrorMessage(e, `Reprocess failed for ${name}`)),
             });
         });
     }

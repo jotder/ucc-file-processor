@@ -9,7 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { JobsService, JobView } from 'app/inspecto/api';
+import { apiErrorMessage, JobsService, JobView } from 'app/inspecto/api';
 import { InspectoAuthService } from 'app/inspecto/auth.service';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { AssistDialog } from 'app/inspecto/components/assist.dialog';
@@ -123,7 +123,7 @@ export class JobsComponent implements OnInit {
                 this.toastr.success(`${job.name}: ${r.status}`);
                 this.load();
             },
-            error: (e) => this.toastr.error(e?.error?.error ?? `Run failed for ${job.name}`),
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Run failed for ${job.name}`)),
         });
     }
 

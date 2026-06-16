@@ -8,7 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { ToastrService } from 'ngx-toastr';
-import { ConnectionProfile, ConnectionsService } from 'app/inspecto/api';
+import { apiErrorMessage, ConnectionProfile, ConnectionsService } from 'app/inspecto/api';
 
 /** Dialog data: `profile` set ⇒ edit mode (id locked); absent ⇒ create. */
 interface ConnectionFormData {
@@ -284,7 +284,7 @@ export class ConnectionFormDialog {
                         ? 'Writes are disabled (no write root configured).'
                         : e?.status === 409
                           ? `A connection "${profile.id}" already exists.`
-                          : (e?.error?.error ?? `Could not save "${profile.id}".`);
+                          : apiErrorMessage(e, `Could not save "${profile.id}".`);
                 this.toastr.error(msg);
                 if (e?.status === 503) this.ref.close({ writesDisabled: true });
             },

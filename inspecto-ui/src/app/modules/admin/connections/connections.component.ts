@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
-import { ConnectionProfile, ConnectionTestResult, ConnectionsService } from 'app/inspecto/api';
+import { apiErrorMessage, ConnectionProfile, ConnectionTestResult, ConnectionsService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ConnectionFormDialog, ConnectionFormResult } from './connection-form.dialog';
 
@@ -68,7 +68,7 @@ export class ConnectionsComponent implements OnInit {
             },
             error: (e) => {
                 this.testing[id] = false;
-                this.toastr.warning(e?.error?.error ?? `Test failed for ${id}`);
+                this.toastr.warning(apiErrorMessage(e, `Test failed for ${id}`));
             },
         });
     }
@@ -127,7 +127,7 @@ export class ConnectionsComponent implements OnInit {
                         ? 'Writes are disabled (no write root configured).'
                         : e?.status === 409
                           ? `"${c.id}" is in use and can't be deleted.`
-                          : (e?.error?.error ?? `Could not delete "${c.id}".`);
+                          : apiErrorMessage(e, `Could not delete "${c.id}".`);
                 this.toastr.error(msg);
             },
         });

@@ -15,7 +15,7 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin, Observable } from 'rxjs';
-import { AuditRow, BatchAuditReport, InboxStatus, PipelinesService } from 'app/inspecto/api';
+import { apiErrorMessage, AuditRow, BatchAuditReport, InboxStatus, PipelinesService } from 'app/inspecto/api';
 import { actionsColumn, autoColumns, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
 import { BatchDetailDialog } from './batch-detail.dialog';
 
@@ -257,7 +257,7 @@ export class PipelineDetailComponent implements OnInit {
         }
         this.api.reprocess(this.name, id).subscribe({
             next: () => this.toastr.success(`Reprocess requested for ${id}`),
-            error: (e) => this.toastr.error(e?.error?.error ?? `Reprocess failed for ${id}`),
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Reprocess failed for ${id}`)),
         });
     }
 

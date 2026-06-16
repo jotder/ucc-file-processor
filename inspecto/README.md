@@ -7,7 +7,7 @@ engine. Its core is an **M..N multiplexer**: it ingests **M** input files, appli
 Onboard a new CSV source with a single config file; plug in a custom Java parser for proprietary or binary formats that emit multiple event types. Stage-1 ingest deliberately does **not** do
 heavy joins, lookups, or cross-record aggregation — those run in Stage-2, downstream over the Parquet output.
 
-- **Current line:** v4.x · repo at `4.1.0-SNAPSHOT` · latest release **v4.0.0**
+- **Current line:** v4.x · repo at `4.0.0-SNAPSHOT` (targeting the 4.0.0 release)
 - **Runtime:** Java 25+, zero external runtime dependencies (everything bundled in the fat-JAR)
 
 ---
