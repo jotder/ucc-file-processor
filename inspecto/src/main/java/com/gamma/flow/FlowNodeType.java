@@ -40,13 +40,18 @@ public interface FlowNodeType {
 
     /**
      * Control/split relationships this node type may emit, besides operator-defined named
-     * {@code route:*} branches (see {@link #emitsNamedRoutes()}). Advisory in Phase 1.
+     * {@code route:*} branches (see {@link #emitsNamedRoutes()}). Enforced by
+     * {@link FlowValidator} (T9): an outbound edge whose relationship is not emitted here is rejected.
      */
     default Set<String> emits() {
         return Set.of(FlowRel.DATA);
     }
 
-    /** Relationships this node type accepts inbound. An entry node accepts nothing. Advisory in Phase 1. */
+    /**
+     * Relationships this node type accepts inbound. An entry node accepts nothing.
+     * {@link FlowValidator} enforces this on {@code data} edges (a {@code data} edge's target must
+     * accept {@code data}); a control/split outcome routed to a handler is governed by the emitter.
+     */
     default Set<String> accepts() {
         return Set.of(FlowRel.DATA);
     }

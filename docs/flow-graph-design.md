@@ -808,8 +808,17 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   CRUD (Phase 5, T19). 2 tests.
 
 ### Phase 3 — `*_flow.toon` authoring + topological executor (the heavy phase — sequence R1→R2→R3)
-- [ ] **T9 (R1a).** New **node-output contract**: a node may emit multiple *named relations* (the thing
-  `DataTransformer` can't do). This unblocks every row-shaping operator.
+- [x] **T9 (R1a) — declarative contract enforced; runtime multi-output → T10/T12.** The *descriptor* of the
+  node-output contract already shipped with T28–T30 (`FlowNodeType.emits()`/`accepts()`/`emitsNamedRoutes()`,
+  populated on every `BuiltinNodeType` — e.g. `validate`→emits `{data,invalid}`, `parser`→`{data,unmatched}`+routes,
+  `filter`→`{data,dropped}`), but it was **advisory**. T9 makes it **enforceable**: `FlowValidator` now checks
+  **emit-side** (ERROR `ILLEGAL_EMIT` — an outbound rel must be in the source's `emits()`, or a `route:*` when it
+  `emitsNamedRoutes()`) and **accept-side** (ERROR `ILLEGAL_ACCEPT` — a `data` edge's target must `accept` `data`;
+  control/split outcomes routed to a handler are governed by the emitter, so handlers needn't list every inbound
+  outcome — this is what lets the lift's `parser --unmatched--> quarantine sink` stay legal), plus a `UNKNOWN_TYPE`
+  warning for unregistered types. Proven by `aRealLiftedPipelineValidatesClean` (every lifted edge honours the
+  contract). The *runtime* production of multiple named relations (a node actually emitting `data`+`invalid` row-sets)
+  is the SQL-assembly/executor work — **T10/T12**. 5 new tests (FlowValidatorTest now 13); suite 700 green.
 - [ ] **T10 (R1b).** Row-shaping SQL assembly: `filter`(`WHERE`), `route`(`case`/`clone`), `validate`(two-output),
   `dedup`(`QUALIFY`), `split`(`UNNEST`), `merge`(multi-input join) + linear `derive`/`select` **chain-fusion**.
 - [ ] **T11 (R2).** Split `BatchProcessor.commit` into per-branch (register/manifest) + source-finalisation

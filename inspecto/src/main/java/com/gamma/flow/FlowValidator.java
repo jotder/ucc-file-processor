@@ -33,12 +33,14 @@ import java.util.Set;
  *       another flow, not a local node).</li>
  *   <li><b>No duplicate node ids</b> and <b>at least one entry (trigger) node</b> for a non-empty
  *       graph (nothing can start a flow in which every node has an inbound edge).</li>
+ *   <li><b>Relationship wiring against the node-output contract</b> (T9): an edge's relationship must
+ *       be one its source node type {@link FlowNodeType#emits() emits} (or a {@code route:*} branch
+ *       when it {@link FlowNodeType#emitsNamedRoutes() emits named routes}); and a {@code data} edge's
+ *       target must {@link FlowNodeType#accepts() accept} {@code data}. The accept side is checked only
+ *       for {@code data} edges — a control/split outcome ({@code failure}/{@code unmatched}/{@code gap})
+ *       routed to a handler (sink/alert) is governed by the emitter, so handlers need not list every
+ *       inbound outcome. An unregistered node type is flagged (warning) and its wiring left unchecked.</li>
  * </ul>
- *
- * <p><b>Deferred to T9 (the node-output contract).</b> Validating that an edge's relationship is one
- * a node type actually <em>emits</em> (and that the target <em>accepts</em>) needs the multi-named-
- * relation output contract that lands with T9/T10; until then illegal-relationship wiring is not
- * checked here. The {@link #validate} structure leaves a clear seam for it.
  */
 @PublicApi(since = "4.3.0")
 public final class FlowValidator {
@@ -56,6 +58,9 @@ public final class FlowValidator {
     public static final String ON_COMMIT_SAME_GRAPH = "ON_COMMIT_SAME_GRAPH";
     public static final String CYCLE = "CYCLE";
     public static final String NO_ENTRY = "NO_ENTRY";
+    public static final String ILLEGAL_EMIT = "ILLEGAL_EMIT";
+    public static final String ILLEGAL_ACCEPT = "ILLEGAL_ACCEPT";
+    public static final String UNKNOWN_TYPE = "UNKNOWN_TYPE";
 
     /** One validation finding: a {@code severity}, a stable {@code code}, and a human message. */
     public record Issue(Severity severity, String code, String message) {
@@ -102,7 +107,7 @@ public final class FlowValidator {
             issues.add(new Issue(Severity.ERROR, NO_ENTRY,
                     "Flow '" + g.name() + "' has no entry node — every node has an inbound edge, so nothing triggers it."));
         }
-        // T9 seam: emit/accept-relationship wiring checks land with the node-output contract.
+        checkWiring(g, issues);
         return new Result(issues);
     }
 
@@ -191,5 +196,51 @@ public final class FlowValidator {
         stack.removeLast();
         done.add(u);
         return false;
+    }
+
+    /**
+     * Check each edge against the node-output contract (T9): the source must {@code emit} the edge's
+     * relationship; a {@code data} edge's target must {@code accept} {@code data}. Endpoints that don't
+     * resolve to a node are skipped here (already flagged as dangling); unregistered types are warned and
+     * left unchecked (a plugin may define them out of core).
+     */
+    private static void checkWiring(FlowGraph g, List<Issue> issues) {
+        Map<String, FlowNode> byId = g.byId();
+        for (FlowNode n : g.nodes()) {
+            if (!FlowNodeTypes.isKnown(n.type())) {
+                issues.add(new Issue(Severity.WARNING, UNKNOWN_TYPE,
+                        "Node '" + n.id() + "' has unregistered type '" + n.type() + "' — wiring not validated."));
+            }
+        }
+        for (FlowEdge e : g.edges()) {
+            FlowNode from = byId.get(e.from());
+            if (from != null) {
+                FlowNodeTypes.get(from.type()).ifPresent(src -> {
+                    if (!emitsRel(src, e.rel())) {
+                        issues.add(new Issue(Severity.ERROR, ILLEGAL_EMIT,
+                                "Node '" + e.from() + "' (" + from.type() + ") does not emit relationship '"
+                                        + e.rel() + "' — emits " + src.emits()
+                                        + (src.emitsNamedRoutes() ? " + route:*" : "") + "."));
+                    }
+                });
+            }
+            if (e.isData()) {
+                FlowNode to = byId.get(e.to());
+                if (to != null) {
+                    FlowNodeTypes.get(to.type()).ifPresent(dst -> {
+                        if (!dst.accepts().contains(FlowRel.DATA)) {
+                            issues.add(new Issue(Severity.ERROR, ILLEGAL_ACCEPT,
+                                    "Node '" + e.to() + "' (" + to.type() + ") does not accept data — accepts "
+                                            + dst.accepts() + "."));
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    /** Whether {@code src} may emit {@code rel}: an explicit emit, or a {@code route:*} when it emits named routes. */
+    private static boolean emitsRel(FlowNodeType src, String rel) {
+        return src.emits().contains(rel) || (FlowRel.isRoute(rel) && src.emitsNamedRoutes());
     }
 }
