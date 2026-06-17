@@ -1,0 +1,66 @@
+import { describe, expect, it } from 'vitest';
+import { FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
+import { categoryVisualKind, groupByCategory, nodeDisplayLabel, toFlowG6Data } from './flow-graph';
+
+const node = (over: Partial<FlowNode>): FlowNode =>
+    ({ id: 'n', type: 'transform.map', category: 'TRANSFORM', label: 'Map', ...over });
+
+describe('categoryVisualKind', () => {
+    it('maps flow categories onto catalog node kinds for shape/colour reuse', () => {
+        expect(categoryVisualKind('SOURCE')).toBe('SOURCE');
+        expect(categoryVisualKind('PARSE')).toBe('SCHEMA');
+        expect(categoryVisualKind('TRANSFORM')).toBe('ENRICHMENT');
+        expect(categoryVisualKind('SINK')).toBe('TABLE');
+        expect(categoryVisualKind('CONTROL')).toBe('KPI');
+    });
+
+    it('passes unknown categories through (NodeKind includes string)', () => {
+        expect(categoryVisualKind('WHATEVER')).toBe('WHATEVER');
+    });
+});
+
+describe('nodeDisplayLabel', () => {
+    it('prefers the user-given name, falling back to the type label', () => {
+        expect(nodeDisplayLabel(node({ name: 'Active subscribers' }))).toBe('Active subscribers');
+        expect(nodeDisplayLabel(node({ name: undefined }))).toBe('Map');
+        expect(nodeDisplayLabel(node({ name: '  ' }))).toBe('Map');
+    });
+});
+
+describe('toFlowG6Data', () => {
+    const graph: FlowGraph = {
+        name: 'F', active: true, produces: ['orders'], consumes: [],
+        nodes: [
+            node({ id: 'acq', type: 'acquisition', category: 'SOURCE', label: 'Acquisition' }),
+            node({ id: 'sink', type: 'sink.persistent', category: 'SINK', label: 'Sink (persistent)', name: 'orders', store: 'orders' }),
+        ],
+        edges: [
+            { from: 'acq', to: 'sink', rel: 'data', kind: 'data' },
+            { from: 'acq', to: 'sink', rel: 'route:emea', kind: 'route', routeKey: 'emea' },
+        ],
+    };
+
+    it('maps nodes with the display label + visual kind', () => {
+        const { nodes } = toFlowG6Data(graph);
+        expect(nodes[0]).toEqual({ id: 'acq', data: { label: 'Acquisition', kind: 'SOURCE' } });
+        expect(nodes[1].data).toEqual({ label: 'orders', kind: 'TABLE' });   // user name + SINK→TABLE
+    });
+
+    it('keeps parallel edges unique and carries the relationship as the edge-kind label', () => {
+        const { edges } = toFlowG6Data(graph);
+        expect(new Set(edges.map((e) => e.id)).size).toBe(2);
+        expect(edges[0].data.kind).toBe('data');
+        expect(edges[1].data.kind).toBe('route:emea');
+    });
+});
+
+describe('groupByCategory', () => {
+    it('orders groups by the canonical category order, unknown categories last', () => {
+        const t = (type: string, category: string): FlowNodeType =>
+            ({ type, category, label: type, description: '', accepts: [], emits: [], emitsNamedRoutes: false });
+        const groups = groupByCategory([
+            t('gap', 'CONTROL'), t('acquisition', 'SOURCE'), t('x', 'WEIRD'), t('sink.view', 'SINK'),
+        ]);
+        expect(groups.map((g) => g.category)).toEqual(['SOURCE', 'SINK', 'CONTROL', 'WEIRD']);
+    });
+});

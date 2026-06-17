@@ -784,9 +784,12 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   (may name a business object/concept); lifted nodes get derived defaults (sink name = its store). (§3.1)
 - [x] **T30 (done 2026-06-17).** **Built-in processor definitions not deferred** — `FlowNodeTypes.catalog()` exposes
   every type's category/label/description/ports for the UI palette, so the read-first flow visualisation can land now.
-- [ ] **T31 (next).** **Read-only flow visualisation** (pulls T16/T17 forward, §6): `GET /flows/{id}/graph` projection
-  + node-type catalog endpoint → render lifted/authored flows in the existing G6 component (palette grouped by
-  category; `sink.view` styled as a logical/dashed store). Authoring/CRUD + per-node dry-run stay in Phase 5 (T18/T19).
+- [x] **T31 (done 2026-06-17).** **Read-only flow visualisation** (pulled T16/T17 forward, §6). Backend:
+  `com.gamma.flow.FlowProjection` (catalog / graph / summary — structural only) + read-only `GET /flows`,
+  `GET /flows/node-types`, `GET /flows/([^/]+)/graph` in `ControlApi` (lift on demand). Frontend (`inspecto-ui`):
+  `FlowsService` + a `flows/` pane (signals/OnPush) rendering lifted flows in the shared G6 `graph-view` component
+  (category palette + node inspector), lazy route + nav item. Verified live against the shipped `voucher_unknown_etl`
+  + `subscriber_etl` configs. Authoring/CRUD + per-node dry-run stay in Phase 5 (T18/T19).
 
 ### Phase 2 — Component registry + `use:` references (dedup lands here)
 - [ ] **T6.** Extract `transforms/` and `sinks/` component types; generalise connection/grammar/schema reference
@@ -897,5 +900,6 @@ path — these are where "lift = thin shim" breaks.
 + re-scoping in §13, implementation checklist in §14; pipeline-vs-job execution model formalised 2026-06-17 in §3.8
 (R6 / T23–T25).** **Phase 1 (Flow IR + legacy lift) is BUILT and green** (T1/T2/T3/T4/T5a done; full inspecto suite
 675/0/1). **Refined 2026-06-17 (T28–T30, §3.1): sink is a family (`persistent`/`materialized`/`view`), node types
-carry a `category`, nodes carry user `name`/`description`, built-in processor definitions exposed for the UI.**
-Next: read-only flow visualisation (T31, §6); then Phase 2 (component registry, T6–T8).
+carry a `category`, nodes carry user `name`/`description`, built-in processor definitions exposed for the UI.** **T31 (read-only flow
+visualisation — `FlowProjection` + `/flows` API + the `inspecto-ui` Flows pane) DONE 2026-06-17.**
+Next: Phase 2 (component registry + `use:` refs, T6–T8).

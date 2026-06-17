@@ -35,6 +35,8 @@ import com.gamma.ops.note.NoteKind;
 import com.gamma.ops.note.ObjectNote;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.ConnectionTester;
+import com.gamma.flow.FlowProjection;
+import com.gamma.flow.PipelineLift;
 import com.gamma.ops.rca.RcaTemplate;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
@@ -402,6 +404,14 @@ public final class ControlApi implements AutoCloseable {
         // a JSON acquisition-metrics snapshot (the Prometheus /metrics is text-only). CONTROL-scoped. ──
         get("/sources", (e, m) -> service.sources());
         get("/metrics/acquisition", (e, m) -> acquisitionMetrics());
+
+        // ── Flow graph (read-only): the pipeline-as-graph projection for the G6 visualiser + editor
+        // palette (doc §6, T31). Every registered *_pipeline.toon is lifted to a FlowGraph on demand
+        // (PipelineLift, lossless) and projected structurally. The fixed /node-types and the bare
+        // /flows collection are anchored, so they never collide with /flows/{id}/graph. ──
+        get("/flows", (e, m) -> flowSummaries());
+        get("/flows/node-types", (e, m) -> FlowProjection.catalog());
+        get("/flows/([^/]+)/graph", (e, m) -> FlowProjection.graph(PipelineLift.lift(cfg(m))));
 
         // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test +
         // create/update/delete (CONTROL-scoped; write-back jailed under -Dassist.write.root). The specific
@@ -885,6 +895,16 @@ public final class ControlApi implements AutoCloseable {
 
     private PipelineConfig cfg(Matcher m) {
         return service.configFor(name(m)).orElseThrow(() -> notFound(name(m)));
+    }
+
+    /** Lift every registered pipeline to a {@link com.gamma.flow.FlowGraph} and project a compact summary (GET /flows). */
+    private List<Map<String, Object>> flowSummaries() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (SourceService.PipelineView pv : service.pipelines()) {
+            service.configFor(pv.name())
+                    .ifPresent(c -> out.add(FlowProjection.summary(PipelineLift.lift(c))));
+        }
+        return out;
     }
 
     /** The job registry, or a 404 when no jobs are registered on this service. */
