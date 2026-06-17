@@ -768,10 +768,16 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   engine input by grouping the lifted nodes by role; a `lift → compile` round-trip returns the **identical** typed
   objects (`assertSame`), proving the IR loses nothing. Full inspecto suite green (672 run, 0 failures) — Phase 1 is
   purely additive (only new `com.gamma.flow` + docs).
-- [ ] **T5b — execution-through-lift parity (gated on Phase-3 executor, R3/T12).** Literally running the existing
-  suite *through* the lift needs the branch-aware executor that drives the engine from a `FlowGraph` (Phase 3). When
-  that lands, route the suite through it and assert byte-identical output over the four shapes (voucher multi-schema,
-  plugin segments, fixed-width text+binary, row-filter). Until then T5a (losslessness) is the gate.
+- [~] **T5b — execution-through-lift parity (single-schema done 2026-06-17; other shapes incremental).** Approach
+  (decided): **compile-back-to-config**, not executor-driven — `FlowCompiler.toConfigMap(FlowGraph, schemaDir)`
+  reverses the lift to a `PipelineConfig.fromMap`-shaped raw map (writing the stored schema map to a temp `.toon`);
+  `FlowExecutionParityTest` runs a pipeline directly and via `lift → toConfigMap → fromMap → run`, asserting
+  byte-identical **data output** (the `database/` partitions; the run-timestamped status/audit CSVs are excluded —
+  the rebuilt config disables status, which doesn't affect data output). **Single-schema shape green.** Remaining
+  (grow `toConfigMap`): **selector multi-schema, plugin segments, fixed-width text+binary, row-filter** — each adds
+  its branch to the inverse + a parity case. (Why compile-back not executor-driven: the Phase-3 `FlowExecutor` is an
+  additive *authored-operator* engine that runs on a seed relation and doesn't consume legacy lifted config, so
+  driving the legacy suite through it would mean rebuilding the engine as a graph executor — out of scope.)
 
 #### Phase-1 model refinement (2026-06-17 — sink family, categories, node identity; UI-ready)
 - [x] **T28 (done 2026-06-17).** **Sink is a family + node taxonomy carries categories.** Added `NodeCategory`
