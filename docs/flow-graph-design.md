@@ -773,8 +773,11 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   reverses the lift to a `PipelineConfig.fromMap`-shaped raw map (writing the stored schema map to a temp `.toon`);
   `FlowExecutionParityTest` runs a pipeline directly and via `lift → toConfigMap → fromMap → run`, asserting
   byte-identical **data output** (the `database/` partitions; the run-timestamped status/audit CSVs are excluded —
-  the rebuilt config disables status, which doesn't affect data output). **Single-schema shape green.** Remaining
-  (grow `toConfigMap`): **selector multi-schema, plugin segments, fixed-width text+binary, row-filter** — each adds
+  the rebuilt config disables status, which doesn't affect data output). **Single-schema + selector multi-schema
+  shapes green** (selector via a new `SchemaSelector.descriptors()` exposing the column-count dispatch key →
+  `processing.schemas[]`; column-count dispatch round-trips, the glob fast-path string is not yet retained by
+  `SchemaSelector`). Remaining
+  (grow `toConfigMap`): **plugin segments, fixed-width text+binary, row-filter** — each adds
   its branch to the inverse + a parity case. (Why compile-back not executor-driven: the Phase-3 `FlowExecutor` is an
   additive *authored-operator* engine that runs on a seed relation and doesn't consume legacy lifted config, so
   driving the legacy suite through it would mean rebuilding the engine as a graph executor — out of scope.)

@@ -94,6 +94,24 @@ public final class SchemaSelector {
         return out;
     }
 
+    /** A registered schema with its dispatch column-count and target table. */
+    public record Descriptor(int columnCount, Map<String, Object> schema, String table) {}
+
+    /**
+     * Every registered schema with its dispatch <b>column-count</b> + target table, in priority order.
+     * Unlike {@link #entries()} this exposes the column-count key, so a lifted graph can reconstruct the
+     * {@code processing.schemas[]} array (T5b compile-back). The file-pattern fast-path glob is stored only
+     * as a compiled matcher, so it is not recovered here — selectors that rely solely on the glob fast-path
+     * are not yet round-trippable by column-count alone.
+     */
+    public List<Descriptor> descriptors() {
+        List<Descriptor> out = new ArrayList<>();
+        for (Map.Entry<Integer, Map<String, Object>> e : schemaByColCount.entrySet()) {
+            out.add(new Descriptor(e.getKey(), e.getValue(), tableByColCount.get(e.getKey())));
+        }
+        return out;
+    }
+
     // ── selection ─────────────────────────────────────────────────────────────
 
     /**

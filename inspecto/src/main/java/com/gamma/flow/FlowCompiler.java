@@ -3,6 +3,7 @@ package com.gamma.flow;
 import com.gamma.api.PublicApi;
 import com.gamma.config.io.ConfigCodec;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.etl.SchemaSelector;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -122,15 +123,29 @@ public final class FlowCompiler {
                 });
         if (parser.cfg("csv") instanceof PipelineConfig.CsvSettings csv) proc.put("csv_settings", csvSettingsToMap(csv));
 
-        Object schema = parser.cfg("schema");
-        if (schema instanceof Map<?, ?> schemaMap) {
-            Files.createDirectories(schemaDir);
+        Files.createDirectories(schemaDir);
+        if (parser.cfg("selector") instanceof SchemaSelector selector && selector.hasSchemas()) {
+            // multi-schema selector → processing.schemas[] (column-count dispatch; one schema file per entry)
+            List<Map<String, Object>> schemas = new ArrayList<>();
+            int i = 0;
+            for (SchemaSelector.Descriptor d : selector.descriptors()) {
+                Path sf = schemaDir.resolve(g.name() + "_schema_" + (i++) + ".toon");
+                Files.writeString(sf, ConfigCodec.toToon(d.schema()));
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("column_count", d.columnCount());
+                entry.put("schema_file", sf.toString().replace('\\', '/'));
+                if (d.table() != null && !d.table().isBlank()) entry.put("table", d.table());
+                schemas.add(entry);
+            }
+            proc.put("schemas", schemas);
+        } else if (parser.cfg("schema") instanceof Map<?, ?> schemaMap) {
+            // single legacy schema → processing.schema_file
             Path sf = schemaDir.resolve(g.name() + "_schema.toon");
             Files.writeString(sf, ConfigCodec.toToon(schemaMap));
             proc.put("schema_file", sf.toString().replace('\\', '/'));
         } else {
             throw new UnsupportedOperationException(
-                    "toConfigMap supports the single-schema shape only; selector/segments/fixed-width are follow-ons");
+                    "toConfigMap supports single-schema + selector shapes; segments/fixed-width are follow-ons");
         }
         raw.put("processing", proc);
         return raw;
