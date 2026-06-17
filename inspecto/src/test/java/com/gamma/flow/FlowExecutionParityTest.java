@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
@@ -214,5 +215,227 @@ class FlowExecutionParityTest {
                 out.put(db.relativize(p).toString().replace('\\', '/'), Files.readString(p));
         }
         return out;
+    }
+
+    // ── T5b: row-filter, fixed-width, segments shapes ─────────────────────────
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void rowFilterRoundTripProducesIdenticalDataOutput(@TempDir Path root) throws Exception {
+        // Rows whose ID (column 0) starts with "SKIP" are excluded via exclude_prefixes
+        String csv = "ID,AMT,EVENT_DATE\n1,10,2020-01-01\nSKIP,99,2020-03-03\n2,20,2020-02-02\n";
+        Path dirA = root.resolve("a");
+        Path toonA = writeRowFilterPipeline(dirA);
+        seedInbox(dirA, csv);
+        MultiSourceProcessor.RunResult rA = MultiSourceProcessor.runAll(List.of(toonA), 1);
+        assertEquals(0, rA.failed(), "direct row-filter run must succeed");
+        Map<String, String> outA = readDb(dirA.resolve("db"));
+        assertFalse(outA.isEmpty(), "direct run produced data output");
+
+        Path dirB = root.resolve("b");
+        Files.createDirectories(dirB);
+        FlowGraph g = PipelineLift.lift(PipelineConfig.load(toonA.toString()));
+        Map<String, Object> rebuilt = FlowCompiler.toConfigMap(g, dirB.resolve("schemas"));
+        relocateDirs(rebuilt, posix(dirA), posix(dirB));
+        Map<String, Object> dirsB = (Map<String, Object>) rebuilt.get("dirs");
+        dirsB.put("status_dir", posix(dirB.resolve("status")));
+        dirsB.put("log_dir", posix(dirB.resolve("logs")));
+        Path toonB = dirB.resolve("rebuilt_rf.toon");
+        Files.writeString(toonB, ConfigCodec.toToon(rebuilt));
+        seedInbox(dirB, csv);
+        MultiSourceProcessor.RunResult rB = MultiSourceProcessor.runAll(List.of(toonB), 1);
+        assertEquals(0, rB.failed(), "rebuilt row-filter pipeline must run cleanly");
+        Map<String, String> outB = readDb(dirB.resolve("db"));
+
+        assertEquals(outA.keySet(), outB.keySet(), "same output partition files");
+        for (Map.Entry<String, String> e : outA.entrySet())
+            assertEquals(e.getValue(), outB.get(e.getKey()), "content of " + e.getKey());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void fixedWidthToConfigMapEmitsFrontendAndSlices(@TempDir Path dir) throws Exception {
+        // Write a schema with slice-index selectors (0 → ID, 1 → DATE_COL)
+        Path schemaFile = dir.resolve("fw_schema.toon");
+        Files.writeString(schemaFile, """
+                partitionKey: ID
+                raw:
+                  name: fw_table
+                  format: CSV
+                  fields[2]{name,selector,type}:
+                    ID, "0", VARCHAR
+                    DATE_COL, "1", VARCHAR
+                mapping:
+                  canonicalName: fw_table
+                  rawName: fw_table
+                  rules[2]{targetColumn,sourceExpression,transformType}:
+                    ID, ID, DIRECT
+                    DATE_COL, DATE_COL, DIRECT
+                """);
+        String toon = """
+                name: FW_SHAPE
+                active: true
+                dirs:
+                  poll: %1$s/inbox
+                  database: %1$s/db
+                  backup: %1$s/backup
+                  temp: %1$s/temp
+                  status_dir: %1$s/status
+                  log_dir: %1$s/logs
+                output:
+                  format: CSV
+                processing:
+                  threads: 1
+                  schema_file: %2$s
+                  csv_settings:
+                    has_header: false
+                    frontend: fixedwidth
+                    fixedwidth:
+                      record: line
+                      trim: both
+                      min_record_length: 8
+                      fields[2]{name,start,length}:
+                        ID, 0, 3
+                        DATE_COL, 3, 5
+                """.formatted(posix(dir), posix(schemaFile));
+        Path toonFile = dir.resolve("fw_pipeline.toon");
+        Files.writeString(toonFile, toon);
+
+        FlowGraph g = PipelineLift.lift(PipelineConfig.load(toonFile.toString()));
+        Map<String, Object> map = FlowCompiler.toConfigMap(g, dir.resolve("schemas"));
+
+        Map<String, Object> proc = (Map<String, Object>) map.get("processing");
+        Map<String, Object> csvSettings = (Map<String, Object>) proc.get("csv_settings");
+        assertEquals("fixedwidth", csvSettings.get("frontend"), "frontend must be fixedwidth");
+        Map<String, Object> fw = (Map<String, Object>) csvSettings.get("fixedwidth");
+        assertNotNull(fw, "fixedwidth block must be present in csv_settings");
+        assertEquals("line", fw.get("record"));
+        List<Map<String, Object>> fields = (List<Map<String, Object>>) fw.get("fields");
+        assertEquals(2, fields.size(), "two slices round-trip");
+        assertEquals("ID", fields.get(0).get("name"));
+        assertEquals(0, fields.get(0).get("start"));
+        assertEquals(3, fields.get(0).get("length"));
+        assertEquals("DATE_COL", fields.get(1).get("name"));
+        assertEquals(3, fields.get(1).get("start"));
+        assertEquals(5, fields.get(1).get("length"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void segmentsToConfigMapWritesSchemaFilesAndBuildSegmentsMap(@TempDir Path dir) throws Exception {
+        // Two segment schema files — written as inline TOON (ConfigCodec.toToon doesn't emit
+        // tabular-array format so the TOON parser would fail to re-read the serialized arrays)
+        String segSchema = """
+                partitionKey: ID
+                raw:
+                  name: seg_data
+                  format: CSV
+                  fields[2]{name,selector,type}:
+                    ID, "0", VARCHAR
+                    VAL, "1", VARCHAR
+                mapping:
+                  canonicalName: seg_data
+                  rawName: seg_data
+                  rules[2]{targetColumn,sourceExpression,transformType}:
+                    ID, ID, DIRECT
+                    VAL, VAL, DIRECT
+                """;
+        Path seg1 = dir.resolve("seg1.toon");
+        Path seg2 = dir.resolve("seg2.toon");
+        Files.writeString(seg1, segSchema);
+        Files.writeString(seg2, segSchema);
+        String toon = """
+                name: SEG_SHAPE
+                active: true
+                dirs:
+                  poll: %1$s/inbox
+                  database: %1$s/db
+                  backup: %1$s/backup
+                  temp: %1$s/temp
+                  status_dir: %1$s/status
+                  log_dir: %1$s/logs
+                output:
+                  format: CSV
+                processing:
+                  threads: 1
+                  ingester: com.example.FakeIngester
+                  segments:
+                    alpha: "%2$s"
+                    beta: "%3$s"
+                  csv_settings:
+                    has_header: false
+                """.formatted(posix(dir), posix(seg1), posix(seg2));
+        Path toonFile = dir.resolve("seg_pipeline.toon");
+        Files.writeString(toonFile, toon);
+
+        FlowGraph g = PipelineLift.lift(PipelineConfig.load(toonFile.toString()));
+        Path schemaDir = dir.resolve("schemas");
+        Map<String, Object> map = FlowCompiler.toConfigMap(g, schemaDir);
+
+        Map<String, Object> proc = (Map<String, Object>) map.get("processing");
+        assertEquals("com.example.FakeIngester", proc.get("ingester"), "ingester class preserved");
+        Map<String, String> segments = (Map<String, String>) proc.get("segments");
+        assertNotNull(segments, "segments map must be present");
+        assertEquals(Set.of("alpha", "beta"), segments.keySet(), "both segment names preserved");
+        for (String path : segments.values())
+            assertTrue(Files.exists(Path.of(path)), "segment toon file must be written: " + path);
+    }
+
+    private static Path writeRowFilterPipeline(Path dir) throws Exception {
+        Files.createDirectories(dir);
+        Path sf = dir.resolve("schema.toon");
+        // Write inline TOON — ConfigCodec.toToon doesn't emit tabular-array format and the
+        // TOON parser would reject it with "Array length mismatch" when re-reading fields/rules.
+        Files.writeString(sf, """
+                partitionKey: EVENT_DATE
+                raw:
+                  name: rf_data
+                  format: CSV
+                  fields[3]{name,selector,type}:
+                    ID, "0", VARCHAR
+                    AMT, "1", DOUBLE
+                    EVENT_DATE, "2", DATE
+                mapping:
+                  canonicalName: rf_data
+                  rawName: rf_data
+                  rules[3]{targetColumn,sourceExpression,transformType}:
+                    ID, ID, DIRECT
+                    AMT, AMT, DIRECT
+                    EVENT_DATE, EVENT_DATE, DIRECT
+                """);
+        String toon = """
+                name: RF_PARITY
+                active: true
+                dirs:
+                  poll: %1$s/inbox
+                  database: %1$s/db
+                  backup: %1$s/backup
+                  temp: %1$s/temp
+                  markers: %1$s/markers
+                  status_dir: %1$s/status
+                  log_dir: %1$s/logs
+                output:
+                  format: CSV
+                processing:
+                  threads: 1
+                  duplicate_check:
+                    enabled: true
+                    marker_extension: .processed
+                  schema_file: %2$s
+                  csv_settings:
+                    delimiter: ","
+                    has_header: true
+                    skip_header_lines: 0
+                    skip_junk_lines: 0
+                    skip_tail_lines: 0
+                    skip_tail_columns: 0
+                    date_formats[1]: "%%Y-%%m-%%d"
+                    timestamp_formats[1]: "%%Y-%%m-%%d"
+                    filter_target_column: 1
+                    exclude_prefixes[1]: "SKIP"
+                """.formatted(posix(dir), posix(sf));
+        Path p = dir.resolve("rf_pipeline.toon");
+        Files.writeString(p, toon);
+        return p;
     }
 }

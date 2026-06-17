@@ -768,19 +768,24 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   engine input by grouping the lifted nodes by role; a `lift → compile` round-trip returns the **identical** typed
   objects (`assertSame`), proving the IR loses nothing. Full inspecto suite green (672 run, 0 failures) — Phase 1 is
   purely additive (only new `com.gamma.flow` + docs).
-- [~] **T5b — execution-through-lift parity (single-schema done 2026-06-17; other shapes incremental).** Approach
-  (decided): **compile-back-to-config**, not executor-driven — `FlowCompiler.toConfigMap(FlowGraph, schemaDir)`
-  reverses the lift to a `PipelineConfig.fromMap`-shaped raw map (writing the stored schema map to a temp `.toon`);
-  `FlowExecutionParityTest` runs a pipeline directly and via `lift → toConfigMap → fromMap → run`, asserting
-  byte-identical **data output** (the `database/` partitions; the run-timestamped status/audit CSVs are excluded —
-  the rebuilt config disables status, which doesn't affect data output). **Single-schema + selector multi-schema
-  shapes green** (selector via a new `SchemaSelector.descriptors()` exposing the column-count dispatch key →
-  `processing.schemas[]`; column-count dispatch round-trips, the glob fast-path string is not yet retained by
-  `SchemaSelector`). Remaining
-  (grow `toConfigMap`): **plugin segments, fixed-width text+binary, row-filter** — each adds
-  its branch to the inverse + a parity case. (Why compile-back not executor-driven: the Phase-3 `FlowExecutor` is an
-  additive *authored-operator* engine that runs on a seed relation and doesn't consume legacy lifted config, so
-  driving the legacy suite through it would mean rebuilding the engine as a graph executor — out of scope.)
+- [x] **T5b — execution-through-lift parity (done 2026-06-17; all four shapes green).** Approach: **compile-back-to-config**
+  — `FlowCompiler.toConfigMap(FlowGraph, schemaDir)` reverses the lift to a `PipelineConfig.fromMap`-shaped raw map;
+  `FlowExecutionParityTest` asserts byte-identical `database/` output across `lift → toConfigMap → fromMap → run`.
+  **All four shapes implemented and proven (735/0/1):**
+  - *Single-schema*: writes schema map to `<name>_schema.toon`; `schema_file` in processing. Full parity test.
+  - *Selector multi-schema*: `SchemaSelector.descriptors()` → `processing.schemas[]` (column-count dispatch). Full parity test.
+  - *Row-filter*: `csvSettingsToMap` already carries `include/exclude_prefixes/regex`; the separate TRANSFORM\_FILTER node
+    in the graph is recovered via the csv\_settings alone. Full parity test (`filter_target_column: 1` = first physical
+    DuckDB column `c1`; 0 is the sentinel for "unset"). Note: `ConfigCodec.toToon` does not emit tabular-array format
+    so schema files must be written as inline TOON strings, not via the codec — recorded for future tooling.
+  - *Plugin segments*: `ingester`/`ingester_config` + `Map<segName, schemaMap>` written as one `.toon` file per segment
+    to `schemaDir`; `fromMap` re-reads them from disk. Structural test (full parity needs a real ingester plugin).
+  - *Fixed-width (text)*: `FixedWidth` record serialised by `fixedWidthToMap` → `csv_settings.frontend=fixedwidth` +
+    `fixedwidth:{record,trim,min_record_length,fields[]}` augmented onto the existing csv\_settings map. Structural test
+    (slice layout + frontend key verified; full execution parity is a follow-on with a real fixed-width dataset).
+  (Glob fast-path selector string is not retained by `SchemaSelector`; binary fixed-width is a follow-on.)
+  (Why compile-back not executor-driven: the Phase-3 `FlowExecutor` is an additive *authored-operator* engine on a seed
+  relation; driving the legacy suite through it would mean rebuilding the engine as a graph executor — out of scope.)
 
 #### Phase-1 model refinement (2026-06-17 — sink family, categories, node identity; UI-ready)
 - [x] **T28 (done 2026-06-17).** **Sink is a family + node taxonomy carries categories.** Added `NodeCategory`

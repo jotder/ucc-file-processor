@@ -73,10 +73,12 @@ public final class FlowCompiler {
      * Round-tripping {@code lift → toConfigMap → fromMap → run} reproduces today's <b>data output</b> —
      * the execution-through-lift parity gate (proven for single-schema in {@code FlowExecutionParityTest}).
      *
-     * <p>Scope: <b>single-schema</b> today; selector / segments / fixed-width are incremental follow-ons
-     * (this throws {@link UnsupportedOperationException} for them). Operational, non-data knobs the IR
-     * does not model ({@code status_dir}/{@code errors}/{@code log_dir}) are intentionally omitted —
-     * status is simply disabled in the rebuilt config, which does not affect the data output.
+     * <p>Scope: <b>single-schema</b>, <b>selector</b> (column-count dispatch), <b>segments</b> (plugin
+     * ingester — schemas written to {@code schemaDir} as {@code .toon} files), and <b>fixed-width</b>
+     * (text frontend; augments {@code csv_settings} with {@code frontend} + slice layout). Operational,
+     * non-data knobs the IR does not model ({@code status_dir}/{@code errors}/{@code log_dir}) are
+     * intentionally omitted — status is simply disabled in the rebuilt config, which does not affect the
+     * data output.
      */
     public static Map<String, Object> toConfigMap(FlowGraph g, Path schemaDir) throws IOException {
         Compiled c = compile(g);
@@ -143,10 +145,32 @@ public final class FlowCompiler {
             Path sf = schemaDir.resolve(g.name() + "_schema.toon");
             Files.writeString(sf, ConfigCodec.toToon(schemaMap));
             proc.put("schema_file", sf.toString().replace('\\', '/'));
+        } else if (parser.cfg("segments") instanceof Map<?, ?> segMap && !segMap.isEmpty()) {
+            // segments: write each in-memory schema map to a .toon file; fromMap re-reads from disk
+            putIfPresent(proc, "ingester", parser.cfg("ingester"));
+            if (parser.cfg("ingester_config") instanceof Map<?, ?> icfg && !icfg.isEmpty())
+                proc.put("ingester_config", icfg);
+            Map<String, String> segPaths = new LinkedHashMap<>();
+            int i = 0;
+            for (Map.Entry<?, ?> e : segMap.entrySet()) {
+                Path sf = schemaDir.resolve(g.name() + "_seg_" + (i++) + ".toon");
+                Files.writeString(sf, ConfigCodec.toToon((Map<?, ?>) e.getValue()));
+                segPaths.put((String) e.getKey(), sf.toString().replace('\\', '/'));
+            }
+            proc.put("segments", segPaths);
         } else {
-            throw new UnsupportedOperationException(
-                    "toConfigMap supports single-schema + selector shapes; segments/fixed-width are follow-ons");
+            throw new UnsupportedOperationException("toConfigMap: no schema / selector / segments in parser node");
         }
+
+        // fixed-width: augments csv_settings (additive — accompanies any schema shape)
+        if (parser.cfg("fixedwidth") instanceof PipelineConfig.FixedWidth fw) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> csvMap = (Map<String, Object>)
+                    proc.computeIfAbsent("csv_settings", k -> new LinkedHashMap<String, Object>());
+            csvMap.put("frontend", "fixedwidth");
+            csvMap.put("fixedwidth", fixedWidthToMap(fw));
+        }
+
         raw.put("processing", proc);
         return raw;
     }
@@ -171,6 +195,24 @@ public final class FlowCompiler {
         if (!c.excludePrefixes().isEmpty()) m.put("exclude_prefixes", c.excludePrefixes());
         if (!c.excludeRegex().isEmpty()) m.put("exclude_regex", c.excludeRegex());
         if (c.filterTargetColumn() != 0) m.put("filter_target_column", c.filterTargetColumn());
+        return m;
+    }
+
+    private static Map<String, Object> fixedWidthToMap(PipelineConfig.FixedWidth fw) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("record", fw.binary() ? "bytes" : "line");
+        if (fw.binary()) m.put("record_length", fw.recordLength());
+        if (fw.trim() != PipelineConfig.FixedWidth.Trim.BOTH) m.put("trim", fw.trim().name().toLowerCase());
+        m.put("min_record_length", fw.minRecordLength());
+        List<Map<String, Object>> fields = new ArrayList<>();
+        for (PipelineConfig.FixedWidth.Slice s : fw.slices()) {
+            Map<String, Object> f = new LinkedHashMap<>();
+            if (s.name() != null) f.put("name", s.name());
+            f.put("start", s.start());
+            f.put("length", s.length());
+            fields.add(f);
+        }
+        m.put("fields", fields);
         return m;
     }
 
