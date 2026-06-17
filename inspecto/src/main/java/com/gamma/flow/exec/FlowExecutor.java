@@ -83,6 +83,7 @@ public final class FlowExecutor {
         for (String nodeId : topoOrder(g)) {
             if (nodeId.equals(seedNodeId)) continue;
             FlowNode node = byId.get(nodeId);
+            if (!node.enabled()) continue;                 // disabled node (§3.6) — produces nothing; downstream inert
             List<FlowEdge> inbound = liveInbound(g, nodeId, produced);
             if (inbound.isEmpty()) continue;               // upstream not executed here (e.g. acquisition) — skip
 

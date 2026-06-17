@@ -836,8 +836,16 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   produced relation along its edge → at sinks drive the `BranchCommitCoordinator` (each sink = a branch). Sequential
   first cut (independent-branch parallelism over the vthread pool = follow-up). Additive; starts from the parse
   stage's seed relation. 2 tests (route fan-out + idempotent replay). **Remaining Phase-3: T13 triggers, T5b parity.**
-- [ ] **T13.** Entry-node **triggers** (schedule/cron/event/manual, §3.6) + event coalescing under the
-  non-overlapping `ingestLock`; the `adapter` land-then-ack node; per-node `enabled:`.
+- [x] **T13 (done 2026-06-17 — model + mechanism; live-scheduler wiring is the follow-up).** Entry-node
+  **triggers** (§3.6): `com.gamma.flow.FlowTrigger` parses `schedule`(every/cron) / `event`(on/from/coalesce) /
+  `manual` / absent⇒DEFAULT_POLL and classifies the driving scheduler (LOOP/EVENT/MANUAL, §3.8). **Event coalescing**:
+  `com.gamma.flow.exec.TriggerCoalescer` collapses an event storm into one non-overlapping run (current run + at most
+  one follow-up; lost-wakeup-free) — the in-process form of the `ingestLock` debounce. **`adapter` land-then-ack**:
+  `AdapterWindow` (max_records/max_bytes/max_age flush policy) + `FileLander` (temp→fsync→atomic rename→ack-LAST =
+  at-least-once). **Per-node `enabled:`**: `FlowNode.enabled()` + `FlowExecutor` bypasses a disabled node (downstream
+  reachable only through it goes inert; a disabled sink is not a branch). Additive; **wiring the trigger classes into
+  the live `SourceService` poll/`Scheduler` loop + the stream-consumer runtime are the follow-up** (with T23's
+  two-scheduler split). 16 tests (FlowTrigger 7 · AdapterWindow 3 · TriggerCoalescer 3 · FileLander 2 · executor +1).
 - [x] **T14 (R5) — structural checks done; emit/accept-rel wiring → T9.** `com.gamma.flow.FlowValidator.validate(g)`
   returns a typed `Result` (`Issue`{`Severity` ERROR/WARNING, stable `code`, message}) so the executor + future
   authoring API can *reject* a broken graph (vs `ConfigValidator`'s warning-only model). Checks: DAG over `data`

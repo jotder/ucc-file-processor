@@ -116,6 +116,27 @@ class FlowExecutorTest {
         assertFalse(res2.commit().sourceFinalized());
     }
 
+    @Test
+    void disabledSinkIsNotCommittedAsABranch() throws Exception {
+        sql("CREATE TABLE parsed AS SELECT * FROM (VALUES (1,150),(3,200)) t(id,amt)");
+        // two sinks consume the parser's data; sink_b is disabled (§3.6) so it is bypassed
+        FlowGraph g = new FlowGraph("EN_ETL", true,
+                List.of(FlowNode.of("parse", "parser"),
+                        FlowNode.of("sink_a", "sink.persistent", Map.of(FlowStoresStoreKey, "a")),
+                        FlowNode.of("sink_b", "sink.persistent", Map.of(FlowStoresStoreKey, "b", "enabled", false))),
+                List.of(FlowEdge.data("parse", "sink_a"), FlowEdge.data("parse", "sink_b")));
+
+        List<String> written = new ArrayList<>();
+        int[] finalised = {0};
+        FlowExecutor.ExecResult res = FlowExecutor.execute(conn, g, "parse", "parsed", "b",
+                new BranchCommitCoordinator(new BranchCommitLog(dir.resolve("bc2.csv").toString())),
+                (s, t) -> written.add(s.id()), () -> finalised[0]++);
+
+        assertEquals(java.util.Set.of("sink_a"), res.sinkInputs().keySet(), "disabled sink_b is not a branch");
+        assertEquals(List.of("sink_a"), written);
+        assertEquals(1, finalised[0]);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /** The FlowStores produced-store config key (kept local so the test reads cleanly). */

@@ -60,6 +60,19 @@ public record FlowNode(String id, String type, String name, String description,
         return name != null && !name.isBlank();
     }
 
+    /**
+     * Whether this node is enabled (default {@code true}). A node with {@code config.enabled: false} is
+     * bypassed by the executor (§3.6 per-node {@code enabled:}) — NiFi "stopped processor" semantics:
+     * it produces nothing, so anything reachable only through it goes inert and a disabled {@code sink}
+     * is not committed as a branch.
+     */
+    public boolean enabled() {
+        Object v = config.get("enabled");
+        if (v == null) return true;
+        if (v instanceof Boolean b) return b;
+        return !"false".equalsIgnoreCase(v.toString());
+    }
+
     /** A config value by key, or {@code null} if absent. */
     public Object cfg(String key) {
         return config.get(key);
