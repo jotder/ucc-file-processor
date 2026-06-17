@@ -49,7 +49,7 @@ public final class FlowCompiler {
             if (BuiltinNodeType.ACQUISITION.type().equals(t)) acq = n;
             else if (BuiltinNodeType.PARSER.type().equals(t)) parser = n;
             else if (BuiltinNodeType.GAP.type().equals(t)) gap = n;
-            else if (BuiltinNodeType.SINK.type().equals(t)) sinks.add(n);
+            else if (FlowNodeTypes.isCategory(t, NodeCategory.SINK)) sinks.add(n);   // any sink subtype
             else if (BuiltinNodeType.TRANSFORM_DEDUP_MARKER.type().equals(t)
                     || BuiltinNodeType.TRANSFORM_DEDUP_FINGERPRINT.type().equals(t)) dedups.add(n);
         }

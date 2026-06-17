@@ -56,7 +56,7 @@ public final class PipelineLift {
         if (cfg.source().gapDetection().active()) {
             Map<String, Object> gap = new LinkedHashMap<>();
             put(gap, "sequence", cfg.source().gapDetection().sequence());
-            nodes.add(new FlowNode(GAP, BuiltinNodeType.GAP.type(), gap, null));
+            nodes.add(new FlowNode(GAP, BuiltinNodeType.GAP.type(), "Gap detection", null, gap, null));
             edges.add(new FlowEdge(ACQ, FlowRel.GAP, GAP));
         }
 
@@ -123,7 +123,8 @@ public final class PipelineLift {
         c.put("circuit_breaker", src.circuitBreaker());
         c.put("post_action", src.postAction());   // success-side finalizer (G8)
         String use = src.hasConnection() ? "connection/" + src.connection() : null;
-        return new FlowNode(ACQ, BuiltinNodeType.ACQUISITION.type(), c, use);
+        return new FlowNode(ACQ, BuiltinNodeType.ACQUISITION.type(),
+                "Acquisition", "Source: " + src.connector(), c, use);
     }
 
     private static FlowNode dedupMarkerNode(PipelineConfig cfg) {
@@ -131,14 +132,16 @@ public final class PipelineLift {
         put(c, "marker_extension", cfg.processing().markerExtension());
         c.put("retention_days", cfg.processing().retentionDays());
         put(c, "markers_dir", cfg.dirs().markers());
-        return new FlowNode(DEDUP_MARKER, BuiltinNodeType.TRANSFORM_DEDUP_MARKER.type(), c, null);
+        return new FlowNode(DEDUP_MARKER, BuiltinNodeType.TRANSFORM_DEDUP_MARKER.type(),
+                "Dedup (marker)", null, c, null);
     }
 
     private static FlowNode dedupFingerprintNode(PipelineConfig cfg) {
         Map<String, Object> c = new LinkedHashMap<>();
         c.put("duplicate", cfg.source().duplicate());       // the fingerprint policy (mode/algorithm/on_change)
         c.put("incremental", cfg.source().incremental());   // watermark is derived alongside the ledger (G4)
-        return new FlowNode(DEDUP_FINGERPRINT, BuiltinNodeType.TRANSFORM_DEDUP_FINGERPRINT.type(), c, null);
+        return new FlowNode(DEDUP_FINGERPRINT, BuiltinNodeType.TRANSFORM_DEDUP_FINGERPRINT.type(),
+                "Dedup (fingerprint)", null, c, null);
     }
 
     private static FlowNode parserNode(PipelineConfig cfg) {
@@ -157,7 +160,7 @@ public final class PipelineLift {
             c.put("schema", s.single());         // raw.fields the parser tokenises against
         }
         String use = (s.ingesterClass() != null) ? "ingester/" + s.ingesterClass() : null;
-        return new FlowNode(PARSE, BuiltinNodeType.PARSER.type(), c, use);
+        return new FlowNode(PARSE, BuiltinNodeType.PARSER.type(), "Parser", null, c, use);
     }
 
     /** Build one {@code [filter →] map → sink} chain off {@code parse} via {@code rel}; {@code key} is null for single-schema. */
@@ -170,7 +173,7 @@ public final class PipelineLift {
 
         if (rowFilters) {   // index-anchored CSV row-filter sits between parser and map (G1)
             String filterId = "filter" + suffix;
-            nodes.add(new FlowNode(filterId, BuiltinNodeType.TRANSFORM_FILTER.type(), filterConfig(cfg), null));
+            nodes.add(new FlowNode(filterId, BuiltinNodeType.TRANSFORM_FILTER.type(), "Row filter", null, filterConfig(cfg), null));
             edges.add(new FlowEdge(PARSE, rel, filterId));
             mapUpstream = filterId;
             mapUpstreamRel = FlowRel.DATA;
@@ -179,26 +182,30 @@ public final class PipelineLift {
         String mapId = "map" + suffix;
         Map<String, Object> mapCfg = new LinkedHashMap<>();
         if (schema != null) mapCfg.put("schema", schema);
-        nodes.add(new FlowNode(mapId, BuiltinNodeType.TRANSFORM_MAP.type(), mapCfg, null));
+        String mapName = (table != null && !table.isBlank()) ? "Map " + table : "Map";
+        nodes.add(new FlowNode(mapId, BuiltinNodeType.TRANSFORM_MAP.type(), mapName, null, mapCfg, null));
         edges.add(new FlowEdge(mapUpstream, mapUpstreamRel, mapId));
 
         String sinkId = "sink" + suffix;
         Map<String, Object> sinkCfg = new LinkedHashMap<>(sinkBase);
         // The declared data-store this sink produces — the join key a downstream job/enrichment matches
         // its source store against, so the topology superimposes from config/metadata (see FlowStores).
+        // Legacy pipelines only ever write a resting store, so the lift always emits sink.persistent;
+        // sink.materialized / sink.view are authored-only (new capability, doc §3.1).
         String store = (table != null && !table.isBlank())
                 ? table : canonicalName(schema, cfg.identity().pipelineName());
         put(sinkCfg, FlowStores.CONFIG_STORE, store);
         put(sinkCfg, "table", table);
         if (schema != null) sinkCfg.put("schema", schema);   // partitions derived from it at compile-back
-        nodes.add(new FlowNode(sinkId, BuiltinNodeType.SINK.type(), sinkCfg, null));
+        // The sink's display name is the store it produces — typically a business object/concept (§3.1).
+        nodes.add(new FlowNode(sinkId, BuiltinNodeType.SINK_PERSISTENT.type(), store, "Persistent store", sinkCfg, null));
         edges.add(FlowEdge.data(mapId, sinkId));
     }
 
     private static void addQuarantine(List<FlowNode> nodes, List<FlowEdge> edges, PipelineConfig cfg) {
         Map<String, Object> c = new LinkedHashMap<>();
         put(c, "dir", cfg.dirs().quarantine());
-        nodes.add(new FlowNode(QUARANTINE, BuiltinNodeType.SINK.type(), c, null));
+        nodes.add(new FlowNode(QUARANTINE, BuiltinNodeType.SINK_PERSISTENT.type(), "Quarantine", "Unmatched files", c, null));
         edges.add(new FlowEdge(PARSE, FlowRel.UNMATCHED, QUARANTINE));
     }
 

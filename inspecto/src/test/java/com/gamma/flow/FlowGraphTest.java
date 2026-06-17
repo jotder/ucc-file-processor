@@ -53,8 +53,8 @@ class FlowGraphTest {
         FlowGraph g = new FlowGraph("cdr", true,
                 List.of(FlowNode.of("acq", "acquisition"),
                         FlowNode.of("parse", "parser"),
-                        FlowNode.of("sink", "sink"),
-                        FlowNode.of("quar", "sink")),
+                        FlowNode.of("sink", "sink.persistent"),
+                        FlowNode.of("quar", "sink.persistent")),
                 List.of(FlowEdge.data("acq", "parse"),
                         FlowEdge.data("parse", "sink"),
                         new FlowEdge("parse", FlowRel.UNMATCHED, "quar")));
@@ -77,7 +77,7 @@ class FlowGraphTest {
     void recordsAreImmutable() {
         FlowGraph g = new FlowGraph("x", false, List.of(FlowNode.of("a", "acquisition")), List.of());
         assertThrows(UnsupportedOperationException.class,
-                () -> g.nodes().add(FlowNode.of("b", "sink")));
+                () -> g.nodes().add(FlowNode.of("b", "sink.persistent")));
         assertThrows(UnsupportedOperationException.class,
                 () -> g.edges().add(FlowEdge.data("a", "b")));
     }
@@ -90,7 +90,11 @@ class FlowGraphTest {
         assertTrue(FlowNodeTypes.isKnown("transform.filter"));        // G1
         assertTrue(FlowNodeTypes.isKnown("transform.dedup.marker"));  // G2
         assertTrue(FlowNodeTypes.isKnown("transform.dedup.fingerprint"));
-        assertTrue(FlowNodeTypes.isKnown("sink"));
+        // sink is now a family of subtypes (the bare "sink" is gone)
+        assertFalse(FlowNodeTypes.isKnown("sink"));
+        assertTrue(FlowNodeTypes.isKnown("sink.persistent"));
+        assertTrue(FlowNodeTypes.isKnown("sink.materialized"));
+        assertTrue(FlowNodeTypes.isKnown("sink.view"));
         assertTrue(FlowNodeTypes.isKnown("gap"));
         assertFalse(FlowNodeTypes.isKnown("does.not.exist"));
     }
@@ -105,5 +109,40 @@ class FlowGraphTest {
         // gap is a reporting task: accepts gap, emits nothing
         assertTrue(FlowNodeTypes.get("gap").orElseThrow().emits().isEmpty());
         assertTrue(FlowNodeTypes.get("gap").orElseThrow().accepts().contains(FlowRel.GAP));
+    }
+
+    @Test
+    void nodeCategoriesGroupTheTaxonomy() {
+        // categories drive palette grouping + role checks (not the literal type string)
+        assertEquals(NodeCategory.SOURCE,    FlowNodeTypes.categoryOf("acquisition").orElseThrow());
+        assertEquals(NodeCategory.SOURCE,    FlowNodeTypes.categoryOf("adapter").orElseThrow());
+        assertEquals(NodeCategory.PARSE,     FlowNodeTypes.categoryOf("parser").orElseThrow());
+        assertEquals(NodeCategory.TRANSFORM, FlowNodeTypes.categoryOf("transform.map").orElseThrow());
+        assertEquals(NodeCategory.CONTROL,   FlowNodeTypes.categoryOf("gap").orElseThrow());
+
+        // all three sink subtypes share the SINK category, so sink detection is family-based
+        assertTrue(FlowNodeTypes.isCategory("sink.persistent", NodeCategory.SINK));
+        assertTrue(FlowNodeTypes.isCategory("sink.materialized", NodeCategory.SINK));
+        assertTrue(FlowNodeTypes.isCategory("sink.view", NodeCategory.SINK));
+        assertFalse(FlowNodeTypes.isCategory("transform.map", NodeCategory.SINK));
+        assertTrue(FlowNodeTypes.categoryOf("does.not.exist").isEmpty());
+
+        // catalog is UI-ready: every descriptor carries a non-blank label
+        assertTrue(FlowNodeTypes.catalog().stream().allMatch(t -> !t.label().isBlank()));
+        assertTrue(FlowNodeTypes.catalog().size() >= BuiltinNodeType.values().length);
+    }
+
+    @Test
+    void nodeCarriesUserNameAndDescription() {
+        FlowNode plain = FlowNode.of("a", "acquisition");
+        assertFalse(plain.hasName());
+        assertNull(plain.name());
+
+        // a sink.view named after a business object/concept the user provides
+        FlowNode view = new FlowNode("v", "sink.view", "Active subscribers",
+                "Subscribers seen in the last 24h", Map.of(), null);
+        assertTrue(view.hasName());
+        assertEquals("Active subscribers", view.name());
+        assertEquals("Subscribers seen in the last 24h", view.description());
     }
 }

@@ -67,21 +67,49 @@ renderer.
 Each node is a thin declaration over machinery that **already exists** — the graph is a new shape on top of the
 current engine, not new engine code:
 
-| Node `type` | NiFi analogy | Backed by today |
-|---|---|---|
-| `acquisition` | source processor | `source:` block, `SourceConnector` SPI (`com.gamma.acquire`), connection profiles, stability / dedup / watermark / fetch / retry / circuit-breaker / post-action |
-| `adapter` | streaming/push source → micro-batch | **new** — extends `SourceConnector` SPI; windows a stream and **lands a file** (§3.6). The single bridge for non-file/event sources |
-| `parser` | record reader | `csv_settings` / external grammar, `SchemaSelector`, fixed-width frontend, plugin ingesters (segments) |
-| `transform.*` | update / route / split processors — **a chainable family, see §3.4** | [`DataTransformer`](../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) + [`TransformCompiler`](../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) (SQL-expr registry), `CsvSettings` row-filters |
-| `merge` | join/union (fan-in) processor | **new** — SQL over predecessor outputs as relations (§3.4); generalises `EnrichmentConfig` join-against-reference |
-| `enrichment` | join/lookup processor | [`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java) (references, triggers, stage-2 join) |
-| `sink` | put processor | `Output` (CSV / Parquet / DuckLake), DB export, future push targets |
-| `alert` | reporting task | `AlertService` (`*_alert.toon` rules) |
-| `gap` | reporting task | `GapDetector` → `SEQUENCE_GAP` event |
-| `event` | notification | `EventLog` / `EventStore` |
+| Node `type` | Category | NiFi analogy | Backed by today |
+|---|---|---|---|
+| `acquisition` | `SOURCE` | source processor (**file collector**) | `source:` block, `SourceConnector` SPI (`com.gamma.acquire`), connection profiles, stability / dedup / watermark / fetch / retry / circuit-breaker / post-action |
+| `adapter` | `SOURCE` | streaming/push source → micro-batch (**stream collector**) | **new** — extends `SourceConnector` SPI; **windows a stream into intermediate files by time/count/size** and **lands them** (§3.6). The single bridge for non-file/event sources |
+| `parser` | `PARSE` | record reader | `csv_settings` / external grammar, `SchemaSelector`, fixed-width frontend, plugin ingesters (segments) |
+| `transform.*` | `TRANSFORM` | update / route / split processors — **a chainable family, see §3.4** | [`DataTransformer`](../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) + [`TransformCompiler`](../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) (SQL-expr registry), `CsvSettings` row-filters |
+| `transform.merge` | `TRANSFORM` | join/union (fan-in) processor | **new** — SQL over predecessor outputs as relations (§3.4); generalises `EnrichmentConfig` join-against-reference |
+| `enrichment` | `TRANSFORM` | join/lookup processor | [`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java) (references, triggers, stage-2 join) |
+| `sink.persistent` | `SINK` | put processor — **data rests** | `Output` (CSV / Parquet / DuckLake), DB export, future push targets |
+| `sink.materialized` | `SINK` | put processor — **incremental rollup** | **new (node-level)** — a managed/temp table **upserted per batch** (batch-level incremental summary); a node-local implementation, nothing to do with the pipeline topology |
+| `sink.view` | `SINK` | put processor — **non-persistent** | **new (node-level)** — a **conceptual** store with no file/table attached; a job / KPI / report / alert API consumes it. Definition is **required but abstract** to the user (see below) |
+| `alert` | `CONTROL` | reporting task | `AlertService` (`*_alert.toon` rules) |
+| `gap` | `CONTROL` | reporting task | `GapDetector` → `SEQUENCE_GAP` event |
+| `event` | `CONTROL` | notification | `EventLog` / `EventStore` |
 
 New node types are added by registering a `FlowNodeType` provider (ServiceLoader), mirroring how
 `SourceConnector` and `DescriptionProvider` are discovered — so editions/plugins can contribute nodes.
+
+**Sink is a family, not one node (decided 2026-06-17).** A sink's *materialisation behaviour* is a
+**node-level** concern (orthogonal to the pipeline, which stays pure topology): `sink.persistent` rests
+the batch as a Parquet file / DuckDB table; `sink.materialized` keeps a managed/temp table it upserts
+each batch (a running rollup/summary); `sink.view` persists nothing — it is a logical store a downstream
+consumer binds to. All three are category `SINK`, so [`FlowStores`](../inspecto/src/main/java/com/gamma/flow/FlowStores.java)
+superimposes them over a shared store **uniformly by store name**, regardless of whether bytes rest
+(`producedStores(...).restsOnDisk()` is the persistence flag the deletion fence and the visualiser read).
+A legacy `*_pipeline.toon` only ever writes a resting store, so the lift always emits `sink.persistent`;
+`materialized`/`view` are **authored-only** new capability.
+
+**`sink.view` definition — required, but abstract to the user.** A view is *required* to declare what it
+exposes, but the user expresses it declaratively — *"expose business object X, drawn from store Z"* (its
+`store` as producer + a `source_store`/selection as consumer) — **never raw SQL**. The engine concretises
+it later (a DuckDB view / on-demand compute). Because a view declares both a produced `store` and a
+consumed `source_store`, it is simultaneously a producer and a consumer in `FlowStores`, with no new
+machinery — and a view named after a **business object/concept** is the natural bridge to the lineage
+graph's `KPI`/`REPORT`/`EVENT_TABLE` nodes (§2).
+
+**Node `category`, `name` and `description`.** Every `FlowNodeType` declares a `category`
+(`SOURCE`/`PARSE`/`TRANSFORM`/`SINK`/`CONTROL`) plus a UI `label`/`description` — the **built-in
+processor definitions are not deferred**: [`FlowNodeTypes.catalog()`](../inspecto/src/main/java/com/gamma/flow/FlowNodeTypes.java)
+feeds the editor palette so the UI can visualise a flow now (§6). Every `FlowNode` additionally carries a
+**user-given `name` and `description`** (authored flows set them; they may name a business object or
+concept — e.g. the `sink.view` above). Lifted legacy nodes get derived defaults (a lifted sink is named
+after the store it produces).
 
 ### 3.2 Edges carry a relationship
 
@@ -353,6 +381,12 @@ and are run by **different schedulers**. Conflating them is the confusion this s
    driver is reading/writing is the only real race. Deletes must be **fenced** — slice-disjoint, scheduled in a quiet
    window, or ordered strictly after the producer's commit. `maintenance` jobs (the deleters) **stay standalone**
    (§3.1, decided 2026-06-17) and own this fence; they have no dataflow shape.
+   - *The fence is keyed by sink kind (§3.1).* Only a store that **rests on disk** can be a deletion hazard, so the
+     fence reads `FlowStores.producedStores(...).restsOnDisk()`: a `sink.persistent` or `sink.materialized` store is
+     fenced; a `sink.view` persists nothing, so it has **no storage to delete** and never participates in the hazard
+     (a consumer of a view re-derives on demand). A `materialized` store adds a wrinkle — its per-batch upsert is the
+     producer rewriting *its own* slice, so a reader must tolerate the rollup advancing, but cross-driver deletion
+     still only applies to the resting kinds.
 
 **Two schedulers, one responsibility each (decided 2026-06-17):**
 - **The loop scheduler** — fixed-delay or no-delay ([`Scheduler.everySeconds`](../inspecto/src/main/java/com/gamma/service/Scheduler.java),
@@ -506,10 +540,17 @@ Net: the graph model is a **new layer over the existing engine**, never a rewrit
 ## 6. Visualisation (reuse the G6 component already shipped)
 
 The UI already renders the catalog graph with G6 (`inspecto-ui/.../graph-view.component.ts`, reused in
-object-detail). Add a **flow projection**:
+object-detail). **Decided 2026-06-17: visualisation is pulled forward** — the built-in processor definitions and
+the pipeline topology must be visualisable *now*, not deferred to a late phase, so the read-only projection lands
+right after the Phase-1 IR (the authoring/CRUD + dry-run in §7 stay later). Two inputs make it possible:
 
-- `GET /flows/{id}/graph` → `{ nodes: [{id,type,status}], edges: [{from,to,rel}] }` → the **same** G6 renderer,
-  new data source. Edge style = relationship (solid `data`, dashed control), matching the design diagram.
+- **The node-type catalog** — [`FlowNodeTypes.catalog()`](../inspecto/src/main/java/com/gamma/flow/FlowNodeTypes.java)
+  exposes every type's `category` / `label` / `description` / ports (`accepts`+`emits`+named routes) → the **editor
+  palette** (grouped by `NodeCategory`). This is the "in-built processor definition" the UI needs.
+- **The flow projection** — `GET /flows/{id}/graph` → `{ nodes: [{id,type,category,name,description,status}], edges:
+  [{from,to,rel}] }` → the **same** G6 renderer, new data source. Edge style = relationship (solid `data`, dashed
+  control), matching the design diagram; sink kind (`persistent`/`materialized`/`view`) styles the node (a `view`
+  rendered as a dashed/logical store, no disk glyph).
 - **Node inspector panel** — clicking a node opens its effective config (grammar, schema, connection, transform),
   resolved through the `use:` reference. This is the "visualise the pipeline with parser grammar, events,
   connections, transformation" requirement.
@@ -708,13 +749,14 @@ per-edge counters that don't exist yet (`LineageRow` is transform→write only),
 Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not started.
 
 ### Phase 1 — Flow IR + legacy lift (the de-risker; gate before anything else)
-- [ ] **T1 (the gate).** Write a **capability-coverage checklist** enumerating every `*_pipeline.toon` feature
+- [x] **T1 (the gate, done 2026-06-17).** Capability-coverage checklist enumerating every `*_pipeline.toon` feature
   (single/`selector`/`segments` schemas, plugin ingester, CSV row-filters, partitions, post-action, gap, watermark,
-  dedup modes, enrichment trigger) and map each to its IR representation. *Done = checklist complete and reviewed.*
-- [ ] **T2.** Define `FlowGraph`/`FlowNode`/`FlowEdge` records + the `FlowNodeType` ServiceLoader SPI (`com.gamma.flow`).
-- [ ] **T3.** Implement the lift: single-schema → linear; **multi-schema/`segments`/`selector` → fan-out** (R4);
-  imply edges from existing flags (post-action→success-side finalizer + `on_unsupported`→`failure` (§15 G8),
-  gap→`gap`, enrichment→`on_commit`); add `transform.filter` (G1) + distinct dedup nodes (G2); route metadata (G3).
+  dedup modes, enrichment trigger) mapped to its IR representation — **the gate passed**; result is §15 (G1–G9, F1).
+- [x] **T2 (done 2026-06-17).** `FlowGraph`/`FlowNode`/`FlowEdge` records + `FlowRel` + the `FlowNodeType`
+  ServiceLoader SPI + `BuiltinNodeType`/`FlowNodeTypes` registry (`com.gamma.flow`). *(Revised 2026-06-17 — see T28.)*
+- [x] **T3 (done 2026-06-17).** `PipelineLift`: single-schema → linear; **multi-schema/`segments`/`selector` →
+  fan-out** (R4); edges implied from existing flags (post-action→success-side finalizer (§15 G8), gap→`gap`); adds
+  `transform.filter` (G1) + distinct dedup nodes (G2); route metadata (G3); carries typed sub-records verbatim.
 - [x] **T4 (decided 2026-06-17).** Pipeline↔enrichment/job boundary = **two separate flows, linked by declared
   data-store name** (not `on_pipeline` name-coupling): each `sink` declares the store it produces
   (`FlowStores.CONFIG_STORE`), each job/enrichment declares the store it consumes (`CONFIG_SOURCE_STORE`), and the
@@ -730,6 +772,21 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   suite *through* the lift needs the branch-aware executor that drives the engine from a `FlowGraph` (Phase 3). When
   that lands, route the suite through it and assert byte-identical output over the four shapes (voucher multi-schema,
   plugin segments, fixed-width text+binary, row-filter). Until then T5a (losslessness) is the gate.
+
+#### Phase-1 model refinement (2026-06-17 — sink family, categories, node identity; UI-ready)
+- [x] **T28 (done 2026-06-17).** **Sink is a family + node taxonomy carries categories.** Added `NodeCategory`
+  (`SOURCE`/`PARSE`/`TRANSFORM`/`SINK`/`CONTROL`) + `label`/`description` on `FlowNodeType`; split `sink` into
+  **`sink.persistent`/`sink.materialized`/`sink.view`** (all category `SINK`); `FlowStores`/`FlowCompiler` now detect
+  sinks **by category** (not the literal string) so subtypes + plugin sinks are uniform; `FlowStores.producedStores()`
+  exposes `restsOnDisk()` (false for `sink.view`) for the deletion fence (§3.8) and viz. `PipelineLift` emits
+  `sink.persistent`. (§3.1)
+- [x] **T29 (done 2026-06-17).** **User node identity.** `FlowNode` carries a user-given `name` + `description`
+  (may name a business object/concept); lifted nodes get derived defaults (sink name = its store). (§3.1)
+- [x] **T30 (done 2026-06-17).** **Built-in processor definitions not deferred** — `FlowNodeTypes.catalog()` exposes
+  every type's category/label/description/ports for the UI palette, so the read-first flow visualisation can land now.
+- [ ] **T31 (next).** **Read-only flow visualisation** (pulls T16/T17 forward, §6): `GET /flows/{id}/graph` projection
+  + node-type catalog endpoint → render lifted/authored flows in the existing G6 component (palette grouped by
+  category; `sink.view` styled as a logical/dashed store). Authoring/CRUD + per-node dry-run stay in Phase 5 (T18/T19).
 
 ### Phase 2 — Component registry + `use:` references (dedup lands here)
 - [ ] **T6.** Extract `transforms/` and `sinks/` component types; generalise connection/grammar/schema reference
@@ -821,7 +878,9 @@ schemas); set `FlowGraph.name`←`identity().pipelineName()`, `active`←`active
 `source()` (+ `stability/duplicate/incremental/guarantee/fetch/retry/circuitBreaker/postAction`, `use: connection/…`
 when `hasConnection()`); add `gap` node + edge if `gapDetection().active()`; parser base from `csv()` (+ `use:
 grammar/…` when external, + `fixedwidth`); insert `transform.filter` when `csv().hasRowFilters()`; add the dedup
-nodes per G2; sink base from `output()`+`dirs()`+batch caps. **Then branch on `schemas()`** (exactly one non-null):
+nodes per G2; sink base from `output()`+`dirs()`+batch caps — type **`sink.persistent`** (legacy only ever rests a
+store; `sink.materialized`/`sink.view` are authored-only, §3.1) and **named after the store** it produces. **Then
+branch on `schemas()`** (exactly one non-null):
 **single** → one linear `parser→transform.map→sink`; **selector** → dispatcher + N route branches (G3); **segments**
 → plugin parser + N `route:<segment>` sinks (G5). **Cross-file suffix:** resolve `EnrichmentConfig`/`*_alert.toon`/
 `job` whose `on_pipeline` == this pipeline (G9). Re-run the `ConfigValidator` warns on the lifted graph + the new
@@ -836,4 +895,7 @@ path — these are where "lift = thin shim" breaks.
 **Last Updated**: 2026-06-17
 **Status**: design finalised (decisions §9, boundaries §12); **reviewed 2026-06-16 against the engine — corrections
 + re-scoping in §13, implementation checklist in §14; pipeline-vs-job execution model formalised 2026-06-17 in §3.8
-(R6 / T23–T25).** Phase 1 (Flow IR + legacy lift, gated by T1/T5) is the next implementation step.
+(R6 / T23–T25).** **Phase 1 (Flow IR + legacy lift) is BUILT and green** (T1/T2/T3/T4/T5a done; full inspecto suite
+675/0/1). **Refined 2026-06-17 (T28–T30, §3.1): sink is a family (`persistent`/`materialized`/`view`), node types
+carry a `category`, nodes carry user `name`/`description`, built-in processor definitions exposed for the UI.**
+Next: read-only flow visualisation (T31, §6); then Phase 2 (component registry, T6–T8).

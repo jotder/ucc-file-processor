@@ -2,6 +2,7 @@ package com.gamma.flow;
 
 import com.gamma.api.PublicApi;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -44,5 +45,26 @@ public final class FlowNodeTypes {
     /** All registered node-type discriminators (built-ins + providers), in registration order. */
     public static Set<String> all() {
         return REGISTRY.keySet();
+    }
+
+    /**
+     * All registered node-type <em>descriptors</em> (built-ins + providers), in registration order —
+     * the source for the UI palette: each carries its {@link FlowNodeType#category() category},
+     * {@link FlowNodeType#label() label}, {@link FlowNodeType#description() description} and the
+     * relationships it {@link FlowNodeType#emits() emits}/{@link FlowNodeType#accepts() accepts}.
+     */
+    public static Collection<FlowNodeType> catalog() {
+        return REGISTRY.values();
+    }
+
+    /** The {@link NodeCategory} of {@code type}, if registered. */
+    public static Optional<NodeCategory> categoryOf(String type) {
+        return get(type).map(FlowNodeType::category);
+    }
+
+    /** Whether {@code type} is a registered node type in the given {@link NodeCategory} (e.g. any sink). */
+    public static boolean isCategory(String type, NodeCategory category) {
+        FlowNodeType t = REGISTRY.get(type);
+        return t != null && t.category() == category;
     }
 }

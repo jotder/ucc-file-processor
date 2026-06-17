@@ -36,7 +36,7 @@ class PipelineLiftTest {
         assertType(g, "dedup_marker", "transform.dedup.marker");   // duplicate_check enabled (G2 marker subsystem)
         assertType(g, "parse", "parser");
         assertType(g, "map", "transform.map");
-        assertType(g, "sink", "sink");
+        assertType(g, "sink", "sink.persistent");
 
         // path mode (default) ⇒ no fingerprint dedup; single schema ⇒ no gap / no quarantine
         assertTrue(g.node("dedup_fingerprint").isEmpty());
@@ -59,6 +59,10 @@ class PipelineLiftTest {
         // the sink declares a data store (single-schema ⇒ the schema's canonicalName "mini")
         assertEquals("mini", g.node("sink").orElseThrow().cfg("store"));
         assertEquals(Set.of("mini"), FlowStores.produced(g));
+        // the lifted sink is named after the store it produces — the business object (§3.1)
+        assertEquals("mini", g.node("sink").orElseThrow().name());
+        // a legacy sink rests on disk (persistent), so the deletion fence treats it as a real store
+        assertTrue(FlowStores.producedStores(g).get(0).restsOnDisk());
     }
 
     @Test
@@ -107,7 +111,7 @@ class PipelineLiftTest {
         assertTrue(hasEdge(g, "map_beta", FlowRel.DATA, "sink_beta"));
         assertTrue(hasEdge(g, "parse", FlowRel.UNMATCHED, "quarantine"));
 
-        assertType(g, "quarantine", "sink");
+        assertType(g, "quarantine", "sink.persistent");
         assertEquals("alpha", g.node("sink_alpha").orElseThrow().cfg("table"));
         assertEquals("beta", g.node("sink_beta").orElseThrow().cfg("table"));
 

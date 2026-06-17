@@ -35,12 +35,34 @@ public final class FlowStores {
     /** Data stores this graph produces — the {@code store} of every {@code sink} node that declares one. */
     public static Set<String> produced(FlowGraph g) {
         Set<String> out = new LinkedHashSet<>();
+        for (Produced p : producedStores(g)) out.add(p.store());
+        return out;
+    }
+
+    /**
+     * Every store this graph produces, with the producing {@code sink} node id and its subtype — so the
+     * deletion fence (§3.8 rule 4) and the visualiser can tell a <em>resting</em> store
+     * ({@code sink.persistent}/{@code sink.materialized}) from a non-persistent {@code sink.view}. Sinks
+     * are recognised by {@link NodeCategory#SINK} (not the literal type string), so the sink subtypes and
+     * any plugin-contributed sink are all included; a sink with no {@link #CONFIG_STORE} (e.g. a
+     * quarantine) is excluded.
+     */
+    public static List<Produced> producedStores(FlowGraph g) {
+        List<Produced> out = new ArrayList<>();
         for (FlowNode n : g.nodes()) {
-            if (!BuiltinNodeType.SINK.type().equals(n.type())) continue;
+            if (!FlowNodeTypes.isCategory(n.type(), NodeCategory.SINK)) continue;
             Object s = n.cfg(CONFIG_STORE);
-            if (s != null && !s.toString().isBlank()) out.add(s.toString());
+            if (s != null && !s.toString().isBlank()) out.add(new Produced(n.id(), s.toString(), n.type()));
         }
         return out;
+    }
+
+    /** A store a {@code sink} node produces, tagged with the sink subtype that declared it. */
+    public record Produced(String node, String store, String sinkType) {
+        /** Whether bytes actually rest for this store (persistent / materialized) vs a logical {@code sink.view}. */
+        public boolean restsOnDisk() {
+            return !sinkType.endsWith(".view");
+        }
     }
 
     /** Data stores this graph consumes at rest — the {@code source_store} of every node that declares one. */

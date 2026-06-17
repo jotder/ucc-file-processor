@@ -11,8 +11,10 @@ import java.util.Set;
  * {@link BuiltinNodeType built-ins}; editions/plugins contribute extra types by listing a provider in
  * {@code META-INF/services/com.gamma.flow.FlowNodeType}.
  *
- * <p>Phase-1 scope is <b>descriptor-level</b> — {@link #type()} plus the relationships a node
- * {@link #emits()}/{@link #accepts()} — used by the lift and the (Phase-3) wiring validator. Execution
+ * <p>Phase-1 scope is <b>descriptor-level</b> — {@link #type()} + {@link #category()} + a UI
+ * {@link #label()}/{@link #description()}, plus the relationships a node {@link #emits()}/
+ * {@link #accepts()}. These feed the lift, the (Phase-3) wiring validator <b>and the UI palette</b>
+ * (the built-in processor definitions are not deferred — the visualiser needs them, doc §6). Execution
  * and dry-run hooks are added in later phases, so this interface stays small and stable for now.
  */
 @PublicApi(since = "4.3.0")
@@ -20,6 +22,21 @@ public interface FlowNodeType {
 
     /** The {@code type} value this descriptor handles, e.g. {@code "acquisition"}. */
     String type();
+
+    /** The {@link NodeCategory family} this node type belongs to (palette grouping + role checks). */
+    default NodeCategory category() {
+        return NodeCategory.TRANSFORM;
+    }
+
+    /** Short human label for the UI palette / node inspector (defaults to {@link #type()}). */
+    default String label() {
+        return type();
+    }
+
+    /** One-line description for the UI palette / node inspector (defaults to empty). */
+    default String description() {
+        return "";
+    }
 
     /**
      * Control/split relationships this node type may emit, besides operator-defined named

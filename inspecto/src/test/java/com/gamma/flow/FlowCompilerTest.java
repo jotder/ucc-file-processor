@@ -59,8 +59,8 @@ class FlowCompilerTest {
                         FlowNode.of("df", "transform.dedup.fingerprint"),
                         FlowNode.of("parse", "parser"),
                         FlowNode.of("gap", "gap"),
-                        FlowNode.of("s1", "sink", Map.of(FlowStores.CONFIG_STORE, "a")),
-                        FlowNode.of("s2", "sink", Map.of(FlowStores.CONFIG_STORE, "b"))),
+                        FlowNode.of("s1", "sink.persistent", Map.of(FlowStores.CONFIG_STORE, "a")),
+                        FlowNode.of("s2", "sink.materialized", Map.of(FlowStores.CONFIG_STORE, "b"))),
                 List.of());
         FlowCompiler.Compiled c = FlowCompiler.compile(g);
 
