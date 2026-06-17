@@ -384,7 +384,11 @@ and a **DuckDB-backed Jobs reporting pane** ([T27](#14-things-to-do-implementati
 pipeline's `sink(store)` node *is* the job's `source(store)` node. That is exactly the lineage-graph join (§2 — the
 flow graph compiles down into `PRODUCES`/`FEEDS`), so the combined view renders as **pipeline-flow → shared table
 node → job-flow(s)**, with the `on_commit` edge drawn as the producer→consumer trigger. This is the realisation of
-"it should be combined and visualised."
+"it should be combined and visualised." **The join is derived, not hand-wired (decided 2026-06-17, T4):** each
+`sink` declares the store it produces and each job/enrichment declares the store it consumes, and
+[`com.gamma.flow.FlowStores`](../inspecto/src/main/java/com/gamma/flow/FlowStores.java)`.superimpose(...)` matches
+them by name — so analysing the configs/metadata alone reconstructs how a job is superimposed over a pipeline's
+output, with no `on_pipeline` name-coupling.
 
 **In the flow-graph model the duality disappears** into the entry-node trigger (§3.6): a pipeline is a flow whose
 entry `acquisition` node carries a `schedule`/poll trigger; a job is a downstream flow whose entry node reads the
@@ -542,7 +546,9 @@ node logic** (no divergent test path). In-memory or scratch output only.
 ## 8. Phased roadmap (each shippable, risk-ordered)
 
 1. **Flow IR + legacy lift (backend, invisible).** Define `FlowGraph`/`FlowNode`/`FlowEdge`; lift
-   `*_pipeline.toon` into it; compile back to today's execution. *No behaviour change.* **Acceptance bar
+   `*_pipeline.toon` into it; compile back to today's execution. *No behaviour change.* (Phase-1 gate = capability
+   coverage (T1) + the **lossless round-trip** (T5a); literal execution-through-lift parity is T5b, gated on the
+   Phase-3 executor — see §14.) **Acceptance bar
    (review 2026-06-16):** the lift must encode *every* shipped capability — multi-schema `segments`/`selector`
    fan-out, plugin-ingester segment tables, CSV row-filters, post-action, gap, watermark, dedup, **and** the
    pipeline↔enrichment file boundary — proven by the **full existing suite (incl. the plugin-ingester and
@@ -709,10 +715,21 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 - [ ] **T3.** Implement the lift: single-schema → linear; **multi-schema/`segments`/`selector` → fan-out** (R4);
   imply edges from existing flags (post-action→success-side finalizer + `on_unsupported`→`failure` (§15 G8),
   gap→`gap`, enrichment→`on_commit`); add `transform.filter` (G1) + distinct dedup nodes (G2); route metadata (G3).
-- [ ] **T4.** Decide & implement the **pipeline↔enrichment** boundary (R4): join referencing configs into one
-  `FlowGraph`, or two flows linked by `on_commit`. Record the decision in §5.
-- [ ] **T5.** Implement compile-back to today's `SourceProcessor` primitives; **run the full existing suite
-  (core + connectors + plugin-ingester + multi-schema fixtures) green through the lifted path** — the parity gate.
+- [x] **T4 (decided 2026-06-17).** Pipeline↔enrichment/job boundary = **two separate flows, linked by declared
+  data-store name** (not `on_pipeline` name-coupling): each `sink` declares the store it produces
+  (`FlowStores.CONFIG_STORE`), each job/enrichment declares the store it consumes (`CONFIG_SOURCE_STORE`), and the
+  producer→consumer topology is **derived** by matching store names (`FlowStores.superimpose`). So querying the
+  configs/metadata alone reveals how a job is superimposed over a pipeline's output (the shared store is the join —
+  §3.8). Done: `FlowStores` + lift now stamps every `sink` with its `store`; tests green. The job/enrichment **lift**
+  itself (its own `FlowGraph` with a `source_store` entry) lands with the job-model work (T23/T27).
+- [x] **T5a — lossless round-trip gate (done 2026-06-17).** `FlowCompiler.compile(FlowGraph)` recovers every
+  engine input by grouping the lifted nodes by role; a `lift → compile` round-trip returns the **identical** typed
+  objects (`assertSame`), proving the IR loses nothing. Full inspecto suite green (672 run, 0 failures) — Phase 1 is
+  purely additive (only new `com.gamma.flow` + docs).
+- [ ] **T5b — execution-through-lift parity (gated on Phase-3 executor, R3/T12).** Literally running the existing
+  suite *through* the lift needs the branch-aware executor that drives the engine from a `FlowGraph` (Phase 3). When
+  that lands, route the suite through it and assert byte-identical output over the four shapes (voucher multi-schema,
+  plugin segments, fixed-width text+binary, row-filter). Until then T5a (losslessness) is the gate.
 
 ### Phase 2 — Component registry + `use:` references (dedup lands here)
 - [ ] **T6.** Extract `transforms/` and `sinks/` component types; generalise connection/grammar/schema reference
@@ -796,7 +813,7 @@ file(s) to populate the `parser`/`transform`/`sink` nodes.
 | G6 | `guarantee` is declarative with a runtime fallback (degrades to best-effort if no ledger) | `acquisition.config.guarantee` + carry the `requiresLedger()` warn; advisory, not a hard property. |
 | G7 | Gap detection → `SEQUENCE_GAP` events | `acquisition` emits `gap` edge → a `gap` reporting node (no `data` out); sequence template → `gap.config.sequence`. Matches §3 as written. |
 | **G8** | `post_action` RETAIN/DELETE/MOVE/RENAME/TAG (+ templated `archive_path`, `on_unsupported`) | a **success-side finalizer** on the `acquisition` node, **not** the `failure` edge — **§5/§8 wording corrected**. `on_unsupported` governs the failure branch; date-template resolves at run time; capability-checked vs the connector SPI (not fully lift-time validatable). |
-| G9 | **Pipeline↔enrichment/alert/job file boundary** (they point *back* via `triggers.on_pipeline` = a name string) — risk | the cross-flow `on_commit` edge (R4/T4). Lifting a pipeline **alone won't pull these in** — Phase 1 decides fold-into-one-graph vs two-flows-linked. |
+| G9 | **Pipeline↔enrichment/alert/job file boundary** (they point *back* via `triggers.on_pipeline` = a name string) — risk | **DECIDED (T4, 2026-06-17): two separate flows linked by declared data-store name**, not `on_pipeline`. Each `sink` declares the store it produces, each consumer declares the store it reads; the topology is **derived by matching store names** (`com.gamma.flow.FlowStores.superimpose`) — config/metadata reveals the superimposition. Lifting a pipeline alone is correct; the consumer is a separate flow joined at the store. |
 | F1 | **Dead top-level keys** `version:` / `search:` / `copy_tars:` / `backup:` (present in `adjustment_pipeline.toon`, **never parsed** by `fromMap`) | the lift **drops** them — do not faithfully reproduce keys that do nothing today. |
 
 **Lift recipe (condensed; exact accessors in the T1 inventory):** load via `PipelineConfig.load` (resolves+validates
