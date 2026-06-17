@@ -819,13 +819,23 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   warning for unregistered types. Proven by `aRealLiftedPipelineValidatesClean` (every lifted edge honours the
   contract). The *runtime* production of multiple named relations (a node actually emitting `data`+`invalid` row-sets)
   is the SQL-assembly/executor work — **T10/T12**. 5 new tests (FlowValidatorTest now 13); suite 700 green.
-- [ ] **T10 (R1b).** Row-shaping SQL assembly: `filter`(`WHERE`), `route`(`case`/`clone`), `validate`(two-output),
-  `dedup`(`QUALIFY`), `split`(`UNNEST`), `merge`(multi-input join) + linear `derive`/`select` **chain-fusion**.
-- [ ] **T11 (R2).** Split `BatchProcessor.commit` into per-branch (register/manifest) + source-finalisation
-  (backup/markers/ledger/watermark/post-action) gated on *all branches committed*; add the **partial-commit state**
-  to commit-log + ledger + markers + manifest; preserve the "markers LAST" ordering; idempotent per `(file,branch)`.
-- [ ] **T12 (R3).** Branch-aware **topological executor** (new scheduling over the existing vthread-pool/permit
-  pattern) with `success`/`failure`/`unmatched`/`gap`/`on_commit` routing replacing the buried flags.
+- [x] **T10 (R1b, done 2026-06-17).** `com.gamma.flow.exec.RowShaper`: compiles a `transform.*` node to SQL over a
+  DuckDB input relation, emitting **multiple named relations** — `filter`(`WHERE`→data/dropped), `validate`(→data/
+  invalid), `route`(`case` first-match+default / `clone` overlapping → `route:<key>`), `dedup`(`QUALIFY`→data/
+  duplicate), `split`(`UNNEST`), `map`/`select`/`derive` projection, `merge`(`UNION ALL BY NAME` / N-way join), plus
+  `fuse()` chain-fusion of a linear filter+projection run into one `SELECT`. Reuses the `TransformCompiler` trust
+  model. 9 tests vs embedded DuckDB. **Additive** — touches neither commit nor scheduling.
+- [x] **T11 (R2, done 2026-06-17).** `com.gamma.flow.exec.BranchCommitLog` (durable, fsync-per-record, `(batch_id,
+  branch)` + phase `BRANCH`/`SOURCE` = the **partial-commit state**, same contract as `CommitLog`) +
+  `BranchCommitCoordinator` (commit per-branch, then source-finalisation — backup → **markers LAST** → ledger/
+  watermark — gated on *all branches committed*, run **exactly once**). Idempotent + crash-safe: a replay skips
+  committed branches and finalises without re-committing. A single-branch flow = today's sequence (legacy
+  `BatchProcessor.commit` untouched; this drives the new executor path — T5b parity stays future). 3 tests.
+- [x] **T12 (R3, done 2026-06-17).** `com.gamma.flow.exec.FlowExecutor`: `validateOrThrow` (T14) → Kahn topological
+  walk (cross-flow `on_commit` excluded) → run each transform via `RowShaper` → **pull-model routing** of each
+  produced relation along its edge → at sinks drive the `BranchCommitCoordinator` (each sink = a branch). Sequential
+  first cut (independent-branch parallelism over the vthread pool = follow-up). Additive; starts from the parse
+  stage's seed relation. 2 tests (route fan-out + idempotent replay). **Remaining Phase-3: T13 triggers, T5b parity.**
 - [ ] **T13.** Entry-node **triggers** (schedule/cron/event/manual, §3.6) + event coalescing under the
   non-overlapping `ingestLock`; the `adapter` land-then-ack node; per-node `enabled:`.
 - [x] **T14 (R5) — structural checks done; emit/accept-rel wiring → T9.** `com.gamma.flow.FlowValidator.validate(g)`
