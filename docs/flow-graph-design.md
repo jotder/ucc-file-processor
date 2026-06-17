@@ -792,10 +792,20 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   + `subscriber_etl` configs. Authoring/CRUD + per-node dry-run stay in Phase 5 (T18/T19).
 
 ### Phase 2 — Component registry + `use:` references (dedup lands here)
-- [ ] **T6.** Extract `transforms/` and `sinks/` component types; generalise connection/grammar/schema reference
-  resolution to in-file `<type>/<name>` identity (D9), reusing `ConfigRegistry` reconciliation.
-- [ ] **T7.** Extend the `referencedFiles()` mtime-watch to all referenced components (edit-once reload).
-- [ ] **T8.** Generalise the `connectionInUse` 409 guard to "what references this component?" safe-delete.
+- [x] **T6 (done 2026-06-17).** `com.gamma.flow.ComponentRegistry.scan(registryRoot)` indexes
+  `registry/<typeDir>/<name>.toon` by in-file identity `<type>/<name>` (type from dir; name from in-file
+  `name:`/`id:`, else filename stem — reusing `ConfigRegistry`'s identity-vs-filename reconciliation, divergence
+  logged). `resolve(use)` + `effectiveConfig(node)` = component content overlaid by the node's local overrides
+  (the dedup). Types: connection/grammar/schema/**transform**/**sink** (latter two new). **Additive flow-layer only**
+  — the legacy `*_pipeline.toon` loader is untouched (decided). 3 tests.
+- [x] **T7 (primitive done; reload-loop → Phase 3).** `ComponentRegistry.referencedPaths(FlowGraph)` returns the
+  component files a graph's `use:` refs resolve to — the set a flow cache folds into its mtime fingerprint (the
+  `referencedFiles()` pattern). The edit-once **reload loop** wires in with flow-from-disk loading (Phase 3); no flow
+  cache exists to drive it yet.
+- [x] **T8 (scan/guard done; HTTP endpoint → Phase 5).** `com.gamma.flow.FlowReferences.referencedBy(ref, graphs)` /
+  `isReferenced(...)` answer "what references this component?" by scanning `use:` — the safe-delete guard
+  generalising `connectionInUse`. The `DELETE /components/{type}/{id}` 409-on-in-use endpoint lands with component
+  CRUD (Phase 5, T19). 2 tests.
 
 ### Phase 3 — `*_flow.toon` authoring + topological executor (the heavy phase — sequence R1→R2→R3)
 - [ ] **T9 (R1a).** New **node-output contract**: a node may emit multiple *named relations* (the thing
