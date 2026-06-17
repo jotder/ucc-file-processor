@@ -57,11 +57,25 @@ public record FlowTrigger(Kind kind, long everyMs, String cron, String on, Strin
     }
 
     /** Parse the {@code trigger:} config of an entry node. */
-    @SuppressWarnings("unchecked")
     public static FlowTrigger of(FlowNode entry) {
         Object raw = entry.cfg("trigger");
-        if (!(raw instanceof Map<?, ?>)) return defaultPoll();
-        Map<String, Object> m = (Map<String, Object>) raw;
+        if (!(raw instanceof Map<?, ?> m)) return defaultPoll();
+        try {
+            @SuppressWarnings("unchecked")
+            FlowTrigger t = of((Map<String, Object>) m);
+            return t;
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(e.getMessage() + " (entry node '" + entry.id() + "')", e);
+        }
+    }
+
+    /**
+     * Parse a raw {@code trigger:} block directly (the live {@code SourceService} path holds the config
+     * map, not a {@link FlowNode}). {@code null}/empty ⇒ {@link Kind#DEFAULT_POLL} so an un-triggered
+     * pipeline behaves exactly as today's poll loop.
+     */
+    public static FlowTrigger of(Map<String, Object> m) {
+        if (m == null || m.isEmpty()) return defaultPoll();
 
         String type = str(m, "type");
         long coalesce = millis(m.get("coalesce"));
@@ -79,7 +93,7 @@ public record FlowTrigger(Kind kind, long everyMs, String cron, String on, Strin
             return new FlowTrigger(Kind.EVENT, 0, null, str(m, "on"), str(m, "from"), coalesce);
         if ("manual".equalsIgnoreCase(type))
             return new FlowTrigger(Kind.MANUAL, 0, null, null, null, coalesce);
-        throw new IllegalArgumentException("unknown trigger type '" + type + "' on entry node '" + entry.id() + "'");
+        throw new IllegalArgumentException("unknown trigger type '" + type + "'");
     }
 
     private static FlowTrigger defaultPoll() {

@@ -459,6 +459,15 @@ public final class PipelineConfig {
     private final boolean active;
 
     /**
+     * The optional entry-node {@code trigger:} block (T13 / §3.6) verbatim, or {@code null} when absent.
+     * Absent ⇒ the pipeline rides the default poll cycle exactly as before; present ⇒ the live loop
+     * ({@link com.gamma.service.SourceService}) classifies it via {@code com.gamma.flow.FlowTrigger}
+     * into {@code schedule}(every/cron) / {@code event} / {@code manual}. Carried onto the lifted
+     * acquisition node so the flow projection and the live driver agree on the schedule.
+     */
+    private final Map<String, Object> trigger;
+
+    /**
      * Other config files this pipeline read at parse time (schema / grammar / segment {@code .toon}s),
      * as given in the file (not absolutised). Used by {@link com.gamma.service.ConfigRegistry} to detect
      * on-disk changes (mtime) and reload only when something actually changed. The pipeline file itself
@@ -489,6 +498,8 @@ public final class PipelineConfig {
     public Source         source()     { return source; }
     /** Whether this pipeline is activated for execution ({@code active:}, default {@code false}). */
     public boolean        active()     { return active; }
+    /** The raw entry-node {@code trigger:} block (T13), or {@code null} when absent (⇒ default poll). */
+    public Map<String, Object> triggerConfig() { return trigger; }
     /** The schema/grammar/segment files this config referenced at parse time (for change-watching). */
     public List<Path>     referencedFiles() { return referencedFiles; }
 
@@ -528,6 +539,7 @@ public final class PipelineConfig {
                 b.sourceFetch, b.sourceRetry, b.sourceCircuitBreaker, b.sourcePostAction, b.sourceIncremental);
         this.statusDirToPrepare = b.statusDirToPrepare;
         this.active = b.active;
+        this.trigger = b.trigger;
         this.referencedFiles = List.copyOf(b.referencedFiles);
     }
 
@@ -565,6 +577,7 @@ public final class PipelineConfig {
         this.source = src.source;
         this.statusDirToPrepare = src.statusDirToPrepare;
         this.active = src.active;
+        this.trigger = src.trigger;
         this.referencedFiles = src.referencedFiles;
     }
 
@@ -640,6 +653,11 @@ public final class PipelineConfig {
         // Only an activated pipeline is run by the poll cycle / MultiSourceProcessor. The default is
         // OFF so a freshly-dropped or half-edited config never executes until explicitly armed.
         b.active = Boolean.parseBoolean(String.valueOf(raw.getOrDefault("active", "false")));
+
+        // ── entry-node trigger (T13 / §3.6; absent ⇒ default poll = today's behaviour) ──
+        // Carried verbatim; the live loop (SourceService) classifies it via FlowTrigger into
+        // schedule(every/cron) / event / manual. Absent leaves the pipeline on the global poll cycle.
+        if (raw.get("trigger") instanceof Map<?, ?> trig) b.trigger = (Map<String, Object>) trig;
 
         // ── dirs ──────────────────────────────────────────────────────────────
         Map<String, Object> dirs = ToonHelper.requireSection(raw, "dirs");
@@ -1190,6 +1208,7 @@ public final class PipelineConfig {
         String pipelineName  = "";
         String runTimestamp  = "";
         boolean active       = false;   // opt-in: a pipeline runs only with `active: true`
+        Map<String, Object> trigger = null;   // optional entry-node trigger: block (T13); null ⇒ default poll
         final List<Path> referencedFiles = new ArrayList<>();   // schema/grammar/segment files read at parse
         String pollDir       = "";
         String databaseDir   = "";

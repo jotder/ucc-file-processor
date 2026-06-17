@@ -10,6 +10,8 @@ import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.IngestProgress;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.flow.FlowTrigger;
+import com.gamma.flow.exec.TriggerCoalescer;
 import com.gamma.event.Event;
 import com.gamma.event.EventLevel;
 import com.gamma.event.EventLog;
@@ -29,6 +31,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +43,8 @@ import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 
@@ -138,6 +145,22 @@ public final class SourceService implements AutoCloseable {
      *  by which time the prior cycle has written its {@code .processed} markers — so
      *  already-ingested files are skipped rather than double-processed. */
     private final ReentrantLock ingestLock = new ReentrantLock();
+    /** T13 / §3.8 — entry-node trigger driving. Per-pipeline last-run epoch (ms), so the loop scheduler
+     *  gates a {@code schedule:{every}}/{@code cron} pipeline by its own cadence instead of running every
+     *  active flow each tick. A pipeline with no {@code trigger:} (every legacy/lifted config) is
+     *  {@code DEFAULT_POLL} and still runs every cycle, so behaviour is unchanged. */
+    private final Map<String, Long> lastRunAtMs = new ConcurrentHashMap<>();
+    /** Per-pipeline coalescer for {@code event}-triggered flows: an upstream-commit storm collapses to one
+     *  non-overlapping run (the in-process {@code ingestLock} debounce, lifted to the flow grain). */
+    private final Map<String, TriggerCoalescer> eventCoalescers = new ConcurrentHashMap<>();
+    /** Off-bus worker for event-triggered runs. The bus delivers synchronously on the publishing (runner)
+     *  thread while {@link #runAllOnce} holds {@link #ingestLock}; running a triggered pipeline inline would
+     *  deadlock, so — like {@link JobService} — the handler hands off here. */
+    private final ExecutorService triggerWorkers = Executors.newVirtualThreadPerTaskExecutor();
+    /** Zone for evaluating {@code cron} triggers (mirrors {@link JobService}). */
+    private final ZoneId triggerZone = ZoneId.systemDefault();
+    /** Epoch the service started — the cron "last fire" baseline before a pipeline has ever run. */
+    private final long serviceStartMs = System.currentTimeMillis();
     /** Optional embedded assist agent (v3.0, M0): discovered via {@link ServiceLoader} at
      *  {@link #start()} or registered explicitly with {@link #registerAgent(AssistAgent)};
      *  {@code null} when the {@code file-processor-agent} module is absent. */
@@ -441,6 +464,10 @@ public final class SourceService implements AutoCloseable {
             try { agent.start(); }
             catch (Exception e) { log.warn("Assist agent '{}' start failed: {}", agent.name(), e.getMessage()); }
         }
+        // T13 / §3.8 — drive event-triggered flows: an upstream batch-commit signals the downstream
+        // flow's coalescer (off the publishing thread, see triggerWorkers). Subscribed before the first
+        // poll cycle so no commit is missed; flows with no event trigger ignore every event.
+        bus.subscribe(this::onUpstreamCommit);
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
         // SLA sweep (Phase 3, v4.4.0): periodically breach overdue, unresolved ISSUEs — each new breach
         // emits an OBJECT_SLA_BREACH event. Always scheduled (a cheap no-op when there are no issues);
@@ -478,6 +505,7 @@ public final class SourceService implements AutoCloseable {
             // cycle (cheap copy; no re-parse), so every cycle still gets its own status/batch/lineage CSVs.
             // Iterate the registered paths (not the id-keyed index) so two files are both run even if
             // they declare the same name — matching the prior path-level run semantics.
+            long nowMs = System.currentTimeMillis();
             List<PipelineConfig> toRun = new ArrayList<>();
             List<String> activeNames  = new ArrayList<>();
             for (Path p : registry) {
@@ -485,10 +513,12 @@ public final class SourceService implements AutoCloseable {
                 if (cfg == null) continue;                                   // unloadable — already warned
                 String id = cfg.identity().pipelineName();
                 if (paused.contains(id) || !cfg.active()) continue;          // paused or not activated
+                if (!dueThisTick(cfg, id, nowMs)) continue;                  // T13: trigger gates the loop
                 toRun.add(cfg.forNewRun());                                  // fresh per-cycle timestamp
                 activeNames.add(id);
             }
             if (toRun.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
+            activeNames.forEach(id -> lastRunAtMs.put(id, nowMs));           // stamp cadence baseline (start-to-start)
             com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
             reg.inc("inspecto_poll_cycles_total", "Poll cycles run", Map.of());
             reg.setGauge("inspecto_active_runs", "Source runs currently executing", Map.of(), toRun.size());
@@ -511,6 +541,79 @@ public final class SourceService implements AutoCloseable {
             // (Catalog invalidation already fired from configRegistry.rebuild at the top of the cycle.)
             ingestLock.unlock();
         }
+    }
+
+    /**
+     * Whether the loop scheduler should run {@code cfg} on this tick, per its entry-node trigger (T13 / §3.8):
+     * <ul>
+     *   <li><b>absent / {@code DEFAULT_POLL}</b> — every tick (unchanged from the pre-T13 poll-all behaviour);</li>
+     *   <li><b>{@code schedule:{every:N}}</b> — only once {@code N} has elapsed since the last run;</li>
+     *   <li><b>{@code schedule:{cron}}</b> — only when a cron fire is due since the last run;</li>
+     *   <li><b>{@code event} / {@code manual}</b> — never on the loop; driven by {@link #onUpstreamCommit}
+     *       and {@link #runPipeline} respectively.</li>
+     * </ul>
+     */
+    private boolean dueThisTick(PipelineConfig cfg, String id, long nowMs) {
+        FlowTrigger t = FlowTrigger.of(cfg.triggerConfig());
+        return switch (t.scheduler()) {
+            case EVENT, MANUAL -> false;                       // driven off the poll loop
+            case LOOP -> switch (t.kind()) {
+                case SCHEDULE_INTERVAL -> {
+                    Long last = lastRunAtMs.get(id);
+                    yield last == null || (nowMs - last) >= t.everyMs();
+                }
+                case SCHEDULE_CRON -> cronDue(id, t.cron(), nowMs);
+                default -> true;                               // DEFAULT_POLL — every tick (today's behaviour)
+            };
+        };
+    }
+
+    /** A cron trigger is due when its next fire after the last run (or service start) is at/​before now. */
+    private boolean cronDue(String id, String cron, long nowMs) {
+        try {
+            long lastMs = lastRunAtMs.getOrDefault(id, serviceStartMs);
+            ZonedDateTime from = Instant.ofEpochMilli(lastMs).atZone(triggerZone);
+            ZonedDateTime next = CronExpression.parse(cron).next(from);
+            return !next.isAfter(Instant.ofEpochMilli(nowMs).atZone(triggerZone));   // next <= now ⇒ fire due
+        } catch (Exception e) {
+            log.warn("Pipeline '{}' has an invalid cron trigger '{}' — skipping this cycle: {}",
+                    id, cron, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Bus listener (T13 / §3.8): an upstream SUCCESS commit triggers every {@code event}-triggered flow whose
+     * {@code from} names that upstream. The run is handed to {@link #triggerWorkers} (the bus delivers on the
+     * publishing thread under {@link #ingestLock}; running inline would deadlock) and coalesced per flow so an
+     * upstream storm collapses to one non-overlapping run.
+     */
+    private void onUpstreamCommit(BatchEvent event) {
+        if (!"SUCCESS".equals(event.status())) return;
+        for (Path p : registry) {
+            PipelineConfig cfg = configRegistry.configForPath(p).orElse(null);
+            if (cfg == null) continue;
+            String id = cfg.identity().pipelineName();
+            if (paused.contains(id) || !cfg.active()) continue;
+            if (id.equals(event.pipeline())) continue;                       // self-loop guard
+            FlowTrigger t = FlowTrigger.of(cfg.triggerConfig());
+            if (t.scheduler() != FlowTrigger.Scheduler.EVENT) continue;
+            if (!triggerMatches(t.from(), event.pipeline())) continue;
+            TriggerCoalescer coalescer = eventCoalescers.computeIfAbsent(id, k -> new TriggerCoalescer());
+            triggerWorkers.submit(() -> coalescer.signal(() -> runPipeline(id)));
+        }
+    }
+
+    /**
+     * Whether an event trigger's {@code from} names {@code upstream}. Matches case-insensitively against the
+     * emitted pipeline id (lowercased {@code pipelineName}) and tolerates a {@code flows/<id>} prefix, so an
+     * operator may write {@code from: orders}, {@code from: ORDERS}, or {@code from: flows/orders}.
+     */
+    private static boolean triggerMatches(String from, String upstream) {
+        if (from == null || from.isBlank() || upstream == null) return false;
+        String f = from.trim().toLowerCase();
+        String u = upstream.toLowerCase();
+        return f.equals(u) || f.endsWith("/" + u);
     }
 
     /**
@@ -717,6 +820,7 @@ public final class SourceService implements AutoCloseable {
             ingestLock.lock();   // serialize with the poll cycle / other triggers (see field doc)
             running.add(pipelineName);
             try {
+                lastRunAtMs.put(pipelineName, System.currentTimeMillis());   // T13: any run resets the cadence
                 return MultiSourceProcessor.runAll(List.of(p), 1, bus.sink());
             } finally {
                 running.remove(pipelineName);
@@ -754,6 +858,7 @@ public final class SourceService implements AutoCloseable {
             catch (Exception e) { log.warn("Error closing assist agent '{}': {}", agent.name(), e.getMessage()); }
         }
         if (jobs != null) jobs.close();               // drain in-flight job runs first
+        triggerWorkers.close();                        // drain in-flight event-triggered flow runs (T13)
         if (enrichment != null) enrichment.close();   // drain in-flight recomputes first
         EventLog.global().removeSubscriber(eventObjectBridge);   // de-register the D2 gap→ALERT bridge
         scheduler.close();

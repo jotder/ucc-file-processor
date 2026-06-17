@@ -90,6 +90,7 @@ public final class FlowCompiler {
         Map<String, Object> raw = new LinkedHashMap<>();
         raw.put("name", g.name());
         raw.put("active", g.active());
+        putIfPresent(raw, "trigger", acq.cfg("trigger"));   // T13: entry-node trigger round-trips (§3.6)
 
         // ── dirs (data-relevant only; status_dir/errors/log_dir intentionally omitted) ──
         Map<String, Object> dirs = new LinkedHashMap<>();

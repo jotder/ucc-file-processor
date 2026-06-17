@@ -122,6 +122,7 @@ public final class PipelineLift {
         c.put("retry", src.retry());
         c.put("circuit_breaker", src.circuitBreaker());
         c.put("post_action", src.postAction());   // success-side finalizer (G8)
+        if (cfg.triggerConfig() != null) c.put("trigger", cfg.triggerConfig());   // T13: entry-node trigger (§3.6)
         String use = src.hasConnection() ? "connection/" + src.connection() : null;
         return new FlowNode(ACQ, BuiltinNodeType.ACQUISITION.type(),
                 "Acquisition", "Source: " + src.connector(), c, use);

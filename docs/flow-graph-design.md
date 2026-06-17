@@ -398,8 +398,10 @@ and are run by **different schedulers**. Conflating them is the confusion this s
 This **removes the `ingest` job type**: a job can no longer re-run a pipeline. **Ingestion is the pipeline's sole
 responsibility** (loop scheduler); jobs are strictly downstream custom functions (custom-function scheduler). This
 is the resolution of [§13 R6](#13-open-risks--corrections-2026-06-16-review) / [T23](#14-things-to-do-implementation-checklist) —
-**deprecate `JobType.INGEST`, do not gate it.** In the flow-graph model (§3.6) the two schedulers are simply which
-trigger an entry node carries: `schedule:{every}` → loop scheduler; `cron`/`event`/`manual` → custom-function scheduler.
+**done 2026-06-17: `JobType.INGEST` + `IngestJob` deleted** (an `ingest` job is now a config error). In the flow-graph
+model (§3.6) the two schedulers are simply which trigger an entry node carries: `schedule:{every|cron}` → loop
+scheduler (the pipeline's own cadence, gated in `SourceService.runAllOnce` by [`FlowTrigger`](../inspecto/src/main/java/com/gamma/flow/FlowTrigger.java));
+`event` → upstream-commit-driven (coalesced); `manual` → the trigger endpoint.
 
 **Scheduler implementation = the existing `Scheduler` + `JobService`, not Quartz (decided 2026-06-17).** Both
 schedulers are the home-grown [`Scheduler`](../inspecto/src/main/java/com/gamma/service/Scheduler.java) (fixed-delay
@@ -850,16 +852,24 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   produced relation along its edge → at sinks drive the `BranchCommitCoordinator` (each sink = a branch). Sequential
   first cut (independent-branch parallelism over the vthread pool = follow-up). Additive; starts from the parse
   stage's seed relation. 2 tests (route fan-out + idempotent replay). **Remaining Phase-3: T13 triggers, T5b parity.**
-- [x] **T13 (done 2026-06-17 — model + mechanism; live-scheduler wiring is the follow-up).** Entry-node
-  **triggers** (§3.6): `com.gamma.flow.FlowTrigger` parses `schedule`(every/cron) / `event`(on/from/coalesce) /
-  `manual` / absent⇒DEFAULT_POLL and classifies the driving scheduler (LOOP/EVENT/MANUAL, §3.8). **Event coalescing**:
-  `com.gamma.flow.exec.TriggerCoalescer` collapses an event storm into one non-overlapping run (current run + at most
-  one follow-up; lost-wakeup-free) — the in-process form of the `ingestLock` debounce. **`adapter` land-then-ack**:
-  `AdapterWindow` (max_records/max_bytes/max_age flush policy) + `FileLander` (temp→fsync→atomic rename→ack-LAST =
-  at-least-once). **Per-node `enabled:`**: `FlowNode.enabled()` + `FlowExecutor` bypasses a disabled node (downstream
-  reachable only through it goes inert; a disabled sink is not a branch). Additive; **wiring the trigger classes into
-  the live `SourceService` poll/`Scheduler` loop + the stream-consumer runtime are the follow-up** (with T23's
-  two-scheduler split). 16 tests (FlowTrigger 7 · AdapterWindow 3 · TriggerCoalescer 3 · FileLander 2 · executor +1).
+- [x] **T13 (done 2026-06-17 — model + mechanism + live-loop wiring; stream-consumer runtime remains the one
+  follow-up).** Entry-node **triggers** (§3.6): `com.gamma.flow.FlowTrigger` parses `schedule`(every/cron) /
+  `event`(on/from/coalesce) / `manual` / absent⇒DEFAULT_POLL and classifies the driving scheduler (LOOP/EVENT/MANUAL,
+  §3.8). **Event coalescing**: `com.gamma.flow.exec.TriggerCoalescer` collapses an event storm into one non-overlapping
+  run (current run + at most one follow-up; lost-wakeup-free) — the in-process form of the `ingestLock` debounce.
+  **`adapter` land-then-ack**: `AdapterWindow` (max_records/max_bytes/max_age flush policy) + `FileLander`
+  (temp→fsync→atomic rename→ack-LAST = at-least-once). **Per-node `enabled:`**: `FlowNode.enabled()` + `FlowExecutor`
+  bypasses a disabled node. **Live wiring (done 2026-06-17, the follow-up):** an optional top-level `trigger:` block on
+  `*_pipeline.toon` (`PipelineConfig.triggerConfig()`, carried onto the lifted acquisition node + round-tripped by
+  `FlowCompiler.toConfigMap`) + `FlowTrigger.of(Map)`; `SourceService.runAllOnce` now **gates each pipeline by its
+  trigger** — `DEFAULT_POLL` every tick (unchanged for every legacy/lifted config = zero regression),
+  `SCHEDULE_INTERVAL` by elapsed `everyMs`, `SCHEDULE_CRON` by `CronExpression.next` since last run; `EVENT`/`MANUAL`
+  are excluded from the loop. `EVENT` flows fire from a bus subscriber (`onUpstreamCommit`) that signals a per-flow
+  `TriggerCoalescer` **off the publishing thread** (a vthread `triggerWorkers` pool — the bus is synchronous and
+  `ingestLock` is held during a cycle, so an inline run would deadlock); `MANUAL` runs only via `runPipeline`/the
+  trigger endpoint. 21 tests (16 prior + `SourceServiceTriggerTest` 5: default-poll/interval-gate/manual/cron/event).
+  **Only remaining:** the `adapter` stream-consumer runtime (Kafka/webhook/WatchService) — a separate seam, no v1
+  streaming.
 - [x] **T14 (R5) — structural checks done; emit/accept-rel wiring → T9.** `com.gamma.flow.FlowValidator.validate(g)`
   returns a typed `Result` (`Issue`{`Severity` ERROR/WARNING, stable `code`, message}) so the executor + future
   authoring API can *reject* a broken graph (vs `ConfigValidator`'s warning-only model). Checks: DAG over `data`
@@ -886,11 +896,14 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   (§11.4) and unexpected amplification as events/alerts.
 
 ### Model — pipelines vs jobs (formalised §3.8; spans phases 1/3/4)
-- [ ] **T23 (R6, decided).** **Remove the `ingest` job type** (`JobType.INGEST` + `IngestJob`) — ingest is
-  pipeline-exclusive. Implement the **two-scheduler split** (§3.8): the **loop scheduler** drives pipeline nodes
-  only; the **custom-function scheduler** ([`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java))
-  drives jobs only (custom plugin functions over stored data). Migrate existing `ingest` jobs to `active:true`
-  pipelines; drop `INGEST` from `JobType` and from `JobService.build`.
+- [x] **T23 (R6, done 2026-06-17).** **Removed the `ingest` job type** — deleted `JobType.INGEST` + `IngestJob`,
+  dropped the `INGEST` case from `JobService.build`, and removed `ingest` from the `job.type` enum/cross-field rule in
+  `ConfigSpecs` (so an `ingest` job is now a config error directing the operator to an `active:true` pipeline). The
+  **two-scheduler split** (§3.8) is realised by the entry-node trigger (T13 live wiring): the **loop scheduler**
+  (`SourceService` poll cycle) drives pipeline flows — `DEFAULT_POLL`/`SCHEDULE_*` — and **owns ingest exclusively**;
+  the **custom-function scheduler** ([`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java)) drives
+  `enrich`/`report`/`maintenance` jobs over data at rest, never re-acquiring. No shipped `*_job.toon` used `ingest`;
+  3 test fixtures migrated to `enrich`.
 - [ ] **T24.** **Combined pipeline+job visualisation** (§3.8): join the pipeline `sink(store)` node and the job
   `source(store)` node at the shared table in the flow/lineage projection (§6), drawing `on_commit` as the
   producer→consumer edge — one topology, not two.
