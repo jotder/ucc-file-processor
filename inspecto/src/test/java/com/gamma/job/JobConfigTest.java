@@ -71,7 +71,7 @@ class JobConfigTest {
         Path badCron = write(dir, "bc_job.toon", """
                 job:
                   name: y
-                  type: ingest
+                  type: enrich
                   cron: "not a cron"
                 """);
         assertThrows(IllegalArgumentException.class, () -> JobConfig.load(badCron.toString()));

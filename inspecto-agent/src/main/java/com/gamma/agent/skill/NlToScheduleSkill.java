@@ -82,7 +82,8 @@ public final class NlToScheduleSkill implements Capability {
               "name":         a short kebab-case job name derived from the request
               "cron":         a 5-field cron expression "minute hour day month day-of-week"
                               (use named days like MON-FRI where natural; do NOT include seconds)
-              "job_type":     one of: ingest | enrich | report | maintenance
+              "job_type":     one of: enrich | report | maintenance
+                              (ingestion is a pipeline's own job, not a schedulable job type)
               "on_pipeline":  the upstream pipeline this should run after, or null if none
             Use on_pipeline ONLY when the request names an upstream pipeline, and ONLY a name from the
             KNOWN PIPELINES list; otherwise set it to null. Prefer the simplest cron that matches.""";

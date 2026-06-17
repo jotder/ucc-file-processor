@@ -117,7 +117,6 @@ public final class JobService implements AutoCloseable {
 
     private Job build(JobConfig c) {
         return switch (c.type()) {
-            case INGEST      -> new IngestJob(c, bus);
             case ENRICH      -> new EnrichJob(c, bus);
             case REPORT      -> new ReportJob(c, reports);
             case MAINTENANCE -> new MaintenanceJob(c);

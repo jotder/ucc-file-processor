@@ -232,7 +232,7 @@ public final class ConfigSpecs {
         List<FieldSpec> fields = List.of(
                 FieldSpec.required("job.name", "Job name", FieldType.STRING, "Unique job name."),
                 FieldSpec.enumField("job.type", "Job type",
-                        List.of("ingest", "enrich", "report", "maintenance"), null, "The kind of work."),
+                        List.of("enrich", "report", "maintenance"), null, "The kind of work."),
                 new FieldSpec("job.cron", "Cron", "Calendar schedule (5 or 6 cron fields), or blank.",
                         FieldType.CRON, false, null, List.of(), null, "cron-editor", null),
                 FieldSpec.of("job.on_pipeline", "Trigger pipeline", FieldType.STRING,
@@ -243,12 +243,12 @@ public final class ConfigSpecs {
         List<CrossFieldRule> rules = List.of(
                 new CrossFieldRule(
                         "job-type-required",
-                        "job.type must be one of ingest|enrich|report|maintenance.",
+                        "job.type must be one of enrich|report|maintenance.",
                         Severity.ERROR,
                         List.of("job.type"),
                         raw -> {
                             String t = str(raw, "job.type");
-                            return t != null && List.of("ingest", "enrich", "report", "maintenance")
+                            return t != null && List.of("enrich", "report", "maintenance")
                                     .contains(t.toLowerCase());
                         }),
                 new CrossFieldRule(

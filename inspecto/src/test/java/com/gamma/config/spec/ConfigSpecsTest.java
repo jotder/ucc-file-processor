@@ -165,7 +165,9 @@ class ConfigSpecsTest {
     @Test
     void jobTypeAndCronRules() {
         ConfigSpec j = ConfigSpecs.job();
-        assertTrue(fire(j, "job-type-required", Map.of("job", Map.of("type", "ingest"))).isEmpty());
+        assertTrue(fire(j, "job-type-required", Map.of("job", Map.of("type", "enrich"))).isEmpty());
+        // ingest is no longer a job type (T23 / §3.8 — ingest is pipeline-exclusive)
+        assertTrue(fire(j, "job-type-required", Map.of("job", Map.of("type", "ingest"))).isPresent());
         assertTrue(fire(j, "job-type-required", Map.of("job", Map.of("type", "bogus"))).isPresent());
         assertTrue(fire(j, "job-type-required", Map.of("job", Map.of())).isPresent());
 

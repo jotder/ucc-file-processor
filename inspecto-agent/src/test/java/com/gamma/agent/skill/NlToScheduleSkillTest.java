@@ -132,9 +132,9 @@ class NlToScheduleSkillTest {
             // Round 1 invents a pipeline that isn't in the catalog -> rejected. Round 2 drops it.
             ModelRouter router = ModelRouter.of(FakeModelProvider.responding((ModelRequest r) ->
                     round.incrementAndGet() == 1
-                            ? "{\"name\":\"j\",\"cron\":\"0 3 * * *\",\"job_type\":\"ingest\",\"on_pipeline\":\"ghost_pipeline\"}"
-                            : "{\"name\":\"j\",\"cron\":\"0 3 * * *\",\"job_type\":\"ingest\",\"on_pipeline\":null}"));
-            AgentResult res = skill.run(ask("ingest daily at 3am"), context(svc, router));
+                            ? "{\"name\":\"j\",\"cron\":\"0 3 * * *\",\"job_type\":\"enrich\",\"on_pipeline\":\"ghost_pipeline\"}"
+                            : "{\"name\":\"j\",\"cron\":\"0 3 * * *\",\"job_type\":\"enrich\",\"on_pipeline\":null}"));
+            AgentResult res = skill.run(ask("enrich daily at 3am"), context(svc, router));
 
             assertEquals(AgentResult.Status.OK, res.status());
             assertFalse(res.data().containsKey("onPipeline"), "the fabricated pipeline was dropped");

@@ -15,12 +15,12 @@ import java.util.Map;
  *
  * <pre>
  * job:
- *   name: nightly-events-ingest
- *   type: ingest                 # ingest | enrich | report | maintenance
+ *   name: nightly-rollup
+ *   type: enrich                 # enrich | report | maintenance (ingest is pipeline-only, §3.8)
  *   cron: "0 2 * * *"            # optional — calendar schedule (5 or 6 cron fields)
  *   on_pipeline: UPSTREAM        # optional — also run when this pipeline commits a batch
  *   enabled: true                # optional — default true
- *   config: config/events_pipeline.toon   # type-specific params follow…
+ *   config: config/events_enrich.toon     # type-specific params follow…
  * </pre>
  *
  * <p>Recognised top-level keys are {@code name}, {@code type}, {@code cron},

@@ -84,7 +84,7 @@ class ConfigFromMapTest {
         Map<String, Object> ok = (Map<String, Object>) JToon.decode("""
                 job:
                   name: nightly
-                  type: ingest
+                  type: enrich
                   cron: "0 2 * * *"
                   config: x.toon
                 """);
@@ -96,7 +96,7 @@ class ConfigFromMapTest {
         Map<String, Object> badCron = (Map<String, Object>) JToon.decode("""
                 job:
                   name: bad
-                  type: ingest
+                  type: enrich
                   cron: "not a cron"
                 """);
         assertThrows(RuntimeException.class, () -> JobConfig.fromMap(badCron));
