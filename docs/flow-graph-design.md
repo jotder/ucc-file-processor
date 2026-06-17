@@ -819,8 +819,14 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   pattern) with `success`/`failure`/`unmatched`/`gap`/`on_commit` routing replacing the buried flags.
 - [ ] **T13.** Entry-node **triggers** (schedule/cron/event/manual, §3.6) + event coalescing under the
   non-overlapping `ingestLock`; the `adapter` land-then-ack node; per-node `enabled:`.
-- [ ] **T14 (R5).** Validator: DAG over `data` edges, reject cycles, reject illegal wiring (emit/accept rels), and
-  reject same-graph `on_commit` targets.
+- [x] **T14 (R5) — structural checks done; emit/accept-rel wiring → T9.** `com.gamma.flow.FlowValidator.validate(g)`
+  returns a typed `Result` (`Issue`{`Severity` ERROR/WARNING, stable `code`, message}) so the executor + future
+  authoring API can *reject* a broken graph (vs `ConfigValidator`'s warning-only model). Checks: DAG over `data`
+  edges (DFS back-edge → `CYCLE`, names the path; control/split/`route:*` edges excluded, matching the walk),
+  dangling endpoints (`DANGLING_FROM`/`DANGLING_TO`, `on_commit` `to` exempt = cross-flow), **same-graph
+  `on_commit` rejected** (`ON_COMMIT_SAME_GRAPH`, R5), duplicate ids, no-entry-node, empty-graph (warning).
+  `validateOrThrow` for the execution path. **Deferred:** validating a rel against a node type's emitted/accepted
+  relations needs the node-output contract (T9) — there is a seam for it. 8 tests. Additive, full suite 695 green.
 - [ ] **T15.** Adaptive back-pressure defaults (§3.5) as configurable, not hard-coded.
 
 ### Phase 4 — Flow-graph API + G6 visualisation (read-first)
