@@ -478,8 +478,8 @@ A large installed base of `*_pipeline.toon` (and ~80 test fixtures) must keep ru
   List<FlowEdge> edges)`; `FlowNode(id, type, Map<String,Object> config, String use)`,
   `FlowEdge(from, rel, to)`. This is the single object the executor, the validator, and the visualiser consume.
 - **Legacy lift** — at load time a `*_pipeline.toon` is *auto-lifted* into a `FlowGraph`, plus the control edges its
-  existing flags imply (post-action → `failure` edge, gap-detection → `gap` edge, enrichment trigger → `on_commit`
-  edge). **No file rewrite** — the lift is internal. **The lift is not always 4-node-linear (review 2026-06-16):**
+  existing flags imply (post-action → **success-side finalizer on `acquisition`** with `on_unsupported` → `failure`
+  (§15 G8), gap-detection → `gap` edge, enrichment trigger → `on_commit` edge). **No file rewrite** — the lift is internal. **The lift is not always 4-node-linear (review 2026-06-16):**
   a single pipeline already fans into **N schemas** via `segments`/`selector`
   ([`MetadataGraphService.rebuildStructural`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java)
   handles segments/selector/single today), and a plugin ingester emits multiple segment tables — so many shipped
@@ -707,7 +707,8 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   dedup modes, enrichment trigger) and map each to its IR representation. *Done = checklist complete and reviewed.*
 - [ ] **T2.** Define `FlowGraph`/`FlowNode`/`FlowEdge` records + the `FlowNodeType` ServiceLoader SPI (`com.gamma.flow`).
 - [ ] **T3.** Implement the lift: single-schema → linear; **multi-schema/`segments`/`selector` → fan-out** (R4);
-  imply control edges from existing flags (post-action→`failure`, gap→`gap`, enrichment→`on_commit`).
+  imply edges from existing flags (post-action→success-side finalizer + `on_unsupported`→`failure` (§15 G8),
+  gap→`gap`, enrichment→`on_commit`); add `transform.filter` (G1) + distinct dedup nodes (G2); route metadata (G3).
 - [ ] **T4.** Decide & implement the **pipeline↔enrichment** boundary (R4): join referencing configs into one
   `FlowGraph`, or two flows linked by `on_commit`. Record the decision in §5.
 - [ ] **T5.** Implement compile-back to today's `SourceProcessor` primitives; **run the full existing suite
@@ -769,6 +770,49 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   `EventStore`); expose query endpoints (success rate, p50/p95 duration, failure trends over time); build a **Jobs
   pane** in `inspecto-ui` reusing the shipped **Events/Activity viewer** template (ag-Grid + filter toolbar +
   live-tail + CSV export + detail dialog). The run data is already captured (`jobs_runs.csv`); this is the projection + UI.
+
+## 15. Phase-1 capability inventory — gate result (T1, 2026-06-17)
+
+The T1 capability sweep (full read of [`PipelineConfig`](../inspecto/src/main/java/com/gamma/etl/PipelineConfig.java)
++ `SchemaSelector`/`PartitionDef`/`TransformCompiler`/`ConfigValidator`/`config/spec` + the 5 shipped configs and
+their referenced schema/grammar files) **passes the gate**: the `FlowGraph`/`FlowNode`/`FlowEdge` IR **can represent
+every capability** a `*_pipeline.toon` expresses — **provided** the encodings below are adopted. It is **not** a
+"4-node linear / thin reuse" lift (confirms §13).
+
+**Structural fact that shapes the lift:** a `*_pipeline.toon` is **not self-contained**. The pipeline file holds
+acquisition + parse + batch-write controls; the **transform vocabulary, field selectors and partitioning live in the
+referenced `*_schema.toon`** (`raw.fields[]`, `mapping.rules[]`, `partitions[]`/`partitionKey`); **enrichment / alert
+/ gap-consumer logic live in separate files**. The lift must read the pipeline file **and** its referenced schema
+file(s) to populate the `parser`/`transform`/`sink` nodes.
+
+**IR encodings adopted (deltas from §3 as written):**
+| # | Capability | Encoding decision |
+|---|---|---|
+| G1 | CSV row-filters anchored on a **column index** (`filter_target_column` + include/exclude prefixes/regex) | a dedicated **`transform.filter`** node placed **between `parser` and `transform.map`** (index-anchored, pre-naming — cannot live in the name-keyed map). |
+| G2 | **Two independent dedup subsystems** — `processing.duplicate_check` (marker/`MarkerManager`) **and** `source.duplicate` (fingerprint ledger) | keep **distinct**: `transform.dedup.marker` + `transform.dedup.fingerprint` (do **not** flatten into one "dedup" — they are different subsystems and can both be active). |
+| G3 | `schemas[]` selector = stateful **file_pattern + column-count probe** (priority = declaration order) | a `parser` **dispatcher** emitting `route:<key>` edges, each carrying `{priority, file_pattern, column_count}`; `unmatched` → quarantine. Preserves first-match-wins + the max-column probe heuristic. |
+| G4 | `incremental.watermark` is **derived** from the fingerprint ledger | `acquisition.config.incremental` **+** a validator cross-field rule (watermark set ⇒ a content-based `duplicate.mode`), mirroring today's warn. |
+| G5 | **Plugin-ingester `segments`** (FQCN emits N named segment streams → N tables) — **highest risk** | `parser` with `use: ingester/<fqcn>` + `config.ingester_config`, emitting `route:<segment-key>` → per-segment `sink`. Fan-out is opaque to the graph (plugin owns keys at runtime) — the Phase-1 parity test must cover it. |
+| G6 | `guarantee` is declarative with a runtime fallback (degrades to best-effort if no ledger) | `acquisition.config.guarantee` + carry the `requiresLedger()` warn; advisory, not a hard property. |
+| G7 | Gap detection → `SEQUENCE_GAP` events | `acquisition` emits `gap` edge → a `gap` reporting node (no `data` out); sequence template → `gap.config.sequence`. Matches §3 as written. |
+| **G8** | `post_action` RETAIN/DELETE/MOVE/RENAME/TAG (+ templated `archive_path`, `on_unsupported`) | a **success-side finalizer** on the `acquisition` node, **not** the `failure` edge — **§5/§8 wording corrected**. `on_unsupported` governs the failure branch; date-template resolves at run time; capability-checked vs the connector SPI (not fully lift-time validatable). |
+| G9 | **Pipeline↔enrichment/alert/job file boundary** (they point *back* via `triggers.on_pipeline` = a name string) — risk | the cross-flow `on_commit` edge (R4/T4). Lifting a pipeline **alone won't pull these in** — Phase 1 decides fold-into-one-graph vs two-flows-linked. |
+| F1 | **Dead top-level keys** `version:` / `search:` / `copy_tars:` / `backup:` (present in `adjustment_pipeline.toon`, **never parsed** by `fromMap`) | the lift **drops** them — do not faithfully reproduce keys that do nothing today. |
+
+**Lift recipe (condensed; exact accessors in the T1 inventory):** load via `PipelineConfig.load` (resolves+validates
+schemas); set `FlowGraph.name`←`identity().pipelineName()`, `active`←`active()`; build the `acquisition` node from
+`source()` (+ `stability/duplicate/incremental/guarantee/fetch/retry/circuitBreaker/postAction`, `use: connection/…`
+when `hasConnection()`); add `gap` node + edge if `gapDetection().active()`; parser base from `csv()` (+ `use:
+grammar/…` when external, + `fixedwidth`); insert `transform.filter` when `csv().hasRowFilters()`; add the dedup
+nodes per G2; sink base from `output()`+`dirs()`+batch caps. **Then branch on `schemas()`** (exactly one non-null):
+**single** → one linear `parser→transform.map→sink`; **selector** → dispatcher + N route branches (G3); **segments**
+→ plugin parser + N `route:<segment>` sinks (G5). **Cross-file suffix:** resolve `EnrichmentConfig`/`*_alert.toon`/
+`job` whose `on_pipeline` == this pipeline (G9). Re-run the `ConfigValidator` warns on the lifted graph + the new
+cross-field rules (G4, G6, `on_commit` acyclicity). Drop F1 keys.
+
+**Parity gate (T5) must specifically cover the four non-linear / non-thin shapes:** the **voucher** multi-schema
+selector, the **plugin-ingester segments** path, the **fixed-width** (text + binary) path, and the **row-filter**
+path — these are where "lift = thin shim" breaks.
 
 ---
 

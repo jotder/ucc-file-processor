@@ -1,0 +1,41 @@
+package com.gamma.flow;
+
+import com.gamma.api.PublicApi;
+
+import java.util.Set;
+
+/**
+ * The plugin seam for flow node types. Mirrors
+ * {@link com.gamma.acquire.SourceConnectorFactory}: the engine {@link java.util.ServiceLoader}s the
+ * available node types and matches one by its {@link #type()} discriminator. The lean core ships the
+ * {@link BuiltinNodeType built-ins}; editions/plugins contribute extra types by listing a provider in
+ * {@code META-INF/services/com.gamma.flow.FlowNodeType}.
+ *
+ * <p>Phase-1 scope is <b>descriptor-level</b> — {@link #type()} plus the relationships a node
+ * {@link #emits()}/{@link #accepts()} — used by the lift and the (Phase-3) wiring validator. Execution
+ * and dry-run hooks are added in later phases, so this interface stays small and stable for now.
+ */
+@PublicApi(since = "4.3.0")
+public interface FlowNodeType {
+
+    /** The {@code type} value this descriptor handles, e.g. {@code "acquisition"}. */
+    String type();
+
+    /**
+     * Control/split relationships this node type may emit, besides operator-defined named
+     * {@code route:*} branches (see {@link #emitsNamedRoutes()}). Advisory in Phase 1.
+     */
+    default Set<String> emits() {
+        return Set.of(FlowRel.DATA);
+    }
+
+    /** Relationships this node type accepts inbound. An entry node accepts nothing. Advisory in Phase 1. */
+    default Set<String> accepts() {
+        return Set.of(FlowRel.DATA);
+    }
+
+    /** Whether this node type emits operator-defined {@code route:<key>} branches (a parser dispatcher, route, plugin). */
+    default boolean emitsNamedRoutes() {
+        return false;
+    }
+}
