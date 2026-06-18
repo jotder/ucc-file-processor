@@ -65,4 +65,72 @@ class ComponentPreviewTest {
         FlowNode merge = FlowNode.of("g", "transform.merge", Map.of("type", "union"));
         assertThrows(IllegalArgumentException.class, () -> ComponentPreview.transform(merge, SAMPLE));
     }
+
+    // ── grammar ──────────────────────────────────────────────────────────────────
+
+    @Test
+    void grammarPreviewParsesRawTextWithDialect() throws Exception {
+        Map<String, Object> grammar = Map.of("delimiter", "|", "has_header", true);
+        ComponentPreview.GrammarResult r =
+                ComponentPreview.grammar(grammar, "a|b|c\n1|2|3\n4|5|6\n");
+
+        assertEquals(List.of("a", "b", "c"), r.columns());
+        assertEquals(2, r.rowCount());
+        assertEquals(0, r.rejectedRows());
+        assertEquals("1", r.rows().get(0).get("a").toString());
+    }
+
+    @Test
+    void grammarPreviewRejectsEmptyText() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ComponentPreview.grammar(Map.of("delimiter", ","), "   "));
+    }
+
+    // ── schema ───────────────────────────────────────────────────────────────────
+
+    @Test
+    void schemaPreviewSplitsDataVsRejectedByCast() throws Exception {
+        Map<String, Object> schema = Map.of("fields", List.of(
+                Map.of("name", "id", "type", "integer"),
+                Map.of("name", "amt", "type", "double")));
+        List<Map<String, Object>> sample = List.of(
+                two("id", "1", "amt", "150"),     // ok
+                two("id", "x", "amt", "50"),       // id not int → rejected
+                two("id", "3", "amt", "abc"));     // amt not double → rejected
+
+        ComponentPreview.Result r = ComponentPreview.schema(schema, sample);
+        assertEquals(1, rel(r, "data").rowCount());
+        assertEquals(2, rel(r, "rejected").rowCount());
+        assertEquals("1", rel(r, "data").rows().get(0).get("id").toString());
+    }
+
+    // ── sink ─────────────────────────────────────────────────────────────────────
+
+    @Test
+    void sinkPreviewValidatesStoreFormatAndPartitions() {
+        Map<String, Object> sink = Map.of("store", "out", "format", "parquet",
+                "partitions", List.of("year"));
+        ComponentPreview.SinkResult r = ComponentPreview.sink(sink, SAMPLE);
+
+        assertEquals("out", r.store());
+        assertEquals(3, r.rowCount());
+        // "year" is not a sample column → exactly one partition warning, nothing else
+        assertEquals(1, r.warnings().size());
+        assertTrue(r.warnings().get(0).contains("year"));
+    }
+
+    @Test
+    void sinkPreviewWarnsOnMissingStoreAndBadFormat() {
+        Map<String, Object> sink = Map.of("format", "xlsx");   // no store, unknown format
+        ComponentPreview.SinkResult r = ComponentPreview.sink(sink, SAMPLE);
+        assertNull(r.store());
+        assertEquals(2, r.warnings().size());
+    }
+
+    private static Map<String, Object> two(String k1, String v1, String k2, String v2) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put(k1, v1);
+        m.put(k2, v2);
+        return m;
+    }
 }

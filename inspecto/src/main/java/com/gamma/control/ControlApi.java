@@ -448,8 +448,11 @@ public final class ControlApi implements AutoCloseable {
         post("/components/([^/]+)", (e, m) -> createComponent(name(m), body(e)));
         put("/components/([^/]+)/([^/]+)", (e, m) -> updateComponent(name(m), param(m, 2), body(e)));
         delete("/components/([^/]+)/([^/]+)", (e, m) -> deleteComponent(name(m), param(m, 2)));
-        // T18 dry-run/test: preview a transform over sample rows through the production RowShaper (scratch-only).
+        // T18 dry-run/test: preview a component over a sample through the production logic (scratch-only).
         post("/components/transform/([^/]+)/test", (e, m) -> previewTransform(name(m), body(e)));
+        post("/components/grammar/([^/]+)/test", (e, m) -> previewGrammar(name(m), body(e)));
+        post("/components/schema/([^/]+)/test", (e, m) -> previewSchema(name(m), body(e)));
+        post("/components/sink/([^/]+)/test", (e, m) -> previewSink(name(m), body(e)));
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
@@ -1200,6 +1203,65 @@ public final class ControlApi implements AutoCloseable {
     }
 
     /**
+     * {@code POST /components/grammar/{id}/test} — parse raw {@code sampleText} with a grammar component's CSV
+     * dialect through the production {@code read_csv} on a throwaway DuckDB (T18, §7.2). 404 if absent, 400 on
+     * empty input, 422 on a parse error. Never touches production output.
+     */
+    private Object previewGrammar(String id, Map<String, Object> body) {
+        com.gamma.flow.ComponentRegistry.Component c = requireComponent("grammar", id);
+        try {
+            return com.gamma.flow.exec.ComponentPreview.grammar(c.content(), sampleText(body));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        } catch (java.sql.SQLException | IOException e) {
+            throw new ApiException(422, "preview failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * {@code POST /components/schema/{id}/test} — {@code TRY_CAST} {@code sampleRows} against a schema
+     * component's typed fields, splitting {@code data} / {@code rejected}, on a throwaway DuckDB (T18, §7.2).
+     * 404 if absent, 400 on a bad sample, 422 on a cast/SQL error. Never touches production output.
+     */
+    private Object previewSchema(String id, Map<String, Object> body) {
+        com.gamma.flow.ComponentRegistry.Component c = requireComponent("schema", id);
+        try {
+            return com.gamma.flow.exec.ComponentPreview.schema(c.content(), sampleRows(body));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        } catch (java.sql.SQLException | IOException e) {
+            throw new ApiException(422, "preview failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * {@code POST /components/sink/{id}/test} — scratch-validate a sink component against {@code sampleRows}
+     * (store/format/partition checks; row count + bounded sample, no write) (T18, §7.2). 404 if absent, 400 on
+     * a bad sample.
+     */
+    private Object previewSink(String id, Map<String, Object> body) {
+        com.gamma.flow.ComponentRegistry.Component c = requireComponent("sink", id);
+        try {
+            return com.gamma.flow.exec.ComponentPreview.sink(c.content(), sampleRows(body));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        }
+    }
+
+    /** Load a component by {@code type}/{@code id} or fail with the standard 400/404 (shared by the preview handlers). */
+    private com.gamma.flow.ComponentRegistry.Component requireComponent(String type, String id) {
+        Path root = componentRootOrNull();
+        com.gamma.flow.ComponentRegistry.Component c;
+        try {
+            c = root == null ? null : new com.gamma.flow.ComponentStore(root).get(type, id).orElse(null);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        }
+        if (c == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        return c;
+    }
+
+    /**
      * {@code POST /flows/authored/{id}/dry-run} — run a bounded sample through an authored flow's
      * transform→sink subgraph on a throwaway DuckDB (T18, §7.2); per-node + per-sink row counts. 404 if the
      * flow is absent, 400 on a bad sample, 422 on a validation/SQL error. Never touches production output.
@@ -1220,6 +1282,12 @@ public final class ControlApi implements AutoCloseable {
         } catch (Exception e) {
             throw new ApiException(422, "dry-run failed: " + e.getMessage());
         }
+    }
+
+    /** Extract raw {@code sampleText} from a request body (the text a grammar would parse); empty if absent. */
+    private static String sampleText(Map<String, Object> body) {
+        Object t = body.get("sampleText");
+        return t == null ? "" : t.toString();
     }
 
     /** Extract the {@code sampleRows} array from a request body (each element a row map); empty if absent. */

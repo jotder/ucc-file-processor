@@ -123,6 +123,59 @@ class ControlApiComponentsTest {
     }
 
     @Test
+    void grammarPreviewParsesRawSampleText(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, dir.resolve("wr"))) {
+            assertEquals(200, send(c.port, "POST", "/components/grammar",
+                    "{\"id\":\"pipe\",\"delimiter\":\"|\",\"has_header\":true}").statusCode());
+
+            HttpResponse<String> r = send(c.port, "POST", "/components/grammar/pipe/test",
+                    "{\"sampleText\":\"a|b|c\\n1|2|3\\n4|5|6\\n\"}");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode body = json(r);
+            assertEquals(2, body.get("rowCount").asInt(), body.toString());
+            assertEquals(0, body.get("rejectedRows").asInt());
+            assertEquals("a", body.get("columns").get(0).asText());
+
+            assertEquals(404, send(c.port, "POST", "/components/grammar/ghost/test", "{\"sampleText\":\"x\"}").statusCode());
+        }
+    }
+
+    @Test
+    void schemaPreviewSplitsDataAndRejected(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, dir.resolve("wr"))) {
+            assertEquals(200, send(c.port, "POST", "/components/schema",
+                    "{\"id\":\"typed\",\"fields\":[{\"name\":\"id\",\"type\":\"integer\"},{\"name\":\"amt\",\"type\":\"double\"}]}").statusCode());
+
+            HttpResponse<String> r = send(c.port, "POST", "/components/schema/typed/test",
+                    "{\"sampleRows\":[{\"id\":\"1\",\"amt\":\"150\"},{\"id\":\"x\",\"amt\":\"50\"},{\"id\":\"3\",\"amt\":\"abc\"}]}");
+            assertEquals(200, r.statusCode(), r.body());
+            int data = 0, rejected = 0;
+            for (JsonNode rel : json(r).get("relations")) {
+                if ("data".equals(rel.get("rel").asText())) data = rel.get("rowCount").asInt();
+                if ("rejected".equals(rel.get("rel").asText())) rejected = rel.get("rowCount").asInt();
+            }
+            assertEquals(1, data);
+            assertEquals(2, rejected);
+        }
+    }
+
+    @Test
+    void sinkPreviewValidatesConfigAgainstSample(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, dir.resolve("wr"))) {
+            assertEquals(200, send(c.port, "POST", "/components/sink",
+                    "{\"id\":\"out\",\"store\":\"results\",\"format\":\"parquet\",\"partitions\":[\"year\"]}").statusCode());
+
+            HttpResponse<String> r = send(c.port, "POST", "/components/sink/out/test",
+                    "{\"sampleRows\":[{\"id\":\"1\"},{\"id\":\"2\"}]}");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode body = json(r);
+            assertEquals("results", body.get("store").asText());
+            assertEquals(2, body.get("rowCount").asInt());
+            assertEquals(1, body.get("warnings").size(), body.toString());   // missing partition column 'year'
+        }
+    }
+
+    @Test
     void writesAreGatedOnTheWriteRoot(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, null)) {                       // no write root configured
             assertEquals(503, send(c.port, "POST", "/components/grammar", "{\"id\":\"pipe\"}").statusCode());

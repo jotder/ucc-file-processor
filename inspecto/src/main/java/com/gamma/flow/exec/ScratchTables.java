@@ -80,8 +80,24 @@ final class ScratchTables {
         return rows;
     }
 
+    /** The column names of {@code table}, in declared order (works even when the table is empty). */
+    static List<String> columnNames(Connection conn, String table) throws SQLException {
+        List<String> cols = new ArrayList<>();
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM " + q(table) + " LIMIT 0")) {
+            ResultSetMetaData md = rs.getMetaData();
+            for (int c = 1; c <= md.getColumnCount(); c++) cols.add(md.getColumnLabel(c));
+        }
+        return cols;
+    }
+
     /** Quote a SQL identifier. */
     static String q(String ident) {
         return "\"" + ident.replace("\"", "\"\"") + "\"";
+    }
+
+    /** A single-quoted SQL string literal (escaping embedded quotes). */
+    static String sqlStr(String s) {
+        return "'" + s.replace("'", "''") + "'";
     }
 }

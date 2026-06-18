@@ -885,17 +885,22 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 - [ ] **T17.** Node inspector panel (effective config resolved through `use:`); live last-run overlay via `OverlaySource`.
 
 ### Phase 5 — Per-component dry-run/test + CRUD-from-UI (build-and-test UX)
-- [~] **T18 (transform preview + flow dry-run done 2026-06-18; grammar/schema/sink tests pending).** `preview(sample)`
+- [x] **T18 (done 2026-06-18 — transform + flow dry-run + grammar/schema/sink previews).** `preview(sample)`
   reusing production node logic, scratch-only (§7.2). **Transform preview:** `com.gamma.flow.exec.ComponentPreview.transform`
   seeds a throwaway DuckDB from the sample rows, runs the node through the <b>production</b> `RowShaper`, reads the
   produced named relations back (capped), deletes the scratch DB. `POST /components/transform/{id}/test {sampleRows}`
   → `{inputColumns, relations:[{rel,rowCount,rows}]}`. **Flow dry-run:** `FlowExecutor.dryRun` (the same topo-walk +
   `RowShaper` as a real run, <em>no commit</em>) + `FlowDryRun` (seeds the sample at the parser/entry node on a
   scratch DuckDB, reports per-node relation counts + each sink branch's row count/sample). `POST
-  /flows/authored/{id}/dry-run {sampleRows}`. Shared scratch helper `ScratchTables` (seed/count/read). Tests:
-  `ComponentPreviewTest`(3) · `FlowDryRunTest`(2) · `ControlApiComponentsTest`/`ControlApiFlowCrudTest` cases. Suite
-  779/0/1. **Pending:** grammar parse-test (DuckDB read_csv over sample text), schema cast+rejects (TRY_CAST), sink
-  scratch-validate.
+  /flows/authored/{id}/dry-run {sampleRows}`. **Grammar preview:** `ComponentPreview.grammar` parses raw
+  `sampleText` with the grammar's CSV dialect through the production `read_csv` (delim/header/skip/quote/escape/
+  encoding, `store_rejects`) → `{columns, rowCount, rows, rejectedRows}`; `POST /components/grammar/{id}/test
+  {sampleText}`. **Schema preview:** `ComponentPreview.schema` `TRY_CAST`s each declared field to its type
+  (date/timestamp via `TRY_STRPTIME` when a `format` is set) and splits `data`/`rejected`; `POST
+  /components/schema/{id}/test {sampleRows}`. **Sink preview:** `ComponentPreview.sink` scratch-validates
+  store/format/partition-columns against the sample (row count + bounded sample, no write); `POST
+  /components/sink/{id}/test {sampleRows}`. Shared scratch helper `ScratchTables` (seed/count/read/columnNames).
+  Tests: `ComponentPreviewTest`(8) · `FlowDryRunTest`(2) · `ControlApiComponentsTest`(7)/`ControlApiFlowCrudTest`.
 - [~] **T19 (CRUD backend done 2026-06-18; authoring UI pending).** Component + flow CRUD, generalising the
   connection write pattern (write-root gated, id-sanitised, path-jailed, atomic temp+move). **Component CRUD:**
   `com.gamma.flow.ComponentStore` (create/replace/delete/list/get over `<write-root>/registry/<typeDir>/<id>.toon` for
