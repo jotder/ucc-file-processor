@@ -12,6 +12,7 @@ import com.gamma.etl.IngestProgress;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.flow.DeletionFence;
 import com.gamma.flow.FlowGraph;
+import com.gamma.flow.FlowStore;
 import com.gamma.flow.FlowTrigger;
 import com.gamma.flow.PipelineLift;
 import com.gamma.flow.exec.TriggerCoalescer;
@@ -142,6 +143,9 @@ public final class SourceService implements AutoCloseable {
      *  "under processing" signal of {@link #inboxStatus(String)}. Ingest is synchronous within a cycle,
      *  so a pipeline is "running" only while its batches are actively being processed. */
     private final Set<String> running = ConcurrentHashMap.newKeySet();
+    /** Authored-flow store ({@code <assist.write.root>/flows}); lets the deletion fence (T32) see flow jobs as
+     *  store producers/consumers. {@code null} when no write root is configured. */
+    private final FlowStore flowStore = openFlowStore();
     /** Serializes ingest cycles so an operator-triggered run (Control API {@code /trigger},
      *  {@code /pipelines/{name}/trigger}) can never overlap the scheduled poll cycle or another
      *  trigger. The scheduler is already non-overlapping (fixed-delay); this guards the
@@ -254,7 +258,8 @@ public final class SourceService implements AutoCloseable {
         this.jobs              = jobConfigs.isEmpty()
                 ? null
                 : new JobService(jobConfigs, bus, scheduler, reports,
-                        System.getProperty("jobs.audit.dir", "jobs_audit"), openJobRunStore());
+                        System.getProperty("jobs.audit.dir", "jobs_audit"), openJobRunStore(),
+                        flowStore, System.getProperty("data.dir", "database"));
         if (this.jobs != null) this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
         this.semanticModels    = List.copyOf(semanticModels);
         // Invalidate the catalog whenever configs are (re)indexed — the registry is now the
@@ -627,6 +632,16 @@ public final class SourceService implements AutoCloseable {
      * changes by default. {@code -Djobs.backend=duckdb} uses {@code -Djobs.db.url} (default a local
      * {@code jobs_report.duckdb} file); a full {@code jdbc:...} value is also accepted directly.
      */
+    /**
+     * The authored-flow store for {@link JobType#FLOW} jobs (T32): {@code <assist.write.root>/flows}, the same
+     * root the Control API persists authored {@code *_flow.toon} under. {@code null} when no write root is set,
+     * in which case a configured flow job fails closed at build time with a clear message.
+     */
+    private static FlowStore openFlowStore() {
+        String wr = System.getProperty("assist.write.root");
+        return (wr == null || wr.isBlank()) ? null : new FlowStore(Path.of(wr.trim()).resolve("flows"));
+    }
+
     private static DbJobRunStore openJobRunStore() {
         String backend = System.getProperty("jobs.backend", "none").trim().toLowerCase();
         if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
@@ -653,7 +668,23 @@ public final class SourceService implements AutoCloseable {
         if (targetStores == null || targetStores.isEmpty()) return List.of();
         List<FlowGraph> flows = new ArrayList<>();
         for (Path p : registry) configRegistry.configForPath(p).ifPresent(c -> flows.add(PipelineLift.lift(c)));
-        List<DeletionFence.Conflict> conflicts = DeletionFence.check(targetStores, flows, running);
+        // T32: authored flow jobs also produce/consume stores. Include them in the topology and union their
+        // in-flight runs into the active set, so a delete that races an active flow-job reader/writer is
+        // flagged as a conflict — not just one racing a running pipeline.
+        Set<String> active = running;
+        if (flowStore != null) {
+            try {
+                flows.addAll(flowStore.list());
+            } catch (RuntimeException e) {
+                log.warn("Deletion fence: could not list authored flows ({}): {}",
+                        e.getClass().getSimpleName(), e.getMessage());
+            }
+            if (jobs != null && !jobs.runningFlows().isEmpty()) {
+                active = new java.util.LinkedHashSet<>(running);
+                active.addAll(jobs.runningFlows());
+            }
+        }
+        List<DeletionFence.Conflict> conflicts = DeletionFence.check(targetStores, flows, active);
         for (DeletionFence.Conflict c : conflicts) {
             log.warn("Deletion fence: store '{}' has an active reader/writer — producers={}, consumers={}",
                     c.store(), c.activeProducers(), c.activeConsumers());

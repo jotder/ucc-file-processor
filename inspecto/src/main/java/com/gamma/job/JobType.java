@@ -16,7 +16,9 @@ public enum JobType {
     /** Compute a status / batch-audit report and log a summary (param {@code scope}). */
     REPORT,
     /** A built-in maintenance task (param {@code task}, e.g. {@code cleanup}). */
-    MAINTENANCE;
+    MAINTENANCE,
+    /** Run an authored {@code *_flow.toon} flow over data at rest (param {@code flow} = flow id; T32). */
+    FLOW;
 
     public static JobType from(String s) {
         if (s == null) throw new IllegalArgumentException("job.type is required");
@@ -24,7 +26,7 @@ public enum JobType {
             return JobType.valueOf(s.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Unknown job.type '" + s
-                    + "' (expected one of: enrich, report, maintenance)");
+                    + "' (expected one of: enrich, report, maintenance, flow)");
         }
     }
 }

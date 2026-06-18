@@ -919,16 +919,33 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   (`ComponentsService`), plus nav + lazy route. Tests: `ComponentsComponent`(3, incl. axe a11y); token-guard +
   prod build green. **Pending:** the **flow-topology editor** (node/edge CRUD on the G6 canvas) and wiring
   authored flows into the live executor (T32).
-- [ ] **T32 (planned 2026-06-18 — live execution of authored job-flows).** Run authored `*_flow.toon`
+- [~] **T32 (Phase A done 2026-06-18 — live execution of authored job-flows).** Run authored `*_flow.toon`
   flows for real. Authored flows are **job-style** (`source_store` → `transform` → sink `store`), so they run
   as a new `JobType.FLOW` hosted by the existing `JobService` (cron/event/manual + audit + deletion fence +
   `DbJobRunStore`), driving `FlowExecutor` directly — **not** via `FlowCompiler.toConfigMap` (which only
-  round-trips *lifted* graphs, not plain-map authored ones). New: `FlowJobRunner implements Job`,
-  `PartitionSinkWriter` (a `FlowExecutor.SinkWriter` over `PartitionWriter`), `SourceStoreReader`
-  (`SqlViews.reader` over `<dirs.database>/<store>/**`), `JobType.FLOW` + `JobService.build()` case. Reuses
-  `FlowExecutor`/`BranchCommitCoordinator`/`BranchCommitLog`/`EnrichmentEngine` read pattern. Full design:
-  [`flow-live-execution-plan.md`](flow-live-execution-plan.md) (phases A core run-path / B schedule+chain /
-  C view-sinks+incremental; open Qs: data/audit dir source, batchId idempotency, `sink.view`, multi-source seed).
+  round-trips *lifted* graphs, not plain-map authored ones).
+  **Phase A shipped:** `FlowJobRunner implements Job` (seed source_store view → `FlowExecutor.execute` →
+  publish chain `BatchEvent` → `JobResult`; source-finalise is a no-op for a job), `PartitionSinkWriter`
+  (a `FlowExecutor.SinkWriter` over `PartitionWriter`; unpartitioned single-file `COPY` when a sink declares no
+  `partitions`, since the legacy writer always partitions; `sink.view` writes no bytes — Phase C), `SourceStoreReader`
+  (`SqlViews.reader` over `<dataDir>/<store>/**`), `JobType.FLOW` + `JobService.build()` case (fail-closed without an
+  authored-flow store), `SourceService` wiring (`openFlowStore()` = `<assist.write.root>/flows`; data root from
+  `-Ddata.dir`, default `database`; per-job `data_dir`/`batch_id` overrides). Reuses
+  `FlowExecutor`/`BranchCommitCoordinator`/`BranchCommitLog`/`EnrichmentEngine` read pattern. Tests:
+  `FlowJobRunnerTest`(4: filter→sink, idempotent same-`batch_id` skip, route→2 stores, no-source_store reject)
+  + `JobServiceTest`(+2: build-with-flow-store, fail-closed). inspecto **793/0/1**.
+  **Resolved open Qs:** data root = `-Ddata.dir`/`data_dir` param (default `database`); audit/branch-commit log under
+  the jobs audit dir; idempotency via a fixed `batch_id` param (default per-run timestamp); single `source_store` only.
+  **Deletion fence wired (T25×T32, 2026-06-18):** `SourceService.checkDeletion` now folds authored flows
+  (`flowStore.list()`) into the producer/consumer topology and unions in-flight `FLOW` runs
+  (`JobService.runningFlows()`) into the active set, so deleting a store an active flow job reads/writes raises a
+  `STORE_DELETE_CONFLICT` (idle authored flows never conflict). The fence is made *aware of* flow jobs — a flow job
+  does NOT call `guard.check` (that would false-positive on normal concurrent read/append). Test:
+  `JobServiceTest.flowJobRunsEndToEndAndIsTrackedWhileRunning`.
+  **Deferred:** Phase B (exercise cron/`on_pipeline` for FLOW + jobs-pane reporting), Phase C (`sink.view` catalog
+  registration, multi-`source_store` seed, incremental/watermark re-run vs full recompute), and a dedicated
+  `POST /flows/authored/{id}/run` endpoint (today: configure a `type: flow` `*_job.toon` + `POST /jobs/{name}/trigger`).
+  Full design: [`flow-live-execution-plan.md`](flow-live-execution-plan.md).
 
 ### Phase 4.5 / 6 — Data plane (provenance overlay; not required for 1–3)
 - [ ] **T20.** Per-edge counters at every node boundary (`recordsIn`/`recordsOut`/`diverted` tagged by relationship) — §11.3.

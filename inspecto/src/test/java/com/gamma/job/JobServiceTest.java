@@ -1,13 +1,23 @@
 package com.gamma.job;
 
 import com.gamma.etl.BatchEvent;
+import com.gamma.flow.FlowEdge;
+import com.gamma.flow.FlowGraph;
+import com.gamma.flow.FlowNode;
+import com.gamma.flow.FlowStore;
 import com.gamma.service.BatchEventBus;
 import com.gamma.service.Scheduler;
+import com.gamma.util.DuckDbUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.time.Instant;
@@ -212,6 +222,78 @@ class JobServiceTest {
             await(() -> js.lastRunOf("hb").orElse(null));
             assertTrue(((Number) store.metrics("hb").get("total")).longValue() >= 1,
                     "the run was projected into the DuckDB reporting store");
+        }
+    }
+
+    // ── T32: flow jobs (JobType.FLOW) ──────────────────────────────────────────
+
+    @Test
+    void flowJobIsBuiltWhenAFlowStoreIsConfigured(@TempDir Path dir) throws Exception {
+        JobConfig fj = new JobConfig("fj", JobType.FLOW, null, null, true, false, Map.of("flow", "some_flow"));
+        com.gamma.flow.FlowStore store = new com.gamma.flow.FlowStore(dir.resolve("flows"));
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(fj), new BatchEventBus(), s, null,
+                     dir.resolve("audit").toString(), null, store, dir.resolve("data").toString())) {
+            js.start();
+            assertTrue(js.has("fj"), "a flow job is built when a flow store is configured");
+            assertEquals("FLOW", js.jobs().get(0).type(), "the listing reports the FLOW type");
+        }
+    }
+
+    @Test
+    void flowJobWithoutAFlowStoreFailsClosed(@TempDir Path dir) throws Exception {
+        JobConfig fj = new JobConfig("fj", JobType.FLOW, null, null, true, false, Map.of("flow", "some_flow"));
+        // the 5-arg constructor leaves the flow store null → building a flow job must fail closed
+        try (Scheduler s = new Scheduler()) {
+            assertThrows(IllegalStateException.class, () ->
+                    new JobService(List.of(fj), new BatchEventBus(), s, null, dir.resolve("audit").toString()));
+        }
+    }
+
+    @Test
+    void flowJobRunsEndToEndAndIsTrackedWhileRunning(@TempDir Path dir) throws Exception {
+        // a tiny at-rest source store + an authored flow that filters it into a sink store
+        String dataDir = dir.resolve("data").toString();
+        seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
+        FlowStore store = new FlowStore(dir.resolve("flows"));
+        store.write("evt_rollup", new FlowGraph("evt_rollup", true,
+                List.of(FlowNode.of("src", "acquisition", Map.of("source_store", "events")),
+                        FlowNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
+                        new FlowNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
+                List.of(FlowEdge.data("src", "flt"), FlowEdge.data("flt", "out"))));
+
+        JobConfig fj = new JobConfig("nightly", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "evt_rollup", "data_dir", dataDir));
+        BatchEventBus bus = new BatchEventBus();
+        AtomicReference<Set<String>> midRun = new AtomicReference<>();
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(fj), bus, s, null,
+                     dir.resolve("audit").toString(), null, store, dataDir)) {
+            // the bus is synchronous on the publishing (job) thread, so this fires while run() is still in
+            // flight → the flow id must already be in runningFlows() at that instant (before the finally removes it)
+            bus.subscribe(ev -> { if ("nightly".equals(ev.pipeline())) midRun.set(js.runningFlows()); });
+            js.start();
+            assertTrue(js.trigger("nightly"), "the flow job is built and triggerable");
+            JobRun run = await(() -> js.lastRunOf("nightly").orElse(null));
+
+            assertEquals("SUCCESS", run.status(), run.message());
+            assertEquals("FLOW", run.type());
+            assertNotNull(midRun.get(), "the flow's chain event fired");
+            assertTrue(midRun.get().contains("evt_rollup"), "flow tracked as running mid-run: " + midRun.get());
+            assertTrue(js.runningFlows().isEmpty(), "the running-flow set is cleaned up after the run");
+        }
+    }
+
+    /** Write {@code (id,amt)} VALUES as a Parquet file under {@code <dataDir>/<store>/} (an at-rest source store). */
+    private static void seedParquet(String dataDir, String store, String valuesSql) throws Exception {
+        Path d = Path.of(dataDir, store);
+        Files.createDirectories(d);
+        File db = DuckDbUtil.tempDbFile("seed_");
+        try (Connection c = DuckDbUtil.openConnection(db); Statement st = c.createStatement()) {
+            st.execute("COPY (SELECT * FROM (VALUES " + valuesSql + ") t(id,amt)) TO '"
+                    + d.resolve("seed.parquet").toString().replace("\\", "/") + "' (FORMAT PARQUET)");
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
         }
     }
 

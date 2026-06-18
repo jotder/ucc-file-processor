@@ -1,8 +1,11 @@
 # Plan — Live execution of authored job-flows (T32)
 
-> **Status: PLAN ONLY (2026-06-18).** No code yet. This is the design for wiring authored
-> `*_flow.toon` flows into the live engine so they actually run, reviewed before implementation.
-> Tracked as **T32** in [`flow-graph-design.md`](flow-graph-design.md) §14.
+> **Status: PHASE A IMPLEMENTED (2026-06-18).** The core run-path (§6 Phase A) is built and tested
+> (inspecto 793/0/1): `JobType.FLOW`, `FlowJobRunner`, `PartitionSinkWriter`, `SourceStoreReader`,
+> `JobService.build()` wiring, `SourceService.openFlowStore()`. Phases **B** (schedule/chain exercise +
+> jobs-pane reporting) and **C** (`sink.view`, multi-`source_store`, incremental) remain. The open
+> questions in §7 are resolved as noted inline. Tracked as **T32** in
+> [`flow-graph-design.md`](flow-graph-design.md) §14.
 
 ## 1. The problem & the key constraint
 
@@ -89,9 +92,13 @@ the FlowGraph entry-node `trigger:` (that is for the pipeline poll loop). Activa
 
 ## 6. Phasing
 
-- **Phase A (core run path).** `JobType.FLOW`, `FlowJobRunner`, `PartitionSinkWriter`,
-  `SourceStoreReader`; `JobService.build()` wiring; manual run via the existing `POST /jobs/{name}/trigger`
-  (and/or `POST /flows/authored/{id}/run`). Persistent + materialized sinks. Full-recompute commit.
+- **Phase A (core run path) — ✅ DONE (2026-06-18).** `JobType.FLOW`, `FlowJobRunner`, `PartitionSinkWriter`,
+  `SourceStoreReader`; `JobService.build()` wiring (fail-closed without an authored-flow store) +
+  `SourceService.openFlowStore()`. Manual run via the existing `POST /jobs/{name}/trigger` over a `type: flow`
+  `*_job.toon`. Persistent + materialized sinks (unpartitioned single-file write when a sink declares no
+  `partitions`). Full-recompute commit. Tested: `FlowJobRunnerTest`(4) + `JobServiceTest`(+2). The dedicated
+  `POST /flows/authored/{id}/run` was **not** built — the job-config path covers Phase A; revisit if ad-hoc
+  (config-less) runs are wanted.
 - **Phase B (scheduling + chaining).** Cron + `on_pipeline` event firing (already in `JobService` — just
   exercise it for `FLOW`), `BatchEvent` publish so downstream jobs chain, `DbJobRunStore`/jobs-pane
   reporting (T27) shows flow runs.
@@ -103,19 +110,35 @@ the FlowGraph entry-node `trigger:` (that is for the pipeline poll loop). Activa
 
 1. **Sink subtype semantics.** `sink.persistent`/`sink.materialized` → `PartitionWriter` (Parquet/CSV).
    `sink.view` writes no bytes — needs a catalog/DuckDB-view registration path (defer to Phase C).
+   **[Phase A] `PartitionSinkWriter` skips `*.view` sinks (logs); persistent/materialized write Parquet/CSV,
+   unpartitioned single-file when no `partitions` declared (the legacy `PartitionWriter` always partitions).**
 2. **Schema of the source store.** `read_parquet` infers types; `transform.*` SQL casts as needed
    (same trust model as enrichment). CSV stores need the format/options — resolve via the store metadata
-   or the consuming node `cfg`.
+   or the consuming node `cfg`. **[Phase A] format read from the source node's `format` cfg (default `PARQUET`);
+   `SourceStoreReader` uses the shared `SqlViews.reader(format, glob, hive=true)`.**
 3. **`batchId` strategy** for idempotency: per-run timestamp (always recompute, simplest, MVP) vs a
    source-watermark/content id (true incremental, Phase C). MVP overwrites, matching `EnrichmentEngine`.
+   **[Phase A] `batch_id` job param when set (stable ⇒ idempotent replay skips committed branches via the
+   `BranchCommitLog`); default = per-run timestamp. True incremental stays Phase C.**
 4. **Where data/audit dirs come from.** A job has no `PipelineConfig`; `FlowJobRunner` needs the data
    root (`dirs.database` equivalent) + audit dir injected from `JobService`/`SourceService` config.
-   Decide the source of truth (a global `-Ddata.dir` / the write-root) during Phase A.
-5. **Deletion fence (T25).** `JobService` already fences a job whose store is being deleted — confirm a
-   `FLOW` job registers its produced/consumed stores (`FlowStores.produced/consumed(graph)`) with the fence.
+   **[Phase A RESOLVED] data root = `-Ddata.dir` (default `database`), overridable per-job via the `data_dir`
+   param; the branch-commit log lives under the jobs audit dir (`-Djobs.audit.dir`, default `jobs_audit`),
+   both threaded `SourceService → JobService → FlowJobRunner`.**
+5. **Deletion fence (T25). [DONE 2026-06-18.]** `JobService` fences a `maintenance` job whose store is being
+   deleted. A `FLOW` job is now also covered — but **not** by the originally-sketched "mirror the maintenance
+   `store:` path in `fenceDelete`": that would have a flow job call `guard.check(itsOwnStores)`, asking "is a
+   store I read/write produced by a running pipeline?" — which fires `STORE_DELETE_CONFLICT` on *normal* concurrent
+   read/append (exactly the safe case the fence must NOT flag). The fence's real direction is "a **deleting** job
+   checks its targets against running producers/consumers", so the correct fix made the fence *aware of* flow jobs:
+   (a) `SourceService.checkDeletion` now adds the authored flows (`flowStore.list()`) to the producer/consumer
+   topology, and (b) `JobService` tracks in-flight `FLOW` runs (`runningFlows()`), which `checkDeletion` unions
+   into the active set. So deleting a store an active flow job reads/writes now surfaces a conflict, while idle
+   authored flows never do. Tested: `JobServiceTest.flowJobRunsEndToEndAndIsTrackedWhileRunning` (deterministic via
+   the synchronous bus) + the existing `DeletionFenceTest` consumer-conflict case (pure logic, flow-agnostic).
 6. **Concurrency with the producing pipeline.** A flow reading `store X` while a pipeline writes `X`:
    rely on the `on_commit`/event trigger (run after the producer commits) rather than a time cron, to
-   avoid reading a half-written store. Document the guidance.
+   avoid reading a half-written store. Document the guidance. **[Phase B] exercise `on_pipeline` for FLOW.**
 
 ## 8. Test plan
 
