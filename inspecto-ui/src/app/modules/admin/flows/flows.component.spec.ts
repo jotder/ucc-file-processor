@@ -2,11 +2,17 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, of, throwError } from 'rxjs';
 import { describe, expect, it } from 'vitest';
-import { FlowNodeType, FlowSummary, FlowsService } from 'app/inspecto/api';
+import { FlowCombined, FlowNodeType, FlowSummary, FlowsService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { FlowsComponent } from './flows.component';
 
 const FLOW: FlowSummary = { name: 'cdr_etl', active: true, nodeCount: 5, edgeCount: 4, produces: ['cdr'], consumes: [] };
+const COMBINED: FlowCombined = {
+    flows: [{ name: 'cdr_etl', active: true }],
+    nodes: [{ id: 'cdr_etl/acq', type: 'acquisition', category: 'SOURCE', label: 'Acquisition', flow: 'cdr_etl' }],
+    edges: [],
+    links: [],
+};
 const TYPES: FlowNodeType[] = [
     { type: 'acquisition', category: 'SOURCE', label: 'Acquisition', description: 'collect', accepts: [], emits: [], emitsNamedRoutes: false },
     { type: 'sink.view', category: 'SINK', label: 'Sink (view)', description: 'logical', accepts: [], emits: [], emitsNamedRoutes: false },
@@ -18,6 +24,7 @@ function create(listResult: Observable<FlowSummary[]>) {
         list: () => listResult,
         nodeTypes: () => of(TYPES),
         graph: () => throwError(() => new Error('no graph in test')),
+        combined: () => of(COMBINED),
     } as unknown as FlowsService;
     TestBed.configureTestingModule({
         imports: [FlowsComponent],
@@ -50,5 +57,16 @@ describe('FlowsComponent', () => {
     it('renders an accessible empty state when there are no flows', async () => {
         const fixture = create(of([]));
         await expectNoA11yViolations(fixture.nativeElement);
+    });
+
+    it('lazy-loads the combined topology when switching to combined mode', () => {
+        const c = create(of([FLOW])).componentInstance;
+        expect(c.combined()).toBeNull();
+        c.setMode('combined');
+        expect(c.mode()).toBe('combined');
+        expect(c.combined()?.flows.length).toBe(1);
+        // a store node resolves through the same inspector path
+        c.onNodeClick('cdr_etl/acq');
+        expect(c.selectedNode()?.id).toBe('cdr_etl/acq');
     });
 });

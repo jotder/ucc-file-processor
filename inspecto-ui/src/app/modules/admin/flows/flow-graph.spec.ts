@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
-import { categoryVisualKind, groupByCategory, nodeDisplayLabel, toFlowG6Data } from './flow-graph';
+import { FlowCombined, FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
+import {
+    categoryVisualKind,
+    groupByCategory,
+    nodeDisplayLabel,
+    toCombinedG6Data,
+    toFlowG6Data,
+} from './flow-graph';
 
 const node = (over: Partial<FlowNode>): FlowNode =>
     ({ id: 'n', type: 'transform.map', category: 'TRANSFORM', label: 'Map', ...over });
@@ -12,6 +18,7 @@ describe('categoryVisualKind', () => {
         expect(categoryVisualKind('TRANSFORM')).toBe('ENRICHMENT');
         expect(categoryVisualKind('SINK')).toBe('TABLE');
         expect(categoryVisualKind('CONTROL')).toBe('KPI');
+        expect(categoryVisualKind('STORE')).toBe('TABLE');   // the combined-view shared-store node
     });
 
     it('passes unknown categories through (NodeKind includes string)', () => {
@@ -51,6 +58,38 @@ describe('toFlowG6Data', () => {
         expect(new Set(edges.map((e) => e.id)).size).toBe(2);
         expect(edges[0].data.kind).toBe('data');
         expect(edges[1].data.kind).toBe('route:emea');
+    });
+});
+
+describe('toCombinedG6Data', () => {
+    const combined: FlowCombined = {
+        flows: [{ name: 'orders_etl', active: true }, { name: 'orders_rollup', active: true }],
+        nodes: [
+            { id: 'orders_etl/acq', type: 'acquisition', category: 'SOURCE', label: 'Acquisition', flow: 'orders_etl' },
+            { id: 'orders_etl/sink', type: 'sink.persistent', category: 'SINK', label: 'Sink', store: 'orders', flow: 'orders_etl' },
+            { id: 'orders_rollup/src', type: 'transform.map', category: 'TRANSFORM', label: 'Read', sourceStore: 'orders', flow: 'orders_rollup' },
+            { id: 'store:orders', type: 'store', category: 'STORE', label: 'orders', store: 'orders' },
+        ],
+        edges: [
+            { from: 'orders_etl/acq', to: 'orders_etl/sink', rel: 'data', kind: 'data' },
+            { from: 'orders_etl/sink', to: 'store:orders', rel: 'produces', kind: 'store', restsOnDisk: true },
+            { from: 'store:orders', to: 'orders_rollup/src', rel: 'consumes', kind: 'store', restsOnDisk: true },
+        ],
+        links: [{ producer: 'orders_etl', store: 'orders', consumer: 'orders_rollup' }],
+    };
+
+    it('maps namespaced flow nodes plus the synthetic store node (as a TABLE)', () => {
+        const { nodes } = toCombinedG6Data(combined);
+        expect(nodes.find((n) => n.id === 'orders_etl/acq')?.data.kind).toBe('SOURCE');
+        const store = nodes.find((n) => n.id === 'store:orders');
+        expect(store?.data).toEqual({ label: 'orders', kind: 'TABLE' });
+    });
+
+    it('carries the store-join edges with unique ids', () => {
+        const { edges } = toCombinedG6Data(combined);
+        expect(new Set(edges.map((e) => e.id)).size).toBe(3);
+        expect(edges.some((e) => e.source === 'orders_etl/sink' && e.target === 'store:orders')).toBe(true);
+        expect(edges.some((e) => e.source === 'store:orders' && e.target === 'orders_rollup/src')).toBe(true);
     });
 });
 

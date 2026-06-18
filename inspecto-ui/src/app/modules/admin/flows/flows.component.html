@@ -3,10 +3,27 @@
     <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
         <div>
             <h1 class="text-3xl font-extrabold leading-none tracking-tight">Flows</h1>
-            <div class="text-secondary mt-1.5">Every pipeline as a node graph — read-only</div>
+            <div class="text-secondary mt-1.5">
+                {{ mode() === 'combined'
+                    ? 'Pipelines and the jobs over their output, joined at the shared store'
+                    : 'Every pipeline as a node graph — read-only' }}
+            </div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
-            <button mat-stroked-button (click)="load()" aria-label="Refresh flows">
+            <mat-button-toggle-group
+                [value]="mode()"
+                (change)="setMode($event.value)"
+                aria-label="Flow view mode"
+                hideSingleSelectionIndicator
+            >
+                <mat-button-toggle value="flow">Per-flow</mat-button-toggle>
+                <mat-button-toggle value="combined">Combined</mat-button-toggle>
+            </mat-button-toggle-group>
+            <button
+                mat-stroked-button
+                (click)="mode() === 'combined' ? loadCombined() : load()"
+                aria-label="Refresh flows"
+            >
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
                 <span class="ml-2">Refresh</span>
             </button>
@@ -15,120 +32,173 @@
 
     <!-- Main -->
     <div class="flex flex-auto flex-col p-6 sm:p-10">
-        @if (unavailable() || (!loading() && flows().length === 0)) {
-            <inspecto-empty-state
-                icon="heroicons_outline:arrows-right-left"
-                [message]="unavailable()
-                    ? 'Could not load flows from the control API.'
-                    : 'No pipelines are registered, so there are no flows to show yet.'"
-            ></inspecto-empty-state>
-        } @else {
-            <div class="grid grid-cols-1 gap-6 lg:grid-cols-4">
-                <!-- Left rail: flow list + node palette -->
-                <div class="flex flex-col gap-6 lg:col-span-1">
-                    <section class="bg-card rounded-2xl p-4 shadow" aria-label="Flows">
-                        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-secondary">Pipelines</h2>
-                        <ul class="flex flex-col gap-1">
-                            @for (f of flows(); track f.name) {
-                                <li>
-                                    <button
-                                        type="button"
-                                        class="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left hover:bg-hover focus-visible:ring-2 focus-visible:ring-primary"
-                                        [class.bg-hover]="selected() === f.name"
-                                        [attr.aria-current]="selected() === f.name ? 'true' : null"
-                                        (click)="select(f.name)"
-                                    >
-                                        <span class="font-medium">{{ f.name }}</span>
-                                        <span class="text-secondary text-xs">
-                                            {{ f.nodeCount }} nodes · {{ f.active ? 'Active' : 'Inactive' }}
-                                        </span>
-                                    </button>
-                                </li>
-                            }
-                        </ul>
-                    </section>
+        @if (mode() === 'flow') {
+            @if (unavailable() || (!loading() && flows().length === 0)) {
+                <inspecto-empty-state
+                    icon="heroicons_outline:arrows-right-left"
+                    [message]="unavailable()
+                        ? 'Could not load flows from the control API.'
+                        : 'No pipelines are registered, so there are no flows to show yet.'"
+                ></inspecto-empty-state>
+            } @else {
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-4">
+                    <!-- Left rail: flow list + node palette -->
+                    <div class="flex flex-col gap-6 lg:col-span-1">
+                        <section class="bg-card rounded-2xl p-4 shadow" aria-label="Flows">
+                            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-secondary">Pipelines</h2>
+                            <ul class="flex flex-col gap-1">
+                                @for (f of flows(); track f.name) {
+                                    <li>
+                                        <button
+                                            type="button"
+                                            class="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left hover:bg-hover focus-visible:ring-2 focus-visible:ring-primary"
+                                            [class.bg-hover]="selected() === f.name"
+                                            [attr.aria-current]="selected() === f.name ? 'true' : null"
+                                            (click)="select(f.name)"
+                                        >
+                                            <span class="font-medium">{{ f.name }}</span>
+                                            <span class="text-secondary text-xs">
+                                                {{ f.nodeCount }} nodes · {{ f.active ? 'Active' : 'Inactive' }}
+                                            </span>
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        </section>
 
-                    @if (nodeTypeGroups().length) {
-                        <section class="bg-card rounded-2xl p-4 shadow" aria-label="Node-type palette">
-                            <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-secondary">Palette</h2>
-                            @for (g of nodeTypeGroups(); track g.category) {
-                                <div class="mb-3">
-                                    <div class="mb-1 flex items-center gap-2">
-                                        <span class="inline-block h-2.5 w-2.5 rounded-full"
-                                              [style.backgroundColor]="categoryColor(g.category)"
-                                              aria-hidden="true"></span>
-                                        <span class="text-xs font-semibold tracking-wide">{{ g.category }}</span>
+                        @if (nodeTypeGroups().length) {
+                            <section class="bg-card rounded-2xl p-4 shadow" aria-label="Node-type palette">
+                                <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-secondary">Palette</h2>
+                                @for (g of nodeTypeGroups(); track g.category) {
+                                    <div class="mb-3">
+                                        <div class="mb-1 flex items-center gap-2">
+                                            <span class="inline-block h-2.5 w-2.5 rounded-full"
+                                                  [style.backgroundColor]="categoryColor(g.category)"
+                                                  aria-hidden="true"></span>
+                                            <span class="text-xs font-semibold tracking-wide">{{ g.category }}</span>
+                                        </div>
+                                        <div class="flex flex-wrap gap-1.5">
+                                            @for (t of g.types; track t.type) {
+                                                <span class="rounded-md border px-2 py-0.5 text-xs"
+                                                      [matTooltip]="t.description">{{ t.label }}</span>
+                                            }
+                                        </div>
                                     </div>
-                                    <div class="flex flex-wrap gap-1.5">
-                                        @for (t of g.types; track t.type) {
-                                            <span class="rounded-md border px-2 py-0.5 text-xs"
-                                                  [matTooltip]="t.description">{{ t.label }}</span>
+                                }
+                            </section>
+                        }
+                    </div>
+
+                    <!-- Right: the selected flow's graph + node inspector -->
+                    <div class="flex flex-col gap-6 lg:col-span-3">
+                        @if (graph(); as g) {
+                            <section class="bg-card rounded-2xl p-5 shadow" aria-label="Flow graph">
+                                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                    <div class="font-medium">{{ g.name }}</div>
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        @for (c of legendCategories; track c) {
+                                            <span class="text-secondary flex items-center gap-1 text-xs">
+                                                <span class="inline-block h-2.5 w-2.5 rounded-full"
+                                                      [style.backgroundColor]="categoryColor(c)"
+                                                      aria-hidden="true"></span>
+                                                {{ c }}
+                                            </span>
                                         }
                                     </div>
                                 </div>
-                            }
-                        </section>
-                    }
-                </div>
-
-                <!-- Right: the selected flow's graph + node inspector -->
-                <div class="flex flex-col gap-6 lg:col-span-3">
-                    @if (graph(); as g) {
-                        <section class="bg-card rounded-2xl p-5 shadow" aria-label="Flow graph">
-                            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                <div class="font-medium">{{ g.name }}</div>
-                                <div class="flex flex-wrap items-center gap-3">
-                                    @for (c of legendCategories; track c) {
-                                        <span class="text-secondary flex items-center gap-1 text-xs">
-                                            <span class="inline-block h-2.5 w-2.5 rounded-full"
-                                                  [style.backgroundColor]="categoryColor(c)"
-                                                  aria-hidden="true"></span>
-                                            {{ c }}
-                                        </span>
-                                    }
-                                </div>
-                            </div>
-                            <inspecto-graph-view [data]="g6Data()" (nodeClick)="onNodeClick($event)"></inspecto-graph-view>
-                        </section>
-
-                        @if (selectedNode(); as n) {
-                            <section class="bg-card rounded-2xl p-5 shadow" aria-label="Node details">
-                                <div class="mb-3 text-lg font-semibold">{{ nodeDisplayLabel(n) }}</div>
-                                <dl class="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-                                    <div><dt class="text-secondary text-xs">Id</dt><dd class="font-mono text-sm">{{ n.id }}</dd></div>
-                                    <div><dt class="text-secondary text-xs">Type</dt><dd class="font-mono text-sm">{{ n.type }}</dd></div>
-                                    <div><dt class="text-secondary text-xs">Category</dt><dd class="text-sm">{{ n.category }}</dd></div>
-                                    @if (n.use) {
-                                        <div><dt class="text-secondary text-xs">Uses</dt><dd class="font-mono text-sm">{{ n.use }}</dd></div>
-                                    }
-                                    @if (n.store) {
-                                        <div><dt class="text-secondary text-xs">Produces store</dt><dd class="font-mono text-sm">{{ n.store }}</dd></div>
-                                    }
-                                    @if (n.sourceStore) {
-                                        <div><dt class="text-secondary text-xs">Consumes store</dt><dd class="font-mono text-sm">{{ n.sourceStore }}</dd></div>
-                                    }
-                                    @if (n.sinkKind) {
-                                        <div>
-                                            <dt class="text-secondary text-xs">Sink kind</dt>
-                                            <dd class="text-sm">{{ n.sinkKind }}{{ n.restsOnDisk === false ? ' (non-persistent)' : '' }}</dd>
-                                        </div>
-                                    }
-                                </dl>
-                                @if (n.description) {
-                                    <p class="text-secondary mt-3 text-sm">{{ n.description }}</p>
-                                }
+                                <inspecto-graph-view [data]="g6Data()" (nodeClick)="onNodeClick($event)"></inspecto-graph-view>
                             </section>
+
+                            @if (selectedNode(); as n) {
+                                <ng-container *ngTemplateOutlet="nodeInspector; context: { $implicit: n }"></ng-container>
+                            } @else {
+                                <div class="text-secondary px-1 text-sm">Select a node to inspect it.</div>
+                            }
                         } @else {
-                            <div class="text-secondary px-1 text-sm">Select a node to inspect it.</div>
+                            <inspecto-empty-state
+                                icon="heroicons_outline:arrows-right-left"
+                                [message]="graphLoading() ? 'Loading flow…' : 'Select a flow to view its graph.'"
+                            ></inspecto-empty-state>
                         }
+                    </div>
+                </div>
+            }
+        } @else {
+            <!-- Combined topology (T24): all flows joined at their shared stores -->
+            @if (combinedUnavailable()) {
+                <inspecto-empty-state
+                    icon="heroicons_outline:share"
+                    message="Could not load the combined topology from the control API."
+                ></inspecto-empty-state>
+            } @else if (combined(); as c) {
+                <div class="flex flex-col gap-6">
+                    <section class="bg-card rounded-2xl p-5 shadow" aria-label="Combined flow topology">
+                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div class="font-medium">
+                                {{ c.flows.length }} flow{{ c.flows.length === 1 ? '' : 's' }}
+                                @if (c.links.length) {
+                                    <span class="text-secondary">· {{ c.links.length }} store link{{ c.links.length === 1 ? '' : 's' }}</span>
+                                }
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3">
+                                @for (cat of combinedLegend; track cat) {
+                                    <span class="text-secondary flex items-center gap-1 text-xs">
+                                        <span class="inline-block h-2.5 w-2.5 rounded-full"
+                                              [style.backgroundColor]="categoryColor(cat)"
+                                              aria-hidden="true"></span>
+                                        {{ cat }}
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                        <inspecto-graph-view [data]="combinedG6()" (nodeClick)="onNodeClick($event)"></inspecto-graph-view>
+                    </section>
+
+                    @if (selectedNode(); as n) {
+                        <ng-container *ngTemplateOutlet="nodeInspector; context: { $implicit: n }"></ng-container>
                     } @else {
-                        <inspecto-empty-state
-                            icon="heroicons_outline:arrows-right-left"
-                            [message]="graphLoading() ? 'Loading flow…' : 'Select a flow to view its graph.'"
-                        ></inspecto-empty-state>
+                        <div class="text-secondary px-1 text-sm">Select a node to inspect it. A store node is where a pipeline and a job meet.</div>
                     }
                 </div>
-            </div>
+            } @else {
+                <inspecto-empty-state
+                    icon="heroicons_outline:share"
+                    [message]="combinedLoading() ? 'Loading combined topology…' : 'No flows to combine yet.'"
+                ></inspecto-empty-state>
+            }
         }
     </div>
 </div>
+
+<!-- Shared node inspector (used by both the per-flow and combined views) -->
+<ng-template #nodeInspector let-n>
+    <section class="bg-card rounded-2xl p-5 shadow" aria-label="Node details">
+        <div class="mb-3 text-lg font-semibold">{{ nodeDisplayLabel(n) }}</div>
+        <dl class="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+            <div><dt class="text-secondary text-xs">Id</dt><dd class="font-mono text-sm">{{ n.id }}</dd></div>
+            <div><dt class="text-secondary text-xs">Type</dt><dd class="font-mono text-sm">{{ n.type }}</dd></div>
+            <div><dt class="text-secondary text-xs">Category</dt><dd class="text-sm">{{ n.category }}</dd></div>
+            @if (n.flow) {
+                <div><dt class="text-secondary text-xs">Flow</dt><dd class="font-mono text-sm">{{ n.flow }}</dd></div>
+            }
+            @if (n.use) {
+                <div><dt class="text-secondary text-xs">Uses</dt><dd class="font-mono text-sm">{{ n.use }}</dd></div>
+            }
+            @if (n.store) {
+                <div><dt class="text-secondary text-xs">{{ n.category === 'STORE' ? 'Store' : 'Produces store' }}</dt><dd class="font-mono text-sm">{{ n.store }}</dd></div>
+            }
+            @if (n.sourceStore) {
+                <div><dt class="text-secondary text-xs">Consumes store</dt><dd class="font-mono text-sm">{{ n.sourceStore }}</dd></div>
+            }
+            @if (n.sinkKind) {
+                <div>
+                    <dt class="text-secondary text-xs">Sink kind</dt>
+                    <dd class="text-sm">{{ n.sinkKind }}{{ n.restsOnDisk === false ? ' (non-persistent)' : '' }}</dd>
+                </div>
+            }
+        </dl>
+        @if (n.description) {
+            <p class="text-secondary mt-3 text-sm">{{ n.description }}</p>
+        }
+    </section>
+</ng-template>

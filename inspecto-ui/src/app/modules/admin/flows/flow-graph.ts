@@ -1,5 +1,5 @@
 import { NodeKind } from 'app/inspecto/api';
-import { FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
+import { FlowCombined, FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
 import { G6GraphData, nodeColor } from 'app/modules/admin/catalog/catalog-graph';
 
 /**
@@ -20,6 +20,7 @@ export function categoryVisualKind(category: string): NodeKind {
         case 'TRANSFORM': return 'ENRICHMENT';
         case 'SINK':      return 'TABLE';
         case 'CONTROL':   return 'KPI';
+        case 'STORE':     return 'TABLE';   // the synthetic shared-store join node (combined view) reads as a table
         default:          return category as NodeKind;   // NodeKind includes string ⇒ falls back gracefully
     }
 }
@@ -52,8 +53,35 @@ export function toFlowG6Data(g: FlowGraph): G6GraphData {
     };
 }
 
+/**
+ * Map the combined pipeline+job topology (GET /flows/combined) to G6 data: flow nodes (namespaced ids)
+ * plus the synthetic `STORE` join nodes, with the store-join edges ({@code produces}/{@code consumes})
+ * drawn alongside the intra-flow edges. Node ids are already unique (flow nodes `<flow>/<node>`, store
+ * nodes `store:<name>`), so they're used verbatim.
+ */
+export function toCombinedG6Data(c: FlowCombined): G6GraphData {
+    return {
+        nodes: c.nodes.map((n) => ({
+            id: n.id,
+            data: {
+                label: n.category === 'STORE' ? (n.store ?? n.label) : nodeDisplayLabel(n),
+                kind: categoryVisualKind(n.category),
+            },
+        })),
+        edges: c.edges.map((e, i) => ({
+            id: `${e.from}->${e.to}:${e.rel}:${i}`,
+            source: e.from,
+            target: e.to,
+            data: { kind: e.kind === 'route' && e.routeKey ? `route:${e.routeKey}` : e.rel },
+        })),
+    };
+}
+
 /** The stable category order for the palette (unknown/plugin categories fall after, in first-seen order). */
 export const CATEGORY_ORDER: readonly string[] = ['SOURCE', 'PARSE', 'TRANSFORM', 'SINK', 'CONTROL'];
+
+/** The legend categories for the combined view — the flow categories plus the synthetic shared store. */
+export const COMBINED_CATEGORY_ORDER: readonly string[] = [...CATEGORY_ORDER, 'STORE'];
 
 export interface NodeTypeGroup {
     category: string;

@@ -3,51 +3,163 @@
     <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
         <div>
             <h1 class="text-3xl font-extrabold leading-none tracking-tight">Jobs &amp; Schedules</h1>
-            <div class="text-secondary mt-1.5">Registered cron / event / manual jobs</div>
+            <div class="text-secondary mt-1.5">
+                {{ mode === 'reporting'
+                    ? 'Execution reporting over the durable run history'
+                    : 'Registered cron / event / manual jobs' }}
+            </div>
         </div>
-        <div class="mt-4 flex items-center gap-3 sm:mt-0">
-            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
-                <mat-label>Search</mat-label>
-                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
-            </mat-form-field>
-            <button mat-stroked-button (click)="load()">
+        <div class="mt-4 flex flex-wrap items-center gap-3 sm:mt-0">
+            <mat-button-toggle-group
+                [value]="mode"
+                (change)="setMode($event.value)"
+                aria-label="Jobs view mode"
+                hideSingleSelectionIndicator
+            >
+                <mat-button-toggle value="schedules">Schedules</mat-button-toggle>
+                <mat-button-toggle value="reporting">Reporting</mat-button-toggle>
+            </mat-button-toggle-group>
+
+            @if (mode === 'schedules') {
+                <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
+                    <mat-label>Search</mat-label>
+                    <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
+                </mat-form-field>
+            }
+            @if (mode === 'reporting') {
+                <mat-slide-toggle [checked]="live" (change)="toggleLive($event.checked)" matTooltip="Auto-refresh the reporting view every 5s">
+                    Live tail
+                </mat-slide-toggle>
+            }
+
+            <button mat-stroked-button (click)="mode === 'reporting' ? loadReport() : load()">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
                 <span class="ml-2">Refresh</span>
             </button>
-            <button
-                mat-flat-button
-                color="primary"
-                matTooltip="Describe a schedule in plain English (nl-to-schedule, draft-only)"
-                (click)="openSchedule()"
-            >
-                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-                <span class="ml-2">New schedule</span>
-            </button>
+
+            @if (mode === 'schedules') {
+                <button
+                    mat-flat-button
+                    color="primary"
+                    matTooltip="Describe a schedule in plain English (nl-to-schedule, draft-only)"
+                    (click)="openSchedule()"
+                >
+                    <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                    <span class="ml-2">New schedule</span>
+                </button>
+            }
         </div>
     </div>
 
     <!-- Main -->
     <div class="flex flex-auto flex-col p-6 sm:p-10">
-        @if (unavailable) {
-            <inspecto-empty-state
-                icon="heroicons_outline:clock"
-                message="No jobs are registered (the scheduler has no configured jobs)."
-            ></inspecto-empty-state>
+        @if (mode === 'schedules') {
+            @if (unavailable) {
+                <inspecto-empty-state
+                    icon="heroicons_outline:clock"
+                    message="No jobs are registered (the scheduler has no configured jobs)."
+                ></inspecto-empty-state>
+            } @else {
+                <ag-grid-angular
+                    class="w-full"
+                    [domLayout]="'autoHeight'"
+                    [theme]="themeSvc.theme()"
+                    [rowData]="jobs"
+                    [columnDefs]="columnDefs"
+                    [defaultColDef]="defaultColDef"
+                    [pagination]="jobs.length > 25"
+                    [paginationPageSize]="25"
+                    [quickFilterText]="quickFilter"
+                    [loading]="loading"
+                    (firstDataRendered)="refreshActions($event)"
+                    (rowDataUpdated)="refreshActions($event)"
+                ></ag-grid-angular>
+            }
         } @else {
-            <ag-grid-angular
-                class="w-full"
-                [domLayout]="'autoHeight'"
-                [theme]="themeSvc.theme()"
-                [rowData]="jobs"
-                [columnDefs]="columnDefs"
-                [defaultColDef]="defaultColDef"
-                [pagination]="jobs.length > 25"
-                [paginationPageSize]="25"
-                [quickFilterText]="quickFilter"
-                [loading]="loading"
-                (firstDataRendered)="refreshActions($event)"
-                (rowDataUpdated)="refreshActions($event)"
-            ></ag-grid-angular>
+            <!-- Reporting (T27) -->
+            @if (reportDisabled) {
+                <inspecto-empty-state
+                    icon="heroicons_outline:chart-bar"
+                    message="Job reporting is unavailable — enable the DuckDB backend (-Djobs.backend=duckdb) and register at least one job for runs to be projected."
+                ></inspecto-empty-state>
+            } @else {
+                <!-- Filter toolbar -->
+                <div class="mb-4 flex flex-wrap items-center gap-3">
+                    <mat-form-field class="gamma-mat-dense w-44" subscriptSizing="dynamic">
+                        <mat-label>Job</mat-label>
+                        <input matInput [(ngModel)]="fJob" placeholder="all jobs" (keyup.enter)="loadReport()" />
+                    </mat-form-field>
+                    <mat-form-field class="gamma-mat-dense w-28" subscriptSizing="dynamic">
+                        <mat-label>Runs</mat-label>
+                        <mat-select [(ngModel)]="fLimit">
+                            @for (n of limitOptions; track n) {
+                                <mat-option [value]="n">{{ n }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field class="gamma-mat-dense w-28" subscriptSizing="dynamic">
+                        <mat-label>Trend days</mat-label>
+                        <input matInput type="number" min="1" [(ngModel)]="fDays" (keyup.enter)="loadReport()" />
+                    </mat-form-field>
+                    <button mat-flat-button color="primary" (click)="loadReport()">
+                        <mat-icon svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                        <span class="ml-2">Apply</span>
+                    </button>
+                    <button mat-button (click)="resetReportFilter()">Reset</button>
+                </div>
+
+                <!-- Metric cards -->
+                <div class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <div class="bg-card rounded-2xl p-5 shadow">
+                        <div class="text-secondary text-sm">Success rate</div>
+                        <div class="mt-1 text-3xl font-bold">{{ metrics ? successPct + '%' : '—' }}</div>
+                        <div class="text-secondary mt-1 text-xs">{{ metrics?.success ?? 0 }} of {{ metrics?.total ?? 0 }} runs</div>
+                    </div>
+                    <div class="bg-card rounded-2xl p-5 shadow">
+                        <div class="text-secondary text-sm">p50 duration</div>
+                        <div class="mt-1 text-3xl font-bold">{{ metrics ? fmtDuration(metrics.p50Ms) : '—' }}</div>
+                        <div class="text-secondary mt-1 text-xs">mean {{ metrics ? fmtDuration(metrics.meanMs) : '—' }}</div>
+                    </div>
+                    <div class="bg-card rounded-2xl p-5 shadow">
+                        <div class="text-secondary text-sm">p95 duration</div>
+                        <div class="mt-1 text-3xl font-bold">{{ metrics ? fmtDuration(metrics.p95Ms) : '—' }}</div>
+                    </div>
+                    <div class="bg-card rounded-2xl p-5 shadow">
+                        <div class="text-secondary text-sm">Failed runs</div>
+                        <div class="mt-1 text-3xl font-bold">{{ metrics?.failed ?? 0 }}</div>
+                        <div class="text-secondary mt-1 text-xs">of {{ metrics?.total ?? 0 }} total</div>
+                    </div>
+                </div>
+
+                <!-- Failure trend -->
+                @if (chartData) {
+                    <section class="bg-card mb-6 rounded-2xl p-5 shadow" aria-label="Failure trend by day">
+                        <h2 class="mb-3 text-sm font-semibold uppercase tracking-wider text-secondary">Failure trend</h2>
+                        <inspecto-chart type="bar" [data]="chartData"></inspecto-chart>
+                    </section>
+                }
+
+                <!-- Durable run history -->
+                @if (reportLoaded && runs.length === 0) {
+                    <inspecto-empty-state
+                        icon="heroicons_outline:queue-list"
+                        message="No job runs recorded yet for this filter."
+                    ></inspecto-empty-state>
+                } @else {
+                    <ag-grid-angular
+                        class="h-[36rem] w-full"
+                        [theme]="themeSvc.theme()"
+                        [rowData]="runs"
+                        [columnDefs]="reportColumnDefs"
+                        [defaultColDef]="defaultColDef"
+                        [pagination]="true"
+                        [paginationPageSize]="50"
+                        [loading]="reportLoading"
+                        (firstDataRendered)="refreshActions($event)"
+                        (rowDataUpdated)="refreshActions($event)"
+                    ></ag-grid-angular>
+                }
+            }
         }
     </div>
 </div>

@@ -61,6 +61,30 @@ export interface FlowNodeType {
     emitsNamedRoutes: boolean;
 }
 
+/** A node in the combined topology: a flow node (with its owning `flow`) or a synthetic `STORE` join node. */
+export interface CombinedNode extends FlowNode {
+    flow?: string;   // the owning flow (absent on synthetic store nodes)
+}
+
+/** An edge in the combined topology; `kind:'store'` is a producer→store or store→consumer join edge. */
+export interface CombinedEdge {
+    from: string;
+    to: string;
+    rel: string;
+    kind: 'data' | 'control' | 'route' | 'store';
+    routeKey?: string;
+    restsOnDisk?: boolean;   // on store edges: whether the joined store rests on disk
+    flow?: string;
+}
+
+/** The combined pipeline+job topology (GET /flows/combined): flows joined at shared store nodes (T24). */
+export interface FlowCombined {
+    flows: { name: string; active: boolean }[];
+    nodes: CombinedNode[];
+    edges: CombinedEdge[];
+    links: { producer: string; store: string; consumer: string }[];
+}
+
 /** Read-only flow-graph projection: the pipeline-as-graph view + the editor palette (CONTROL scope). */
 @Injectable({ providedIn: 'root' })
 export class FlowsService {
@@ -79,5 +103,10 @@ export class FlowsService {
     /** The node-type catalog for the palette. */
     nodeTypes(): Observable<FlowNodeType[]> {
         return this.http.get<FlowNodeType[]>(apiUrl('/flows/node-types'));
+    }
+
+    /** The combined pipeline+job topology — every flow joined at the shared store nodes (T24). */
+    combined(): Observable<FlowCombined> {
+        return this.http.get<FlowCombined>(apiUrl('/flows/combined'));
     }
 }

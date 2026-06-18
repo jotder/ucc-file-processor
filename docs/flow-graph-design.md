@@ -904,13 +904,14 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   the **custom-function scheduler** ([`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java)) drives
   `enrich`/`report`/`maintenance` jobs over data at rest, never re-acquiring. No shipped `*_job.toon` used `ingest`;
   3 test fixtures migrated to `enrich`.
-- [x] **T24 (backend done 2026-06-17; UI pending).** **Combined pipeline+job visualisation** (§3.8):
+- [x] **T24 (done 2026-06-18).** **Combined pipeline+job visualisation** (§3.8):
   `FlowProjection.combined(flows)` projects several flows into one graph — each flow's nodes namespaced by flow
   (`<flow>/<node>`) + a synthetic **store node** (`store:<name>`, category `STORE`) per produced/consumed store,
   wired `producer-sink → store → consumer`, drawing the cross-flow `on_commit` through the table. The derived
   `FlowStores.superimpose` links are exposed for reference. `GET /flows/combined` endpoint. The join is config-derived
-  (sink `store` ↔ consumer `source_store`), no `on_pipeline` coupling. **Pending (Pass B):** the inspecto-ui combined
-  view. `FlowProjectionTest`/`ControlApiFlowsTest` cover it.
+  (sink `store` ↔ consumer `source_store`), no `on_pipeline` coupling. `FlowProjectionTest`/`ControlApiFlowsTest`.
+  **UI (Pass B):** a "Combined" toggle in the **Flows** pane reuses the shared G6 `graph-view`, styling the synthetic
+  store as a `TABLE`-kind join node (`toCombinedG6Data`); verified live (2 flows, store legend, no console errors).
 - [x] **T25 (backend done 2026-06-17).** **Deletion fence on the shared store** (§3.8 rule 4): `DeletionFence.check`
   (pure over the IR + a running-set) reports a conflict only when a delete targets a **resting** store
   (`producedStores().restsOnDisk()` — a `sink.view` is never a hazard) that has an **active** producer or consumer;
@@ -922,13 +923,15 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   `catch_up:` (default false); `JobService.start()` reads each enabled `catch_up` cron job's last run from the durable
   `jobs_runs.csv` audit and, if `CronExpression.next(lastRun) <= now` (a fire elapsed while down), submits one
   immediate run. A never-run job has no baseline, so it isn't force-fired on a fresh deploy. No new dep, no Quartz.
-- [x] **T27 (backend done 2026-06-17; UI pending).** **Job-execution reporting**: `DbJobRunStore` projects `JobRun`
+- [x] **T27 (done 2026-06-18).** **Job-execution reporting**: `DbJobRunStore` projects `JobRun`
   into a **DuckDB** table (mirrors `DbStatusStore`; bundled engine, no new dep); `JobService` writes through when a
   backend is configured (`-Djobs.backend=duckdb`, default off). Query methods + endpoints: `GET /jobs/metrics`
   (total/success/failed/successRate/p50/p95/mean), `GET /jobs/runs` (durable history), `GET /jobs/failures` (daily
-  trend) — all 404 unless the backend is on. `DbJobRunStoreTest` + a write-through `JobServiceTest`. **Pending
-  (Pass B):** the inspecto-ui **Jobs pane** reusing the Events/Activity viewer template (ag-Grid + filter toolbar +
-  live-tail + CSV export + detail dialog).
+  trend) — all camelCase, all 404 unless the backend is on. `DbJobRunStoreTest` + a write-through `JobServiceTest`.
+  **UI (Pass B):** a "Reporting" toggle in the **Jobs & Schedules** pane (alongside the schedule registry) — metric
+  cards (success rate / p50 / p95), a Chart.js failure-trend bar, and the durable run grid + per-run detail dialog,
+  reusing the Events-viewer ag-grid/live-tail patterns; verified live end-to-end (3 demo runs → cards + chart + grid,
+  no console errors). `jobs.component.spec` (incl. axe).
 
 ## 15. Phase-1 capability inventory — gate result (T1, 2026-06-17)
 

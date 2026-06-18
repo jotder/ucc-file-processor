@@ -7,21 +7,28 @@ import {
     inject,
     signal,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { FlowGraph, FlowNode, FlowSummary, FlowsService } from 'app/inspecto/api';
+import { FlowCombined, FlowGraph, FlowNode, FlowSummary, FlowsService } from 'app/inspecto/api';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import {
     CATEGORY_ORDER,
+    COMBINED_CATEGORY_ORDER,
     NodeTypeGroup,
     categoryColor,
     groupByCategory,
     nodeDisplayLabel,
+    toCombinedG6Data,
     toFlowG6Data,
 } from './flow-graph';
+
+/** Which lens the Flows pane shows: each pipeline on its own, or all flows joined at their shared stores. */
+export type FlowsViewMode = 'flow' | 'combined';
 
 /**
  * Flows — the read-only pipeline-as-graph visualiser (doc §6, T31). Lists every registered pipeline
@@ -33,7 +40,9 @@ import {
     selector: 'app-flows',
     standalone: true,
     imports: [
+        NgTemplateOutlet,
         MatButtonModule,
+        MatButtonToggleModule,
         MatIconModule,
         MatTooltipModule,
         GraphViewComponent,
@@ -55,14 +64,27 @@ export class FlowsComponent implements OnInit {
     readonly graphLoading = signal(false);
     readonly unavailable = signal(false);
 
+    // ── combined topology (T24): all flows joined at their shared stores ──
+    readonly mode = signal<FlowsViewMode>('flow');
+    readonly combined = signal<FlowCombined | null>(null);
+    readonly combinedLoading = signal(false);
+    readonly combinedUnavailable = signal(false);
+
     /** The selected flow's graph mapped to G6 data for the shared renderer. */
     readonly g6Data = computed<G6GraphData | null>(() => {
         const g = this.graph();
         return g ? toFlowG6Data(g) : null;
     });
 
+    /** The combined topology mapped to G6 data (flow nodes + synthetic store join nodes). */
+    readonly combinedG6 = computed<G6GraphData | null>(() => {
+        const c = this.combined();
+        return c ? toCombinedG6Data(c) : null;
+    });
+
     readonly nodeDisplayLabel = nodeDisplayLabel;
     readonly categoryColor = categoryColor;
+    readonly combinedLegend = COMBINED_CATEGORY_ORDER;
 
     ngOnInit(): void {
         this.load();
@@ -108,8 +130,32 @@ export class FlowsComponent implements OnInit {
     }
 
     onNodeClick(id: string): void {
-        const g = this.graph();
-        this.selectedNode.set(g ? (g.nodes.find((n) => n.id === id) ?? null) : null);
+        const pool = this.mode() === 'combined' ? this.combined()?.nodes : this.graph()?.nodes;
+        this.selectedNode.set(pool?.find((n) => n.id === id) ?? null);
+    }
+
+    /** Switch lens; lazy-load the combined topology the first time it is shown. */
+    setMode(m: FlowsViewMode): void {
+        if (this.mode() === m) return;
+        this.mode.set(m);
+        this.selectedNode.set(null);
+        if (m === 'combined' && !this.combined() && !this.combinedLoading()) this.loadCombined();
+    }
+
+    loadCombined(): void {
+        this.combinedLoading.set(true);
+        this.combinedUnavailable.set(false);
+        this.api.combined().subscribe({
+            next: (c) => {
+                this.combined.set(c);
+                this.combinedLoading.set(false);
+            },
+            error: () => {
+                this.combined.set(null);
+                this.combinedLoading.set(false);
+                this.combinedUnavailable.set(true);
+            },
+        });
     }
 
     /** A category accent dot for the legend / palette (runtime colour from the token palette). */
