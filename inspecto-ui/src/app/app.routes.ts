@@ -53,6 +53,7 @@ export const appRoutes: Route[] = [
             { path: 'pipelines', loadChildren: () => import('app/modules/admin/pipelines/pipelines.routes') },
             { path: 'pipelines/:name', loadChildren: () => import('app/modules/admin/pipeline-detail/pipeline-detail.routes') },
             { path: 'flows', loadChildren: () => import('app/modules/admin/flows/flows.routes') },
+            { path: 'components', loadChildren: () => import('app/modules/admin/components/components.routes') },
             { path: 'sources', loadChildren: () => import('app/modules/admin/sources/sources.routes') },
             { path: 'connections', loadChildren: () => import('app/modules/admin/connections/connections.routes') },
             { path: 'jobs', loadChildren: () => import('app/modules/admin/jobs/jobs.routes') },

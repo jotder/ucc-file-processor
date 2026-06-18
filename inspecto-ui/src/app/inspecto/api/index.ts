@@ -15,6 +15,7 @@ export * from './assist.service';
 export * from './alerts.service';
 export * from './objects.service';
 export * from './connections.service';
+export * from './components.service';
 export * from './sources.service';
 export * from './acquisition-metrics.service';
 export * from './events.service';

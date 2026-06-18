@@ -912,8 +912,13 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   + `/{id}/nodes`,`/{id}/edges` (incremental edits) — every write gated by `FlowValidator` (422 on errors); a distinct
   namespace from the read-only lifted-pipeline projection. Tests: `ComponentStoreTest`(5, incl. a schema tabular
   round-trip confirming `ConfigCodec.toToon` handles schemas) · `ControlApiComponentsTest`(3) · `FlowCodecTest`(3) ·
-  `FlowStoreTest`(3) · `ControlApiFlowCrudTest`(3). Suite 772/0/1. **Pending:** the authoring **UI** (component +
-  flow editor forms reusing the connections-CRUD pane pattern), and wiring authored flows into the live executor.
+  `FlowStoreTest`(3) · `ControlApiFlowCrudTest`(3). **Component authoring UI done 2026-06-18 (T19a):**
+  `inspecto-ui` `modules/admin/components` — a `/components` pane listing grammar/schema/transform/sink with
+  create/edit/delete (mirrors the connections-CRUD pane), a per-kind `ComponentFormDialog` (structured fields;
+  transform operator+JSON config) with an inline **Test** panel driving the T18 dry-run endpoints
+  (`ComponentsService`), plus nav + lazy route. Tests: `ComponentsComponent`(3, incl. axe a11y); token-guard +
+  prod build green. **Pending:** the **flow-topology editor** (node/edge CRUD on the G6 canvas) and wiring
+  authored flows into the live executor.
 
 ### Phase 4.5 / 6 — Data plane (provenance overlay; not required for 1–3)
 - [ ] **T20.** Per-edge counters at every node boundary (`recordsIn`/`recordsOut`/`diverted` tagged by relationship) — §11.3.

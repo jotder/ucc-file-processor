@@ -1,0 +1,222 @@
+<h2 mat-dialog-title>{{ title() }}</h2>
+<form [formGroup]="form" (ngSubmit)="submit()">
+    <mat-dialog-content class="space-y-3">
+        <mat-form-field class="w-full" subscriptSizing="dynamic">
+            <mat-label>Id</mat-label>
+            <input matInput formControlName="id" required />
+            @if (form.get('id'); as c) {
+                @if (c.hasError('required')) {
+                    <mat-error>Id is required.</mat-error>
+                } @else if (c.hasError('pattern')) {
+                    <mat-error>Start with a letter or digit; then letters, digits, <code>. _ -</code> only.</mat-error>
+                }
+            }
+        </mat-form-field>
+
+        <!-- ── grammar ─────────────────────────────────────────────────────────── -->
+        @if (kind === 'grammar') {
+            <div class="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Delimiter</mat-label>
+                    <input matInput formControlName="delimiter" />
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Skip header lines</mat-label>
+                    <input matInput type="number" formControlName="skipHeaderLines" />
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Quote</mat-label>
+                    <input matInput formControlName="quote" />
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Escape</mat-label>
+                    <input matInput formControlName="escape" />
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Encoding</mat-label>
+                    <input matInput formControlName="encoding" />
+                </mat-form-field>
+            </div>
+            <mat-slide-toggle formControlName="hasHeader">Has header row</mat-slide-toggle>
+        }
+
+        <!-- ── schema ──────────────────────────────────────────────────────────── -->
+        @if (kind === 'schema') {
+            <div>
+                <div class="mb-1 flex items-center justify-between">
+                    <span class="font-medium">Fields</span>
+                    <button type="button" mat-stroked-button (click)="addField()">
+                        <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                        <span class="ml-1">Add field</span>
+                    </button>
+                </div>
+                <div formArrayName="fields" class="space-y-2">
+                    @for (f of fields.controls; track f; let i = $index) {
+                        <div [formGroupName]="i" class="flex items-start gap-2">
+                            <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                                <mat-label>Name</mat-label>
+                                <input matInput formControlName="name" required />
+                            </mat-form-field>
+                            <mat-form-field subscriptSizing="dynamic">
+                                <mat-label>Type</mat-label>
+                                <mat-select formControlName="type">
+                                    @for (t of schemaTypes; track t) {
+                                        <mat-option [value]="t">{{ t }}</mat-option>
+                                    }
+                                </mat-select>
+                            </mat-form-field>
+                            <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                                <mat-label>Format (date/timestamp)</mat-label>
+                                <input matInput formControlName="format" placeholder="%Y-%m-%d" />
+                            </mat-form-field>
+                            <button type="button" mat-icon-button (click)="removeField(i)" aria-label="Remove field">
+                                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- ── transform ───────────────────────────────────────────────────────── -->
+        @if (kind === 'transform') {
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <mat-label>Operator</mat-label>
+                <mat-select formControlName="subtype">
+                    @for (t of transformSubtypes; track t) {
+                        <mat-option [value]="t">{{ t }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <mat-label>Config (JSON)</mat-label>
+                <textarea matInput formControlName="config" rows="6" spellcheck="false"></textarea>
+                <mat-hint>e.g. <code>{{ '{ "where": "CAST(amt AS INT) >= 100" }' }}</code></mat-hint>
+            </mat-form-field>
+        }
+
+        <!-- ── sink ────────────────────────────────────────────────────────────── -->
+        @if (kind === 'sink') {
+            <div class="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Sink kind</mat-label>
+                    <mat-select formControlName="sinkKind">
+                        @for (k of sinkKinds; track k) {
+                            <mat-option [value]="k">{{ k }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Store</mat-label>
+                    <input matInput formControlName="store" />
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Format</mat-label>
+                    <mat-select formControlName="format">
+                        @for (f of sinkFormats; track f) {
+                            <mat-option [value]="f">{{ f }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Partitions (comma-separated)</mat-label>
+                    <input matInput formControlName="partitions" placeholder="year, month, day" />
+                </mat-form-field>
+            </div>
+        }
+
+        <!-- ── Test panel (only for a saved component) ─────────────────────────── -->
+        <div class="mt-2 rounded-md border border-[color:var(--gamma-border)] p-3">
+            <div class="mb-2 font-medium">Test</div>
+            @if (!isEdit) {
+                <p class="text-secondary text-sm">Save the component first, then reopen it to run a dry-run.</p>
+            } @else {
+                @if (kind === 'grammar') {
+                    <mat-form-field class="w-full" subscriptSizing="dynamic">
+                        <mat-label>Sample text</mat-label>
+                        <textarea matInput [(ngModel)]="sampleText" [ngModelOptions]="{ standalone: true }" rows="4" spellcheck="false"></textarea>
+                    </mat-form-field>
+                } @else {
+                    <mat-form-field class="w-full" subscriptSizing="dynamic">
+                        <mat-label>Sample rows (JSON array)</mat-label>
+                        <textarea matInput [(ngModel)]="sampleRows" [ngModelOptions]="{ standalone: true }" rows="4" spellcheck="false"></textarea>
+                    </mat-form-field>
+                }
+                <button type="button" mat-stroked-button (click)="runTest()" [disabled]="testing()">
+                    <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
+                    <span class="ml-1">{{ testing() ? 'Running…' : 'Run dry-run' }}</span>
+                </button>
+
+                @if (testError(); as err) {
+                    <p class="text-warn mt-2 text-sm" role="alert">{{ err }}</p>
+                }
+
+                <!-- grammar result -->
+                @if (grammarResult(); as g) {
+                    <div class="mt-3 text-sm" aria-live="polite">
+                        <div>Parsed <strong>{{ g.rowCount }}</strong> row(s){{ g.rejectedRows ? ', ' + g.rejectedRows + ' rejected' : '' }}.</div>
+                        <div class="text-secondary">Columns: {{ g.columns.join(', ') }}</div>
+                    </div>
+                }
+
+                <!-- transform / schema relations -->
+                @if (relationsResult(); as r) {
+                    <div class="mt-3 space-y-3 text-sm" aria-live="polite">
+                        @for (rel of r.relations; track rel.rel) {
+                            <div>
+                                <div class="mb-1">
+                                    <inspecto-status-badge [value]="rel.rel"></inspecto-status-badge>
+                                    <span class="ml-2">{{ rel.rowCount }} row(s)</span>
+                                </div>
+                                @if (rel.rows.length) {
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full text-left text-xs">
+                                            <thead>
+                                                <tr>
+                                                    @for (col of columnsOf(rel.rows); track col) {
+                                                        <th scope="col" class="px-2 py-1 font-medium">{{ col }}</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @for (row of rel.rows.slice(0, 5); track $index) {
+                                                    <tr>
+                                                        @for (col of columnsOf(rel.rows); track col) {
+                                                            <td class="px-2 py-1">{{ row[col] }}</td>
+                                                        }
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- sink result -->
+                @if (sinkResult(); as s) {
+                    <div class="mt-3 text-sm" aria-live="polite">
+                        <div>Store <strong>{{ s.store ?? '(none)' }}</strong> — {{ s.rowCount }} row(s) would be written.</div>
+                        @if (s.warnings.length) {
+                            <ul class="text-warn mt-1 list-inside list-disc">
+                                @for (w of s.warnings; track w) {
+                                    <li>{{ w }}</li>
+                                }
+                            </ul>
+                        } @else {
+                            <div class="text-secondary mt-1">No warnings.</div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+        <button type="button" mat-button mat-dialog-close>Cancel</button>
+        <button type="submit" mat-flat-button color="primary" [disabled]="form.invalid || saving">
+            {{ isEdit ? 'Save' : 'Create' }}
+        </button>
+    </mat-dialog-actions>
+</form>

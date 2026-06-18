@@ -17,6 +17,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
         children: [
             { id: 'pipelines',  title: 'Pipelines',  type: 'basic', icon: 'heroicons_outline:arrows-right-left',      link: '/pipelines' },
             { id: 'flows',      title: 'Flows',      type: 'basic', icon: 'heroicons_outline:share',                  link: '/flows' },
+            { id: 'components', title: 'Components', type: 'basic', icon: 'heroicons_outline:puzzle-piece',          link: '/components' },
             { id: 'jobs',       title: 'Jobs',       type: 'basic', icon: 'heroicons_outline:clock',                  link: '/jobs' },
             { id: 'enrichment', title: 'Enrichment', type: 'basic', icon: 'heroicons_outline:funnel',                 link: '/enrichment' },
             { id: 'catalog',    title: 'Catalog',    type: 'basic', icon: 'heroicons_outline:share',                  link: '/catalog' }

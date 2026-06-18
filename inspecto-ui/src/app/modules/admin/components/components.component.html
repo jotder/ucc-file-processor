@@ -1,0 +1,72 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Components</h1>
+            <div class="text-secondary mt-1">
+                Reusable building blocks — <code>grammar</code>, <code>schema</code>, <code>transform</code>,
+                <code>sink</code> — authored under <code>registry/</code> and composed by flows via
+                <code>use:</code>. Edit one to dry-run it over a sample (no data is written).
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+        </div>
+    </div>
+
+    @if (writesDisabled) {
+        <div class="mt-4 flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+            <mat-icon class="icon-size-5 shrink-0" svgIcon="heroicons_outline:lock-closed"></mat-icon>
+            <span>Component editing is disabled on this server (no write root configured). Listing remains available.</span>
+        </div>
+    }
+
+    <!-- One section per kind -->
+    @for (type of types; track type) {
+        <section class="mt-8">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-semibold capitalize">{{ type }}</h2>
+                @if (!writesDisabled) {
+                    <button mat-flat-button color="primary" (click)="create(type)">
+                        <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                        <span class="ml-2">New {{ type }}</span>
+                    </button>
+                }
+            </div>
+
+            @if (!loading && countFor(type) === 0) {
+                <inspecto-empty-state
+                    class="mt-4 block"
+                    icon="heroicons_outline:puzzle-piece"
+                    [message]="'No ' + type + ' components yet.'"
+                ></inspecto-empty-state>
+            } @else {
+                <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    @for (def of byType[type]; track def.ref) {
+                        <div class="bg-card flex items-start justify-between gap-4 rounded-2xl p-5 shadow">
+                            <div class="min-w-0">
+                                <div class="truncate font-mono text-lg font-semibold">{{ def.name }}</div>
+                                <div class="text-secondary mt-0.5 text-sm">{{ summary(def) }}</div>
+                            </div>
+                            @if (!writesDisabled) {
+                                <div class="flex items-center gap-1">
+                                    <button mat-icon-button (click)="edit(type, def)" matTooltip="Edit & test" aria-label="Edit and test">
+                                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                                    </button>
+                                    <button mat-icon-button (click)="remove(type, def)" matTooltip="Delete" aria-label="Delete">
+                                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    }
+</div>
