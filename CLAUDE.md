@@ -1,12 +1,23 @@
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+A knowledge graph lives at `graphify-out/` (god nodes, communities, cross-file relationships).
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- **The `graphify` CLI is NOT currently installed** (the npm package of that name is an unrelated graphing
+  library, not this tool). The PreToolUse hooks that mandate `graphify query` are **gated on the binary
+  being on PATH**, so they stay silent until a real graphify is installed — no token waste.
+- Until then, use **Grep/Glob/Read** directly, or delegate code exploration to the **backend-explorer**
+  agent. `graphify-out/GRAPH_REPORT.md` is a static (large) fallback map for broad orientation.
+- If a genuine `graphify` CLI is installed later, the hooks reactivate automatically: prefer
+  `graphify query/explain/path` over grep, and run `graphify update .` after code changes.
+
+## Skills & agents (token-economical)
+
+- **Skills** (invoke on demand, not auto-loaded): `java-backend` (backend/engine/control-plane changes),
+  `angular-ui` (any inspecto-ui change), `build-verify` (build/test/package/run), `release-workflow`
+  (before any git commit/push/tag).
+- **Subagents** (isolate work in their own context): `backend-explorer` (read-only Java code location/
+  explanation), `verify-runner` (runs build/test, reports verdict only). Delegate heavy exploration or
+  builds to keep the main thread small.
 
 ---
 
@@ -34,24 +45,18 @@ Rules:
 
 ## Branch & Release Strategy ⚠️ MANDATORY
 
-Full policy: [`docs/BRANCHING.md`](docs/BRANCHING.md). Enforced by `.claude/hooks/pre-tool-git-release-guard.sh` on every `git commit` / `git push` / `git tag`. **No matter which branch you are on**, you MUST run the propagation check below and **ask the user to confirm the merge-forward set before pushing**.
+**Before any `git commit` / `git push` / `git tag`, apply the `release-workflow` skill.** Full detail
+there and in [`docs/BRANCHING.md`](docs/BRANCHING.md); enforced by `.claude/hooks/pre-tool-git-release-guard.sh`,
+`.githooks/pre-push`, and CI. Non-negotiable guardrails (the rest is in the skill):
 
-**Two axes — never confuse them:**
-- **Versions = branches.** Active: `master` (newest/mainline) + the current `N.x` (today **`4.x`**). **Retired/EOL (frozen, no commits/pushes/tags, never a propagation target): `1.x`, `2.x`, `3.x`.**
-- **Editions (Personal / Standard / Enterprise) = build flavors** (Maven profiles + `ServiceLoader` modules + `-D` flags). **Editions are NEVER branches** — do not create `personal`/`standard` branches.
-
-**Versioning:** SemVer `vMAJOR.MINOR.PATCH`; **Conventional Commits** (`fix:`→PATCH, `feat:`→MINOR, `feat!:`/`BREAKING CHANGE:`→MAJOR). One version across all editions (artifacts differ by `-personal` / `-standard` classifier).
-
-**Propagation = MERGE-FORWARD (oldest → master).** A `fix:` is committed on the **oldest still-supported branch it affects**, then merged forward up to `master` (e.g. `4.x → master`). A fix may never regress in a newer line. `feat:` goes to `master` only.
-
-**Commit/push checklist (every time, every branch):**
-1. Classify the change (Conventional Commit type) → SemVer + target line.
-2. Find the oldest supported branch affected. If it's a `fix:` and you're on a newer line, **STOP** and relocate the fix down to that branch first.
-3. **Enumerate every supported branch that still needs the change, ask the user to confirm**, then merge-forward to `master`.
-4. **Refuse** to commit/push/tag on `1.x` / `2.x` / `3.x` (retired). A security backport to an EOL line needs a human to set `UCC_RELEASE_GUARD_DISABLE=1` and document it — agents must ask, never self-authorize.
-5. Tag releases `vX.Y.Z` on the branch they ship from.
+- **Versions = branches; editions = build flavors (NEVER branches).** Active: `master` + current `N.x`
+  (today **`4.x`**). **Retired/EOL — no commits/pushes/tags ever: `1.x`, `2.x`, `3.x`.**
+- **`fix:`** lands on the **oldest supported affected branch**, then **MERGE-FORWARD** to `master`;
+  **`feat:`** → `master` only. SemVer + Conventional Commits.
+- **Always ask the user to confirm the merge-forward set before pushing.** Never self-authorize
+  `UCC_RELEASE_GUARD_DISABLE=1` (human-only EOL override).
 
 ---
 
-**Last Updated**: 2026-06-16
+**Last Updated**: 2026-06-18
 **Optimized with**: [Claude Token Optimizer](https://github.com/nadimtuhin/claude-token-optimizer)
