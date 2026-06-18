@@ -885,9 +885,28 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 - [ ] **T17.** Node inspector panel (effective config resolved through `use:`); live last-run overlay via `OverlaySource`.
 
 ### Phase 5 — Per-component dry-run/test + CRUD-from-UI (build-and-test UX)
-- [ ] **T18.** `preview(sample)` per node type (reuse production logic, scratch-only); the `/components/{type}/{id}/test`
-  + `/flows/{id}/dry-run` endpoints (§7.2).
-- [ ] **T19.** Component + flow CRUD from the UI (generalise the write-root-gated, atomic, secret-masking connections pattern).
+- [~] **T18 (transform preview done 2026-06-18; grammar/schema/sink/flow-dry-run pending).** `preview(sample)`
+  reusing production node logic, scratch-only (§7.2). **Done:** `com.gamma.flow.exec.ComponentPreview.transform` —
+  seeds a throwaway embedded DuckDB from the sample rows, runs the node through the <b>production</b>
+  {@code RowShaper} (filter/validate/route/dedup/split/map/select/derive), reads the produced named relations back
+  (capped), and deletes the scratch DB. `ControlApi POST /components/transform/{id}/test {sampleRows}` →
+  `{inputColumns, relations:[{rel,rowCount,rows}]}` (404 absent, 422 non-transform, 400 bad sample/operator).
+  `ComponentPreviewTest`(3) + `ControlApiComponentsTest` preview case. **Pending:** grammar parse-test, schema
+  cast+rejects test, sink scratch-validate, and `POST /flows/{id}/dry-run` (bounded sample through a sub-path of the
+  executor — reuses the same scratch-DuckDB harness).
+- [~] **T19 (CRUD backend done 2026-06-18; authoring UI pending).** Component + flow CRUD, generalising the
+  connection write pattern (write-root gated, id-sanitised, path-jailed, atomic temp+move). **Component CRUD:**
+  `com.gamma.flow.ComponentStore` (create/replace/delete/list/get over `<write-root>/registry/<typeDir>/<id>.toon` for
+  `grammar`/`schema`/`transform`/`sink` — connection keeps its own secret-masking CRUD; id stamped as the in-file
+  `name`) + `ComponentRegistry.dirForType`/`isComponentType`; `ControlApi GET|POST|PUT|DELETE /components/{type}[/{id}]`
+  (409 dup, safe-delete 409 via `FlowReferences.referencedBy`). **Flow topology CRUD:** `com.gamma.flow.FlowCodec`
+  (lossless `FlowGraph`↔map) + `com.gamma.flow.FlowStore` (persist/read/delete/list authored `*_flow.toon` under
+  `<write-root>/flows`); `ControlApi /flows/authored` `GET`(list)/`POST`(create) + `/{id}` `GET`(graph)/`PUT`/`DELETE`
+  + `/{id}/nodes`,`/{id}/edges` (incremental edits) — every write gated by `FlowValidator` (422 on errors); a distinct
+  namespace from the read-only lifted-pipeline projection. Tests: `ComponentStoreTest`(5, incl. a schema tabular
+  round-trip confirming `ConfigCodec.toToon` handles schemas) · `ControlApiComponentsTest`(3) · `FlowCodecTest`(3) ·
+  `FlowStoreTest`(3) · `ControlApiFlowCrudTest`(3). Suite 772/0/1. **Pending:** the authoring **UI** (component +
+  flow editor forms reusing the connections-CRUD pane pattern), and wiring authored flows into the live executor.
 
 ### Phase 4.5 / 6 — Data plane (provenance overlay; not required for 1–3)
 - [ ] **T20.** Per-edge counters at every node boundary (`recordsIn`/`recordsOut`/`diverted` tagged by relationship) — §11.3.

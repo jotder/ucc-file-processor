@@ -48,6 +48,20 @@ public final class ComponentRegistry {
             "transforms", "transform",   // new: extracted DataTransformer settings
             "sinks", "sink");            // new: extracted Output settings
 
+    /** The on-disk sub-directory (plural) for a component {@code type} (e.g. {@code grammar} → {@code grammars}). */
+    public static Optional<String> dirForType(String type) {
+        if (type == null) return Optional.empty();
+        return TYPE_BY_DIR.entrySet().stream()
+                .filter(e -> e.getValue().equals(type.trim()))
+                .map(Map.Entry::getKey)
+                .findFirst();
+    }
+
+    /** Whether {@code type} is a known component type ({@code connection|grammar|schema|transform|sink}). */
+    public static boolean isComponentType(String type) {
+        return type != null && TYPE_BY_DIR.containsValue(type.trim());
+    }
+
     /** One indexed component: its {@code type}, in-file {@code name}, source path, and parsed content. */
     public record Component(String type, String name, Path path, Map<String, Object> content) {
         /** The {@code use:} reference that addresses this component, e.g. {@code grammar/pipe-delimited}. */
