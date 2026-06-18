@@ -207,6 +207,10 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   `Scheduler`), event (`on_pipeline` → bus, off-bus handoff), manual (`POST /jobs/{name}/trigger`). Per-job
   non-overlap via `LockingRunner` (a concurrent fire while in-flight records `SKIPPED`). **Catch-up (T26):** on
   startup an enabled `catch_up: true` cron job whose last audited run missed a fire runs once.
+- **FLOW chaining (T32 Phase B):** a `FLOW` job is a first-class participant — cron / `on_pipeline` / manual fire it
+  like any job, and on success `FlowJobRunner` publishes a `BatchEvent(jobName)` so downstream `on_pipeline` jobs
+  chain off it. **Guidance:** when a flow reads a store a pipeline writes, trigger it with `on_pipeline: <producer>`
+  rather than a time cron, so it runs only after the producer's commit is durable (avoids a half-written read).
 - **Deletion fence (T25 × T32):** before a `MAINTENANCE` job that declares `store:` deletes, `fenceDelete`
   consults the guard. `SourceService.checkDeletion` reports a conflict when a target store has an **active**
   producer/consumer — built from lifted pipelines **and** authored flows, with the active set = running pipelines

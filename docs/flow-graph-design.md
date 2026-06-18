@@ -942,7 +942,14 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   `STORE_DELETE_CONFLICT` (idle authored flows never conflict). The fence is made *aware of* flow jobs — a flow job
   does NOT call `guard.check` (that would false-positive on normal concurrent read/append). Test:
   `JobServiceTest.flowJobRunsEndToEndAndIsTrackedWhileRunning`.
-  **Deferred:** Phase B (exercise cron/`on_pipeline` for FLOW + jobs-pane reporting), Phase C (`sink.view` catalog
+  **Phase B done (2026-06-18):** a FLOW job is a first-class scheduled/chained job — cron, `on_pipeline` (a pipeline
+  commit triggers it), downstream chaining (its success `BatchEvent(jobName)` fires `on_pipeline` jobs), and
+  `DbJobRunStore` reporting (typed `FLOW`). No production change needed (JobService arms cron/dispatches events
+  type-agnostically; `FlowJobRunner` already publishes the chain event); proven by 4 `JobServiceTest` cases
+  (`cronFiresAFlowJob`, `onPipelineEventFiresAFlowJob`, `aFlowJobSuccessChainsADownstreamJob`,
+  `flowRunsAreProjectedIntoTheReportingStoreAsTypeFlow`). Guidance: prefer `on_pipeline: <producer>` over a time
+  cron whenever a flow reads a store a pipeline writes. inspecto **798/0/1**.
+  **Deferred:** Phase C (`sink.view` catalog
   registration, multi-`source_store` seed, incremental/watermark re-run vs full recompute), and a dedicated
   `POST /flows/authored/{id}/run` endpoint (today: configure a `type: flow` `*_job.toon` + `POST /jobs/{name}/trigger`).
   Full design: [`flow-live-execution-plan.md`](flow-live-execution-plan.md).

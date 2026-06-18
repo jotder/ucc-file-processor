@@ -1,11 +1,11 @@
 # Plan — Live execution of authored job-flows (T32)
 
-> **Status: PHASE A IMPLEMENTED (2026-06-18).** The core run-path (§6 Phase A) is built and tested
-> (inspecto 793/0/1): `JobType.FLOW`, `FlowJobRunner`, `PartitionSinkWriter`, `SourceStoreReader`,
-> `JobService.build()` wiring, `SourceService.openFlowStore()`. Phases **B** (schedule/chain exercise +
-> jobs-pane reporting) and **C** (`sink.view`, multi-`source_store`, incremental) remain. The open
-> questions in §7 are resolved as noted inline. Tracked as **T32** in
-> [`flow-graph-design.md`](flow-graph-design.md) §14.
+> **Status: PHASES A + B IMPLEMENTED (2026-06-18).** Core run-path (§6 Phase A) + scheduling/chaining/reporting
+> (§6 Phase B) are built and tested (inspecto 798/0/1): `JobType.FLOW`, `FlowJobRunner`, `PartitionSinkWriter`,
+> `SourceStoreReader`, `JobService.build()` wiring, `SourceService.openFlowStore()`, the deletion fence (§7.5), and a
+> FLOW job is now a first-class scheduled/chained job (cron, `on_pipeline`, chains downstream, `DbJobRunStore`
+> reporting). Phase **C** (`sink.view`, multi-`source_store`, incremental) remains. Open questions in §7 resolved
+> inline. Tracked as **T32** in [`flow-graph-design.md`](flow-graph-design.md) §14.
 
 ## 1. The problem & the key constraint
 
@@ -99,9 +99,12 @@ the FlowGraph entry-node `trigger:` (that is for the pipeline poll loop). Activa
   `partitions`). Full-recompute commit. Tested: `FlowJobRunnerTest`(4) + `JobServiceTest`(+2). The dedicated
   `POST /flows/authored/{id}/run` was **not** built — the job-config path covers Phase A; revisit if ad-hoc
   (config-less) runs are wanted.
-- **Phase B (scheduling + chaining).** Cron + `on_pipeline` event firing (already in `JobService` — just
-  exercise it for `FLOW`), `BatchEvent` publish so downstream jobs chain, `DbJobRunStore`/jobs-pane
-  reporting (T27) shows flow runs.
+- **Phase B (scheduling + chaining) — ✅ DONE (2026-06-18).** No production change was needed — `JobService` arms
+  cron and dispatches `on_pipeline` events type-agnostically, and `FlowJobRunner` already publishes a chain
+  `BatchEvent(jobName)` on success. Phase B is the proof that `FLOW` participates fully, via 4 deterministic tests
+  in `JobServiceTest`: `cronFiresAFlowJob` (cron), `onPipelineEventFiresAFlowJob` (a pipeline commit triggers the
+  flow), `aFlowJobSuccessChainsADownstreamJob` (the flow's success fires a downstream `on_pipeline` job), and
+  `flowRunsAreProjectedIntoTheReportingStoreAsTypeFlow` (the run reaches `DbJobRunStore`, typed `FLOW`).
 - **Phase C (semantics polish).** `sink.view` (logical, no bytes → register a DuckDB view/catalog entry
   instead of Parquet), multi-`source_store` flows (seed N views; `transform.merge` join), re-run
   watermark/incremental instead of full recompute, status/lineage actor attribution.
@@ -138,7 +141,9 @@ the FlowGraph entry-node `trigger:` (that is for the pipeline poll loop). Activa
    the synchronous bus) + the existing `DeletionFenceTest` consumer-conflict case (pure logic, flow-agnostic).
 6. **Concurrency with the producing pipeline.** A flow reading `store X` while a pipeline writes `X`:
    rely on the `on_commit`/event trigger (run after the producer commits) rather than a time cron, to
-   avoid reading a half-written store. Document the guidance. **[Phase B] exercise `on_pipeline` for FLOW.**
+   avoid reading a half-written store. **[Phase B DONE 2026-06-18] `on_pipeline` exercised for FLOW
+   (`onPipelineEventFiresAFlowJob`). Guidance: prefer `on_pipeline: <producer>` over a time `cron` whenever a flow
+   reads a store a pipeline writes — the event fires only after the producer's commit is durable.**
 
 ## 8. Test plan
 

@@ -256,11 +256,7 @@ class JobServiceTest {
         String dataDir = dir.resolve("data").toString();
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
         FlowStore store = new FlowStore(dir.resolve("flows"));
-        store.write("evt_rollup", new FlowGraph("evt_rollup", true,
-                List.of(FlowNode.of("src", "acquisition", Map.of("source_store", "events")),
-                        FlowNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
-                        new FlowNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
-                List.of(FlowEdge.data("src", "flt"), FlowEdge.data("flt", "out"))));
+        writeRollupFlow(store, "evt_rollup");
 
         JobConfig fj = new JobConfig("nightly", JobType.FLOW, null, null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
@@ -282,6 +278,109 @@ class JobServiceTest {
             assertTrue(midRun.get().contains("evt_rollup"), "flow tracked as running mid-run: " + midRun.get());
             assertTrue(js.runningFlows().isEmpty(), "the running-flow set is cleaned up after the run");
         }
+    }
+
+    // ── T32 Phase B: a FLOW job is a first-class scheduled/chained job ───────────
+
+    @Test
+    void cronFiresAFlowJob(@TempDir Path dir) throws Exception {
+        // cron arming is type-agnostic in JobService.start(); prove it actually fires a FLOW job.
+        String dataDir = dir.resolve("data").toString();
+        seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
+        FlowStore store = new FlowStore(dir.resolve("flows"));
+        writeRollupFlow(store, "evt_rollup");
+        JobConfig fj = new JobConfig("ticker", JobType.FLOW, "* * * * * *", null, true, false,
+                Map.of("flow", "evt_rollup", "data_dir", dataDir));
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(fj), new BatchEventBus(), s, null,
+                     dir.resolve("audit").toString(), null, store, dataDir)) {
+            js.start();
+            // an every-second cron can re-fire while in flight (→ SKIPPED); assert the first SUCCESS.
+            JobRun run = await(() -> js.runsFor("ticker").stream()
+                    .filter(r -> "SUCCESS".equals(r.status())).findFirst().orElse(null));
+            assertEquals("schedule", run.trigger(), "cron fire records the schedule trigger");
+            assertEquals("FLOW", run.type());
+        }
+    }
+
+    @Test
+    void onPipelineEventFiresAFlowJob(@TempDir Path dir) throws Exception {
+        // chaining INTO a flow: an upstream pipeline commit triggers the flow job (the recommended
+        // pattern over cron when the flow reads a store the pipeline writes — avoids a half-written read).
+        String dataDir = dir.resolve("data").toString();
+        seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
+        FlowStore store = new FlowStore(dir.resolve("flows"));
+        writeRollupFlow(store, "evt_rollup");
+        JobConfig fj = new JobConfig("rollup_job", JobType.FLOW, null, "events_etl", true, false,
+                Map.of("flow", "evt_rollup", "data_dir", dataDir));
+        BatchEventBus bus = new BatchEventBus();
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(fj), bus, s, null,
+                     dir.resolve("audit").toString(), null, store, dataDir)) {
+            js.start();
+            bus.publish(new BatchEvent("events_etl", "b1", "SUCCESS", List.of("p=1"), 1L, 1L, 0));
+            JobRun run = await(() -> js.lastRunOf("rollup_job").orElse(null));
+            assertEquals("SUCCESS", run.status(), run.message());
+            assertEquals("FLOW", run.type());
+            assertTrue(run.trigger().startsWith("event:events_etl"), "fired by the upstream commit: " + run.trigger());
+            assertTrue(Files.exists(Path.of(dataDir, "rollup")), "the flow job wrote its sink store");
+        }
+    }
+
+    @Test
+    void aFlowJobSuccessChainsADownstreamJob(@TempDir Path dir) throws Exception {
+        // chaining OUT of a flow: FlowJobRunner publishes a BatchEvent(jobName) on success, so a
+        // downstream on_pipeline job fires — the flow job is a first-class upstream in the event graph.
+        String dataDir = dir.resolve("data").toString();
+        seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
+        FlowStore store = new FlowStore(dir.resolve("flows"));
+        writeRollupFlow(store, "evt_rollup");
+        JobConfig flowJob = new JobConfig("rollup_job", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "evt_rollup", "data_dir", dataDir));
+        JobConfig downstream = maintenance("after_rollup", null, "rollup_job", Map.of("task", "heartbeat"));
+        BatchEventBus bus = new BatchEventBus();
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(flowJob, downstream), bus, s, null,
+                     dir.resolve("audit").toString(), null, store, dataDir)) {
+            js.start();
+            js.trigger("rollup_job");
+            JobRun run = await(() -> js.lastRunOf("after_rollup").orElse(null));
+            assertEquals("SUCCESS", run.status());
+            assertTrue(run.trigger().startsWith("event:rollup_job"), "chained off the flow job: " + run.trigger());
+        }
+    }
+
+    @Test
+    void flowRunsAreProjectedIntoTheReportingStoreAsTypeFlow(@TempDir Path dir) throws Exception {
+        // T27 reporting: a FLOW run reaches the DuckDB job-run store, typed FLOW (jobs-pane reporting).
+        String dataDir = dir.resolve("data").toString();
+        seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
+        FlowStore store = new FlowStore(dir.resolve("flows"));
+        writeRollupFlow(store, "evt_rollup");
+        JobConfig fj = new JobConfig("nightly_rollup", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "evt_rollup", "data_dir", dataDir));
+        DbJobRunStore runStore = DbJobRunStore.open("jdbc:duckdb:");   // in-memory; closed by js.close()
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(fj), new BatchEventBus(), s, null,
+                     dir.resolve("audit").toString(), runStore, store, dataDir)) {
+            js.start();
+            js.trigger("nightly_rollup");
+            await(() -> js.lastRunOf("nightly_rollup").orElse(null));
+            assertTrue(((Number) runStore.metrics("nightly_rollup").get("total")).longValue() >= 1,
+                    "the flow run was projected into the reporting store");
+            List<Map<String, Object>> recent = runStore.recentRuns(10, "nightly_rollup");
+            assertFalse(recent.isEmpty(), "the flow run is queryable in the reporting store");
+            assertEquals("FLOW", recent.get(0).get("type"), "reported as a FLOW run");
+        }
+    }
+
+    /** Author the canonical {@code events → filter(amt>=100) → sink rollup} flow used by the T32 tests. */
+    private static void writeRollupFlow(FlowStore store, String id) throws Exception {
+        store.write(id, new FlowGraph(id, true,
+                List.of(FlowNode.of("src", "acquisition", Map.of("source_store", "events")),
+                        FlowNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
+                        new FlowNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
+                List.of(FlowEdge.data("src", "flt"), FlowEdge.data("flt", "out"))));
     }
 
     /** Write {@code (id,amt)} VALUES as a Parquet file under {@code <dataDir>/<store>/} (an at-rest source store). */
