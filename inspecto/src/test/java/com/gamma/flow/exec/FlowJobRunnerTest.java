@@ -30,8 +30,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * T32 Phase A — {@link FlowJobRunner} runs an authored flow for real over embedded DuckDB: it seeds a
  * {@code source_store} from a small on-disk Parquet dataset, executes the {@code transform → sink}
  * subgraph via the production {@link FlowExecutor}, and writes each sink {@code store}. Covers the single
- * filter→sink path, idempotent re-run (same batch id skips the committed branch), and a multi-branch
- * route to two stores.
+ * filter→sink path, idempotent re-run (same batch id skips the committed branch), a multi-branch route to
+ * two stores, and a multi-{@code source_store} union (T32 Phase C).
  */
 class FlowJobRunnerTest {
 
@@ -121,6 +121,30 @@ class FlowJobRunnerTest {
                 Map.of("flow", "no_src", "data_dir", dataDir));
         FlowJobRunner runner = new FlowJobRunner(cfg, new BatchEventBus(), store, dataDir, tmp.resolve("audit").toString());
         assertThrows(IllegalArgumentException.class, runner::run);
+    }
+
+    @Test
+    void unionsTwoSourceStores() throws Exception {
+        // T32 Phase C — a flow job seeds each source_store as its own view; a transform.merge unions them.
+        String dataDir = tmp.resolve("data").toString();
+        String auditDir = tmp.resolve("audit").toString();
+        seedParquet(dataDir, "events_a", "(1,150),(3,200)");
+        seedParquet(dataDir, "events_b", "(5,500),(2,50)");
+        FlowStore store = new FlowStore(tmp.resolve("flows"));
+        store.write("merged_flow", new FlowGraph("merged_flow", true,
+                List.of(FlowNode.of("src_a", "acquisition", Map.of("source_store", "events_a")),
+                        FlowNode.of("src_b", "acquisition", Map.of("source_store", "events_b")),
+                        FlowNode.of("m", "transform.merge", Map.of("type", "union")),
+                        new FlowNode("out", "sink.persistent", "Combined", null, Map.of("store", "combined"), null)),
+                List.of(FlowEdge.data("src_a", "m"), FlowEdge.data("src_b", "m"), FlowEdge.data("m", "out"))));
+
+        JobConfig cfg = new JobConfig("merge_job", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "merged_flow", "data_dir", dataDir));
+        JobResult res = new FlowJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run();
+
+        assertTrue(res.success(), res.message());
+        assertEquals(List.of(1, 2, 3, 5), readIds(dataDir, "combined"),
+                "union of both source_stores — all 4 rows across the two stores");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────

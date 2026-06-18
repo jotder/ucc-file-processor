@@ -189,17 +189,18 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   `BranchCommitLog` (idempotent multi-branch commit; replay skips committed branches). `FlowDryRun` runs a bounded
   sample on a throwaway DuckDB (no commit). Component registry (`ComponentStore`/`ComponentRegistry`) holds
   reusable `grammar`/`schema`/`transform`/`sink` components referenced via `use:`.
-- **Live execution (T32 — flows as jobs):** an authored flow is **job-style** (reads a `source_store`, writes a
-  sink `store`). `FlowJobRunner` (a `JobType.FLOW` job) seeds the source store as a view (`SourceStoreReader`),
-  drives `FlowExecutor`, and writes sinks via `PartitionSinkWriter` (unpartitioned single-file COPY when a sink
-  declares no `partitions`; `sink.view` writes no bytes — Phase C). Idempotent re-run via a stable `batch_id`.
+- **Live execution (T32 — flows as jobs):** an authored flow is **job-style** (reads one or more `source_store`s,
+  writes a sink `store`). `FlowJobRunner` (a `JobType.FLOW` job) seeds **each** `source_store` as its own view
+  (`SourceStoreReader`) — a `transform.merge` joins/unions them (multi-source, Phase C) — drives `FlowExecutor`, and
+  writes sinks via `PartitionSinkWriter` (unpartitioned single-file COPY when a sink declares no `partitions`;
+  `sink.view` writes no bytes — Phase C). Idempotent re-run via a stable `batch_id`.
 - **Events:** none of its own yet (flow runs publish a `BatchEvent` via `FlowJobRunner` like any job; flow area is
   otherwise un-instrumented — see §7 Gaps).
 - **State:** `<write-root>/flows/<id>.toon`, `<write-root>/registry/<typeDir>/<id>.toon`; per-run branch-commit log
   under the jobs audit dir.
 - **Config:** authored flows + a `type: flow` `*_job.toon` (`flow:` id, optional `data_dir`/`batch_id`).
-- **Failure modes:** flow job writes nothing on idempotent replay (same `batch_id` → "0 file(s)"); no/many
-  `source_store` (Phase A supports exactly one); fail-closed if no `-Dassist.write.root`.
+- **Failure modes:** flow job writes nothing on idempotent replay (same `batch_id` → "0 file(s)"); no
+  `source_store` declared (rejected; ≥1 required, multiple supported since Phase C); fail-closed if no `-Dassist.write.root`.
 
 ### 5.4 Jobs (`com.gamma.job`) + the deletion fence
 - **Responsibility:** scheduled/triggered downstream work. Types: `ENRICH`, `REPORT`, `MAINTENANCE`, `FLOW`.
@@ -480,7 +481,8 @@ means the previous run is still in flight (`LockingRunner`).
 bytes in Phase A.
 
 **Flow job fails to build / run.** `IllegalStateException` at build = no `-Dassist.write.root` (flow store
-fail-closed). At run: unknown `flow` id, or a flow with 0 or >1 `source_store` (Phase A supports exactly one).
+fail-closed). At run: unknown `flow` id, or a flow that declares **no** `source_store` (≥1 required; multiple are
+unioned/joined via `transform.merge` since Phase C).
 
 **`STORE_DELETE_CONFLICT`.** A `MAINTENANCE` delete-job's store has an active producer/consumer — a running
 pipeline **or** an in-flight FLOW job (T32). Event attrs `activeProducers`/`activeConsumers` name them. Fix: delete

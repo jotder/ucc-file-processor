@@ -73,15 +73,29 @@ public final class FlowExecutor {
                                      String batchId, BranchCommitCoordinator coordinator,
                                      SinkWriter sinkWriter,
                                      BranchCommitCoordinator.SourceFinalize sourceFinalize) throws Exception {
+        return execute(conn, g, Map.of(seedNodeId, seedTable), batchId, coordinator, sinkWriter, sourceFinalize);
+    }
+
+    /**
+     * Execute the {@code transform → sink} subgraph downstream of one or more <b>seed</b> nodes. Each entry of
+     * {@code seeds} maps a node id to the DuckDB table/view already holding that node's {@code data} relation.
+     * The common case is a single parser-seeded relation (the {@code (seedNodeId, seedTable)} overload); a flow
+     * job seeds <em>one view per {@code source_store}</em> (T32 Phase C, multi-source), so a {@code transform.merge}
+     * can join/union several at-rest stores into one branch.
+     */
+    public static ExecResult execute(Connection conn, FlowGraph g, Map<String, String> seeds,
+                                     String batchId, BranchCommitCoordinator coordinator,
+                                     SinkWriter sinkWriter,
+                                     BranchCommitCoordinator.SourceFinalize sourceFinalize) throws Exception {
         FlowValidator.validateOrThrow(g);
         Map<String, FlowNode> byId = g.byId();
 
         Map<String, Map<String, String>> produced = new LinkedHashMap<>();
-        produced.put(seedNodeId, new LinkedHashMap<>(Map.of(FlowRel.DATA, seedTable)));   // seed
+        seeds.forEach((nodeId, table) -> produced.put(nodeId, new LinkedHashMap<>(Map.of(FlowRel.DATA, table))));
         Map<String, String> sinkInputs = new LinkedHashMap<>();
 
         for (String nodeId : topoOrder(g)) {
-            if (nodeId.equals(seedNodeId)) continue;
+            if (seeds.containsKey(nodeId)) continue;       // pre-seeded source/parse relation
             FlowNode node = byId.get(nodeId);
             if (!node.enabled()) continue;                 // disabled node (§3.6) — produces nothing; downstream inert
             List<FlowEdge> inbound = liveInbound(g, nodeId, produced);
@@ -100,7 +114,7 @@ public final class FlowExecutor {
         }
 
         if (sinkInputs.isEmpty())
-            throw new IllegalStateException("flow '" + g.name() + "' produced no sink branches downstream of " + seedNodeId);
+            throw new IllegalStateException("flow '" + g.name() + "' produced no sink branches downstream of " + seeds.keySet());
 
         BranchCommitCoordinator.Result commit = coordinator.commit(batchId, new LinkedHashSet<>(sinkInputs.keySet()),
                 branch -> sinkWriter.write(byId.get(branch), sinkInputs.get(branch)),

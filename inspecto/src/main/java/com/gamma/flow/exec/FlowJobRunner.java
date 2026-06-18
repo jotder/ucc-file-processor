@@ -19,7 +19,9 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * <b>T32 Phase A — run an authored {@code *_flow.toon} flow for real, as a {@link JobType#FLOW} job.</b>
@@ -34,7 +36,7 @@ import java.util.List;
  * <p>The run mirrors {@link com.gamma.enrich.EnrichmentEngine}'s read-view → transform → partitioned-write
  * → publish-event shape, on a throwaway DuckDB:
  * <ol>
- *   <li>seed the single {@code source_store} as a view ({@link SourceStoreReader});</li>
+ *   <li>seed each {@code source_store} as a view ({@link SourceStoreReader});</li>
  *   <li>execute the {@code transform → sink} subgraph ({@link FlowExecutor#execute}) with a
  *       {@link PartitionSinkWriter} and a {@link BranchCommitCoordinator} (idempotent multi-branch commit,
  *       T11) — a flow job has no acquisition to finalise, so the source-finalisation step is a no-op;</li>
@@ -52,15 +54,16 @@ import java.util.List;
  *   batch_id: ...              # optional — fixed batch id (idempotent re-run); default per-run timestamp
  * </pre>
  *
- * <p><b>Phase A scope:</b> a single {@code source_store}, persistent/materialized sinks, full-recompute
- * commit. Multi-{@code source_store} flows, {@code sink.view} byte-less stores, and incremental/watermark
- * re-runs are Phase C (see {@code docs/flow-live-execution-plan.md}).
+ * <p><b>Scope:</b> multiple {@code source_store}s are supported (each seeded as its own view; a
+ * {@code transform.merge} joins/unions them — T32 Phase C); persistent/materialized sinks; full-recompute
+ * commit. {@code sink.view} byte-less stores and incremental/watermark re-runs remain Phase C (see
+ * {@code docs/flow-live-execution-plan.md}).
  */
 @PublicApi(since = "4.3.0")
 public final class FlowJobRunner implements Job {
 
     private static final Logger log = LoggerFactory.getLogger(FlowJobRunner.class);
-    private static final String SEED_VIEW = "flow_src";
+    private static final String SEED_VIEW_PREFIX = "flow_src";
 
     private final JobConfig cfg;
     private final BatchEventBus bus;
@@ -95,25 +98,31 @@ public final class FlowJobRunner implements Job {
         String dir = cfg.opt("data_dir", dataDir);
         String batchId = cfg.opt("batch_id", cfg.name().toLowerCase().replace(' ', '_')
                 + "-" + System.currentTimeMillis());
-        Seed seed = seedOf(g);
+        List<Seed> seeds = seedsOf(g);
 
         long t0 = System.nanoTime();
         File db = DuckDbUtil.tempDbFile("flowjob_");
         try (Connection conn = DuckDbUtil.openConnection(db)) {
-            SourceStoreReader.registerView(conn, SEED_VIEW, dir, seed.store(), seed.format());
+            Map<String, String> seedViews = new LinkedHashMap<>();
+            for (Seed seed : seeds) {                              // one view per source_store (multi-source, Phase C)
+                String view = SEED_VIEW_PREFIX + "_" + safe(seed.node());
+                SourceStoreReader.registerView(conn, view, dir, seed.store(), seed.format());
+                seedViews.put(seed.node(), view);
+            }
 
             PartitionSinkWriter writer = new PartitionSinkWriter(conn, dir,
                     cfg.name().toLowerCase().replace(' ', '_'));
             BranchCommitCoordinator coordinator = new BranchCommitCoordinator(new BranchCommitLog(
                     Path.of(auditDir).resolve(safe(flowId) + "_branch_commit_" + safe(batchId) + ".csv").toString()));
 
-            FlowExecutor.execute(conn, g, seed.node(), SEED_VIEW, batchId, coordinator, writer, () -> {});
+            FlowExecutor.execute(conn, g, seedViews, batchId, coordinator, writer, () -> {});
 
             long ms = (System.nanoTime() - t0) / 1_000_000L;
             List<String> parts = writer.outputs().stream().map(PartitionOutput::partition).distinct().toList();
+            List<String> srcStores = seeds.stream().map(Seed::store).toList();
             bus.publish(new BatchEvent(cfg.name(), batchId, "SUCCESS", parts, writer.totalRows(), ms, 0));
-            log.info("[FLOWJOB] {} ran flow '{}' (source_store '{}'): {} file(s), {} row(s) → {}",
-                    cfg.name(), flowId, seed.store(), writer.outputs().size(), writer.totalRows(),
+            log.info("[FLOWJOB] {} ran flow '{}' (source_store(s) {}): {} file(s), {} row(s) → {}",
+                    cfg.name(), flowId, srcStores, writer.outputs().size(), writer.totalRows(),
                     FlowStores.produced(g));
             return JobResult.ok(writer.outputs().size() + " file(s), " + writer.totalRows()
                     + " row(s) → store(s) " + FlowStores.produced(g), ms);
@@ -124,26 +133,26 @@ public final class FlowJobRunner implements Job {
 
     // ── helpers ──────────────────────────────────────────────────────────────────
 
-    /** The seed: the single {@code source_store} node, its store, and its at-rest format. */
+    /** A seed: one {@code source_store} node, its store, and its at-rest format. */
     private record Seed(String node, String store, String format) {}
 
-    private static Seed seedOf(FlowGraph g) {
-        List<FlowNode> sources = g.nodes().stream()
+    /** Every {@code source_store} node in the flow (≥1); a {@code transform.merge} downstream joins/unions them. */
+    private static List<Seed> seedsOf(FlowGraph g) {
+        List<Seed> seeds = g.nodes().stream()
                 .filter(n -> {
                     Object s = n.cfg(FlowStores.CONFIG_SOURCE_STORE);
                     return s != null && !s.toString().isBlank();
                 })
+                .map(n -> {
+                    Object fmt = n.cfg("format");
+                    return new Seed(n.id(), n.cfg(FlowStores.CONFIG_SOURCE_STORE).toString(),
+                            fmt == null || fmt.toString().isBlank() ? "PARQUET" : fmt.toString().toUpperCase());
+                })
                 .toList();
-        if (sources.isEmpty())
+        if (seeds.isEmpty())
             throw new IllegalArgumentException("flow '" + g.name() + "' declares no '"
                     + FlowStores.CONFIG_SOURCE_STORE + "' — a flow job reads data at rest (§3.8)");
-        if (sources.size() > 1)
-            throw new IllegalArgumentException("flow '" + g.name() + "' declares " + sources.size()
-                    + " source_store nodes; multi-store flow jobs are Phase C (T32)");
-        FlowNode src = sources.get(0);
-        Object fmt = src.cfg("format");
-        return new Seed(src.id(), src.cfg(FlowStores.CONFIG_SOURCE_STORE).toString(),
-                fmt == null || fmt.toString().isBlank() ? "PARQUET" : fmt.toString().toUpperCase());
+        return seeds;
     }
 
     /** Sanitise a string for use as a filename segment (the branch-commit log lives in the audit dir). */
