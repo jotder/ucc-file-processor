@@ -124,10 +124,15 @@ public final class DbJobRunStore implements AutoCloseable {
         return m;
     }
 
-    /** The most recent runs (newest first), optionally for one {@code job}; durable across restarts. */
+    /**
+     * The most recent runs (newest first), optionally for one {@code job}; durable across restarts. Columns
+     * are aliased to camelCase to match the rest of the JSON API (the frontend consumes these verbatim).
+     */
     public synchronized List<Map<String, Object>> recentRuns(int limit, String job) {
         boolean filtered = job != null && !job.isBlank();
-        String sql = "SELECT * FROM " + T_RUNS + (filtered ? " WHERE job = ?" : "")
+        String sql = "SELECT run_id AS \"runId\", job, type, \"trigger\", start_time AS \"startTime\","
+                + " end_time AS \"endTime\", status, duration_ms AS \"durationMs\", message"
+                + " FROM " + T_RUNS + (filtered ? " WHERE job = ?" : "")
                 + " ORDER BY start_time DESC, run_id DESC LIMIT ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             int i = 1;
@@ -142,13 +147,13 @@ public final class DbJobRunStore implements AutoCloseable {
 
     /**
      * Failure trend by calendar day (newest first, up to {@code days} distinct days): each entry carries
-     * {@code run_day}, {@code total} and {@code failed}. The day is taken from {@code start_time}'s date
-     * prefix ({@code day} is a DuckDB keyword, so the column is named {@code run_day}).
+     * {@code day}, {@code total} and {@code failed}. The day is the {@code start_time} date prefix (the
+     * SQL alias is quoted because {@code day} is a DuckDB keyword; the JSON key is the plain {@code day}).
      */
     public synchronized List<Map<String, Object>> failureTrend(int days) {
-        String sql = "SELECT substr(start_time,1,10) run_day, count(*) total,"
-                + " count(*) FILTER (WHERE status<>'SUCCESS') failed"
-                + " FROM " + T_RUNS + " GROUP BY run_day ORDER BY run_day DESC LIMIT ?";
+        String sql = "SELECT substr(start_time,1,10) AS \"day\", count(*) AS total,"
+                + " count(*) FILTER (WHERE status<>'SUCCESS') AS failed"
+                + " FROM " + T_RUNS + " GROUP BY \"day\" ORDER BY \"day\" DESC LIMIT ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, Math.max(1, days));
             return rows(ps);

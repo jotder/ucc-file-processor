@@ -50,8 +50,8 @@ class DbJobRunStoreTest {
 
             List<Map<String, Object>> j1 = db.recentRuns(10, "j1");
             assertEquals(2, j1.size(), "only j1 runs");
-            assertEquals("r2", j1.get(0).get("run_id"), "newest first");
-            assertEquals("r1", j1.get(1).get("run_id"));
+            assertEquals("r2", j1.get(0).get("runId"), "newest first");
+            assertEquals("r1", j1.get(1).get("runId"));
 
             assertEquals(3, db.recentRuns(10, null).size(), "no filter = all jobs");
             assertEquals(1, db.recentRuns(1, null).size(), "limit honoured");
@@ -68,10 +68,10 @@ class DbJobRunStoreTest {
             List<Map<String, Object>> trend = db.failureTrend(30);
             assertEquals(2, trend.size(), "two distinct days");
             // newest day first
-            assertEquals("2026-06-17", trend.get(0).get("run_day"));
+            assertEquals("2026-06-17", trend.get(0).get("day"));
             assertEquals(1L, ((Number) trend.get(0).get("total")).longValue());
             assertEquals(0L, ((Number) trend.get(0).get("failed")).longValue());
-            assertEquals("2026-06-16", trend.get(1).get("run_day"));
+            assertEquals("2026-06-16", trend.get(1).get("day"));
             assertEquals(2L, ((Number) trend.get(1).get("total")).longValue());
             assertEquals(1L, ((Number) trend.get(1).get("failed")).longValue());
         }
