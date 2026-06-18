@@ -918,7 +918,17 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   transform operator+JSON config) with an inline **Test** panel driving the T18 dry-run endpoints
   (`ComponentsService`), plus nav + lazy route. Tests: `ComponentsComponent`(3, incl. axe a11y); token-guard +
   prod build green. **Pending:** the **flow-topology editor** (node/edge CRUD on the G6 canvas) and wiring
-  authored flows into the live executor.
+  authored flows into the live executor (T32).
+- [ ] **T32 (planned 2026-06-18 — live execution of authored job-flows).** Run authored `*_flow.toon`
+  flows for real. Authored flows are **job-style** (`source_store` → `transform` → sink `store`), so they run
+  as a new `JobType.FLOW` hosted by the existing `JobService` (cron/event/manual + audit + deletion fence +
+  `DbJobRunStore`), driving `FlowExecutor` directly — **not** via `FlowCompiler.toConfigMap` (which only
+  round-trips *lifted* graphs, not plain-map authored ones). New: `FlowJobRunner implements Job`,
+  `PartitionSinkWriter` (a `FlowExecutor.SinkWriter` over `PartitionWriter`), `SourceStoreReader`
+  (`SqlViews.reader` over `<dirs.database>/<store>/**`), `JobType.FLOW` + `JobService.build()` case. Reuses
+  `FlowExecutor`/`BranchCommitCoordinator`/`BranchCommitLog`/`EnrichmentEngine` read pattern. Full design:
+  [`flow-live-execution-plan.md`](flow-live-execution-plan.md) (phases A core run-path / B schedule+chain /
+  C view-sinks+incremental; open Qs: data/audit dir source, batchId idempotency, `sink.view`, multi-source seed).
 
 ### Phase 4.5 / 6 — Data plane (provenance overlay; not required for 1–3)
 - [ ] **T20.** Per-edge counters at every node boundary (`recordsIn`/`recordsOut`/`diverted` tagged by relationship) — §11.3.
