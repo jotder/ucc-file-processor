@@ -1,23 +1,80 @@
 # Documentation Index
 
+> The curated map of **current** Inspecto docs. Anything not listed here has been archived under
+> [`outdated-doc/`](outdated-doc/) (historical plans, superseded designs, point-in-time snapshots) — kept for
+> provenance, not maintained. When you add or retire a doc, update this index in the same change.
+
 ---
 
-## Session Start (Essential - ~800 tokens)
+## Start here (session essentials, ~800 tokens)
 
-- `CLAUDE.md` (~450 tokens)
-- `.claude/COMMON_MISTAKES.md` (~350 tokens)
-- `.claude/QUICK_START.md` (~100 tokens)
-- `.claude/ARCHITECTURE_MAP.md` (~150 tokens)
+- `CLAUDE.md` — project rules (graphify, skills/agents, living docs, branch policy)
+- `.claude/COMMON_MISTAKES.md` — ⚠️ read FIRST
+- `.claude/QUICK_START.md` — essential commands
+- `.claude/ARCHITECTURE_MAP.md` — file locations
 
-## Task-Specific Topics (Load As Needed)
+## Production investigation (the hub)
+
+- [`ADVANCED_GUIDE.md`](ADVANCED_GUIDE.md) — **Advanced Operations & Internals Guide.** Per-component process,
+  events, metrics, attributes, persisted state, `-D` flags, the full Control API, and troubleshooting playbooks.
+  The go-to for diagnosing production behaviour. **Living doc — keep current as code changes (see its §0).**
+
+## Operations & reference
+
+- [`configuration.md`](configuration.md) — all TOON config keys (pipelines, sources, schemas, jobs, alerts).
+- [`operations.md`](operations.md) — running the service, batch processing, operational procedures. *(Some overlap
+  with ADVANCED_GUIDE §3–5; ADVANCED_GUIDE is authoritative for internals.)*
+- [`troubleshooting.md`](troubleshooting.md) — focused fixes (DuckDB/pg_duckdb view quirks, partition extraction).
+- [`integrations.md`](integrations.md) — warehouse query layer (pg_duckdb), remote connectors, external systems.
+- [`operator-console.md`](operator-console.md) — the operator console / UI panes.
+- [`parsing-options-reference.md`](parsing-options-reference.md) — parsing options reference
+  (+ [`Parsing Options Reference.pdf`](Parsing%20Options%20Reference.pdf)).
+- [`plugins.md`](plugins.md) — plugin ingester (segment demux) + execution modes.
+- [`performance.md`](performance.md) — benchmarks & tuning. *(Figures re-measured at v3.9.0 — re-verify before
+  quoting.)*
+- [`api-stability.md`](api-stability.md) — API stability / compatibility policy.
+
+## Architecture & design
+
+- [`architecture.md`](architecture.md) — Stage-1 M..N multiplexer + Stage-2 enrichment overview. *(Review: framed
+  pre-flow-engine; for the flow model see flow-graph-design + ADVANCED_GUIDE §5.3.)*
+- [`flow-graph-design.md`](flow-graph-design.md) — pipeline-as-graph design (IR, lift, validator, executor,
+  component registry, T-checklist). **Active.**
+- [`flow-live-execution-plan.md`](flow-live-execution-plan.md) — live execution of authored flows as `JobType.FLOW`
+  (T32). **Active.**
+- [`data_acquisition_framework.md`](data_acquisition_framework.md) — acquisition requirement + as-built pointer
+  (Phases A–F shipped on `4.x`).
+- [`delimited-grammar-design.md`](delimited-grammar-design.md) — delimited-grammar parsing design.
+
+## Editions & release
+
+- [`EDITIONS.md`](EDITIONS.md) — edition model (Personal/Standard/Enterprise = build flavors, never branches).
+- [`BRANCHING.md`](BRANCHING.md) — branch & release policy (versions = branches; merge-forward; SemVer + CC).
+
+## UI
+
+- [`ui/accessibility-audit.md`](ui/accessibility-audit.md) — inspecto-ui WCAG/a11y audit + remediation.
+
+## Consolidated reference & plans
+
+- [`consolidated/`](consolidated/README.md) — consolidated reference snapshot (exec summary, PRD, architecture,
+  implementation status, roadmap, operations, user guide, decisions). *(Broad cross-cutting set; the individual
+  docs above are the maintained source for each topic — re-sync the snapshot when it drifts.)*
+- [`assist-agent-improvement-plan.md`](assist-agent-improvement-plan.md) — assist-agent improvement plan (active).
+
+## Task-specific topics (load as needed)
 
 Add topic files in `docs/learnings/` and list them here.
 
-## Design docs
+---
 
-- [`flow-graph-design.md`](flow-graph-design.md) — pipeline-as-graph (NiFi-style nodes + edges, component
-  registry with `use:` refs, flow visualisation, per-component create/test). Agreed design; phase 1 not yet built.
+## Archive
+
+[`outdated-doc/`](outdated-doc/) holds superseded/historical material, not maintained:
+`v2-*` / `v3-*` planning, `refactor-blueprint-v4`, `design-notes`, `design_analysis`,
+`test-coverage`, `ticketing_systems_requirement`, and the `superpowers/` specs+plans. Move a doc back up and add it
+to this index if it becomes current again.
 
 ---
 
-**Last Updated**: 2026-06-16
+**Last Updated**: 2026-06-18

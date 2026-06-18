@@ -11,8 +11,8 @@
 > Hive-partitioned Parquet output, orchestrated by the service/control plane. The non-goals
 > below are **still correct for Stage-1** (they are what keep each batch embarrassingly
 > parallel and crash-isolated); they are no longer platform-wide. The two-stage shape is
-> mapped in [v3-architecture.md](v3-architecture.md); Stage-2's design is in
-> [v2-plan.md](v2-plan.md). "Do it downstream" now has a first-class, in-platform answer.
+> mapped in [v3-architecture.md](outdated-doc/v3-architecture.md); Stage-2's design is in
+> [v2-plan.md](outdated-doc/v2-plan.md). "Do it downstream" now has a first-class, in-platform answer.
 
 This is a deliberately small ETL engine built around one idea: an **M..N
 multiplexer**. A batch of **M** input files is demultiplexed and routed into
@@ -84,7 +84,7 @@ Since the 2.x line, that downstream answer is **first-class and in-platform**: t
 views and runs exactly these joins/aggregations as its own `transform` SQL, idempotently and
 incrementally (event- or schedule-driven), under the same service/control plane. So "do it
 downstream" no longer means "leave the platform" — Stage-1 stays a clean multiplexer, and
-Stage-2 owns the cross-record work. See [v3-architecture.md](v3-architecture.md) for the
+Stage-2 owns the cross-record work. See [v3-architecture.md](outdated-doc/v3-architecture.md) for the
 two-stage map.
 
 ### Format-specific configuration
@@ -220,7 +220,7 @@ com.gamma
 - **`OutputFormat`** — enum-as-strategy owning each format's extension, COPY token, and compression rule, used by `PartitionWriter`.
 - **`StatusStore`** (`FileStatusStore` / `DbStatusStore`) and the **`BatchEventBus`** (`Consumer<BatchEvent>` observers) — pluggable audit backend and commit-event fan-out.
 
-These keep the data path lean while making formats, ingest paths, transforms, and audit sinks independently extensible and testable. See [design-notes → D7](design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390).
+These keep the data path lean while making formats, ingest paths, transforms, and audit sinks independently extensible and testable. See [design-notes → D7](outdated-doc/design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390).
 
 ---
 

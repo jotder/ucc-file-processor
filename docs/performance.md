@@ -15,7 +15,7 @@ mvn -Dtest=PipelineBenchmark -DfailIfNoTests=false -Dbench.run=true \
 > messy-file configs.
 
 > **Re-measured v3.9.0 (engine modularity pass).** The behavior-injection refactor
-> ([design-notes D7](design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390))
+> ([design-notes D7](outdated-doc/design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390))
 > touched the **transform** stage (`DataTransformer` now delegates per-column SQL to
 > `TransformCompiler`) and the **write** stage (`PartitionWriter` resolves format via the
 > `OutputFormat` enum). Re-running the 2M-row × 12-col × PARQUET scenario on JDK 26 shows
@@ -253,4 +253,4 @@ Mode comparison (`PluginIngestBenchmark`, 500K rows, PARQUET, 30 day-partitions)
 30 consolidated files / 23 MB peak; generation (4 gens) ≈ 202K rows/s / 120 files / 15 MB peak — i.e.
 generation trades output fragmentation and a little throughput for bounded memory. See
 [plugins.md → execution modes](plugins.md#execution-modes--the-framework-picks-by-file-size) and
-[design-notes D9/D10](design-notes.md).
+[design-notes D9/D10](outdated-doc/design-notes.md).

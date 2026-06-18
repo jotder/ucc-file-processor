@@ -21,6 +21,14 @@ A knowledge graph lives at `graphify-out/` (god nodes, communities, cross-file r
 
 ---
 
+## Living docs ⚠️ keep current
+
+- **[`docs/ADVANCED_GUIDE.md`](docs/ADVANCED_GUIDE.md) is the production-investigation source of truth** (per-component
+  process, events, metrics, attributes, persisted state, `-D` flags, Control API, troubleshooting). It is a **living
+  document**: when a change touches a component's behaviour, an `EventType`, a `MetricRegistry` metric, a persisted
+  artifact, a `System.getProperty` flag, or a `ControlApi` route, **update the matching section in the same change**
+  (its §0 has the map). Don't let it drift — nobody can remember all of it.
+
 ## Session Start Protocol ⚡
 
 **MANDATORY** at start of each session:
