@@ -194,7 +194,10 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   (`SourceStoreReader`) — a `transform.merge` joins/unions them (multi-source, Phase C) — drives `FlowExecutor`, and
   writes sinks via `PartitionSinkWriter` (unpartitioned single-file COPY when a sink declares no `partitions`;
   `sink.view` writes no bytes — instead the job registers a durable `ViewDefinition` under `<write-root>/views/`
-  (store + flow + source_store lineage) for a KPI/report/alert API to bind to). Idempotent re-run via a stable `batch_id`.
+  (store + flow + source_store lineage) for a KPI/report/alert API to bind to). Full-recompute by default
+  (idempotent re-run via a stable `batch_id`), or **opt-in incremental** via the `incremental_column` job param
+  (single-source): reads only rows past a stored watermark and appends; the watermark lives at
+  `<jobs-audit>/<flow>__<store>.watermark`.
 - **Events:** none of its own yet (flow runs publish a `BatchEvent` via `FlowJobRunner` like any job; flow area is
   otherwise un-instrumented — see §7 Gaps).
 - **State:** `<write-root>/flows/<id>.toon`, `<write-root>/registry/<typeDir>/<id>.toon`; per-run branch-commit log

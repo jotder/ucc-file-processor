@@ -33,10 +33,21 @@ public final class SourceStoreReader {
      */
     public static void registerView(Connection conn, String viewName, String dataDir,
                                     String store, String format) throws SQLException {
+        registerView(conn, viewName, dataDir, store, format, null);
+    }
+
+    /**
+     * As {@link #registerView(Connection, String, String, String, String)}, but applies an optional
+     * {@code WHERE} predicate to the view — used by incremental flow jobs (T32 Phase C) to read only rows
+     * past the stored watermark (e.g. {@code "ts" > '2026-06-01'}). {@code null}/blank ⇒ the full store.
+     */
+    public static void registerView(Connection conn, String viewName, String dataDir,
+                                    String store, String format, String wherePredicate) throws SQLException {
         String glob = dataDir.replace("\\", "/") + "/" + store + "/**/*." + SqlViews.ext(format);
+        String where = wherePredicate == null || wherePredicate.isBlank() ? "" : " WHERE " + wherePredicate;
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE VIEW \"" + viewName + "\" AS SELECT * FROM "
-                    + SqlViews.reader(format, glob, true));
+                    + SqlViews.reader(format, glob, true) + where);
         }
     }
 }

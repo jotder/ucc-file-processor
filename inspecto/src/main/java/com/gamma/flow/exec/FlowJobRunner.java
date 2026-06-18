@@ -21,6 +21,8 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,10 +59,11 @@ import java.util.Map;
  *   batch_id: ...              # optional — fixed batch id (idempotent re-run); default per-run timestamp
  * </pre>
  *
- * <p><b>Scope:</b> multiple {@code source_store}s are supported (each seeded as its own view; a
- * {@code transform.merge} joins/unions them — T32 Phase C); persistent/materialized sinks; full-recompute
- * commit. {@code sink.view} byte-less stores and incremental/watermark re-runs remain Phase C (see
- * {@code docs/flow-live-execution-plan.md}).
+ * <p><b>Scope (T32 Phase C):</b> multiple {@code source_store}s (each seeded as its own view; a
+ * {@code transform.merge} joins/unions them); persistent/materialized sinks plus {@code sink.view} logical
+ * stores (registered as a {@link com.gamma.flow.ViewDefinition}); full-recompute by default, or opt-in
+ * incremental re-run via the {@code incremental_column} job param (single-source — reads only rows past the
+ * stored watermark and appends). See {@code docs/flow-live-execution-plan.md}.
  */
 @PublicApi(since = "4.3.0")
 public final class FlowJobRunner implements Job {
@@ -102,6 +105,12 @@ public final class FlowJobRunner implements Job {
         String batchId = cfg.opt("batch_id", cfg.name().toLowerCase().replace(' ', '_')
                 + "-" + System.currentTimeMillis());
         List<Seed> seeds = seedsOf(g);
+        String incCol = cfg.opt("incremental_column", "").trim();   // T32 Phase C — opt-in incremental re-run
+        boolean incremental = !incCol.isBlank();
+        if (incremental && seeds.size() > 1)
+            throw new IllegalArgumentException("flow '" + g.name() + "' is incremental ('incremental_column') but "
+                    + "declares " + seeds.size() + " source_stores; incremental flow jobs are single-source (T32)");
+        FlowWatermarkStore watermarks = incremental ? new FlowWatermarkStore(Path.of(auditDir)) : null;
 
         long t0 = System.nanoTime();
         File db = DuckDbUtil.tempDbFile("flowjob_");
@@ -109,16 +118,24 @@ public final class FlowJobRunner implements Job {
             Map<String, String> seedViews = new LinkedHashMap<>();
             for (Seed seed : seeds) {                              // one view per source_store (multi-source, Phase C)
                 String view = SEED_VIEW_PREFIX + "_" + safe(seed.node());
-                SourceStoreReader.registerView(conn, view, dir, seed.store(), seed.format());
+                String predicate = incremental
+                        ? watermarks.get(flowId, seed.store())
+                            .map(wm -> "\"" + incCol + "\" > '" + wm.replace("'", "''") + "'").orElse(null)
+                        : null;
+                SourceStoreReader.registerView(conn, view, dir, seed.store(), seed.format(), predicate);
                 seedViews.put(seed.node(), view);
             }
 
-            PartitionSinkWriter writer = new PartitionSinkWriter(conn, dir,
-                    cfg.name().toLowerCase().replace(' ', '_'));
+            // incremental runs append (a run-unique base name so each increment is its own file); a full
+            // recompute keeps a stable base name so a same-batch_id replay stays idempotent.
+            String sinkBase = cfg.name().toLowerCase().replace(' ', '_') + (incremental ? "_" + safe(batchId) : "");
+            PartitionSinkWriter writer = new PartitionSinkWriter(conn, dir, sinkBase);
             BranchCommitCoordinator coordinator = new BranchCommitCoordinator(new BranchCommitLog(
                     Path.of(auditDir).resolve(safe(flowId) + "_branch_commit_" + safe(batchId) + ".csv").toString()));
 
             FlowExecutor.execute(conn, g, seedViews, batchId, coordinator, writer, () -> {});
+
+            if (incremental) advanceWatermarks(conn, watermarks, flowId, seeds, seedViews, incCol);
 
             long ms = (System.nanoTime() - t0) / 1_000_000L;
             List<String> parts = writer.outputs().stream().map(PartitionOutput::partition).distinct().toList();
@@ -177,6 +194,29 @@ public final class FlowJobRunner implements Job {
             } catch (Exception e) {
                 log.warn("[FLOWJOB] could not register view '{}': {}", p.store(), e.getMessage());
             }
+        }
+    }
+
+    /**
+     * T32 Phase C — advance each source_store's high-watermark to the {@code max(incremental_column)} over the
+     * rows just processed (the filtered seed view). {@code null} max = no new rows ⇒ keep the prior watermark.
+     * Called only after the branch commit (crash-before-advance re-reads the increment, which the sink write
+     * makes idempotent).
+     */
+    private static void advanceWatermarks(Connection conn, FlowWatermarkStore store, String flowId,
+                                          List<Seed> seeds, Map<String, String> seedViews, String incCol)
+            throws Exception {
+        for (Seed seed : seeds) {
+            String newMax = queryMaxAsText(conn, seedViews.get(seed.node()), incCol);
+            if (newMax != null) store.put(flowId, seed.store(), newMax);
+        }
+    }
+
+    /** {@code max(col)::VARCHAR} over {@code view}; {@code null} when the view is empty (no new rows this run). */
+    private static String queryMaxAsText(Connection conn, String view, String col) throws Exception {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT max(\"" + col + "\")::VARCHAR FROM \"" + view + "\"")) {
+            return rs.next() ? rs.getString(1) : null;
         }
     }
 

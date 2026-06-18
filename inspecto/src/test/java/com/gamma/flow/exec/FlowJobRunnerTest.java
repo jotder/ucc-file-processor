@@ -174,16 +174,47 @@ class FlowJobRunnerTest {
         assertEquals(List.of("subs"), def.sourceStores(), "view definition records source-store lineage");
     }
 
+    @Test
+    void incrementalReadsOnlyNewRowsPastTheWatermark() throws Exception {
+        // T32 Phase C — incremental_column: run 1 reads everything, run 2 reads only rows past the watermark.
+        String dataDir = tmp.resolve("data").toString();
+        String auditDir = tmp.resolve("audit").toString();
+        seedParquetFile(dataDir, "events", "batch1", "(1,150),(2,50)");
+        FlowStore store = new FlowStore(tmp.resolve("flows"));
+        store.write("inc_flow", new FlowGraph("inc_flow", true,
+                List.of(FlowNode.of("src", "acquisition", Map.of("source_store", "events")),
+                        new FlowNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
+                List.of(FlowEdge.data("src", "out"))));
+
+        // run 1 — no prior watermark ⇒ reads all of batch1 (ids 1,2)
+        JobConfig r1 = new JobConfig("incjob", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "inc_flow", "data_dir", dataDir, "incremental_column", "id", "batch_id", "inc1"));
+        assertTrue(new FlowJobRunner(r1, new BatchEventBus(), store, dataDir, auditDir).run().success());
+        assertEquals(List.of(1, 2), readIds(dataDir, "rollup"), "first run reads the whole store");
+
+        // new data arrives, then run 2 — watermark=2 ⇒ reads only ids 3,4 and appends (output accumulates)
+        seedParquetFile(dataDir, "events", "batch2", "(3,200),(4,300)");
+        JobConfig r2 = new JobConfig("incjob", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "inc_flow", "data_dir", dataDir, "incremental_column", "id", "batch_id", "inc2"));
+        assertTrue(new FlowJobRunner(r2, new BatchEventBus(), store, dataDir, auditDir).run().success());
+        assertEquals(List.of(1, 2, 3, 4), readIds(dataDir, "rollup"), "second run appends only the new rows");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /** Write {@code (id,amt)} VALUES as a Parquet file under {@code <dataDir>/<store>/} (the at-rest store). */
     private static void seedParquet(String dataDir, String store, String valuesSql) throws Exception {
+        seedParquetFile(dataDir, store, "seed", valuesSql);
+    }
+
+    /** Like {@link #seedParquet} but with an explicit file stem, so a store can accumulate several files. */
+    private static void seedParquetFile(String dataDir, String store, String file, String valuesSql) throws Exception {
         Path dir = Path.of(dataDir, store);
         Files.createDirectories(dir);
         File db = DuckDbUtil.tempDbFile("seed_");
         try (Connection c = DuckDbUtil.openConnection(db); Statement st = c.createStatement()) {
             st.execute("COPY (SELECT * FROM (VALUES " + valuesSql + ") t(id,amt)) TO '"
-                    + dir.resolve("seed.parquet").toString().replace("\\", "/") + "' (FORMAT PARQUET)");
+                    + dir.resolve(file + ".parquet").toString().replace("\\", "/") + "' (FORMAT PARQUET)");
         } finally {
             DuckDbUtil.deleteTempDb(db);
         }
