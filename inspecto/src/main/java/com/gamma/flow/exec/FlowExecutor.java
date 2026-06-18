@@ -108,6 +108,43 @@ public final class FlowExecutor {
         return new ExecResult(produced, sinkInputs, commit);
     }
 
+    /** What a dry-run produced: every node's named relations + which table each sink would consume. No commit. */
+    public record DryRunResult(Map<String, Map<String, String>> produced, Map<String, String> sinkInputs) {}
+
+    /**
+     * <b>T18 — bounded-sample dry-run.</b> The same topological walk + {@link RowShaper} as {@link #execute}, but
+     * <em>without</em> the commit: it shapes each {@code transform.*} node over the seeded relation and records
+     * the table each sink would consume, so a preview can report per-node / per-edge row counts. Scratch-only —
+     * no {@link BranchCommitCoordinator}, no sink write, no source finalisation. {@code seedTable} is the sample
+     * already materialised in {@code conn} (typically the parser's {@code data} output).
+     */
+    public static DryRunResult dryRun(Connection conn, FlowGraph g, String seedNodeId, String seedTable)
+            throws Exception {
+        FlowValidator.validateOrThrow(g);
+        Map<String, FlowNode> byId = g.byId();
+        Map<String, Map<String, String>> produced = new LinkedHashMap<>();
+        produced.put(seedNodeId, new LinkedHashMap<>(Map.of(FlowRel.DATA, seedTable)));
+        Map<String, String> sinkInputs = new LinkedHashMap<>();
+
+        for (String nodeId : topoOrder(g)) {
+            if (nodeId.equals(seedNodeId)) continue;
+            FlowNode node = byId.get(nodeId);
+            if (!node.enabled()) continue;
+            List<FlowEdge> inbound = liveInbound(g, nodeId, produced);
+            if (inbound.isEmpty()) continue;
+            if (FlowNodeTypes.isCategory(node.type(), NodeCategory.SINK)) {
+                sinkInputs.put(nodeId, tableOf(inbound.get(0), produced));
+            } else if (BuiltinNodeType.TRANSFORM_MERGE.type().equals(node.type())) {
+                List<String> inputs = new ArrayList<>();
+                for (FlowEdge e : inbound) inputs.add(tableOf(e, produced));
+                produced.put(nodeId, index(RowShaper.merge(conn, node, inputs, nodeId)));
+            } else if (isShapeable(node.type())) {
+                produced.put(nodeId, index(RowShaper.shape(conn, node, tableOf(inbound.get(0), produced), nodeId)));
+            }
+        }
+        return new DryRunResult(produced, sinkInputs);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /** Inbound edges whose source has already produced the relation they carry (the live inputs for this node). */

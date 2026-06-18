@@ -98,6 +98,30 @@ class ControlApiFlowCrudTest {
     }
 
     @Test
+    void dryRunReturnsPerNodeAndPerSinkCounts(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, dir.resolve("wr"))) {
+            String flow = """
+                {"name":"dr_flow","active":false,
+                 "nodes":[{"id":"acq","type":"acquisition"},
+                          {"id":"flt","type":"transform.filter","config":{"where":"CAST(amt AS INT) >= 100"}},
+                          {"id":"sink","type":"sink.persistent","config":{"store":"big"}}],
+                 "edges":[{"from":"acq","rel":"data","to":"flt"},{"from":"flt","rel":"data","to":"sink"}]}""";
+            assertEquals(200, send(c.port, "POST", "/flows/authored", flow).statusCode());
+
+            HttpResponse<String> r = send(c.port, "POST", "/flows/authored/dr_flow/dry-run",
+                    "{\"sampleRows\":[{\"id\":\"1\",\"amt\":\"150\"},{\"id\":\"2\",\"amt\":\"50\"},{\"id\":\"3\",\"amt\":\"200\"}]}");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode body = json(r);
+            assertEquals("acq", body.get("seedNode").asText());
+            int sinkRows = body.get("sinks").get(0).get("rowCount").asInt();
+            assertEquals(2, sinkRows, body.toString());   // amt 150, 200 pass the filter
+
+            // dry-run of a missing flow → 404
+            assertEquals(404, send(c.port, "POST", "/flows/authored/ghost/dry-run", "{\"sampleRows\":[{}]}").statusCode());
+        }
+    }
+
+    @Test
     void invalidFlowIsRejected(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, dir.resolve("wr"))) {
             // dangling edge → FlowValidator error → 422

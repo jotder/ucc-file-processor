@@ -427,6 +427,7 @@ public final class ControlApi implements AutoCloseable {
         delete("/flows/authored/([^/]+)", (e, m) -> deleteFlow(name(m)));
         post("/flows/authored/([^/]+)/nodes", (e, m) -> addFlowNode(name(m), body(e)));
         post("/flows/authored/([^/]+)/edges", (e, m) -> addFlowEdge(name(m), body(e)));
+        post("/flows/authored/([^/]+)/dry-run", (e, m) -> dryRunFlow(name(m), body(e)));   // T18: bounded sample
         get("/flows/([^/]+)/graph", (e, m) -> FlowProjection.graph(PipelineLift.lift(cfg(m))));
 
         // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test +
@@ -1188,20 +1189,47 @@ public final class ControlApi implements AutoCloseable {
         if (type == null || !type.startsWith("transform."))
             throw new ApiException(422, "component '" + id + "' is not a transform ('type: transform.*' required)");
 
-        List<Map<String, Object>> sample = new ArrayList<>();
-        if (body.get("sampleRows") instanceof List<?> rows) {
-            for (Object o : rows) {
-                if (o instanceof Map<?, ?> r) sample.add((Map<String, Object>) r);
-            }
-        }
         com.gamma.flow.FlowNode node = new com.gamma.flow.FlowNode(id, type, c.content(), null);
         try {
-            return com.gamma.flow.exec.ComponentPreview.transform(node, sample);
+            return com.gamma.flow.exec.ComponentPreview.transform(node, sampleRows(body));
         } catch (IllegalArgumentException e) {
             throw new ApiException(400, e.getMessage());
         } catch (java.sql.SQLException | IOException e) {
             throw new ApiException(422, "preview failed: " + e.getMessage());
         }
+    }
+
+    /**
+     * {@code POST /flows/authored/{id}/dry-run} — run a bounded sample through an authored flow's
+     * transform→sink subgraph on a throwaway DuckDB (T18, §7.2); per-node + per-sink row counts. 404 if the
+     * flow is absent, 400 on a bad sample, 422 on a validation/SQL error. Never touches production output.
+     */
+    private Object dryRunFlow(String id, Map<String, Object> body) {
+        Path root = flowsRootOrNull();
+        com.gamma.flow.FlowGraph g;
+        try {
+            g = root == null ? null : new com.gamma.flow.FlowStore(root).get(id).orElse(null);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        }
+        if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
+        try {
+            return com.gamma.flow.exec.FlowDryRun.run(g, sampleRows(body));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        } catch (Exception e) {
+            throw new ApiException(422, "dry-run failed: " + e.getMessage());
+        }
+    }
+
+    /** Extract the {@code sampleRows} array from a request body (each element a row map); empty if absent. */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> sampleRows(Map<String, Object> body) {
+        List<Map<String, Object>> sample = new ArrayList<>();
+        if (body.get("sampleRows") instanceof List<?> rows) {
+            for (Object o : rows) if (o instanceof Map<?, ?> r) sample.add((Map<String, Object>) r);
+        }
+        return sample;
     }
 
     private static boolean componentExists(com.gamma.flow.ComponentStore store, String type, String id) {

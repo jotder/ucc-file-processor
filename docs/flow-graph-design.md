@@ -885,15 +885,17 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 - [ ] **T17.** Node inspector panel (effective config resolved through `use:`); live last-run overlay via `OverlaySource`.
 
 ### Phase 5 — Per-component dry-run/test + CRUD-from-UI (build-and-test UX)
-- [~] **T18 (transform preview done 2026-06-18; grammar/schema/sink/flow-dry-run pending).** `preview(sample)`
-  reusing production node logic, scratch-only (§7.2). **Done:** `com.gamma.flow.exec.ComponentPreview.transform` —
-  seeds a throwaway embedded DuckDB from the sample rows, runs the node through the <b>production</b>
-  {@code RowShaper} (filter/validate/route/dedup/split/map/select/derive), reads the produced named relations back
-  (capped), and deletes the scratch DB. `ControlApi POST /components/transform/{id}/test {sampleRows}` →
-  `{inputColumns, relations:[{rel,rowCount,rows}]}` (404 absent, 422 non-transform, 400 bad sample/operator).
-  `ComponentPreviewTest`(3) + `ControlApiComponentsTest` preview case. **Pending:** grammar parse-test, schema
-  cast+rejects test, sink scratch-validate, and `POST /flows/{id}/dry-run` (bounded sample through a sub-path of the
-  executor — reuses the same scratch-DuckDB harness).
+- [~] **T18 (transform preview + flow dry-run done 2026-06-18; grammar/schema/sink tests pending).** `preview(sample)`
+  reusing production node logic, scratch-only (§7.2). **Transform preview:** `com.gamma.flow.exec.ComponentPreview.transform`
+  seeds a throwaway DuckDB from the sample rows, runs the node through the <b>production</b> `RowShaper`, reads the
+  produced named relations back (capped), deletes the scratch DB. `POST /components/transform/{id}/test {sampleRows}`
+  → `{inputColumns, relations:[{rel,rowCount,rows}]}`. **Flow dry-run:** `FlowExecutor.dryRun` (the same topo-walk +
+  `RowShaper` as a real run, <em>no commit</em>) + `FlowDryRun` (seeds the sample at the parser/entry node on a
+  scratch DuckDB, reports per-node relation counts + each sink branch's row count/sample). `POST
+  /flows/authored/{id}/dry-run {sampleRows}`. Shared scratch helper `ScratchTables` (seed/count/read). Tests:
+  `ComponentPreviewTest`(3) · `FlowDryRunTest`(2) · `ControlApiComponentsTest`/`ControlApiFlowCrudTest` cases. Suite
+  779/0/1. **Pending:** grammar parse-test (DuckDB read_csv over sample text), schema cast+rejects (TRY_CAST), sink
+  scratch-validate.
 - [~] **T19 (CRUD backend done 2026-06-18; authoring UI pending).** Component + flow CRUD, generalising the
   connection write pattern (write-root gated, id-sanitised, path-jailed, atomic temp+move). **Component CRUD:**
   `com.gamma.flow.ComponentStore` (create/replace/delete/list/get over `<write-root>/registry/<typeDir>/<id>.toon` for
