@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class JobServiceTest {
 
     private static JobConfig maintenance(String name, String cron, String onPipeline, Map<String, String> params) {
-        return new JobConfig(name, JobType.MAINTENANCE, cron, onPipeline, true, params);
+        return new JobConfig(name, JobType.MAINTENANCE, cron, onPipeline, true, false, params);
     }
 
     /** Poll until a run for {@code name} appears (or fail after 6s). */
@@ -141,7 +141,7 @@ class JobServiceTest {
 
     @Test
     void disabledJobIsNotBuiltOrScheduled(@TempDir Path dir) throws Exception {
-        JobConfig off = new JobConfig("off", JobType.MAINTENANCE, "* * * * * *", null, false,
+        JobConfig off = new JobConfig("off", JobType.MAINTENANCE, "* * * * * *", null, false, false,
                 Map.of("task", "heartbeat"));
         try (Scheduler s = new Scheduler();
              JobService js = new JobService(List.of(off), new BatchEventBus(), s, null,
@@ -152,6 +152,83 @@ class JobServiceTest {
             // it still appears in the listing (for visibility) but with no next fire
             assertEquals(1, js.jobs().size());
             assertTrue(js.jobs().get(0).nextFire().isBlank());
+        }
+    }
+
+    // ── T26: misfire / catch-up ────────────────────────────────────────────────
+
+    /** Seed a durable jobs_runs.csv with one prior run for {@code job} at {@code startTime} (yyyy-MM-dd HH:mm:ss). */
+    private static void seedAudit(Path auditDir, String job, String startTime) throws Exception {
+        Files.createDirectories(auditDir);
+        Files.writeString(auditDir.resolve("jobs_runs.csv"),
+                "run_id,job,type,trigger,start_time,end_time,status,duration_ms,message\n"
+                        + "r1," + job + ",MAINTENANCE,manual," + startTime + "," + startTime + ",SUCCESS,5,\"ok\"\n");
+    }
+
+    @Test
+    void catchesUpAMissedCronFireOnStartup(@TempDir Path dir) throws Exception {
+        Path auditDir = dir.resolve("audit");
+        seedAudit(auditDir, "nightly", "2000-01-01 00:00:00");   // last ran long ago
+        JobConfig nightly = new JobConfig("nightly", JobType.MAINTENANCE, "0 0 * * *", null, true, true,
+                Map.of("task", "heartbeat"));
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(nightly), new BatchEventBus(), s, null, auditDir.toString())) {
+            js.start();   // a daily fire has elapsed since 2000 → catch-up runs once
+            JobRun run = await(() -> js.lastRunOf("nightly").orElse(null));
+            assertEquals("catch-up", run.trigger());
+            assertEquals("SUCCESS", run.status());
+        }
+    }
+
+    @Test
+    void consultsTheDeletionFenceForADeleteJobDeclaringAStore(@TempDir Path dir) throws Exception {
+        // a maintenance job (heartbeat so it runs cleanly) that declares the store it would delete
+        JobConfig del = new JobConfig("purge", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat", "store", "orders"));
+        java.util.concurrent.atomic.AtomicReference<java.util.Collection<String>> asked =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(del), new BatchEventBus(), s, null,
+                     dir.resolve("audit").toString())) {
+            js.deletionGuard(stores -> { asked.set(stores); return List.of(); });
+            js.start();
+            js.trigger("purge");
+            await(() -> js.lastRunOf("purge").orElse(null));
+            assertNotNull(asked.get(), "the fence was consulted before the delete job ran");
+            assertTrue(asked.get().contains("orders"), "the declared store was passed to the fence");
+        }
+    }
+
+    @Test
+    void writesRunsThroughToTheReportingStore(@TempDir Path dir) throws Exception {
+        JobConfig hb = maintenance("hb", null, null, Map.of("task", "heartbeat"));
+        DbJobRunStore store = DbJobRunStore.open("jdbc:duckdb:");   // in-memory; closed by js.close()
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(hb), new BatchEventBus(), s, null,
+                     dir.resolve("audit").toString(), store)) {
+            js.start();
+            assertSame(store, js.runStore().orElseThrow(), "the store is exposed for the API");
+            js.trigger("hb");
+            await(() -> js.lastRunOf("hb").orElse(null));
+            assertTrue(((Number) store.metrics("hb").get("total")).longValue() >= 1,
+                    "the run was projected into the DuckDB reporting store");
+        }
+    }
+
+    @Test
+    void noCatchUpWithoutTheFlagOrBaseline(@TempDir Path dir) throws Exception {
+        Path auditDir = dir.resolve("audit");
+        seedAudit(auditDir, "noflag", "2000-01-01 00:00:00");          // stale, but catch_up:false below
+        JobConfig noFlag = new JobConfig("noflag", JobType.MAINTENANCE, "0 0 * * *", null, true, false,
+                Map.of("task", "heartbeat"));
+        JobConfig fresh  = new JobConfig("fresh", JobType.MAINTENANCE, "0 0 * * *", null, true, true,
+                Map.of("task", "heartbeat"));   // catch_up:true but no prior run in the audit → no baseline
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(noFlag, fresh), new BatchEventBus(), s, null, auditDir.toString())) {
+            js.start();
+            Thread.sleep(300);   // give any erroneous catch-up submit time to surface
+            assertTrue(js.runsFor("noflag").isEmpty(), "catch_up:false does not catch up");
+            assertTrue(js.runsFor("fresh").isEmpty(), "no prior run = no baseline = no catch-up");
         }
     }
 }

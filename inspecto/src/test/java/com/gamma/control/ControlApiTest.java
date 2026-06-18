@@ -60,7 +60,7 @@ class ControlApiTest {
         Path inbox = dir.resolve("inbox");
         Files.createDirectories(inbox);
         Files.writeString(inbox.resolve("data.csv"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n");
-        JobConfig hb = new JobConfig("hb", JobType.MAINTENANCE, null, null, true, Map.of("task", "heartbeat"));
+        JobConfig hb = new JobConfig("hb", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "heartbeat"));
         // keep the job audit under the test's temp dir, not the working directory
         System.setProperty("jobs.audit.dir", dir.resolve("jobs_audit").toString());
         SourceService svc = new SourceService(List.of(toon), List.of(), List.of(hb), 3600, 1, null);

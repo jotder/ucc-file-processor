@@ -2,6 +2,7 @@ package com.gamma.job;
 
 import com.gamma.api.PublicApi;
 import com.gamma.etl.BatchEvent;
+import com.gamma.flow.DeletionFence;
 import com.gamma.metrics.MetricRegistry;
 import com.gamma.report.ReportService;
 import com.gamma.service.BatchEventBus;
@@ -72,6 +73,13 @@ public final class JobService implements AutoCloseable {
     /** Append-only run audit ({@code jobs_runs.csv}) — a job run isn't a recoverable unit,
      *  so a single durable CSV is the right grain (no commit log). */
     private final CsvLedger<JobRun> audit;
+    /** The audit file path — read back at startup for misfire/catch-up (T26); the CsvLedger is write-only. */
+    private final Path auditFile;
+    /** Optional DuckDB projection of job runs for reporting (T27); {@code null} when no backend is configured. */
+    private final DbJobRunStore jobRunStore;
+    /** Optional deletion fence (T25): consulted before a {@code maintenance} job that declares a {@code store:}
+     *  deletes, to surface a conflict when the delete races an active reader/writer. {@code null} = no fence. */
+    private volatile DeletionFence.Guard deletionGuard;
 
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final Map<String, Job> jobs = new LinkedHashMap<>();
@@ -86,12 +94,20 @@ public final class JobService implements AutoCloseable {
 
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
                       ReportService reports, String auditDir) {
+        this(configs, bus, scheduler, reports, auditDir, null);
+    }
+
+    /** As above, plus an optional DuckDB job-run projection for reporting (T27); {@code null} disables it. */
+    public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
+                      ReportService reports, String auditDir, DbJobRunStore jobRunStore) {
         this.configs   = List.copyOf(configs);
         this.bus       = bus;
         this.scheduler = scheduler;
         this.reports   = reports;
         this.zone      = ZoneId.systemDefault();
         this.audit     = openAudit(auditDir);
+        this.auditFile = Paths.get(auditDir).resolve("jobs_runs.csv");
+        this.jobRunStore = jobRunStore;
         for (JobConfig c : this.configs) {
             if (c.enabled()) jobs.put(c.name(), build(c));
         }
@@ -113,6 +129,53 @@ public final class JobService implements AutoCloseable {
         }
         log.info("JobService started: {} job(s) — {} cron-scheduled, {} event-triggered",
                 jobs.size(), cronCount, eventCount);
+        catchUpMissedFires();
+    }
+
+    /**
+     * Misfire / catch-up (T26, §3.8 — the one real Quartz gap, done without Quartz). On startup, for each
+     * enabled {@code catch_up: true} cron job, read its last run from the durable {@code jobs_runs.csv}
+     * audit and, if the cron schedule had a fire <em>between that last run and now</em> (i.e. one was missed
+     * while the service was down), submit a single immediate run. A job that has never run has no baseline,
+     * so it is left to its normal next-fire arming (this avoids firing every catch-up job on a fresh deploy).
+     */
+    private void catchUpMissedFires() {
+        Map<String, LocalDateTime> lastStart = lastStartTimesFromAudit();
+        int caughtUp = 0;
+        ZonedDateTime now = ZonedDateTime.now(zone);
+        for (JobConfig c : configs) {
+            if (!c.enabled() || !c.hasCron() || !c.catchUp()) continue;
+            LocalDateTime last = lastStart.get(c.name());
+            if (last == null) continue;                                   // never run — nothing to catch up
+            ZonedDateTime nextAfterLast = c.cronExpression().next(last.atZone(zone));
+            if (!nextAfterLast.isAfter(now)) {                            // a scheduled fire elapsed while down
+                log.info("[JOB] {} catch-up: a scheduled fire was missed since {} — running once now",
+                        c.name(), last);
+                submit(c.name(), "catch-up");
+                caughtUp++;
+            }
+        }
+        if (caughtUp > 0) log.info("JobService catch-up: {} job(s) had a missed fire", caughtUp);
+    }
+
+    /** Latest {@code start_time} per job from the audit CSV (empty when absent) — the catch-up baseline. */
+    private Map<String, LocalDateTime> lastStartTimesFromAudit() {
+        Map<String, LocalDateTime> out = new LinkedHashMap<>();
+        if (auditFile == null || !Files.exists(auditFile)) return out;
+        try {
+            List<String> lines = Files.readAllLines(auditFile);
+            for (int i = 1; i < lines.size(); i++) {                      // row 0 is the header
+                String[] f = lines.get(i).split(",", -1);                 // job + start_time are comma-free fields
+                if (f.length < 5) continue;
+                try {
+                    LocalDateTime start = LocalDateTime.parse(f[4], TS);
+                    out.merge(f[1], start, (a, b) -> b.isAfter(a) ? b : a);
+                } catch (RuntimeException ignore) { /* skip a malformed row */ }
+            }
+        } catch (IOException e) {
+            log.warn("Could not read job audit for catch-up ({}): {}", auditFile, e.getMessage());
+        }
+        return out;
     }
 
     private Job build(JobConfig c) {
@@ -151,6 +214,7 @@ public final class JobService implements AutoCloseable {
                 + LocalDateTime.now().format(RUN_TS) + "-" + seq.incrementAndGet();
         String start = LocalDateTime.now().format(TS);
         runner.runExclusiveOrSkip(name, () -> {
+            fenceDelete(name);   // T25: surface a conflict if a declared delete races an active reader/writer
             JobResult res;
             try {
                 res = job.run();
@@ -195,6 +259,30 @@ public final class JobService implements AutoCloseable {
             log.warn("Could not write job audit for {}: {}", run.job(), e.getMessage());
         }
         history.computeIfAbsent(run.job(), k -> new BoundedHistory<>(MAX_HISTORY)).add(run);
+        if (jobRunStore != null) jobRunStore.record(run);   // T27: durable, queryable projection
+    }
+
+    /** The DuckDB job-run projection for reporting (T27), or empty when no backend is configured. */
+    public Optional<DbJobRunStore> runStore() {
+        return Optional.ofNullable(jobRunStore);
+    }
+
+    /** Install the deletion fence (T25) consulted before a delete job declaring a {@code store:} runs. */
+    public void deletionGuard(DeletionFence.Guard guard) {
+        this.deletionGuard = guard;
+    }
+
+    /** Consult the fence for a {@code maintenance} job that declares the store(s) it deletes (T25). */
+    private void fenceDelete(String name) {
+        DeletionFence.Guard guard = deletionGuard;
+        if (guard == null) return;
+        JobConfig jc = configs.stream().filter(c -> c.name().equals(name)).findFirst().orElse(null);
+        if (jc == null || jc.type() != JobType.MAINTENANCE) return;
+        String storeCsv = jc.opt("store", "").trim();
+        if (storeCsv.isBlank()) return;
+        List<String> stores = java.util.Arrays.stream(storeCsv.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).toList();
+        if (!stores.isEmpty()) guard.check(stores);   // the guard logs the warning + emits the conflict event
     }
 
     // ── Control API surface ──────────────────────────────────────────────────────
@@ -240,6 +328,7 @@ public final class JobService implements AutoCloseable {
     @Override
     public void close() {
         workers.close();   // virtual-thread executor: awaits in-flight job runs
+        if (jobRunStore != null) jobRunStore.close();
         log.info("JobService stopped");
     }
 }

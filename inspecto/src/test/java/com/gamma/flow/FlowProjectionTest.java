@@ -80,6 +80,47 @@ class FlowProjectionTest {
         assertEquals(List.of("mini"), s.get("produces"));
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void combinedJoinsPipelineAndJobAtTheSharedStore() {
+        // producer pipeline: writes the "orders" store
+        FlowGraph producer = new FlowGraph("ORDERS_ETL", true,
+                List.of(FlowNode.of("acq", "acquisition"),
+                        new FlowNode("sink", "sink.persistent", "Orders", null,
+                                Map.of(FlowStores.CONFIG_STORE, "orders"), null)),
+                List.of(FlowEdge.data("acq", "sink")));
+        // consumer job: reads the "orders" store at rest
+        FlowGraph consumer = new FlowGraph("ORDERS_ROLLUP", true,
+                List.of(new FlowNode("src", "transform.map", "Read orders", null,
+                                Map.of(FlowStores.CONFIG_SOURCE_STORE, "orders"), null),
+                        new FlowNode("kpi", "sink.view", "Daily KPI", null,
+                                Map.of(FlowStores.CONFIG_STORE, "orders_kpi"), null)),
+                List.of(FlowEdge.data("src", "kpi")));
+
+        Map<String, Object> c = FlowProjection.combined(List.of(producer, consumer));
+
+        // node ids are namespaced by flow, so the two flows never collide
+        assertNotNull(nodeById(c, "ORDERS_ETL/acq"));
+        assertNotNull(nodeById(c, "ORDERS_ROLLUP/src"));
+        // a synthetic store node joins them
+        Map<String, Object> store = nodeById(c, "store:orders");
+        assertEquals("STORE", store.get("category"));
+        assertEquals("orders", store.get("store"));
+
+        List<Map<String, Object>> edges = (List<Map<String, Object>>) c.get("edges");
+        assertTrue(edges.stream().anyMatch(e -> "store".equals(e.get("kind"))
+                        && "ORDERS_ETL/sink".equals(e.get("from")) && "store:orders".equals(e.get("to"))),
+                "producer sink -> store edge");
+        assertTrue(edges.stream().anyMatch(e -> "store".equals(e.get("kind"))
+                        && "store:orders".equals(e.get("from")) && "ORDERS_ROLLUP/src".equals(e.get("to"))),
+                "store -> consumer edge");
+
+        // the derived superimposition link is exposed for reference
+        List<Map<String, Object>> links = (List<Map<String, Object>>) c.get("links");
+        assertTrue(links.stream().anyMatch(l -> "ORDERS_ETL".equals(l.get("producer"))
+                && "orders".equals(l.get("store")) && "ORDERS_ROLLUP".equals(l.get("consumer"))));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     private static Map<String, Object> byType(List<Map<String, Object>> cat, String type) {

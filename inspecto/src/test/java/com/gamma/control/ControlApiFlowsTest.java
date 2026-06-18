@@ -145,4 +145,25 @@ class ControlApiFlowsTest {
             assertEquals(404, get(c.port, "/flows/nope/graph").statusCode());
         }
     }
+
+    @Test
+    void combinedTopologyProjectsFlowsNodesEdgesAndLinks(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            HttpResponse<String> r = get(c.port, "/flows/combined");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode g = JSON.readTree(r.body());
+            assertTrue(g.get("flows").isArray() && g.get("flows").size() >= 1);
+            assertTrue(g.get("nodes").isArray() && g.get("nodes").size() >= 4);
+            assertTrue(g.get("edges").isArray());
+            assertTrue(g.has("links"));   // superimposition (empty for a lone legacy pipeline with no consumer)
+            // the single registered pipeline's nodes are namespaced by flow, and its store appears as a node
+            boolean namespaced = false, storeNode = false;
+            for (JsonNode n : g.get("nodes")) {
+                if (n.get("id").asText().startsWith("flow_etl/")) namespaced = true;
+                if ("STORE".equals(n.path("category").asText())) storeNode = true;
+            }
+            assertTrue(namespaced, "flow nodes are namespaced by flow id");
+            assertTrue(storeNode, "the produced store is projected as a synthetic store node");
+        }
+    }
 }

@@ -305,6 +305,11 @@ public final class ControlApi implements AutoCloseable {
 
         // ── v2.8.0: config-driven jobs (cron / event / manual) ──
         get("/jobs", (e, m) -> jobs().jobs());
+        // T27 job-execution reporting (DuckDB projection; 404 unless -Djobs.backend is set). Fixed
+        // sub-paths, registered before the /jobs/{name}/runs regex (single-segment, so no collision).
+        get("/jobs/metrics", (e, m) -> jobRunStore().metrics(query(e, "job")));
+        get("/jobs/runs", (e, m) -> jobRunStore().recentRuns(parseIntOr(query(e, "limit"), 50), query(e, "job")));
+        get("/jobs/failures", (e, m) -> jobRunStore().failureTrend(parseIntOr(query(e, "days"), 30)));
         get("/jobs/([^/]+)/runs", (e, m) -> jobs().runsFor(name(m)));
         post("/jobs/([^/]+)/trigger", (e, m) -> {
             if (!jobs().trigger(name(m)))
@@ -411,6 +416,7 @@ public final class ControlApi implements AutoCloseable {
         // /flows collection are anchored, so they never collide with /flows/{id}/graph. ──
         get("/flows", (e, m) -> flowSummaries());
         get("/flows/node-types", (e, m) -> FlowProjection.catalog());
+        get("/flows/combined", (e, m) -> combinedFlows());     // T24: pipeline+job topology joined at the shared store
         get("/flows/([^/]+)/graph", (e, m) -> FlowProjection.graph(PipelineLift.lift(cfg(m))));
 
         // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test +
@@ -907,9 +913,24 @@ public final class ControlApi implements AutoCloseable {
         return out;
     }
 
+    /** Lift every registered pipeline and project the combined pipeline+job topology (GET /flows/combined, T24). */
+    private Map<String, Object> combinedFlows() {
+        List<com.gamma.flow.FlowGraph> graphs = new ArrayList<>();
+        for (SourceService.PipelineView pv : service.pipelines()) {
+            service.configFor(pv.name()).ifPresent(c -> graphs.add(PipelineLift.lift(c)));
+        }
+        return FlowProjection.combined(graphs);
+    }
+
     /** The job registry, or a 404 when no jobs are registered on this service. */
     private com.gamma.job.JobService jobs() {
         return service.jobService().orElseThrow(() -> new ApiException(404, "no jobs registered"));
+    }
+
+    /** The DuckDB job-run reporting store (T27), or a 404 when no backend is configured (-Djobs.backend). */
+    private com.gamma.job.DbJobRunStore jobRunStore() {
+        return jobs().runStore().orElseThrow(() -> new ApiException(404,
+                "job reporting DB not enabled (set -Djobs.backend=duckdb)"));
     }
 
     /** The enrichment service, or a 404 when no enrichment jobs are registered. */

@@ -20,12 +20,13 @@ import java.util.Map;
  *   cron: "0 2 * * *"            # optional — calendar schedule (5 or 6 cron fields)
  *   on_pipeline: UPSTREAM        # optional — also run when this pipeline commits a batch
  *   enabled: true                # optional — default true
+ *   catch_up: false              # optional — on startup, run once if a cron fire was missed (T26)
  *   config: config/events_enrich.toon     # type-specific params follow…
  * </pre>
  *
  * <p>Recognised top-level keys are {@code name}, {@code type}, {@code cron},
- * {@code on_pipeline} and {@code enabled}; every other key in the {@code job} section is
- * captured verbatim into {@link #params()} for the job implementation to read (e.g.
+ * {@code on_pipeline}, {@code enabled} and {@code catch_up}; every other key in the {@code job}
+ * section is captured verbatim into {@link #params()} for the job implementation to read (e.g.
  * {@code config}, {@code scope}, {@code task}, {@code dir}, {@code retention_days}).
  *
  * @param name       unique job name
@@ -33,10 +34,11 @@ import java.util.Map;
  * @param cron       cron expression, or {@code null}/blank for no schedule
  * @param onPipeline upstream pipeline/job name whose batch-commit triggers this job, or {@code null}
  * @param enabled    whether the scheduler should arm this job
+ * @param catchUp    whether to run once on startup when a scheduled fire was missed while down (T26)
  * @param params     type-specific parameters (all values as strings)
  */
 public record JobConfig(String name, JobType type, String cron, String onPipeline,
-                        boolean enabled, Map<String, String> params) {
+                        boolean enabled, boolean catchUp, Map<String, String> params) {
 
     public boolean hasCron()  { return cron != null && !cron.isBlank(); }
     public boolean hasEvent() { return onPipeline != null && !onPipeline.isBlank(); }
@@ -80,6 +82,7 @@ public record JobConfig(String name, JobType type, String cron, String onPipelin
         String cron = ToonHelper.opt(job, "cron", null);
         String onPipeline = ToonHelper.opt(job, "on_pipeline", null);
         boolean enabled = !"false".equalsIgnoreCase(ToonHelper.opt(job, "enabled", "true"));
+        boolean catchUp = "true".equalsIgnoreCase(ToonHelper.opt(job, "catch_up", "false"));
 
         // validate the cron eagerly so a bad expression fails at load, not at first fire
         if (cron != null && !cron.isBlank()) CronExpression.parse(cron);
@@ -87,10 +90,10 @@ public record JobConfig(String name, JobType type, String cron, String onPipelin
         Map<String, String> params = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : job.entrySet()) {
             switch (e.getKey()) {
-                case "name", "type", "cron", "on_pipeline", "enabled" -> { /* known keys */ }
+                case "name", "type", "cron", "on_pipeline", "enabled", "catch_up" -> { /* known keys */ }
                 default -> { if (e.getValue() != null) params.put(e.getKey(), e.getValue().toString()); }
             }
         }
-        return new JobConfig(name, type, cron, onPipeline, enabled, params);
+        return new JobConfig(name, type, cron, onPipeline, enabled, catchUp, params);
     }
 }

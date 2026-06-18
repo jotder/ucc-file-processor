@@ -3,9 +3,12 @@ package com.gamma.flow;
 import com.gamma.api.PublicApi;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Read-only projection of the Flow IR into plain JSON-friendly maps for the UI (doc §6, T31). Three
@@ -58,6 +61,103 @@ public final class FlowProjection {
         out.put("produces", List.copyOf(FlowStores.produced(g)));
         out.put("consumes", List.copyOf(FlowStores.consumed(g)));
         return out;
+    }
+
+    /**
+     * <b>T24 — the combined pipeline+job topology.</b> Projects several flows into <em>one</em> graph where
+     * a pipeline and the job(s)/enrichment(s) over its output meet at the <b>shared store</b> (§3.8): each
+     * flow's nodes are emitted with their ids namespaced by flow ({@code <flow>/<node>}, so two flows that
+     * both have an {@code acq} node don't collide), plus a synthetic <b>store node</b>
+     * ({@code store:<name>}, category {@code STORE}) for every store any flow produces or consumes, wired
+     * {@code producer-sink → store → consumer} — drawing the cross-flow {@code on_commit} producer→consumer
+     * relationship through the table itself. The {@code links} list is the derived
+     * {@link FlowStores#superimpose(Collection) superimposition} (producer, store, consumer) for reference.
+     *
+     * <p>The join is derived from config alone (a sink's {@code store} ↔ a consumer's {@code source_store}),
+     * so it needs no {@code on_pipeline} coupling; a pipeline with no consumer simply shows its
+     * {@code sink → store} leaf.
+     */
+    public static Map<String, Object> combined(Collection<FlowGraph> graphs) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        List<Map<String, Object>> flows = new ArrayList<>();
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        List<Map<String, Object>> edges = new ArrayList<>();
+        Set<String> stores = new LinkedHashSet<>();   // every store produced or consumed → one synthetic node
+
+        for (FlowGraph g : graphs) {
+            Map<String, Object> f = new LinkedHashMap<>();
+            f.put("name", g.name());
+            f.put("active", g.active());
+            flows.add(f);
+
+            for (FlowNode n : g.nodes()) {
+                Map<String, Object> nm = node(n);
+                nm.put("id", qualify(g.name(), n.id()));   // namespace to avoid cross-flow id collisions
+                nm.put("flow", g.name());
+                nodes.add(nm);
+            }
+            for (FlowEdge e : g.edges()) {
+                Map<String, Object> em = edge(e);
+                em.put("from", qualify(g.name(), e.from()));
+                // on_commit's `to` names another flow, not a local node — keep it bare so it can resolve cross-flow
+                em.put("to", g.byId().containsKey(e.to()) ? qualify(g.name(), e.to()) : e.to());
+                em.put("flow", g.name());
+                edges.add(em);
+            }
+            // producer edges: each producing sink → its store node
+            for (FlowStores.Produced p : FlowStores.producedStores(g)) {
+                stores.add(p.store());
+                edges.add(storeEdge(qualify(g.name(), p.node()), storeId(p.store()), "produces", p.restsOnDisk()));
+            }
+            // consumer edges: store node → each node that reads it at rest
+            for (FlowNode n : g.nodes()) {
+                Object src = n.cfg(FlowStores.CONFIG_SOURCE_STORE);
+                if (src != null && !src.toString().isBlank()) {
+                    stores.add(src.toString());
+                    edges.add(storeEdge(storeId(src.toString()), qualify(g.name(), n.id()), "consumes", true));
+                }
+            }
+        }
+        for (String s : stores) {
+            Map<String, Object> sn = new LinkedHashMap<>();
+            sn.put("id", storeId(s));
+            sn.put("type", "store");
+            sn.put("category", "STORE");
+            sn.put("label", s);
+            sn.put("store", s);
+            nodes.add(sn);
+        }
+        List<Map<String, Object>> links = new ArrayList<>();
+        for (FlowStores.Link l : FlowStores.superimpose(graphs)) {
+            Map<String, Object> lm = new LinkedHashMap<>();
+            lm.put("producer", l.producer());
+            lm.put("store", l.store());
+            lm.put("consumer", l.consumer());
+            links.add(lm);
+        }
+        out.put("flows", flows);
+        out.put("nodes", nodes);
+        out.put("edges", edges);
+        out.put("links", links);
+        return out;
+    }
+
+    private static String qualify(String flow, String nodeId) {
+        return flow + "/" + nodeId;
+    }
+
+    private static String storeId(String store) {
+        return "store:" + store;
+    }
+
+    private static Map<String, Object> storeEdge(String from, String to, String rel, boolean restsOnDisk) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("from", from);
+        m.put("to", to);
+        m.put("rel", rel);
+        m.put("kind", "store");
+        m.put("restsOnDisk", restsOnDisk);
+        return m;
     }
 
     /** A compact entry for the flows list: name + gate + node/edge counts + store endpoints. */

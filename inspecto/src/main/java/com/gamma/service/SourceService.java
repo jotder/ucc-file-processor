@@ -10,7 +10,10 @@ import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.IngestProgress;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.flow.DeletionFence;
+import com.gamma.flow.FlowGraph;
 import com.gamma.flow.FlowTrigger;
+import com.gamma.flow.PipelineLift;
 import com.gamma.flow.exec.TriggerCoalescer;
 import com.gamma.event.Event;
 import com.gamma.event.EventLevel;
@@ -22,6 +25,7 @@ import com.gamma.event.ParquetEventStore;
 import com.gamma.event.SavedViewStore;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.SourceProcessor;
+import com.gamma.job.DbJobRunStore;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobService;
 import com.gamma.report.ReportService;
@@ -250,7 +254,8 @@ public final class SourceService implements AutoCloseable {
         this.jobs              = jobConfigs.isEmpty()
                 ? null
                 : new JobService(jobConfigs, bus, scheduler, reports,
-                        System.getProperty("jobs.audit.dir", "jobs_audit"));
+                        System.getProperty("jobs.audit.dir", "jobs_audit"), openJobRunStore());
+        if (this.jobs != null) this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
         this.semanticModels    = List.copyOf(semanticModels);
         // Invalidate the catalog whenever configs are (re)indexed — the registry is now the
         // config-change signal the M1 catalog plan anticipated.
@@ -614,6 +619,52 @@ public final class SourceService implements AutoCloseable {
         String f = from.trim().toLowerCase();
         String u = upstream.toLowerCase();
         return f.equals(u) || f.endsWith("/" + u);
+    }
+
+    /**
+     * Build the optional DuckDB job-run projection for reporting (T27) from {@code -Djobs.backend}; returns
+     * {@code null} (the default) when no backend is configured, so job reporting is opt-in and nothing
+     * changes by default. {@code -Djobs.backend=duckdb} uses {@code -Djobs.db.url} (default a local
+     * {@code jobs_report.duckdb} file); a full {@code jdbc:...} value is also accepted directly.
+     */
+    private static DbJobRunStore openJobRunStore() {
+        String backend = System.getProperty("jobs.backend", "none").trim().toLowerCase();
+        if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
+        String url = backend.startsWith("jdbc:")
+                ? backend
+                : System.getProperty("jobs.db.url", "jdbc:duckdb:jobs_report.duckdb");
+        try {
+            return DbJobRunStore.open(url);
+        } catch (Exception e) {
+            log.warn("Could not open job-run DB ({}) — job reporting disabled: {}", url, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Deletion fence (T25, §3.8 rule 4): given the data stores a delete/maintenance job is about to remove,
+     * report which are <em>currently</em> produced or consumed by a running flow — the one cross-driver
+     * hazard — and surface each as a {@code STORE_DELETE_CONFLICT} event/alert. Lifts the configured
+     * pipelines and intersects {@link DeletionFence#check} with the live {@link #running} set. Non-blocking:
+     * it warns/alerts; the operator fences via a quiet window or slice-disjoint deletes. Returns the
+     * conflicts (empty = clear).
+     */
+    public List<DeletionFence.Conflict> checkDeletion(java.util.Collection<String> targetStores) {
+        if (targetStores == null || targetStores.isEmpty()) return List.of();
+        List<FlowGraph> flows = new ArrayList<>();
+        for (Path p : registry) configRegistry.configForPath(p).ifPresent(c -> flows.add(PipelineLift.lift(c)));
+        List<DeletionFence.Conflict> conflicts = DeletionFence.check(targetStores, flows, running);
+        for (DeletionFence.Conflict c : conflicts) {
+            log.warn("Deletion fence: store '{}' has an active reader/writer — producers={}, consumers={}",
+                    c.store(), c.activeProducers(), c.activeConsumers());
+            EventLog.global().emit(Event.builder(EventType.STORE_DELETE_CONFLICT)
+                    .source(SourceService.class.getName())
+                    .message("Delete of store '" + c.store() + "' races an active flow")
+                    .attr("store", c.store())
+                    .attr("activeProducers", String.join(",", c.activeProducers()))
+                    .attr("activeConsumers", String.join(",", c.activeConsumers())));
+        }
+        return conflicts;
     }
 
     /**

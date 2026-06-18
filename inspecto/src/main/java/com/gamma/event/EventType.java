@@ -62,6 +62,10 @@ public final class EventType {
     public static final String JOB_SUCCEEDED = "JOB_SUCCEEDED";
     public static final String JOB_FAILED    = "JOB_FAILED";
     public static final String ENRICHMENT_RUN = "ENRICHMENT_RUN";
+    /** A delete/maintenance job targets a resting store with an active producer/consumer — the one
+     *  cross-driver hazard the deletion fence guards (§3.8 rule 4, T25). The {@code store},
+     *  {@code activeProducers} and {@code activeConsumers} attributes name the racing flows. */
+    public static final String STORE_DELETE_CONFLICT = "STORE_DELETE_CONFLICT";
 
     // ── operational-object bridge (Phase 2 ties back to here) ───────────────────────
     public static final String ALERT_FIRED     = "ALERT_FIRED";
