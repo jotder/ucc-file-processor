@@ -5,6 +5,8 @@ import com.gamma.flow.FlowGraph;
 import com.gamma.flow.FlowNode;
 import com.gamma.flow.FlowRel;
 import com.gamma.flow.FlowStore;
+import com.gamma.flow.ViewDefinition;
+import com.gamma.flow.ViewStore;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobResult;
 import com.gamma.job.JobType;
@@ -145,6 +147,31 @@ class FlowJobRunnerTest {
         assertTrue(res.success(), res.message());
         assertEquals(List.of(1, 2, 3, 5), readIds(dataDir, "combined"),
                 "union of both source_stores — all 4 rows across the two stores");
+    }
+
+    @Test
+    void registersASinkViewDefinitionWithoutWritingBytes() throws Exception {
+        // T32 Phase C — a sink.view persists no bytes; the flow job records a durable view definition instead.
+        Path wr = tmp.resolve("wr");
+        String dataDir = tmp.resolve("data").toString();
+        String auditDir = tmp.resolve("audit").toString();
+        seedParquet(dataDir, "subs", "(1,150),(2,50),(3,200)");
+        FlowStore store = new FlowStore(wr.resolve("flows"));
+        store.write("subs_kpi", new FlowGraph("subs_kpi", true,
+                List.of(FlowNode.of("src", "acquisition", Map.of("source_store", "subs")),
+                        FlowNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
+                        new FlowNode("v", "sink.view", "ActiveSubs", null, Map.of("store", "active_subs"), null)),
+                List.of(FlowEdge.data("src", "flt"), FlowEdge.data("flt", "v"))));
+
+        JobConfig cfg = new JobConfig("kpi_job", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "subs_kpi", "data_dir", dataDir));
+        JobResult res = new FlowJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run();
+
+        assertTrue(res.success(), res.message());
+        assertFalse(Files.exists(Path.of(dataDir, "active_subs")), "a sink.view writes no data bytes");
+        ViewDefinition def = new ViewStore(wr.resolve("views")).get("active_subs").orElseThrow();
+        assertEquals("subs_kpi", def.flow(), "view definition records the producing flow");
+        assertEquals(List.of("subs"), def.sourceStores(), "view definition records source-store lineage");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────

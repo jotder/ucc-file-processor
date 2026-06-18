@@ -193,7 +193,8 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   writes a sink `store`). `FlowJobRunner` (a `JobType.FLOW` job) seeds **each** `source_store` as its own view
   (`SourceStoreReader`) — a `transform.merge` joins/unions them (multi-source, Phase C) — drives `FlowExecutor`, and
   writes sinks via `PartitionSinkWriter` (unpartitioned single-file COPY when a sink declares no `partitions`;
-  `sink.view` writes no bytes — Phase C). Idempotent re-run via a stable `batch_id`.
+  `sink.view` writes no bytes — instead the job registers a durable `ViewDefinition` under `<write-root>/views/`
+  (store + flow + source_store lineage) for a KPI/report/alert API to bind to). Idempotent re-run via a stable `batch_id`.
 - **Events:** none of its own yet (flow runs publish a `BatchEvent` via `FlowJobRunner` like any job; flow area is
   otherwise un-instrumented — see §7 Gaps).
 - **State:** `<write-root>/flows/<id>.toon`, `<write-root>/registry/<typeDir>/<id>.toon`; per-run branch-commit log
@@ -372,7 +373,8 @@ per-route latency/count). Add metrics here when you instrument these — and upd
 
 ### Write-root artifacts (jailed under `-Dassist.write.root`, 503 if unset)
 - `<wr>/flows/<id>.toon` (authored flows) · `<wr>/registry/{grammars,schemas,transforms,sinks}/<id>.toon`
-  (components) · `<wr>/<id>_connection.toon` (connection profiles, flat) · branch-commit logs under the jobs audit dir.
+  (components) · `<wr>/<id>_connection.toon` (connection profiles, flat) · `<wr>/views/<store>_view.toon`
+  (`sink.view` logical-store definitions: store + flow + source_store lineage) · branch-commit logs under the jobs audit dir.
 
 ---
 

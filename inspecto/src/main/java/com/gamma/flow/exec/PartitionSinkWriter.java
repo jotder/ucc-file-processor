@@ -31,8 +31,9 @@ import java.util.Map;
  * owns the unpartitioned case rather than forcing a {@code (year,month,day)} default onto a store that
  * may not have those columns).
  *
- * <p>{@code sink.view} subtypes ({@link FlowStores.Produced#restsOnDisk() non-resting}) write no bytes
- * in Phase A — a logical view's catalog/DuckDB-view registration is Phase C; such a sink is skipped here.
+ * <p>{@code sink.view} subtypes ({@link FlowStores.Produced#restsOnDisk() non-resting}) write no bytes —
+ * this writer skips the byte write; the flow job registers the view's durable definition instead
+ * ({@code FlowJobRunner.registerViews} → {@link com.gamma.flow.ViewStore}, T32 Phase C).
  */
 @PublicApi(since = "4.3.0")
 public final class PartitionSinkWriter implements FlowExecutor.SinkWriter {
@@ -58,8 +59,8 @@ public final class PartitionSinkWriter implements FlowExecutor.SinkWriter {
 
     @Override
     public void write(FlowNode sink, String inputTable) throws Exception {
-        if (sink.type().endsWith(".view")) {                       // logical store — no bytes (Phase C)
-            log.info("[FLOWJOB] skipping non-persistent sink '{}' ({}) — sink.view byte-write is Phase C",
+        if (sink.type().endsWith(".view")) {     // logical store — no bytes; FlowJobRunner registers its definition
+            log.info("[FLOWJOB] sink '{}' ({}) is a logical view — no bytes (definition registered by the flow job)",
                     sink.id(), sink.type());
             return;
         }

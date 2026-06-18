@@ -7,6 +7,8 @@ import com.gamma.flow.FlowGraph;
 import com.gamma.flow.FlowNode;
 import com.gamma.flow.FlowStore;
 import com.gamma.flow.FlowStores;
+import com.gamma.flow.ViewDefinition;
+import com.gamma.flow.ViewStore;
 import com.gamma.job.Job;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobResult;
@@ -19,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -120,6 +123,7 @@ public final class FlowJobRunner implements Job {
             long ms = (System.nanoTime() - t0) / 1_000_000L;
             List<String> parts = writer.outputs().stream().map(PartitionOutput::partition).distinct().toList();
             List<String> srcStores = seeds.stream().map(Seed::store).toList();
+            registerViews(g, flowId, srcStores);                   // T32 Phase C — sink.view → durable definition
             bus.publish(new BatchEvent(cfg.name(), batchId, "SUCCESS", parts, writer.totalRows(), ms, 0));
             log.info("[FLOWJOB] {} ran flow '{}' (source_store(s) {}): {} file(s), {} row(s) → {}",
                     cfg.name(), flowId, srcStores, writer.outputs().size(), writer.totalRows(),
@@ -153,6 +157,27 @@ public final class FlowJobRunner implements Job {
             throw new IllegalArgumentException("flow '" + g.name() + "' declares no '"
                     + FlowStores.CONFIG_SOURCE_STORE + "' — a flow job reads data at rest (§3.8)");
         return seeds;
+    }
+
+    /**
+     * T32 Phase C — register a durable {@link ViewDefinition} for each logical {@code sink.view} the flow
+     * produces (those that {@link FlowStores.Produced#restsOnDisk() rest nothing}). Non-fatal: the data sinks
+     * have already committed, so a registration failure is logged, not raised. Views land under
+     * {@code <write-root>/views/} (sibling of the authored-flow store) for a KPI/report/alert API to bind to.
+     */
+    private void registerViews(FlowGraph g, String flowId, List<String> srcStores) {
+        ViewStore views = new ViewStore(flowStore.root().resolveSibling("views"));
+        String now = Instant.now().toString();
+        for (FlowStores.Produced p : FlowStores.producedStores(g)) {
+            if (p.restsOnDisk()) continue;     // persistent/materialized already wrote bytes
+            try {
+                views.write(new ViewDefinition(p.store(), flowId, srcStores, null, now));
+                log.info("[FLOWJOB] registered logical view '{}' (flow '{}', source_store(s) {})",
+                        p.store(), flowId, srcStores);
+            } catch (Exception e) {
+                log.warn("[FLOWJOB] could not register view '{}': {}", p.store(), e.getMessage());
+            }
+        }
     }
 
     /** Sanitise a string for use as a filename segment (the branch-commit log lives in the audit dir). */
