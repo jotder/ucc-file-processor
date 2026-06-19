@@ -3,8 +3,10 @@ package com.gamma.flow.exec;
 import com.gamma.api.PublicApi;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.PartitionOutput;
+import com.gamma.flow.FlowEdge;
 import com.gamma.flow.FlowGraph;
 import com.gamma.flow.FlowNode;
+import com.gamma.flow.FlowRel;
 import com.gamma.flow.FlowStore;
 import com.gamma.flow.FlowStores;
 import com.gamma.flow.ViewDefinition;
@@ -14,6 +16,7 @@ import com.gamma.job.JobConfig;
 import com.gamma.job.JobResult;
 import com.gamma.job.JobType;
 import com.gamma.service.BatchEventBus;
+import com.gamma.sql.SqlViews;
 import com.gamma.util.DuckDbUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,9 +27,13 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * <b>T32 Phase A — run an authored {@code *_flow.toon} flow for real, as a {@link JobType#FLOW} job.</b>
@@ -141,7 +148,7 @@ public final class FlowJobRunner implements Job {
             long ms = (System.nanoTime() - t0) / 1_000_000L;
             List<String> parts = writer.outputs().stream().map(PartitionOutput::partition).distinct().toList();
             List<String> srcStores = seeds.stream().map(Seed::store).toList();
-            registerViews(g, flowId, srcStores);                   // T32 Phase C — sink.view → durable definition
+            registerViews(g, flowId, srcStores, dir);              // T32 Phase C — sink.view → durable definition
             bus.publish(new BatchEvent(cfg.name(), batchId, "SUCCESS", parts, writer.totalRows(), ms, 0));
             log.info("[FLOWJOB] {} ran flow '{}' (source_store(s) {}): {} file(s), {} row(s) → {}",
                     cfg.name(), flowId, srcStores, writer.outputs().size(), writer.totalRows(),
@@ -183,19 +190,61 @@ public final class FlowJobRunner implements Job {
      * have already committed, so a registration failure is logged, not raised. Views land under
      * {@code <write-root>/views/} (sibling of the authored-flow store) for a KPI/report/alert API to bind to.
      */
-    private void registerViews(FlowGraph g, String flowId, List<String> srcStores) {
+    private void registerViews(FlowGraph g, String flowId, List<String> srcStores, String dir) {
         ViewStore views = new ViewStore(flowStore.root().resolveSibling("views"));
         String now = Instant.now().toString();
         for (FlowStores.Produced p : FlowStores.producedStores(g)) {
             if (p.restsOnDisk()) continue;     // persistent/materialized already wrote bytes
+            String derivedSql = deriveViewSql(g, p.node(), dir).orElse(null);   // single SELECT when expressible
             try {
-                views.write(new ViewDefinition(p.store(), flowId, srcStores, null, now));
-                log.info("[FLOWJOB] registered logical view '{}' (flow '{}', source_store(s) {})",
-                        p.store(), flowId, srcStores);
+                views.write(new ViewDefinition(p.store(), flowId, srcStores, derivedSql, now));
+                log.info("[FLOWJOB] registered logical view '{}' (flow '{}', source_store(s) {}){}",
+                        p.store(), flowId, srcStores, derivedSql == null ? "" : " with derived_sql");
             } catch (Exception e) {
                 log.warn("[FLOWJOB] could not register view '{}': {}", p.store(), e.getMessage());
             }
         }
+    }
+
+    /**
+     * T32 follow-up — best-effort {@code derived_sql} for a {@code sink.view}: if the view is fed by a
+     * <b>single</b> source_store through a <b>linear</b> path of simple nodes
+     * ({@code filter}/{@code map}/{@code select}/{@code derive}), fold that path into one SELECT over the source
+     * read so a consumer can query the view directly. Returns empty for a branched / merged / multi-source /
+     * complex path — the view then stays a re-run-the-flow definition ({@code derived_sql} null).
+     */
+    private static Optional<String> deriveViewSql(FlowGraph g, String viewNodeId, String dir) {
+        Map<String, FlowNode> byId = g.byId();
+        List<FlowNode> chain = new ArrayList<>();       // transforms between source and view, view-first
+        String cur = viewNodeId;
+        Set<String> seen = new HashSet<>();
+        String sourceStore = null;
+        String sourceFmt = "PARQUET";
+        while (true) {
+            List<FlowEdge> inbound = g.edgesTo(cur).stream().filter(e -> FlowRel.DATA.equals(e.rel())).toList();
+            if (inbound.size() != 1) return Optional.empty();    // not a single linear data input (branch/merge/none)
+            String prev = inbound.get(0).from();
+            if (!seen.add(prev)) return Optional.empty();         // cycle guard
+            FlowNode pn = byId.get(prev);
+            if (pn == null) return Optional.empty();
+            Object ss = pn.cfg(FlowStores.CONFIG_SOURCE_STORE);
+            if (ss != null && !ss.toString().isBlank()) {         // reached the source — stop
+                sourceStore = ss.toString();
+                Object fmt = pn.cfg("format");
+                if (fmt != null && !fmt.toString().isBlank()) sourceFmt = fmt.toString().toUpperCase();
+                break;
+            }
+            chain.add(pn);                                        // an intermediate transform to fold
+            cur = prev;
+        }
+        String glob = dir.replace("\\", "/") + "/" + sourceStore + "/**/*." + SqlViews.ext(sourceFmt);
+        String sql = "SELECT * FROM " + SqlViews.reader(sourceFmt, glob, true);
+        for (int i = chain.size() - 1; i >= 0; i--) {            // fold in source→view order
+            Optional<String> step = RowShaper.toSelect(chain.get(i), sql);
+            if (step.isEmpty()) return Optional.empty();          // a non-simple node on the path
+            sql = step.get();
+        }
+        return Optional.of(sql);
     }
 
     /**

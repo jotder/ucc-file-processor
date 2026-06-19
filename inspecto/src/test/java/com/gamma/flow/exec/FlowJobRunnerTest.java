@@ -233,7 +233,65 @@ class FlowJobRunnerTest {
                 "per-source incremental: run 2 added only rows newer than each source's watermark");
     }
 
+    @Test
+    void sinkViewCapturesDerivedSqlForALinearPath() throws Exception {
+        // T32 follow-up — a single-source, linear filter→sink.view path folds into one SELECT (derived_sql).
+        Path wr = tmp.resolve("wr");
+        String dataDir = tmp.resolve("data").toString();
+        String auditDir = tmp.resolve("audit").toString();
+        seedParquet(dataDir, "subs", "(1,150),(2,50),(3,200)");
+        FlowStore store = new FlowStore(wr.resolve("flows"));
+        store.write("subs_kpi", new FlowGraph("subs_kpi", true,
+                List.of(FlowNode.of("src", "acquisition", Map.of("source_store", "subs")),
+                        FlowNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
+                        new FlowNode("v", "sink.view", "ActiveSubs", null, Map.of("store", "active_subs"), null)),
+                List.of(FlowEdge.data("src", "flt"), FlowEdge.data("flt", "v"))));
+        JobConfig cfg = new JobConfig("kpi_job", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "subs_kpi", "data_dir", dataDir));
+        assertTrue(new FlowJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run().success());
+
+        ViewDefinition def = new ViewStore(wr.resolve("views")).get("active_subs").orElseThrow();
+        assertNotNull(def.derivedSql(), "a single-source linear filter path yields a derived_sql");
+        assertEquals(List.of(1, 3), runIds(def.derivedSql()), "derived_sql selects amt>=100 (id1, id3)");
+    }
+
+    @Test
+    void sinkViewDerivedSqlIsNullForAMergedPath() throws Exception {
+        // T32 follow-up — a merge (2 sources) feeding the view is NOT a single SELECT over one source → null.
+        Path wr = tmp.resolve("wr");
+        String dataDir = tmp.resolve("data").toString();
+        String auditDir = tmp.resolve("audit").toString();
+        seedParquet(dataDir, "events_a", "(1,150)");
+        seedParquet(dataDir, "events_b", "(2,200)");
+        FlowStore store = new FlowStore(wr.resolve("flows"));
+        store.write("merge_view", new FlowGraph("merge_view", true,
+                List.of(FlowNode.of("src_a", "acquisition", Map.of("source_store", "events_a")),
+                        FlowNode.of("src_b", "acquisition", Map.of("source_store", "events_b")),
+                        FlowNode.of("m", "transform.merge", Map.of("type", "union")),
+                        new FlowNode("v", "sink.view", "Merged", null, Map.of("store", "merged"), null)),
+                List.of(FlowEdge.data("src_a", "m"), FlowEdge.data("src_b", "m"), FlowEdge.data("m", "v"))));
+        JobConfig cfg = new JobConfig("mv_job", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "merge_view", "data_dir", dataDir));
+        assertTrue(new FlowJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run().success());
+
+        ViewDefinition def = new ViewStore(wr.resolve("views")).get("merged").orElseThrow();
+        assertNull(def.derivedSql(), "a merged (multi-source) view path is not single-SELECT expressible → null");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
+
+    /** Execute {@code sql} on a fresh DuckDB and return the {@code id} column, ascending. */
+    private static List<Integer> runIds(String sql) throws Exception {
+        File db = DuckDbUtil.tempDbFile("dsql_");
+        try (Connection c = DuckDbUtil.openConnection(db); Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("SELECT id FROM (" + sql + ") q ORDER BY 1")) {
+            List<Integer> out = new ArrayList<>();
+            while (rs.next()) out.add(rs.getInt(1));
+            return out;
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
 
     /** Write {@code (id,amt)} VALUES as a Parquet file under {@code <dataDir>/<store>/} (the at-rest store). */
     private static void seedParquet(String dataDir, String store, String valuesSql) throws Exception {

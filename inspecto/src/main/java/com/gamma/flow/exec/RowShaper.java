@@ -11,6 +11,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * <b>T10 — row-shaping SQL assembly.</b> Executes one flow {@code transform.*} node as SQL over a DuckDB
@@ -183,9 +184,14 @@ public final class RowShaper {
         return List.of(new Relation(FlowRel.DATA, data));
     }
 
-    /** The {@code SELECT … FROM <input>} for a projection node (reused by {@link #fuse}). */
-    @SuppressWarnings("unchecked")
+    /** The {@code SELECT … FROM <input>} for a projection node over the table {@code input} (reused by {@link #fuse}). */
     private static String projectionSelect(FlowNode node, String input) {
+        return projectionSelectFrom(node, q(input));
+    }
+
+    /** As {@link #projectionSelect}, but over a pre-rendered FROM target (a quoted table, or a {@code (subquery) AS _t}). */
+    @SuppressWarnings("unchecked")
+    private static String projectionSelectFrom(FlowNode node, String fromTarget) {
         String type = node.type();
         Object colsRaw = node.cfg("columns");
         if (!(colsRaw instanceof List<?> cols) || cols.isEmpty())
@@ -207,7 +213,35 @@ public final class RowShaper {
             }
             sel.append(String.join(", ", exprs));
         }
-        return sel.append(" FROM ").append(q(input)).toString();
+        return sel.append(" FROM ").append(fromTarget).toString();
+    }
+
+    /**
+     * <b>T32 follow-up — compile a SIMPLE node to a single {@code SELECT} over {@code innerSql}</b> (a subquery),
+     * used to capture a {@code sink.view}'s {@code derived_sql} along a linear path. Handles
+     * {@code filter}/{@code map}/{@code select}/{@code derive} (each a single-relation, single-SELECT op);
+     * returns {@link Optional#empty()} for anything else (route/split/dedup/merge/validate produce multiple
+     * relations or non-SELECT shapes) or a malformed node — so the caller leaves {@code derived_sql} null rather
+     * than emit wrong SQL. Mirrors the SQL {@link #shape} would run for these node types.
+     */
+    public static Optional<String> toSelect(FlowNode node, String innerSql) {
+        String type = node.type();
+        String from = "(" + innerSql + ") AS _t";
+        if (BuiltinNodeType.TRANSFORM_FILTER.type().equals(type)) {
+            Object w = node.cfg("where");
+            if (w == null || w.toString().isBlank()) return Optional.empty();
+            return Optional.of("SELECT * FROM " + from + " WHERE COALESCE((" + w + "), FALSE)");
+        }
+        if (BuiltinNodeType.TRANSFORM_MAP.type().equals(type)
+                || BuiltinNodeType.TRANSFORM_SELECT.type().equals(type)
+                || BuiltinNodeType.TRANSFORM_DERIVE.type().equals(type)) {
+            try {
+                return Optional.of(projectionSelectFrom(node, from));
+            } catch (RuntimeException e) {
+                return Optional.empty();
+            }
+        }
+        return Optional.empty();
     }
 
     /**
