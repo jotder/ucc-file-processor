@@ -1,14 +1,22 @@
 ## graphify
 
-A knowledge graph lives at `graphify-out/` (god nodes, communities, cross-file relationships).
+A persistent knowledge graph of this repo lives at `graphify-out/` (god nodes, communities,
+cross-file relationships). The **`graphify` CLI is installed and is the REQUIRED first step** for code
+exploration here — PreToolUse hooks enforce a query-first workflow.
 
-- **The `graphify` CLI is NOT currently installed** (the npm package of that name is an unrelated graphing
-  library, not this tool). The PreToolUse hooks that mandate `graphify query` are **gated on the binary
-  being on PATH**, so they stay silent until a real graphify is installed — no token waste.
-- Until then, use **Grep/Glob/Read** directly, or delegate code exploration to the **backend-explorer**
-  agent. `graphify-out/GRAPH_REPORT.md` is a static (large) fallback map for broad orientation.
-- If a genuine `graphify` CLI is installed later, the hooks reactivate automatically: prefer
-  `graphify query/explain/path` over grep, and run `graphify update .` after code changes.
+- **The tool** is the Python **`graphifyy`** package (PyPI), CLI command `graphify` — **NOT** the
+  unrelated npm package of the same name. Don't `npm install graphify`.
+- **Per-user setup (run once):** `pwsh scripts/setup-graphify.ps1` (Windows) or
+  `bash scripts/setup-graphify.sh` (POSIX/Git-Bash). It installs/upgrades the CLI onto **your** PATH and
+  refreshes the graph. `graphify-out/` and `/.claude/` are **gitignored** (generated graph / per-user
+  config) but shared on-disk in this sandbox, so the graph + enforcement hooks already apply to everyone
+  here; only the CLI itself is per-user (each OS user has their own Python/PATH), hence the one-time setup.
+- **Query-first workflow (hook-enforced):** before grepping or reading source, orient with
+  `graphify query "<question>"`, `graphify explain "<node>"`, or `graphify path "<A>" "<B>"`. Read/grep raw
+  files only after graphify has oriented you, or to modify/debug specific lines. `graphify-out/GRAPH_REPORT.md`
+  is a static fallback map for broad orientation.
+- **Keep it fresh:** run `graphify update .` (deterministic, **no LLM cost**) after code changes — or re-run
+  the setup script. A first-time full build uses the `/graphify` skill (one LLM pass).
 
 ## Skills & agents (token-economical)
 
