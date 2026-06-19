@@ -107,9 +107,10 @@ public final class FlowJobRunner implements Job {
         List<Seed> seeds = seedsOf(g);
         String incCol = cfg.opt("incremental_column", "").trim();   // T32 Phase C — opt-in incremental re-run
         boolean incremental = !incCol.isBlank();
-        if (incremental && seeds.size() > 1)
-            throw new IllegalArgumentException("flow '" + g.name() + "' is incremental ('incremental_column') but "
-                    + "declares " + seeds.size() + " source_stores; incremental flow jobs are single-source (T32)");
+        // T32 follow-up — incremental is per-source: each source_store carries its own watermark (keyed by
+        // store) and is filtered + advanced independently below, so multi-source incremental works. It requires
+        // the incremental_column to exist in every source_store (e.g. a union of like-shaped stores, or sources
+        // that all carry the same event-time column).
         FlowWatermarkStore watermarks = incremental ? new FlowWatermarkStore(Path.of(auditDir)) : null;
 
         long t0 = System.nanoTime();

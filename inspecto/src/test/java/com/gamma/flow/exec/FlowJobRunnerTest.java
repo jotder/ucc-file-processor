@@ -200,6 +200,39 @@ class FlowJobRunnerTest {
         assertEquals(List.of(1, 2, 3, 4), readIds(dataDir, "rollup"), "second run appends only the new rows");
     }
 
+    @Test
+    void incrementalMultiSourceAdvancesPerSourceWatermarks() throws Exception {
+        // T32 follow-up — each source_store keeps its OWN watermark, so a multi-source incremental flow
+        // re-reads only the rows newer than each source's last run.
+        String dataDir = tmp.resolve("data").toString();
+        String auditDir = tmp.resolve("audit").toString();
+        seedParquetFile(dataDir, "events_a", "a1", "(1,10),(2,20)");
+        seedParquetFile(dataDir, "events_b", "b1", "(3,15)");
+        FlowStore store = new FlowStore(tmp.resolve("flows"));
+        store.write("inc_merge", new FlowGraph("inc_merge", true,
+                List.of(FlowNode.of("src_a", "acquisition", Map.of("source_store", "events_a")),
+                        FlowNode.of("src_b", "acquisition", Map.of("source_store", "events_b")),
+                        FlowNode.of("m", "transform.merge", Map.of("type", "union")),
+                        new FlowNode("out", "sink.persistent", "Combined", null, Map.of("store", "combined"), null)),
+                List.of(FlowEdge.data("src_a", "m"), FlowEdge.data("src_b", "m"), FlowEdge.data("m", "out"))));
+
+        JobConfig run1 = new JobConfig("inc_job", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "inc_merge", "data_dir", dataDir, "incremental_column", "amt", "batch_id", "b1"));
+        new FlowJobRunner(run1, new BatchEventBus(), store, dataDir, auditDir).run();
+        assertEquals(List.of(1, 2, 3), readIds(dataDir, "combined"), "run 1 (no watermark) reads every source in full");
+
+        // new rows arrive in BOTH sources, each past that source's OWN amt watermark (events_a:20, events_b:15)
+        seedParquetFile(dataDir, "events_a", "a2", "(4,30)");
+        seedParquetFile(dataDir, "events_b", "b2", "(5,25)");
+        JobConfig run2 = new JobConfig("inc_job", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "inc_merge", "data_dir", dataDir, "incremental_column", "amt", "batch_id", "b2"));
+        new FlowJobRunner(run2, new BatchEventBus(), store, dataDir, auditDir).run();
+
+        // run 2 appended only id4 (events_a amt 30>20) and id5 (events_b amt 25>15) — no re-read of 1,2,3
+        assertEquals(List.of(1, 2, 3, 4, 5), readIds(dataDir, "combined"),
+                "per-source incremental: run 2 added only rows newer than each source's watermark");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /** Write {@code (id,amt)} VALUES as a Parquet file under {@code <dataDir>/<store>/} (the at-rest store). */
