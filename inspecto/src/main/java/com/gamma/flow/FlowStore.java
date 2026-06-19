@@ -67,10 +67,10 @@ public final class FlowStore {
         return out;
     }
 
-    /** One authored flow by id, if present. */
+    /** One authored flow by id, if present. An unsafe/unresolvable id is treated as "not present" (empty). */
     public Optional<FlowGraph> get(String id) {
-        Path file = fileFor(id);
-        if (!Files.isRegularFile(file)) return Optional.empty();
+        Path file = fileForOrNull(id);
+        if (file == null || !Files.isRegularFile(file)) return Optional.empty();
         try {
             return Optional.of(FlowCodec.fromMap(ToonHelper.load(file.toString())));
         } catch (Exception e) {
@@ -79,8 +79,10 @@ public final class FlowStore {
         }
     }
 
+    /** Whether a flow is stored under {@code id}; an unsafe/unresolvable id is "not present" (false). */
     public boolean exists(String id) {
-        return Files.isRegularFile(fileFor(id));
+        Path file = fileForOrNull(id);
+        return file != null && Files.isRegularFile(file);
     }
 
     /** Write (create or replace) the flow at {@code <root>/<id>.toon}, atomically. Returns the written graph. */
@@ -105,6 +107,15 @@ public final class FlowStore {
     /** Delete the flow's backing file; returns whether a file was removed. */
     public boolean delete(String id) throws IOException {
         return Files.deleteIfExists(fileFor(id));
+    }
+
+    /** Resolve {@code id} to its backing file for a <b>read</b>, or {@code null} if the id is unsafe/unresolvable. */
+    private Path fileForOrNull(String id) {
+        try {
+            return fileFor(id);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private Path fileFor(String id) {

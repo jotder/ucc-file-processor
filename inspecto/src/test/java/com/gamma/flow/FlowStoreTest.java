@@ -49,9 +49,14 @@ class FlowStoreTest {
     }
 
     @Test
-    void rejectsUnsafeIds(@TempDir Path root) {
+    void rejectsUnsafeIdsOnWriteButTreatsThemAsAbsentOnRead(@TempDir Path root) {
         FlowStore store = new FlowStore(root);
-        assertThrows(IllegalArgumentException.class, () -> store.exists("../escape"));
+        // writes stay strict — an unsafe id is rejected loudly
         assertThrows(IllegalArgumentException.class, () -> store.write("bad/slash", flow("x")));
+        // reads are tolerant — an unsafe/unresolvable id is simply "not present" (no throw),
+        // so the read control-plane routes answer 404 rather than 500.
+        assertFalse(store.exists("../escape"));
+        assertFalse(store.exists("__nope__"));
+        assertTrue(store.get("../escape").isEmpty());
     }
 }

@@ -117,6 +117,11 @@ class ControlApiFlowCrudTest {
             assertEquals("amt >= 100", rawFlt.get("config").get("where").asText());
 
             assertEquals(404, send(c.port, "GET", "/flows/authored/ghost/raw", null).statusCode());
+
+            // an unsafe id (rejected by FlowStore's SAFE_ID, e.g. a leading underscore) is "not present" → 404,
+            // not a 500 from the id-resolution throwing through the read handler.
+            assertEquals(404, send(c.port, "GET", "/flows/authored/__nope__/raw", null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/flows/authored/__nope__", null).statusCode());
         }
     }
 
