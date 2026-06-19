@@ -1,11 +1,13 @@
 # Plan — Live execution of authored job-flows (T32)
 
-> **Status: PHASES A + B IMPLEMENTED (2026-06-18).** Core run-path (§6 Phase A) + scheduling/chaining/reporting
-> (§6 Phase B) are built and tested (inspecto 798/0/1): `JobType.FLOW`, `FlowJobRunner`, `PartitionSinkWriter`,
-> `SourceStoreReader`, `JobService.build()` wiring, `SourceService.openFlowStore()`, the deletion fence (§7.5), and a
-> FLOW job is now a first-class scheduled/chained job (cron, `on_pipeline`, chains downstream, `DbJobRunStore`
-> reporting). Phase **C** (`sink.view`, multi-`source_store`, incremental) remains. Open questions in §7 resolved
-> inline. Tracked as **T32** in [`flow-graph-design.md`](flow-graph-design.md) §14.
+> **Status: PHASES A + B + C IMPLEMENTED (2026-06-18/19).** All three phases built and tested (inspecto 802/0/1):
+> `JobType.FLOW`, `FlowJobRunner`, `PartitionSinkWriter`, `SourceStoreReader`, `JobService.build()` wiring,
+> `SourceService.openFlowStore()`, the deletion fence (§7.5); a FLOW job is a first-class scheduled/chained/reported
+> job (Phase B); and Phase C: **multi-`source_store`** (each seeded as its own view, joined/unioned by
+> `transform.merge`), **`sink.view`** logical stores (registered as a `ViewDefinition` under `<write-root>/views/`),
+> **opt-in incremental** re-run (`incremental_column` → watermark-filtered read + append), and **actor attribution**
+> (`trigger(name, actor)` → `manual:<actor>`). Open questions in §7 resolved inline. Tracked as **T32** in
+> [`flow-graph-design.md`](flow-graph-design.md) §14.
 
 ## 1. The problem & the key constraint
 
@@ -105,16 +107,27 @@ the FlowGraph entry-node `trigger:` (that is for the pipeline poll loop). Activa
   in `JobServiceTest`: `cronFiresAFlowJob` (cron), `onPipelineEventFiresAFlowJob` (a pipeline commit triggers the
   flow), `aFlowJobSuccessChainsADownstreamJob` (the flow's success fires a downstream `on_pipeline` job), and
   `flowRunsAreProjectedIntoTheReportingStoreAsTypeFlow` (the run reaches `DbJobRunStore`, typed `FLOW`).
-- **Phase C (semantics polish).** `sink.view` (logical, no bytes → register a DuckDB view/catalog entry
-  instead of Parquet), multi-`source_store` flows (seed N views; `transform.merge` join), re-run
-  watermark/incremental instead of full recompute, status/lineage actor attribution.
+- **Phase C (semantics polish) — ✅ DONE (2026-06-18/19), one commit per slice.**
+  - **Multi-`source_store`** (`93146d8`): `FlowExecutor` gained a `Map<nodeId,seedView>` execute overload; a flow
+    job seeds each `source_store` as its own view, a `transform.merge` joins/unions them. `unionsTwoSourceStores`.
+  - **`sink.view`** (`6d8d54e`): no bytes — the job registers a durable `ViewDefinition`/`ViewStore` under
+    `<write-root>/views/<store>_view.toon` (store + flow + source_store lineage) for a binding API to concretise.
+    `registersASinkViewDefinitionWithoutWritingBytes`. (`derived_sql` left for a follow-up — the multi-statement
+    `RowShaper` chain isn't a single SELECT.)
+  - **Incremental** (`dff1ac0`): opt-in `incremental_column` job param + `FlowWatermarkStore` (file-based, keyed by
+    flow+store, advanced after commit) → reads only rows past the watermark and appends (run-unique sink base).
+    Single-source. `incrementalReadsOnlyNewRowsPastTheWatermark`.
+  - **Actor attribution**: `JobService.trigger(name, actor)` + `POST /jobs/{name}/trigger?actor=` → the run records
+    `manual:<actor>` (cron/event/catch-up already self-attribute). `manualTriggerAttributesTheActor`.
 
 ## 7. Open questions / risks
 
 1. **Sink subtype semantics.** `sink.persistent`/`sink.materialized` → `PartitionWriter` (Parquet/CSV).
-   `sink.view` writes no bytes — needs a catalog/DuckDB-view registration path (defer to Phase C).
-   **[Phase A] `PartitionSinkWriter` skips `*.view` sinks (logs); persistent/materialized write Parquet/CSV,
-   unpartitioned single-file when no `partitions` declared (the legacy `PartitionWriter` always partitions).**
+   `sink.view` writes no bytes — needs a catalog/DuckDB-view registration path.
+   **[Phase A] `PartitionSinkWriter` skips `*.view` sinks; persistent/materialized write Parquet/CSV,
+   unpartitioned single-file when no `partitions` declared (the legacy `PartitionWriter` always partitions).
+   [Phase C DONE] a `sink.view` registers a durable `ViewDefinition` (`<write-root>/views/<store>_view.toon`:
+   store + flow + source_store lineage) instead of bytes; a KPI/report/alert API concretises it by running the flow.**
 2. **Schema of the source store.** `read_parquet` infers types; `transform.*` SQL casts as needed
    (same trust model as enrichment). CSV stores need the format/options — resolve via the store metadata
    or the consuming node `cfg`. **[Phase A] format read from the source node's `format` cfg (default `PARQUET`);
@@ -122,7 +135,8 @@ the FlowGraph entry-node `trigger:` (that is for the pipeline poll loop). Activa
 3. **`batchId` strategy** for idempotency: per-run timestamp (always recompute, simplest, MVP) vs a
    source-watermark/content id (true incremental, Phase C). MVP overwrites, matching `EnrichmentEngine`.
    **[Phase A] `batch_id` job param when set (stable ⇒ idempotent replay skips committed branches via the
-   `BranchCommitLog`); default = per-run timestamp. True incremental stays Phase C.**
+   `BranchCommitLog`); default = per-run timestamp. [Phase C DONE] opt-in true incremental via `incremental_column`
+   + `FlowWatermarkStore`: reads only rows past the stored watermark and appends (run-unique sink base), single-source.**
 4. **Where data/audit dirs come from.** A job has no `PipelineConfig`; `FlowJobRunner` needs the data
    root (`dirs.database` equivalent) + audit dir injected from `JobService`/`SourceService` config.
    **[Phase A RESOLVED] data root = `-Ddata.dir` (default `database`), overridable per-job via the `data_dir`

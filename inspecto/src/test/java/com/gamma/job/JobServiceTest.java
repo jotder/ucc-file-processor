@@ -67,6 +67,19 @@ class JobServiceTest {
     }
 
     @Test
+    void manualTriggerAttributesTheActor(@TempDir Path dir) throws Exception {
+        // T32 Phase C — an operator/channel passed to trigger(name, actor) is recorded as 'manual:<actor>'.
+        JobConfig hb = maintenance("hb", null, null, Map.of("task", "heartbeat"));
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(hb), new BatchEventBus(), s, null, dir.resolve("audit").toString())) {
+            js.start();
+            assertTrue(js.trigger("hb", "alice"));
+            JobRun run = await(() -> js.lastRunOf("hb").orElse(null));
+            assertEquals("manual:alice", run.trigger(), "the operator is attributed in the run audit");
+        }
+    }
+
+    @Test
     void cleanupDeletesFilesOlderThanRetention(@TempDir Path dir) throws Exception {
         Path target = dir.resolve("target");
         Files.createDirectories(target);

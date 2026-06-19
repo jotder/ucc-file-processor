@@ -312,7 +312,7 @@ public final class ControlApi implements AutoCloseable {
         get("/jobs/failures", (e, m) -> jobRunStore().failureTrend(parseIntOr(query(e, "days"), 30)));
         get("/jobs/([^/]+)/runs", (e, m) -> jobs().runsFor(name(m)));
         post("/jobs/([^/]+)/trigger", (e, m) -> {
-            if (!jobs().trigger(name(m)))
+            if (!jobs().trigger(name(m), query(e, "actor")))   // optional ?actor= attributes the manual fire (T32)
                 throw new ApiException(404, "no job named '" + name(m) + "'");
             return Map.of("job", name(m), "status", "triggered");
         });

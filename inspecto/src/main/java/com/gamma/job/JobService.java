@@ -233,8 +233,17 @@ public final class JobService implements AutoCloseable {
 
     /** Run a job once by name, off the caller's thread. Returns false if no such (enabled) job. */
     public boolean trigger(String name) {
+        return trigger(name, null);
+    }
+
+    /**
+     * Run a job once by name, attributing the manual fire to {@code actor} (an operator id / channel) when given
+     * (T32 Phase C). The recorded trigger becomes {@code manual:<actor>}; cron / event / catch-up self-attribute
+     * ({@code schedule}, {@code event:<pipeline>}, {@code catch-up}). Returns false if no such (enabled) job.
+     */
+    public boolean trigger(String name, String actor) {
         if (!jobs.containsKey(name)) return false;
-        submit(name, "manual");
+        submit(name, actor == null || actor.isBlank() ? "manual" : "manual:" + actor.trim());
         return true;
     }
 

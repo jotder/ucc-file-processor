@@ -949,8 +949,11 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   (`cronFiresAFlowJob`, `onPipelineEventFiresAFlowJob`, `aFlowJobSuccessChainsADownstreamJob`,
   `flowRunsAreProjectedIntoTheReportingStoreAsTypeFlow`). Guidance: prefer `on_pipeline: <producer>` over a time
   cron whenever a flow reads a store a pipeline writes. inspecto **798/0/1**.
-  **Deferred:** Phase C (`sink.view` catalog
-  registration, multi-`source_store` seed, incremental/watermark re-run vs full recompute), and a dedicated
+  **Phase C done (2026-06-18/19):** multi-`source_store` (`FlowExecutor` multi-seed + `transform.merge`); `sink.view`
+  → durable `ViewDefinition`/`ViewStore` under `<write-root>/views/`; opt-in incremental (`incremental_column` +
+  `FlowWatermarkStore`, watermark-filtered read + append, single-source); actor attribution
+  (`trigger(name, actor)` → `manual:<actor>`). inspecto **802/0/1**.
+  **Deferred:** `sink.view` `derived_sql` capture (single-SELECT views), multi-source incremental, and a dedicated
   `POST /flows/authored/{id}/run` endpoint (today: configure a `type: flow` `*_job.toon` + `POST /jobs/{name}/trigger`).
   Full design: [`flow-live-execution-plan.md`](flow-live-execution-plan.md).
 
