@@ -305,6 +305,39 @@ class FlowJobRunnerTest {
         assertEquals(List.of(1, 2, 3), readIds(dataDir, "rollup"), "run 2 appends only the row past the true watermark");
     }
 
+    @Test
+    void persistsPerEdgeProvenanceWhenAStoreIsConfigured() throws Exception {
+        // T21 — a flow run records its per-(node, relationship) record counts to the provenance store.
+        String dataDir = tmp.resolve("data").toString();
+        String auditDir = tmp.resolve("audit").toString();
+        seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
+        FlowStore store = new FlowStore(tmp.resolve("flows"));
+        store.write("prov_flow", new FlowGraph("prov_flow", true,
+                List.of(FlowNode.of("src", "acquisition", Map.of("source_store", "events")),
+                        FlowNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
+                        new FlowNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
+                List.of(FlowEdge.data("src", "flt"), FlowEdge.data("flt", "out"))));
+
+        JobConfig cfg = new JobConfig("provjob", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "prov_flow", "data_dir", dataDir, "batch_id", "prov1"));
+
+        String url = "jdbc:duckdb:" + tmp.resolve("prov.duckdb").toString().replace("\\", "/");
+        try (DbProvenanceStore prov = DbProvenanceStore.open(url)) {
+            assertTrue(new FlowJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir, prov).run().success());
+
+            Map<String, Long> counts = new java.util.LinkedHashMap<>();
+            for (Map<String, Object> row : prov.query("prov_flow", "prov1"))
+                counts.put(row.get("nodeId") + "|" + row.get("rel"), ((Number) row.get("rowCount")).longValue());
+
+            assertEquals(3L, counts.get("src|data"), "seed recordsIn");
+            assertEquals(2L, counts.get("flt|data"), "amt>=100 keeps id1(150), id3(200)");
+            assertEquals(1L, counts.get("flt|dropped"), "id2(50) diverted");
+            assertEquals(2L, counts.get("out|data"), "the sink received both surviving rows");
+            // the run is discoverable
+            assertEquals(1, prov.batches("prov_flow", 10).size());
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /** Write {@code (id,ts)} VARCHAR VALUES as a uniquely-named Parquet file under {@code <dataDir>/<store>/}. */

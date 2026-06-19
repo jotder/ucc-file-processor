@@ -83,21 +83,30 @@ public final class FlowJobRunner implements Job {
     private final FlowStore flowStore;
     private final String dataDir;
     private final String auditDir;
+    private final DbProvenanceStore provenance;   // T21 — nullable; default-off unless -Dprovenance.backend set
 
-    /**
-     * @param cfg       the job config ({@code flow} param = authored flow id)
-     * @param bus       the batch-event bus for chain events
-     * @param flowStore the authored-flow store ({@code <write-root>/flows}) to load the flow from
-     * @param dataDir   the data root under which each store is a sub-directory (per-job {@code data_dir} overrides)
-     * @param auditDir  the directory for the branch-commit log
-     */
+    /** As {@link #FlowJobRunner(JobConfig, BatchEventBus, FlowStore, String, String, DbProvenanceStore)} with no provenance store. */
     public FlowJobRunner(JobConfig cfg, BatchEventBus bus, FlowStore flowStore,
                          String dataDir, String auditDir) {
+        this(cfg, bus, flowStore, dataDir, auditDir, null);
+    }
+
+    /**
+     * @param cfg        the job config ({@code flow} param = authored flow id)
+     * @param bus        the batch-event bus for chain events
+     * @param flowStore  the authored-flow store ({@code <write-root>/flows}) to load the flow from
+     * @param dataDir    the data root under which each store is a sub-directory (per-job {@code data_dir} overrides)
+     * @param auditDir   the directory for the branch-commit log
+     * @param provenance the data-plane provenance store (T21), or {@code null} to not record per-edge counts
+     */
+    public FlowJobRunner(JobConfig cfg, BatchEventBus bus, FlowStore flowStore,
+                         String dataDir, String auditDir, DbProvenanceStore provenance) {
         this.cfg = cfg;
         this.bus = bus;
         this.flowStore = flowStore;
         this.dataDir = dataDir;
         this.auditDir = auditDir;
+        this.provenance = provenance;
     }
 
     @Override public String name() { return cfg.name(); }
@@ -141,7 +150,17 @@ public final class FlowJobRunner implements Job {
             BranchCommitCoordinator coordinator = new BranchCommitCoordinator(new BranchCommitLog(
                     Path.of(auditDir).resolve(safe(flowId) + "_branch_commit_" + safe(batchId) + ".csv").toString()));
 
-            FlowExecutor.execute(conn, g, seedViews, batchId, coordinator, writer, () -> {});
+            // T20/T21 — collect per-(node, relationship) record counts during the walk (counts must be taken
+            // while the scratch relations are live) and persist them as this run's data-plane provenance.
+            String runTs = Instant.now().toString();
+            List<ProvenanceRow> provRows = new ArrayList<>();
+            FlowExecutor.ProvenanceCollector collector = provenance == null
+                    ? FlowExecutor.ProvenanceCollector.NONE
+                    : (nodeId, rel, rowCount) -> provRows.add(new ProvenanceRow(flowId, batchId, nodeId, rel, rowCount, runTs));
+
+            FlowExecutor.execute(conn, g, seedViews, batchId, coordinator, writer, () -> {}, collector);
+
+            if (provenance != null) provenance.record(provRows);
 
             if (incremental) advanceWatermarks(conn, watermarks, flowId, seeds, seedViews, incCol);
 

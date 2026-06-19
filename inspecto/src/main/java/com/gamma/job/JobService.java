@@ -82,6 +82,8 @@ public final class JobService implements AutoCloseable {
     private final String auditDir;
     /** Optional DuckDB projection of job runs for reporting (T27); {@code null} when no backend is configured. */
     private final DbJobRunStore jobRunStore;
+    /** Optional DuckDB data-plane provenance store for FLOW jobs (T21); {@code null} when no backend is configured. */
+    private final com.gamma.flow.exec.DbProvenanceStore provenanceStore;
     /** Authored-flow store for {@link JobType#FLOW} jobs (T32); {@code null} when no write root is configured. */
     private final FlowStore flowStore;
     /** Data root under which each store is a sub-directory — a flow job reads/writes {@code <dataDir>/<store>} (T32). */
@@ -115,14 +117,23 @@ public final class JobService implements AutoCloseable {
         this(configs, bus, scheduler, reports, auditDir, jobRunStore, null, "database");
     }
 
-    /**
-     * Full constructor. Adds the authored-flow store and data root that {@link JobType#FLOW} jobs need (T32):
-     * a flow job loads its flow from {@code flowStore} and reads/writes stores under {@code dataDir}. Both may
-     * be left at {@code null}/default when no flow jobs are configured.
-     */
+    /** As the full constructor, with no data-plane provenance store (T21). */
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
                       ReportService reports, String auditDir, DbJobRunStore jobRunStore,
                       FlowStore flowStore, String dataDir) {
+        this(configs, bus, scheduler, reports, auditDir, jobRunStore, flowStore, dataDir, null);
+    }
+
+    /**
+     * Full constructor. Adds the authored-flow store and data root that {@link JobType#FLOW} jobs need (T32):
+     * a flow job loads its flow from {@code flowStore} and reads/writes stores under {@code dataDir}; plus an
+     * optional {@code provenanceStore} (T21) it records per-edge record counts to. All may be left at
+     * {@code null}/default when no flow jobs / no provenance backend are configured.
+     */
+    public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
+                      ReportService reports, String auditDir, DbJobRunStore jobRunStore,
+                      FlowStore flowStore, String dataDir,
+                      com.gamma.flow.exec.DbProvenanceStore provenanceStore) {
         this.configs   = List.copyOf(configs);
         this.bus       = bus;
         this.scheduler = scheduler;
@@ -134,6 +145,7 @@ public final class JobService implements AutoCloseable {
         this.jobRunStore = jobRunStore;
         this.flowStore = flowStore;
         this.dataDir   = dataDir;
+        this.provenanceStore = provenanceStore;
         for (JobConfig c : this.configs) {
             if (c.enabled()) jobs.put(c.name(), build(c));
         }
@@ -218,7 +230,7 @@ public final class JobService implements AutoCloseable {
         if (flowStore == null)
             throw new IllegalStateException("flow job '" + c.name()
                     + "' needs an authored-flow store; set -Dassist.write.root so authored flows can be loaded");
-        return new FlowJobRunner(c, bus, flowStore, dataDir, auditDir);
+        return new FlowJobRunner(c, bus, flowStore, dataDir, auditDir, provenanceStore);
     }
 
     private void onBatchEvent(BatchEvent event) {
@@ -314,6 +326,11 @@ public final class JobService implements AutoCloseable {
         return Optional.ofNullable(jobRunStore);
     }
 
+    /** The DuckDB data-plane provenance store (T21), or empty when no backend is configured. */
+    public Optional<com.gamma.flow.exec.DbProvenanceStore> provenanceStore() {
+        return Optional.ofNullable(provenanceStore);
+    }
+
     /** Install the deletion fence (T25) consulted before a delete job declaring a {@code store:} runs. */
     public void deletionGuard(DeletionFence.Guard guard) {
         this.deletionGuard = guard;
@@ -403,6 +420,7 @@ public final class JobService implements AutoCloseable {
     public void close() {
         workers.close();   // virtual-thread executor: awaits in-flight job runs
         if (jobRunStore != null) jobRunStore.close();
+        if (provenanceStore != null) provenanceStore.close();
         log.info("JobService stopped");
     }
 }

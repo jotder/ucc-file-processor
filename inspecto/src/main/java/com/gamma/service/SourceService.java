@@ -259,7 +259,7 @@ public final class SourceService implements AutoCloseable {
                 ? null
                 : new JobService(jobConfigs, bus, scheduler, reports,
                         System.getProperty("jobs.audit.dir", "jobs_audit"), openJobRunStore(),
-                        flowStore, System.getProperty("data.dir", "database"));
+                        flowStore, System.getProperty("data.dir", "database"), openProvenanceStore());
         if (this.jobs != null) this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
         this.semanticModels    = List.copyOf(semanticModels);
         // Invalidate the catalog whenever configs are (re)indexed — the registry is now the
@@ -652,6 +652,25 @@ public final class SourceService implements AutoCloseable {
             return DbJobRunStore.open(url);
         } catch (Exception e) {
             log.warn("Could not open job-run DB ({}) — job reporting disabled: {}", url, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Data-plane provenance store for FLOW jobs (T21), gated by {@code -Dprovenance.backend=duckdb} (or a full
+     * {@code jdbc:} URL); default off ⇒ {@code null} ⇒ flow runs record no per-edge counts and {@code /provenance}
+     * 404s. Mirrors {@link #openJobRunStore()}.
+     */
+    private static com.gamma.flow.exec.DbProvenanceStore openProvenanceStore() {
+        String backend = System.getProperty("provenance.backend", "none").trim().toLowerCase();
+        if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
+        String url = backend.startsWith("jdbc:")
+                ? backend
+                : System.getProperty("provenance.db.url", "jdbc:duckdb:provenance.duckdb");
+        try {
+            return com.gamma.flow.exec.DbProvenanceStore.open(url);
+        } catch (Exception e) {
+            log.warn("Could not open provenance DB ({}) — data-plane provenance disabled: {}", url, e.getMessage());
             return null;
         }
     }
