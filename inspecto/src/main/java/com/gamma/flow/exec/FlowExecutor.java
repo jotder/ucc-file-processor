@@ -11,6 +11,9 @@ import com.gamma.flow.FlowValidator;
 import com.gamma.flow.NodeCategory;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -52,6 +55,21 @@ public final class FlowExecutor {
         void write(FlowNode sink, String inputTable) throws Exception;
     }
 
+    /**
+     * <b>T20 — the data-plane provenance hook.</b> Called once per <em>(node, outgoing relationship)</em> as the
+     * executor walks the graph, with the number of records the node emitted on that relationship (§11.1/§11.3).
+     * The structure plane (the {@link FlowGraph} edges) carries the topology; these counts are the quantities
+     * painted onto it. The default {@link #NONE} ignores them, so the live path is unchanged unless a collector
+     * is supplied (a flow job passes one to persist a {@code ProvenanceRow} per call — T21).
+     */
+    @FunctionalInterface
+    public interface ProvenanceCollector {
+        void record(String nodeId, String rel, long rowCount);
+
+        /** A collector that discards counts — the default for callers that don't observe provenance. */
+        ProvenanceCollector NONE = (nodeId, rel, rowCount) -> {};
+    }
+
     /** What the run produced: every node's named relations + which sinks fed which table + the commit outcome. */
     public record ExecResult(Map<String, Map<String, String>> produced,
                              Map<String, String> sinkInputs,
@@ -87,12 +105,29 @@ public final class FlowExecutor {
                                      String batchId, BranchCommitCoordinator coordinator,
                                      SinkWriter sinkWriter,
                                      BranchCommitCoordinator.SourceFinalize sourceFinalize) throws Exception {
+        return execute(conn, g, seeds, batchId, coordinator, sinkWriter, sourceFinalize, ProvenanceCollector.NONE);
+    }
+
+    /**
+     * As {@link #execute(Connection, FlowGraph, Map, String, BranchCommitCoordinator, SinkWriter,
+     * BranchCommitCoordinator.SourceFinalize)}, but reports per-{@code (node, relationship)} record counts to
+     * {@code prov} as it walks (T20, §11.3). Counts are taken while the scratch relations are still live in
+     * {@code conn} — they cannot be recovered after the connection closes, which is why the hook is inline.
+     */
+    public static ExecResult execute(Connection conn, FlowGraph g, Map<String, String> seeds,
+                                     String batchId, BranchCommitCoordinator coordinator,
+                                     SinkWriter sinkWriter,
+                                     BranchCommitCoordinator.SourceFinalize sourceFinalize,
+                                     ProvenanceCollector prov) throws Exception {
         FlowValidator.validateOrThrow(g);
         Map<String, FlowNode> byId = g.byId();
 
         Map<String, Map<String, String>> produced = new LinkedHashMap<>();
         seeds.forEach((nodeId, table) -> produced.put(nodeId, new LinkedHashMap<>(Map.of(FlowRel.DATA, table))));
         Map<String, String> sinkInputs = new LinkedHashMap<>();
+        // Each seed's data relation is the flow's recordsIn at that source/parse node.
+        for (Map.Entry<String, String> seed : seeds.entrySet())
+            prov.record(seed.getKey(), FlowRel.DATA, count(conn, seed.getValue()));
 
         for (String nodeId : topoOrder(g)) {
             if (seeds.containsKey(nodeId)) continue;       // pre-seeded source/parse relation
@@ -102,13 +137,19 @@ public final class FlowExecutor {
             if (inbound.isEmpty()) continue;               // upstream not executed here (e.g. acquisition) — skip
 
             if (FlowNodeTypes.isCategory(node.type(), NodeCategory.SINK)) {
-                sinkInputs.put(nodeId, tableOf(inbound.get(0), produced));   // a sink consumes one relation
+                String in = tableOf(inbound.get(0), produced);
+                sinkInputs.put(nodeId, in);                 // a sink consumes one relation
+                prov.record(nodeId, FlowRel.DATA, count(conn, in));   // recordsIn at the (terminal) sink
             } else if (BuiltinNodeType.TRANSFORM_MERGE.type().equals(node.type())) {
                 List<String> inputs = new ArrayList<>();
                 for (FlowEdge e : inbound) inputs.add(tableOf(e, produced));
-                produced.put(nodeId, index(RowShaper.merge(conn, node, inputs, nodeId)));
+                Map<String, String> rels = index(RowShaper.merge(conn, node, inputs, nodeId));
+                produced.put(nodeId, rels);
+                recordCounts(conn, prov, nodeId, rels);
             } else if (isShapeable(node.type())) {
-                produced.put(nodeId, index(RowShaper.shape(conn, node, tableOf(inbound.get(0), produced), nodeId)));
+                Map<String, String> rels = index(RowShaper.shape(conn, node, tableOf(inbound.get(0), produced), nodeId));
+                produced.put(nodeId, rels);
+                recordCounts(conn, prov, nodeId, rels);
             }
             // control terminals (gap/alert/event) consume but produce no data relation — nothing to route on
         }
@@ -179,6 +220,21 @@ public final class FlowExecutor {
         Map<String, String> m = new LinkedHashMap<>();
         for (RowShaper.Relation r : rels) m.put(r.rel(), r.table());
         return m;
+    }
+
+    /** Report a record count to {@code prov} for every produced relation of {@code nodeId}. */
+    private static void recordCounts(Connection conn, ProvenanceCollector prov, String nodeId,
+                                     Map<String, String> rels) throws SQLException {
+        for (Map.Entry<String, String> e : rels.entrySet())
+            prov.record(nodeId, e.getKey(), count(conn, e.getValue()));
+    }
+
+    /** Row count of a live scratch relation (long-precision; used for provenance counts). */
+    private static long count(Connection conn, String table) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT count(*) FROM " + ScratchTables.q(table))) {
+            return rs.next() ? rs.getLong(1) : 0L;
+        }
     }
 
     private static boolean isShapeable(String type) {

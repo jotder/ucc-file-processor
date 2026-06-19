@@ -137,6 +137,45 @@ class FlowExecutorTest {
         assertEquals(1, finalised[0]);
     }
 
+    @Test
+    void provenanceCollectorRecordsPerNodePerRelationshipCounts() throws Exception {
+        // same route flow as above: parse(3) -> filter(amt>=100: data 2 / dropped 1) -> route(hi>=200,lo<200) -> 2 sinks
+        sql("CREATE TABLE parsed AS SELECT * FROM (VALUES (1,150),(2,50),(3,200)) t(id,amt)");
+        FlowGraph g = new FlowGraph("PROV_ETL", true,
+                List.of(
+                        FlowNode.of("parse", "parser"),
+                        FlowNode.of("f", "transform.filter", Map.of("where", "amt >= 100")),
+                        FlowNode.of("r", "transform.route", Map.of(
+                                "mode", "case",
+                                "branches", List.of(
+                                        Map.of("key", "hi", "where", "amt >= 200"),
+                                        Map.of("key", "lo", "where", "amt < 200")))),
+                        FlowNode.of("sink_hi", "sink.persistent", Map.of(FlowStoresStoreKey, "hi")),
+                        FlowNode.of("sink_lo", "sink.persistent", Map.of(FlowStoresStoreKey, "lo"))),
+                List.of(
+                        FlowEdge.data("parse", "f"),
+                        FlowEdge.data("f", "r"),
+                        new FlowEdge("r", FlowRel.route("hi"), "sink_hi"),
+                        new FlowEdge("r", FlowRel.route("lo"), "sink_lo")));
+
+        Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        FlowExecutor.execute(conn, g, Map.of("parse", "parsed"), "batchP",
+                new BranchCommitCoordinator(new BranchCommitLog(dir.resolve("prov_bc.csv").toString())),
+                (sink, table) -> {}, () -> {},
+                (nodeId, rel, rowCount) -> counts.put(nodeId + "|" + rel, rowCount));
+
+        assertEquals(3L, counts.get("parse|data"));        // recordsIn
+        assertEquals(2L, counts.get("f|data"));            // amt>=100 keeps {150,200}
+        assertEquals(1L, counts.get("f|dropped"));         // {50} diverted
+        assertEquals(1L, counts.get("r|route:hi"));        // {200}
+        assertEquals(1L, counts.get("r|route:lo"));        // {150}
+        assertEquals(1L, counts.get("sink_hi|data"));      // recordsIn at the terminal sink
+        assertEquals(1L, counts.get("sink_lo|data"));
+
+        // conservation at the filter (non-amplifying): in == out + dropped
+        assertEquals(counts.get("parse|data"), counts.get("f|data") + counts.get("f|dropped"));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     /** The FlowStores produced-store config key (kept local so the test reads cleanly). */
