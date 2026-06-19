@@ -165,5 +165,33 @@
             </div>
             <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.form }}</code></pre>
         </section>
+
+        <!-- ── Graph hosts (AntV G6) ────────────────────────────────────────────────────── -->
+        <section>
+            <h2 class="mb-3 text-xl font-semibold">Graph hosts (AntV G6)</h2>
+            <p class="text-secondary mb-4 text-sm">
+                Two patterns for node-graph views — both reuse <code>canvasTheme()</code> +
+                <code>nodeColor/nodeShape</code> (never hardcode canvas colours). See the
+                <code>angular-ui</code> skill §4. Live examples are on the <b>Flows</b> pane
+                (Per-flow / Combined / Editor toggle).
+            </p>
+            <div class="bg-card grid gap-4 rounded-2xl p-6 shadow sm:grid-cols-2">
+                <div>
+                    <div class="mb-1 text-sm font-medium">Read-only</div>
+                    <p class="text-secondary text-sm">
+                        <code>catalog/graph-view.component</code> — rebuilds the graph on every data / scheme
+                        change. For static visualisations (catalog graph, Flows Per-flow / Combined).
+                    </p>
+                </div>
+                <div>
+                    <div class="mb-1 text-sm font-medium">Interactive editing (T32)</div>
+                    <p class="text-secondary text-sm">
+                        <code>flows/flow-editor-graph.component</code> — a <b>persistent</b> graph mutated in
+                        place (drop-to-add, two-click connect, delete), rebuilt only on subject change
+                        (<code>graphKey</code>). Live in the Flows <b>Editor</b> mode.
+                    </p>
+                </div>
+            </div>
+        </section>
     </div>
 </div>
