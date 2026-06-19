@@ -4,9 +4,11 @@
         <div>
             <h1 class="text-3xl font-extrabold leading-none tracking-tight">Flows</h1>
             <div class="text-secondary mt-1.5">
-                {{ mode() === 'combined'
-                    ? 'Pipelines and the jobs over their output, joined at the shared store'
-                    : 'Every pipeline as a node graph — read-only' }}
+                @switch (mode()) {
+                    @case ('combined') { Pipelines and the jobs over their output, joined at the shared store }
+                    @case ('editor') { Author and edit a flow topology on an interactive canvas }
+                    @default { Every pipeline as a node graph — read-only }
+                }
             </div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
@@ -18,6 +20,7 @@
             >
                 <mat-button-toggle value="flow">Per-flow</mat-button-toggle>
                 <mat-button-toggle value="combined">Combined</mat-button-toggle>
+                <mat-button-toggle value="editor">Editor</mat-button-toggle>
             </mat-button-toggle-group>
             <button
                 mat-stroked-button
@@ -123,7 +126,7 @@
                     </div>
                 </div>
             }
-        } @else {
+        } @else if (mode() === 'combined') {
             <!-- Combined topology (T24): all flows joined at their shared stores -->
             @if (combinedUnavailable()) {
                 <inspecto-empty-state
@@ -166,6 +169,9 @@
                     [message]="combinedLoading() ? 'Loading combined topology…' : 'No flows to combine yet.'"
                 ></inspecto-empty-state>
             }
+        } @else {
+            <!-- Editor (T32): author/edit a flow on an interactive canvas -->
+            <app-flow-editor></app-flow-editor>
         }
     </div>
 </div>

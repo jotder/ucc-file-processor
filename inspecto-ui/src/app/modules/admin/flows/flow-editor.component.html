@@ -1,0 +1,208 @@
+<div class="flex h-full flex-col gap-3">
+    <!-- toolbar -->
+    <div class="flex flex-wrap items-center gap-2">
+        @if (creating()) {
+            <form class="flex items-center gap-2" (ngSubmit)="createFlow()">
+                <mat-form-field subscriptSizing="dynamic" class="w-56">
+                    <mat-label>New flow name</mat-label>
+                    <input matInput [formControl]="newName" placeholder="orders_rollup" />
+                    @if (newName.touched && newName.invalid) {
+                        <mat-error>A name is required</mat-error>
+                    }
+                </mat-form-field>
+                <button mat-flat-button color="primary" type="submit">Create</button>
+                <button mat-button type="button" (click)="creating.set(false)">Cancel</button>
+            </form>
+        } @else {
+            <mat-form-field subscriptSizing="dynamic" class="w-56">
+                <mat-label>Flow</mat-label>
+                <mat-select [value]="selectedId()" (selectionChange)="select($event.value)">
+                    @for (f of flows(); track f.name) {
+                        <mat-option [value]="f.name">{{ f.name }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+            <button mat-stroked-button (click)="startNew()">
+                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon> New
+            </button>
+            <button mat-flat-button color="primary" [disabled]="!dirty() || saving()" (click)="save()">
+                <mat-icon svgIcon="heroicons_outline:check"></mat-icon> Save
+            </button>
+            <button mat-stroked-button [disabled]="!selectedId()" (click)="deleteFlow()"
+                    aria-label="Delete flow">
+                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+            </button>
+            <button mat-stroked-button [disabled]="!selectedId()" (click)="toggleDryRun()">
+                <mat-icon svgIcon="heroicons_outline:play"></mat-icon> Dry-run
+            </button>
+            @if (dirty()) {
+                <span class="text-sm" style="color: var(--gamma-warn)">unsaved changes</span>
+            }
+            @if (connectFrom()) {
+                <span class="text-sm" role="status" style="color: var(--gamma-primary)">
+                    connecting from '{{ connectFrom() }}' — click a target node
+                </span>
+            }
+        }
+    </div>
+
+    @if (unavailable()) {
+        <div role="alert" class="rounded p-2 text-sm"
+             style="background: var(--gamma-bg-card); color: var(--gamma-warn)">
+            Editing is read-only — the server was started without <code>-Dassist.write.root</code>.
+        </div>
+    }
+
+    @if (!flows().length && !creating() && !loading()) {
+        <inspecto-empty-state icon="heroicons_outline:arrows-right-left" title="No authored flows"
+            message="Create a flow to start composing a topology.">
+        </inspecto-empty-state>
+    } @else {
+        <!-- editor body: palette | canvas | inspector -->
+        <div class="flex min-h-0 flex-1 gap-3">
+            <!-- palette -->
+            <div class="w-48 shrink-0 overflow-auto rounded p-2" style="background: var(--gamma-bg-card)">
+                <h3 class="mb-2 text-sm font-semibold">Palette</h3>
+                @for (group of paletteGroups(); track group.category) {
+                    <div class="mb-3">
+                        <div class="mb-1 flex items-center gap-1 text-xs uppercase opacity-70">
+                            <span class="inline-block h-2 w-2 rounded-full"
+                                  [style.background]="categoryColor(group.category)"></span>
+                            {{ group.category }}
+                        </div>
+                        @for (t of group.types; track t.type) {
+                            <div class="mb-1 cursor-grab rounded border px-2 py-1 text-sm"
+                                 style="border-color: var(--gamma-border)"
+                                 draggable="true"
+                                 [matTooltip]="t.description"
+                                 (dragstart)="$event.dataTransfer?.setData('text/flow-node-type', t.type)">
+                                {{ t.label }}
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- canvas -->
+            <div class="min-w-0 flex-1 rounded" style="background: var(--gamma-bg-card)">
+                <app-flow-editor-graph
+                    [data]="g6Data()"
+                    [graphKey]="selectedId()"
+                    (nodeSelected)="onNodeSelected($event)"
+                    (edgeSelected)="onEdgeSelected($event)"
+                    (backgroundClick)="onBackgroundClick()"
+                    (dropAdd)="onDropAdd($event)"
+                    (deleteKey)="onDeleteKey()">
+                </app-flow-editor-graph>
+            </div>
+
+            <!-- inspector -->
+            <div class="w-72 shrink-0 overflow-auto rounded p-3" style="background: var(--gamma-bg-card)">
+                @if (selectedNode(); as n) {
+                    <h3 class="mb-2 text-sm font-semibold">Node · {{ n.id }}</h3>
+                    <p class="mb-2 text-xs opacity-70">{{ n.type }}</p>
+                    <form [formGroup]="nodeForm" (ngSubmit)="applyNode()">
+                        <mat-form-field class="w-full" subscriptSizing="dynamic">
+                            <mat-label>Name</mat-label>
+                            <input matInput formControlName="name" />
+                        </mat-form-field>
+                        <mat-form-field class="w-full" subscriptSizing="dynamic">
+                            <mat-label>Description</mat-label>
+                            <input matInput formControlName="description" />
+                        </mat-form-field>
+                        <mat-form-field class="w-full" subscriptSizing="dynamic">
+                            <mat-label>Use (component ref)</mat-label>
+                            <input matInput formControlName="use" placeholder="transform/my_component" />
+                        </mat-form-field>
+
+                        <div class="mb-1 mt-2 flex items-center justify-between">
+                            <span class="text-xs font-semibold uppercase opacity-70">Config</span>
+                            <button mat-icon-button type="button" (click)="addConfigRow()"
+                                    aria-label="Add config entry">
+                                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                            </button>
+                        </div>
+                        <div formArrayName="config">
+                            @for (row of configRows.controls; track $index) {
+                                <div class="mb-1 flex items-center gap-1" [formGroupName]="$index">
+                                    <mat-form-field subscriptSizing="dynamic" class="flex-1">
+                                        <input matInput formControlName="key" placeholder="key" />
+                                    </mat-form-field>
+                                    <mat-form-field subscriptSizing="dynamic" class="flex-1">
+                                        <input matInput formControlName="value" placeholder="value" />
+                                    </mat-form-field>
+                                    <button mat-icon-button type="button" (click)="removeConfigRow($index)"
+                                            aria-label="Remove config entry">
+                                        <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="mt-3 flex flex-wrap gap-2">
+                            <button mat-flat-button color="primary" type="submit">Apply</button>
+                            <button mat-stroked-button type="button" (click)="armConnect()">
+                                <mat-icon svgIcon="heroicons_outline:arrow-right"></mat-icon> Connect
+                            </button>
+                        </div>
+                    </form>
+                } @else if (selectedEdgeId()) {
+                    <h3 class="mb-2 text-sm font-semibold">Edge</h3>
+                    <p class="text-sm opacity-70">{{ selectedEdgeId() }}</p>
+                    <p class="mt-2 text-xs opacity-70">Press Delete to remove this edge.</p>
+                } @else {
+                    <p class="text-sm opacity-70">
+                        Drag a node type onto the canvas. Click a node to edit it; use <b>Connect</b> then click a
+                        target to draw an edge. Select + Delete removes an element.
+                    </p>
+                }
+            </div>
+        </div>
+
+        <!-- dry-run drawer -->
+        @if (dryRunOpen()) {
+            <div class="rounded p-3" style="background: var(--gamma-bg-card)">
+                <div class="mb-2 flex items-center gap-2">
+                    <h3 class="text-sm font-semibold">Dry-run</h3>
+                    <span class="text-xs opacity-70">a bounded sample through the transform→sink subgraph (no write)</span>
+                </div>
+                <mat-form-field class="w-full" subscriptSizing="dynamic">
+                    <mat-label>Sample rows (JSON array)</mat-label>
+                    <textarea matInput rows="3" [formControl]="sampleText"></textarea>
+                </mat-form-field>
+                <button class="mt-2" mat-flat-button color="primary" [disabled]="!selectedId()" (click)="runDryRun()">
+                    Run dry-run
+                </button>
+                @if (dryRunError()) {
+                    <p class="mt-2 text-sm" role="alert" style="color: var(--gamma-warn)">{{ dryRunError() }}</p>
+                }
+                @if (dryRunResult(); as r) {
+                    <div class="mt-3 grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <div class="mb-1 font-semibold">Nodes (seed: {{ r.seedNode }})</div>
+                            @for (n of r.nodes; track n.node) {
+                                <div class="flex justify-between">
+                                    <span>{{ n.node }}</span>
+                                    <span class="opacity-70">
+                                        @for (rel of n.relations; track rel.rel) {
+                                            {{ rel.rel }}={{ rel.rowCount }}&nbsp;
+                                        }
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                        <div>
+                            <div class="mb-1 font-semibold">Sinks</div>
+                            @for (s of r.sinks; track s.node) {
+                                <div class="flex justify-between">
+                                    <span>{{ s.node }} → {{ s.store }}</span>
+                                    <span class="opacity-70">{{ s.rowCount }} row(s)</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>

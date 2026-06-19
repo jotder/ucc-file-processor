@@ -1,5 +1,5 @@
 import { NodeKind } from 'app/inspecto/api';
-import { FlowCombined, FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
+import { AuthoredFlow, FlowCombined, FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
 import { G6GraphData, nodeColor } from 'app/modules/admin/catalog/catalog-graph';
 
 /**
@@ -73,6 +73,34 @@ export function toCombinedG6Data(c: FlowCombined): G6GraphData {
             source: e.from,
             target: e.to,
             data: { kind: e.kind === 'route' && e.routeKey ? `route:${e.routeKey}` : e.rel },
+        })),
+    };
+}
+
+/** A node-type → category lookup built from the palette catalog (authored nodes carry only their type). */
+export function typeCategoryMap(types: FlowNodeType[]): Map<string, string> {
+    return new Map(types.map((t) => [t.type, t.category]));
+}
+
+/**
+ * Map an authored flow (config-bearing, from GET …/raw) to G6 data for the editor host. A node's category —
+ * which drives shape + outline colour — is resolved from the palette ({@link typeCategoryMap}); an unknown
+ * type falls back to TRANSFORM so a plugin/unknown node still renders.
+ */
+export function authoredToG6(flow: AuthoredFlow, typeCat: Map<string, string>): G6GraphData {
+    return {
+        nodes: flow.nodes.map((n) => ({
+            id: n.id,
+            data: {
+                label: n.name && n.name.trim() ? n.name : n.id,
+                kind: categoryVisualKind(typeCat.get(n.type) ?? 'TRANSFORM'),
+            },
+        })),
+        edges: flow.edges.map((e, i) => ({
+            id: `${e.from}->${e.to}:${e.rel}:${i}`,
+            source: e.from,
+            target: e.to,
+            data: { kind: e.rel },
         })),
     };
 }

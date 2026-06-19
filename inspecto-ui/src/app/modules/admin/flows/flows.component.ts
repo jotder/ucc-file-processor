@@ -16,6 +16,7 @@ import { FlowCombined, FlowGraph, FlowNode, FlowSummary, FlowsService } from 'ap
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
+import { FlowEditorComponent } from './flow-editor.component';
 import {
     CATEGORY_ORDER,
     COMBINED_CATEGORY_ORDER,
@@ -27,8 +28,8 @@ import {
     toFlowG6Data,
 } from './flow-graph';
 
-/** Which lens the Flows pane shows: each pipeline on its own, or all flows joined at their shared stores. */
-export type FlowsViewMode = 'flow' | 'combined';
+/** Which lens the Flows pane shows: per-pipeline graph, the combined join view, or the authoring editor. */
+export type FlowsViewMode = 'flow' | 'combined' | 'editor';
 
 /**
  * Flows — the read-only pipeline-as-graph visualiser (doc §6, T31). Lists every registered pipeline
@@ -47,6 +48,7 @@ export type FlowsViewMode = 'flow' | 'combined';
         MatTooltipModule,
         GraphViewComponent,
         InspectoEmptyStateComponent,
+        FlowEditorComponent,
     ],
     templateUrl: './flows.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
