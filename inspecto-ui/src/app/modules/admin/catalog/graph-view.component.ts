@@ -93,6 +93,12 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                 style: {
                     stroke: edge,
                     endArrow: true,
+                    // Optional data-plane weight (T22 provenance overlay) scales the line width log-style;
+                    // absent ⇒ the default width, so the catalog / combined views are unaffected.
+                    lineWidth: (d) => {
+                        const w = (d.data as { weight?: number }).weight;
+                        return w && w > 0 ? Math.min(12, 1.5 + Math.log2(w + 1)) : 1.5;
+                    },
                     labelText: (d) => (d.data as { kind: string }).kind,
                     labelFill: fg,
                     labelFontSize: 9,

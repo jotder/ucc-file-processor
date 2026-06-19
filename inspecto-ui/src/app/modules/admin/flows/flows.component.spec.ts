@@ -25,6 +25,8 @@ function create(listResult: Observable<FlowSummary[]>) {
         nodeTypes: () => of(TYPES),
         graph: () => throwError(() => new Error('no graph in test')),
         combined: () => of(COMBINED),
+        provenanceBatches: () => of([]),
+        provenance: () => of([]),
     } as unknown as FlowsService;
     TestBed.configureTestingModule({
         imports: [FlowsComponent],
@@ -57,6 +59,27 @@ describe('FlowsComponent', () => {
     it('renders an accessible empty state when there are no flows', async () => {
         const fixture = create(of([]));
         await expectNoA11yViolations(fixture.nativeElement);
+    });
+
+    it('selectRun overlays a run\'s per-edge counts and clearing it removes them', () => {
+        const rows = [{ nodeId: 'acq', rel: 'data', rowCount: 42 }];
+        const stub = {
+            list: () => of([FLOW]), nodeTypes: () => of(TYPES),
+            graph: () => throwError(() => new Error('no graph')), combined: () => of(COMBINED),
+            provenanceBatches: () => of([{ batchId: 'b1', runTs: '2026-06-19T00:00:00Z', totalRows: 42 }]),
+            provenance: () => of(rows),
+        } as unknown as FlowsService;
+        TestBed.configureTestingModule({
+            imports: [FlowsComponent],
+            providers: [provideNoopAnimations(), { provide: FlowsService, useValue: stub }],
+        });
+        const c = TestBed.createComponent(FlowsComponent).componentInstance;
+        c.select('cdr_etl');
+        expect(c.provBatches().length).toBe(1);
+        c.selectRun('b1');
+        expect(c.provCounts()?.get('acq|data')).toBe(42);
+        c.selectRun(null);
+        expect(c.provCounts()).toBeNull();
     });
 
     it('lazy-loads the combined topology when switching to combined mode', () => {

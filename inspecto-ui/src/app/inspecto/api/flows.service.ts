@@ -141,6 +141,22 @@ export interface FlowDryRunResult {
     sinks: DryRunSink[];
 }
 
+// ── Data-plane provenance (T22) — per-edge record counts of a past flow run ──
+
+/** One run of a flow that recorded provenance (GET /provenance/batches), newest first. */
+export interface ProvenanceBatch {
+    batchId: string;
+    runTs: string;
+    totalRows: number;
+}
+
+/** The records a node emitted on one relationship during a run (GET /provenance) — a Sankey edge weight. */
+export interface ProvenanceCount {
+    nodeId: string;
+    rel: string;
+    rowCount: number;
+}
+
 /** Read-only flow-graph projection + authored-flow CRUD/dry-run for the editor (CONTROL scope). */
 @Injectable({ providedIn: 'root' })
 export class FlowsService {
@@ -197,5 +213,17 @@ export class FlowsService {
     dryRunAuthored(id: string, sampleRows: Record<string, unknown>[]): Observable<FlowDryRunResult> {
         return this.http.post<FlowDryRunResult>(
             apiUrl(`/flows/authored/${encodeURIComponent(id)}/dry-run`), { sampleRows });
+    }
+
+    // ── data-plane provenance (T22; 404 unless -Dprovenance.backend=duckdb) ──
+
+    /** Recent runs of a flow that recorded provenance (newest first). */
+    provenanceBatches(flow: string): Observable<ProvenanceBatch[]> {
+        return this.http.get<ProvenanceBatch[]>(apiUrl('/provenance/batches'), { params: { flow } });
+    }
+
+    /** The per-(node, relationship) record counts of one run — painted onto the flow's edges as weights. */
+    provenance(flow: string, batch: string): Observable<ProvenanceCount[]> {
+        return this.http.get<ProvenanceCount[]>(apiUrl('/provenance'), { params: { flow, batch } });
     }
 }

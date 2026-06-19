@@ -10,9 +10,11 @@ import {
 import { NgTemplateOutlet } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { FlowCombined, FlowGraph, FlowNode, FlowSummary, FlowsService } from 'app/inspecto/api';
+import { FlowCombined, FlowGraph, FlowNode, FlowSummary, FlowsService, ProvenanceBatch } from 'app/inspecto/api';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
@@ -24,6 +26,7 @@ import {
     categoryColor,
     groupByCategory,
     nodeDisplayLabel,
+    provenanceCounts,
     toCombinedG6Data,
     toFlowG6Data,
 } from './flow-graph';
@@ -44,7 +47,9 @@ export type FlowsViewMode = 'flow' | 'combined' | 'editor';
         NgTemplateOutlet,
         MatButtonModule,
         MatButtonToggleModule,
+        MatFormFieldModule,
         MatIconModule,
+        MatSelectModule,
         MatTooltipModule,
         GraphViewComponent,
         InspectoEmptyStateComponent,
@@ -72,10 +77,15 @@ export class FlowsComponent implements OnInit {
     readonly combinedLoading = signal(false);
     readonly combinedUnavailable = signal(false);
 
-    /** The selected flow's graph mapped to G6 data for the shared renderer. */
+    // ── data-plane provenance overlay (T22): paint a past run's per-edge counts onto the flow graph ──
+    readonly provBatches = signal<ProvenanceBatch[]>([]);
+    readonly provBatch = signal<string | null>(null);
+    readonly provCounts = signal<Map<string, number> | null>(null);
+
+    /** The selected flow's graph mapped to G6 data, with the provenance overlay when a run is selected. */
     readonly g6Data = computed<G6GraphData | null>(() => {
         const g = this.graph();
-        return g ? toFlowG6Data(g) : null;
+        return g ? toFlowG6Data(g, this.provCounts() ?? undefined) : null;
     });
 
     /** The combined topology mapped to G6 data (flow nodes + synthetic store join nodes). */
@@ -118,6 +128,7 @@ export class FlowsComponent implements OnInit {
         if (this.selected() === name && this.graph()) return;
         this.selected.set(name);
         this.selectedNode.set(null);
+        this.clearProvenance();
         this.graphLoading.set(true);
         this.api.graph(name).subscribe({
             next: (g) => {
@@ -129,6 +140,31 @@ export class FlowsComponent implements OnInit {
                 this.graphLoading.set(false);
             },
         });
+        // The overlay degrades independently — no provenance backend ⇒ no runs ⇒ the selector stays hidden.
+        this.api.provenanceBatches(name).subscribe({
+            next: (bs) => this.provBatches.set(bs),
+            error: () => this.provBatches.set([]),
+        });
+    }
+
+    /** Paint a run's per-edge record counts onto the graph (or clear the overlay when {@code batch} is null). */
+    selectRun(batch: string | null): void {
+        this.provBatch.set(batch);
+        const flow = this.selected();
+        if (!batch || !flow) {
+            this.provCounts.set(null);
+            return;
+        }
+        this.api.provenance(flow, batch).subscribe({
+            next: (rows) => this.provCounts.set(provenanceCounts(rows)),
+            error: () => this.provCounts.set(null),
+        });
+    }
+
+    private clearProvenance(): void {
+        this.provBatches.set([]);
+        this.provBatch.set(null);
+        this.provCounts.set(null);
     }
 
     onNodeClick(id: string): void {

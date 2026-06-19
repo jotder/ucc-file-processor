@@ -969,8 +969,12 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   `-Dprovenance.backend=duckdb` is set; default-off (no counting overhead, no prod change).
 - [x] **T22 backend (done 2026-06-19).** `GET /provenance?flow=&batch=` (per-node-rel counts for the Sankey) +
   `/provenance/batches?flow=`; conservation invariant (§11.4) via pure `ConservationCheck` → `FLOW_CONSERVATION_IMBALANCE`
-  event (LOSS/AMPLIFICATION) → ALERT via `EventObjectBridge`. **T22b (the G6 Sankey overlay on the Flows pane) is the
-  remaining UI follow-up.**
+  event (LOSS/AMPLIFICATION) → ALERT via `EventObjectBridge`.
+- [x] **T22b UI (done 2026-06-19).** Provenance overlay on the Flows pane: a "Provenance run" selector
+  (`/provenance/batches`) paints a chosen run's per-edge counts onto the per-flow G6 graph — `toFlowG6Data(g, counts)`
+  sets each edge's label (`<rel> · <count>`) and a `weight` the shared read-only `GraphViewComponent` maps to line
+  width (additive; catalog/combined unaffected). Degrades silently when no provenance backend is configured (selector
+  hidden). **Data plane T20–T22 COMPLETE.**
 
 ### Model — pipelines vs jobs (formalised §3.8; spans phases 1/3/4)
 - [x] **T23 (R6, done 2026-06-17).** **Removed the `ingest` job type** — deleted `JobType.INGEST` + `IngestJob`,

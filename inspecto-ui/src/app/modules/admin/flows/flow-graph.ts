@@ -1,5 +1,5 @@
 import { NodeKind } from 'app/inspecto/api';
-import { AuthoredFlow, FlowCombined, FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
+import { AuthoredFlow, FlowCombined, FlowGraph, FlowNode, FlowNodeType, ProvenanceCount } from 'app/inspecto/api';
 import { G6GraphData, nodeColor } from 'app/modules/admin/catalog/catalog-graph';
 
 /**
@@ -35,8 +35,13 @@ export function nodeDisplayLabel(n: FlowNode): string {
     return n.name && n.name.trim() ? n.name : n.label;
 }
 
-/** Map the flow-graph projection to G6 data (reusing the catalog G6 host). */
-export function toFlowG6Data(g: FlowGraph): G6GraphData {
+/**
+ * Map the flow-graph projection to G6 data (reusing the catalog G6 host). When {@code counts} is supplied
+ * (the data-plane provenance overlay, T22), each edge's label gains the record count its source emitted on
+ * that relationship and a {@code weight} drives the line width — the structure plane painted with quantities
+ * (§11). Edges with no recorded count are left at their default style.
+ */
+export function toFlowG6Data(g: FlowGraph, counts?: Map<string, number>): G6GraphData {
     return {
         nodes: g.nodes.map((n) => ({
             id: n.id,
@@ -44,13 +49,24 @@ export function toFlowG6Data(g: FlowGraph): G6GraphData {
         })),
         // a flow can carry several edges between the same pair (e.g. data + a route branch), so the id
         // folds in the relationship + row index to stay unique.
-        edges: g.edges.map((e, i) => ({
-            id: `${e.from}->${e.to}:${e.rel}:${i}`,
-            source: e.from,
-            target: e.to,
-            data: { kind: e.kind === 'route' && e.routeKey ? `route:${e.routeKey}` : e.rel },
-        })),
+        edges: g.edges.map((e, i) => {
+            const rel = e.kind === 'route' && e.routeKey ? `route:${e.routeKey}` : e.rel;
+            const count = counts?.get(`${e.from}|${rel}`);
+            return {
+                id: `${e.from}->${e.to}:${e.rel}:${i}`,
+                source: e.from,
+                target: e.to,
+                data: count == null
+                    ? { kind: rel }
+                    : { kind: `${rel} · ${count.toLocaleString()}`, weight: count },
+            };
+        }),
     };
+}
+
+/** Build the {@code <nodeId>|<rel>} → rowCount lookup the overlay paints onto edges. */
+export function provenanceCounts(rows: ProvenanceCount[]): Map<string, number> {
+    return new Map(rows.map((r) => [`${r.nodeId}|${r.rel}`, r.rowCount]));
 }
 
 /**

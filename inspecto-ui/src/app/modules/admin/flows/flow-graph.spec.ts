@@ -4,6 +4,7 @@ import {
     categoryVisualKind,
     groupByCategory,
     nodeDisplayLabel,
+    provenanceCounts,
     toCombinedG6Data,
     toFlowG6Data,
 } from './flow-graph';
@@ -58,6 +59,13 @@ describe('toFlowG6Data', () => {
         expect(new Set(edges.map((e) => e.id)).size).toBe(2);
         expect(edges[0].data.kind).toBe('data');
         expect(edges[1].data.kind).toBe('route:emea');
+    });
+
+    it('overlays provenance counts onto matching edges (label + weight) and leaves others plain', () => {
+        const counts = provenanceCounts([{ nodeId: 'acq', rel: 'data', rowCount: 1234 }]);
+        const { edges } = toFlowG6Data(graph, counts);
+        expect(edges[0].data).toEqual({ kind: 'data · 1,234', weight: 1234 });   // matched
+        expect(edges[1].data).toEqual({ kind: 'route:emea' });                   // no count for this rel
     });
 });
 
