@@ -46,6 +46,15 @@
   (Phases A–F shipped on `4.x`).
 - [`delimited-grammar-design.md`](delimited-grammar-design.md) — delimited-grammar parsing design.
 
+## Strategy & roadmap (stakeholder-facing)
+
+- [`roadmap/STAKEHOLDER_OVERVIEW.md`](roadmap/STAKEHOLDER_OVERVIEW.md) — high-level platform overview & strategy for a
+  mixed exec/technical audience (vision, capability inventory, editions, maturity, roadmap). **Active.**
+- [`roadmap/ROADMAP.md`](roadmap/ROADMAP.md) — forward plan (Now/Next/Later horizons, themes, sequencing, success
+  measures). **Active.**
+- [`roadmap/PRESENTATION.md`](roadmap/PRESENTATION.md) — ~18-slide presentation content (mixed exec+technical) distilling the overview.
+- [`roadmap/PRESENTATION_EXEC.md`](roadmap/PRESENTATION_EXEC.md) — ~12-slide **executive** briefing (business framing, light on internals, decision-focused).
+
 ## Editions & release
 
 - [`EDITIONS.md`](EDITIONS.md) — edition model (Personal/Standard/Enterprise = build flavors, never branches).
@@ -77,4 +86,4 @@ to this index if it becomes current again.
 
 ---
 
-**Last Updated**: 2026-06-18
+**Last Updated**: 2026-06-19
