@@ -85,7 +85,63 @@ export interface FlowCombined {
     links: { producer: string; store: string; consumer: string }[];
 }
 
-/** Read-only flow-graph projection: the pipeline-as-graph view + the editor palette (CONTROL scope). */
+// ── Authored flows (editor build-side) — the lossless shape that round-trips through the backend ──
+
+/** A node in an authored flow (config-bearing — what GET /flows/authored/{id}/raw and PUT exchange). */
+export interface AuthoredNode {
+    id: string;
+    type: string;
+    name?: string;
+    description?: string;
+    use?: string;
+    config?: Record<string, unknown>;
+}
+
+/** An authored edge (`rel` = `data` | `control` | `route:<key>` | …). */
+export interface AuthoredEdge {
+    from: string;
+    rel: string;
+    to: string;
+}
+
+/** A full authored flow definition (GET …/raw, POST/PUT body) — lossless, unlike the read-only projection. */
+export interface AuthoredFlow {
+    name: string;
+    active: boolean;
+    nodes: AuthoredNode[];
+    edges: AuthoredEdge[];
+}
+
+/** One produced relation at a node in a dry-run (exact count + a bounded row sample). */
+export interface DryRunRelation {
+    rel: string;
+    rowCount: number;
+    rows: Record<string, unknown>[];
+}
+
+/** A non-sink node's dry-run outputs. */
+export interface DryRunNode {
+    node: string;
+    type: string;
+    relations: DryRunRelation[];
+}
+
+/** A sink branch's dry-run outcome. */
+export interface DryRunSink {
+    node: string;
+    store: string;
+    rowCount: number;
+    rows: Record<string, unknown>[];
+}
+
+/** The dry-run result (POST /flows/authored/{id}/dry-run): seed + per-node + per-sink counts. */
+export interface FlowDryRunResult {
+    seedNode: string;
+    nodes: DryRunNode[];
+    sinks: DryRunSink[];
+}
+
+/** Read-only flow-graph projection + authored-flow CRUD/dry-run for the editor (CONTROL scope). */
 @Injectable({ providedIn: 'root' })
 export class FlowsService {
     private http = inject(HttpClient);
@@ -108,5 +164,38 @@ export class FlowsService {
     /** The combined pipeline+job topology — every flow joined at the shared store nodes (T24). */
     combined(): Observable<FlowCombined> {
         return this.http.get<FlowCombined>(apiUrl('/flows/combined'));
+    }
+
+    // ── authored-flow CRUD + dry-run (editor; all writes 503 without -Dassist.write.root) ──
+
+    /** Summaries of every authored flow (empty list when no write root). */
+    authoredList(): Observable<FlowSummary[]> {
+        return this.http.get<FlowSummary[]>(apiUrl('/flows/authored'));
+    }
+
+    /** The lossless authored definition (nodes with config) for editing — round-trips through PUT. */
+    authoredRaw(id: string): Observable<AuthoredFlow> {
+        return this.http.get<AuthoredFlow>(apiUrl(`/flows/authored/${encodeURIComponent(id)}/raw`));
+    }
+
+    /** Create a new authored flow (409 if the name exists). */
+    createAuthored(flow: AuthoredFlow): Observable<unknown> {
+        return this.http.post(apiUrl('/flows/authored'), flow);
+    }
+
+    /** Replace an authored flow wholesale (URL id authoritative; 422 on validation errors). */
+    replaceAuthored(id: string, flow: AuthoredFlow): Observable<unknown> {
+        return this.http.put(apiUrl(`/flows/authored/${encodeURIComponent(id)}`), flow);
+    }
+
+    /** Delete an authored flow. */
+    deleteAuthored(id: string): Observable<unknown> {
+        return this.http.delete(apiUrl(`/flows/authored/${encodeURIComponent(id)}`));
+    }
+
+    /** Dry-run a bounded sample through an authored flow (per-node + per-sink counts; no production write). */
+    dryRunAuthored(id: string, sampleRows: Record<string, unknown>[]): Observable<FlowDryRunResult> {
+        return this.http.post<FlowDryRunResult>(
+            apiUrl(`/flows/authored/${encodeURIComponent(id)}/dry-run`), { sampleRows });
     }
 }
