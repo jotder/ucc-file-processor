@@ -98,6 +98,34 @@ class ControlApiFlowCrudTest {
     }
 
     @Test
+    void rawReturnsLosslessNodeConfigForTheEditor(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, dir.resolve("wr"))) {
+            String flow = """
+                {"name":"cfg_flow","active":false,
+                 "nodes":[{"id":"acq","type":"acquisition"},
+                          {"id":"flt","type":"transform.filter","config":{"where":"amt >= 100"}},
+                          {"id":"sink","type":"sink.persistent","config":{"store":"out"}}],
+                 "edges":[{"from":"acq","rel":"data","to":"flt"},{"from":"flt","rel":"data","to":"sink"}]}""";
+            assertEquals(200, send(c.port, "POST", "/flows/authored", flow).statusCode());
+
+            // the structural projection omits raw node config…
+            JsonNode projFlt = node(json(send(c.port, "GET", "/flows/authored/cfg_flow", null)).get("nodes"), "flt");
+            assertTrue(projFlt.get("config") == null || projFlt.get("config").isNull(), "projection is structural-only");
+
+            // …but /raw round-trips it losslessly, so the editor can edit + PUT without dropping config.
+            JsonNode rawFlt = node(json(send(c.port, "GET", "/flows/authored/cfg_flow/raw", null)).get("nodes"), "flt");
+            assertEquals("amt >= 100", rawFlt.get("config").get("where").asText());
+
+            assertEquals(404, send(c.port, "GET", "/flows/authored/ghost/raw", null).statusCode());
+        }
+    }
+
+    private static JsonNode node(JsonNode nodes, String id) {
+        for (JsonNode n : nodes) if (id.equals(n.get("id").asText())) return n;
+        throw new AssertionError("no node '" + id + "' in " + nodes);
+    }
+
+    @Test
     void dryRunReturnsPerNodeAndPerSinkCounts(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, dir.resolve("wr"))) {
             String flow = """

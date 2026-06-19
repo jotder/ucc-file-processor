@@ -423,6 +423,7 @@ public final class ControlApi implements AutoCloseable {
         get("/flows/authored", (e, m) -> authoredFlowList());
         post("/flows/authored", (e, m) -> createFlow(body(e)));
         get("/flows/authored/([^/]+)", (e, m) -> authoredFlow(name(m)));
+        get("/flows/authored/([^/]+)/raw", (e, m) -> authoredFlowRaw(name(m)));   // lossless map for the editor
         put("/flows/authored/([^/]+)", (e, m) -> updateFlow(name(m), body(e)));
         delete("/flows/authored/([^/]+)", (e, m) -> deleteFlow(name(m)));
         post("/flows/authored/([^/]+)/nodes", (e, m) -> addFlowNode(name(m), body(e)));
@@ -1059,6 +1060,18 @@ public final class ControlApi implements AutoCloseable {
         com.gamma.flow.FlowGraph g = root == null ? null : new com.gamma.flow.FlowStore(root).get(id).orElse(null);
         if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
         return FlowProjection.graph(g);
+    }
+
+    /**
+     * {@code GET /flows/authored/{id}/raw} — the <b>lossless</b> authored definition ({@link com.gamma.flow.FlowCodec#toMap},
+     * nodes with their config) so the editor can round-trip a flow without dropping node config; the
+     * {@link #authoredFlow} projection is structural-only. 404 if absent.
+     */
+    private Object authoredFlowRaw(String id) {
+        Path root = flowsRootOrNull();
+        com.gamma.flow.FlowGraph g = root == null ? null : new com.gamma.flow.FlowStore(root).get(id).orElse(null);
+        if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
+        return com.gamma.flow.FlowCodec.toMap(g);
     }
 
     /** {@code POST /flows/authored} — create an authored flow from a posted flow definition; 409 if it exists. */

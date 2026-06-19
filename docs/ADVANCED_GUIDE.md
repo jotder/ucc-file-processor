@@ -435,7 +435,8 @@ Auth-free in the common core. **503 = write-root gated** (set `-Dassist.write.ro
 - **Objects:** `GET/POST /objects`, `GET /objects/{id}`, `POST /objects/{id}/ack|resolve|transition|links|comments|attachments|rca`,
   `GET /objects/{id}/links|graph|comments|attachments`, `GET /rca/templates`.
 - **Flows:** `GET /flows`, `/flows/node-types`, `/flows/combined`, `/flows/{n}/graph`; `GET /flows/authored`,
-  `POST /flows/authored` *(503)*, `GET /flows/authored/{n}`, `PUT/DELETE /flows/authored/{n}` *(503)*,
+  `POST /flows/authored` *(503)*, `GET /flows/authored/{n}` (structural projection), `GET /flows/authored/{n}/raw`
+  (lossless authored map incl. node config — for the editor), `PUT/DELETE /flows/authored/{n}` *(503)*,
   `POST /flows/authored/{n}/nodes|edges|dry-run` *(503)*.
 - **Components:** `GET /components/{type}[/{id}]`, `POST/PUT/DELETE` *(503; DELETE 409 if referenced)*,
   `POST /components/{transform|grammar|schema|sink}/{id}/test` *(503)*.
