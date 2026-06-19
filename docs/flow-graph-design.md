@@ -953,9 +953,12 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   → durable `ViewDefinition`/`ViewStore` under `<write-root>/views/`; opt-in incremental (`incremental_column` +
   `FlowWatermarkStore`, watermark-filtered read + append, single-source); actor attribution
   (`trigger(name, actor)` → `manual:<actor>`). inspecto **802/0/1**.
-  **Deferred:** `sink.view` `derived_sql` capture (single-SELECT views), multi-source incremental, and a dedicated
-  `POST /flows/authored/{id}/run` endpoint (today: configure a `type: flow` `*_job.toon` + `POST /jobs/{name}/trigger`).
-  Full design: [`flow-live-execution-plan.md`](flow-live-execution-plan.md).
+  **Follow-ups done (2026-06-19):** `sink.view` `derived_sql` capture (single-SELECT views — `RowShaper.toSelect` +
+  `FlowJobRunner.deriveViewSql`); multi-source incremental (per-source watermarks); and the **`sink.view` consumer**
+  — `GET /views`, `GET /views/{name}`, `GET /views/{name}/data?limit=N` run a view's `derived_sql` via `ViewQuery`
+  (resource-capped un-sealed `SqlSandbox`) for bounded rows (409 when a view has no single-statement `derived_sql`).
+  **Still deferred:** a dedicated `POST /flows/authored/{id}/run` endpoint (today: a `type: flow` `*_job.toon` +
+  `POST /jobs/{name}/trigger`); a UI consumer for views. Full design: [`flow-live-execution-plan.md`](flow-live-execution-plan.md).
 
 ### Phase 4.5 / 6 — Data plane (provenance overlay; not required for 1–3)
 - [ ] **T20.** Per-edge counters at every node boundary (`recordsIn`/`recordsOut`/`diverted` tagged by relationship) — §11.3.

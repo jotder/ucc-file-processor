@@ -194,7 +194,11 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   (`SourceStoreReader`) — a `transform.merge` joins/unions them (multi-source, Phase C) — drives `FlowExecutor`, and
   writes sinks via `PartitionSinkWriter` (unpartitioned single-file COPY when a sink declares no `partitions`;
   `sink.view` writes no bytes — instead the job registers a durable `ViewDefinition` under `<write-root>/views/`
-  (store + flow + source_store lineage) for a KPI/report/alert API to bind to). Full-recompute by default
+  (store + flow + source_store lineage, plus the single-statement `derived_sql` when expressible). **Consume it via
+  `GET /views` (list), `GET /views/{name}` (definition incl. `derived_sql`), `GET /views/{name}/data?limit=N`** —
+  the last runs the recorded `derived_sql` on a resource-capped (un-sealed) `SqlSandbox` via `ViewQuery` and returns
+  bounded rows (default 1000, max 10000; `capped` flag). 404 if absent, **409** if the view has no `derived_sql`
+  (a multi-statement view — re-run its `flow` to concretise it), 422 on a query error). Full-recompute by default
   (idempotent re-run via a stable `batch_id`), or **opt-in incremental** via the `incremental_column` job param
   (single-source): reads only rows past a stored watermark and appends; the watermark lives at
   `<jobs-audit>/<flow>__<store>.watermark`.

@@ -431,6 +431,12 @@ public final class ControlApi implements AutoCloseable {
         post("/flows/authored/([^/]+)/dry-run", (e, m) -> dryRunFlow(name(m), body(e)));   // T18: bounded sample
         get("/flows/([^/]+)/graph", (e, m) -> FlowProjection.graph(PipelineLift.lift(cfg(m))));
 
+        // ── sink.view consumer (T32 Phase C follow-up): discover the durable view definitions a flow job
+        // records under <write-root>/views and query a view's derived_sql for bounded rows. Read-only. ──
+        get("/views", (e, m) -> viewList());
+        get("/views/([^/]+)", (e, m) -> viewDefinition(name(m)));
+        get("/views/([^/]+)/data", (e, m) -> viewData(name(m), query(e, "limit")));
+
         // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test +
         // create/update/delete (CONTROL-scoped; write-back jailed under -Dassist.write.root). The specific
         // /test verb and /{id} are registered before the bare collection; profiles are returned secret-masked. ──
@@ -1295,6 +1301,86 @@ public final class ControlApi implements AutoCloseable {
         } catch (Exception e) {
             throw new ApiException(422, "dry-run failed: " + e.getMessage());
         }
+    }
+
+    private static final int DEFAULT_VIEW_ROW_CAP = 1000;
+    private static final int MAX_VIEW_ROW_CAP = 10_000;
+
+    private Path viewsRootOrNull() {
+        return writeRoot == null ? null : writeRoot.resolve("views");
+    }
+
+    /** {@code GET /views} — summaries of every recorded {@code sink.view} definition (empty when no write root). */
+    private Object viewList() {
+        Path root = viewsRootOrNull();
+        if (root == null) return List.of();
+        return new com.gamma.flow.ViewStore(root).list().stream().map(ControlApi::viewSummary).toList();
+    }
+
+    /** {@code GET /views/{name}} — one view's full definition (incl. {@code derived_sql}); 404 if absent. */
+    private Object viewDefinition(String name) {
+        com.gamma.flow.ViewDefinition def = requireView(name);
+        Map<String, Object> m = new LinkedHashMap<>(def.toMap());
+        m.put("has_derived_sql", def.derivedSql() != null && !def.derivedSql().isBlank());
+        return m;
+    }
+
+    /**
+     * {@code GET /views/{name}/data?limit=N} — run the view's {@code derived_sql} and return up to {@code N}
+     * rows (default {@value #DEFAULT_VIEW_ROW_CAP}, capped at {@value #MAX_VIEW_ROW_CAP}). 404 if the view is
+     * absent; 409 if it has no {@code derived_sql} (a multi-statement view — re-run its flow); 422 on a query
+     * error (e.g. the source store has no data yet).
+     */
+    private Object viewData(String name, String limitParam) {
+        com.gamma.flow.ViewDefinition def = requireView(name);
+        int cap = viewRowCap(limitParam);
+        try {
+            com.gamma.flow.exec.ViewQuery.Result r = com.gamma.flow.exec.ViewQuery.run(def, cap);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("view", def.store());
+            out.put("columns", r.columns());
+            out.put("rowCount", r.rowCount());
+            out.put("capped", r.capped());
+            out.put("rows", r.rows());
+            return out;
+        } catch (IllegalStateException e) {
+            throw new ApiException(409, e.getMessage());
+        } catch (java.sql.SQLException | IOException e) {
+            throw new ApiException(422, "view query failed: " + e.getMessage());
+        }
+    }
+
+    /** Load a view definition by name, or 404 (400 if the name is unsafe). */
+    private com.gamma.flow.ViewDefinition requireView(String name) {
+        Path root = viewsRootOrNull();
+        com.gamma.flow.ViewDefinition def;
+        try {
+            def = root == null ? null : new com.gamma.flow.ViewStore(root).get(name).orElse(null);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        }
+        if (def == null) throw new ApiException(404, "no view '" + name + "'");
+        return def;
+    }
+
+    /** Clamp the {@code ?limit=} param to {@code [0, MAX]}; absent/non-numeric ⇒ the default cap. */
+    private static int viewRowCap(String limitParam) {
+        if (limitParam == null || limitParam.isBlank()) return DEFAULT_VIEW_ROW_CAP;
+        try {
+            return Math.max(0, Math.min(MAX_VIEW_ROW_CAP, Integer.parseInt(limitParam.trim())));
+        } catch (NumberFormatException e) {
+            return DEFAULT_VIEW_ROW_CAP;
+        }
+    }
+
+    private static Map<String, Object> viewSummary(com.gamma.flow.ViewDefinition def) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("store", def.store());
+        m.put("flow", def.flow());
+        m.put("source_store", def.sourceStores());
+        m.put("has_derived_sql", def.derivedSql() != null && !def.derivedSql().isBlank());
+        m.put("defined_at", def.definedAt());
+        return m;
     }
 
     /** Extract raw {@code sampleText} from a request body (the text a grammar would parse); empty if absent. */
