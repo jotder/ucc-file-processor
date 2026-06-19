@@ -66,6 +66,11 @@ public final class EventType {
      *  cross-driver hazard the deletion fence guards (§3.8 rule 4, T25). The {@code store},
      *  {@code activeProducers} and {@code activeConsumers} attributes name the racing flows. */
     public static final String STORE_DELETE_CONFLICT = "STORE_DELETE_CONFLICT";
+    /** A flow run's data-plane provenance failed the conservation invariant at a non-amplifying node — records
+     *  entered that did not leave (silent data loss) or were unexpectedly amplified (§11.4, T22). The
+     *  {@code node}, {@code recordsIn}, {@code recordsOut} and {@code kind} (LOSS/AMPLIFICATION) attributes
+     *  describe the imbalance; {@code correlationId} is the run's {@code batchId}. */
+    public static final String FLOW_CONSERVATION_IMBALANCE = "FLOW_CONSERVATION_IMBALANCE";
 
     // ── operational-object bridge (Phase 2 ties back to here) ───────────────────────
     public static final String ALERT_FIRED     = "ALERT_FIRED";

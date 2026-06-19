@@ -202,11 +202,18 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   (idempotent re-run via a stable `batch_id`), or **opt-in incremental** via the `incremental_column` job param
   (single-source): reads only rows past a stored watermark and appends; the watermark lives at
   `<jobs-audit>/<flow>__<store>.watermark`.
-- **Events:** none of its own yet (flow runs publish a `BatchEvent` via `FlowJobRunner` like any job; flow area is
-  otherwise un-instrumented — see §7 Gaps).
+- **Events:** `FLOW_CONSERVATION_IMBALANCE` (T22, §11.4) when the data plane finds a non-amplifying node where
+  `recordsIn != recordsOut` — records lost (`LOSS`) or unexpectedly amplified (`AMPLIFICATION`); `EventObjectBridge`
+  promotes it to a managed ALERT (de-duped per flow+node). Flow runs also publish a `BatchEvent` like any job.
+- **Data plane / provenance (T20–T22, §11):** when `-Dprovenance.backend=duckdb` is set, `FlowExecutor` reports
+  per-`(node, relationship)` record counts (a `ProvenanceCollector`) which `FlowJobRunner` persists to
+  `DbProvenanceStore` keyed by `(flow, batchId)`. Query a past run via **`GET /provenance?flow=&batch=`** (per-node-rel
+  counts to paint onto the `FlowGraph` edges as a Sankey) and **`GET /provenance/batches?flow=&limit=`** (recent runs).
+  Default-off ⇒ no counting overhead, no events, `/provenance` 404s.
 - **State:** `<write-root>/flows/<id>.toon`, `<write-root>/registry/<typeDir>/<id>.toon`; per-run branch-commit log
-  under the jobs audit dir.
-- **Config:** authored flows + a `type: flow` `*_job.toon` (`flow:` id, optional `data_dir`/`batch_id`).
+  under the jobs audit dir; the provenance DB (`-Dprovenance.db.url`, default `jdbc:duckdb:provenance.duckdb`) when enabled.
+- **Config:** authored flows + a `type: flow` `*_job.toon` (`flow:` id, optional `data_dir`/`batch_id`). `-D` flags:
+  `-Dprovenance.backend=duckdb` + `-Dprovenance.db.url` (data-plane provenance, default off).
 - **Failure modes:** flow job writes nothing on idempotent replay (same `batch_id` → "0 file(s)"); no
   `source_store` declared (rejected; ≥1 required, multiple supported since Phase C); fail-closed if no `-Dassist.write.root`.
 

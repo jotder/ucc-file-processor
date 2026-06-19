@@ -35,6 +35,8 @@ public final class EventObjectBridge {
 
     /** The {@code attributes.rule} tag stamped on a gap-promoted ALERT (its kind, for the active-guard match). */
     public static final String GAP_RULE = "sequence_gap";
+    /** The {@code attributes.rule} tag stamped on a conservation-imbalance-promoted ALERT (T22, §11.4). */
+    public static final String IMBALANCE_RULE = "conservation_imbalance";
 
     private final ObjectService objects;
 
@@ -44,12 +46,42 @@ public final class EventObjectBridge {
 
     /** {@code EventLog} subscriber entry point — promote the event if it is one we manage. Never throws. */
     public void onEvent(Event e) {
-        if (e == null || !EventType.SEQUENCE_GAP.equals(e.type())) return;   // cheap filter on the hot emit path
+        if (e == null) return;
         try {
-            promoteGap(e);
+            if (EventType.SEQUENCE_GAP.equals(e.type())) promoteGap(e);
+            else if (EventType.FLOW_CONSERVATION_IMBALANCE.equals(e.type())) promoteImbalance(e);
         } catch (RuntimeException ex) {
-            log.warn("could not promote SEQUENCE_GAP to an ALERT object: {}", ex.getMessage());
+            log.warn("could not promote {} to an ALERT object: {}", e.type(), ex.getMessage());
         }
+    }
+
+    /**
+     * Promote a {@link EventType#FLOW_CONSERVATION_IMBALANCE} (data lost or unexpectedly amplified at a
+     * non-amplifying node, §11.4) to a managed ALERT. De-duplicated per {@code (flow pipeline, node)} so a
+     * recurring imbalance on the same node doesn't clone an open alert.
+     */
+    private void promoteImbalance(Event e) {
+        String node = e.attributes().get("node");
+        if (node == null || node.isBlank()) return;
+        String pipeline = e.pipeline();
+
+        boolean active = objects.active(ObjectType.ALERT, pipeline).stream()
+                .anyMatch(o -> IMBALANCE_RULE.equals(o.attributes().get("rule"))
+                        && node.equals(o.attributes().get("node")));
+        if (active) return;
+
+        Map<String, String> attrs = new LinkedHashMap<>();
+        attrs.put("rule", IMBALANCE_RULE);
+        attrs.put("node", node);
+        putIfPresent(attrs, "kind", e.attributes().get("kind"));
+        putIfPresent(attrs, "recordsIn", e.attributes().get("recordsIn"));
+        putIfPresent(attrs, "recordsOut", e.attributes().get("recordsOut"));
+        if (e.eventId() != null) attrs.put("causedByEvent", e.eventId());
+
+        String kind = e.attributes().getOrDefault("kind", "imbalance");
+        String title = ("LOSS".equals(kind) ? "Data loss" : "Record amplification")
+                + " at node " + node + (pipeline != null ? " in flow " + pipeline : "");
+        objects.open(ObjectType.ALERT, title, e.message(), "high", pipeline, attrs);
     }
 
     private void promoteGap(Event e) {

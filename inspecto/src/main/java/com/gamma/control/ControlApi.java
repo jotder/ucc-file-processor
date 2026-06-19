@@ -437,6 +437,11 @@ public final class ControlApi implements AutoCloseable {
         get("/views/([^/]+)", (e, m) -> viewDefinition(name(m)));
         get("/views/([^/]+)/data", (e, m) -> viewData(name(m), query(e, "limit")));
 
+        // ── data-plane provenance (T22, §11): per-(node, relationship) record counts of a past flow run,
+        // for painting quantities onto the FlowGraph edges (Sankey). 404 unless -Dprovenance.backend is set. ──
+        get("/provenance", (e, m) -> provenanceData(query(e, "flow"), query(e, "batch")));
+        get("/provenance/batches", (e, m) -> provenanceBatches(query(e, "flow"), query(e, "limit")));
+
         // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test +
         // create/update/delete (CONTROL-scoped; write-back jailed under -Dassist.write.root). The specific
         // /test verb and /{id} are registered before the bare collection; profiles are returned secret-masked. ──
@@ -1371,6 +1376,30 @@ public final class ControlApi implements AutoCloseable {
         } catch (NumberFormatException e) {
             return DEFAULT_VIEW_ROW_CAP;
         }
+    }
+
+    /**
+     * {@code GET /provenance?flow=&batch=} — the per-(node, relationship) record counts of one flow run (T22).
+     * A consumer paints each {@code (nodeId, rel)} onto its outgoing {@code FlowGraph} edge as the Sankey weight.
+     * 400 if either param is missing, 404 when no provenance backend is configured.
+     */
+    private Object provenanceData(String flow, String batch) {
+        if (flow == null || flow.isBlank() || batch == null || batch.isBlank())
+            throw new ApiException(400, "both 'flow' and 'batch' query params are required");
+        return provenanceStore().query(flow, batch);
+    }
+
+    /** {@code GET /provenance/batches?flow=&limit=} — recent runs of a flow (newest first) to pick one to inspect. */
+    private Object provenanceBatches(String flow, String limit) {
+        if (flow == null || flow.isBlank())
+            throw new ApiException(400, "the 'flow' query param is required");
+        return provenanceStore().batches(flow, parseIntOr(limit, 20));
+    }
+
+    /** The DuckDB data-plane provenance store (T21/T22), or a 404 when no backend is configured (-Dprovenance.backend). */
+    private com.gamma.flow.exec.DbProvenanceStore provenanceStore() {
+        return jobs().provenanceStore().orElseThrow(() -> new ApiException(404,
+                "provenance DB not enabled (set -Dprovenance.backend=duckdb)"));
     }
 
     private static Map<String, Object> viewSummary(com.gamma.flow.ViewDefinition def) {

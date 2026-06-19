@@ -961,10 +961,16 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   `POST /jobs/{name}/trigger`); a UI consumer for views. Full design: [`flow-live-execution-plan.md`](flow-live-execution-plan.md).
 
 ### Phase 4.5 / 6 — Data plane (provenance overlay; not required for 1–3)
-- [ ] **T20.** Per-edge counters at every node boundary (`recordsIn`/`recordsOut`/`diverted` tagged by relationship) — §11.3.
-- [ ] **T21.** Unified provenance key (correlation id + runId) joining acquisition events + lineage matrix + enrichment.
-- [ ] **T22.** `GET /provenance?file=…` graph-shaped query + Sankey overlay on the G6 canvas; surface conservation-imbalance
-  (§11.4) and unexpected amplification as events/alerts.
+- [x] **T20 (done 2026-06-19).** Per-(node, relationship) record counters in `FlowExecutor` via a
+  `ProvenanceCollector` (counts taken inline while the scratch relations are live); existing callers delegate with
+  `NONE`. §11.3.
+- [x] **T21 (done 2026-06-19).** Durable, queryable counts: `ProvenanceRow` + `DbProvenanceStore` (DuckDB), keyed by
+  `(flow, batchId)` — `batchId` is the run's `BatchEvent` correlation id. `FlowJobRunner` persists them when
+  `-Dprovenance.backend=duckdb` is set; default-off (no counting overhead, no prod change).
+- [x] **T22 backend (done 2026-06-19).** `GET /provenance?flow=&batch=` (per-node-rel counts for the Sankey) +
+  `/provenance/batches?flow=`; conservation invariant (§11.4) via pure `ConservationCheck` → `FLOW_CONSERVATION_IMBALANCE`
+  event (LOSS/AMPLIFICATION) → ALERT via `EventObjectBridge`. **T22b (the G6 Sankey overlay on the Flows pane) is the
+  remaining UI follow-up.**
 
 ### Model — pipelines vs jobs (formalised §3.8; spans phases 1/3/4)
 - [x] **T23 (R6, done 2026-06-17).** **Removed the `ingest` job type** — deleted `JobType.INGEST` + `IngestJob`,

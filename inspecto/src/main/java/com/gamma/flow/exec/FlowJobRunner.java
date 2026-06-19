@@ -3,6 +3,10 @@ package com.gamma.flow.exec;
 import com.gamma.api.PublicApi;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.PartitionOutput;
+import com.gamma.event.Event;
+import com.gamma.event.EventLevel;
+import com.gamma.event.EventLog;
+import com.gamma.event.EventType;
 import com.gamma.flow.FlowEdge;
 import com.gamma.flow.FlowGraph;
 import com.gamma.flow.FlowNode;
@@ -160,7 +164,10 @@ public final class FlowJobRunner implements Job {
 
             FlowExecutor.execute(conn, g, seedViews, batchId, coordinator, writer, () -> {}, collector);
 
-            if (provenance != null) provenance.record(provRows);
+            if (provenance != null) {
+                provenance.record(provRows);
+                reportConservation(g, flowId, batchId, provRows);   // T22 — §11.4 invariant → event/alert
+            }
 
             if (incremental) advanceWatermarks(conn, watermarks, flowId, seeds, seedViews, incCol);
 
@@ -180,6 +187,37 @@ public final class FlowJobRunner implements Job {
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────
+
+    /**
+     * T22 — evaluate the §11.4 conservation invariant over this run's per-edge counts and emit a
+     * {@link EventType#FLOW_CONSERVATION_IMBALANCE} event for each non-amplifying node where records were lost
+     * or unexpectedly amplified. The {@link com.gamma.ops.EventObjectBridge} promotes it to a managed ALERT.
+     * Never throws — observability must not break the run that just succeeded.
+     */
+    private static void reportConservation(FlowGraph g, String flowId, String batchId, List<ProvenanceRow> rows) {
+        try {
+            Map<String, Long> counts = new LinkedHashMap<>();
+            for (ProvenanceRow r : rows) counts.put(r.nodeId() + "|" + r.rel(), r.rowCount());
+            for (ConservationCheck.Imbalance im : ConservationCheck.imbalances(g, counts)) {
+                EventLog.global().emit(Event.builder(EventType.FLOW_CONSERVATION_IMBALANCE)
+                        .level("LOSS".equals(im.kind()) ? EventLevel.ERROR : EventLevel.WARN)
+                        .source(FlowJobRunner.class.getName())
+                        .pipeline(flowId)
+                        .correlationId(batchId)
+                        .message("flow '" + flowId + "' node '" + im.node() + "': "
+                                + im.recordsIn() + " in, " + im.recordsOut() + " out (" + im.kind() + ")")
+                        .attr("node", im.node())
+                        .attr("recordsIn", im.recordsIn())
+                        .attr("recordsOut", im.recordsOut())
+                        .attr("kind", im.kind())
+                        .build());
+                log.warn("[FLOWJOB] conservation imbalance in flow '{}' at node '{}': {} in, {} out ({})",
+                        flowId, im.node(), im.recordsIn(), im.recordsOut(), im.kind());
+            }
+        } catch (RuntimeException e) {
+            log.warn("[FLOWJOB] conservation check failed for flow '{}': {}", flowId, e.getMessage());
+        }
+    }
 
     /** A seed: one {@code source_store} node, its store, and its at-rest format. */
     private record Seed(String node, String store, String format) {}
