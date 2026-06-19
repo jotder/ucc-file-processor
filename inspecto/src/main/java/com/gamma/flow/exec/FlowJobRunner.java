@@ -262,11 +262,32 @@ public final class FlowJobRunner implements Job {
         }
     }
 
-    /** {@code max(col)::VARCHAR} over {@code view}; {@code null} when the view is empty (no new rows this run). */
+    /**
+     * {@code max(col)::VARCHAR} over {@code view}; {@code null} when the view is empty (no new rows this run).
+     *
+     * <p><b>Parquet string-statistics guard (task #11):</b> DuckDB answers {@code max()} on a Parquet
+     * <em>VARCHAR</em> column from the column's min/max statistics, which the Parquet writer <em>truncates</em>
+     * (e.g. {@code '2020-01-02'} → {@code '2020-01-'}). A truncated watermark is a prefix (smaller), so the next
+     * run's {@code col > 'wm'} predicate would re-admit already-seen rows. We defeat the stat pushdown for a
+     * string column with a computed expression ({@code col || ''}) so the max is the true scanned value; numeric
+     * and temporal columns have exact stats, so they keep native {@code max()} (correct ordering — a lexical max
+     * over an integer column would be wrong).
+     */
     private static String queryMaxAsText(Connection conn, String view, String col) throws Exception {
+        String q = "\"" + col + "\"";
+        String expr = isVarcharColumn(conn, view, col) ? "max(" + q + " || '')" : "max(" + q + ")";
         try (Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery("SELECT max(\"" + col + "\")::VARCHAR FROM \"" + view + "\"")) {
+             ResultSet rs = st.executeQuery("SELECT " + expr + "::VARCHAR FROM \"" + view + "\"")) {
             return rs.next() ? rs.getString(1) : null;
+        }
+    }
+
+    /** Whether {@code col} reads back as a DuckDB {@code VARCHAR} in {@code view} (empty view ⇒ false). */
+    private static boolean isVarcharColumn(Connection conn, String view, String col) throws Exception {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(
+                     "SELECT any_value(typeof(\"" + col + "\")) FROM \"" + view + "\"")) {
+            return rs.next() && "VARCHAR".equalsIgnoreCase(rs.getString(1));
         }
     }
 

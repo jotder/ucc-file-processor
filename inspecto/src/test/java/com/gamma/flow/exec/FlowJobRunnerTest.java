@@ -278,7 +278,47 @@ class FlowJobRunnerTest {
         assertNull(def.derivedSql(), "a merged (multi-source) view path is not single-SELECT expressible → null");
     }
 
+    @Test
+    void incrementalWatermarkOnAVarcharColumnIsNotTruncated() throws Exception {
+        // task #11 — DuckDB answers max() on a Parquet VARCHAR column from its writer-truncated min/max
+        // statistics ('2020-01-02' -> '2020-01-'); a truncated (prefix) watermark would re-admit already-seen
+        // rows on the next run. The fix forces a scanned max for string columns.
+        String dataDir = tmp.resolve("data").toString();
+        String auditDir = tmp.resolve("audit").toString();
+        seedTsFile(dataDir, "events", "a1", "(1,'2020-01-01'),(2,'2020-01-02')");
+        FlowStore store = new FlowStore(tmp.resolve("flows"));
+        store.write("inc_str", new FlowGraph("inc_str", true,
+                List.of(FlowNode.of("src", "acquisition", Map.of("source_store", "events")),
+                        new FlowNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
+                List.of(FlowEdge.data("src", "out"))));
+        JobConfig r1 = new JobConfig("istr", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "inc_str", "data_dir", dataDir, "incremental_column", "ts", "batch_id", "i1"));
+        new FlowJobRunner(r1, new BatchEventBus(), store, dataDir, auditDir).run();
+        assertEquals(List.of(1, 2), readIds(dataDir, "rollup"), "run 1 reads the whole store");
+
+        seedTsFile(dataDir, "events", "a2", "(3,'2020-01-03')");
+        JobConfig r2 = new JobConfig("istr", JobType.FLOW, null, null, true, false,
+                Map.of("flow", "inc_str", "data_dir", dataDir, "incremental_column", "ts", "batch_id", "i2"));
+        new FlowJobRunner(r2, new BatchEventBus(), store, dataDir, auditDir).run();
+        // truncated watermark '2020-01-' would re-admit ids 1,2 (lexically > the prefix) → [1,1,2,2,3];
+        // the fix stores the true max '2020-01-02', so run 2 appends only id 3.
+        assertEquals(List.of(1, 2, 3), readIds(dataDir, "rollup"), "run 2 appends only the row past the true watermark");
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
+
+    /** Write {@code (id,ts)} VARCHAR VALUES as a uniquely-named Parquet file under {@code <dataDir>/<store>/}. */
+    private static void seedTsFile(String dataDir, String store, String file, String valuesSql) throws Exception {
+        Path dir = Path.of(dataDir, store);
+        Files.createDirectories(dir);
+        File db = DuckDbUtil.tempDbFile("seed_");
+        try (Connection c = DuckDbUtil.openConnection(db); Statement st = c.createStatement()) {
+            st.execute("COPY (SELECT * FROM (VALUES " + valuesSql + ") t(id,ts)) TO '"
+                    + dir.resolve(file + ".parquet").toString().replace("\\", "/") + "' (FORMAT PARQUET)");
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
 
     /** Execute {@code sql} on a fresh DuckDB and return the {@code id} column, ascending. */
     private static List<Integer> runIds(String sql) throws Exception {
