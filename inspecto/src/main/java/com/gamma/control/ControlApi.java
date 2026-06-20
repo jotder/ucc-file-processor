@@ -41,6 +41,7 @@ import com.gamma.ops.rca.RcaTemplate;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
+import com.gamma.util.AtomicFiles;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.slf4j.Logger;
@@ -51,10 +52,8 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -652,18 +651,7 @@ public final class ControlApi implements AutoCloseable {
 
         // Encode and write atomically: a partial/concurrent reader never sees a half-written file.
         byte[] bytes = ConfigCodec.toToon(draft).getBytes(StandardCharsets.UTF_8);
-        Files.createDirectories(target.getParent());
-        Path tmp = Files.createTempFile(target.getParent(), ".cfg-", ".tmp");
-        try {
-            Files.write(tmp, bytes);
-            try {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException notAtomic) {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } finally {
-            Files.deleteIfExists(tmp);
-        }
+        AtomicFiles.write(target, bytes, ".cfg-");
         String rel = writeRoot.relativize(target).toString().replace('\\', '/');
         log.info("[CONFIG-WRITE] type={} wrote {} ({} bytes, overwrote={})", type, rel, bytes.length, exists);
 
@@ -1973,18 +1961,7 @@ public final class ControlApi implements AutoCloseable {
     private void persistConnection(ConnectionProfile p) throws IOException {
         Path target = connectionFile(p.id());
         byte[] bytes = ConfigCodec.toToon(Map.of("connection", connectionDoc(p))).getBytes(StandardCharsets.UTF_8);
-        Files.createDirectories(target.getParent());
-        Path tmp = Files.createTempFile(target.getParent(), ".conn-", ".tmp");
-        try {
-            Files.write(tmp, bytes);
-            try {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException notAtomic) {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } finally {
-            Files.deleteIfExists(tmp);
-        }
+        AtomicFiles.write(target, bytes, ".conn-");
         service.registerConnection(p);
         log.info("[CONNECTION-WRITE] wrote {} ({} bytes)",
                 writeRoot.relativize(target).toString().replace('\\', '/'), bytes.length);

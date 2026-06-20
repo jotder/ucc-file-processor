@@ -2,16 +2,15 @@ package com.gamma.flow;
 
 import com.gamma.api.PublicApi;
 import com.gamma.config.io.ConfigCodec;
+import com.gamma.util.AtomicFiles;
 import com.gamma.util.ToonHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -84,18 +83,7 @@ public final class ViewStore {
     public ViewDefinition write(ViewDefinition def) throws IOException {
         Path file = fileFor(def.store());
         byte[] bytes = ConfigCodec.toToon(def.toMap()).getBytes(StandardCharsets.UTF_8);
-        Files.createDirectories(file.getParent());
-        Path tmp = Files.createTempFile(file.getParent(), ".view-", ".tmp");
-        try {
-            Files.write(tmp, bytes);
-            try {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException notAtomic) {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } finally {
-            Files.deleteIfExists(tmp);
-        }
+        AtomicFiles.write(file, bytes, ".view-");
         return def;
     }
 
