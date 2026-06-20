@@ -6,20 +6,16 @@ import com.gamma.api.PublicApi;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.spi.AssistAgent;
-import com.gamma.config.io.ConfigCodec;
 import com.gamma.config.io.ConfigLoader;
 import com.gamma.config.safety.ConfigSafetyValidator;
 import com.gamma.config.safety.SafetyPolicy;
-import com.gamma.config.spec.ConfigSpec;
 import com.gamma.config.spec.ConfigSpecs;
 import com.gamma.config.spec.Finding;
 import com.gamma.config.spec.Severity;
-import com.gamma.etl.ConfigValidator;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
-import com.gamma.util.AtomicFiles;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.slf4j.Logger;
@@ -28,7 +24,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -298,18 +293,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         get("/enrichment/([^/]+)/report", (e, m) ->
                 service.reports().enrichmentReport(enrichJob(m), window(e)));
 
-        // ── v3.2.0: declarative config spec (UI form rendering + LLM-constrained authoring) ──
-        get("/config/spec/(.+)", (e, m) -> {
-            ConfigSpec spec = ConfigSpecs.forType(name(m));
-            if (spec == null) throw new ApiException(404, "unknown config type: " + name(m));
-            return spec;
-        });
-
-        // Validate a saved file ({"configPath":"…"}) OR an unsaved draft ({"type":…,"config":{…}}).
-        post("/validate", (e, m) -> validate(body(e)));
-
-        // Persist a validated config draft to disk (scope assist.write; jailed under -Dassist.write.root).
-        post("/config/write", (e, m) -> writeConfig(e, body(e)));
 
         // ── v3.3.0: embedded assist agent — POST /assist/{intent} (scope assist.read) ──
         // ── v3.7.0: recent failure diagnoses (read-only) — registered before the POST catch-all ──
@@ -345,7 +328,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
-                new EventRoutes(), new ObjectRoutes(), new CatalogRoutes()))
+                new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes()))
             module.register(this);
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
@@ -403,153 +386,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     }
 
     /**
-     * Validate a config and return structured {@link Finding}s. Two body forms:
-     * <ul>
-     *   <li>{@code {"configPath":"…"}} — load the file, return the pipeline name, the legacy
-     *       {@code warnings} string list (back-compat), and the structured {@code findings};</li>
-     *   <li>{@code {"type":"pipeline|enrichment|job|schema|meta","config":{…}}} — validate an
-     *       in-memory draft against that type's spec with no file written, returning {@code findings}.
-     *       Add {@code "safety":true} to also run the hard-fail {@link ConfigSafetyValidator} (path
-     *       jail / numeric bounds / output allow-list, R6) and merge its findings; omitted/false
-     *       leaves the response unchanged.</li>
-     * </ul>
-     * {@code clean} is true when there are no findings.
-     */
-    private Object validate(Map<String, Object> body) throws IOException {
-        String configPath = str(body, "configPath");
-        if (configPath != null) {
-            PipelineConfig cfg = PipelineConfig.load(configPath);
-            List<String> warnings = ConfigValidator.validate(cfg);
-            List<Finding> findings = ConfigLoader.filesystem()
-                    .validate(ConfigSpecs.pipeline(), ConfigLoader.filesystem().decode(configPath));
-            Map<String, Object> r = new LinkedHashMap<>();
-            r.put("pipeline", cfg.identity().pipelineName());
-            r.put("warnings", warnings);     // legacy string form (back-compat)
-            r.put("findings", findings);     // structured form (v3.2.0)
-            r.put("clean", warnings.isEmpty());
-            return r;
-        }
-        String type = str(body, "type");
-        Object cfgObj = body.get("config");
-        if (type == null || !(cfgObj instanceof Map<?, ?>)) {
-            throw new ApiException(400,
-                    "body must include 'configPath', or 'type' + 'config' (a draft config map)");
-        }
-        ConfigSpec spec = ConfigSpecs.forType(type);
-        if (spec == null) throw new ApiException(404, "unknown config type: " + type);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> draft = (Map<String, Object>) cfgObj;
-        List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(spec, draft));
-        // Pre-flight: warn when a pipeline draft's schema_file won't resolve on this server —
-        // registration would otherwise fail later with an opaque error (v4.1.0).
-        findings.addAll(schemaFileFindings(type, draft, Severity.WARNING));
-        // Opt-in hard-fail safety gate (R6): merged in only when the caller asks, so the default
-        // /validate response is byte-for-byte unchanged for existing callers.
-        boolean safety = "true".equalsIgnoreCase(String.valueOf(body.get("safety")));
-        if (safety) {
-            findings.addAll(ConfigSafetyValidator.check(type, draft, SafetyPolicy.defaultPolicy()));
-        }
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("type", type);
-        r.put("findings", findings);
-        r.put("safetyChecked", safety);
-        r.put("clean", findings.isEmpty());
-        return r;
-    }
-
-    /**
-     * Persist a validated config draft to disk as a {@code .toon} file (v4.1.0, scope
-     * {@code assist.write}). Closes the author→save loop so a suggested or hand-edited config no
-     * longer has to be copied to disk out-of-band.
-     *
-     * <p>Body: {@code {"type":"pipeline|enrichment|job|schema|meta", "config":{…},
-     * "subdir":"optional/relative", "overwrite":false}}. Gated fail-closed, in order:
-     * <ol>
-     *   <li>writes are disabled unless {@code -Dassist.write.root} is set → 503;</li>
-     *   <li>absent/unknown type → 400/404; missing {@code config} map → 400;</li>
-     *   <li>spec validation + the hard-fail {@link ConfigSafetyValidator} (R6) gate: any
-     *       {@code ERROR} finding → 422 (findings returned); warnings pass through;</li>
-     *   <li>the filename is derived from the config's own identity field (never a caller-supplied
-     *       path) and sanitised to one safe token → 422 if blank/unsafe;</li>
-     *   <li>the resolved target is jailed under the write root — an optional {@code subdir} must be
-     *       relative and may not escape → 400/403;</li>
-     *   <li>an existing file is refused unless {@code overwrite:true} → 409.</li>
-     * </ol>
-     * On success the draft is encoded via {@link ConfigCodec#toToon} and written atomically
-     * (temp file + move); the response carries the root-relative path, byte count, whether an
-     * existing file was replaced, and any (warning-level) findings.
-     */
-    private Object writeConfig(HttpExchange ex, Map<String, Object> body) throws IOException {
-        if (writeRoot == null)
-            throw new ApiException(503, "config write disabled: set -Dassist.write.root to enable");
-
-        String type = str(body, "type");
-        Object cfgObj = body.get("config");
-        if (type == null || !(cfgObj instanceof Map<?, ?>))
-            throw new ApiException(400, "body must include 'type' and 'config' (a draft config map)");
-        ConfigSpec spec = ConfigSpecs.forType(type);
-        if (spec == null) throw new ApiException(404, "unknown config type: " + type);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> draft = (Map<String, Object>) cfgObj;
-
-        // Gate: spec validation + the hard-fail safety check (R6). Block on ERRORs; warnings pass.
-        List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(spec, draft));
-        findings.addAll(ConfigSafetyValidator.check(type, draft, SafetyPolicy.defaultPolicy()));
-        // Warning only: the save still succeeds (the schema file may be created afterwards), but
-        // the operator learns now that Register would fail on this host.
-        findings.addAll(schemaFileFindings(type, draft, Severity.WARNING));
-        if (findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
-            respond(ex, 422, Map.of("type", type, "written", false,
-                    "error", "config has ERROR-level findings; not written", "findings", findings));
-            return HANDLED;
-        }
-
-        // Filename from the config's own identity field — no caller-controlled path component.
-        String idField = identityField(type);
-        String rawName = dottedString(draft, idField);
-        if (rawName == null || rawName.isBlank())
-            throw new ApiException(422, "config is missing its identity field '" + idField + "'");
-        String fileName = rawName.trim();
-        if (fileName.contains("..") || !fileName.matches("[A-Za-z0-9][A-Za-z0-9._-]*"))
-            throw new ApiException(422,
-                    "unsafe config name '" + rawName + "' (allowed: letters, digits, '.', '_', '-')");
-
-        // Resolve under the write root; an optional subdir must stay inside it (path jail).
-        Path dir = writeRoot;
-        String subdir = str(body, "subdir");
-        if (subdir != null && !subdir.isBlank()) {
-            Path sub = Path.of(subdir.trim());
-            if (sub.isAbsolute()) throw new ApiException(400, "subdir must be relative");
-            dir = writeRoot.resolve(sub).normalize();
-            if (!dir.startsWith(writeRoot)) throw new ApiException(403, "subdir escapes the write root");
-        }
-        Path target = dir.resolve(fileName + ".toon").normalize();
-        if (!target.startsWith(writeRoot)) throw new ApiException(403, "resolved path escapes the write root");
-
-        boolean exists = Files.exists(target);
-        boolean overwrite = "true".equalsIgnoreCase(String.valueOf(body.get("overwrite")));
-        if (exists && !overwrite)
-            throw new ApiException(409, "file exists: " + writeRoot.relativize(target).toString().replace('\\', '/')
-                    + " (pass overwrite:true to replace)");
-
-        // Encode and write atomically: a partial/concurrent reader never sees a half-written file.
-        byte[] bytes = ConfigCodec.toToon(draft).getBytes(StandardCharsets.UTF_8);
-        AtomicFiles.write(target, bytes, ".cfg-");
-        String rel = writeRoot.relativize(target).toString().replace('\\', '/');
-        log.info("[CONFIG-WRITE] type={} wrote {} ({} bytes, overwrote={})", type, rel, bytes.length, exists);
-
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("type", type);
-        r.put("written", true);
-        r.put("path", rel);
-        r.put("name", fileName);
-        r.put("bytes", bytes.length);
-        r.put("overwritten", exists);
-        r.put("findings", findings);   // warnings only at this point (errors would have 422'd)
-        return r;
-    }
-
-    /**
      * Register a new pipeline from a config already on disk under the write root (v4.1.0, scope
      * {@code control}). Pairs with {@code POST /config/write}: author + persist a {@code .toon}
      * there, then register it so the running service processes it on the next poll cycle — no
@@ -592,7 +428,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         // ERROR here: registration loads the config for real, so an unresolvable schema_file is a
         // guaranteed failure — block with a structured, field-anchored finding instead of letting
         // PipelineConfig.load() surface it as an opaque "config is not a valid pipeline" 422.
-        findings.addAll(schemaFileFindings("pipeline", raw, Severity.ERROR));
+        findings.addAll(ConfigRoutes.schemaFileFindings("pipeline", raw, Severity.ERROR));
         if (findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
             respond(ex, 422, Map.of("registered", false,
                     "error", "config has ERROR-level findings; not registered", "findings", findings));
@@ -617,61 +453,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         r.put("pipeline", view);
         r.put("findings", findings);   // warnings only at this point
         return r;
-    }
-
-    /**
-     * Pre-flight check that a pipeline draft's schema reference(s) resolve on <em>this server's</em>
-     * filesystem (v4.1.0). {@link PipelineConfig} resolves {@code schema_file} relative to the
-     * process working directory, so a draft that validates clean can still fail at registration
-     * with an opaque 422 — this surfaces it early, as a structured finding anchored to the field.
-     * Checks both the legacy {@code processing.schema_file} and the multi-schema
-     * {@code processing.schemas[].schema_file}. No-op for non-pipeline types.
-     *
-     * @param severity WARNING at validate/save time (the file may be created later, or the config
-     *                 may be destined for another host); ERROR at register time (it will fail)
-     */
-    static List<Finding> schemaFileFindings(String type, Map<String, Object> draft, Severity severity) {
-        if (!"pipeline".equals(type)) return List.of();
-        Object procObj = draft.get("processing");
-        if (!(procObj instanceof Map<?, ?> proc)) return List.of();
-        List<Finding> out = new ArrayList<>();
-        if (proc.get("schema_file") instanceof String s && !s.isBlank() && !Files.isRegularFile(Path.of(s)))
-            out.add(new Finding(severity, "processing.schema_file", unresolvable(s)));
-        if (proc.get("schemas") instanceof List<?> defs) {
-            for (int i = 0; i < defs.size(); i++) {
-                if (defs.get(i) instanceof Map<?, ?> def
-                        && def.get("schema_file") instanceof String s && !s.isBlank()
-                        && !Files.isRegularFile(Path.of(s)))
-                    out.add(new Finding(severity, "processing.schemas[" + i + "].schema_file",
-                            unresolvable(s)));
-            }
-        }
-        return out;
-    }
-
-    private static String unresolvable(String schemaPath) {
-        return "schema file does not resolve on the server: '" + schemaPath
-                + "' (relative paths resolve against the server's working directory: "
-                + Path.of("").toAbsolutePath() + ")";
-    }
-
-    /** Dotted path into the config map that holds a config's stable identity (its filename source). */
-    private static String identityField(String type) {
-        return switch (type) {
-            case "job"    -> "job.name";
-            case "schema" -> "raw.name";
-            default       -> "name";   // pipeline, enrichment, meta
-        };
-    }
-
-    /** Read a dotted key (e.g. {@code job.name}) from a nested config map, or {@code null} if absent. */
-    private static String dottedString(Map<String, Object> map, String dotted) {
-        Object cur = map;
-        for (String seg : dotted.split("\\.")) {
-            if (!(cur instanceof Map<?, ?> m)) return null;
-            cur = m.get(seg);
-        }
-        return cur == null ? null : String.valueOf(cur);
     }
 
     // ── dispatch ───────────────────────────────────────────────────────────────
@@ -717,10 +498,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     }
 
     private void respond(HttpExchange ex, int status, Object body) throws IOException {
-        byte[] bytes = json.writeValueAsBytes(body);
-        ex.getResponseHeaders().set("Content-Type", "application/json");
-        ex.sendResponseHeaders(status, bytes.length);
-        ex.getResponseBody().write(bytes);
+        ApiContext.respondJson(ex, status, body);
     }
 
     /** Write a {@code text/plain} body (Prometheus exposition) and signal it's handled. */

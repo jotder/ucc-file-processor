@@ -1,5 +1,6 @@
 package com.gamma.control;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.service.SourceService;
 import com.sun.net.httpserver.HttpExchange;
 
@@ -21,6 +22,9 @@ interface ApiContext {
 
     /** Returned by a handler that has already written its own (non-JSON) response. */
     Object HANDLED = new Object();
+
+    /** Shared response serialiser (default mapper; same output as the dispatcher's JSON writer). */
+    ObjectMapper JSON = new ObjectMapper();
 
     void get(String pattern, Handler h);
 
@@ -75,6 +79,15 @@ interface ApiContext {
         } catch (NumberFormatException e) {
             return def;
         }
+    }
+
+    /** Write {@code body} as JSON with an explicit status (e.g. a 422 with a findings payload); returns {@link #HANDLED}. */
+    static Object respondJson(HttpExchange ex, int status, Object body) throws IOException {
+        byte[] bytes = JSON.writeValueAsBytes(body);
+        ex.getResponseHeaders().set("Content-Type", "application/json");
+        ex.sendResponseHeaders(status, bytes.length);
+        ex.getResponseBody().write(bytes);
+        return HANDLED;
     }
 
     /** Write {@code text} with an explicit {@code Content-Type} (e.g. {@code text/csv}); returns {@link #HANDLED}. */
