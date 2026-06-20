@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 
@@ -50,6 +52,16 @@ interface ApiContext {
     static String str(Map<String, Object> body, String key) {
         Object v = body.get(key);
         return (v == null || v.toString().isBlank()) ? null : v.toString();
+    }
+
+    /** Extract the {@code sampleRows} array from a request body (each element a row map); empty if absent. */
+    @SuppressWarnings("unchecked")
+    static List<Map<String, Object>> sampleRows(Map<String, Object> body) {
+        List<Map<String, Object>> sample = new ArrayList<>();
+        if (body.get("sampleRows") instanceof List<?> rows) {
+            for (Object o : rows) if (o instanceof Map<?, ?> r) sample.add((Map<String, Object>) r);
+        }
+        return sample;
     }
 
     /** Decode the first captured path segment (the {@code id} in {@code /things/{id}}). */

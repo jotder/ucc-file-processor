@@ -33,8 +33,6 @@ import com.gamma.ops.OperationalObject;
 import com.gamma.ops.link.ObjectLink;
 import com.gamma.ops.note.NoteKind;
 import com.gamma.ops.note.ObjectNote;
-import com.gamma.flow.FlowProjection;
-import com.gamma.flow.PipelineLift;
 import com.gamma.ops.rca.RcaTemplate;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
@@ -407,26 +405,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         get("/sources", (e, m) -> service.sources());
         get("/metrics/acquisition", (e, m) -> acquisitionMetrics());
 
-        // ── Flow graph (read-only): the pipeline-as-graph projection for the G6 visualiser + editor
-        // palette (doc §6, T31). Every registered *_pipeline.toon is lifted to a FlowGraph on demand
-        // (PipelineLift, lossless) and projected structurally. The fixed /node-types and the bare
-        // /flows collection are anchored, so they never collide with /flows/{id}/graph. ──
-        get("/flows", (e, m) -> flowSummaries());
-        get("/flows/node-types", (e, m) -> FlowProjection.catalog());
-        get("/flows/combined", (e, m) -> combinedFlows());     // T24: pipeline+job topology joined at the shared store
-        // ── Authored-flow topology CRUD (T19, §7.1): build/validate/persist *_flow.toon under
-        // <write-root>/flows. A distinct namespace from the read-only lifted-pipeline projection above; all
-        // anchored, so /flows/authored* never collides with /flows/{id}/graph. ──
-        get("/flows/authored", (e, m) -> authoredFlowList());
-        post("/flows/authored", (e, m) -> createFlow(body(e)));
-        get("/flows/authored/([^/]+)", (e, m) -> authoredFlow(name(m)));
-        get("/flows/authored/([^/]+)/raw", (e, m) -> authoredFlowRaw(name(m)));   // lossless map for the editor
-        put("/flows/authored/([^/]+)", (e, m) -> updateFlow(name(m), body(e)));
-        delete("/flows/authored/([^/]+)", (e, m) -> deleteFlow(name(m)));
-        post("/flows/authored/([^/]+)/nodes", (e, m) -> addFlowNode(name(m), body(e)));
-        post("/flows/authored/([^/]+)/edges", (e, m) -> addFlowEdge(name(m), body(e)));
-        post("/flows/authored/([^/]+)/dry-run", (e, m) -> dryRunFlow(name(m), body(e)));   // T18: bounded sample
-        get("/flows/([^/]+)/graph", (e, m) -> FlowProjection.graph(PipelineLift.lift(cfg(m))));
 
         // ── data-plane provenance (T22, §11): per-(node, relationship) record counts of a past flow run,
         // for painting quantities onto the FlowGraph edges (Sankey). 404 unless -Dprovenance.backend is set. ──
@@ -434,7 +412,8 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         get("/provenance/batches", (e, m) -> provenanceBatches(query(e, "flow"), query(e, "limit")));
 
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
-        for (RouteModule module : List.of(new ConnectionRoutes(), new ViewRoutes())) module.register(this);
+        for (RouteModule module : List.of(new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes()))
+            module.register(this);
 
         // ── Component registry CRUD (T19, §7.1): grammar/schema/transform/sink under <write-root>/registry,
         // generalising the connection write pattern (write-root gated, jailed, atomic, safe-delete). The
@@ -913,30 +892,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         return service.configFor(name(m)).orElseThrow(() -> notFound(name(m)));
     }
 
-    /** Lift every registered pipeline to a {@link com.gamma.flow.FlowGraph} and project a compact summary (GET /flows). */
-    private List<Map<String, Object>> flowSummaries() {
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (SourceService.PipelineView pv : service.pipelines()) {
-            service.configFor(pv.name())
-                    .ifPresent(c -> out.add(FlowProjection.summary(PipelineLift.lift(c))));
-        }
-        return out;
-    }
-
-    /** Lift every registered pipeline and project the combined pipeline+job topology (GET /flows/combined, T24). */
-    private Map<String, Object> combinedFlows() {
-        return FlowProjection.combined(liftedFlows());
-    }
-
-    /** Every registered pipeline lifted to a {@link com.gamma.flow.FlowGraph} (the available flows). */
-    private List<com.gamma.flow.FlowGraph> liftedFlows() {
-        List<com.gamma.flow.FlowGraph> graphs = new ArrayList<>();
-        for (SourceService.PipelineView pv : service.pipelines()) {
-            service.configFor(pv.name()).ifPresent(c -> graphs.add(PipelineLift.lift(c)));
-        }
-        return graphs;
-    }
-
     // ── Component registry CRUD (T19, §7.1): generalise the connection write pattern to the non-secret
     // component types (grammar/schema/transform/sink) under <write-root>/registry/<typeDir>/<id>.toon.
     // connection keeps its own secret-masking CRUD; safe-delete refuses a component a flow still uses. ──
@@ -1007,7 +962,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private Object deleteComponent(String type, String id) throws IOException {
         com.gamma.flow.ComponentStore store = componentStore();
         if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        List<String> refs = com.gamma.flow.FlowReferences.referencedBy(type + "/" + id, liftedFlows());
+        List<String> refs = com.gamma.flow.FlowReferences.referencedBy(type + "/" + id, FlowRoutes.liftedFlows(service));
         if (!refs.isEmpty())
             throw new ApiException(409, type + " component '" + id + "' is referenced by flow(s): "
                     + String.join(", ", refs));
@@ -1018,155 +973,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             throw new ApiException(400, e.getMessage());
         }
         return Map.of("type", type, "id", id, "deleted", true, "fileRemoved", removed);
-    }
-
-    // ── Authored-flow CRUD (T19, §7.1): persist/validate *_flow.toon under <write-root>/flows ──
-
-    private Path flowsRootOrNull() {
-        return writeRoot == null ? null : writeRoot.resolve("flows");
-    }
-
-    private com.gamma.flow.FlowStore flowStore() {
-        requireWriteRoot();
-        return new com.gamma.flow.FlowStore(writeRoot.resolve("flows"));
-    }
-
-    /** {@code GET /flows/authored} — summaries of every authored flow (empty when no write root). */
-    private Object authoredFlowList() {
-        Path root = flowsRootOrNull();
-        if (root == null) return List.of();
-        return new com.gamma.flow.FlowStore(root).list().stream().map(FlowProjection::summary).toList();
-    }
-
-    /** {@code GET /flows/authored/{id}} — one authored flow's graph projection; 404 if absent. */
-    private Object authoredFlow(String id) {
-        Path root = flowsRootOrNull();
-        com.gamma.flow.FlowGraph g = root == null ? null : new com.gamma.flow.FlowStore(root).get(id).orElse(null);
-        if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
-        return FlowProjection.graph(g);
-    }
-
-    /**
-     * {@code GET /flows/authored/{id}/raw} — the <b>lossless</b> authored definition ({@link com.gamma.flow.FlowCodec#toMap},
-     * nodes with their config) so the editor can round-trip a flow without dropping node config; the
-     * {@link #authoredFlow} projection is structural-only. 404 if absent.
-     */
-    private Object authoredFlowRaw(String id) {
-        Path root = flowsRootOrNull();
-        com.gamma.flow.FlowGraph g = root == null ? null : new com.gamma.flow.FlowStore(root).get(id).orElse(null);
-        if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
-        return com.gamma.flow.FlowCodec.toMap(g);
-    }
-
-    /** {@code POST /flows/authored} — create an authored flow from a posted flow definition; 409 if it exists. */
-    private Object createFlow(Map<String, Object> body) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        com.gamma.flow.FlowGraph g = parseAndValidateFlow(body);
-        String id = g.name();
-        if (flowExists(store, id))
-            throw new ApiException(409, "authored flow '" + id + "' already exists (use PUT to update)");
-        return writeFlow(store, id, g);
-    }
-
-    /** {@code PUT /flows/authored/{id}} — create or replace an authored flow (URL id is authoritative). */
-    private Object updateFlow(String id, Map<String, Object> body) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        Map<String, Object> withId = new LinkedHashMap<>(body);
-        withId.put("name", id);   // the URL id wins over any name in the body
-        return writeFlow(store, id, parseAndValidateFlow(withId));
-    }
-
-    /** {@code DELETE /flows/authored/{id}} — remove an authored flow; 404 if absent. */
-    private Object deleteFlow(String id) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        if (!flowExists(store, id)) throw new ApiException(404, "no authored flow '" + id + "'");
-        boolean removed;
-        try {
-            removed = store.delete(id);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        return Map.of("id", id, "deleted", true, "fileRemoved", removed);
-    }
-
-    /** {@code POST /flows/authored/{id}/nodes} — add (or replace by id) a node, re-validate, persist. */
-    private Object addFlowNode(String id, Map<String, Object> body) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        com.gamma.flow.FlowGraph g = requireAuthoredFlow(store, id);
-        com.gamma.flow.FlowNode node;
-        try {
-            node = com.gamma.flow.FlowCodec.nodeFromMap(body);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
-        List<com.gamma.flow.FlowNode> nodes = new ArrayList<>(g.nodes());
-        nodes.removeIf(n -> n.id().equals(node.id()));   // upsert by node id
-        nodes.add(node);
-        com.gamma.flow.FlowGraph updated = new com.gamma.flow.FlowGraph(g.name(), g.active(), nodes, g.edges());
-        validateFlow(updated);
-        return writeFlow(store, id, updated);
-    }
-
-    /** {@code POST /flows/authored/{id}/edges} — add an edge, re-validate, persist. */
-    private Object addFlowEdge(String id, Map<String, Object> body) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        com.gamma.flow.FlowGraph g = requireAuthoredFlow(store, id);
-        com.gamma.flow.FlowEdge edge;
-        try {
-            edge = com.gamma.flow.FlowCodec.edgeFromMap(body);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
-        List<com.gamma.flow.FlowEdge> edges = new ArrayList<>(g.edges());
-        edges.add(edge);
-        com.gamma.flow.FlowGraph updated = new com.gamma.flow.FlowGraph(g.name(), g.active(), g.nodes(), edges);
-        validateFlow(updated);
-        return writeFlow(store, id, updated);
-    }
-
-    private com.gamma.flow.FlowGraph requireAuthoredFlow(com.gamma.flow.FlowStore store, String id) {
-        try {
-            return store.get(id).orElseThrow(() -> new ApiException(404, "no authored flow '" + id + "'"));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** Parse a flow definition (400 on a malformed shape) and validate it (422 on validation errors). */
-    private com.gamma.flow.FlowGraph parseAndValidateFlow(Map<String, Object> body) {
-        com.gamma.flow.FlowGraph g;
-        try {
-            g = com.gamma.flow.FlowCodec.fromMap(body);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        validateFlow(g);
-        return g;
-    }
-
-    private void validateFlow(com.gamma.flow.FlowGraph g) {
-        com.gamma.flow.FlowValidator.Result r = com.gamma.flow.FlowValidator.validate(g);
-        if (!r.ok())
-            throw new ApiException(422, "flow validation failed: " + r.errors().stream()
-                    .map(i -> i.code() + " — " + i.message()).toList());
-    }
-
-    private static boolean flowExists(com.gamma.flow.FlowStore store, String id) {
-        try {
-            return store.exists(id);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
-    }
-
-    private Object writeFlow(com.gamma.flow.FlowStore store, String id, com.gamma.flow.FlowGraph g) throws IOException {
-        try {
-            store.write(id, g);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
-        log.info("[FLOW-WRITE] wrote authored flow {}", id);
-        return FlowProjection.graph(g);
     }
 
     /**
@@ -1259,29 +1065,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     }
 
     /**
-     * {@code POST /flows/authored/{id}/dry-run} — run a bounded sample through an authored flow's
-     * transform→sink subgraph on a throwaway DuckDB (T18, §7.2); per-node + per-sink row counts. 404 if the
-     * flow is absent, 400 on a bad sample, 422 on a validation/SQL error. Never touches production output.
-     */
-    private Object dryRunFlow(String id, Map<String, Object> body) {
-        Path root = flowsRootOrNull();
-        com.gamma.flow.FlowGraph g;
-        try {
-            g = root == null ? null : new com.gamma.flow.FlowStore(root).get(id).orElse(null);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
-        try {
-            return com.gamma.flow.exec.FlowDryRun.run(g, sampleRows(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        } catch (Exception e) {
-            throw new ApiException(422, "dry-run failed: " + e.getMessage());
-        }
-    }
-
-    /**
      * {@code GET /provenance?flow=&batch=} — the per-(node, relationship) record counts of one flow run (T22).
      * A consumer paints each {@code (nodeId, rel)} onto its outgoing {@code FlowGraph} edge as the Sankey weight.
      * 400 if either param is missing, 404 when no provenance backend is configured.
@@ -1311,14 +1094,8 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         return t == null ? "" : t.toString();
     }
 
-    /** Extract the {@code sampleRows} array from a request body (each element a row map); empty if absent. */
-    @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> sampleRows(Map<String, Object> body) {
-        List<Map<String, Object>> sample = new ArrayList<>();
-        if (body.get("sampleRows") instanceof List<?> rows) {
-            for (Object o : rows) if (o instanceof Map<?, ?> r) sample.add((Map<String, Object>) r);
-        }
-        return sample;
+        return ApiContext.sampleRows(body);
     }
 
     private static boolean componentExists(com.gamma.flow.ComponentStore store, String type, String id) {
