@@ -13,6 +13,13 @@
 - `.claude/QUICK_START.md` — essential commands
 - `.claude/ARCHITECTURE_MAP.md` — file locations
 
+## Durable project knowledge
+
+- [`PROJECT_NOTES.md`](PROJECT_NOTES.md) — consolidated cross-cutting knowledge that isn't obvious from code
+  or git: key decisions (editions/auth), cross-cutting gotchas (TOON schema, DuckDB keywords, sync-bus
+  deadlock, …), engine seams & perf, inspecto-ui conventions, and a pointer map to the authoritative docs.
+  Consolidated from per-user agent memory 2026-06-19; keep current as durable facts change.
+
 ## Production investigation (the hub)
 
 - [`ADVANCED_GUIDE.md`](ADVANCED_GUIDE.md) — **Advanced Operations & Internals Guide.** Per-component process,
