@@ -19,6 +19,9 @@ import java.util.regex.Matcher;
  */
 interface ApiContext {
 
+    /** Returned by a handler that has already written its own (non-JSON) response. */
+    Object HANDLED = new Object();
+
     void get(String pattern, Handler h);
 
     void post(String pattern, Handler h);
@@ -62,6 +65,25 @@ interface ApiContext {
             for (Object o : rows) if (o instanceof Map<?, ?> r) sample.add((Map<String, Object>) r);
         }
         return sample;
+    }
+
+    /** Parse {@code s} as an int, or {@code def} when blank/non-numeric. */
+    static int parseIntOr(String s, int def) {
+        if (s == null || s.isBlank()) return def;
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return def;
+        }
+    }
+
+    /** Write {@code text} with an explicit {@code Content-Type} (e.g. {@code text/csv}); returns {@link #HANDLED}. */
+    static Object respondText(HttpExchange ex, String text, String contentType) throws IOException {
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().set("Content-Type", contentType);
+        ex.sendResponseHeaders(200, bytes.length);
+        ex.getResponseBody().write(bytes);
+        return HANDLED;
     }
 
     /** Decode the first captured path segment (the {@code id} in {@code /things/{id}}). */
