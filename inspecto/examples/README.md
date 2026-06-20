@@ -48,17 +48,30 @@ git-ignored.
 | **03-schema-transform/reject-routing** | Structurally-bad rows (wrong column count) are split out to `out/errors/*_errors.csv` while good rows still land in `out/database/`. | `… 03-schema-transform/reject-routing` |
 | **04-output/csv-output** | Switch the sink to `format: CSV` (vs the default Parquet+snappy), same Hive partition layout. | `… 04-output/csv-output` |
 | **05-acquisition/dedup-rerun** | Disk-marker dedup (`processing.duplicate_check`): run it **twice** (no `--clean`) — the 2nd run reports "No new files" and skips the already-processed file. | `… 05-acquisition/dedup-rerun` (run ×2) |
-| **05-acquisition/gap-detection** | Configures `source.gap_detection` over a numbered feed (`FEED_yyyyMMdd`, day 02 missing). Both files ingest; the `SEQUENCE_GAP` **alert** is emitted in serve mode (see note below). | `… 05-acquisition/gap-detection` |
+| **05-acquisition/gap-detection** | Configures `source.gap_detection` over a numbered feed (`FEED_yyyyMMdd`, day 02 missing). Both files ingest; the `SEQUENCE_GAP` **alert** is emitted in serve mode — see the runnable serve example below. | `… 05-acquisition/gap-detection` |
+| **06-serve/sequence-gap** | The same gap feed run **as a service**: the poll loop detects the hole in the `FEED_{yyyyMMdd}.csv` series (day 02 missing) and emits a `SEQUENCE_GAP` event + ALERT — observable only in serve mode. | `serve-example 06-serve/sequence-gap --demo` |
 
-## Serve-mode acquisition features (next phase)
+## Serve-mode examples — `serve-example.{ps1,sh}`
 
 Several acquisition features are **event-driven and only observable when the engine runs as a
-service** (the poll loop + event log + alert bridge) — not via the one-shot runner: sequence-gap
-alerts, fingerprint dedup (`source.duplicate` checksum/metadata, whose ledger is in-memory per
-process), incremental high-watermark, and stability windows. Their config shapes are in the examples
-above and in [`../../docs/FEATURE_INVENTORY.md`](../../docs/FEATURE_INVENTORY.md) §I. A serve-mode
-example group — start the service, drop files, watch `GET /events` and `GET /objects` — is the next
-batch, alongside jobs, authored flows, and Stage-2 enrichment.
+service** (the poll loop + event log + alert bridge), not via the one-shot batch runner: sequence-gap
+alerts, fingerprint dedup (`source.duplicate`, in-memory ledger per process), incremental
+high-watermark, and stability windows. For these, use the **serve runner**, which starts
+`com.gamma.control.ControlApi` over the example's config dir, seeds a fresh `out/inbox/` from
+`samples/`, waits a couple of poll cycles, and probes the Control API:
+
+```bash
+serve-example 06-serve/sequence-gap --demo      # prints the probes once and stops (self-checking)
+serve-example 06-serve/sequence-gap             # stays running for exploration (Enter to stop)
+#   --port N   --poll N   --wait N   --clean
+```
+
+Each serve example adds a `probes.txt` (one Control API path per line; `#` comments allowed) on top
+of the usual `*_pipeline.toon` + `schema.toon` + `samples/`. The runner always probes `/pipelines`
+and `/events?limit=20`, then each path in `probes.txt`. NB **pipeline ids are lower-cased** from the
+config `name:`, so audit routes use e.g. `/pipelines/seq_gap_feed/files`. More config shapes are in
+[`../../docs/FEATURE_INVENTORY.md`](../../docs/FEATURE_INVENTORY.md) §I; jobs, authored flows, and
+Stage-2 enrichment serve examples are landing in subsequent batches.
 
 ## Things worth knowing (learned the hard way)
 

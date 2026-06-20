@@ -378,6 +378,8 @@ Write-Host "       bash ura.sh backup  config/voucher/voucher_pipeline.toon"
 Write-Host "  6. Try the worked feature examples (self-contained, synthetic data):"
 Write-Host "       pwsh examples/run-example.ps1 01-ingest/hello-csv     (Windows)"
 Write-Host "       bash examples/run-example.sh  01-ingest/hello-csv     (Linux)"
+Write-Host "     or run one as a service (poll loop + Control API probes):"
+Write-Host "       pwsh examples/serve-example.ps1 06-serve/sequence-gap --demo"
 Write-Host "       see examples/README.md for the full catalog"
 Write-Host ""
 if (-not $NoRuntime) {

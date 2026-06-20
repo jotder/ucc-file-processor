@@ -1,0 +1,11 @@
+# Per-example Control API probes for serve-example.{ps1,sh}.
+# One endpoint path per line; blank lines and lines starting with '#' are ignored.
+#
+# This example demonstrates the SEQUENCE_GAP acquisition signal, which only fires in
+# serve mode (the poll loop + event log). The inbox is seeded with FEED_20240101 and
+# FEED_20240103 — day 02 is deliberately missing. When the poll loop scans the inbox it
+# detects the hole in the FEED_{yyyyMMdd}.csv sequence and emits a SEQUENCE_GAP event with
+# attributes {expected, sequence, unit}. The first probe should return >= 1 event.
+# (Pipeline ids are lower-cased from the config name, so the audit route uses seq_gap_feed.)
+/events/search?type=SEQUENCE_GAP
+/pipelines/seq_gap_feed/files
