@@ -26,7 +26,6 @@ processing:
   schema_file: "schema.toon"
   csv_settings:
     delimiter: ","
-    skip_header_lines: 1
     date_formats[1]: "%Y-%m-%d"
     timestamp_formats[1]: "%Y-%m-%d %H:%M:%S"
 

@@ -98,6 +98,12 @@ Stage-2 enrichment serve examples are landing in subsequent batches.
 - **The poll dir is an inbox — the engine consumes it.** Input files are moved to `backup/` on
   success (or `quarantine/` on failure). That's why the runner keeps `samples/` pristine and seeds
   a throwaway `out/inbox/` each run.
+- **`has_header` skips the header — NOT `skip_header_lines`.** A standard "header + data" CSV needs
+  nothing: `has_header` defaults to `true`, so the one header row is skipped and every data row is
+  ingested (schemas here bind columns by position, so the header's names aren't used). `skip_header_lines`
+  is for **junk preamble lines _before_ the header** and is **added on top** of the header skip — so
+  `skip_header_lines: 1` on a plain header+data file skips **two** lines and silently drops the first
+  data row. For a headerless feed use `has_header: false` (see `02-parsing/no-header`).
 - **Type-cast failures become `NULL`** (via `TRY_CAST`); only **structural** problems (wrong column
   count) are rejected to the errors CSV. See `reject-routing`.
 - **No `#` comments in `.toon` files** — the parser stops at the first `#`.
