@@ -34,6 +34,18 @@ interface ApiContext {
     /** The configured write root, or {@code null} when filesystem writes are disabled. */
     Path writeRoot();
 
+    /** Decode the {@code key} query-string parameter, or {@code null} if absent. */
+    static String query(HttpExchange ex, String key) {
+        String q = ex.getRequestURI().getQuery();
+        if (q == null) return null;
+        for (String kv : q.split("&")) {
+            int eq = kv.indexOf('=');
+            if (eq > 0 && kv.substring(0, eq).equals(key))
+                return URLDecoder.decode(kv.substring(eq + 1), StandardCharsets.UTF_8);
+        }
+        return null;
+    }
+
     /** Null-safe, blank-as-null string field from a parsed body map. */
     static String str(Map<String, Object> body, String key) {
         Object v = body.get(key);
