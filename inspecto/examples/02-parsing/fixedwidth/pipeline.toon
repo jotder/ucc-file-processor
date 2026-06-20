@@ -1,0 +1,27 @@
+name: PARSE_FIXEDWIDTH
+active: true
+version: 1
+
+dirs:
+  poll:       out/inbox
+  database:   out/database
+  backup:     out/backup
+  temp:       out/temp
+  errors:     out/errors
+  quarantine: out/quarantine
+  markers:    out/markers
+  status_dir: out/status
+  log_dir:    out/logs
+
+output:
+  format: PARQUET
+  compression: snappy
+
+processing:
+  threads: 2
+  file_pattern: "glob:**/*.dat"
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+  grammar:     "grammar.toon"
+  schema_file: "schema.toon"

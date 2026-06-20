@@ -1,0 +1,17 @@
+partitionKey: EVENT_DATE
+raw:
+  name: FW
+  format: CSV
+  fields[4]{name,selector,type}:
+    ACCT,"0",VARCHAR
+    REGION,"1",VARCHAR
+    EVENT_DATE,"2",DATE
+    AMOUNT,"3",DOUBLE
+mapping:
+  canonicalName: fw
+  rawName: FW
+  rules[4]{targetColumn,sourceExpression,transformType}:
+    ACCT,ACCT,DIRECT
+    REGION,REGION,DIRECT
+    EVENT_DATE,EVENT_DATE,DIRECT
+    AMOUNT,AMOUNT,DIRECT

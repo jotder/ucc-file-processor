@@ -1,0 +1,17 @@
+partitionKey: EVENT_DATE
+raw:
+  name: HELLO
+  format: CSV
+  fields[4]{name,selector,type}:
+    ID,"0",VARCHAR
+    CUSTOMER,"1",VARCHAR
+    EVENT_DATE,"2",DATE
+    AMOUNT,"3",DOUBLE
+mapping:
+  canonicalName: hello
+  rawName: HELLO
+  rules[4]{targetColumn,sourceExpression,transformType}:
+    ID,ID,DIRECT
+    CUSTOMER,CUSTOMER,DIRECT
+    EVENT_DATE,EVENT_DATE,DIRECT
+    AMOUNT,AMOUNT,DIRECT

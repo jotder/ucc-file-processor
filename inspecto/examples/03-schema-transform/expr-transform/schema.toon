@@ -1,0 +1,20 @@
+partitionKey: EVENT_DATE
+raw:
+  name: SALE
+  format: CSV
+  fields[5]{name,selector,type}:
+    ID,"0",VARCHAR
+    CUSTOMER,"1",VARCHAR
+    REGION,"2",VARCHAR
+    EVENT_DATE,"3",DATE
+    NET,"4",DOUBLE
+mapping:
+  canonicalName: sale
+  rawName: SALE
+  rules[6]{targetColumn,sourceExpression,transformType}:
+    ID,ID,DIRECT
+    CUSTOMER,"UPPER(TRIM(CUSTOMER))",EXPR
+    REGION,REGION,DIRECT
+    EVENT_DATE,EVENT_DATE,DIRECT
+    NET,NET,DIRECT
+    GROSS,"ROUND(TRY_CAST(NET AS DOUBLE) * 1.10, 2)",EXPR

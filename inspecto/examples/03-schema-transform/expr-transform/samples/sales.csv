@@ -1,0 +1,5 @@
+id,customer,region,event_date,net
+1, alice ,EMEA,2024-01-12,100.00
+2,bob,APAC,2024-01-12,250.50
+3, carol,AMER,2024-02-08,75.25
+4,dave ,EMEA,2024-02-08,420.00

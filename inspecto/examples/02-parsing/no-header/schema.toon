@@ -1,0 +1,17 @@
+partitionKey: EVENT_DATE
+raw:
+  name: TXN
+  format: CSV
+  fields[4]{name,selector,type}:
+    ID,"0",VARCHAR
+    REGION,"1",VARCHAR
+    EVENT_DATE,"2",DATE
+    AMOUNT,"3",DOUBLE
+mapping:
+  canonicalName: txn
+  rawName: TXN
+  rules[4]{targetColumn,sourceExpression,transformType}:
+    ID,ID,DIRECT
+    REGION,REGION,DIRECT
+    EVENT_DATE,EVENT_DATE,DIRECT
+    AMOUNT,AMOUNT,DIRECT

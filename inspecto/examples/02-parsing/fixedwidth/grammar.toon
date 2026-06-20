@@ -1,0 +1,17 @@
+name: fixedwidth_grammar
+version: 1
+
+frontend: fixedwidth
+encoding: utf-8
+has_header: false
+date_formats[1]: "%Y-%m-%d"
+timestamp_formats[1]: "%Y-%m-%d"
+
+fixedwidth:
+  record: line
+  trim: both
+  fields[4]{name,start,length}:
+    ACCT,0,10
+    REGION,10,4
+    EVENT_DATE,14,10
+    AMOUNT,24,10

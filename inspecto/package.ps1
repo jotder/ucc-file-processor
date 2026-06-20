@@ -145,6 +145,20 @@ Copy-Item      "$adjParserDir\config\voucher\voucher_537.toon"      `
 Copy-IfPresent "$adjParserDir\config\voucher\voucher.grammar.toon"  `
                "$bundleDir\config\voucher\voucher.grammar.toon"
 
+# ── step 4b: copy runnable examples ───────────────────────────────────────────
+# The examples/ tree is self-contained (each example uses paths relative to its own
+# dir and writes only under its own out/), so no path rewrite is needed — copy as-is,
+# then drop any out/ left over from local test runs. Users run an example with the
+# bundled examples/run-example.(ps1|sh), which resolves the JAR at ../file-processor.jar.
+$examplesSrc = Join-Path $adjParserDir 'examples'
+if (Test-Path $examplesSrc) {
+    $examplesOut = Join-Path $bundleDir 'examples'
+    Copy-Item $examplesSrc $examplesOut -Recurse -Force
+    Get-ChildItem -Path $examplesOut -Recurse -Directory -Filter 'out' -ErrorAction SilentlyContinue |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "Bundled runnable examples → $examplesOut" -ForegroundColor Green
+}
+
 
 # ── step 5: bundle run scripts (Linux + Windows) ───────────────────────────────
 @'
@@ -361,6 +375,10 @@ Write-Host "       ura.bat help            (Windows)"
 Write-Host "       bash ura.sh help        (Linux)"
 Write-Host "       bash ura.sh search  config/adjustment/adjustment_pipeline.toon"
 Write-Host "       bash ura.sh backup  config/voucher/voucher_pipeline.toon"
+Write-Host "  6. Try the worked feature examples (self-contained, synthetic data):"
+Write-Host "       pwsh examples/run-example.ps1 01-ingest/hello-csv     (Windows)"
+Write-Host "       bash examples/run-example.sh  01-ingest/hello-csv     (Linux)"
+Write-Host "       see examples/README.md for the full catalog"
 Write-Host ""
 if (-not $NoRuntime) {
     Write-Host "Embedded Java runtime included (bundle\runtime\) — no JVM needed on the Windows target." -ForegroundColor Green
