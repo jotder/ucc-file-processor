@@ -109,6 +109,11 @@ public final class BatchProcessor {
         // "already processed" fingerprint. PATH mode records nothing (it uses marker sentinels).
         boolean ledgerRecord = cfg.processing().duplicateCheckEnabled() && cfg.source().duplicate().contentBased();
         boolean checksumMode = ledgerRecord && "checksum".equals(cfg.source().duplicate().mode());
+        // Path-marker sentinels are the dedup mechanism only in PATH mode. In content-based mode
+        // (checksum/metadata) the fingerprint ledger is the source of truth and the marker is dead
+        // weight that actively breaks reprocessing: a CHANGED file re-ingested at a known path would
+        // hit the prior commit's marker (FileAlreadyExistsException). So skip markers when ledgerRecord.
+        boolean writeMarkers = cfg.dirs().markers() != null && !ledgerRecord;
         String dupAlgorithm = cfg.source().duplicate().algorithm();
         String sourceId = cfg.source().id();
         List<LedgerEntry> ledgerEntries = ledgerRecord ? new ArrayList<>() : null;
@@ -120,7 +125,7 @@ public final class BatchProcessor {
             String rel    = poll.relativize(filePath).toString().replace('\\', '/');
             String backupPath = backup != null
                     ? backup.resolve(poll.relativize(filePath)).toString() : "";
-            if (cfg.dirs().markers() != null)
+            if (writeMarkers)
                 markerPaths.add(MarkerManager.getMarkerPath(m.file(), cfg).toString());
             if (ledgerRecord) {
                 try {
@@ -158,8 +163,9 @@ public final class BatchProcessor {
         if (backup != null)
             for (Batch.Member m : survivors) backupFile(m.file(), cfg);
 
-        // Markers LAST — created only after every other side-effect is durable.
-        if (cfg.dirs().markers() != null)
+        // Markers LAST — created only after every other side-effect is durable (PATH-mode dedup only;
+        // content-based mode uses the ledger below — see writeMarkers above).
+        if (writeMarkers)
             for (Batch.Member m : survivors) MarkerManager.createMarkerFile(m.file(), cfg);
 
         // Fingerprint ledger LAST too (content-based dedup; same stranding-safety reason as markers).

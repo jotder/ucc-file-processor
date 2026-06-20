@@ -1,5 +1,7 @@
 package com.gamma.inspector;
 
+import com.gamma.acquire.AcquisitionLedgers;
+import com.gamma.acquire.InMemoryAcquisitionLedger;
 import com.gamma.etl.PipelineConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -113,5 +115,83 @@ class SourceProcessorPollTest {
         SourceProcessor.run(cfg);
         String afterThird = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
         assertEquals(3, afterThird.split("\n").length, "header + 2 batch rows (1 per run that found work)");
+    }
+
+    @Test
+    void reprocessesChangedFileInChecksumModeWithMarkersDirConfigured(@TempDir Path dir) throws Exception {
+        // Regression: in content-based dedup (checksum/metadata) the fingerprint ledger is the source of
+        // truth, NOT the path-marker sentinel. The engine must skip the marker write — otherwise re-ingesting
+        // a CHANGED file at a known path would hit the prior commit's <file>.processed marker
+        // (FileAlreadyExistsException) and the reprocess would fail. A markers: dir is configured here on
+        // purpose to prove markers are skipped (not just absent) in checksum mode.
+        AcquisitionLedgers.use(new InMemoryAcquisitionLedger());   // isolate the process-wide ledger
+
+        Path schema = dir.resolve("mini_schema.toon");
+        Files.writeString(schema, com.gamma.etl.PipelineConfigBatchTest.miniSchema());
+        String toon = """
+            name: CHECKSUM_MARK_ETL
+            active: true
+            version: 1
+            dirs:
+              poll: %s/inbox
+              database: %s/db
+              backup: %s/backup
+              temp: %s/temp
+              errors: %s/errors
+              quarantine: %s/quarantine
+              markers: %s/markers
+              status_dir: %s/status
+              log_dir: %s/logs
+            output:
+              format: CSV
+            processing:
+              threads: 1
+              file_pattern: "glob:**/*.csv"
+              duplicate_check:
+                enabled: true
+                marker_extension: .processed
+              schema_file: "%s"
+              csv_settings:
+                delimiter: ","
+                skip_header_lines: 0
+                date_formats[1]: "%%Y-%%m-%%d"
+                timestamp_formats[1]: "%%Y-%%m-%%d"
+            source:
+              duplicate:
+                mode: checksum
+                algorithm: SHA256
+                on_change: reprocess
+            """.formatted(dir, dir, dir, dir, dir, dir, dir, dir, dir,
+                          schema.toString().replace("\\", "/"));
+        Path toonP = dir.resolve("cm_pipeline.toon");
+        Files.writeString(toonP, toon);
+        PipelineConfig cfg = PipelineConfig.load(toonP.toString());
+
+        Path inbox = Path.of(cfg.dirs().poll());
+        Files.createDirectories(inbox);
+
+        // v1 → processed; its fingerprint is recorded in the ledger.
+        Files.writeString(inbox.resolve("ORDERS.csv"), "ID,AMT,EVENT_DATE\nr0,1.0,2020-04-03\n");
+        SourceProcessor.run(cfg);
+
+        // The marker write must be skipped in checksum mode — no <file>.processed sentinel.
+        Path markersDir = Path.of(cfg.dirs().markers());
+        if (Files.exists(markersDir)) {
+            try (Stream<Path> w = Files.walk(markersDir)) {
+                assertEquals(0, w.filter(p -> p.toString().endsWith(".processed")).count(),
+                        "checksum mode must not write path markers (the ledger is the source of truth)");
+            }
+        }
+
+        // v2 → same path, CHANGED content (extra row) → checksum differs from the ledger → CHANGED → reprocess.
+        Files.writeString(inbox.resolve("ORDERS.csv"),
+                "ID,AMT,EVENT_DATE\nr0,1.0,2020-04-03\nr1,2.0,2020-04-03\n");
+        SourceProcessor.run(cfg);
+
+        String batches = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
+        assertFalse(batches.contains("FAILED"),
+                "reprocess of a CHANGED file must not fail on a stale path marker");
+        assertEquals(3, batches.split("\n").length,
+                "header + 2 successful batch rows (v1 + the reprocessed v2)");
     }
 }
