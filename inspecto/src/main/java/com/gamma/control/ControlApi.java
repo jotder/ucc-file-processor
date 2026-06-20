@@ -6,12 +6,6 @@ import com.gamma.api.PublicApi;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.spi.AssistAgent;
-import com.gamma.catalog.EdgeKind;
-import com.gamma.catalog.MetadataEdge;
-import com.gamma.catalog.MetadataGraph;
-import com.gamma.catalog.MetadataGraphService;
-import com.gamma.catalog.MetadataNode;
-import com.gamma.catalog.NodeKind;
 import com.gamma.config.io.ConfigCodec;
 import com.gamma.config.io.ConfigLoader;
 import com.gamma.config.safety.ConfigSafetyValidator;
@@ -34,17 +28,14 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -307,18 +298,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         get("/enrichment/([^/]+)/report", (e, m) ->
                 service.reports().enrichmentReport(enrichJob(m), window(e)));
 
-        // ── v3.2.0: metadata graph / data catalog (scope assist.read; control satisfies it) ──
-        get("/catalog", (e, m) -> service.catalog().tables());
-        get("/catalog/kpis", (e, m) -> catalogKpis());
-        get("/catalog/graph", (e, m) -> service.catalog().traverse(
-                query(e, "from"),
-                parseIntOr(query(e, "depth"), 1),
-                direction(query(e, "direction")),
-                nodeKinds(query(e, "kinds")),
-                edgeKinds(query(e, "edgeKinds")),
-                "true".equalsIgnoreCase(query(e, "overlay"))));
-        get("/catalog/tables/(.+)", (e, m) -> catalogNodeDetail(name(m)));
-
         // ── v3.2.0: declarative config spec (UI form rendering + LLM-constrained authoring) ──
         get("/config/spec/(.+)", (e, m) -> {
             ConfigSpec spec = ConfigSpecs.forType(name(m));
@@ -366,7 +345,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
-                new EventRoutes(), new ObjectRoutes()))
+                new EventRoutes(), new ObjectRoutes(), new CatalogRoutes()))
             module.register(this);
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
@@ -885,84 +864,8 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         return ApiContext.param(m, g);
     }
 
-    // ── catalog helpers (v3.2.0) ─────────────────────────────────────────────────
-
-    /** A node (any kind) with its operational overlay + immediate neighbours, or 404. */
-    private Map<String, Object> catalogNodeDetail(String id) {
-        MetadataGraphService catalog = service.catalog();
-        MetadataNode node = catalog.hydrated(id);
-        if (node == null) throw new ApiException(404, "no catalog node '" + id + "'");
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("node", node);
-        // depth 2 reaches an event table's schema (1) and its columns (2), plus lineage neighbours
-        out.put("neighbors", catalog.traverse(id, 2, MetadataGraphService.Direction.BOTH, null, null, false));
-        return out;
-    }
-
-    /** The KPI catalog (each KPI with its resolved inputs) + merged domain notes. */
-    private Map<String, Object> catalogKpis() {
-        MetadataGraphService catalog = service.catalog();
-        MetadataGraph g = catalog.structural();
-        List<Map<String, Object>> kpis = new ArrayList<>();
-        for (MetadataNode k : catalog.nodesOfKind(NodeKind.KPI)) {
-            List<String> inputs = new ArrayList<>();
-            for (MetadataEdge edge : g.edges()) {
-                if (edge.kind() == EdgeKind.COMPUTED_FROM && edge.from().equals(k.id())) inputs.add(edge.to());
-            }
-            Map<String, Object> e = new LinkedHashMap<>();
-            e.put("id", k.id());
-            e.put("name", k.label());
-            e.put("definition", k.attrs().get("definition"));
-            e.put("grain", k.attrs().get("grain"));
-            e.put("joinKeys", k.attrs().getOrDefault("joinKeys", List.of()));
-            e.put("inputs", inputs);
-            kpis.add(e);
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("kpis", kpis);
-        out.put("domain", catalog.domain());
-        return out;
-    }
-
     private static int parseIntOr(String s, int def) {
         return ApiContext.parseIntOr(s, def);
-    }
-
-    private static MetadataGraphService.Direction direction(String s) {
-        if (s == null || s.isBlank()) return MetadataGraphService.Direction.BOTH;
-        try {
-            return MetadataGraphService.Direction.valueOf(s.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, "invalid direction '" + s + "' (out|in|both)");
-        }
-    }
-
-    private static Set<NodeKind> nodeKinds(String csv) {
-        if (csv == null || csv.isBlank()) return null;
-        EnumSet<NodeKind> set = EnumSet.noneOf(NodeKind.class);
-        for (String t : csv.split(",")) {
-            if (t.isBlank()) continue;
-            try {
-                set.add(NodeKind.valueOf(t.trim().toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                throw new ApiException(400, "invalid node kind '" + t.trim() + "'");
-            }
-        }
-        return set;
-    }
-
-    private static Set<EdgeKind> edgeKinds(String csv) {
-        if (csv == null || csv.isBlank()) return null;
-        EnumSet<EdgeKind> set = EnumSet.noneOf(EdgeKind.class);
-        for (String t : csv.split(",")) {
-            if (t.isBlank()) continue;
-            try {
-                set.add(EdgeKind.valueOf(t.trim().toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                throw new ApiException(400, "invalid edge kind '" + t.trim() + "'");
-            }
-        }
-        return set;
     }
 
     /** Build a report {@link com.gamma.report.ReportService.Window} from {@code ?from=&to=}. */
