@@ -33,8 +33,6 @@ import com.gamma.ops.OperationalObject;
 import com.gamma.ops.link.ObjectLink;
 import com.gamma.ops.note.NoteKind;
 import com.gamma.ops.note.ObjectNote;
-import com.gamma.acquire.ConnectionProfile;
-import com.gamma.acquire.ConnectionTester;
 import com.gamma.flow.FlowProjection;
 import com.gamma.flow.PipelineLift;
 import com.gamma.ops.rca.RcaTemplate;
@@ -164,7 +162,7 @@ import java.util.regex.Pattern;
  * </ul>
  */
 @PublicApi(since = "2.4.0")
-public final class ControlApi implements AutoCloseable {
+public final class ControlApi implements AutoCloseable, ApiContext {
 
     private static final Logger log = LoggerFactory.getLogger(ControlApi.class);
     /** Returned by a handler that has already written its own (non-JSON) response. */
@@ -444,12 +442,8 @@ public final class ControlApi implements AutoCloseable {
         // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test +
         // create/update/delete (CONTROL-scoped; write-back jailed under -Dassist.write.root). The specific
         // /test verb and /{id} are registered before the bare collection; profiles are returned secret-masked. ──
-        get("/connections", (e, m) -> connectionList());
-        post("/connections", (e, m) -> createConnection(body(e)));
-        post("/connections/([^/]+)/test", (e, m) -> testConnection(name(m)));
-        put("/connections/([^/]+)", (e, m) -> updateConnection(name(m), body(e)));
-        delete("/connections/([^/]+)", (e, m) -> deleteConnection(name(m)));
-        get("/connections/([^/]+)", (e, m) -> connectionById(name(m)));
+        // Feature route modules (extracted from this class incrementally; see RouteModule).
+        for (RouteModule module : List.of(new ConnectionRoutes())) module.register(this);
 
         // ── Component registry CRUD (T19, §7.1): grammar/schema/transform/sink under <write-root>/registry,
         // generalising the connection write pattern (write-root gated, jailed, atomic, safe-delete). The
@@ -1464,12 +1458,11 @@ public final class ControlApi implements AutoCloseable {
     }
 
     private static String name(Matcher m) {
-        return URLDecoder.decode(m.group(1), StandardCharsets.UTF_8);
+        return ApiContext.name(m);
     }
 
-    /** Decode the {@code g}-th captured path segment (e.g. group 2 = the {@code id} in {@code /{type}/{id}}). */
     private static String param(Matcher m, int g) {
-        return URLDecoder.decode(m.group(g), StandardCharsets.UTF_8);
+        return ApiContext.param(m, g);
     }
 
     // ── catalog helpers (v3.2.0) ─────────────────────────────────────────────────
@@ -1832,25 +1825,6 @@ public final class ControlApi implements AutoCloseable {
         return service.rcaTemplates().values().stream().map(RcaTemplate::toMap).toList();
     }
 
-    /** {@code GET /connections} — all connection profiles, secret-masked. */
-    private Object connectionList() {
-        return service.connections().values().stream().map(ConnectionProfile::toMap).toList();
-    }
-
-    /** {@code GET /connections/{id}} — one connection profile (secret-masked); 404 if unknown. */
-    private Object connectionById(String id) {
-        return service.connection(id)
-                .map(ConnectionProfile::toMap)
-                .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
-    }
-
-    /** {@code POST /connections/{id}/test} — TCP-reachability + secret-resolution test; 404 if unknown. */
-    private Object testConnection(String id) {
-        ConnectionProfile p = service.connection(id)
-                .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
-        return ConnectionTester.test(p).toMap();
-    }
-
     /** Acquisition metric names exposed (as JSON) by {@code GET /metrics/acquisition}. */
     private static final java.util.Set<String> ACQ_METRICS = java.util.Set.of(
             "inspecto_files_discovered_total", "inspecto_files_downloaded_total", "inspecto_downloads_failed_total",
@@ -1862,132 +1836,9 @@ public final class ControlApi implements AutoCloseable {
         return com.gamma.metrics.MetricRegistry.global().snapshot(ACQ_METRICS::contains);
     }
 
-    /** {@code POST /connections} — create a new connection profile (write-root gated); 409 if the id exists. */
-    private Object createConnection(Map<String, Object> body) throws IOException {
-        requireWriteRoot();
-        String id = str(body, "id");
-        if (id == null) throw new ApiException(400, "body must include 'id'");
-        if (service.connection(id).isPresent())
-            throw new ApiException(409, "connection '" + id + "' already exists (use PUT to update)");
-        ConnectionProfile p = connectionFromBody(id, body, null);
-        persistConnection(p);
-        return p.toMap();
-    }
-
-    /** {@code PUT /connections/{id}} — replace a profile (masked secrets preserved); 404 if unknown. */
-    private Object updateConnection(String id, Map<String, Object> body) throws IOException {
-        requireWriteRoot();
-        ConnectionProfile existing = service.connection(id)
-                .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
-        ConnectionProfile p = connectionFromBody(id, body, existing);
-        persistConnection(p);
-        return p.toMap();
-    }
-
-    /** {@code DELETE /connections/{id}} — remove a profile; 404 if unknown, 409 if a pipeline source uses it. */
-    private Object deleteConnection(String id) throws IOException {
-        requireWriteRoot();
-        if (service.connection(id).isEmpty())
-            throw new ApiException(404, "no connection profile '" + id + "'");
-        if (service.connectionInUse(id))
-            throw new ApiException(409, "connection '" + id + "' is in use by a pipeline source");
-        boolean removed = Files.deleteIfExists(connectionFile(id));
-        service.unregisterConnection(id);
-        return Map.of("id", id, "deleted", true, "fileRemoved", removed);
-    }
-
     private void requireWriteRoot() {
         if (writeRoot == null)
             throw new ApiException(503, "connection write disabled: set -Dassist.write.root to enable");
-    }
-
-    /** The jailed {@code <id>_connection.toon} path under the write root; 422 on an unsafe id, 403 on escape. */
-    private Path connectionFile(String id) {
-        String safe = id.trim();
-        if (safe.contains("..") || !safe.matches("[A-Za-z0-9][A-Za-z0-9._-]*"))
-            throw new ApiException(422, "unsafe connection id '" + id + "' (allowed: letters, digits, '.', '_', '-')");
-        Path target = writeRoot.resolve(safe + "_connection.toon").normalize();
-        if (!target.startsWith(writeRoot)) throw new ApiException(403, "resolved path escapes the write root");
-        return target;
-    }
-
-    /**
-     * Build a validated {@link ConnectionProfile} from a request body (the secret-masked API shape). Masked secret
-     * values ({@code ***}) are replaced with the stored reference from {@code existing} so an unchanged secret is
-     * never clobbered; secrets must otherwise be {@code ${ENV:…}} references (never raw values).
-     */
-    @SuppressWarnings("unchecked")
-    private ConnectionProfile connectionFromBody(String id, Map<String, Object> body, ConnectionProfile existing) {
-        Map<String, Object> c = new LinkedHashMap<>();
-        c.put("id", id);
-        c.put("connector", str(body, "connector"));
-        c.put("host", str(body, "host"));
-        if (body.get("port") != null) c.put("port", body.get("port"));
-        c.put("database", str(body, "database"));
-        String basePath = str(body, "basePath");
-        if (basePath == null) basePath = str(body, "base_path");
-        c.put("base_path", basePath);
-        c.put("username", str(body, "username"));
-        c.put("password", keepSecret(str(body, "password"), existing == null ? null : existing.password()));
-        if (body.get("options") instanceof Map<?, ?> opts) {
-            Map<String, String> priorOpts = existing == null ? Map.of() : existing.options();
-            Map<String, Object> merged = new LinkedHashMap<>();
-            opts.forEach((k, v) -> {
-                String key = String.valueOf(k);
-                merged.put(key, keepSecret(v == null ? null : String.valueOf(v), priorOpts.get(key)));
-            });
-            c.put("options", merged);
-        }
-        if (body.get("tunnel") instanceof Map<?, ?> t) {
-            Map<String, Object> tun = new LinkedHashMap<>((Map<String, Object>) t);
-            String priorPw = (existing != null && existing.tunnel() != null) ? existing.tunnel().password() : null;
-            Object pw = tun.get("password");
-            tun.put("password", keepSecret(pw == null ? null : String.valueOf(pw), priorPw));
-            c.put("tunnel", tun);
-        }
-        try {
-            return ConnectionProfile.fromMap(c);
-        } catch (IllegalArgumentException ex) {
-            throw new ApiException(400, ex.getMessage());
-        }
-    }
-
-    /** Preserve a stored secret reference when the UI re-submits the mask sentinel ({@code ***}); else take new. */
-    private static String keepSecret(String incoming, String existing) {
-        return "***".equals(incoming) ? existing : incoming;
-    }
-
-    /** Encode the profile as a {@code connection { … }} TOON doc and write it atomically under the write root. */
-    private void persistConnection(ConnectionProfile p) throws IOException {
-        Path target = connectionFile(p.id());
-        byte[] bytes = ConfigCodec.toToon(Map.of("connection", connectionDoc(p))).getBytes(StandardCharsets.UTF_8);
-        AtomicFiles.write(target, bytes, ".conn-");
-        service.registerConnection(p);
-        log.info("[CONNECTION-WRITE] wrote {} ({} bytes)",
-                writeRoot.relativize(target).toString().replace('\\', '/'), bytes.length);
-    }
-
-    /** The on-disk (unmasked, references preserved) {@code connection} block map for {@link ConfigCodec#toToon}. */
-    private static Map<String, Object> connectionDoc(ConnectionProfile p) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", p.id());
-        m.put("connector", p.connector());
-        if (p.host() != null) m.put("host", p.host());
-        if (p.port() > 0) m.put("port", p.port());
-        if (p.database() != null) m.put("database", p.database());
-        if (p.basePath() != null) m.put("base_path", p.basePath());
-        if (p.username() != null) m.put("username", p.username());
-        if (p.password() != null) m.put("password", p.password());
-        if (!p.options().isEmpty()) m.put("options", new LinkedHashMap<>(p.options()));
-        if (p.tunnel() != null) {
-            Map<String, Object> t = new LinkedHashMap<>();
-            t.put("host", p.tunnel().host());
-            if (p.tunnel().port() > 0) t.put("port", p.tunnel().port());
-            if (p.tunnel().username() != null) t.put("username", p.tunnel().username());
-            if (p.tunnel().password() != null) t.put("password", p.tunnel().password());
-            m.put("tunnel", t);
-        }
-        return m;
     }
 
     /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */
@@ -2023,7 +1874,8 @@ public final class ControlApi implements AutoCloseable {
         return new ApiException(404, "no pipeline named '" + name + "'");
     }
 
-    private Map<String, Object> body(HttpExchange ex) throws IOException {
+    @Override
+    public Map<String, Object> body(HttpExchange ex) throws IOException {
         try (InputStream in = ex.getRequestBody()) {
             byte[] raw = in.readAllBytes();
             if (raw.length == 0) return Map.of();
@@ -2031,9 +1883,14 @@ public final class ControlApi implements AutoCloseable {
         }
     }
 
+    @Override
+    public SourceService service() { return service; }
+
+    @Override
+    public Path writeRoot() { return writeRoot; }
+
     private static String str(Map<String, Object> body, String key) {
-        Object v = body.get(key);
-        return (v == null || v.toString().isBlank()) ? null : v.toString();
+        return ApiContext.str(body, key);
     }
 
     private static String query(HttpExchange ex, String key) {
@@ -2049,19 +1906,10 @@ public final class ControlApi implements AutoCloseable {
 
     // Route registration. The core (Personal edition) is auth-free — every route is open.
     // Standard/Enterprise editions re-introduce authorization out-of-band via the security module.
-    private void get (String pattern, Handler h) { routes.add(new Route("GET",    Pattern.compile("^" + pattern + "$"), h)); }
-    private void post(String pattern, Handler h) { routes.add(new Route("POST",   Pattern.compile("^" + pattern + "$"), h)); }
-    private void put   (String pattern, Handler h) { routes.add(new Route("PUT",    Pattern.compile("^" + pattern + "$"), h)); }
-    private void delete(String pattern, Handler h) { routes.add(new Route("DELETE", Pattern.compile("^" + pattern + "$"), h)); }
-
-    @FunctionalInterface
-    private interface Handler { Object handle(HttpExchange ex, Matcher m) throws Exception; }
+    @Override public void get (String pattern, Handler h) { routes.add(new Route("GET",    Pattern.compile("^" + pattern + "$"), h)); }
+    @Override public void post(String pattern, Handler h) { routes.add(new Route("POST",   Pattern.compile("^" + pattern + "$"), h)); }
+    @Override public void put   (String pattern, Handler h) { routes.add(new Route("PUT",    Pattern.compile("^" + pattern + "$"), h)); }
+    @Override public void delete(String pattern, Handler h) { routes.add(new Route("DELETE", Pattern.compile("^" + pattern + "$"), h)); }
 
     private record Route(String method, Pattern pattern, Handler handler) {}
-
-    /** Maps to an HTTP status + JSON {@code {"error": …}} body. */
-    private static final class ApiException extends RuntimeException {
-        final int status;
-        ApiException(int status, String message) { super(message); this.status = status; }
-    }
 }
