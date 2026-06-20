@@ -22,14 +22,6 @@ import com.gamma.config.spec.Finding;
 import com.gamma.config.spec.Severity;
 import com.gamma.etl.ConfigValidator;
 import com.gamma.etl.PipelineConfig;
-import com.gamma.ops.ObjectQuery;
-import com.gamma.ops.ObjectService;
-import com.gamma.ops.ObjectType;
-import com.gamma.ops.OperationalObject;
-import com.gamma.ops.link.ObjectLink;
-import com.gamma.ops.note.NoteKind;
-import com.gamma.ops.note.ObjectNote;
-import com.gamma.ops.rca.RcaTemplate;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
@@ -360,27 +352,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 .orElseThrow(() -> new ApiException(503,
                         "alert engine not armed (no *_alert.toon rules loaded)")));
 
-
-        // ── v4.3.0 (Phase 2): Alert Center — mutable operational objects (ALERT now; ISSUE/CASE later)
-        // with a workflow-checked lifecycle. CONTROL-scoped. Specific verbs are registered before the
-        // /objects/{id} catch so first-match-wins resolves them. v4.4.0 (Phase 3) adds POST /objects so
-        // operators can create ISSUEs (ALERTs are auto-promoted); lifecycle moves use /transition. ──
-        get("/objects", (e, m) -> toObjectMaps(service.objects().query(objectQuery(e))));
-        post("/objects", (e, m) -> createObject(body(e)));
-        post("/objects/([^/]+)/ack", (e, m) -> transition(name(m), "ack", null, body(e)));
-        post("/objects/([^/]+)/resolve", (e, m) -> transition(name(m), "resolve", null, body(e)));
-        post("/objects/([^/]+)/transition", (e, m) -> transitionFromBody(name(m), body(e)));
-        post("/objects/([^/]+)/links", (e, m) -> createLink(name(m), body(e)));
-        get("/objects/([^/]+)/links", (e, m) -> toLinkMaps(service.objects().linksOf(name(m))));
-        get("/objects/([^/]+)/graph", (e, m) -> objectGraph(name(m), e));
-        post("/objects/([^/]+)/comments", (e, m) -> addComment(name(m), body(e)));
-        get("/objects/([^/]+)/comments", (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.COMMENT)));
-        post("/objects/([^/]+)/attachments", (e, m) -> addAttachment(name(m), body(e)));
-        get("/objects/([^/]+)/attachments", (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.ATTACHMENT)));
-        post("/objects/([^/]+)/rca", (e, m) -> applyRca(name(m), body(e)));
-        get("/objects/([^/]+)", (e, m) -> objectById(name(m)));
-        get("/rca/templates", (e, m) -> rcaTemplateList());
-
         // ── Acquisition / Sources UI: a flat view of every pipeline's source acquisition config +
         // a JSON acquisition-metrics snapshot (the Prometheus /metrics is text-only). CONTROL-scoped. ──
         get("/sources", (e, m) -> service.sources());
@@ -394,7 +365,8 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
-                new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(), new EventRoutes()))
+                new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
+                new EventRoutes(), new ObjectRoutes()))
             module.register(this);
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
@@ -956,15 +928,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         return ApiContext.parseIntOr(s, def);
     }
 
-    private static long parseLongOr(String s, long def) {
-        if (s == null || s.isBlank()) return def;
-        try {
-            return Long.parseLong(s.trim());
-        } catch (NumberFormatException e) {
-            return def;
-        }
-    }
-
     private static MetadataGraphService.Direction direction(String s) {
         if (s == null || s.isBlank()) return MetadataGraphService.Direction.BOTH;
         try {
@@ -1007,180 +970,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         return com.gamma.report.ReportService.Window.of(query(ex, "from"), query(ex, "to"));
     }
 
-    // ── v4.3.0 (Phase 2): operational-object helpers ──────────────────────────────
-
-    private static List<Map<String, Object>> toObjectMaps(List<OperationalObject> objs) {
-        return objs.stream().map(OperationalObject::toMap).toList();
-    }
-
-    /** Build an {@link ObjectQuery} from {@code ?type=&status=&severity=&assignee=&owner=&correlationId=&q=&limit=&offset=}. */
-    private static ObjectQuery objectQuery(HttpExchange ex) {
-        return ObjectQuery.builder()
-                .objectType(parseObjectType(query(ex, "type")))
-                .status(query(ex, "status"))
-                .severity(query(ex, "severity"))
-                .assignee(query(ex, "assignee"))
-                .owner(query(ex, "owner"))
-                .correlationId(query(ex, "correlationId"))
-                .textContains(query(ex, "q"))
-                .limit(parseIntOr(query(ex, "limit"), ObjectQuery.DEFAULT_LIMIT))
-                .offset(parseIntOr(query(ex, "offset"), 0))
-                .build();
-    }
-
-    /** Parse a {@code ?type=} filter; an unknown value is a 400 rather than a silent match-everything. */
-    private static ObjectType parseObjectType(String s) {
-        try {
-            return ObjectType.of(s);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** {@code GET /objects/{id}} — the object, or 404. */
-    private Object objectById(String id) {
-        return service.objects().get(id).map(OperationalObject::toMap)
-                .orElseThrow(() -> new ApiException(404, "no object with id '" + id + "'"));
-    }
-
-    /**
-     * {@code POST /objects} (Phase 3) — create a managed object. The complement of alert auto-promotion:
-     * ALERTs are opened by the {@code AlertService}, whereas ISSUEs are operator-created here. Body
-     * {@code {type?,title,description?,severity?,priority?,owner?,assignee?,correlationId?,attributes?,
-     * dueAt?|dueInMinutes?}} — {@code type} defaults to {@code ISSUE}, {@code title} is required, and
-     * {@code dueAt} (epoch millis) or {@code dueInMinutes} sets the SLA deadline the sweep tracks. The
-     * object opens in its workflow's initial state; lifecycle moves go through {@code /objects/{id}/transition}.
-     */
-    private Object createObject(Map<String, Object> body) {
-        String title = str(body, "title");
-        if (title == null) throw new ApiException(400, "body must include 'title'");
-        ObjectType type;
-        try {
-            type = ObjectType.of(str(body, "type"));
-        } catch (IllegalArgumentException ex) {
-            throw new ApiException(400, ex.getMessage());
-        }
-        if (type == null) type = ObjectType.ISSUE;   // the create path exists for operator-created issues
-
-        Map<String, String> attrs = new LinkedHashMap<>();
-        if (body.get("attributes") instanceof Map<?, ?> bag)
-            bag.forEach((k, v) -> { if (k != null && v != null) attrs.put(k.toString(), v.toString()); });
-        Long dueAt = parseDueAt(body);
-        if (dueAt != null) attrs.put(ObjectService.ATTR_DUE_AT, Long.toString(dueAt));
-
-        return service.objects().open(type, title, str(body, "description"), str(body, "severity"),
-                str(body, "priority"), str(body, "owner"), str(body, "assignee"),
-                str(body, "correlationId"), attrs).toMap();
-    }
-
-    /** SLA deadline from the create body: absolute {@code dueAt} (epoch millis) or relative {@code dueInMinutes}. */
-    private static Long parseDueAt(Map<String, Object> body) {
-        Object due = body.get("dueAt");
-        if (due != null) {
-            long ms = parseLongOr(due.toString(), -1L);
-            if (ms > 0) return ms;
-        }
-        Object mins = body.get("dueInMinutes");
-        if (mins != null) {
-            long m = parseLongOr(mins.toString(), -1L);
-            if (m >= 0) return System.currentTimeMillis() + m * 60_000L;
-        }
-        return null;
-    }
-
-    /**
-     * {@code POST /objects/{id}/links} (Phase 4) — correlate this object with another: body
-     * {@code {to, relationship?, actor?}} (e.g. a CASE {@code CONTAINS} an ISSUE). A missing {@code to}
-     * → 400; an unknown {@code id} or {@code to} → 404. Idempotent (a duplicate edge returns the existing one).
-     */
-    private Object createLink(String fromId, Map<String, Object> body) {
-        String to = str(body, "to");
-        if (to == null) throw new ApiException(400, "body must include 'to'");
-        try {
-            return service.objects().link(fromId, to, str(body, "relationship"), str(body, "actor")).toMap();
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    private static List<Map<String, Object>> toLinkMaps(List<ObjectLink> links) {
-        return links.stream().map(ObjectLink::toMap).toList();
-    }
-
-    /** {@code GET /objects/{id}/graph?depth=} (Phase 4) — correlation subgraph (default depth 2, capped at 5). */
-    private Object objectGraph(String id, HttpExchange ex) {
-        int depth = Math.min(5, Math.max(1, parseIntOr(query(ex, "depth"), 2)));
-        try {
-            return service.objects().graph(id, depth);
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    /** {@code POST /objects/{id}/comments} (Phase 4) — add a comment; body {@code {body, author?}}. */
-    private Object addComment(String id, Map<String, Object> body) {
-        String text = str(body, "body");
-        if (text == null) throw new ApiException(400, "body must include 'body'");
-        try {
-            return service.objects().comment(id, str(body, "author"), text).toMap();
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    /**
-     * {@code POST /objects/{id}/attachments} (Phase 4) — attach an evidence reference (metadata only);
-     * body {@code {name, uri, contentType?, author?, caption?}}.
-     */
-    private Object addAttachment(String id, Map<String, Object> body) {
-        String name = str(body, "name");
-        String uri = str(body, "uri");
-        if (name == null || uri == null) throw new ApiException(400, "body must include 'name' and 'uri'");
-        try {
-            return service.objects().attach(id, str(body, "author"), name, str(body, "contentType"),
-                    uri, str(body, "caption")).toMap();
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    private static List<Map<String, Object>> toNoteMaps(List<ObjectNote> notes) {
-        return notes.stream().map(ObjectNote::toMap).toList();
-    }
-
-    /**
-     * {@code POST /objects/{id}/rca} (Phase 4) — seed an RCA skeleton (one comment per section). Body is
-     * the template: {@code {template:{name,sections[]}}} or an inline {@code {name?,sections[],actor?}}.
-     */
-    private Object applyRca(String id, Map<String, Object> body) {
-        RcaTemplate template;
-        Object t = body.get("template");
-        if (t instanceof String named) {       // a *_rca.toon template referenced by name
-            template = service.rcaTemplate(named).orElseThrow(
-                    () -> new ApiException(404, "no RCA template named '" + named + "'"));
-        } else {                                // an inline template ({template:{…}} or the body itself)
-            Map<String, Object> tmpl = new LinkedHashMap<>();
-            if (t instanceof Map<?, ?> tm) tm.forEach((k, v) -> tmpl.put(String.valueOf(k), v));
-            else tmpl.putAll(body);
-            tmpl.putIfAbsent("name", "ad-hoc"); // an inline template needn't name itself
-            try {
-                template = RcaTemplate.fromMap(tmpl);
-            } catch (IllegalArgumentException ex) {
-                throw new ApiException(400, ex.getMessage());
-            }
-        }
-        try {
-            return toNoteMaps(service.objects().applyRca(id, template, str(body, "actor")));
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    /** {@code GET /rca/templates} (Phase 4) — the RCA templates loaded from {@code *_rca.toon}, by name. */
-    private Object rcaTemplateList() {
-        return service.rcaTemplates().values().stream().map(RcaTemplate::toMap).toList();
-    }
-
     /** Acquisition metric names exposed (as JSON) by {@code GET /metrics/acquisition}. */
     private static final java.util.Set<String> ACQ_METRICS = java.util.Set.of(
             "inspecto_files_discovered_total", "inspecto_files_downloaded_total", "inspecto_downloads_failed_total",
@@ -1190,35 +979,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     /** {@code GET /metrics/acquisition} — the acquisition counters/gauges/histogram as JSON (UI dashboard). */
     private Object acquisitionMetrics() {
         return com.gamma.metrics.MetricRegistry.global().snapshot(ACQ_METRICS::contains);
-    }
-
-    /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */
-    private Object transition(String id, String action, String target, Map<String, Object> body) {
-        return doTransition(id, action, target, str(body, "actor"));
-    }
-
-    /** {@code POST /objects/{id}/transition} — body {@code {action}} or {@code {status|to}} (+ optional {@code actor}). */
-    private Object transitionFromBody(String id, Map<String, Object> body) {
-        String action = str(body, "action");
-        String target = str(body, "status");
-        if (target == null) target = str(body, "to");
-        if (action == null && target == null)
-            throw new ApiException(400, "body must include 'action' or 'status'");
-        return doTransition(id, action, target, str(body, "actor"));
-    }
-
-    /** Apply a lifecycle transition, mapping the service's exceptions to 404 (unknown id) / 422 (illegal move). */
-    private Object doTransition(String id, String action, String target, String actor) {
-        try {
-            OperationalObject updated = (action != null)
-                    ? service.objects().transition(id, action, actor)
-                    : service.objects().transitionTo(id, target, actor);
-            return updated.toMap();
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        } catch (IllegalStateException | IllegalArgumentException illegal) {
-            throw new ApiException(422, illegal.getMessage());
-        }
     }
 
     private static ApiException notFound(String name) {
