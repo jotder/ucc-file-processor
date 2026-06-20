@@ -177,6 +177,8 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   `CommitLog`; backup dir; quarantine + per-file error CSVs (`errors/`).
 - **Config:** `processing.*`, `schema`/`grammar`/`segments`, `csv_settings`, `dirs.*`, `duplicate.mode`.
 - **Failure modes:** field/schema mismatch → quarantine (`field_mismatch`); unreadable → `unreadable`;
+  readable but **zero ingestable rows** (empty / header-only) → quarantine (`empty`) so it is consumed
+  once instead of being rediscovered and reprocessed every poll cycle (an EMPTY batch never backs up/marks);
   `year=NULL` partitions (see [`troubleshooting.md`](troubleshooting.md)); a `BATCH_FAILED` with `offendingFile`.
 
 ### 5.3 Flow engine (`com.gamma.flow`, `com.gamma.flow.exec`)
@@ -378,7 +380,7 @@ per-route latency/count). Add metrics here when you instrument these — and upd
 | `backup` | copies of originals after commit | FileBackup |
 | `temp` | streaming scratch + DuckDB temp | CsvBatchStrategy |
 | `errors` | per-file field-validation error CSVs | CsvIngester |
-| `quarantine` | rejects under reason subdirs `field_mismatch/`, `unreadable/`, `corrupt_download/` (mirrors poll rel-path) | QuarantineManager |
+| `quarantine` | rejects under reason subdirs `field_mismatch/`, `unreadable/`, `empty/`, `corrupt_download/` (mirrors poll rel-path) | QuarantineManager |
 | `markers` | `*.processed` sentinels (mirror poll structure) + `.last_cleanup` | MarkerManager |
 | `manifests_dir` | batch manifests (reprocess anchor) | BatchManifest |
 | `commit_log` | fsync'd one-line-per-commit log | CommitLog |

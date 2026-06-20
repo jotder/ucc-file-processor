@@ -31,6 +31,9 @@ public final class QuarantineManager {
     // ── parse-stage reasons (legacy) ──────────────────────────────────────────
     /** A row failed field/type validation against the schema. */ public static final String REASON_FIELD_MISMATCH = "field_mismatch";
     /** The file could not be read/parsed at all. */              public static final String REASON_UNREADABLE     = "unreadable";
+    /** The file was readable but yielded zero ingestable rows (empty / header-only) — consumed so it
+     *  isn't rediscovered and reprocessed every poll cycle (an EMPTY batch never backs up/marks). */
+    public static final String REASON_EMPTY = "empty";
 
     // ── acquisition-stage reasons (Data Acquisition roadmap Phase F dead-letter) ──
     /** A fetched file failed its post-download integrity check (size/checksum mismatch). */

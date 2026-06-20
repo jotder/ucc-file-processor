@@ -120,7 +120,12 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
                     }
 
                     if (ing.parsedRows() == 0) {
-                        memberAudits.add(MemberAudit.accepted(m, 0, 0, mStart));
+                        // Readable but zero ingestable rows (empty / header-only): quarantine under
+                        // `empty` so the file leaves the inbox. An EMPTY batch never backs up or marks,
+                        // so leaving it would have the poll loop rediscover and reprocess it forever.
+                        QuarantineManager.quarantine(m.file(), QuarantineManager.REASON_EMPTY, false, cfg);
+                        memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_EMPTY",
+                                "0 valid rows (empty/header-only file)", mStart));
                         dropTable(conn, tempTable);
                         continue;
                     }
@@ -224,8 +229,11 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
                 dropView(conn, view);
                 continue;
             }
-            if (parsed == 0) {   // genuinely empty file: accepted-0, not a survivor (mirrors the loop)
-                memberAudits.add(MemberAudit.accepted(m, 0, 0, mStart));
+            if (parsed == 0) {   // readable but zero rows (empty/header-only): quarantine under `empty`
+                                 // so it leaves the inbox (an EMPTY batch never backs up/marks → would loop).
+                QuarantineManager.quarantine(m.file(), QuarantineManager.REASON_EMPTY, false, cfg);
+                memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_EMPTY",
+                        "0 valid rows (empty/header-only file)", mStart));
                 dropView(conn, view);
                 continue;
             }
@@ -394,8 +402,13 @@ final class CsvBatchStrategy implements BatchIngestStrategy {
             String reason = String.format("0 valid rows; %d row(s) rejected (field mismatch)", rejects);
             return empty(batch, batchStart, MemberAudit.rejected(m, "QUARANTINED_MISMATCH", reason, mStart));
         }
-        if (parsed == 0)
-            return empty(batch, batchStart, MemberAudit.accepted(m, 0, 0, mStart));
+        if (parsed == 0) {
+            // Readable but zero rows (empty/header-only): quarantine under `empty` so it leaves the
+            // inbox — an EMPTY batch never backs up/marks, so otherwise the poll loop reprocesses it forever.
+            QuarantineManager.quarantine(m.file(), QuarantineManager.REASON_EMPTY, false, cfg);
+            return empty(batch, batchStart, MemberAudit.rejected(m, "QUARANTINED_EMPTY",
+                    "0 valid rows (empty/header-only file)", mStart));
+        }
 
         return new IngestOutcome(batchStart, "SUCCESS", "", List.of(m),
                 List.of(MemberAudit.accepted(m, parsed, rejects, mStart)),

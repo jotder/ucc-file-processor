@@ -194,4 +194,40 @@ class SourceProcessorPollTest {
         assertEquals(3, batches.split("\n").length,
                 "header + 2 successful batch rows (v1 + the reprocessed v2)");
     }
+
+    @Test
+    void quarantinesAZeroRowFileSoItIsNotReprocessedForever(@TempDir Path dir) throws Exception {
+        // A readable file that yields ZERO ingestable rows (here: header-only) used to produce an
+        // EMPTY batch that was neither backed up nor marked, so the poll loop rediscovered and
+        // reprocessed it every cycle forever. It must instead be consumed (quarantined under `empty`).
+        Path toon = PipelineConfigBatchTestRef.writePipeline(dir, "");
+        PipelineConfig cfg = PipelineConfig.load(toon.toString());
+
+        Path inbox = Path.of(cfg.dirs().poll());
+        Files.createDirectories(inbox);
+        Path emptyFile = inbox.resolve("empty.csv");
+        Files.writeString(emptyFile, "ID,AMT,EVENT_DATE\n");   // header only → zero data rows
+
+        SourceProcessor.run(cfg);
+
+        // Consumed: moved out of the inbox into quarantine/<reason=empty>/empty.csv.
+        assertFalse(Files.exists(emptyFile), "0-row file must be moved out of the inbox");
+        try (Stream<Path> w = Files.walk(Path.of(cfg.dirs().quarantine()))) {
+            assertTrue(w.anyMatch(p -> p.getFileName().toString().equals("empty.csv")
+                            && p.getParent() != null
+                            && p.getParent().getFileName().toString().equals("empty")),
+                    "0-row file should be quarantined under the 'empty' reason");
+        }
+
+        // Second poll: the inbox is empty, so no new batch is planned — the loop is broken.
+        int linesAfterFirst = batchLineCount(cfg);
+        SourceProcessor.run(cfg);
+        assertEquals(linesAfterFirst, batchLineCount(cfg),
+                "the quarantined empty file must not be rediscovered and reprocessed");
+    }
+
+    private static int batchLineCount(PipelineConfig cfg) throws java.io.IOException {
+        Path f = Path.of(cfg.dirs().batchesFilePath());
+        return Files.exists(f) ? Files.readString(f).split("\n").length : 0;
+    }
 }
