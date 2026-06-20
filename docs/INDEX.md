@@ -19,6 +19,10 @@
   or git: key decisions (editions/auth), cross-cutting gotchas (TOON schema, DuckDB keywords, sync-bus
   deadlock, …), engine seams & perf, inspecto-ui conventions, and a pointer map to the authoritative docs.
   Consolidated from per-user agent memory 2026-06-19; keep current as durable facts change.
+- [`FEATURE_INVENTORY.md`](FEATURE_INVENTORY.md) — advanced reference: every user-facing feature's TOON
+  shape + where it's defined, the existing examples, how the release bundle is assembled, runnability
+  constraints, and the worked-example build plan. Point-in-time snapshot (2026-06-20). Pairs with the
+  runnable suite in [`../inspecto/examples/`](../inspecto/examples).
 
 ## Production investigation (the hub)
 
