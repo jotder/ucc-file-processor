@@ -1,0 +1,15 @@
+partitionKey: EVENT_DATE
+raw:
+  name: ORDERS
+  format: CSV
+  fields[3]{name,selector,type}:
+    ORDER_ID,"0",VARCHAR
+    EVENT_DATE,"1",DATE
+    TOTAL,"2",DOUBLE
+mapping:
+  canonicalName: orders
+  rawName: ORDERS
+  rules[3]{targetColumn,sourceExpression,transformType}:
+    ORDER_ID,ORDER_ID,DIRECT
+    EVENT_DATE,EVENT_DATE,DIRECT
+    TOTAL,TOTAL,DIRECT

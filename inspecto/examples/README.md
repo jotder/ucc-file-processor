@@ -47,6 +47,18 @@ git-ignored.
 | **03-schema-transform/expr-transform** | Per-record `EXPR` transforms: `UPPER(TRIM(...))` and a derived `GROSS = ROUND(net*1.1, 2)` column. | `… 03-schema-transform/expr-transform` |
 | **03-schema-transform/reject-routing** | Structurally-bad rows (wrong column count) are split out to `out/errors/*_errors.csv` while good rows still land in `out/database/`. | `… 03-schema-transform/reject-routing` |
 | **04-output/csv-output** | Switch the sink to `format: CSV` (vs the default Parquet+snappy), same Hive partition layout. | `… 04-output/csv-output` |
+| **05-acquisition/dedup-rerun** | Disk-marker dedup (`processing.duplicate_check`): run it **twice** (no `--clean`) — the 2nd run reports "No new files" and skips the already-processed file. | `… 05-acquisition/dedup-rerun` (run ×2) |
+| **05-acquisition/gap-detection** | Configures `source.gap_detection` over a numbered feed (`FEED_yyyyMMdd`, day 02 missing). Both files ingest; the `SEQUENCE_GAP` **alert** is emitted in serve mode (see note below). | `… 05-acquisition/gap-detection` |
+
+## Serve-mode acquisition features (next phase)
+
+Several acquisition features are **event-driven and only observable when the engine runs as a
+service** (the poll loop + event log + alert bridge) — not via the one-shot runner: sequence-gap
+alerts, fingerprint dedup (`source.duplicate` checksum/metadata, whose ledger is in-memory per
+process), incremental high-watermark, and stability windows. Their config shapes are in the examples
+above and in [`../../docs/FEATURE_INVENTORY.md`](../../docs/FEATURE_INVENTORY.md) §I. A serve-mode
+example group — start the service, drop files, watch `GET /events` and `GET /objects` — is the next
+batch, alongside jobs, authored flows, and Stage-2 enrichment.
 
 ## Things worth knowing (learned the hard way)
 
