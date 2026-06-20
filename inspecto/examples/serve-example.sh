@@ -75,6 +75,16 @@ W="$WAIT"; [ "$W" -gt 0 ] || W=$((POLL * 2 + 3))
 echo "Waiting ${W}s for the poll loop to ingest..."; echo
 sleep "$W"
 
+# Optional second drop: re-present files (changed/duplicate content, same names) so examples can
+# demonstrate the acquisition re-presentation family (checksum/metadata change, dedup, watermark),
+# which is inherently a two-cycle scenario. Engaged only when the example ships a phase2/ dir.
+if [ -d phase2 ]; then
+  echo "Second drop: seeding out/inbox/ from phase2/ ..."
+  cp -r phase2/* out/inbox/ 2>/dev/null || true
+  echo "Waiting ${W}s for the poll loop to process the second drop..."; echo
+  sleep "$W"
+fi
+
 probe(){ echo "# GET $1"; curl -fsS "$BASE$1" 2>/dev/null || echo "  (request failed)"; echo; echo; }
 probe "/pipelines"
 probe "/events?limit=20"

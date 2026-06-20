@@ -50,6 +50,7 @@ git-ignored.
 | **05-acquisition/dedup-rerun** | Disk-marker dedup (`processing.duplicate_check`): run it **twice** (no `--clean`) — the 2nd run reports "No new files" and skips the already-processed file. | `… 05-acquisition/dedup-rerun` (run ×2) |
 | **05-acquisition/gap-detection** | Configures `source.gap_detection` over a numbered feed (`FEED_yyyyMMdd`, day 02 missing). Both files ingest; the `SEQUENCE_GAP` **alert** is emitted in serve mode — see the runnable serve example below. | `… 05-acquisition/gap-detection` |
 | **06-serve/sequence-gap** | The same gap feed run **as a service**: the poll loop detects the hole in the `FEED_{yyyyMMdd}.csv` series (day 02 missing) and emits a `SEQUENCE_GAP` event + ALERT — observable only in serve mode. | `serve-example 06-serve/sequence-gap --demo` |
+| **06-serve/checksum-change** | Content-based (SHA256) dedup with change alerting (`source.duplicate { mode: checksum, on_change: alert }`). A two-cycle example (uses `phase2/`): the same `ORDERS.csv` path is re-presented with **changed** content → the engine sees the checksum differ, emits `FILE_CHANGED`, and reprocesses. | `serve-example 06-serve/checksum-change --demo` |
 
 ## Serve-mode examples — `serve-example.{ps1,sh}`
 
@@ -69,7 +70,18 @@ serve-example 06-serve/sequence-gap             # stays running for exploration 
 Each serve example adds a `probes.txt` (one Control API path per line; `#` comments allowed) on top
 of the usual `*_pipeline.toon` + `schema.toon` + `samples/`. The runner always probes `/pipelines`
 and `/events?limit=20`, then each path in `probes.txt`. NB **pipeline ids are lower-cased** from the
-config `name:`, so audit routes use e.g. `/pipelines/seq_gap_feed/files`. More config shapes are in
+config `name:`, so audit routes use e.g. `/pipelines/seq_gap_feed/files`.
+
+**Two-cycle examples (`phase2/`):** the acquisition re-presentation family (checksum/metadata change,
+content dedup, incremental watermark) is only observable across two poll cycles — process a file, then
+re-present it. If an example ships a `phase2/` directory, the runner seeds it into the inbox as a
+**second drop** (after the first ingest cycle) and waits again before probing. See
+`06-serve/checksum-change`. **Gotcha:** with content-based dedup (`source.duplicate.mode` =
+`checksum`/`metadata`), dedup is driven by the in-process fingerprint ledger, **not** the path-marker
+sentinel — so do **not** configure a `markers:` dir for such a pipeline. A stale `<file>.processed`
+marker from the first cycle would otherwise block the commit when a CHANGED file is reprocessed.
+
+More config shapes are in
 [`../../docs/FEATURE_INVENTORY.md`](../../docs/FEATURE_INVENTORY.md) §I; jobs, authored flows, and
 Stage-2 enrichment serve examples are landing in subsequent batches.
 

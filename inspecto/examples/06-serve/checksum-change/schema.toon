@@ -1,0 +1,15 @@
+partitionKey: ORDER_DATE
+raw:
+  name: ORDERS
+  format: CSV
+  fields[3]{name,selector,type}:
+    ID,"0",VARCHAR
+    ORDER_DATE,"1",DATE
+    AMOUNT,"2",DOUBLE
+mapping:
+  canonicalName: orders
+  rawName: ORDERS
+  rules[3]{targetColumn,sourceExpression,transformType}:
+    ID,ID,DIRECT
+    ORDER_DATE,ORDER_DATE,DIRECT
+    AMOUNT,AMOUNT,DIRECT

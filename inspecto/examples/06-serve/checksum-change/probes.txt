@@ -1,0 +1,19 @@
+# Per-example Control API probes for serve-example.{ps1,sh}.
+# One endpoint path per line; blank lines and lines starting with '#' are ignored.
+#
+# This example demonstrates CONTENT-BASED (checksum) duplicate detection with change
+# alerting (source.duplicate { mode: checksum, on_change: alert }) — observable only in
+# serve mode (the poll loop + in-process fingerprint ledger).
+#
+# Phase 1: samples/ORDERS.csv (2 rows) is ingested; its SHA256 fingerprint is recorded in
+#          the ledger keyed by (source, relativePath) after the batch commits.
+# Phase 2 (the runner's phase2/ second drop): the SAME path ORDERS.csv is re-presented with
+#          CHANGED content (a 3rd row). The checksum differs from the ledger, so the engine
+#          judges it CHANGED — emits a FILE_CHANGED event/ALERT and reprocesses the new
+#          version (on_change=alert). Re-presenting the *unchanged* file instead would be a
+#          DUPLICATE and silently skipped.
+#
+# The first probe should return >= 1 FILE_CHANGED event; /files shows ORDERS.csv processed twice.
+# (Pipeline ids are lower-cased from the config name, so the audit route uses checksum_orders.)
+/events/search?type=FILE_CHANGED
+/pipelines/checksum_orders/files

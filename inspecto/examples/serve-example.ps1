@@ -99,6 +99,16 @@ try {
     Write-Host "Waiting ${wait}s for the poll loop to ingest...`n"
     Start-Sleep -Seconds $wait
 
+    # Optional second drop: re-present files (changed/duplicate content, same names) so examples can
+    # demonstrate the acquisition re-presentation family (checksum/metadata change, dedup, watermark),
+    # which is inherently a two-cycle scenario. Engaged only when the example ships a phase2/ dir.
+    if (Test-Path 'phase2') {
+        Write-Host "Second drop: seeding out/inbox/ from phase2/ ..." -ForegroundColor Green
+        Copy-Item -Recurse -Force 'phase2\*' 'out\inbox\' -ErrorAction SilentlyContinue
+        Write-Host "Waiting ${wait}s for the poll loop to process the second drop...`n"
+        Start-Sleep -Seconds $wait
+    }
+
     function Probe([string]$path) {
         Write-Host "# GET $path" -ForegroundColor Yellow
         try { (Invoke-RestMethod "$base$path" -TimeoutSec 5) | ConvertTo-Json -Depth 6 }
