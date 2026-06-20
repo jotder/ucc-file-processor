@@ -32,9 +32,9 @@ $bundleDir    = Join-Path $sandboxRoot  'file-processor-deploy'
 
 # ── step 1: build ─────────────────────────────────────────────────────────────
 if (-not $NoBuild) {
-    Write-Host "Building fat JAR..." -ForegroundColor Cyan
+    Write-Host "Building fat JAR (skipping tests)..." -ForegroundColor Cyan
     Push-Location $adjParserDir
-    & mvn clean package -q
+    & mvn clean package -DskipTests -q
     if ($LASTEXITCODE -ne 0) { throw "mvn build failed" }
     Pop-Location
     Write-Host "Build complete." -ForegroundColor Green
@@ -76,21 +76,13 @@ if (Test-Path $bundleDir) {
     $null = New-Item -ItemType Directory $bundleDir
 }
 
-$null = New-Item -ItemType Directory "$bundleDir\config\adjustment" -Force
 $null = New-Item -ItemType Directory "$bundleDir\config\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\inbox\adjustment" -Force
 $null = New-Item -ItemType Directory "$bundleDir\inbox\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\database\adjustment" -Force
 $null = New-Item -ItemType Directory "$bundleDir\database\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\backup\adjustment" -Force
 $null = New-Item -ItemType Directory "$bundleDir\backup\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\temp\adjustment" -Force
 $null = New-Item -ItemType Directory "$bundleDir\temp\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\errors\adjustment" -Force
 $null = New-Item -ItemType Directory "$bundleDir\errors\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\quarantine\adjustment" -Force
 $null = New-Item -ItemType Directory "$bundleDir\quarantine\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\markers\adjustment" -Force
 $null = New-Item -ItemType Directory "$bundleDir\markers\voucher" -Force
 
 # ── step 3: copy JAR (canonical name for deployment) ──────────────────────────
@@ -119,20 +111,12 @@ function Copy-Config([string]$src, [string]$dst) {
     $content = $content -replace 'inspecto/config/', 'config/'
     Set-Content -Path $dst -Value $content -NoNewline
 }
-# adjustment_schema.toon / adj_gen.toon are generated per-source (`ura create-schema`) and may be
-# absent on a clean checkout. Copy them when present rather than aborting the whole bundle under
-# $ErrorActionPreference='Stop'.
+# voucher.grammar.toon may be absent on a clean checkout. Copy it when present rather than
+# aborting the whole bundle under $ErrorActionPreference='Stop'.
 function Copy-IfPresent([string]$src, [string]$dst) {
     if (Test-Path $src) { Copy-Item $src $dst }
     else { Write-Host "  (skipping missing optional config: $src)" -ForegroundColor Yellow }
 }
-
-Copy-Config    "$adjParserDir\config\adjustment\adjustment_pipeline.toon" `
-               "$bundleDir\config\adjustment\adjustment_pipeline.toon"
-Copy-IfPresent "$adjParserDir\config\adjustment\adjustment_schema.toon"   `
-               "$bundleDir\config\adjustment\adjustment_schema.toon"
-Copy-IfPresent "$adjParserDir\config\adjustment\adj_gen.toon"             `
-               "$bundleDir\config\adjustment\adj_gen.toon"
 
 Copy-Config    "$adjParserDir\config\voucher\voucher_pipeline.toon" `
                "$bundleDir\config\voucher\voucher_pipeline.toon"
@@ -169,7 +153,7 @@ if (Test-Path $examplesSrc) {
 # "<adapter>_unknown_pipeline.toon".
 set -euo pipefail
 cd "$(dirname "$0")"
-ADAPTER="${1:?Usage: run.sh <adapter>   (e.g. adjustment, voucher)}"
+ADAPTER="${1:?Usage: run.sh <adapter>   (e.g. voucher)}"
 PIPELINE=$(ls "config/${ADAPTER}"/*_pipeline.toon 2>/dev/null | head -1)
 if [ -z "$PIPELINE" ]; then
     echo "ERROR: no pipeline file found at config/${ADAPTER}/*_pipeline.toon" >&2
@@ -184,14 +168,14 @@ exec "$JAVA" --enable-native-access=ALL-UNNAMED \
 
 $runBatContent = @'
 @echo off
-rem Usage: run.bat ADAPTER         (e.g. adjustment, voucher)
+rem Usage: run.bat ADAPTER         (e.g. voucher)
 rem Looks up the pipeline file as config\ADAPTER\*_pipeline.toon (first match wins),
 rem so it handles both "ADAPTER_pipeline.toon" and variants like
 rem "ADAPTER_unknown_pipeline.toon".
 setlocal
 cd /d "%~dp0"
 if "%1"=="" (
-    echo Usage: run.bat ADAPTER   [e.g. adjustment, voucher]
+    echo Usage: run.bat ADAPTER   [e.g. voucher]
     exit /b 1
 )
 set "PIPELINE="
@@ -225,11 +209,11 @@ if exist "runtime\bin\java.exe" set "JAVA=runtime\bin\java.exe"
 #
 # Examples:
 #   ./ura.sh help
-#   ./ura.sh search           config/adjustment/adjustment_pipeline.toon
+#   ./ura.sh search           config/voucher/voucher_pipeline.toon
 #   ./ura.sh copy             config/voucher/voucher_pipeline.toon
-#   ./ura.sh --dry-run backup config/adjustment/adjustment_pipeline.toon
-#   ./ura.sh prepare-inbox    config/adjustment/adjustment_pipeline.toon
-#   ./ura.sh create-schema    adjustment  samples/adj_sample.csv  config/adjustment/adj_gen.toon
+#   ./ura.sh --dry-run backup config/voucher/voucher_pipeline.toon
+#   ./ura.sh prepare-inbox    config/voucher/voucher_pipeline.toon
+#   ./ura.sh create-schema    voucher  samples/voucher_sample.csv  config/voucher/voucher_gen.toon
 set -euo pipefail
 cd "$(dirname "$0")"
 JAVA="java"; [ -x "runtime/bin/java" ] && JAVA="runtime/bin/java"
@@ -373,7 +357,7 @@ Write-Host "       then open http://localhost:8080/  (UI served from ./ui)"
 Write-Host "  5. Pre-ETL utilities:"
 Write-Host "       ura.bat help            (Windows)"
 Write-Host "       bash ura.sh help        (Linux)"
-Write-Host "       bash ura.sh search  config/adjustment/adjustment_pipeline.toon"
+Write-Host "       bash ura.sh search  config/voucher/voucher_pipeline.toon"
 Write-Host "       bash ura.sh backup  config/voucher/voucher_pipeline.toon"
 Write-Host "  6. Try the worked feature examples (self-contained, synthetic data):"
 Write-Host "       pwsh examples/run-example.ps1 01-ingest/hello-csv     (Windows)"
