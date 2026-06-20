@@ -412,22 +412,9 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         get("/provenance/batches", (e, m) -> provenanceBatches(query(e, "flow"), query(e, "limit")));
 
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
-        for (RouteModule module : List.of(new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes()))
+        for (RouteModule module : List.of(
+                new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes()))
             module.register(this);
-
-        // ── Component registry CRUD (T19, §7.1): grammar/schema/transform/sink under <write-root>/registry,
-        // generalising the connection write pattern (write-root gated, jailed, atomic, safe-delete). The
-        // two-segment /{type}/{id} routes are distinct from the one-segment list (patterns are anchored). ──
-        get("/components/([^/]+)", (e, m) -> componentList(name(m)));
-        get("/components/([^/]+)/([^/]+)", (e, m) -> componentById(name(m), param(m, 2)));
-        post("/components/([^/]+)", (e, m) -> createComponent(name(m), body(e)));
-        put("/components/([^/]+)/([^/]+)", (e, m) -> updateComponent(name(m), param(m, 2), body(e)));
-        delete("/components/([^/]+)/([^/]+)", (e, m) -> deleteComponent(name(m), param(m, 2)));
-        // T18 dry-run/test: preview a component over a sample through the production logic (scratch-only).
-        post("/components/transform/([^/]+)/test", (e, m) -> previewTransform(name(m), body(e)));
-        post("/components/grammar/([^/]+)/test", (e, m) -> previewGrammar(name(m), body(e)));
-        post("/components/schema/([^/]+)/test", (e, m) -> previewSchema(name(m), body(e)));
-        post("/components/sink/([^/]+)/test", (e, m) -> previewSink(name(m), body(e)));
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
@@ -892,178 +879,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         return service.configFor(name(m)).orElseThrow(() -> notFound(name(m)));
     }
 
-    // ── Component registry CRUD (T19, §7.1): generalise the connection write pattern to the non-secret
-    // component types (grammar/schema/transform/sink) under <write-root>/registry/<typeDir>/<id>.toon.
-    // connection keeps its own secret-masking CRUD; safe-delete refuses a component a flow still uses. ──
-
-    /** The registry root under the write root, or {@code null} when writes are disabled (no write root). */
-    private Path componentRootOrNull() {
-        return writeRoot == null ? null : writeRoot.resolve("registry");
-    }
-
-    private com.gamma.flow.ComponentStore componentStore() {
-        requireWriteRoot();
-        return new com.gamma.flow.ComponentStore(writeRoot.resolve("registry"));
-    }
-
-    /** The JSON shape for one component: identity + parsed content. */
-    private static Map<String, Object> componentDoc(com.gamma.flow.ComponentRegistry.Component c) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("type", c.type());
-        m.put("name", c.name());
-        m.put("ref", c.ref());
-        m.put("content", c.content());
-        return m;
-    }
-
-    /** {@code GET /components/{type}} — list components of a type (empty when no registry/write root). */
-    private Object componentList(String type) {
-        Path root = componentRootOrNull();
-        if (root == null) return List.of();
-        try {
-            return new com.gamma.flow.ComponentStore(root).list(type).stream().map(ControlApi::componentDoc).toList();
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** {@code GET /components/{type}/{id}} — one component; 404 if absent. */
-    private Object componentById(String type, String id) {
-        Path root = componentRootOrNull();
-        com.gamma.flow.ComponentRegistry.Component c;
-        try {
-            c = root == null ? null : new com.gamma.flow.ComponentStore(root).get(type, id).orElse(null);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        if (c == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        return componentDoc(c);
-    }
-
-    /** {@code POST /components/{type}} — create a component (id from body {@code id}/{@code name}); 409 if it exists. */
-    private Object createComponent(String type, Map<String, Object> body) throws IOException {
-        com.gamma.flow.ComponentStore store = componentStore();
-        String id = str(body, "id");
-        if (id == null || id.isBlank()) id = str(body, "name");
-        if (id == null || id.isBlank()) throw new ApiException(400, "body must include 'id' (or 'name')");
-        if (componentExists(store, type, id))
-            throw new ApiException(409, type + " component '" + id + "' already exists (use PUT to update)");
-        return writeComponent(store, type, id, body);
-    }
-
-    /** {@code PUT /components/{type}/{id}} — create or replace a component; 404 if absent. */
-    private Object updateComponent(String type, String id, Map<String, Object> body) throws IOException {
-        com.gamma.flow.ComponentStore store = componentStore();
-        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        return writeComponent(store, type, id, body);
-    }
-
-    /** {@code DELETE /components/{type}/{id}} — safe-delete; 404 if absent, 409 if a flow references it. */
-    private Object deleteComponent(String type, String id) throws IOException {
-        com.gamma.flow.ComponentStore store = componentStore();
-        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        List<String> refs = com.gamma.flow.FlowReferences.referencedBy(type + "/" + id, FlowRoutes.liftedFlows(service));
-        if (!refs.isEmpty())
-            throw new ApiException(409, type + " component '" + id + "' is referenced by flow(s): "
-                    + String.join(", ", refs));
-        boolean removed;
-        try {
-            removed = store.delete(type, id);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        return Map.of("type", type, "id", id, "deleted", true, "fileRemoved", removed);
-    }
-
-    /**
-     * {@code POST /components/transform/{id}/test} — dry-run a transform component over {@code sampleRows}
-     * through the production {@link com.gamma.flow.exec.RowShaper} on a throwaway DuckDB (T18, §7.2). 404 if
-     * the component is absent, 422 if it is not a {@code transform.*} type, 400 on a bad sample / unsupported
-     * operator. Never touches production output.
-     */
-    @SuppressWarnings("unchecked")
-    private Object previewTransform(String id, Map<String, Object> body) {
-        Path root = componentRootOrNull();
-        com.gamma.flow.ComponentRegistry.Component c;
-        try {
-            c = root == null ? null : new com.gamma.flow.ComponentStore(root).get("transform", id).orElse(null);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        if (c == null) throw new ApiException(404, "no transform component '" + id + "'");
-        String type = str(c.content(), "type");
-        if (type == null || !type.startsWith("transform."))
-            throw new ApiException(422, "component '" + id + "' is not a transform ('type: transform.*' required)");
-
-        com.gamma.flow.FlowNode node = new com.gamma.flow.FlowNode(id, type, c.content(), null);
-        try {
-            return com.gamma.flow.exec.ComponentPreview.transform(node, sampleRows(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        } catch (java.sql.SQLException | IOException e) {
-            throw new ApiException(422, "preview failed: " + e.getMessage());
-        }
-    }
-
-    /**
-     * {@code POST /components/grammar/{id}/test} — parse raw {@code sampleText} with a grammar component's CSV
-     * dialect through the production {@code read_csv} on a throwaway DuckDB (T18, §7.2). 404 if absent, 400 on
-     * empty input, 422 on a parse error. Never touches production output.
-     */
-    private Object previewGrammar(String id, Map<String, Object> body) {
-        com.gamma.flow.ComponentRegistry.Component c = requireComponent("grammar", id);
-        try {
-            return com.gamma.flow.exec.ComponentPreview.grammar(c.content(), sampleText(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        } catch (java.sql.SQLException | IOException e) {
-            throw new ApiException(422, "preview failed: " + e.getMessage());
-        }
-    }
-
-    /**
-     * {@code POST /components/schema/{id}/test} — {@code TRY_CAST} {@code sampleRows} against a schema
-     * component's typed fields, splitting {@code data} / {@code rejected}, on a throwaway DuckDB (T18, §7.2).
-     * 404 if absent, 400 on a bad sample, 422 on a cast/SQL error. Never touches production output.
-     */
-    private Object previewSchema(String id, Map<String, Object> body) {
-        com.gamma.flow.ComponentRegistry.Component c = requireComponent("schema", id);
-        try {
-            return com.gamma.flow.exec.ComponentPreview.schema(c.content(), sampleRows(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        } catch (java.sql.SQLException | IOException e) {
-            throw new ApiException(422, "preview failed: " + e.getMessage());
-        }
-    }
-
-    /**
-     * {@code POST /components/sink/{id}/test} — scratch-validate a sink component against {@code sampleRows}
-     * (store/format/partition checks; row count + bounded sample, no write) (T18, §7.2). 404 if absent, 400 on
-     * a bad sample.
-     */
-    private Object previewSink(String id, Map<String, Object> body) {
-        com.gamma.flow.ComponentRegistry.Component c = requireComponent("sink", id);
-        try {
-            return com.gamma.flow.exec.ComponentPreview.sink(c.content(), sampleRows(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** Load a component by {@code type}/{@code id} or fail with the standard 400/404 (shared by the preview handlers). */
-    private com.gamma.flow.ComponentRegistry.Component requireComponent(String type, String id) {
-        Path root = componentRootOrNull();
-        com.gamma.flow.ComponentRegistry.Component c;
-        try {
-            c = root == null ? null : new com.gamma.flow.ComponentStore(root).get(type, id).orElse(null);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        if (c == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        return c;
-    }
-
     /**
      * {@code GET /provenance?flow=&batch=} — the per-(node, relationship) record counts of one flow run (T22).
      * A consumer paints each {@code (nodeId, rel)} onto its outgoing {@code FlowGraph} edge as the Sankey weight.
@@ -1086,38 +901,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private com.gamma.flow.exec.DbProvenanceStore provenanceStore() {
         return jobs().provenanceStore().orElseThrow(() -> new ApiException(404,
                 "provenance DB not enabled (set -Dprovenance.backend=duckdb)"));
-    }
-
-    /** Extract raw {@code sampleText} from a request body (the text a grammar would parse); empty if absent. */
-    private static String sampleText(Map<String, Object> body) {
-        Object t = body.get("sampleText");
-        return t == null ? "" : t.toString();
-    }
-
-    private static List<Map<String, Object>> sampleRows(Map<String, Object> body) {
-        return ApiContext.sampleRows(body);
-    }
-
-    private static boolean componentExists(com.gamma.flow.ComponentStore store, String type, String id) {
-        try {
-            return store.exists(type, id);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** Write a component: the body is the content (the routing-only {@code id} key is stripped); 422 on bad input. */
-    private Object writeComponent(com.gamma.flow.ComponentStore store, String type, String id,
-                                  Map<String, Object> body) throws IOException {
-        Map<String, Object> content = new LinkedHashMap<>(body);
-        content.remove("id");   // routing key, not content (the store stamps name=id)
-        try {
-            com.gamma.flow.ComponentRegistry.Component c = store.write(type, id, content);
-            log.info("[COMPONENT-WRITE] wrote {}", c.ref());
-            return componentDoc(c);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
     }
 
     /** The job registry, or a 404 when no jobs are registered on this service. */
@@ -1522,11 +1305,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     /** {@code GET /metrics/acquisition} — the acquisition counters/gauges/histogram as JSON (UI dashboard). */
     private Object acquisitionMetrics() {
         return com.gamma.metrics.MetricRegistry.global().snapshot(ACQ_METRICS::contains);
-    }
-
-    private void requireWriteRoot() {
-        if (writeRoot == null)
-            throw new ApiException(503, "connection write disabled: set -Dassist.write.root to enable");
     }
 
     /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */
