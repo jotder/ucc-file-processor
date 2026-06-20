@@ -57,7 +57,7 @@ echo "Starting Inspecto serve mode on $BASE (poll ${POLL}s)"
 echo "  jar:    $JAR"
 echo "  config: $DIR"
 java --enable-native-access=ALL-UNNAMED -Dcontrol.port="$PORT" -Dservice.poll.seconds="$POLL" \
-     -Dassist.write.root=out/write -cp "$JAR" com.gamma.control.ControlApi . \
+     -Dassist.write.root=out/write -Djobs.audit.dir=out/jobs_audit -cp "$JAR" com.gamma.control.ControlApi . \
      >out/logs/serve.out.log 2>out/logs/serve.err.log &
 SRV_PID=$!
 
@@ -69,8 +69,22 @@ for _ in $(seq 1 60); do
 done
 [ "$up" = 1 ] || { echo "Server did not become healthy on $BASE."; tail -n 30 out/logs/serve.err.log 2>/dev/null || true; exit 1; }
 
+# Optional mtimes.txt: "<filename> <ISO-8601 or anything `touch -d` accepts>" per line (blank/# ignored).
+# Applied to seeded inbox files after each drop, so examples can demonstrate mtime-sensitive features
+# (incremental high-watermark, metadata dedup) deterministically — git does not preserve mtimes.
+apply_mtimes(){
+  [ -f mtimes.txt ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$(printf '%s' "$line" | tr -d '[:space:]')" in ''|\#*) continue;; esac
+    f="$(printf '%s' "$line" | awk '{print $1}')"
+    ts="$(printf '%s' "$line" | sed 's/^[^[:space:]]*[[:space:]]*//')"
+    [ -e "out/inbox/$f" ] && touch -d "$ts" "out/inbox/$f" 2>/dev/null || true
+  done < mtimes.txt
+}
+
 echo "Healthy. Seeding out/inbox/ from samples/ ..."
 [ -d samples ] && cp -r samples/* out/inbox/ 2>/dev/null || true
+apply_mtimes
 W="$WAIT"; [ "$W" -gt 0 ] || W=$((POLL * 2 + 3))
 echo "Waiting ${W}s for the poll loop to ingest..."; echo
 sleep "$W"
@@ -81,6 +95,7 @@ sleep "$W"
 if [ -d phase2 ]; then
   echo "Second drop: seeding out/inbox/ from phase2/ ..."
   cp -r phase2/* out/inbox/ 2>/dev/null || true
+  apply_mtimes
   echo "Waiting ${W}s for the poll loop to process the second drop..."; echo
   sleep "$W"
 fi

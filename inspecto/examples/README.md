@@ -51,6 +51,8 @@ git-ignored.
 | **05-acquisition/gap-detection** | Configures `source.gap_detection` over a numbered feed (`FEED_yyyyMMdd`, day 02 missing). Both files ingest; the `SEQUENCE_GAP` **alert** is emitted in serve mode — see the runnable serve example below. | `… 05-acquisition/gap-detection` |
 | **06-serve/sequence-gap** | The same gap feed run **as a service**: the poll loop detects the hole in the `FEED_{yyyyMMdd}.csv` series (day 02 missing) and emits a `SEQUENCE_GAP` event + ALERT — observable only in serve mode. | `serve-example 06-serve/sequence-gap --demo` |
 | **06-serve/checksum-change** | Content-based (SHA256) dedup with change alerting (`source.duplicate { mode: checksum, on_change: alert }`). A two-cycle example (uses `phase2/`): the same `ORDERS.csv` path is re-presented with **changed** content → the engine sees the checksum differ, emits `FILE_CHANGED`, and reprocesses. | `serve-example 06-serve/checksum-change --demo` |
+| **06-serve/incremental-watermark** | Incremental high-watermark discovery (`source.incremental.watermark: last_modified` + `source.duplicate.mode: metadata`). Two-cycle (uses `phase2/` + `mtimes.txt`): phase 1 sets the watermark; in phase 2 a **back-dated** file is skipped while a newer one is processed. | `serve-example 06-serve/incremental-watermark --demo` |
+| **06-serve/job-on-commit** | A **job triggered by a pipeline commit** (`heartbeat_job.toon` with `on_pipeline: sales_pipeline`). When the pipeline commits, JobService runs the maintenance/heartbeat job; `/jobs` and `/jobs/{name}/runs` show the SUCCESS run. | `serve-example 06-serve/job-on-commit --demo` |
 
 ## Serve-mode examples — `serve-example.{ps1,sh}`
 
@@ -76,10 +78,13 @@ config `name:`, so audit routes use e.g. `/pipelines/seq_gap_feed/files`.
 content dedup, incremental watermark) is only observable across two poll cycles — process a file, then
 re-present it. If an example ships a `phase2/` directory, the runner seeds it into the inbox as a
 **second drop** (after the first ingest cycle) and waits again before probing. See
-`06-serve/checksum-change`. **Gotcha:** with content-based dedup (`source.duplicate.mode` =
+`06-serve/checksum-change`. An example may also ship an `mtimes.txt` (`<filename> <ISO-8601>` per
+line) — the runner stamps those modification times onto the seeded inbox files after each drop, so
+mtime-sensitive features (incremental high-watermark, metadata dedup) are deterministic even though
+git does not preserve mtimes. See `06-serve/incremental-watermark`. **Note:** with content-based dedup (`source.duplicate.mode` =
 `checksum`/`metadata`), dedup is driven by the in-process fingerprint ledger, **not** the path-marker
-sentinel — so do **not** configure a `markers:` dir for such a pipeline. A stale `<file>.processed`
-marker from the first cycle would otherwise block the commit when a CHANGED file is reprocessed.
+sentinel — the engine skips marker writes in this mode, so a `markers:` dir is simply unused. These
+examples omit it for clarity.
 
 More config shapes are in
 [`../../docs/FEATURE_INVENTORY.md`](../../docs/FEATURE_INVENTORY.md) §I; jobs, authored flows, and

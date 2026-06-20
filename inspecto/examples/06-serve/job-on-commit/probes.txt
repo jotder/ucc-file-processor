@@ -1,0 +1,17 @@
+# Per-example Control API probes for serve-example.{ps1,sh}.
+# One endpoint path per line; blank lines and lines starting with '#' are ignored.
+#
+# This example demonstrates a JOB triggered by a pipeline commit (event-driven scheduling),
+# observable only in serve mode (the JobService event bus). The engine auto-discovers
+# *_job.toon files in the config dir just like *_pipeline.toon.
+#
+# heartbeat_job.toon declares a maintenance/heartbeat job with `on_pipeline: sales_pipeline`.
+# When SALES_PIPELINE ingests the seeded inbox and commits a batch, JobService matches the
+# batch-commit event to the job's on_pipeline and runs it (a no-op heartbeat that always
+# succeeds). NB the match is exact against the LOWER-CASED pipeline id (sales_pipeline).
+#
+# /jobs shows the registered job with its lastStatus after it fires; /jobs/{name}/runs shows
+# the run record (status SUCCESS, trigger event:sales_pipeline). These read-only routes work
+# without -Djobs.backend=duckdb (that backend is only needed for /jobs/metrics|runs|failures).
+/jobs
+/jobs/sales_heartbeat/runs

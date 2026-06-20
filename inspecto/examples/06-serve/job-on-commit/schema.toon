@@ -1,0 +1,15 @@
+partitionKey: SALE_DATE
+raw:
+  name: SALES
+  format: CSV
+  fields[3]{name,selector,type}:
+    ID,"0",VARCHAR
+    SALE_DATE,"1",DATE
+    AMOUNT,"2",DOUBLE
+mapping:
+  canonicalName: sales
+  rawName: SALES
+  rules[3]{targetColumn,sourceExpression,transformType}:
+    ID,ID,DIRECT
+    SALE_DATE,SALE_DATE,DIRECT
+    AMOUNT,AMOUNT,DIRECT

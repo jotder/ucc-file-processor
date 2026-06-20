@@ -1,0 +1,8 @@
+# Deterministic modification times for the incremental high-watermark demo.
+# "<filename> <ISO-8601>" per line; applied by serve-example after each seed (git does not preserve mtimes).
+# Phase 1 (samples/): A and B establish the high-watermark at 2024-01-02.
+FEED_A.csv 2024-01-01T00:00:00
+FEED_B.csv 2024-01-02T00:00:00
+# Phase 2 (phase2/): C is back-dated BELOW the watermark (skipped); D is newer (processed).
+FEED_C.csv 2023-12-30T00:00:00
+FEED_D.csv 2024-01-03T00:00:00

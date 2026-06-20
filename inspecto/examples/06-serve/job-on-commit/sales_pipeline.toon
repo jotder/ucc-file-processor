@@ -1,0 +1,31 @@
+name: SALES_PIPELINE
+active: true
+version: 1
+
+dirs:
+  poll:       out/inbox
+  database:   out/database
+  backup:     out/backup
+  temp:       out/temp
+  errors:     out/errors
+  quarantine: out/quarantine
+  markers:    out/markers
+  status_dir: out/status
+  log_dir:    out/logs
+
+output:
+  format: PARQUET
+  compression: snappy
+
+processing:
+  threads: 1
+  file_pattern: "glob:**/*.csv"
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+  schema_file: "schema.toon"
+  csv_settings:
+    delimiter: ","
+    skip_header_lines: 1
+    date_formats[1]: "%Y-%m-%d"
+    timestamp_formats[1]: "%Y-%m-%d %H:%M:%S"

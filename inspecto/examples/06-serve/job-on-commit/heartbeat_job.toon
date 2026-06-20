@@ -1,0 +1,5 @@
+job:
+  name: sales_heartbeat
+  type: maintenance
+  task: heartbeat
+  on_pipeline: sales_pipeline

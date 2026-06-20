@@ -1,0 +1,16 @@
+# Per-example Control API probes for serve-example.{ps1,sh}.
+# One endpoint path per line; blank lines and lines starting with '#' are ignored.
+#
+# This example demonstrates INCREMENTAL high-watermark discovery (source.incremental.watermark:
+# last_modified, alongside source.duplicate.mode: metadata so the fingerprint ledger populates).
+# The watermark is the greatest last_modified the ledger has recorded; a discovered file whose
+# mtime is STRICTLY older than it is skipped (a re-scan only re-examines the recent frontier).
+#
+# Phase 1 (samples/): FEED_A (mtime 2024-01-01) and FEED_B (2024-01-02) are NEW -> processed.
+#                     The high-watermark is now 2024-01-02.
+# Phase 2 (phase2/):  FEED_C (mtime 2023-12-30) is BELOW the watermark -> skipped (bumps
+#                     inspecto_watermark_skipped_total). FEED_D (2024-01-03) is newer -> processed.
+#
+# So /files lists FEED_A, FEED_B, FEED_D (3 files) and NOT the back-dated FEED_C.
+# (Pipeline ids are lower-cased from the config name, so the audit route uses watermark_feed.)
+/pipelines/watermark_feed/files

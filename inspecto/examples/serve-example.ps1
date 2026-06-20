@@ -71,6 +71,7 @@ try {
         "-Dcontrol.port=$Port",
         "-Dservice.poll.seconds=$PollSeconds",
         '-Dassist.write.root=out/write',
+        '-Djobs.audit.dir=out/jobs_audit',
         '-cp', $jar,
         'com.gamma.control.ControlApi', '.'
     )
@@ -92,8 +93,22 @@ try {
     }
     if (-not $up) { Write-Host "Server did not become healthy on $base." -ForegroundColor Red; Get-Content $logErr -Tail 30 -ErrorAction SilentlyContinue; exit 1 }
 
+    # Optional mtimes.txt: "<filename> <ISO-8601 timestamp>" per line (blank/# ignored). Applied to
+    # seeded inbox files after each drop, so examples can demonstrate mtime-sensitive features
+    # (incremental high-watermark, metadata dedup) deterministically — git does not preserve mtimes.
+    function Apply-Mtimes {
+        if (-not (Test-Path 'mtimes.txt')) { return }
+        foreach ($line in Get-Content 'mtimes.txt') {
+            $t = $line.Trim(); if (-not $t -or $t.StartsWith('#')) { continue }
+            $parts = $t -split '\s+', 2; if ($parts.Count -lt 2) { continue }
+            $f = Join-Path 'out\inbox' $parts[0]
+            if (Test-Path $f) { (Get-Item $f).LastWriteTime = [datetime]::Parse($parts[1].Trim()) }
+        }
+    }
+
     Write-Host "Healthy. Seeding out/inbox/ from samples/ ..." -ForegroundColor Green
     if (Test-Path 'samples') { Copy-Item -Recurse -Force 'samples\*' 'out\inbox\' -ErrorAction SilentlyContinue }
+    Apply-Mtimes
 
     $wait = if ($WaitSeconds -gt 0) { $WaitSeconds } else { ($PollSeconds * 2) + 3 }
     Write-Host "Waiting ${wait}s for the poll loop to ingest...`n"
@@ -105,6 +120,7 @@ try {
     if (Test-Path 'phase2') {
         Write-Host "Second drop: seeding out/inbox/ from phase2/ ..." -ForegroundColor Green
         Copy-Item -Recurse -Force 'phase2\*' 'out\inbox\' -ErrorAction SilentlyContinue
+        Apply-Mtimes
         Write-Host "Waiting ${wait}s for the poll loop to process the second drop...`n"
         Start-Sleep -Seconds $wait
     }
