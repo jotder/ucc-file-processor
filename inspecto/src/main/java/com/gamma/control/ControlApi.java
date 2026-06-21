@@ -3,9 +3,6 @@ package com.gamma.control;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
-import com.gamma.assist.spi.AssistAgent;
 import com.gamma.config.io.ConfigLoader;
 import com.gamma.config.safety.ConfigSafetyValidator;
 import com.gamma.config.safety.SafetyPolicy;
@@ -30,7 +27,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -271,71 +267,13 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             return service.reports().batchReport(name(m), window(e));
         });
 
-        // ── v3.3.0: embedded assist agent — POST /assist/{intent} (scope assist.read) ──
-        // ── v3.7.0: recent failure diagnoses (read-only) — registered before the POST catch-all ──
-        get("/assist/diagnoses", (e, m) ->
-                service.assistAgent()
-                        .map(a -> (Object) a.recentDiagnoses(parseIntOr(query(e, "limit"), 50)))
-                        .orElse(List.of()));
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
-                new JobRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes()))
+                new JobRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
+                new AssistRoutes()))
             module.register(this);
-
-        // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
-        // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
-        get("/assist/settings", (e, m) -> assistAgentOr503().settings());
-        get("/assist/metrics", (e, m) -> assistAgentOr503().metrics());
-        post("/assist/settings/test", (e, m) -> assistAgentOr503().testSettings());
-        post("/assist/settings", (e, m) -> {
-            try {
-                return assistAgentOr503().updateSettings(body(e));
-            } catch (IllegalArgumentException ex) {
-                throw new ApiException(400, ex.getMessage());
-            }
-        });
-        post("/assist/(.+)", (e, m) -> assist(name(m), body(e)));
-    }
-
-    /**
-     * Dispatch one assist request to the in-process {@link AssistAgent} (v3.3.0). The {@code intent}
-     * (path segment) selects the skill; the JSON body supplies {@code screenContext},
-     * {@code partialInput}, and {@code userText}. The agent lives in the optional
-     * {@code file-processor-agent} module — core holds only this seam — so the agent may be absent.
-     *
-     * <p>Status mapping (fail-safe, never throws to the model): no agent on the classpath → 503;
-     * an unknown intent ({@link AssistResult.Status#UNSUPPORTED}) → 404; a skill whose model is
-     * unavailable ({@link AssistResult.Status#UNAVAILABLE}) → 503 with its message; otherwise the
-     * {@link AssistResult} is returned as JSON (200).
-     */
-    /** The in-process assist agent, or 503 when the optional module is absent (v4.1 settings routes). */
-    private AssistAgent assistAgentOr503() {
-        return service.assistAgent().orElseThrow(() -> new ApiException(503,
-                "assist agent not available (file-processor-agent not on classpath)"));
-    }
-
-    private Object assist(String intent, Map<String, Object> body) {
-        Optional<AssistAgent> agent = service.assistAgent();
-        if (agent.isEmpty())
-            throw new ApiException(503, "assist agent not available (file-processor-agent not on classpath)");
-        AssistRequest req = new AssistRequest(
-                intent, mapField(body, "screenContext"), mapField(body, "partialInput"), str(body, "userText"));
-        AssistResult result = agent.get().assist(req);
-        return switch (result.status()) {
-            case UNSUPPORTED -> throw new ApiException(404, "unknown assist intent: " + intent);
-            case UNAVAILABLE -> throw new ApiException(503,
-                    result.message() == null ? "assist model unavailable" : result.message());
-            case OK -> result;
-        };
-    }
-
-    /** A nested JSON object from a request body as a {@code Map}, or an empty map when absent/not an object. */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> mapField(Map<String, Object> body, String key) {
-        Object v = body.get(key);
-        return (v instanceof Map<?, ?> map) ? (Map<String, Object>) map : Map.of();
     }
 
     /**
