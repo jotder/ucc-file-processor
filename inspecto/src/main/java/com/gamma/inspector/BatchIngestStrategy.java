@@ -98,6 +98,13 @@ interface BatchIngestStrategy {
                 : batch.batchId();
     }
 
+    /** Output database dir for a batch: {@code dirs.database}, or a {@code table}-named subdir when set. */
+    static String databaseDir(Batch batch, PipelineConfig cfg) {
+        return (batch.table() != null && !batch.table().isBlank())
+                ? Paths.get(cfg.dirs().database(), batch.table()).toString()
+                : cfg.dirs().database();
+    }
+
     /** A lazy {@code SELECT * … UNION ALL …} over the given relations (tables or views). */
     static String unionAll(List<String> relations) {
         StringBuilder sb = new StringBuilder();
