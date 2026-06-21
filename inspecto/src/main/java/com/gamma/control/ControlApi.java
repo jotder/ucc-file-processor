@@ -271,20 +271,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             return service.reports().batchReport(name(m), window(e));
         });
 
-        // ── v2.8.0: config-driven jobs (cron / event / manual) ──
-        get("/jobs", (e, m) -> jobs().jobs());
-        // T27 job-execution reporting (DuckDB projection; 404 unless -Djobs.backend is set). Fixed
-        // sub-paths, registered before the /jobs/{name}/runs regex (single-segment, so no collision).
-        get("/jobs/metrics", (e, m) -> jobRunStore().metrics(query(e, "job")));
-        get("/jobs/runs", (e, m) -> jobRunStore().recentRuns(parseIntOr(query(e, "limit"), 50), query(e, "job")));
-        get("/jobs/failures", (e, m) -> jobRunStore().failureTrend(parseIntOr(query(e, "days"), 30)));
-        get("/jobs/([^/]+)/runs", (e, m) -> jobs().runsFor(name(m)));
-        post("/jobs/([^/]+)/trigger", (e, m) -> {
-            if (!jobs().trigger(name(m), query(e, "actor")))   // optional ?actor= attributes the manual fire (T32)
-                throw new ApiException(404, "no job named '" + name(m) + "'");
-            return Map.of("job", name(m), "status", "triggered");
-        });
-
         // ── v2.9.0: Stage-2 enrichment run audit + lineage + rollup ──
         get("/enrichment", (e, m) -> enrichment().views());
         get("/enrichment/([^/]+)/runs", (e, m) -> enrichment().runs(enrichJob(m)));
@@ -320,15 +306,11 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         get("/metrics/acquisition", (e, m) -> acquisitionMetrics());
 
 
-        // ── data-plane provenance (T22, §11): per-(node, relationship) record counts of a past flow run,
-        // for painting quantities onto the FlowGraph edges (Sankey). 404 unless -Dprovenance.backend is set. ──
-        get("/provenance", (e, m) -> provenanceData(query(e, "flow"), query(e, "batch")));
-        get("/provenance/batches", (e, m) -> provenanceBatches(query(e, "flow"), query(e, "limit")));
-
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
-                new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes()))
+                new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
+                new JobRoutes()))
             module.register(this);
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
@@ -583,41 +565,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     private PipelineConfig cfg(Matcher m) {
         return service.configFor(name(m)).orElseThrow(() -> notFound(name(m)));
-    }
-
-    /**
-     * {@code GET /provenance?flow=&batch=} — the per-(node, relationship) record counts of one flow run (T22).
-     * A consumer paints each {@code (nodeId, rel)} onto its outgoing {@code FlowGraph} edge as the Sankey weight.
-     * 400 if either param is missing, 404 when no provenance backend is configured.
-     */
-    private Object provenanceData(String flow, String batch) {
-        if (flow == null || flow.isBlank() || batch == null || batch.isBlank())
-            throw new ApiException(400, "both 'flow' and 'batch' query params are required");
-        return provenanceStore().query(flow, batch);
-    }
-
-    /** {@code GET /provenance/batches?flow=&limit=} — recent runs of a flow (newest first) to pick one to inspect. */
-    private Object provenanceBatches(String flow, String limit) {
-        if (flow == null || flow.isBlank())
-            throw new ApiException(400, "the 'flow' query param is required");
-        return provenanceStore().batches(flow, parseIntOr(limit, 20));
-    }
-
-    /** The DuckDB data-plane provenance store (T21/T22), or a 404 when no backend is configured (-Dprovenance.backend). */
-    private com.gamma.flow.exec.DbProvenanceStore provenanceStore() {
-        return jobs().provenanceStore().orElseThrow(() -> new ApiException(404,
-                "provenance DB not enabled (set -Dprovenance.backend=duckdb)"));
-    }
-
-    /** The job registry, or a 404 when no jobs are registered on this service. */
-    private com.gamma.job.JobService jobs() {
-        return service.jobService().orElseThrow(() -> new ApiException(404, "no jobs registered"));
-    }
-
-    /** The DuckDB job-run reporting store (T27), or a 404 when no backend is configured (-Djobs.backend). */
-    private com.gamma.job.DbJobRunStore jobRunStore() {
-        return jobs().runStore().orElseThrow(() -> new ApiException(404,
-                "job reporting DB not enabled (set -Djobs.backend=duckdb)"));
     }
 
     /** The enrichment service, or a 404 when no enrichment jobs are registered. */
