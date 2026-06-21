@@ -3,15 +3,6 @@ package com.gamma.control;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
-import com.gamma.config.io.ConfigLoader;
-import com.gamma.config.safety.ConfigSafetyValidator;
-import com.gamma.config.safety.SafetyPolicy;
-import com.gamma.config.spec.ConfigSpecs;
-import com.gamma.config.spec.Finding;
-import com.gamma.config.spec.Severity;
-import com.gamma.etl.PipelineConfig;
-import com.gamma.inspector.MultiSourceProcessor;
-import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -24,7 +15,6 @@ import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -224,126 +214,14 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         get("/metrics", (e, m) ->
                 respondText(e, com.gamma.metrics.MetricRegistry.global().scrape()));
 
-        get ("/pipelines", (e, m) -> service.pipelines());
-        // Register a new pipeline from a config on disk under the write root (control scope).
-        post("/pipelines", (e, m) -> createPipeline(e, body(e)));
-        post("/pipelines/([^/]+)/trigger", (e, m) ->
-                service.runPipeline(name(m)).orElseThrow(() -> notFound(name(m))));
-        post("/pipelines/([^/]+)/pause", (e, m) -> {
-            if (!service.pause(name(m))) throw notFound(name(m));
-            return Map.of("pipeline", name(m), "paused", true);
-        });
-        post("/pipelines/([^/]+)/resume", (e, m) -> {
-            if (!service.resume(name(m))) throw notFound(name(m));
-            return Map.of("pipeline", name(m), "paused", false);
-        });
-
-        get("/pipelines/([^/]+)/commits",    (e, m) -> service.statusStore().committedBatches(cfg(m)));
-        get("/pipelines/([^/]+)/batches",    (e, m) -> service.statusStore().batches(cfg(m)));
-        get("/pipelines/([^/]+)/files",      (e, m) -> service.statusStore().files(cfg(m)));
-        get("/pipelines/([^/]+)/lineage",    (e, m) -> service.statusStore().lineage(cfg(m), query(e, "batchId")));
-        get("/pipelines/([^/]+)/quarantine", (e, m) -> service.statusStore().quarantine(cfg(m)));
-        // Inbox/processing status: files still pending (matched, not yet processed) + whether the
-        // pipeline is currently ingesting. Complements the audit-backed /files (processed history).
-        get("/pipelines/([^/]+)/pending",    (e, m) ->
-                service.inboxStatus(name(m)).orElseThrow(() -> notFound(name(m))));
-
-        post("/pipelines/([^/]+)/reprocess", (e, m) -> {
-            var path = service.pathFor(name(m)).orElseThrow(() -> notFound(name(m)));
-            String batchId = str(body(e), "batchId");
-            if (batchId == null) throw new ApiException(400, "body must include 'batchId'");
-            ReprocessCommand.run(path.toString(), batchId);
-            return Map.of("pipeline", name(m), "batchId", batchId, "status", "reprocessed");
-        });
-
-        post("/trigger", (e, m) -> service.runAllOnce());
-
-        // ── v2.8.0: aggregated reports (status snapshot + batch-audit rollup) ──
-        // v2.10.0: ?from=&to= scope the rollup to a date range (inclusive; date or datetime).
-        get("/status", (e, m) -> service.reports().statusReport());
-        get("/report", (e, m) -> service.reports().serviceReport(window(e)));
-        get("/pipelines/([^/]+)/report", (e, m) -> {
-            cfg(m);   // 404 if no such pipeline
-            return service.reports().batchReport(name(m), window(e));
-        });
-
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
+                new PipelineRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
                 new JobRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
                 new AssistRoutes()))
             module.register(this);
-    }
-
-    /**
-     * Register a new pipeline from a config already on disk under the write root (v4.1.0, scope
-     * {@code control}). Pairs with {@code POST /config/write}: author + persist a {@code .toon}
-     * there, then register it so the running service processes it on the next poll cycle — no
-     * restart. (Registration is in-memory; a registered pipeline survives a restart only if its
-     * file also lies under a config dir the service is launched with — keep {@code assist.write.root}
-     * inside the launched config tree to get both.)
-     *
-     * <p>Body {@code {"configPath":"…"}} — absolute, or relative to {@code -Dassist.write.root}.
-     * Gated fail-closed: registration disabled unless the write root is set → 503; missing
-     * {@code configPath} → 400; a path resolving outside the root → 403; no file there → 404; a
-     * config that fails spec / hard-fail safety (R6) validation → 422 (findings returned); an id
-     * colliding with a <em>different</em> registered pipeline → 409. On success the new pipeline's
-     * {@link SourceService.PipelineView} is returned.
-     */
-    private Object createPipeline(HttpExchange ex, Map<String, Object> body) throws IOException {
-        if (writeRoot == null)
-            throw new ApiException(503, "pipeline registration disabled: set -Dassist.write.root to enable");
-        String configPath = str(body, "configPath");
-        if (configPath == null || configPath.isBlank())
-            throw new ApiException(400, "body must include 'configPath'");
-
-        Path candidate = Path.of(configPath.trim());
-        Path resolved = (candidate.isAbsolute() ? candidate : writeRoot.resolve(candidate)).normalize();
-        if (!resolved.startsWith(writeRoot))
-            throw new ApiException(403, "configPath escapes the write root");
-        if (!Files.isRegularFile(resolved))
-            throw new ApiException(404, "no config file at "
-                    + writeRoot.relativize(resolved).toString().replace('\\', '/'));
-
-        // Validate before registering: spec + the hard-fail safety gate (R6). Block on ERRORs —
-        // the file may have been placed here without going through POST /config/write.
-        Map<String, Object> raw;
-        try {
-            raw = ConfigLoader.filesystem().decode(resolved.toString());
-        } catch (RuntimeException parse) {
-            throw new ApiException(422, "config does not parse: " + parse.getMessage());
-        }
-        List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(ConfigSpecs.pipeline(), raw));
-        findings.addAll(ConfigSafetyValidator.check("pipeline", raw, SafetyPolicy.defaultPolicy()));
-        // ERROR here: registration loads the config for real, so an unresolvable schema_file is a
-        // guaranteed failure — block with a structured, field-anchored finding instead of letting
-        // PipelineConfig.load() surface it as an opaque "config is not a valid pipeline" 422.
-        findings.addAll(ConfigRoutes.schemaFileFindings("pipeline", raw, Severity.ERROR));
-        if (findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
-            respond(ex, 422, Map.of("registered", false,
-                    "error", "config has ERROR-level findings; not registered", "findings", findings));
-            return HANDLED;
-        }
-
-        String id;
-        try {
-            id = service.registerPipeline(resolved);
-        } catch (IllegalStateException collision) {
-            throw new ApiException(409, collision.getMessage());
-        } catch (RuntimeException invalid) {
-            throw new ApiException(422, "config is not a valid pipeline: " + invalid.getMessage());
-        }
-
-        SourceService.PipelineView view = service.pipelines().stream()
-                .filter(p -> p.name().equals(id)).findFirst().orElse(null);
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("registered", true);
-        r.put("id", id);
-        r.put("path", writeRoot.relativize(resolved).toString().replace('\\', '/'));
-        r.put("pipeline", view);
-        r.put("findings", findings);   // warnings only at this point
-        return r;
     }
 
     // ── dispatch ───────────────────────────────────────────────────────────────
@@ -472,31 +350,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     // ── helpers ──────────────────────────────────────────────────────────────────
 
-    private PipelineConfig cfg(Matcher m) {
-        return service.configFor(name(m)).orElseThrow(() -> notFound(name(m)));
-    }
-
-    private static String name(Matcher m) {
-        return ApiContext.name(m);
-    }
-
-    private static String param(Matcher m, int g) {
-        return ApiContext.param(m, g);
-    }
-
-    private static int parseIntOr(String s, int def) {
-        return ApiContext.parseIntOr(s, def);
-    }
-
-    /** Build a report {@link com.gamma.report.ReportService.Window} from {@code ?from=&to=}. */
-    private static com.gamma.report.ReportService.Window window(HttpExchange ex) {
-        return com.gamma.report.ReportService.Window.of(query(ex, "from"), query(ex, "to"));
-    }
-
-    private static ApiException notFound(String name) {
-        return new ApiException(404, "no pipeline named '" + name + "'");
-    }
-
     @Override
     public Map<String, Object> body(HttpExchange ex) throws IOException {
         try (InputStream in = ex.getRequestBody()) {
@@ -511,14 +364,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     @Override
     public Path writeRoot() { return writeRoot; }
-
-    private static String str(Map<String, Object> body, String key) {
-        return ApiContext.str(body, key);
-    }
-
-    private static String query(HttpExchange ex, String key) {
-        return ApiContext.query(ex, key);
-    }
 
     // Route registration. The core (Personal edition) is auth-free — every route is open.
     // Standard/Enterprise editions re-introduce authorization out-of-band via the security module.
