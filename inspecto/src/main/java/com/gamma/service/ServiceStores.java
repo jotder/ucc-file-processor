@@ -1,0 +1,206 @@
+package com.gamma.service;
+
+import com.gamma.event.EventStore;
+import com.gamma.event.InMemoryEventStore;
+import com.gamma.event.ParquetEventStore;
+import com.gamma.flow.FlowStore;
+import com.gamma.job.DbJobRunStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+/**
+ * Backend selection for the pluggable persistence stores {@link SourceService} hosts.
+ *
+ * <p>Each {@code open*} method reads its {@code -D} backend toggle, opens the chosen backend, and
+ * <b>degrades gracefully</b> — a DB/Parquet backend that fails to open is logged and falls back to the
+ * lean in-memory default (or {@code null} where the capability is simply off), so observability and the
+ * Alert Center never block service startup. This is purely the "how to open a store" half of the service;
+ * {@code SourceService} still owns how the opened stores are wired together (EventLog install, bus
+ * subscriptions, the ObjectService composition).
+ */
+final class ServiceStores {
+
+    // Log under SourceService's category so existing log configuration/filtering is unaffected.
+    private static final Logger log = LoggerFactory.getLogger(SourceService.class);
+
+    private ServiceStores() {}
+
+    /** Default rolling-Parquet directory when {@code events.backend=parquet} and no dir is given. */
+    private static final String DEFAULT_EVENTS_DIR = "inspecto-events";
+    /** Default DuckDB object database file when {@code objects.backend=db} and no URL is given. */
+    private static final String DEFAULT_OBJECTS_DB_URL = "jdbc:duckdb:inspecto-ops.db";
+    /** Default DuckDB link database file when {@code objects.backend=db} and no link URL is given. */
+    private static final String DEFAULT_LINKS_DB_URL = "jdbc:duckdb:inspecto-ops-links.db";
+    /** Default DuckDB note database file when {@code objects.backend=db} and no note URL is given. */
+    private static final String DEFAULT_NOTES_DB_URL = "jdbc:duckdb:inspecto-ops-notes.db";
+
+    /**
+     * Authored-flow store at {@code <assist.write.root>/flows}, or {@code null} when no write root is
+     * configured. Lets the deletion fence (T32) see flow jobs as store producers/consumers; without a
+     * write root a configured flow job fails closed at build time with a clear message.
+     */
+    static FlowStore openFlowStore() {
+        String wr = System.getProperty("assist.write.root");
+        return (wr == null || wr.isBlank()) ? null : new FlowStore(Path.of(wr.trim()).resolve("flows"));
+    }
+
+    static DbJobRunStore openJobRunStore() {
+        String backend = System.getProperty("jobs.backend", "none").trim().toLowerCase();
+        if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
+        String url = backend.startsWith("jdbc:")
+                ? backend
+                : System.getProperty("jobs.db.url", "jdbc:duckdb:jobs_report.duckdb");
+        try {
+            return DbJobRunStore.open(url);
+        } catch (Exception e) {
+            log.warn("Could not open job-run DB ({}) — job reporting disabled: {}", url, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Data-plane provenance store for FLOW jobs (T21), gated by {@code -Dprovenance.backend=duckdb} (or a full
+     * {@code jdbc:} URL); default off ⇒ {@code null} ⇒ flow runs record no per-edge counts and {@code /provenance}
+     * 404s. Mirrors {@link #openJobRunStore()}.
+     */
+    static com.gamma.flow.exec.DbProvenanceStore openProvenanceStore() {
+        String backend = System.getProperty("provenance.backend", "none").trim().toLowerCase();
+        if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
+        String url = backend.startsWith("jdbc:")
+                ? backend
+                : System.getProperty("provenance.db.url", "jdbc:duckdb:provenance.duckdb");
+        try {
+            return com.gamma.flow.exec.DbProvenanceStore.open(url);
+        } catch (Exception e) {
+            log.warn("Could not open provenance DB ({}) — data-plane provenance disabled: {}", url, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Select the Phase-1 event-store backend (v4.2.0): {@code -Devents.backend=memory} (default — a
+     * bounded in-memory ring; the lean fat-JAR keeps no extra files and tests stay light) or
+     * {@code -Devents.backend=parquet} (durable rolling Hive-partitioned Parquet under
+     * {@code -Devents.dir}, default {@value #DEFAULT_EVENTS_DIR}, queried via DuckDB). A parquet
+     * backend that fails to open is logged and degrades to in-memory — observability must never block
+     * the service.
+     */
+    static EventStore openEventStore() {
+        String backend = System.getProperty("events.backend", "memory");
+        if (!"parquet".equalsIgnoreCase(backend)) return new InMemoryEventStore();
+        Path dir = Path.of(System.getProperty("events.dir", DEFAULT_EVENTS_DIR));
+        try {
+            EventStore store = ParquetEventStore.open(dir);
+            log.info("Event backend: rolling Parquet ({})", dir.toAbsolutePath());
+            return store;
+        } catch (RuntimeException e) {
+            log.warn("Could not open Parquet event store at {} — falling back to in-memory: {}",
+                    dir, e.getMessage());
+            return new InMemoryEventStore();
+        }
+    }
+
+    /**
+     * Select the Phase-2 object-store backend (v4.3.0): {@code -Dobjects.backend=memory} (default — an
+     * in-memory map; the lean fat-JAR keeps no extra files and tests stay light) or
+     * {@code -Dobjects.backend=db} (durable JDBC, engine chosen by {@code -Dobjects.db.url}, default
+     * {@value #DEFAULT_OBJECTS_DB_URL} — the bundled DuckDB; point at {@code jdbc:postgresql://…} with
+     * the PG driver on the classpath for a distributed deployment). A DB backend that fails to open is
+     * logged and degrades to in-memory — the Alert Center must never block service startup.
+     */
+    static com.gamma.ops.ObjectStore openObjectStore() {
+        String backend = System.getProperty("objects.backend", "memory");
+        if (!"db".equalsIgnoreCase(backend)) return new com.gamma.ops.InMemoryObjectStore();
+        String url = System.getProperty("objects.db.url", DEFAULT_OBJECTS_DB_URL);
+        try {
+            com.gamma.ops.ObjectStore db = com.gamma.ops.DbObjectStore.open(url,
+                    System.getProperty("objects.db.user"), System.getProperty("objects.db.password"));
+            log.info("Object backend: database ({})", url);
+            return db;
+        } catch (Exception e) {
+            log.warn("Could not open object DB at {} — falling back to in-memory: {}", url, e.getMessage());
+            return new com.gamma.ops.InMemoryObjectStore();
+        }
+    }
+
+    /**
+     * Select the Phase-4 link-store backend, mirroring {@link #openObjectStore()}: in-memory by default,
+     * or durable JDBC under {@code -Dobjects.backend=db}. The link URL is its own
+     * {@code -Dobjects.links.db.url} (default {@value #DEFAULT_LINKS_DB_URL}) — a <em>separate</em> DuckDB
+     * file, because a file-based DuckDB holds a single-writer lock and the object store already owns
+     * {@code inspecto-ops.db}; point both at one {@code jdbc:postgresql://…} for a distributed deployment.
+     * A DB open that fails degrades to in-memory — the graph must never block service startup.
+     */
+    static com.gamma.ops.link.LinkStore openLinkStore() {
+        String backend = System.getProperty("objects.backend", "memory");
+        if (!"db".equalsIgnoreCase(backend)) return new com.gamma.ops.link.InMemoryLinkStore();
+        String url = System.getProperty("objects.links.db.url", DEFAULT_LINKS_DB_URL);
+        try {
+            com.gamma.ops.link.LinkStore db = com.gamma.ops.link.DbLinkStore.open(url,
+                    System.getProperty("objects.db.user"), System.getProperty("objects.db.password"));
+            log.info("Link backend: database ({})", url);
+            return db;
+        } catch (Exception e) {
+            log.warn("Could not open link DB at {} — falling back to in-memory: {}", url, e.getMessage());
+            return new com.gamma.ops.link.InMemoryLinkStore();
+        }
+    }
+
+    /**
+     * Select the Phase-4-follow-up note-store backend, mirroring {@link #openLinkStore()}: in-memory by
+     * default, or durable JDBC under {@code -Dobjects.backend=db} in its own DuckDB file
+     * ({@code -Dobjects.notes.db.url}, default {@value #DEFAULT_NOTES_DB_URL}) — a separate file for the
+     * same single-writer-lock reason as the link store; point all three at one Postgres for a distributed
+     * deployment. A DB open that fails degrades to in-memory.
+     */
+    static com.gamma.ops.note.NoteStore openNoteStore() {
+        String backend = System.getProperty("objects.backend", "memory");
+        if (!"db".equalsIgnoreCase(backend)) return new com.gamma.ops.note.InMemoryNoteStore();
+        String url = System.getProperty("objects.notes.db.url", DEFAULT_NOTES_DB_URL);
+        try {
+            com.gamma.ops.note.NoteStore db = com.gamma.ops.note.DbNoteStore.open(url,
+                    System.getProperty("objects.db.user"), System.getProperty("objects.db.password"));
+            log.info("Note backend: database ({})", url);
+            return db;
+        } catch (Exception e) {
+            log.warn("Could not open note DB at {} — falling back to in-memory: {}", url, e.getMessage());
+            return new com.gamma.ops.note.InMemoryNoteStore();
+        }
+    }
+
+    /** Default DuckDB status database file when {@code status.backend=db} and no URL is given. */
+    private static final String DEFAULT_DB_URL = "jdbc:duckdb:inspecto-status.db";
+    /** Pre-rebrand default file; still used when present and the new-name file is absent. */
+    private static final String LEGACY_DB_FILE = "ucc-status.db";
+
+    /**
+     * Select the status backend from system properties (M5):
+     * {@code -Dstatus.backend=file} (default) reads the on-disk audit directly;
+     * {@code -Dstatus.backend=db} projects it into a database. The DB engine is chosen by
+     * {@code -Dstatus.db.url} and defaults to a local <b>DuckDB</b> file
+     * ({@value #DEFAULT_DB_URL}) — the bundled, zero-extra-dependency primary engine. Point
+     * the URL at {@code jdbc:postgresql://…} (with the PG driver on the classpath) for a
+     * future distributed deployment; {@code -Dstatus.db.user}/{@code .password} are optional.
+     */
+    static StatusStore openStatusStore() {
+        String backend = System.getProperty("status.backend", "file");
+        if (!"db".equalsIgnoreCase(backend)) return new FileStatusStore();
+        String url = System.getProperty("status.db.url");
+        if (url == null) {
+            url = (!Files.exists(Path.of("inspecto-status.db")) && Files.exists(Path.of(LEGACY_DB_FILE)))
+                    ? "jdbc:duckdb:" + LEGACY_DB_FILE
+                    : DEFAULT_DB_URL;
+        }
+        try {
+            StatusStore db = DbStatusStore.open(url,
+                    System.getProperty("status.db.user"), System.getProperty("status.db.password"));
+            log.info("Status backend: database ({})", url);
+            return db;
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not open status DB at " + url, e);
+        }
+    }
+}
