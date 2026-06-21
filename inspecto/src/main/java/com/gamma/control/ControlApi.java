@@ -271,46 +271,17 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             return service.reports().batchReport(name(m), window(e));
         });
 
-        // ── v2.9.0: Stage-2 enrichment run audit + lineage + rollup ──
-        get("/enrichment", (e, m) -> enrichment().views());
-        get("/enrichment/([^/]+)/runs", (e, m) -> enrichment().runs(enrichJob(m)));
-        get("/enrichment/([^/]+)/lineage", (e, m) ->
-                enrichment().lineage(enrichJob(m), query(e, "runId")));
-        get("/enrichment/([^/]+)/report", (e, m) ->
-                service.reports().enrichmentReport(enrichJob(m), window(e)));
-
-
         // ── v3.3.0: embedded assist agent — POST /assist/{intent} (scope assist.read) ──
         // ── v3.7.0: recent failure diagnoses (read-only) — registered before the POST catch-all ──
         get("/assist/diagnoses", (e, m) ->
                 service.assistAgent()
                         .map(a -> (Object) a.recentDiagnoses(parseIntOr(query(e, "limit"), 50)))
                         .orElse(List.of()));
-        // ── v4.1 (B5): alert execution engine — operator-saved *_alert.toon rules evaluated against
-        // the batches ledger. Read-only listings + a manual evaluation sweep; the engine itself is
-        // event-driven off the batch bus and lives in the lean core (no agent required). ──
-        get("/alerts", (e, m) -> service.alertService()
-                .map(a -> (Object) a.recent(parseIntOr(query(e, "limit"), 50)))
-                .orElse(List.of()));
-        get("/alerts/rules", (e, m) -> service.alertService()
-                .map(a -> (Object) a.rules())
-                .orElse(List.of()));
-        post("/alerts/evaluate", (e, m) -> service.alertService()
-                .map(a -> (Object) a.evaluateAll())
-                .orElseThrow(() -> new ApiException(503,
-                        "alert engine not armed (no *_alert.toon rules loaded)")));
-
-        // ── Acquisition / Sources UI: a flat view of every pipeline's source acquisition config +
-        // a JSON acquisition-metrics snapshot (the Prometheus /metrics is text-only). CONTROL-scoped. ──
-        get("/sources", (e, m) -> service.sources());
-        get("/metrics/acquisition", (e, m) -> acquisitionMetrics());
-
-
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
-                new JobRoutes()))
+                new JobRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes()))
             module.register(this);
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
@@ -567,20 +538,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         return service.configFor(name(m)).orElseThrow(() -> notFound(name(m)));
     }
 
-    /** The enrichment service, or a 404 when no enrichment jobs are registered. */
-    private com.gamma.service.EnrichmentService enrichment() {
-        return service.enrichmentService()
-                .orElseThrow(() -> new ApiException(404, "no enrichment jobs registered"));
-    }
-
-    /** Resolve a path-named enrichment job to its name, 404 when it is not registered. */
-    private String enrichJob(Matcher m) {
-        String n = name(m);
-        if (enrichment().config(n).isEmpty())
-            throw new ApiException(404, "no enrichment job named '" + n + "'");
-        return n;
-    }
-
     private static String name(Matcher m) {
         return ApiContext.name(m);
     }
@@ -596,17 +553,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     /** Build a report {@link com.gamma.report.ReportService.Window} from {@code ?from=&to=}. */
     private static com.gamma.report.ReportService.Window window(HttpExchange ex) {
         return com.gamma.report.ReportService.Window.of(query(ex, "from"), query(ex, "to"));
-    }
-
-    /** Acquisition metric names exposed (as JSON) by {@code GET /metrics/acquisition}. */
-    private static final java.util.Set<String> ACQ_METRICS = java.util.Set.of(
-            "inspecto_files_discovered_total", "inspecto_files_downloaded_total", "inspecto_downloads_failed_total",
-            "inspecto_post_actions_failed_total", "inspecto_watermark_skipped_total", "inspecto_bytes_transferred_total",
-            "inspecto_fetch_seconds", "inspecto_active_connections", "inspecto_files_waiting_stability");
-
-    /** {@code GET /metrics/acquisition} — the acquisition counters/gauges/histogram as JSON (UI dashboard). */
-    private Object acquisitionMetrics() {
-        return com.gamma.metrics.MetricRegistry.global().snapshot(ACQ_METRICS::contains);
     }
 
     private static ApiException notFound(String name) {
