@@ -1,4 +1,4 @@
-# Project Notes — durable, non-obvious knowledge
+# Project Notes — durable, non-obvious knowledge (Inspect-agent)
 
 > **What this is.** The consolidated, repo-local home for durable project knowledge that isn't
 > obvious from the code or git history — gotchas, conventions, key decisions, and a map to the
@@ -17,7 +17,7 @@
 
 ## 1. Identity & module map
 
-**Inspecto** (formerly *UCC File Processor*; repo `C:/sandbox/ucc-file-processor`). Java 26 / Maven
+**Inspect-agent** (formerly *Inspecto* / *UCC File Processor*; repo `C:/sandbox/ucc-file-processor`). Java 26 / Maven
 multi-module · embedded **DuckDB** · **TOON** config · OpenCSV. Mainline = `master`; current release line
 = `4.x`. Editions = build flavors (see below), **never branches**.
 
