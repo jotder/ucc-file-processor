@@ -21,12 +21,9 @@ import com.gamma.event.EventLevel;
 import com.gamma.event.EventLog;
 import com.gamma.event.EventStore;
 import com.gamma.event.EventType;
-import com.gamma.event.InMemoryEventStore;
-import com.gamma.event.ParquetEventStore;
 import com.gamma.event.SavedViewStore;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.SourceProcessor;
-import com.gamma.job.DbJobRunStore;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobService;
 import com.gamma.report.ReportService;
@@ -145,7 +142,7 @@ public final class SourceService implements AutoCloseable {
     private final Set<String> running = ConcurrentHashMap.newKeySet();
     /** Authored-flow store ({@code <assist.write.root>/flows}); lets the deletion fence (T32) see flow jobs as
      *  store producers/consumers. {@code null} when no write root is configured. */
-    private final FlowStore flowStore = openFlowStore();
+    private final FlowStore flowStore = ServiceStores.openFlowStore();
     /** Serializes ingest cycles so an operator-triggered run (Control API {@code /trigger},
      *  {@code /pipelines/{name}/trigger}) can never overlap the scheduled poll cycle or another
      *  trigger. The scheduler is already non-overlapping (fixed-delay); this guards the
@@ -258,8 +255,8 @@ public final class SourceService implements AutoCloseable {
         this.jobs              = jobConfigs.isEmpty()
                 ? null
                 : new JobService(jobConfigs, bus, scheduler, reports,
-                        System.getProperty("jobs.audit.dir", "jobs_audit"), openJobRunStore(),
-                        flowStore, System.getProperty("data.dir", "database"), openProvenanceStore());
+                        System.getProperty("jobs.audit.dir", "jobs_audit"), ServiceStores.openJobRunStore(),
+                        flowStore, System.getProperty("data.dir", "database"), ServiceStores.openProvenanceStore());
         if (this.jobs != null) this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
         this.semanticModels    = List.copyOf(semanticModels);
         // Invalidate the catalog whenever configs are (re)indexed — the registry is now the
@@ -280,9 +277,9 @@ public final class SourceService implements AutoCloseable {
         // Object Engine (Phase 2, v4.3.0): the mutable Layer-2 store for managed objects (alerts now;
         // issues/cases later). Built from -Dobjects.backend (memory|db); always present so /objects
         // works even with no alert rules. Fired alerts are promoted into it by the AlertService below.
-        this.objectStore = buildObjectStore();
-        this.linkStore = buildLinkStore();
-        this.noteStore = buildNoteStore();
+        this.objectStore = ServiceStores.openObjectStore();
+        this.linkStore = ServiceStores.openLinkStore();
+        this.noteStore = ServiceStores.openNoteStore();
         this.objects = new com.gamma.ops.ObjectService(objectStore, java.util.Map.of(), linkStore, noteStore);
         // Phase D2: promote selected domain events to managed objects (SEQUENCE_GAP → ALERT) via an EventLog
         // subscriber. Registered unconditionally (independent of *_alert.toon rules — a gap is not a batch
@@ -302,7 +299,7 @@ public final class SourceService implements AutoCloseable {
         // -Devents.backend (memory|parquet), installed into the process-wide EventLog so the SLF4J
         // capture appender (INFO+) and the domain emitters below share one sink, and subscribed to the
         // bus here (before start()) so the first terminal batch is recorded as a structured event.
-        this.events = buildEventStore();
+        this.events = ServiceStores.openEventStore();
         EventLog.global().installStore(events);
         bus.subscribe(this::onBatchEvent);
         String viewsFile = System.getProperty("events.views.file");
@@ -624,55 +621,6 @@ public final class SourceService implements AutoCloseable {
         String f = from.trim().toLowerCase();
         String u = upstream.toLowerCase();
         return f.equals(u) || f.endsWith("/" + u);
-    }
-
-    /**
-     * Build the optional DuckDB job-run projection for reporting (T27) from {@code -Djobs.backend}; returns
-     * {@code null} (the default) when no backend is configured, so job reporting is opt-in and nothing
-     * changes by default. {@code -Djobs.backend=duckdb} uses {@code -Djobs.db.url} (default a local
-     * {@code jobs_report.duckdb} file); a full {@code jdbc:...} value is also accepted directly.
-     */
-    /**
-     * The authored-flow store for {@link JobType#FLOW} jobs (T32): {@code <assist.write.root>/flows}, the same
-     * root the Control API persists authored {@code *_flow.toon} under. {@code null} when no write root is set,
-     * in which case a configured flow job fails closed at build time with a clear message.
-     */
-    private static FlowStore openFlowStore() {
-        String wr = System.getProperty("assist.write.root");
-        return (wr == null || wr.isBlank()) ? null : new FlowStore(Path.of(wr.trim()).resolve("flows"));
-    }
-
-    private static DbJobRunStore openJobRunStore() {
-        String backend = System.getProperty("jobs.backend", "none").trim().toLowerCase();
-        if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
-        String url = backend.startsWith("jdbc:")
-                ? backend
-                : System.getProperty("jobs.db.url", "jdbc:duckdb:jobs_report.duckdb");
-        try {
-            return DbJobRunStore.open(url);
-        } catch (Exception e) {
-            log.warn("Could not open job-run DB ({}) — job reporting disabled: {}", url, e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Data-plane provenance store for FLOW jobs (T21), gated by {@code -Dprovenance.backend=duckdb} (or a full
-     * {@code jdbc:} URL); default off ⇒ {@code null} ⇒ flow runs record no per-edge counts and {@code /provenance}
-     * 404s. Mirrors {@link #openJobRunStore()}.
-     */
-    private static com.gamma.flow.exec.DbProvenanceStore openProvenanceStore() {
-        String backend = System.getProperty("provenance.backend", "none").trim().toLowerCase();
-        if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
-        String url = backend.startsWith("jdbc:")
-                ? backend
-                : System.getProperty("provenance.db.url", "jdbc:duckdb:provenance.duckdb");
-        try {
-            return com.gamma.flow.exec.DbProvenanceStore.open(url);
-        } catch (Exception e) {
-            log.warn("Could not open provenance DB ({}) — data-plane provenance disabled: {}", url, e.getMessage());
-            return null;
-        }
     }
 
     /**
@@ -1013,148 +961,12 @@ public final class SourceService implements AutoCloseable {
         long pollSeconds = Long.getLong("service.poll.seconds", 60L);
         int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
         SourceService svc = new SourceService(registry, enrichJobs, jobConfigs, semantics, alertRules,
-                pollSeconds, maxRuns, buildStatusStore());
+                pollSeconds, maxRuns, ServiceStores.openStatusStore());
         for (com.gamma.ops.rca.RcaTemplate t : loadRcaTemplates(resolveBySuffix(args, "_rca.toon")))
             svc.registerRcaTemplate(t);
         for (com.gamma.acquire.ConnectionProfile c : loadConnections(resolveBySuffix(args, "_connection.toon")))
             svc.registerConnection(c);
         return svc;
-    }
-
-    /** Default DuckDB status database file when {@code status.backend=db} and no URL is given. */
-    private static final String DEFAULT_DB_URL = "jdbc:duckdb:inspecto-status.db";
-    /** Pre-rebrand default file; still used when present and the new-name file is absent. */
-    private static final String LEGACY_DB_FILE = "ucc-status.db";
-
-    /**
-     * Select the status backend from system properties (M5):
-     * {@code -Dstatus.backend=file} (default) reads the on-disk audit directly;
-     * {@code -Dstatus.backend=db} projects it into a database. The DB engine is chosen by
-     * {@code -Dstatus.db.url} and defaults to a local <b>DuckDB</b> file
-     * ({@value #DEFAULT_DB_URL}) — the bundled, zero-extra-dependency primary engine. Point
-     * the URL at {@code jdbc:postgresql://…} (with the PG driver on the classpath) for a
-     * future distributed deployment; {@code -Dstatus.db.user}/{@code .password} are optional.
-     */
-    private static StatusStore buildStatusStore() {
-        String backend = System.getProperty("status.backend", "file");
-        if (!"db".equalsIgnoreCase(backend)) return new FileStatusStore();
-        String url = System.getProperty("status.db.url");
-        if (url == null) {
-            url = (!Files.exists(Path.of("inspecto-status.db")) && Files.exists(Path.of(LEGACY_DB_FILE)))
-                    ? "jdbc:duckdb:" + LEGACY_DB_FILE
-                    : DEFAULT_DB_URL;
-        }
-        try {
-            StatusStore db = DbStatusStore.open(url,
-                    System.getProperty("status.db.user"), System.getProperty("status.db.password"));
-            log.info("Status backend: database ({})", url);
-            return db;
-        } catch (Exception e) {
-            throw new IllegalStateException("Could not open status DB at " + url, e);
-        }
-    }
-
-    /** Default directory for the rolling-Parquet event store when {@code events.backend=parquet}. */
-    private static final String DEFAULT_EVENTS_DIR = "inspecto-events";
-
-    /**
-     * Select the Phase-1 event-store backend (v4.2.0): {@code -Devents.backend=memory} (default — a
-     * bounded in-memory ring; the lean fat-JAR keeps no extra files and tests stay light) or
-     * {@code -Devents.backend=parquet} (durable rolling Hive-partitioned Parquet under
-     * {@code -Devents.dir}, default {@value #DEFAULT_EVENTS_DIR}, queried via DuckDB). A parquet
-     * backend that fails to open is logged and degrades to in-memory — observability must never block
-     * the service.
-     */
-    private static EventStore buildEventStore() {
-        String backend = System.getProperty("events.backend", "memory");
-        if (!"parquet".equalsIgnoreCase(backend)) return new InMemoryEventStore();
-        Path dir = Path.of(System.getProperty("events.dir", DEFAULT_EVENTS_DIR));
-        try {
-            EventStore store = ParquetEventStore.open(dir);
-            log.info("Event backend: rolling Parquet ({})", dir.toAbsolutePath());
-            return store;
-        } catch (RuntimeException e) {
-            log.warn("Could not open Parquet event store at {} — falling back to in-memory: {}",
-                    dir, e.getMessage());
-            return new InMemoryEventStore();
-        }
-    }
-
-    /** Default DuckDB object database file when {@code objects.backend=db} and no URL is given. */
-    private static final String DEFAULT_OBJECTS_DB_URL = "jdbc:duckdb:inspecto-ops.db";
-
-    /**
-     * Select the Phase-2 object-store backend (v4.3.0): {@code -Dobjects.backend=memory} (default — an
-     * in-memory map; the lean fat-JAR keeps no extra files and tests stay light) or
-     * {@code -Dobjects.backend=db} (durable JDBC, engine chosen by {@code -Dobjects.db.url}, default
-     * {@value #DEFAULT_OBJECTS_DB_URL} — the bundled DuckDB; point at {@code jdbc:postgresql://…} with
-     * the PG driver on the classpath for a distributed deployment). A DB backend that fails to open is
-     * logged and degrades to in-memory — the Alert Center must never block service startup.
-     */
-    private static com.gamma.ops.ObjectStore buildObjectStore() {
-        String backend = System.getProperty("objects.backend", "memory");
-        if (!"db".equalsIgnoreCase(backend)) return new com.gamma.ops.InMemoryObjectStore();
-        String url = System.getProperty("objects.db.url", DEFAULT_OBJECTS_DB_URL);
-        try {
-            com.gamma.ops.ObjectStore db = com.gamma.ops.DbObjectStore.open(url,
-                    System.getProperty("objects.db.user"), System.getProperty("objects.db.password"));
-            log.info("Object backend: database ({})", url);
-            return db;
-        } catch (Exception e) {
-            log.warn("Could not open object DB at {} — falling back to in-memory: {}", url, e.getMessage());
-            return new com.gamma.ops.InMemoryObjectStore();
-        }
-    }
-
-    /** Default DuckDB link database file when {@code objects.backend=db} and no link URL is given. */
-    private static final String DEFAULT_LINKS_DB_URL = "jdbc:duckdb:inspecto-ops-links.db";
-
-    /**
-     * Select the Phase-4 link-store backend, mirroring {@link #buildObjectStore()}: in-memory by default,
-     * or durable JDBC under {@code -Dobjects.backend=db}. The link URL is its own
-     * {@code -Dobjects.links.db.url} (default {@value #DEFAULT_LINKS_DB_URL}) — a <em>separate</em> DuckDB
-     * file, because a file-based DuckDB holds a single-writer lock and the object store already owns
-     * {@code inspecto-ops.db}; point both at one {@code jdbc:postgresql://…} for a distributed deployment.
-     * A DB open that fails degrades to in-memory — the graph must never block service startup.
-     */
-    private static com.gamma.ops.link.LinkStore buildLinkStore() {
-        String backend = System.getProperty("objects.backend", "memory");
-        if (!"db".equalsIgnoreCase(backend)) return new com.gamma.ops.link.InMemoryLinkStore();
-        String url = System.getProperty("objects.links.db.url", DEFAULT_LINKS_DB_URL);
-        try {
-            com.gamma.ops.link.LinkStore db = com.gamma.ops.link.DbLinkStore.open(url,
-                    System.getProperty("objects.db.user"), System.getProperty("objects.db.password"));
-            log.info("Link backend: database ({})", url);
-            return db;
-        } catch (Exception e) {
-            log.warn("Could not open link DB at {} — falling back to in-memory: {}", url, e.getMessage());
-            return new com.gamma.ops.link.InMemoryLinkStore();
-        }
-    }
-
-    /** Default DuckDB note database file when {@code objects.backend=db} and no note URL is given. */
-    private static final String DEFAULT_NOTES_DB_URL = "jdbc:duckdb:inspecto-ops-notes.db";
-
-    /**
-     * Select the Phase-4-follow-up note-store backend, mirroring {@link #buildLinkStore()}: in-memory by
-     * default, or durable JDBC under {@code -Dobjects.backend=db} in its own DuckDB file
-     * ({@code -Dobjects.notes.db.url}, default {@value #DEFAULT_NOTES_DB_URL}) — a separate file for the
-     * same single-writer-lock reason as the link store; point all three at one Postgres for a distributed
-     * deployment. A DB open that fails degrades to in-memory.
-     */
-    private static com.gamma.ops.note.NoteStore buildNoteStore() {
-        String backend = System.getProperty("objects.backend", "memory");
-        if (!"db".equalsIgnoreCase(backend)) return new com.gamma.ops.note.InMemoryNoteStore();
-        String url = System.getProperty("objects.notes.db.url", DEFAULT_NOTES_DB_URL);
-        try {
-            com.gamma.ops.note.NoteStore db = com.gamma.ops.note.DbNoteStore.open(url,
-                    System.getProperty("objects.db.user"), System.getProperty("objects.db.password"));
-            log.info("Note backend: database ({})", url);
-            return db;
-        } catch (Exception e) {
-            log.warn("Could not open note DB at {} — falling back to in-memory: {}", url, e.getMessage());
-            return new com.gamma.ops.note.InMemoryNoteStore();
-        }
     }
 
     /** Walk CLI paths for files ending in {@code suffix} (file args matched directly). */

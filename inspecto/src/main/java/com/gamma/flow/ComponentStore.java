@@ -2,13 +2,12 @@ package com.gamma.flow;
 
 import com.gamma.api.PublicApi;
 import com.gamma.config.io.ConfigCodec;
+import com.gamma.util.AtomicFiles;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -79,18 +78,7 @@ public final class ComponentStore {
         Map<String, Object> doc = new LinkedHashMap<>(content);
         doc.put("name", name);   // canonicalise: in-file identity == URL id == filename stem
         byte[] bytes = ConfigCodec.toToon(doc).getBytes(StandardCharsets.UTF_8);
-        Files.createDirectories(file.getParent());
-        Path tmp = Files.createTempFile(file.getParent(), ".comp-", ".tmp");
-        try {
-            Files.write(tmp, bytes);
-            try {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException notAtomic) {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } finally {
-            Files.deleteIfExists(tmp);
-        }
+        AtomicFiles.write(file, bytes, ".comp-");
         return new ComponentRegistry.Component(type, name, file, doc);
     }
 

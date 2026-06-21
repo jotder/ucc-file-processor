@@ -56,7 +56,7 @@ The platform is organized into two **data stages** under one **control plane**, 
 | Skill | Since | Does | Replaces |
 |---|---|---|---|
 | `explain-entity` | v3.3.0 | Explain any entity (pipeline/batch/run/report/error) grounded on the catalog + Control API reads + docs. Read-only. | Multi-screen drill-down to diagnose. |
-| `nl-to-schedule` | v3.4.0 | "every weekday 6am after adjustment_etl" → a validated JobConfig draft with `nextRuns[]`. | The cron-builder widget. |
+| `nl-to-schedule` | v3.4.0 | "every weekday 6am after voucher_etl" → a validated JobConfig draft with `nextRuns[]`. | The cron-builder widget. |
 | `suggest-config` | v3.5.0 | Sample + partial config → pre-filled fields with rationale, validated by loader + safety validator. | A long config form + docs hunt. |
 | `kpi-to-sql` *(the hero)* | v3.6.0 | A KPI in business terms → Stage-2 transformation SQL, validated in a **sandboxed** DuckDB (EXPLAIN/LIMIT-0), surfacing chosen join keys & interpretation. | Hand-writing transform SQL. |
 | `diagnose-and-alert` | v3.7.0 | Event-driven: on a FAILED batch → severity + root-cause draft; and NL → alert-rule draft. | Manual log triage + alert config. |
@@ -198,9 +198,8 @@ formats, write a `StreamingFileIngester` plugin instead of a schema; see [Plugin
 From the **repository root**, the bundled sample scripts run a pipeline end-to-end:
 
 ```powershell
-run-adjustment.bat       # Windows — runs config/adjustment/adjustment_pipeline.toon
 run-voucher.bat          # Windows — runs config/voucher/voucher_unknown_pipeline.toon
-bash run-adjustment.sh   # Linux / Mac
+bash run-voucher.sh      # Linux / Mac
 ```
 
 Or run any pipeline config directly (the scripts just wrap this):
@@ -253,7 +252,7 @@ sandbox-validates it from a business description.
 
 Config-driven jobs run on **cron** or **fixed-delay** schedules via the built-in `Scheduler`, with
 per-job locking and run history. Define a `JobConfig` (`.toon`), then list/trigger via `/jobs*`.
-The `nl-to-schedule` skill (step 11) turns "every weekday 6am after adjustment_etl" into a
+The `nl-to-schedule` skill (step 11) turns "every weekday 6am after voucher_etl" into a
 validated JobConfig draft with a preview of the next run times.
 
 ## 9. Operate via the Control API
@@ -369,7 +368,7 @@ The agent is a separate module loaded in-process when present — it never bloat
 ```bash
 curl -X POST localhost:<port>/assist/nl-to-schedule \
      -H "Authorization: Bearer <assist-token>" \
-     -d '{"userText":"every weekday 6am after adjustment_etl","knownPipelines":["adjustment_etl"]}'
+     -d '{"userText":"every weekday 6am after voucher_etl","knownPipelines":["voucher_etl"]}'
 ```
 
 The response carries `{ suggestions, rationale, confidence, validated, data, applyVia? }`. Drafts

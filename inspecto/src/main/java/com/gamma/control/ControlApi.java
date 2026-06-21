@@ -6,38 +6,13 @@ import com.gamma.api.PublicApi;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.spi.AssistAgent;
-import com.gamma.catalog.EdgeKind;
-import com.gamma.catalog.MetadataEdge;
-import com.gamma.catalog.MetadataGraph;
-import com.gamma.catalog.MetadataGraphService;
-import com.gamma.catalog.MetadataNode;
-import com.gamma.catalog.NodeKind;
-import com.gamma.config.io.ConfigCodec;
 import com.gamma.config.io.ConfigLoader;
 import com.gamma.config.safety.ConfigSafetyValidator;
 import com.gamma.config.safety.SafetyPolicy;
-import com.gamma.config.spec.ConfigSpec;
 import com.gamma.config.spec.ConfigSpecs;
 import com.gamma.config.spec.Finding;
 import com.gamma.config.spec.Severity;
-import com.gamma.etl.ConfigValidator;
 import com.gamma.etl.PipelineConfig;
-import com.gamma.event.Event;
-import com.gamma.event.EventLevel;
-import com.gamma.event.EventQuery;
-import com.gamma.event.SavedView;
-import com.gamma.ops.ObjectQuery;
-import com.gamma.ops.ObjectService;
-import com.gamma.ops.ObjectType;
-import com.gamma.ops.OperationalObject;
-import com.gamma.ops.link.ObjectLink;
-import com.gamma.ops.note.NoteKind;
-import com.gamma.ops.note.ObjectNote;
-import com.gamma.acquire.ConnectionProfile;
-import com.gamma.acquire.ConnectionTester;
-import com.gamma.flow.FlowProjection;
-import com.gamma.flow.PipelineLift;
-import com.gamma.ops.rca.RcaTemplate;
 import com.gamma.inspector.MultiSourceProcessor;
 import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
@@ -49,19 +24,13 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -165,11 +134,10 @@ import java.util.regex.Pattern;
  * </ul>
  */
 @PublicApi(since = "2.4.0")
-public final class ControlApi implements AutoCloseable {
+public final class ControlApi implements AutoCloseable, ApiContext {
 
     private static final Logger log = LoggerFactory.getLogger(ControlApi.class);
-    /** Returned by a handler that has already written its own (non-JSON) response. */
-    private static final Object HANDLED = new Object();
+    private static final Object HANDLED = ApiContext.HANDLED;
 
     private final HttpServer http;
     private final SourceService service;
@@ -325,30 +293,6 @@ public final class ControlApi implements AutoCloseable {
         get("/enrichment/([^/]+)/report", (e, m) ->
                 service.reports().enrichmentReport(enrichJob(m), window(e)));
 
-        // ── v3.2.0: metadata graph / data catalog (scope assist.read; control satisfies it) ──
-        get("/catalog", (e, m) -> service.catalog().tables());
-        get("/catalog/kpis", (e, m) -> catalogKpis());
-        get("/catalog/graph", (e, m) -> service.catalog().traverse(
-                query(e, "from"),
-                parseIntOr(query(e, "depth"), 1),
-                direction(query(e, "direction")),
-                nodeKinds(query(e, "kinds")),
-                edgeKinds(query(e, "edgeKinds")),
-                "true".equalsIgnoreCase(query(e, "overlay"))));
-        get("/catalog/tables/(.+)", (e, m) -> catalogNodeDetail(name(m)));
-
-        // ── v3.2.0: declarative config spec (UI form rendering + LLM-constrained authoring) ──
-        get("/config/spec/(.+)", (e, m) -> {
-            ConfigSpec spec = ConfigSpecs.forType(name(m));
-            if (spec == null) throw new ApiException(404, "unknown config type: " + name(m));
-            return spec;
-        });
-
-        // Validate a saved file ({"configPath":"…"}) OR an unsaved draft ({"type":…,"config":{…}}).
-        post("/validate", (e, m) -> validate(body(e)));
-
-        // Persist a validated config draft to disk (scope assist.write; jailed under -Dassist.write.root).
-        post("/config/write", (e, m) -> writeConfig(e, body(e)));
 
         // ── v3.3.0: embedded assist agent — POST /assist/{intent} (scope assist.read) ──
         // ── v3.7.0: recent failure diagnoses (read-only) — registered before the POST catch-all ──
@@ -370,101 +314,22 @@ public final class ControlApi implements AutoCloseable {
                 .orElseThrow(() -> new ApiException(503,
                         "alert engine not armed (no *_alert.toon rules loaded)")));
 
-        // ── v4.2.0 (Phase 1): Operational Event Viewer — the append-only "what happened" feed, backed
-        // by EventLog/EventStore (in-memory ring or rolling Parquet). CONTROL-scoped reads. Specific
-        // paths are registered before the /events/{id} catch so first-match-wins resolves them. ──
-        get("/events", (e, m) -> toMaps(service.events().recent(parseIntOr(query(e, "limit"), 50))));
-        get("/events/search", (e, m) -> toMaps(service.events().query(eventQuery(e, EventQuery.DEFAULT_LIMIT))));
-        get("/events/export", (e, m) -> exportEvents(e));
-        get("/events/views", (e, m) -> service.savedViews().list());
-        post("/events/views", (e, m) -> saveView(body(e)));
-        post("/events/views/([^/]+)/delete", (e, m) -> {
-            if (!service.savedViews().delete(name(m)))
-                throw new ApiException(404, "no saved view named '" + name(m) + "'");
-            return Map.of("name", name(m), "deleted", true);
-        });
-        get("/events/([^/]+)", (e, m) -> eventById(name(m)));
-
-        // ── v4.3.0 (Phase 2): Alert Center — mutable operational objects (ALERT now; ISSUE/CASE later)
-        // with a workflow-checked lifecycle. CONTROL-scoped. Specific verbs are registered before the
-        // /objects/{id} catch so first-match-wins resolves them. v4.4.0 (Phase 3) adds POST /objects so
-        // operators can create ISSUEs (ALERTs are auto-promoted); lifecycle moves use /transition. ──
-        get("/objects", (e, m) -> toObjectMaps(service.objects().query(objectQuery(e))));
-        post("/objects", (e, m) -> createObject(body(e)));
-        post("/objects/([^/]+)/ack", (e, m) -> transition(name(m), "ack", null, body(e)));
-        post("/objects/([^/]+)/resolve", (e, m) -> transition(name(m), "resolve", null, body(e)));
-        post("/objects/([^/]+)/transition", (e, m) -> transitionFromBody(name(m), body(e)));
-        post("/objects/([^/]+)/links", (e, m) -> createLink(name(m), body(e)));
-        get("/objects/([^/]+)/links", (e, m) -> toLinkMaps(service.objects().linksOf(name(m))));
-        get("/objects/([^/]+)/graph", (e, m) -> objectGraph(name(m), e));
-        post("/objects/([^/]+)/comments", (e, m) -> addComment(name(m), body(e)));
-        get("/objects/([^/]+)/comments", (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.COMMENT)));
-        post("/objects/([^/]+)/attachments", (e, m) -> addAttachment(name(m), body(e)));
-        get("/objects/([^/]+)/attachments", (e, m) -> toNoteMaps(service.objects().notesOf(name(m), NoteKind.ATTACHMENT)));
-        post("/objects/([^/]+)/rca", (e, m) -> applyRca(name(m), body(e)));
-        get("/objects/([^/]+)", (e, m) -> objectById(name(m)));
-        get("/rca/templates", (e, m) -> rcaTemplateList());
-
         // ── Acquisition / Sources UI: a flat view of every pipeline's source acquisition config +
         // a JSON acquisition-metrics snapshot (the Prometheus /metrics is text-only). CONTROL-scoped. ──
         get("/sources", (e, m) -> service.sources());
         get("/metrics/acquisition", (e, m) -> acquisitionMetrics());
 
-        // ── Flow graph (read-only): the pipeline-as-graph projection for the G6 visualiser + editor
-        // palette (doc §6, T31). Every registered *_pipeline.toon is lifted to a FlowGraph on demand
-        // (PipelineLift, lossless) and projected structurally. The fixed /node-types and the bare
-        // /flows collection are anchored, so they never collide with /flows/{id}/graph. ──
-        get("/flows", (e, m) -> flowSummaries());
-        get("/flows/node-types", (e, m) -> FlowProjection.catalog());
-        get("/flows/combined", (e, m) -> combinedFlows());     // T24: pipeline+job topology joined at the shared store
-        // ── Authored-flow topology CRUD (T19, §7.1): build/validate/persist *_flow.toon under
-        // <write-root>/flows. A distinct namespace from the read-only lifted-pipeline projection above; all
-        // anchored, so /flows/authored* never collides with /flows/{id}/graph. ──
-        get("/flows/authored", (e, m) -> authoredFlowList());
-        post("/flows/authored", (e, m) -> createFlow(body(e)));
-        get("/flows/authored/([^/]+)", (e, m) -> authoredFlow(name(m)));
-        get("/flows/authored/([^/]+)/raw", (e, m) -> authoredFlowRaw(name(m)));   // lossless map for the editor
-        put("/flows/authored/([^/]+)", (e, m) -> updateFlow(name(m), body(e)));
-        delete("/flows/authored/([^/]+)", (e, m) -> deleteFlow(name(m)));
-        post("/flows/authored/([^/]+)/nodes", (e, m) -> addFlowNode(name(m), body(e)));
-        post("/flows/authored/([^/]+)/edges", (e, m) -> addFlowEdge(name(m), body(e)));
-        post("/flows/authored/([^/]+)/dry-run", (e, m) -> dryRunFlow(name(m), body(e)));   // T18: bounded sample
-        get("/flows/([^/]+)/graph", (e, m) -> FlowProjection.graph(PipelineLift.lift(cfg(m))));
-
-        // ── sink.view consumer (T32 Phase C follow-up): discover the durable view definitions a flow job
-        // records under <write-root>/views and query a view's derived_sql for bounded rows. Read-only. ──
-        get("/views", (e, m) -> viewList());
-        get("/views/([^/]+)", (e, m) -> viewDefinition(name(m)));
-        get("/views/([^/]+)/data", (e, m) -> viewData(name(m), query(e, "limit")));
 
         // ── data-plane provenance (T22, §11): per-(node, relationship) record counts of a past flow run,
         // for painting quantities onto the FlowGraph edges (Sankey). 404 unless -Dprovenance.backend is set. ──
         get("/provenance", (e, m) -> provenanceData(query(e, "flow"), query(e, "batch")));
         get("/provenance/batches", (e, m) -> provenanceBatches(query(e, "flow"), query(e, "limit")));
 
-        // ── Data Acquisition: reusable connection profiles (*_connection.toon) + a reachability test +
-        // create/update/delete (CONTROL-scoped; write-back jailed under -Dassist.write.root). The specific
-        // /test verb and /{id} are registered before the bare collection; profiles are returned secret-masked. ──
-        get("/connections", (e, m) -> connectionList());
-        post("/connections", (e, m) -> createConnection(body(e)));
-        post("/connections/([^/]+)/test", (e, m) -> testConnection(name(m)));
-        put("/connections/([^/]+)", (e, m) -> updateConnection(name(m), body(e)));
-        delete("/connections/([^/]+)", (e, m) -> deleteConnection(name(m)));
-        get("/connections/([^/]+)", (e, m) -> connectionById(name(m)));
-
-        // ── Component registry CRUD (T19, §7.1): grammar/schema/transform/sink under <write-root>/registry,
-        // generalising the connection write pattern (write-root gated, jailed, atomic, safe-delete). The
-        // two-segment /{type}/{id} routes are distinct from the one-segment list (patterns are anchored). ──
-        get("/components/([^/]+)", (e, m) -> componentList(name(m)));
-        get("/components/([^/]+)/([^/]+)", (e, m) -> componentById(name(m), param(m, 2)));
-        post("/components/([^/]+)", (e, m) -> createComponent(name(m), body(e)));
-        put("/components/([^/]+)/([^/]+)", (e, m) -> updateComponent(name(m), param(m, 2), body(e)));
-        delete("/components/([^/]+)/([^/]+)", (e, m) -> deleteComponent(name(m), param(m, 2)));
-        // T18 dry-run/test: preview a component over a sample through the production logic (scratch-only).
-        post("/components/transform/([^/]+)/test", (e, m) -> previewTransform(name(m), body(e)));
-        post("/components/grammar/([^/]+)/test", (e, m) -> previewGrammar(name(m), body(e)));
-        post("/components/schema/([^/]+)/test", (e, m) -> previewSchema(name(m), body(e)));
-        post("/components/sink/([^/]+)/test", (e, m) -> previewSink(name(m), body(e)));
+        // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
+        for (RouteModule module : List.of(
+                new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
+                new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes()))
+            module.register(this);
 
         // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
         // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
@@ -521,164 +386,6 @@ public final class ControlApi implements AutoCloseable {
     }
 
     /**
-     * Validate a config and return structured {@link Finding}s. Two body forms:
-     * <ul>
-     *   <li>{@code {"configPath":"…"}} — load the file, return the pipeline name, the legacy
-     *       {@code warnings} string list (back-compat), and the structured {@code findings};</li>
-     *   <li>{@code {"type":"pipeline|enrichment|job|schema|meta","config":{…}}} — validate an
-     *       in-memory draft against that type's spec with no file written, returning {@code findings}.
-     *       Add {@code "safety":true} to also run the hard-fail {@link ConfigSafetyValidator} (path
-     *       jail / numeric bounds / output allow-list, R6) and merge its findings; omitted/false
-     *       leaves the response unchanged.</li>
-     * </ul>
-     * {@code clean} is true when there are no findings.
-     */
-    private Object validate(Map<String, Object> body) throws IOException {
-        String configPath = str(body, "configPath");
-        if (configPath != null) {
-            PipelineConfig cfg = PipelineConfig.load(configPath);
-            List<String> warnings = ConfigValidator.validate(cfg);
-            List<Finding> findings = ConfigLoader.filesystem()
-                    .validate(ConfigSpecs.pipeline(), ConfigLoader.filesystem().decode(configPath));
-            Map<String, Object> r = new LinkedHashMap<>();
-            r.put("pipeline", cfg.identity().pipelineName());
-            r.put("warnings", warnings);     // legacy string form (back-compat)
-            r.put("findings", findings);     // structured form (v3.2.0)
-            r.put("clean", warnings.isEmpty());
-            return r;
-        }
-        String type = str(body, "type");
-        Object cfgObj = body.get("config");
-        if (type == null || !(cfgObj instanceof Map<?, ?>)) {
-            throw new ApiException(400,
-                    "body must include 'configPath', or 'type' + 'config' (a draft config map)");
-        }
-        ConfigSpec spec = ConfigSpecs.forType(type);
-        if (spec == null) throw new ApiException(404, "unknown config type: " + type);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> draft = (Map<String, Object>) cfgObj;
-        List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(spec, draft));
-        // Pre-flight: warn when a pipeline draft's schema_file won't resolve on this server —
-        // registration would otherwise fail later with an opaque error (v4.1.0).
-        findings.addAll(schemaFileFindings(type, draft, Severity.WARNING));
-        // Opt-in hard-fail safety gate (R6): merged in only when the caller asks, so the default
-        // /validate response is byte-for-byte unchanged for existing callers.
-        boolean safety = "true".equalsIgnoreCase(String.valueOf(body.get("safety")));
-        if (safety) {
-            findings.addAll(ConfigSafetyValidator.check(type, draft, SafetyPolicy.defaultPolicy()));
-        }
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("type", type);
-        r.put("findings", findings);
-        r.put("safetyChecked", safety);
-        r.put("clean", findings.isEmpty());
-        return r;
-    }
-
-    /**
-     * Persist a validated config draft to disk as a {@code .toon} file (v4.1.0, scope
-     * {@code assist.write}). Closes the author→save loop so a suggested or hand-edited config no
-     * longer has to be copied to disk out-of-band.
-     *
-     * <p>Body: {@code {"type":"pipeline|enrichment|job|schema|meta", "config":{…},
-     * "subdir":"optional/relative", "overwrite":false}}. Gated fail-closed, in order:
-     * <ol>
-     *   <li>writes are disabled unless {@code -Dassist.write.root} is set → 503;</li>
-     *   <li>absent/unknown type → 400/404; missing {@code config} map → 400;</li>
-     *   <li>spec validation + the hard-fail {@link ConfigSafetyValidator} (R6) gate: any
-     *       {@code ERROR} finding → 422 (findings returned); warnings pass through;</li>
-     *   <li>the filename is derived from the config's own identity field (never a caller-supplied
-     *       path) and sanitised to one safe token → 422 if blank/unsafe;</li>
-     *   <li>the resolved target is jailed under the write root — an optional {@code subdir} must be
-     *       relative and may not escape → 400/403;</li>
-     *   <li>an existing file is refused unless {@code overwrite:true} → 409.</li>
-     * </ol>
-     * On success the draft is encoded via {@link ConfigCodec#toToon} and written atomically
-     * (temp file + move); the response carries the root-relative path, byte count, whether an
-     * existing file was replaced, and any (warning-level) findings.
-     */
-    private Object writeConfig(HttpExchange ex, Map<String, Object> body) throws IOException {
-        if (writeRoot == null)
-            throw new ApiException(503, "config write disabled: set -Dassist.write.root to enable");
-
-        String type = str(body, "type");
-        Object cfgObj = body.get("config");
-        if (type == null || !(cfgObj instanceof Map<?, ?>))
-            throw new ApiException(400, "body must include 'type' and 'config' (a draft config map)");
-        ConfigSpec spec = ConfigSpecs.forType(type);
-        if (spec == null) throw new ApiException(404, "unknown config type: " + type);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> draft = (Map<String, Object>) cfgObj;
-
-        // Gate: spec validation + the hard-fail safety check (R6). Block on ERRORs; warnings pass.
-        List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(spec, draft));
-        findings.addAll(ConfigSafetyValidator.check(type, draft, SafetyPolicy.defaultPolicy()));
-        // Warning only: the save still succeeds (the schema file may be created afterwards), but
-        // the operator learns now that Register would fail on this host.
-        findings.addAll(schemaFileFindings(type, draft, Severity.WARNING));
-        if (findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
-            respond(ex, 422, Map.of("type", type, "written", false,
-                    "error", "config has ERROR-level findings; not written", "findings", findings));
-            return HANDLED;
-        }
-
-        // Filename from the config's own identity field — no caller-controlled path component.
-        String idField = identityField(type);
-        String rawName = dottedString(draft, idField);
-        if (rawName == null || rawName.isBlank())
-            throw new ApiException(422, "config is missing its identity field '" + idField + "'");
-        String fileName = rawName.trim();
-        if (fileName.contains("..") || !fileName.matches("[A-Za-z0-9][A-Za-z0-9._-]*"))
-            throw new ApiException(422,
-                    "unsafe config name '" + rawName + "' (allowed: letters, digits, '.', '_', '-')");
-
-        // Resolve under the write root; an optional subdir must stay inside it (path jail).
-        Path dir = writeRoot;
-        String subdir = str(body, "subdir");
-        if (subdir != null && !subdir.isBlank()) {
-            Path sub = Path.of(subdir.trim());
-            if (sub.isAbsolute()) throw new ApiException(400, "subdir must be relative");
-            dir = writeRoot.resolve(sub).normalize();
-            if (!dir.startsWith(writeRoot)) throw new ApiException(403, "subdir escapes the write root");
-        }
-        Path target = dir.resolve(fileName + ".toon").normalize();
-        if (!target.startsWith(writeRoot)) throw new ApiException(403, "resolved path escapes the write root");
-
-        boolean exists = Files.exists(target);
-        boolean overwrite = "true".equalsIgnoreCase(String.valueOf(body.get("overwrite")));
-        if (exists && !overwrite)
-            throw new ApiException(409, "file exists: " + writeRoot.relativize(target).toString().replace('\\', '/')
-                    + " (pass overwrite:true to replace)");
-
-        // Encode and write atomically: a partial/concurrent reader never sees a half-written file.
-        byte[] bytes = ConfigCodec.toToon(draft).getBytes(StandardCharsets.UTF_8);
-        Files.createDirectories(target.getParent());
-        Path tmp = Files.createTempFile(target.getParent(), ".cfg-", ".tmp");
-        try {
-            Files.write(tmp, bytes);
-            try {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException notAtomic) {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } finally {
-            Files.deleteIfExists(tmp);
-        }
-        String rel = writeRoot.relativize(target).toString().replace('\\', '/');
-        log.info("[CONFIG-WRITE] type={} wrote {} ({} bytes, overwrote={})", type, rel, bytes.length, exists);
-
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("type", type);
-        r.put("written", true);
-        r.put("path", rel);
-        r.put("name", fileName);
-        r.put("bytes", bytes.length);
-        r.put("overwritten", exists);
-        r.put("findings", findings);   // warnings only at this point (errors would have 422'd)
-        return r;
-    }
-
-    /**
      * Register a new pipeline from a config already on disk under the write root (v4.1.0, scope
      * {@code control}). Pairs with {@code POST /config/write}: author + persist a {@code .toon}
      * there, then register it so the running service processes it on the next poll cycle — no
@@ -721,7 +428,7 @@ public final class ControlApi implements AutoCloseable {
         // ERROR here: registration loads the config for real, so an unresolvable schema_file is a
         // guaranteed failure — block with a structured, field-anchored finding instead of letting
         // PipelineConfig.load() surface it as an opaque "config is not a valid pipeline" 422.
-        findings.addAll(schemaFileFindings("pipeline", raw, Severity.ERROR));
+        findings.addAll(ConfigRoutes.schemaFileFindings("pipeline", raw, Severity.ERROR));
         if (findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
             respond(ex, 422, Map.of("registered", false,
                     "error", "config has ERROR-level findings; not registered", "findings", findings));
@@ -746,61 +453,6 @@ public final class ControlApi implements AutoCloseable {
         r.put("pipeline", view);
         r.put("findings", findings);   // warnings only at this point
         return r;
-    }
-
-    /**
-     * Pre-flight check that a pipeline draft's schema reference(s) resolve on <em>this server's</em>
-     * filesystem (v4.1.0). {@link PipelineConfig} resolves {@code schema_file} relative to the
-     * process working directory, so a draft that validates clean can still fail at registration
-     * with an opaque 422 — this surfaces it early, as a structured finding anchored to the field.
-     * Checks both the legacy {@code processing.schema_file} and the multi-schema
-     * {@code processing.schemas[].schema_file}. No-op for non-pipeline types.
-     *
-     * @param severity WARNING at validate/save time (the file may be created later, or the config
-     *                 may be destined for another host); ERROR at register time (it will fail)
-     */
-    static List<Finding> schemaFileFindings(String type, Map<String, Object> draft, Severity severity) {
-        if (!"pipeline".equals(type)) return List.of();
-        Object procObj = draft.get("processing");
-        if (!(procObj instanceof Map<?, ?> proc)) return List.of();
-        List<Finding> out = new ArrayList<>();
-        if (proc.get("schema_file") instanceof String s && !s.isBlank() && !Files.isRegularFile(Path.of(s)))
-            out.add(new Finding(severity, "processing.schema_file", unresolvable(s)));
-        if (proc.get("schemas") instanceof List<?> defs) {
-            for (int i = 0; i < defs.size(); i++) {
-                if (defs.get(i) instanceof Map<?, ?> def
-                        && def.get("schema_file") instanceof String s && !s.isBlank()
-                        && !Files.isRegularFile(Path.of(s)))
-                    out.add(new Finding(severity, "processing.schemas[" + i + "].schema_file",
-                            unresolvable(s)));
-            }
-        }
-        return out;
-    }
-
-    private static String unresolvable(String schemaPath) {
-        return "schema file does not resolve on the server: '" + schemaPath
-                + "' (relative paths resolve against the server's working directory: "
-                + Path.of("").toAbsolutePath() + ")";
-    }
-
-    /** Dotted path into the config map that holds a config's stable identity (its filename source). */
-    private static String identityField(String type) {
-        return switch (type) {
-            case "job"    -> "job.name";
-            case "schema" -> "raw.name";
-            default       -> "name";   // pipeline, enrichment, meta
-        };
-    }
-
-    /** Read a dotted key (e.g. {@code job.name}) from a nested config map, or {@code null} if absent. */
-    private static String dottedString(Map<String, Object> map, String dotted) {
-        Object cur = map;
-        for (String seg : dotted.split("\\.")) {
-            if (!(cur instanceof Map<?, ?> m)) return null;
-            cur = m.get(seg);
-        }
-        return cur == null ? null : String.valueOf(cur);
     }
 
     // ── dispatch ───────────────────────────────────────────────────────────────
@@ -846,10 +498,7 @@ public final class ControlApi implements AutoCloseable {
     }
 
     private void respond(HttpExchange ex, int status, Object body) throws IOException {
-        byte[] bytes = json.writeValueAsBytes(body);
-        ex.getResponseHeaders().set("Content-Type", "application/json");
-        ex.sendResponseHeaders(status, bytes.length);
-        ex.getResponseBody().write(bytes);
+        ApiContext.respondJson(ex, status, body);
     }
 
     /** Write a {@code text/plain} body (Prometheus exposition) and signal it's handled. */
@@ -859,11 +508,7 @@ public final class ControlApi implements AutoCloseable {
 
     /** Write {@code text} with an explicit {@code Content-Type} (e.g. {@code text/csv}); returns {@link #HANDLED}. */
     private Object respondText(HttpExchange ex, String text, String contentType) throws IOException {
-        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-        ex.getResponseHeaders().set("Content-Type", contentType);
-        ex.sendResponseHeaders(200, bytes.length);
-        ex.getResponseBody().write(bytes);
-        return HANDLED;
+        return ApiContext.respondText(ex, text, contentType);
     }
 
     // ── CORS + static SPA (v4.1.0) ────────────────────────────────────────────────
@@ -940,444 +585,6 @@ public final class ControlApi implements AutoCloseable {
         return service.configFor(name(m)).orElseThrow(() -> notFound(name(m)));
     }
 
-    /** Lift every registered pipeline to a {@link com.gamma.flow.FlowGraph} and project a compact summary (GET /flows). */
-    private List<Map<String, Object>> flowSummaries() {
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (SourceService.PipelineView pv : service.pipelines()) {
-            service.configFor(pv.name())
-                    .ifPresent(c -> out.add(FlowProjection.summary(PipelineLift.lift(c))));
-        }
-        return out;
-    }
-
-    /** Lift every registered pipeline and project the combined pipeline+job topology (GET /flows/combined, T24). */
-    private Map<String, Object> combinedFlows() {
-        return FlowProjection.combined(liftedFlows());
-    }
-
-    /** Every registered pipeline lifted to a {@link com.gamma.flow.FlowGraph} (the available flows). */
-    private List<com.gamma.flow.FlowGraph> liftedFlows() {
-        List<com.gamma.flow.FlowGraph> graphs = new ArrayList<>();
-        for (SourceService.PipelineView pv : service.pipelines()) {
-            service.configFor(pv.name()).ifPresent(c -> graphs.add(PipelineLift.lift(c)));
-        }
-        return graphs;
-    }
-
-    // ── Component registry CRUD (T19, §7.1): generalise the connection write pattern to the non-secret
-    // component types (grammar/schema/transform/sink) under <write-root>/registry/<typeDir>/<id>.toon.
-    // connection keeps its own secret-masking CRUD; safe-delete refuses a component a flow still uses. ──
-
-    /** The registry root under the write root, or {@code null} when writes are disabled (no write root). */
-    private Path componentRootOrNull() {
-        return writeRoot == null ? null : writeRoot.resolve("registry");
-    }
-
-    private com.gamma.flow.ComponentStore componentStore() {
-        requireWriteRoot();
-        return new com.gamma.flow.ComponentStore(writeRoot.resolve("registry"));
-    }
-
-    /** The JSON shape for one component: identity + parsed content. */
-    private static Map<String, Object> componentDoc(com.gamma.flow.ComponentRegistry.Component c) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("type", c.type());
-        m.put("name", c.name());
-        m.put("ref", c.ref());
-        m.put("content", c.content());
-        return m;
-    }
-
-    /** {@code GET /components/{type}} — list components of a type (empty when no registry/write root). */
-    private Object componentList(String type) {
-        Path root = componentRootOrNull();
-        if (root == null) return List.of();
-        try {
-            return new com.gamma.flow.ComponentStore(root).list(type).stream().map(ControlApi::componentDoc).toList();
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** {@code GET /components/{type}/{id}} — one component; 404 if absent. */
-    private Object componentById(String type, String id) {
-        Path root = componentRootOrNull();
-        com.gamma.flow.ComponentRegistry.Component c;
-        try {
-            c = root == null ? null : new com.gamma.flow.ComponentStore(root).get(type, id).orElse(null);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        if (c == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        return componentDoc(c);
-    }
-
-    /** {@code POST /components/{type}} — create a component (id from body {@code id}/{@code name}); 409 if it exists. */
-    private Object createComponent(String type, Map<String, Object> body) throws IOException {
-        com.gamma.flow.ComponentStore store = componentStore();
-        String id = str(body, "id");
-        if (id == null || id.isBlank()) id = str(body, "name");
-        if (id == null || id.isBlank()) throw new ApiException(400, "body must include 'id' (or 'name')");
-        if (componentExists(store, type, id))
-            throw new ApiException(409, type + " component '" + id + "' already exists (use PUT to update)");
-        return writeComponent(store, type, id, body);
-    }
-
-    /** {@code PUT /components/{type}/{id}} — create or replace a component; 404 if absent. */
-    private Object updateComponent(String type, String id, Map<String, Object> body) throws IOException {
-        com.gamma.flow.ComponentStore store = componentStore();
-        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        return writeComponent(store, type, id, body);
-    }
-
-    /** {@code DELETE /components/{type}/{id}} — safe-delete; 404 if absent, 409 if a flow references it. */
-    private Object deleteComponent(String type, String id) throws IOException {
-        com.gamma.flow.ComponentStore store = componentStore();
-        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        List<String> refs = com.gamma.flow.FlowReferences.referencedBy(type + "/" + id, liftedFlows());
-        if (!refs.isEmpty())
-            throw new ApiException(409, type + " component '" + id + "' is referenced by flow(s): "
-                    + String.join(", ", refs));
-        boolean removed;
-        try {
-            removed = store.delete(type, id);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        return Map.of("type", type, "id", id, "deleted", true, "fileRemoved", removed);
-    }
-
-    // ── Authored-flow CRUD (T19, §7.1): persist/validate *_flow.toon under <write-root>/flows ──
-
-    private Path flowsRootOrNull() {
-        return writeRoot == null ? null : writeRoot.resolve("flows");
-    }
-
-    private com.gamma.flow.FlowStore flowStore() {
-        requireWriteRoot();
-        return new com.gamma.flow.FlowStore(writeRoot.resolve("flows"));
-    }
-
-    /** {@code GET /flows/authored} — summaries of every authored flow (empty when no write root). */
-    private Object authoredFlowList() {
-        Path root = flowsRootOrNull();
-        if (root == null) return List.of();
-        return new com.gamma.flow.FlowStore(root).list().stream().map(FlowProjection::summary).toList();
-    }
-
-    /** {@code GET /flows/authored/{id}} — one authored flow's graph projection; 404 if absent. */
-    private Object authoredFlow(String id) {
-        Path root = flowsRootOrNull();
-        com.gamma.flow.FlowGraph g = root == null ? null : new com.gamma.flow.FlowStore(root).get(id).orElse(null);
-        if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
-        return FlowProjection.graph(g);
-    }
-
-    /**
-     * {@code GET /flows/authored/{id}/raw} — the <b>lossless</b> authored definition ({@link com.gamma.flow.FlowCodec#toMap},
-     * nodes with their config) so the editor can round-trip a flow without dropping node config; the
-     * {@link #authoredFlow} projection is structural-only. 404 if absent.
-     */
-    private Object authoredFlowRaw(String id) {
-        Path root = flowsRootOrNull();
-        com.gamma.flow.FlowGraph g = root == null ? null : new com.gamma.flow.FlowStore(root).get(id).orElse(null);
-        if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
-        return com.gamma.flow.FlowCodec.toMap(g);
-    }
-
-    /** {@code POST /flows/authored} — create an authored flow from a posted flow definition; 409 if it exists. */
-    private Object createFlow(Map<String, Object> body) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        com.gamma.flow.FlowGraph g = parseAndValidateFlow(body);
-        String id = g.name();
-        if (flowExists(store, id))
-            throw new ApiException(409, "authored flow '" + id + "' already exists (use PUT to update)");
-        return writeFlow(store, id, g);
-    }
-
-    /** {@code PUT /flows/authored/{id}} — create or replace an authored flow (URL id is authoritative). */
-    private Object updateFlow(String id, Map<String, Object> body) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        Map<String, Object> withId = new LinkedHashMap<>(body);
-        withId.put("name", id);   // the URL id wins over any name in the body
-        return writeFlow(store, id, parseAndValidateFlow(withId));
-    }
-
-    /** {@code DELETE /flows/authored/{id}} — remove an authored flow; 404 if absent. */
-    private Object deleteFlow(String id) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        if (!flowExists(store, id)) throw new ApiException(404, "no authored flow '" + id + "'");
-        boolean removed;
-        try {
-            removed = store.delete(id);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        return Map.of("id", id, "deleted", true, "fileRemoved", removed);
-    }
-
-    /** {@code POST /flows/authored/{id}/nodes} — add (or replace by id) a node, re-validate, persist. */
-    private Object addFlowNode(String id, Map<String, Object> body) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        com.gamma.flow.FlowGraph g = requireAuthoredFlow(store, id);
-        com.gamma.flow.FlowNode node;
-        try {
-            node = com.gamma.flow.FlowCodec.nodeFromMap(body);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
-        List<com.gamma.flow.FlowNode> nodes = new ArrayList<>(g.nodes());
-        nodes.removeIf(n -> n.id().equals(node.id()));   // upsert by node id
-        nodes.add(node);
-        com.gamma.flow.FlowGraph updated = new com.gamma.flow.FlowGraph(g.name(), g.active(), nodes, g.edges());
-        validateFlow(updated);
-        return writeFlow(store, id, updated);
-    }
-
-    /** {@code POST /flows/authored/{id}/edges} — add an edge, re-validate, persist. */
-    private Object addFlowEdge(String id, Map<String, Object> body) throws IOException {
-        com.gamma.flow.FlowStore store = flowStore();
-        com.gamma.flow.FlowGraph g = requireAuthoredFlow(store, id);
-        com.gamma.flow.FlowEdge edge;
-        try {
-            edge = com.gamma.flow.FlowCodec.edgeFromMap(body);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
-        List<com.gamma.flow.FlowEdge> edges = new ArrayList<>(g.edges());
-        edges.add(edge);
-        com.gamma.flow.FlowGraph updated = new com.gamma.flow.FlowGraph(g.name(), g.active(), g.nodes(), edges);
-        validateFlow(updated);
-        return writeFlow(store, id, updated);
-    }
-
-    private com.gamma.flow.FlowGraph requireAuthoredFlow(com.gamma.flow.FlowStore store, String id) {
-        try {
-            return store.get(id).orElseThrow(() -> new ApiException(404, "no authored flow '" + id + "'"));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** Parse a flow definition (400 on a malformed shape) and validate it (422 on validation errors). */
-    private com.gamma.flow.FlowGraph parseAndValidateFlow(Map<String, Object> body) {
-        com.gamma.flow.FlowGraph g;
-        try {
-            g = com.gamma.flow.FlowCodec.fromMap(body);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        validateFlow(g);
-        return g;
-    }
-
-    private void validateFlow(com.gamma.flow.FlowGraph g) {
-        com.gamma.flow.FlowValidator.Result r = com.gamma.flow.FlowValidator.validate(g);
-        if (!r.ok())
-            throw new ApiException(422, "flow validation failed: " + r.errors().stream()
-                    .map(i -> i.code() + " — " + i.message()).toList());
-    }
-
-    private static boolean flowExists(com.gamma.flow.FlowStore store, String id) {
-        try {
-            return store.exists(id);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
-    }
-
-    private Object writeFlow(com.gamma.flow.FlowStore store, String id, com.gamma.flow.FlowGraph g) throws IOException {
-        try {
-            store.write(id, g);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
-        log.info("[FLOW-WRITE] wrote authored flow {}", id);
-        return FlowProjection.graph(g);
-    }
-
-    /**
-     * {@code POST /components/transform/{id}/test} — dry-run a transform component over {@code sampleRows}
-     * through the production {@link com.gamma.flow.exec.RowShaper} on a throwaway DuckDB (T18, §7.2). 404 if
-     * the component is absent, 422 if it is not a {@code transform.*} type, 400 on a bad sample / unsupported
-     * operator. Never touches production output.
-     */
-    @SuppressWarnings("unchecked")
-    private Object previewTransform(String id, Map<String, Object> body) {
-        Path root = componentRootOrNull();
-        com.gamma.flow.ComponentRegistry.Component c;
-        try {
-            c = root == null ? null : new com.gamma.flow.ComponentStore(root).get("transform", id).orElse(null);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        if (c == null) throw new ApiException(404, "no transform component '" + id + "'");
-        String type = str(c.content(), "type");
-        if (type == null || !type.startsWith("transform."))
-            throw new ApiException(422, "component '" + id + "' is not a transform ('type: transform.*' required)");
-
-        com.gamma.flow.FlowNode node = new com.gamma.flow.FlowNode(id, type, c.content(), null);
-        try {
-            return com.gamma.flow.exec.ComponentPreview.transform(node, sampleRows(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        } catch (java.sql.SQLException | IOException e) {
-            throw new ApiException(422, "preview failed: " + e.getMessage());
-        }
-    }
-
-    /**
-     * {@code POST /components/grammar/{id}/test} — parse raw {@code sampleText} with a grammar component's CSV
-     * dialect through the production {@code read_csv} on a throwaway DuckDB (T18, §7.2). 404 if absent, 400 on
-     * empty input, 422 on a parse error. Never touches production output.
-     */
-    private Object previewGrammar(String id, Map<String, Object> body) {
-        com.gamma.flow.ComponentRegistry.Component c = requireComponent("grammar", id);
-        try {
-            return com.gamma.flow.exec.ComponentPreview.grammar(c.content(), sampleText(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        } catch (java.sql.SQLException | IOException e) {
-            throw new ApiException(422, "preview failed: " + e.getMessage());
-        }
-    }
-
-    /**
-     * {@code POST /components/schema/{id}/test} — {@code TRY_CAST} {@code sampleRows} against a schema
-     * component's typed fields, splitting {@code data} / {@code rejected}, on a throwaway DuckDB (T18, §7.2).
-     * 404 if absent, 400 on a bad sample, 422 on a cast/SQL error. Never touches production output.
-     */
-    private Object previewSchema(String id, Map<String, Object> body) {
-        com.gamma.flow.ComponentRegistry.Component c = requireComponent("schema", id);
-        try {
-            return com.gamma.flow.exec.ComponentPreview.schema(c.content(), sampleRows(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        } catch (java.sql.SQLException | IOException e) {
-            throw new ApiException(422, "preview failed: " + e.getMessage());
-        }
-    }
-
-    /**
-     * {@code POST /components/sink/{id}/test} — scratch-validate a sink component against {@code sampleRows}
-     * (store/format/partition checks; row count + bounded sample, no write) (T18, §7.2). 404 if absent, 400 on
-     * a bad sample.
-     */
-    private Object previewSink(String id, Map<String, Object> body) {
-        com.gamma.flow.ComponentRegistry.Component c = requireComponent("sink", id);
-        try {
-            return com.gamma.flow.exec.ComponentPreview.sink(c.content(), sampleRows(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** Load a component by {@code type}/{@code id} or fail with the standard 400/404 (shared by the preview handlers). */
-    private com.gamma.flow.ComponentRegistry.Component requireComponent(String type, String id) {
-        Path root = componentRootOrNull();
-        com.gamma.flow.ComponentRegistry.Component c;
-        try {
-            c = root == null ? null : new com.gamma.flow.ComponentStore(root).get(type, id).orElse(null);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        if (c == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        return c;
-    }
-
-    /**
-     * {@code POST /flows/authored/{id}/dry-run} — run a bounded sample through an authored flow's
-     * transform→sink subgraph on a throwaway DuckDB (T18, §7.2); per-node + per-sink row counts. 404 if the
-     * flow is absent, 400 on a bad sample, 422 on a validation/SQL error. Never touches production output.
-     */
-    private Object dryRunFlow(String id, Map<String, Object> body) {
-        Path root = flowsRootOrNull();
-        com.gamma.flow.FlowGraph g;
-        try {
-            g = root == null ? null : new com.gamma.flow.FlowStore(root).get(id).orElse(null);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
-        try {
-            return com.gamma.flow.exec.FlowDryRun.run(g, sampleRows(body));
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        } catch (Exception e) {
-            throw new ApiException(422, "dry-run failed: " + e.getMessage());
-        }
-    }
-
-    private static final int DEFAULT_VIEW_ROW_CAP = 1000;
-    private static final int MAX_VIEW_ROW_CAP = 10_000;
-
-    private Path viewsRootOrNull() {
-        return writeRoot == null ? null : writeRoot.resolve("views");
-    }
-
-    /** {@code GET /views} — summaries of every recorded {@code sink.view} definition (empty when no write root). */
-    private Object viewList() {
-        Path root = viewsRootOrNull();
-        if (root == null) return List.of();
-        return new com.gamma.flow.ViewStore(root).list().stream().map(ControlApi::viewSummary).toList();
-    }
-
-    /** {@code GET /views/{name}} — one view's full definition (incl. {@code derived_sql}); 404 if absent. */
-    private Object viewDefinition(String name) {
-        com.gamma.flow.ViewDefinition def = requireView(name);
-        Map<String, Object> m = new LinkedHashMap<>(def.toMap());
-        m.put("has_derived_sql", def.derivedSql() != null && !def.derivedSql().isBlank());
-        return m;
-    }
-
-    /**
-     * {@code GET /views/{name}/data?limit=N} — run the view's {@code derived_sql} and return up to {@code N}
-     * rows (default {@value #DEFAULT_VIEW_ROW_CAP}, capped at {@value #MAX_VIEW_ROW_CAP}). 404 if the view is
-     * absent; 409 if it has no {@code derived_sql} (a multi-statement view — re-run its flow); 422 on a query
-     * error (e.g. the source store has no data yet).
-     */
-    private Object viewData(String name, String limitParam) {
-        com.gamma.flow.ViewDefinition def = requireView(name);
-        int cap = viewRowCap(limitParam);
-        try {
-            com.gamma.flow.exec.ViewQuery.Result r = com.gamma.flow.exec.ViewQuery.run(def, cap);
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("view", def.store());
-            out.put("columns", r.columns());
-            out.put("rowCount", r.rowCount());
-            out.put("capped", r.capped());
-            out.put("rows", r.rows());
-            return out;
-        } catch (IllegalStateException e) {
-            throw new ApiException(409, e.getMessage());
-        } catch (java.sql.SQLException | IOException e) {
-            throw new ApiException(422, "view query failed: " + e.getMessage());
-        }
-    }
-
-    /** Load a view definition by name, or 404 (400 if the name is unsafe). */
-    private com.gamma.flow.ViewDefinition requireView(String name) {
-        Path root = viewsRootOrNull();
-        com.gamma.flow.ViewDefinition def;
-        try {
-            def = root == null ? null : new com.gamma.flow.ViewStore(root).get(name).orElse(null);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-        if (def == null) throw new ApiException(404, "no view '" + name + "'");
-        return def;
-    }
-
-    /** Clamp the {@code ?limit=} param to {@code [0, MAX]}; absent/non-numeric ⇒ the default cap. */
-    private static int viewRowCap(String limitParam) {
-        if (limitParam == null || limitParam.isBlank()) return DEFAULT_VIEW_ROW_CAP;
-        try {
-            return Math.max(0, Math.min(MAX_VIEW_ROW_CAP, Integer.parseInt(limitParam.trim())));
-        } catch (NumberFormatException e) {
-            return DEFAULT_VIEW_ROW_CAP;
-        }
-    }
-
     /**
      * {@code GET /provenance?flow=&batch=} — the per-(node, relationship) record counts of one flow run (T22).
      * A consumer paints each {@code (nodeId, rel)} onto its outgoing {@code FlowGraph} edge as the Sankey weight.
@@ -1400,54 +607,6 @@ public final class ControlApi implements AutoCloseable {
     private com.gamma.flow.exec.DbProvenanceStore provenanceStore() {
         return jobs().provenanceStore().orElseThrow(() -> new ApiException(404,
                 "provenance DB not enabled (set -Dprovenance.backend=duckdb)"));
-    }
-
-    private static Map<String, Object> viewSummary(com.gamma.flow.ViewDefinition def) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("store", def.store());
-        m.put("flow", def.flow());
-        m.put("source_store", def.sourceStores());
-        m.put("has_derived_sql", def.derivedSql() != null && !def.derivedSql().isBlank());
-        m.put("defined_at", def.definedAt());
-        return m;
-    }
-
-    /** Extract raw {@code sampleText} from a request body (the text a grammar would parse); empty if absent. */
-    private static String sampleText(Map<String, Object> body) {
-        Object t = body.get("sampleText");
-        return t == null ? "" : t.toString();
-    }
-
-    /** Extract the {@code sampleRows} array from a request body (each element a row map); empty if absent. */
-    @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> sampleRows(Map<String, Object> body) {
-        List<Map<String, Object>> sample = new ArrayList<>();
-        if (body.get("sampleRows") instanceof List<?> rows) {
-            for (Object o : rows) if (o instanceof Map<?, ?> r) sample.add((Map<String, Object>) r);
-        }
-        return sample;
-    }
-
-    private static boolean componentExists(com.gamma.flow.ComponentStore store, String type, String id) {
-        try {
-            return store.exists(type, id);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** Write a component: the body is the content (the routing-only {@code id} key is stripped); 422 on bad input. */
-    private Object writeComponent(com.gamma.flow.ComponentStore store, String type, String id,
-                                  Map<String, Object> body) throws IOException {
-        Map<String, Object> content = new LinkedHashMap<>(body);
-        content.remove("id");   // routing key, not content (the store stamps name=id)
-        try {
-            com.gamma.flow.ComponentRegistry.Component c = store.write(type, id, content);
-            log.info("[COMPONENT-WRITE] wrote {}", c.ref());
-            return componentDoc(c);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(422, e.getMessage());
-        }
     }
 
     /** The job registry, or a 404 when no jobs are registered on this service. */
@@ -1476,391 +635,20 @@ public final class ControlApi implements AutoCloseable {
     }
 
     private static String name(Matcher m) {
-        return URLDecoder.decode(m.group(1), StandardCharsets.UTF_8);
+        return ApiContext.name(m);
     }
 
-    /** Decode the {@code g}-th captured path segment (e.g. group 2 = the {@code id} in {@code /{type}/{id}}). */
     private static String param(Matcher m, int g) {
-        return URLDecoder.decode(m.group(g), StandardCharsets.UTF_8);
-    }
-
-    // ── catalog helpers (v3.2.0) ─────────────────────────────────────────────────
-
-    /** A node (any kind) with its operational overlay + immediate neighbours, or 404. */
-    private Map<String, Object> catalogNodeDetail(String id) {
-        MetadataGraphService catalog = service.catalog();
-        MetadataNode node = catalog.hydrated(id);
-        if (node == null) throw new ApiException(404, "no catalog node '" + id + "'");
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("node", node);
-        // depth 2 reaches an event table's schema (1) and its columns (2), plus lineage neighbours
-        out.put("neighbors", catalog.traverse(id, 2, MetadataGraphService.Direction.BOTH, null, null, false));
-        return out;
-    }
-
-    /** The KPI catalog (each KPI with its resolved inputs) + merged domain notes. */
-    private Map<String, Object> catalogKpis() {
-        MetadataGraphService catalog = service.catalog();
-        MetadataGraph g = catalog.structural();
-        List<Map<String, Object>> kpis = new ArrayList<>();
-        for (MetadataNode k : catalog.nodesOfKind(NodeKind.KPI)) {
-            List<String> inputs = new ArrayList<>();
-            for (MetadataEdge edge : g.edges()) {
-                if (edge.kind() == EdgeKind.COMPUTED_FROM && edge.from().equals(k.id())) inputs.add(edge.to());
-            }
-            Map<String, Object> e = new LinkedHashMap<>();
-            e.put("id", k.id());
-            e.put("name", k.label());
-            e.put("definition", k.attrs().get("definition"));
-            e.put("grain", k.attrs().get("grain"));
-            e.put("joinKeys", k.attrs().getOrDefault("joinKeys", List.of()));
-            e.put("inputs", inputs);
-            kpis.add(e);
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("kpis", kpis);
-        out.put("domain", catalog.domain());
-        return out;
+        return ApiContext.param(m, g);
     }
 
     private static int parseIntOr(String s, int def) {
-        if (s == null || s.isBlank()) return def;
-        try {
-            return Integer.parseInt(s.trim());
-        } catch (NumberFormatException e) {
-            return def;
-        }
-    }
-
-    private static long parseLongOr(String s, long def) {
-        if (s == null || s.isBlank()) return def;
-        try {
-            return Long.parseLong(s.trim());
-        } catch (NumberFormatException e) {
-            return def;
-        }
-    }
-
-    private static MetadataGraphService.Direction direction(String s) {
-        if (s == null || s.isBlank()) return MetadataGraphService.Direction.BOTH;
-        try {
-            return MetadataGraphService.Direction.valueOf(s.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, "invalid direction '" + s + "' (out|in|both)");
-        }
-    }
-
-    private static Set<NodeKind> nodeKinds(String csv) {
-        if (csv == null || csv.isBlank()) return null;
-        EnumSet<NodeKind> set = EnumSet.noneOf(NodeKind.class);
-        for (String t : csv.split(",")) {
-            if (t.isBlank()) continue;
-            try {
-                set.add(NodeKind.valueOf(t.trim().toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                throw new ApiException(400, "invalid node kind '" + t.trim() + "'");
-            }
-        }
-        return set;
-    }
-
-    private static Set<EdgeKind> edgeKinds(String csv) {
-        if (csv == null || csv.isBlank()) return null;
-        EnumSet<EdgeKind> set = EnumSet.noneOf(EdgeKind.class);
-        for (String t : csv.split(",")) {
-            if (t.isBlank()) continue;
-            try {
-                set.add(EdgeKind.valueOf(t.trim().toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                throw new ApiException(400, "invalid edge kind '" + t.trim() + "'");
-            }
-        }
-        return set;
+        return ApiContext.parseIntOr(s, def);
     }
 
     /** Build a report {@link com.gamma.report.ReportService.Window} from {@code ?from=&to=}. */
     private static com.gamma.report.ReportService.Window window(HttpExchange ex) {
         return com.gamma.report.ReportService.Window.of(query(ex, "from"), query(ex, "to"));
-    }
-
-    // ── event viewer helpers (v4.2.0, Phase 1) ───────────────────────────────────
-
-    private static List<Map<String, Object>> toMaps(List<Event> events) {
-        return events.stream().map(Event::toMap).toList();
-    }
-
-    /** Build an {@link EventQuery} from {@code ?level=&type=&pipeline=&correlationId=&q=&from=&to=&limit=&offset=}. */
-    private static EventQuery eventQuery(HttpExchange ex, int defaultLimit) {
-        String level = query(ex, "level");
-        return EventQuery.builder()
-                .minLevel(level == null ? null : EventLevel.parse(level))
-                .type(query(ex, "type"))
-                .pipeline(query(ex, "pipeline"))
-                .correlationId(query(ex, "correlationId"))
-                .textContains(query(ex, "q"))
-                .from(epochMillis(query(ex, "from")))
-                .to(epochMillis(query(ex, "to")))
-                .limit(parseIntOr(query(ex, "limit"), defaultLimit))
-                .offset(parseIntOr(query(ex, "offset"), 0))
-                .build();
-    }
-
-    /** Parse a time bound as epoch millis (all-digits) or a {@code yyyy-MM-dd[ HH:mm:ss]} string; null when blank. */
-    private static Long epochMillis(String s) {
-        if (s == null || s.isBlank()) return null;
-        String t = s.trim();
-        if (t.chars().allMatch(Character::isDigit)) {
-            try { return Long.parseLong(t); } catch (NumberFormatException ignore) { return null; }
-        }
-        try {
-            String norm = (t.length() <= 10 ? t + " 00:00:00" : t.replace('T', ' ')).substring(0, 19);
-            return java.time.LocalDateTime.parse(norm,
-                            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
-                    .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
-        } catch (RuntimeException e) {
-            throw new ApiException(400, "invalid time '" + s + "' (use epoch millis or yyyy-MM-dd[ HH:mm:ss])");
-        }
-    }
-
-    /** {@code GET /events/{id}} — scan the newest events (buffer + Parquet) for an exact id, else 404. */
-    private Object eventById(String id) {
-        return service.events().query(EventQuery.recent(EventQuery.MAX_LIMIT)).stream()
-                .filter(ev -> id.equals(ev.eventId())).findFirst()
-                .map(Event::toMap)
-                .orElseThrow(() -> new ApiException(404, "no event with id '" + id + "'"));
-    }
-
-    /** {@code GET /events/export} — {@code ?format=csv} streams CSV; otherwise returns the JSON list. */
-    private Object exportEvents(HttpExchange ex) throws IOException {
-        List<Event> rows = service.events().query(eventQuery(ex, EventQuery.MAX_LIMIT));
-        if ("csv".equalsIgnoreCase(query(ex, "format"))) {
-            return respondText(ex, eventsCsv(rows), "text/csv; charset=utf-8");
-        }
-        return toMaps(rows);
-    }
-
-    private static String eventsCsv(List<Event> rows) {
-        StringBuilder sb = new StringBuilder("timestamp,level,type,source,pipeline,correlationId,message\n");
-        for (Event e : rows) {
-            sb.append(csv(e.timestamp())).append(',').append(csv(e.level().name())).append(',')
-              .append(csv(e.type())).append(',').append(csv(e.source())).append(',')
-              .append(csv(e.pipeline())).append(',').append(csv(e.correlationId())).append(',')
-              .append(csv(e.message())).append('\n');
-        }
-        return sb.toString();
-    }
-
-    /** Minimal RFC-4180 CSV field escape. */
-    private static String csv(String v) {
-        if (v == null) return "";
-        if (v.contains(",") || v.contains("\"") || v.contains("\n") || v.contains("\r"))
-            return '"' + v.replace("\"", "\"\"") + '"';
-        return v;
-    }
-
-    /** {@code POST /events/views} — upsert a saved view from {@code {name, level?, type?, pipeline?, correlationId?, q?, from?, to?}}. */
-    private Object saveView(Map<String, Object> reqBody) {
-        String viewName = str(reqBody, "name");
-        if (viewName == null) throw new ApiException(400, "body must include 'name'");
-        Map<String, String> filters = new LinkedHashMap<>();
-        for (String k : List.of("level", "type", "pipeline", "correlationId", "q", "from", "to")) {
-            String v = str(reqBody, k);
-            if (v != null) filters.put(k, v);
-        }
-        return service.savedViews().save(new SavedView(viewName, filters, System.currentTimeMillis())).toMap();
-    }
-
-    // ── v4.3.0 (Phase 2): operational-object helpers ──────────────────────────────
-
-    private static List<Map<String, Object>> toObjectMaps(List<OperationalObject> objs) {
-        return objs.stream().map(OperationalObject::toMap).toList();
-    }
-
-    /** Build an {@link ObjectQuery} from {@code ?type=&status=&severity=&assignee=&owner=&correlationId=&q=&limit=&offset=}. */
-    private static ObjectQuery objectQuery(HttpExchange ex) {
-        return ObjectQuery.builder()
-                .objectType(parseObjectType(query(ex, "type")))
-                .status(query(ex, "status"))
-                .severity(query(ex, "severity"))
-                .assignee(query(ex, "assignee"))
-                .owner(query(ex, "owner"))
-                .correlationId(query(ex, "correlationId"))
-                .textContains(query(ex, "q"))
-                .limit(parseIntOr(query(ex, "limit"), ObjectQuery.DEFAULT_LIMIT))
-                .offset(parseIntOr(query(ex, "offset"), 0))
-                .build();
-    }
-
-    /** Parse a {@code ?type=} filter; an unknown value is a 400 rather than a silent match-everything. */
-    private static ObjectType parseObjectType(String s) {
-        try {
-            return ObjectType.of(s);
-        } catch (IllegalArgumentException e) {
-            throw new ApiException(400, e.getMessage());
-        }
-    }
-
-    /** {@code GET /objects/{id}} — the object, or 404. */
-    private Object objectById(String id) {
-        return service.objects().get(id).map(OperationalObject::toMap)
-                .orElseThrow(() -> new ApiException(404, "no object with id '" + id + "'"));
-    }
-
-    /**
-     * {@code POST /objects} (Phase 3) — create a managed object. The complement of alert auto-promotion:
-     * ALERTs are opened by the {@code AlertService}, whereas ISSUEs are operator-created here. Body
-     * {@code {type?,title,description?,severity?,priority?,owner?,assignee?,correlationId?,attributes?,
-     * dueAt?|dueInMinutes?}} — {@code type} defaults to {@code ISSUE}, {@code title} is required, and
-     * {@code dueAt} (epoch millis) or {@code dueInMinutes} sets the SLA deadline the sweep tracks. The
-     * object opens in its workflow's initial state; lifecycle moves go through {@code /objects/{id}/transition}.
-     */
-    private Object createObject(Map<String, Object> body) {
-        String title = str(body, "title");
-        if (title == null) throw new ApiException(400, "body must include 'title'");
-        ObjectType type;
-        try {
-            type = ObjectType.of(str(body, "type"));
-        } catch (IllegalArgumentException ex) {
-            throw new ApiException(400, ex.getMessage());
-        }
-        if (type == null) type = ObjectType.ISSUE;   // the create path exists for operator-created issues
-
-        Map<String, String> attrs = new LinkedHashMap<>();
-        if (body.get("attributes") instanceof Map<?, ?> bag)
-            bag.forEach((k, v) -> { if (k != null && v != null) attrs.put(k.toString(), v.toString()); });
-        Long dueAt = parseDueAt(body);
-        if (dueAt != null) attrs.put(ObjectService.ATTR_DUE_AT, Long.toString(dueAt));
-
-        return service.objects().open(type, title, str(body, "description"), str(body, "severity"),
-                str(body, "priority"), str(body, "owner"), str(body, "assignee"),
-                str(body, "correlationId"), attrs).toMap();
-    }
-
-    /** SLA deadline from the create body: absolute {@code dueAt} (epoch millis) or relative {@code dueInMinutes}. */
-    private static Long parseDueAt(Map<String, Object> body) {
-        Object due = body.get("dueAt");
-        if (due != null) {
-            long ms = parseLongOr(due.toString(), -1L);
-            if (ms > 0) return ms;
-        }
-        Object mins = body.get("dueInMinutes");
-        if (mins != null) {
-            long m = parseLongOr(mins.toString(), -1L);
-            if (m >= 0) return System.currentTimeMillis() + m * 60_000L;
-        }
-        return null;
-    }
-
-    /**
-     * {@code POST /objects/{id}/links} (Phase 4) — correlate this object with another: body
-     * {@code {to, relationship?, actor?}} (e.g. a CASE {@code CONTAINS} an ISSUE). A missing {@code to}
-     * → 400; an unknown {@code id} or {@code to} → 404. Idempotent (a duplicate edge returns the existing one).
-     */
-    private Object createLink(String fromId, Map<String, Object> body) {
-        String to = str(body, "to");
-        if (to == null) throw new ApiException(400, "body must include 'to'");
-        try {
-            return service.objects().link(fromId, to, str(body, "relationship"), str(body, "actor")).toMap();
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    private static List<Map<String, Object>> toLinkMaps(List<ObjectLink> links) {
-        return links.stream().map(ObjectLink::toMap).toList();
-    }
-
-    /** {@code GET /objects/{id}/graph?depth=} (Phase 4) — correlation subgraph (default depth 2, capped at 5). */
-    private Object objectGraph(String id, HttpExchange ex) {
-        int depth = Math.min(5, Math.max(1, parseIntOr(query(ex, "depth"), 2)));
-        try {
-            return service.objects().graph(id, depth);
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    /** {@code POST /objects/{id}/comments} (Phase 4) — add a comment; body {@code {body, author?}}. */
-    private Object addComment(String id, Map<String, Object> body) {
-        String text = str(body, "body");
-        if (text == null) throw new ApiException(400, "body must include 'body'");
-        try {
-            return service.objects().comment(id, str(body, "author"), text).toMap();
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    /**
-     * {@code POST /objects/{id}/attachments} (Phase 4) — attach an evidence reference (metadata only);
-     * body {@code {name, uri, contentType?, author?, caption?}}.
-     */
-    private Object addAttachment(String id, Map<String, Object> body) {
-        String name = str(body, "name");
-        String uri = str(body, "uri");
-        if (name == null || uri == null) throw new ApiException(400, "body must include 'name' and 'uri'");
-        try {
-            return service.objects().attach(id, str(body, "author"), name, str(body, "contentType"),
-                    uri, str(body, "caption")).toMap();
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    private static List<Map<String, Object>> toNoteMaps(List<ObjectNote> notes) {
-        return notes.stream().map(ObjectNote::toMap).toList();
-    }
-
-    /**
-     * {@code POST /objects/{id}/rca} (Phase 4) — seed an RCA skeleton (one comment per section). Body is
-     * the template: {@code {template:{name,sections[]}}} or an inline {@code {name?,sections[],actor?}}.
-     */
-    private Object applyRca(String id, Map<String, Object> body) {
-        RcaTemplate template;
-        Object t = body.get("template");
-        if (t instanceof String named) {       // a *_rca.toon template referenced by name
-            template = service.rcaTemplate(named).orElseThrow(
-                    () -> new ApiException(404, "no RCA template named '" + named + "'"));
-        } else {                                // an inline template ({template:{…}} or the body itself)
-            Map<String, Object> tmpl = new LinkedHashMap<>();
-            if (t instanceof Map<?, ?> tm) tm.forEach((k, v) -> tmpl.put(String.valueOf(k), v));
-            else tmpl.putAll(body);
-            tmpl.putIfAbsent("name", "ad-hoc"); // an inline template needn't name itself
-            try {
-                template = RcaTemplate.fromMap(tmpl);
-            } catch (IllegalArgumentException ex) {
-                throw new ApiException(400, ex.getMessage());
-            }
-        }
-        try {
-            return toNoteMaps(service.objects().applyRca(id, template, str(body, "actor")));
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        }
-    }
-
-    /** {@code GET /rca/templates} (Phase 4) — the RCA templates loaded from {@code *_rca.toon}, by name. */
-    private Object rcaTemplateList() {
-        return service.rcaTemplates().values().stream().map(RcaTemplate::toMap).toList();
-    }
-
-    /** {@code GET /connections} — all connection profiles, secret-masked. */
-    private Object connectionList() {
-        return service.connections().values().stream().map(ConnectionProfile::toMap).toList();
-    }
-
-    /** {@code GET /connections/{id}} — one connection profile (secret-masked); 404 if unknown. */
-    private Object connectionById(String id) {
-        return service.connection(id)
-                .map(ConnectionProfile::toMap)
-                .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
-    }
-
-    /** {@code POST /connections/{id}/test} — TCP-reachability + secret-resolution test; 404 if unknown. */
-    private Object testConnection(String id) {
-        ConnectionProfile p = service.connection(id)
-                .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
-        return ConnectionTester.test(p).toMap();
     }
 
     /** Acquisition metric names exposed (as JSON) by {@code GET /metrics/acquisition}. */
@@ -1874,179 +662,12 @@ public final class ControlApi implements AutoCloseable {
         return com.gamma.metrics.MetricRegistry.global().snapshot(ACQ_METRICS::contains);
     }
 
-    /** {@code POST /connections} — create a new connection profile (write-root gated); 409 if the id exists. */
-    private Object createConnection(Map<String, Object> body) throws IOException {
-        requireWriteRoot();
-        String id = str(body, "id");
-        if (id == null) throw new ApiException(400, "body must include 'id'");
-        if (service.connection(id).isPresent())
-            throw new ApiException(409, "connection '" + id + "' already exists (use PUT to update)");
-        ConnectionProfile p = connectionFromBody(id, body, null);
-        persistConnection(p);
-        return p.toMap();
-    }
-
-    /** {@code PUT /connections/{id}} — replace a profile (masked secrets preserved); 404 if unknown. */
-    private Object updateConnection(String id, Map<String, Object> body) throws IOException {
-        requireWriteRoot();
-        ConnectionProfile existing = service.connection(id)
-                .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
-        ConnectionProfile p = connectionFromBody(id, body, existing);
-        persistConnection(p);
-        return p.toMap();
-    }
-
-    /** {@code DELETE /connections/{id}} — remove a profile; 404 if unknown, 409 if a pipeline source uses it. */
-    private Object deleteConnection(String id) throws IOException {
-        requireWriteRoot();
-        if (service.connection(id).isEmpty())
-            throw new ApiException(404, "no connection profile '" + id + "'");
-        if (service.connectionInUse(id))
-            throw new ApiException(409, "connection '" + id + "' is in use by a pipeline source");
-        boolean removed = Files.deleteIfExists(connectionFile(id));
-        service.unregisterConnection(id);
-        return Map.of("id", id, "deleted", true, "fileRemoved", removed);
-    }
-
-    private void requireWriteRoot() {
-        if (writeRoot == null)
-            throw new ApiException(503, "connection write disabled: set -Dassist.write.root to enable");
-    }
-
-    /** The jailed {@code <id>_connection.toon} path under the write root; 422 on an unsafe id, 403 on escape. */
-    private Path connectionFile(String id) {
-        String safe = id.trim();
-        if (safe.contains("..") || !safe.matches("[A-Za-z0-9][A-Za-z0-9._-]*"))
-            throw new ApiException(422, "unsafe connection id '" + id + "' (allowed: letters, digits, '.', '_', '-')");
-        Path target = writeRoot.resolve(safe + "_connection.toon").normalize();
-        if (!target.startsWith(writeRoot)) throw new ApiException(403, "resolved path escapes the write root");
-        return target;
-    }
-
-    /**
-     * Build a validated {@link ConnectionProfile} from a request body (the secret-masked API shape). Masked secret
-     * values ({@code ***}) are replaced with the stored reference from {@code existing} so an unchanged secret is
-     * never clobbered; secrets must otherwise be {@code ${ENV:…}} references (never raw values).
-     */
-    @SuppressWarnings("unchecked")
-    private ConnectionProfile connectionFromBody(String id, Map<String, Object> body, ConnectionProfile existing) {
-        Map<String, Object> c = new LinkedHashMap<>();
-        c.put("id", id);
-        c.put("connector", str(body, "connector"));
-        c.put("host", str(body, "host"));
-        if (body.get("port") != null) c.put("port", body.get("port"));
-        c.put("database", str(body, "database"));
-        String basePath = str(body, "basePath");
-        if (basePath == null) basePath = str(body, "base_path");
-        c.put("base_path", basePath);
-        c.put("username", str(body, "username"));
-        c.put("password", keepSecret(str(body, "password"), existing == null ? null : existing.password()));
-        if (body.get("options") instanceof Map<?, ?> opts) {
-            Map<String, String> priorOpts = existing == null ? Map.of() : existing.options();
-            Map<String, Object> merged = new LinkedHashMap<>();
-            opts.forEach((k, v) -> {
-                String key = String.valueOf(k);
-                merged.put(key, keepSecret(v == null ? null : String.valueOf(v), priorOpts.get(key)));
-            });
-            c.put("options", merged);
-        }
-        if (body.get("tunnel") instanceof Map<?, ?> t) {
-            Map<String, Object> tun = new LinkedHashMap<>((Map<String, Object>) t);
-            String priorPw = (existing != null && existing.tunnel() != null) ? existing.tunnel().password() : null;
-            Object pw = tun.get("password");
-            tun.put("password", keepSecret(pw == null ? null : String.valueOf(pw), priorPw));
-            c.put("tunnel", tun);
-        }
-        try {
-            return ConnectionProfile.fromMap(c);
-        } catch (IllegalArgumentException ex) {
-            throw new ApiException(400, ex.getMessage());
-        }
-    }
-
-    /** Preserve a stored secret reference when the UI re-submits the mask sentinel ({@code ***}); else take new. */
-    private static String keepSecret(String incoming, String existing) {
-        return "***".equals(incoming) ? existing : incoming;
-    }
-
-    /** Encode the profile as a {@code connection { … }} TOON doc and write it atomically under the write root. */
-    private void persistConnection(ConnectionProfile p) throws IOException {
-        Path target = connectionFile(p.id());
-        byte[] bytes = ConfigCodec.toToon(Map.of("connection", connectionDoc(p))).getBytes(StandardCharsets.UTF_8);
-        Files.createDirectories(target.getParent());
-        Path tmp = Files.createTempFile(target.getParent(), ".conn-", ".tmp");
-        try {
-            Files.write(tmp, bytes);
-            try {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException notAtomic) {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } finally {
-            Files.deleteIfExists(tmp);
-        }
-        service.registerConnection(p);
-        log.info("[CONNECTION-WRITE] wrote {} ({} bytes)",
-                writeRoot.relativize(target).toString().replace('\\', '/'), bytes.length);
-    }
-
-    /** The on-disk (unmasked, references preserved) {@code connection} block map for {@link ConfigCodec#toToon}. */
-    private static Map<String, Object> connectionDoc(ConnectionProfile p) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", p.id());
-        m.put("connector", p.connector());
-        if (p.host() != null) m.put("host", p.host());
-        if (p.port() > 0) m.put("port", p.port());
-        if (p.database() != null) m.put("database", p.database());
-        if (p.basePath() != null) m.put("base_path", p.basePath());
-        if (p.username() != null) m.put("username", p.username());
-        if (p.password() != null) m.put("password", p.password());
-        if (!p.options().isEmpty()) m.put("options", new LinkedHashMap<>(p.options()));
-        if (p.tunnel() != null) {
-            Map<String, Object> t = new LinkedHashMap<>();
-            t.put("host", p.tunnel().host());
-            if (p.tunnel().port() > 0) t.put("port", p.tunnel().port());
-            if (p.tunnel().username() != null) t.put("username", p.tunnel().username());
-            if (p.tunnel().password() != null) t.put("password", p.tunnel().password());
-            m.put("tunnel", t);
-        }
-        return m;
-    }
-
-    /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */
-    private Object transition(String id, String action, String target, Map<String, Object> body) {
-        return doTransition(id, action, target, str(body, "actor"));
-    }
-
-    /** {@code POST /objects/{id}/transition} — body {@code {action}} or {@code {status|to}} (+ optional {@code actor}). */
-    private Object transitionFromBody(String id, Map<String, Object> body) {
-        String action = str(body, "action");
-        String target = str(body, "status");
-        if (target == null) target = str(body, "to");
-        if (action == null && target == null)
-            throw new ApiException(400, "body must include 'action' or 'status'");
-        return doTransition(id, action, target, str(body, "actor"));
-    }
-
-    /** Apply a lifecycle transition, mapping the service's exceptions to 404 (unknown id) / 422 (illegal move). */
-    private Object doTransition(String id, String action, String target, String actor) {
-        try {
-            OperationalObject updated = (action != null)
-                    ? service.objects().transition(id, action, actor)
-                    : service.objects().transitionTo(id, target, actor);
-            return updated.toMap();
-        } catch (java.util.NoSuchElementException notFound) {
-            throw new ApiException(404, notFound.getMessage());
-        } catch (IllegalStateException | IllegalArgumentException illegal) {
-            throw new ApiException(422, illegal.getMessage());
-        }
-    }
-
     private static ApiException notFound(String name) {
         return new ApiException(404, "no pipeline named '" + name + "'");
     }
 
-    private Map<String, Object> body(HttpExchange ex) throws IOException {
+    @Override
+    public Map<String, Object> body(HttpExchange ex) throws IOException {
         try (InputStream in = ex.getRequestBody()) {
             byte[] raw = in.readAllBytes();
             if (raw.length == 0) return Map.of();
@@ -2054,37 +675,26 @@ public final class ControlApi implements AutoCloseable {
         }
     }
 
+    @Override
+    public SourceService service() { return service; }
+
+    @Override
+    public Path writeRoot() { return writeRoot; }
+
     private static String str(Map<String, Object> body, String key) {
-        Object v = body.get(key);
-        return (v == null || v.toString().isBlank()) ? null : v.toString();
+        return ApiContext.str(body, key);
     }
 
     private static String query(HttpExchange ex, String key) {
-        String q = ex.getRequestURI().getQuery();
-        if (q == null) return null;
-        for (String kv : q.split("&")) {
-            int eq = kv.indexOf('=');
-            if (eq > 0 && kv.substring(0, eq).equals(key))
-                return URLDecoder.decode(kv.substring(eq + 1), StandardCharsets.UTF_8);
-        }
-        return null;
+        return ApiContext.query(ex, key);
     }
 
     // Route registration. The core (Personal edition) is auth-free — every route is open.
     // Standard/Enterprise editions re-introduce authorization out-of-band via the security module.
-    private void get (String pattern, Handler h) { routes.add(new Route("GET",    Pattern.compile("^" + pattern + "$"), h)); }
-    private void post(String pattern, Handler h) { routes.add(new Route("POST",   Pattern.compile("^" + pattern + "$"), h)); }
-    private void put   (String pattern, Handler h) { routes.add(new Route("PUT",    Pattern.compile("^" + pattern + "$"), h)); }
-    private void delete(String pattern, Handler h) { routes.add(new Route("DELETE", Pattern.compile("^" + pattern + "$"), h)); }
-
-    @FunctionalInterface
-    private interface Handler { Object handle(HttpExchange ex, Matcher m) throws Exception; }
+    @Override public void get (String pattern, Handler h) { routes.add(new Route("GET",    Pattern.compile("^" + pattern + "$"), h)); }
+    @Override public void post(String pattern, Handler h) { routes.add(new Route("POST",   Pattern.compile("^" + pattern + "$"), h)); }
+    @Override public void put   (String pattern, Handler h) { routes.add(new Route("PUT",    Pattern.compile("^" + pattern + "$"), h)); }
+    @Override public void delete(String pattern, Handler h) { routes.add(new Route("DELETE", Pattern.compile("^" + pattern + "$"), h)); }
 
     private record Route(String method, Pattern pattern, Handler handler) {}
-
-    /** Maps to an HTTP status + JSON {@code {"error": …}} body. */
-    private static final class ApiException extends RuntimeException {
-        final int status;
-        ApiException(int status, String message) { super(message); this.status = status; }
-    }
 }

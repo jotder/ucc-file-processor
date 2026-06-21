@@ -105,14 +105,14 @@ class PhaseFConfigTest {
 
     @Test
     void rateParserHandlesUnitsAndSuffixes() {
-        assertEquals(0L, PipelineConfig.parseRate(null));
-        assertEquals(0L, PipelineConfig.parseRate(""));
-        assertEquals(1L << 20, PipelineConfig.parseRate("1MBps"));
-        assertEquals(1L << 20, PipelineConfig.parseRate("1MB/s"));
-        assertEquals(50L * (1L << 20), PipelineConfig.parseRate("50MB"));
-        assertEquals(512L * (1L << 10), PipelineConfig.parseRate("512KBps"));
-        assertEquals(2L * (1L << 30), PipelineConfig.parseRate("2GBps"));
-        assertEquals(1024L, PipelineConfig.parseRate("1024"));
+        assertEquals(0L, PipelineConfigParser.parseRate(null));
+        assertEquals(0L, PipelineConfigParser.parseRate(""));
+        assertEquals(1L << 20, PipelineConfigParser.parseRate("1MBps"));
+        assertEquals(1L << 20, PipelineConfigParser.parseRate("1MB/s"));
+        assertEquals(50L * (1L << 20), PipelineConfigParser.parseRate("50MB"));
+        assertEquals(512L * (1L << 10), PipelineConfigParser.parseRate("512KBps"));
+        assertEquals(2L * (1L << 30), PipelineConfigParser.parseRate("2GBps"));
+        assertEquals(1024L, PipelineConfigParser.parseRate("1024"));
     }
 
     @Test
