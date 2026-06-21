@@ -1,10 +1,8 @@
 package com.gamma.util;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
@@ -105,22 +103,8 @@ public class PartitionSummarizer {
                         "Config.outputRoot must not be the same as or under Config.inputRoot "
                         + "(inputRoot=" + inAbs + ", outputRoot=" + outAbs + ")");
 
-            if (sql == null || sql.isBlank())
-                throw new IllegalArgumentException("Config.sql must not be blank");
-            String sqlTrimmed = sql.trim();
-            if (!sqlTrimmed.toUpperCase().startsWith("SELECT"))
-                throw new IllegalArgumentException(
-                        "Config.sql must be a SELECT statement, got: "
-                        + sqlTrimmed.substring(0, Math.min(40, sqlTrimmed.length())) + "...");
-            if (sqlTrimmed.contains(";"))
-                throw new IllegalArgumentException("Config.sql must not contain a semicolon");
-            sql = sqlTrimmed; // normalise: strip leading/trailing whitespace
-
-            outputFormat = (outputFormat == null || outputFormat.isBlank())
-                    ? "PARQUET" : outputFormat.trim().toUpperCase();
-            if (!outputFormat.equals("PARQUET") && !outputFormat.equals("CSV"))
-                throw new IllegalArgumentException(
-                        "Config.outputFormat must be PARQUET or CSV, got: " + outputFormat);
+            sql = SummarizeSupport.validateSelectSql(sql);
+            outputFormat = SummarizeSupport.normalizeOutputFormat(outputFormat);
             outputFile = (outputFile == null || outputFile.isBlank()) ? "_summary" : outputFile.trim();
             threads = threads <= 0 ? Runtime.getRuntime().availableProcessors() : threads;
         }
@@ -143,11 +127,11 @@ public class PartitionSummarizer {
             try { t = Integer.parseInt(String.valueOf(s.getOrDefault("threads", "0"))); }
             catch (NumberFormatException ignored) { /* fall back to default */ }
             return new Config(
-                    required(s, "input_root"),
-                    required(s, "output_root"),
-                    required(s, "query"),
-                    optional(s, "output_format", "PARQUET"),
-                    optional(s, "output_file",   "_summary"),
+                    SummarizeSupport.requiredKey(s, "partition_summarize", "input_root"),
+                    SummarizeSupport.requiredKey(s, "partition_summarize", "output_root"),
+                    SummarizeSupport.requiredKey(s, "partition_summarize", "query"),
+                    SummarizeSupport.optionalKey(s, "output_format", "PARQUET"),
+                    SummarizeSupport.optionalKey(s, "output_file",   "_summary"),
                     t
             );
         }
@@ -155,20 +139,6 @@ public class PartitionSummarizer {
         /** Full filename for the summary output, e.g. {@code _summary.parquet}. */
         public String outputFileName() {
             return outputFile + ("CSV".equals(outputFormat) ? ".csv" : ".parquet");
-        }
-
-        // ── toon-key helpers ──────────────────────────────────────────────────
-
-        private static String required(Map<String, Object> m, String key) {
-            Object v = m.get(key);
-            if (v == null || v.toString().isBlank())
-                throw new IllegalArgumentException("partition_summarize." + key + " is required");
-            return v.toString().trim();
-        }
-
-        private static String optional(Map<String, Object> m, String key, String def) {
-            Object v = m.get(key);
-            return (v != null && !v.toString().isBlank()) ? v.toString().trim() : def;
         }
     }
 
@@ -267,40 +237,9 @@ public class PartitionSummarizer {
         // ── glob for all .parquet files in this partition dir ─────────────────
         String glob = partition.toString().replace('\\', '/') + "/*.parquet";
 
-        // ── DuckDB temp-file connection ───────────────────────────────────────
-        File tempDb = DuckDbUtil.tempDbFile("duckdb_psumm_");
-        DuckDbUtil.loadDriver();
-
-        try (Connection conn = DriverManager.getConnection(DuckDbUtil.jdbcUrl(tempDb));
-             Statement stmt = conn.createStatement()) {
-
-            // 1. expose partition as virtual table "input"
-            // union_by_name=true: promotes types across files (e.g. DECIMAL widening)
-            // so that multi-file partitions with varying precision do not fail.
-            stmt.execute(String.format(
-                    "CREATE VIEW input AS SELECT * FROM read_parquet('%s', union_by_name=true)",
-                    glob.replace("'", "''")));
-
-            // 2. materialise (two-step: avoids DuckDB AVX2 crash on Windows)
-            stmt.execute("CREATE TABLE summarized AS\n" + config.sql());
-
-            // 3. row count
-            long rowCount;
-            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM summarized")) {
-                rs.next();
-                rowCount = rs.getLong(1);
-            }
-
-            // 4. write to output
-            stmt.execute(String.format("COPY summarized TO '%s' (%s)",
-                    outFile.toString().replace('\\', '/'),
-                    DuckDbUtil.buildCopyOptions(config.outputFormat())));
-
-            log(String.format("DONE  [%s] — %,d row(s)", relPath, rowCount));
-
-        } finally {
-            DuckDbUtil.deleteTempDb(tempDb);
-        }
+        long rowCount = SummarizeSupport.summarizeToFile("duckdb_psumm_", glob, config.sql(),
+                outFile.toString(), config.outputFormat());
+        log(String.format("DONE  [%s] — %,d row(s)", relPath, rowCount));
         return true;
     }
 

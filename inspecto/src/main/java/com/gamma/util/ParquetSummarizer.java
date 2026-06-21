@@ -1,13 +1,8 @@
 package com.gamma.util;
 
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -83,24 +78,10 @@ public class ParquetSummarizer {
         public Config {
             if (inputGlob == null || inputGlob.isBlank())
                 throw new IllegalArgumentException("Config.inputGlob must not be blank");
-            if (sql == null || sql.isBlank())
-                throw new IllegalArgumentException("Config.sql must not be blank");
-            // Guard against accidental multi-statement injection or non-SELECT payloads.
-            // Trim and check before the implicit field assignment completes.
-            String sqlTrimmed = sql.trim();
-            if (!sqlTrimmed.toUpperCase().startsWith("SELECT"))
-                throw new IllegalArgumentException(
-                        "Config.sql must be a SELECT statement, got: " + sqlTrimmed.substring(0, Math.min(40, sqlTrimmed.length())) + "...");
-            if (sqlTrimmed.contains(";"))
-                throw new IllegalArgumentException("Config.sql must not contain a semicolon");
-            sql = sqlTrimmed; // normalise: strip leading/trailing whitespace
+            sql = SummarizeSupport.validateSelectSql(sql);
             if (outputPath == null || outputPath.isBlank())
                 throw new IllegalArgumentException("Config.outputPath must not be blank");
-            outputFormat = (outputFormat == null || outputFormat.isBlank())
-                    ? "PARQUET" : outputFormat.trim().toUpperCase();
-            if (!outputFormat.equals("PARQUET") && !outputFormat.equals("CSV"))
-                throw new IllegalArgumentException(
-                        "Config.outputFormat must be PARQUET or CSV, got: " + outputFormat);
+            outputFormat = SummarizeSupport.normalizeOutputFormat(outputFormat);
         }
 
         /**
@@ -123,25 +104,11 @@ public class ParquetSummarizer {
                 throw new IllegalArgumentException("Toon must contain a 'summarize:' section");
             Map<String, Object> s = (Map<String, Object>) map;
             return new Config(
-                    required(s, "input_glob"),
-                    required(s, "query"),
-                    required(s, "output"),
-                    optional(s, "output_format", "PARQUET")
+                    SummarizeSupport.requiredKey(s, "summarize", "input_glob"),
+                    SummarizeSupport.requiredKey(s, "summarize", "query"),
+                    SummarizeSupport.requiredKey(s, "summarize", "output"),
+                    SummarizeSupport.optionalKey(s, "output_format", "PARQUET")
             );
-        }
-
-        // ── toon-key helpers ──────────────────────────────────────────────────
-
-        private static String required(Map<String, Object> m, String key) {
-            Object v = m.get(key);
-            if (v == null || v.toString().isBlank())
-                throw new IllegalArgumentException("summarize." + key + " is required");
-            return v.toString().trim();
-        }
-
-        private static String optional(Map<String, Object> m, String key, String def) {
-            Object v = m.get(key);
-            return (v != null && !v.toString().isBlank()) ? v.toString().trim() : def;
         }
     }
 
@@ -183,44 +150,12 @@ public class ParquetSummarizer {
         Path outParent = outPath.getParent();
         if (outParent != null) Files.createDirectories(outParent);
 
-        // ── open a temp-file DuckDB connection ────────────────────────────────
-        File tempDb = DuckDbUtil.tempDbFile("duckdb_summary_");
-        DuckDbUtil.loadDriver();
+        // ── run the shared read_parquet → summarize → COPY kernel ─────────────
+        long rowCount = SummarizeSupport.summarizeToFile("duckdb_summary_", glob, config.sql(),
+                outPath.toString(), config.outputFormat());
 
-        try (Connection conn = DriverManager.getConnection(DuckDbUtil.jdbcUrl(tempDb));
-             Statement  stmt = conn.createStatement()) {
-
-            // ── 1. expose Parquet dataset as virtual table "input" ────────────
-            // Single quotes inside the glob path are escaped by doubling them.
-            // union_by_name=true: promotes types across files (e.g. DECIMAL widening)
-            // so that multi-partition reads with varying precision do not fail.
-            stmt.execute(String.format(
-                    "CREATE VIEW input AS SELECT * FROM read_parquet('%s', union_by_name=true)",
-                    glob.replace("'", "''")));
-
-            // ── 2. materialise the summary (two-step to avoid DuckDB AVX2 bug) ─
-            stmt.execute("CREATE TABLE summarized AS\n" + config.sql());
-            log("Query executed");
-
-            // ── 3. row count for progress reporting ───────────────────────────
-            long rowCount;
-            try (ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM summarized")) {
-                rs.next();
-                rowCount = rs.getLong(1);
-            }
-
-            // ── 4. write output ───────────────────────────────────────────────
-            String copyOpts = DuckDbUtil.buildCopyOptions(config.outputFormat());
-            stmt.execute(String.format(
-                    "COPY summarized TO '%s' (%s)",
-                    outPath.toString().replace('\\', '/'), copyOpts));
-
-            long elapsed = System.currentTimeMillis() - startMs;
-            log(String.format("Done — %,d row(s) → %s  (%,d ms)", rowCount, outPath, elapsed));
-
-        } finally {
-            DuckDbUtil.deleteTempDb(tempDb);
-        }
+        long elapsed = System.currentTimeMillis() - startMs;
+        log(String.format("Done — %,d row(s) → %s  (%,d ms)", rowCount, outPath, elapsed));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
