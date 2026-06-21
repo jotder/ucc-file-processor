@@ -10,17 +10,10 @@ import com.gamma.report.ReportService;
 import com.gamma.service.BatchEventBus;
 import com.gamma.service.CronExpression;
 import com.gamma.service.Scheduler;
-import com.gamma.util.BoundedHistory;
-import com.gamma.util.CsvLedger;
 import com.gamma.util.LockingRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -66,22 +59,17 @@ public final class JobService implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(JobService.class);
     private static final DateTimeFormatter TS     = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter RUN_TS  = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-    private static final int MAX_HISTORY = 50;
 
     private final List<JobConfig> configs;
     private final BatchEventBus bus;
     private final Scheduler scheduler;
     private final ReportService reports;
     private final ZoneId zone;
-    /** Append-only run audit ({@code jobs_runs.csv}) — a job run isn't a recoverable unit,
-     *  so a single durable CSV is the right grain (no commit log). */
-    private final CsvLedger<JobRun> audit;
-    /** The audit file path — read back at startup for misfire/catch-up (T26); the CsvLedger is write-only. */
-    private final Path auditFile;
-    /** The audit dir (parent of {@link #auditFile}) — also where a {@code flow} job's branch-commit log lives (T32). */
+    /** Run journal (T26/T27): the durable {@code jobs_runs.csv} audit, the in-memory history the Control
+     *  API serves, and the optional DuckDB run projection. */
+    private final JobRunLedger ledger;
+    /** The audit dir — also where a {@code flow} job's branch-commit log lives (T32). */
     private final String auditDir;
-    /** Optional DuckDB projection of job runs for reporting (T27); {@code null} when no backend is configured. */
-    private final DbJobRunStore jobRunStore;
     /** Optional DuckDB data-plane provenance store for FLOW jobs (T21); {@code null} when no backend is configured. */
     private final com.gamma.flow.exec.DbProvenanceStore provenanceStore;
     /** Authored-flow store for {@link JobType#FLOW} jobs (T32); {@code null} when no write root is configured. */
@@ -96,7 +84,6 @@ public final class JobService implements AutoCloseable {
     private final Map<String, Job> jobs = new LinkedHashMap<>();
     private final Map<String, CronExpression> crons = new ConcurrentHashMap<>();
     private final LockingRunner runner = new LockingRunner();
-    private final Map<String, BoundedHistory<JobRun>> history = new ConcurrentHashMap<>();
     private final AtomicLong seq = new AtomicLong();
     /** Flow ids (authored-flow graph names) of {@link JobType#FLOW} jobs currently in flight — fed to the
      *  deletion fence (T32) so a delete that races an active flow-job reader/writer surfaces a conflict. */
@@ -139,10 +126,8 @@ public final class JobService implements AutoCloseable {
         this.scheduler = scheduler;
         this.reports   = reports;
         this.zone      = ZoneId.systemDefault();
-        this.audit     = openAudit(auditDir);
-        this.auditFile = Paths.get(auditDir).resolve("jobs_runs.csv");
         this.auditDir  = auditDir;
-        this.jobRunStore = jobRunStore;
+        this.ledger    = new JobRunLedger(auditDir, jobRunStore);
         this.flowStore = flowStore;
         this.dataDir   = dataDir;
         this.provenanceStore = provenanceStore;
@@ -178,7 +163,7 @@ public final class JobService implements AutoCloseable {
      * so it is left to its normal next-fire arming (this avoids firing every catch-up job on a fresh deploy).
      */
     private void catchUpMissedFires() {
-        Map<String, LocalDateTime> lastStart = lastStartTimesFromAudit();
+        Map<String, LocalDateTime> lastStart = ledger.lastStartTimes();
         int caughtUp = 0;
         ZonedDateTime now = ZonedDateTime.now(zone);
         for (JobConfig c : configs) {
@@ -194,26 +179,6 @@ public final class JobService implements AutoCloseable {
             }
         }
         if (caughtUp > 0) log.info("JobService catch-up: {} job(s) had a missed fire", caughtUp);
-    }
-
-    /** Latest {@code start_time} per job from the audit CSV (empty when absent) — the catch-up baseline. */
-    private Map<String, LocalDateTime> lastStartTimesFromAudit() {
-        Map<String, LocalDateTime> out = new LinkedHashMap<>();
-        if (auditFile == null || !Files.exists(auditFile)) return out;
-        try {
-            List<String> lines = Files.readAllLines(auditFile);
-            for (int i = 1; i < lines.size(); i++) {                      // row 0 is the header
-                String[] f = lines.get(i).split(",", -1);                 // job + start_time are comma-free fields
-                if (f.length < 5) continue;
-                try {
-                    LocalDateTime start = LocalDateTime.parse(f[4], TS);
-                    out.merge(f[1], start, (a, b) -> b.isAfter(a) ? b : a);
-                } catch (RuntimeException ignore) { /* skip a malformed row */ }
-            }
-        } catch (IOException e) {
-            log.warn("Could not read job audit for catch-up ({}): {}", auditFile, e.getMessage());
-        }
-        return out;
     }
 
     private Job build(JobConfig c) {
@@ -284,7 +249,7 @@ public final class JobService implements AutoCloseable {
             }
             JobRun run = new JobRun(runId, name, job.type().name(), trigger, start,
                     LocalDateTime.now().format(TS), res.status(), res.durationMs(), res.message());
-            recordRun(run);
+            ledger.record(run);
             MetricRegistry.global().inc("inspecto_jobs_total", "Config-driven job executions",
                     Map.of("job", name, "type", job.type().name(), "status", res.status()));
             MetricRegistry.global().observe("inspecto_job_duration_seconds", "Job wall time",
@@ -292,38 +257,13 @@ public final class JobService implements AutoCloseable {
             log.info("[JOB] {} ({}) {} in {}ms — {}",
                     name, trigger, res.status(), res.durationMs(), res.message());
         }, () ->   // a previous run is still in flight — don't overlap
-            recordRun(new JobRun(runId, name, job.type().name(), trigger, start,
+            ledger.record(new JobRun(runId, name, job.type().name(), trigger, start,
                     LocalDateTime.now().format(TS), "SKIPPED", 0L, "previous run still in flight")));
-    }
-
-    /** Create the audit dir and open the {@code jobs_runs.csv} ledger (was JobAuditWriter). */
-    private static CsvLedger<JobRun> openAudit(String auditDir) {
-        Path dir = Paths.get(auditDir);
-        try {
-            Files.createDirectories(dir);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Cannot create jobs audit dir: " + auditDir, e);
-        }
-        return new CsvLedger<>(dir.resolve("jobs_runs.csv").toString(),
-                "run_id,job,type,trigger,start_time,end_time,status,duration_ms,message",
-                r -> String.format("%s,%s,%s,%s,%s,%s,%s,%d,\"%s\"",
-                        r.runId(), r.job(), r.type(), r.trigger(), r.startTime(), r.endTime(),
-                        r.status(), r.durationMs(), CsvLedger.q(r.message())));
-    }
-
-    private void recordRun(JobRun run) {
-        try {
-            audit.append(run);
-        } catch (Exception e) {
-            log.warn("Could not write job audit for {}: {}", run.job(), e.getMessage());
-        }
-        history.computeIfAbsent(run.job(), k -> new BoundedHistory<>(MAX_HISTORY)).add(run);
-        if (jobRunStore != null) jobRunStore.record(run);   // T27: durable, queryable projection
     }
 
     /** The DuckDB job-run projection for reporting (T27), or empty when no backend is configured. */
     public Optional<DbJobRunStore> runStore() {
-        return Optional.ofNullable(jobRunStore);
+        return ledger.runStore();
     }
 
     /** The DuckDB data-plane provenance store (T21), or empty when no backend is configured. */
@@ -383,7 +323,7 @@ public final class JobService implements AutoCloseable {
         List<JobView> out = new ArrayList<>();
         ZonedDateTime now = ZonedDateTime.now(zone);
         for (JobConfig c : configs) {
-            JobRun last = lastRun(c.name());
+            JobRun last = ledger.lastRun(c.name());
             String nextFire = "";
             if (c.enabled() && c.hasCron()) {
                 CronExpression expr = crons.getOrDefault(c.name(), c.cronExpression());
@@ -399,18 +339,12 @@ public final class JobService implements AutoCloseable {
 
     /** Recent run history (newest first) for one job; empty if unknown or never run. */
     public List<JobRun> runsFor(String name) {
-        BoundedHistory<JobRun> hist = history.get(name);
-        return hist == null ? List.of() : hist.all();
+        return ledger.runsFor(name);
     }
 
     /** The most recent run of a job, if any. */
     public Optional<JobRun> lastRunOf(String name) {
-        return Optional.ofNullable(lastRun(name));
-    }
-
-    private JobRun lastRun(String name) {
-        BoundedHistory<JobRun> hist = history.get(name);
-        return hist == null ? null : hist.latest().orElse(null);
+        return Optional.ofNullable(ledger.lastRun(name));
     }
 
     /** Whether any job by this name is registered and enabled. */
@@ -419,7 +353,7 @@ public final class JobService implements AutoCloseable {
     @Override
     public void close() {
         workers.close();   // virtual-thread executor: awaits in-flight job runs
-        if (jobRunStore != null) jobRunStore.close();
+        ledger.close();
         if (provenanceStore != null) provenanceStore.close();
         log.info("JobService stopped");
     }
