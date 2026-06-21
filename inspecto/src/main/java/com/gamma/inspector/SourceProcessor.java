@@ -19,8 +19,6 @@ import com.gamma.acquire.StabilityGate;
 import com.gamma.acquire.retry.RetryPolicy;
 import com.gamma.api.PublicApi;
 import com.gamma.etl.*;
-import com.gamma.event.Event;
-import com.gamma.event.EventLog;
 import com.gamma.event.EventType;
 import com.gamma.metrics.MetricRegistry;
 import com.gamma.util.LogSetup;
@@ -215,7 +213,7 @@ public class SourceProcessor {
             } catch (Exception e) {
                 if (remote && cb.enabled()
                         && CircuitBreaker.shared().recordFailure(src.id(), cb.failureThreshold()) && emitSignals)
-                    emitCircuitOpen(cfg, e.getMessage());
+                    AcquisitionTelemetry.emitCircuitOpen(cfg, e.getMessage());
                 if (e instanceof java.io.IOException io) throw io;
                 if (e instanceof RuntimeException re) throw re;
                 throw new java.io.IOException("Discovery failed for " + cfg.identity().pipelineName(), e);
@@ -227,8 +225,8 @@ public class SourceProcessor {
             List<RemoteFile> ready = (gated != null) ? gated.ready() : discovered;
 
             if (emitSignals && st.enabled()) {
-                setWaitingGauge(cfg, gated != null ? gated.waiting().size() : 0);
-                if (gated != null) for (RemoteFile f : gated.newlyStable()) emitFileStable(cfg, f);
+                AcquisitionTelemetry.setWaitingGauge(cfg, gated != null ? gated.waiting().size() : 0);
+                if (gated != null) for (RemoteFile f : gated.newlyStable()) AcquisitionTelemetry.emitFileStable(cfg, f);
             }
 
             // Gap detection (Phase D): over the full discovery listing (not the dedup-filtered candidates) so a
@@ -306,9 +304,9 @@ public class SourceProcessor {
         // emitted for every listed file; only the survivors are fetched.
         List<RemoteFile> toFetch = new ArrayList<>(ready.size());
         for (RemoteFile rf : ready) {
-            emitFileEvent(cfg, EventType.FILE_DISCOVERED, "File discovered: " + rf.relativePath(), rf.relativePath());
-            incDiscovered(cfg);
-            if (isKnownDuplicate(cfg, rf, pollRoot)) { incDuplicatesSkipped(cfg); continue; }
+            AcquisitionTelemetry.emitFileEvent(cfg, EventType.FILE_DISCOVERED, "File discovered: " + rf.relativePath(), rf.relativePath());
+            AcquisitionTelemetry.incDiscovered(cfg);
+            if (isKnownDuplicate(cfg, rf, pollRoot)) { AcquisitionTelemetry.incDuplicatesSkipped(cfg); continue; }
             toFetch.add(rf);
         }
         if (toFetch.isEmpty()) return List.of();
@@ -319,12 +317,12 @@ public class SourceProcessor {
 
         // Sequential (the Phase-E default): the single already-open session does everything.
         if (parallelism == 1) {
-            setActiveConnections(cfg, 1);
+            AcquisitionTelemetry.setActiveConnections(cfg, 1);
             try {
                 for (RemoteFile rf : toFetch)
                     fetchOne(cfg, primary, rf, pollRoot, etagAlgo, retry, limiter, postAction, staged);
             } finally {
-                setActiveConnections(cfg, 0);
+                AcquisitionTelemetry.setActiveConnections(cfg, 0);
             }
             return new ArrayList<>(staged);
         }
@@ -342,7 +340,7 @@ public class SourceProcessor {
                 extras.add(c);
                 pool.add(c);
             }
-            setActiveConnections(cfg, parallelism);
+            AcquisitionTelemetry.setActiveConnections(cfg, parallelism);
             try (ExecutorService ex = Executors.newVirtualThreadPerTaskExecutor()) {
                 List<Future<?>> futures = new ArrayList<>(toFetch.size());
                 for (RemoteFile rf : toFetch) {
@@ -362,7 +360,7 @@ public class SourceProcessor {
                 }
             }
         } finally {
-            setActiveConnections(cfg, 0);
+            AcquisitionTelemetry.setActiveConnections(cfg, 0);
             for (SourceConnector c : extras) {
                 try { c.close(); } catch (Exception ignore) { /* best-effort: each extra session is owned here */ }
             }
@@ -446,9 +444,9 @@ public class SourceProcessor {
         if (action == null) return;
         try {
             connector.post(rf, action);
-            emitFileArchived(cfg, rf, action.kind().name());
+            AcquisitionTelemetry.emitFileArchived(cfg, rf, action.kind().name());
         } catch (Exception e) {
-            incPostActionsFailed(cfg);
+            AcquisitionTelemetry.incPostActionsFailed(cfg);
             log.warn("Post-action {} failed for {} on {}: {} — file already staged, continuing",
                     action.kind(), rf.relativePath(), cfg.identity().pipelineName(), e.getMessage());
         }
@@ -503,26 +501,26 @@ public class SourceProcessor {
             Path got = retry.execute(() -> connector.fetchTo(rf, target));
             long bytes;
             try { bytes = Files.size(got); } catch (java.io.IOException e) { bytes = rf.hasSize() ? rf.size() : 0L; }
-            recordFetch(cfg, bytes, (System.nanoTime() - t0) / 1_000_000_000.0);
-            emitFileFetched(cfg, rf, bytes);
+            AcquisitionTelemetry.recordFetch(cfg, bytes, (System.nanoTime() - t0) / 1_000_000_000.0);
+            AcquisitionTelemetry.emitFileFetched(cfg, rf, bytes);
 
             IntegrityChecker.Result r = IntegrityChecker.verify(rf, got, etagAlgo);
             if (!r.ok()) {
-                incDownloadsFailed(cfg);
-                emitFileEvent(cfg, EventType.FILE_FETCH_FAILED,
+                AcquisitionTelemetry.incDownloadsFailed(cfg);
+                AcquisitionTelemetry.emitFileEvent(cfg, EventType.FILE_FETCH_FAILED,
                         "Integrity check failed: " + rf.relativePath() + " (" + r.detail() + ")", rf.relativePath());
                 log.warn("Integrity check failed for {} on {}: {} — quarantining (dead-letter)",
                         rf.relativePath(), cfg.identity().pipelineName(), r.detail());
                 quarantineCorrupt(cfg, got, rf);   // dead-letter (Phase F): preserve the corrupt bytes for inspection
                 return null;
             }
-            incDownloaded(cfg);
-            emitFileEvent(cfg, EventType.FILE_VALIDATED, "File validated: " + rf.relativePath(), rf.relativePath());
+            AcquisitionTelemetry.incDownloaded(cfg);
+            AcquisitionTelemetry.emitFileEvent(cfg, EventType.FILE_VALIDATED, "File validated: " + rf.relativePath(), rf.relativePath());
             return got;
         } catch (Exception e) {
             // AcquisitionException (an IOException) from fetchTo, or a wrapped retry failure: skip this cycle.
-            incDownloadsFailed(cfg);
-            emitFileEvent(cfg, EventType.FILE_FETCH_FAILED,
+            AcquisitionTelemetry.incDownloadsFailed(cfg);
+            AcquisitionTelemetry.emitFileEvent(cfg, EventType.FILE_FETCH_FAILED,
                     "Fetch failed: " + rf.relativePath() + " (" + e.getMessage() + ")", rf.relativePath());
             log.warn("Failed to fetch {} on {} after retries: {} — skipping this cycle",
                     rf.relativePath(), cfg.identity().pipelineName(), e.getMessage());
@@ -598,23 +596,18 @@ public class SourceProcessor {
                     out.add(p.toFile());
                 }
                 case CHANGED -> {
-                    if (emitSignals && DuplicatePolicy.alertsOnChange(onChange)) emitFileChanged(cfg, rf);
+                    if (emitSignals && DuplicatePolicy.alertsOnChange(onChange)) AcquisitionTelemetry.emitFileChanged(cfg, rf);
                     if (DuplicatePolicy.reprocessOnChange(onChange)) {
                         if (checksum && emitSignals) AcquisitionLedgers.stashChecksum(p, cs);
                         out.add(p.toFile());
                     } else if (emitSignals) {
-                        incDuplicatesSkipped(cfg);
+                        AcquisitionTelemetry.incDuplicatesSkipped(cfg);
                     }
                 }
-                case DUPLICATE -> { if (emitSignals) incDuplicatesSkipped(cfg); }
+                case DUPLICATE -> { if (emitSignals) AcquisitionTelemetry.incDuplicatesSkipped(cfg); }
             }
         }
         return out;
-    }
-
-    private static void incDuplicatesSkipped(PipelineConfig cfg) {
-        MetricRegistry.global().inc("inspecto_duplicates_skipped_total", "Files skipped as duplicates",
-                Map.of("pipeline", cfg.identity().pipelineName()));
     }
 
     /**
@@ -661,14 +654,6 @@ public class SourceProcessor {
         return java.util.OptionalLong.empty();
     }
 
-    private static void emitFileChanged(PipelineConfig cfg, RemoteFile f) {
-        EventLog.global().emit(Event.builder(EventType.FILE_CHANGED)
-                .source(SourceProcessor.class.getName())
-                .pipeline(cfg.identity().pipelineName())
-                .message("File changed: " + f.relativePath())
-                .attr("file", f.relativePath()));
-    }
-
     /**
      * Sequence-gap detection (Phase D): run {@link GapDetector} over the discovered file names and emit a
      * {@link EventType#SEQUENCE_GAP} event + bump {@code inspecto_sequence_gaps_total} for each <em>newly</em>
@@ -693,113 +678,9 @@ public class SourceProcessor {
 
         MetricRegistry.global().inc("inspecto_sequence_gaps_total", "Missing files detected in a configured sequence",
                 Map.of("pipeline", cfg.identity().pipelineName()), fresh.size());
-        for (String key : fresh) emitSequenceGap(cfg, key, gd.sequence(), report.unit().name());
+        for (String key : fresh) AcquisitionTelemetry.emitSequenceGap(cfg, key, gd.sequence(), report.unit().name());
         log.warn("Sequence gap(s) for {}: {} missing key(s) in '{}' — {}",
                 cfg.identity().pipelineName(), fresh.size(), gd.sequence(), fresh);
-    }
-
-    /** Emit the {@link EventType#SEQUENCE_GAP} fact for one missing key in the configured series (Phase D). */
-    private static void emitSequenceGap(PipelineConfig cfg, String expectedKey, String sequence, String unit) {
-        EventLog.global().emit(Event.builder(EventType.SEQUENCE_GAP)
-                .source(SourceProcessor.class.getName())
-                .pipeline(cfg.identity().pipelineName())
-                .message("Missing expected file in sequence: " + expectedKey)
-                .attr("expected", expectedKey)
-                .attr("sequence", sequence)
-                .attr("unit", unit));
-    }
-
-    /** Refresh the per-pipeline gauge of files the readiness gate is currently holding back (Phase B). */
-    private static void setWaitingGauge(PipelineConfig cfg, int waiting) {
-        MetricRegistry.global().setGauge("inspecto_files_waiting_stability",
-                "Discovered files held back pending stability",
-                Map.of("pipeline", cfg.identity().pipelineName()), waiting);
-    }
-
-    /** Emit the {@link EventType#FILE_STABLE} lifecycle fact for a file the gate just released (Phase B). */
-    private static void emitFileStable(PipelineConfig cfg, RemoteFile f) {
-        EventLog.global().emit(Event.builder(EventType.FILE_STABLE)
-                .source(SourceProcessor.class.getName())
-                .pipeline(cfg.identity().pipelineName())
-                .message("File stable: " + f.relativePath())
-                .attr("file", f.relativePath()));
-    }
-
-    /** Emit a remote-acquisition lifecycle fact (DISCOVERED/VALIDATED/FETCH_FAILED) carrying the relative path (Phase E). */
-    private static void emitFileEvent(PipelineConfig cfg, String type, String message, String file) {
-        EventLog.global().emit(Event.builder(type)
-                .source(SourceProcessor.class.getName())
-                .pipeline(cfg.identity().pipelineName())
-                .message(message)
-                .attr("file", file));
-    }
-
-    /** Emit {@link EventType#FILE_FETCHED} with the transferred byte count (Phase E). */
-    private static void emitFileFetched(PipelineConfig cfg, RemoteFile f, long bytes) {
-        EventLog.global().emit(Event.builder(EventType.FILE_FETCHED)
-                .source(SourceProcessor.class.getName())
-                .pipeline(cfg.identity().pipelineName())
-                .message("File fetched: " + f.relativePath())
-                .attr("file", f.relativePath())
-                .attr("bytes", Long.toString(bytes)));
-    }
-
-    /** Record per-fetch transfer metrics: total bytes transferred + the fetch-duration histogram (Phase E). */
-    private static void recordFetch(PipelineConfig cfg, long bytes, double seconds) {
-        Map<String, String> labels = Map.of("pipeline", cfg.identity().pipelineName());
-        MetricRegistry.global().inc("inspecto_bytes_transferred_total",
-                "Bytes retrieved from source connectors", labels, bytes);
-        MetricRegistry.global().observe("inspecto_fetch_seconds",
-                "Time to fetch one file from a source connector (seconds)", labels, seconds);
-    }
-
-    /** Set the gauge of currently-open source-connector sessions for this pipeline (Phase E). */
-    private static void setActiveConnections(PipelineConfig cfg, int n) {
-        MetricRegistry.global().setGauge("inspecto_active_connections",
-                "Open source-connector sessions", Map.of("pipeline", cfg.identity().pipelineName()), n);
-    }
-
-    /** Count a file listed by a connector's discovery this cycle (Phase F observability). */
-    private static void incDiscovered(PipelineConfig cfg) {
-        MetricRegistry.global().inc("inspecto_files_discovered_total", "Files listed by source discovery",
-                Map.of("pipeline", cfg.identity().pipelineName()));
-    }
-
-    /** Count a file successfully fetched + integrity-validated this cycle (Phase F observability). */
-    private static void incDownloaded(PipelineConfig cfg) {
-        MetricRegistry.global().inc("inspecto_files_downloaded_total", "Files fetched and validated from a source",
-                Map.of("pipeline", cfg.identity().pipelineName()));
-    }
-
-    /** Count a fetch or integrity-validation failure this cycle (Phase F observability). */
-    private static void incDownloadsFailed(PipelineConfig cfg) {
-        MetricRegistry.global().inc("inspecto_downloads_failed_total", "Fetch/integrity failures",
-                Map.of("pipeline", cfg.identity().pipelineName()));
-    }
-
-    /** Count a source-side post-action that failed at runtime (the file is still ingested) (Phase F). */
-    private static void incPostActionsFailed(PipelineConfig cfg) {
-        MetricRegistry.global().inc("inspecto_post_actions_failed_total", "Source post-actions that failed",
-                Map.of("pipeline", cfg.identity().pipelineName()));
-    }
-
-    /** Emit {@link EventType#FILE_ARCHIVED} when a source-side post-action finalized a processed file (Phase F). */
-    private static void emitFileArchived(PipelineConfig cfg, RemoteFile f, String action) {
-        EventLog.global().emit(Event.builder(EventType.FILE_ARCHIVED)
-                .source(SourceProcessor.class.getName())
-                .pipeline(cfg.identity().pipelineName())
-                .message("Source file finalized (" + action + "): " + f.relativePath())
-                .attr("file", f.relativePath())
-                .attr("action", action));
-    }
-
-    /** Emit {@link EventType#SOURCE_CIRCUIT_OPEN} the moment a source's breaker trips OPEN (Phase F). */
-    private static void emitCircuitOpen(PipelineConfig cfg, String reason) {
-        EventLog.global().emit(Event.builder(EventType.SOURCE_CIRCUIT_OPEN)
-                .source(SourceProcessor.class.getName())
-                .pipeline(cfg.identity().pipelineName())
-                .message("Source circuit breaker tripped OPEN: " + reason)
-                .attr("source", cfg.source().id()));
     }
 
     /** Count of {@link #collectCandidates(PipelineConfig) pending} inbox files; {@code -1} if the scan fails. */
