@@ -11,6 +11,10 @@ import java.util.concurrent.atomic.DoubleAdder;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
 
+import org.slf4j.MDC;
+
+import com.gamma.event.EventLog;
+
 /**
  * Tiny, dependency-free metrics registry that exposes counters, gauges, and
  * histograms in the <a href="https://prometheus.io/docs/instrumenting/exposition_formats/">
@@ -170,8 +174,21 @@ public final class MetricRegistry {
         sb.append(' ').append(fmt(v)).append('\n');
     }
 
-    /** Sorted {@code k="v"} label string (Prometheus-escaped); empty when no labels. */
+    /**
+     * Sorted {@code k="v"} label string (Prometheus-escaped); empty when no labels.
+     *
+     * <p>The calling thread's {@link EventLog#SPACE_MDC_KEY space} MDC, when set, is auto-merged in
+     * as a {@code space} label (an explicit {@code space} in {@code labels} wins). With no space MDC
+     * set — single-space and every existing test — no label is added and the key is identical to before.
+     */
     private static String labelKey(Map<String, String> labels) {
+        String space = MDC.get(EventLog.SPACE_MDC_KEY);
+        if (space != null && !space.isEmpty()) {
+            TreeMap<String, String> merged = new TreeMap<>();
+            if (labels != null) merged.putAll(labels);
+            merged.putIfAbsent(EventLog.SPACE_MDC_KEY, space);
+            labels = merged;
+        }
         if (labels == null || labels.isEmpty()) return "";
         TreeMap<String, String> sorted = new TreeMap<>(labels);
         StringBuilder sb = new StringBuilder();
