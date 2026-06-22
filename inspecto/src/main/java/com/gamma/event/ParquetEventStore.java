@@ -1,10 +1,10 @@
 package com.gamma.event;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PartitionWriter;
 import com.gamma.sql.SqlViews;
 import com.gamma.util.DuckDbUtil;
+import com.gamma.util.JsonAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +23,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -59,7 +58,6 @@ public final class ParquetEventStore implements EventStore {
 
     private static final Logger log = LoggerFactory.getLogger(ParquetEventStore.class);
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final TypeReference<LinkedHashMap<String, String>> ATTRS = new TypeReference<>() {};
 
     /** Scratch table the buffer is staged into before each partitioned {@code COPY}. */
     private static final String BUF_TABLE = "evt_buf";
@@ -221,7 +219,7 @@ public final class ParquetEventStore implements EventStore {
                             EventLevel.parse(rs.getString("level")), rs.getString("type"),
                             rs.getString("source"), rs.getString("pipeline"),
                             rs.getString("correlation_id"), rs.getString("message"),
-                            parseAttrs(rs.getString("attributes"))));
+                            JsonAttributes.fromJson(rs.getString("attributes"))));
                 }
             }
         } catch (SQLException e) {
@@ -244,15 +242,6 @@ public final class ParquetEventStore implements EventStore {
             return w.anyMatch(p -> p.getFileName().toString().endsWith(".parquet"));
         } catch (Exception e) {
             return false;
-        }
-    }
-
-    private static Map<String, String> parseAttrs(String json) {
-        if (json == null || json.isBlank()) return Map.of();
-        try {
-            return JSON.readValue(json, ATTRS);
-        } catch (Exception e) {
-            return Map.of();
         }
     }
 

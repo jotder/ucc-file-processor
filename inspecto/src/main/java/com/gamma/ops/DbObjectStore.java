@@ -1,8 +1,7 @@
 package com.gamma.ops;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.util.JdbcDrivers;
+import com.gamma.util.JsonAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,7 +11,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,8 +35,6 @@ import java.util.Optional;
 public final class DbObjectStore implements ObjectStore {
 
     private static final Logger log = LoggerFactory.getLogger(DbObjectStore.class);
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final TypeReference<LinkedHashMap<String, String>> ATTRS = new TypeReference<>() {};
 
     private static final String TABLE = "inspecto_ops_objects";
     /** {@code owner} is quoted — it is a reserved word in some SQL dialects. */
@@ -111,7 +107,7 @@ public final class DbObjectStore implements ObjectStore {
             ps.setString(7, obj.owner());
             ps.setString(8, obj.assignee());
             ps.setString(9, obj.correlationId());
-            ps.setString(10, render(obj.attributes()));
+            ps.setString(10, JsonAttributes.toJson(obj.attributes()));
             ps.setLong(11, obj.createdAt());
             ps.setLong(12, obj.updatedAt());
             ps.setLong(13, obj.closedAt());
@@ -192,7 +188,7 @@ public final class DbObjectStore implements ObjectStore {
         ps.setString(8, o.owner());
         ps.setString(9, o.assignee());
         ps.setString(10, o.correlationId());
-        ps.setString(11, render(o.attributes()));
+        ps.setString(11, JsonAttributes.toJson(o.attributes()));
         ps.setLong(12, o.createdAt());
         ps.setLong(13, o.updatedAt());
         ps.setLong(14, o.closedAt());
@@ -210,7 +206,7 @@ public final class DbObjectStore implements ObjectStore {
                 rs.getString("owner"),
                 rs.getString("assignee"),
                 rs.getString("correlation_id"),
-                parse(rs.getString("attributes")),
+                JsonAttributes.fromJson(rs.getString("attributes")),
                 rs.getLong("created_at"),
                 rs.getLong("updated_at"),
                 rs.getLong("closed_at"));
@@ -220,23 +216,6 @@ public final class DbObjectStore implements ObjectStore {
         if (val != null) {
             where.add("LOWER(" + col + ") = ?");
             params.add(val.toLowerCase(Locale.ROOT));
-        }
-    }
-
-    private static String render(Map<String, String> attrs) {
-        try {
-            return JSON.writeValueAsString(attrs == null ? Map.of() : attrs);
-        } catch (Exception e) {
-            return "{}";
-        }
-    }
-
-    private static Map<String, String> parse(String json) {
-        if (json == null || json.isBlank()) return Map.of();
-        try {
-            return JSON.readValue(json, ATTRS);
-        } catch (Exception e) {
-            return Map.of();
         }
     }
 }

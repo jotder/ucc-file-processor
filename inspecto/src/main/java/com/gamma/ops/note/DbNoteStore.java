@@ -1,8 +1,7 @@
 package com.gamma.ops.note;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.util.JdbcDrivers;
+import com.gamma.util.JsonAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,7 +11,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,8 +27,6 @@ import java.util.Map;
 public final class DbNoteStore implements NoteStore {
 
     private static final Logger log = LoggerFactory.getLogger(DbNoteStore.class);
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final TypeReference<LinkedHashMap<String, String>> ATTRS = new TypeReference<>() {};
 
     private static final String TABLE = "inspecto_ops_notes";
     private static final String COLS = "id, object_id, kind, author, body, attributes, created_at";
@@ -60,7 +56,7 @@ public final class DbNoteStore implements NoteStore {
             ps.setString(3, note.kind().name());
             ps.setString(4, note.author());
             ps.setString(5, note.body());
-            ps.setString(6, render(note.attributes()));
+            ps.setString(6, JsonAttributes.toJson(note.attributes()));
             ps.setLong(7, note.createdAt());
             ps.executeUpdate();
             return note;
@@ -115,24 +111,7 @@ public final class DbNoteStore implements NoteStore {
                 NoteKind.valueOf(rs.getString("kind")),
                 rs.getString("author"),
                 rs.getString("body"),
-                parse(rs.getString("attributes")),
+                JsonAttributes.fromJson(rs.getString("attributes")),
                 rs.getLong("created_at"));
-    }
-
-    private static String render(Map<String, String> attrs) {
-        try {
-            return JSON.writeValueAsString(attrs == null ? Map.of() : attrs);
-        } catch (Exception e) {
-            return "{}";
-        }
-    }
-
-    private static Map<String, String> parse(String json) {
-        if (json == null || json.isBlank()) return Map.of();
-        try {
-            return JSON.readValue(json, ATTRS);
-        } catch (Exception e) {
-            return Map.of();
-        }
     }
 }
