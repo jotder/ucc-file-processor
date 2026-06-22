@@ -3,6 +3,8 @@ package com.gamma.acquire;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.gamma.event.EventLog;
+
 import java.nio.file.Path;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -15,6 +17,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * that fails to open degrades to in-memory so acquisition is never blocked. The in-memory default holds no OS
  * handle; a DB connection lives for the process (closed at JVM exit). {@link #use(AcquisitionLedger)} installs a
  * specific ledger — for tests and for an embedder that owns the lifecycle.
+ *
+ * <p><b>Per-space.</b> {@link #shared()}/{@link #use(AcquisitionLedger)} resolve one ledger <em>per space</em>
+ * ({@link EventLog#currentSpaceId()}) so each space keeps its own dedup history. With no space MDC set —
+ * single-space and every existing test — everything resolves to the default-space ledger, identical to the
+ * single singleton it replaces. (Per-space DB URLs from each space's {@code SpaceRoot} are wired in Stage 3,
+ * when the MDC is actually set; until then every space lazily builds from the JVM-wide {@code -D}.)
  */
 public final class AcquisitionLedgers {
 
@@ -23,30 +31,27 @@ public final class AcquisitionLedgers {
 
     private AcquisitionLedgers() {}
 
-    private static volatile AcquisitionLedger shared;
+    /** One ledger per space ({@link EventLog#currentSpaceId()}); the default space's ledger replaces the old singleton. */
+    private static final ConcurrentHashMap<String, AcquisitionLedger> LEDGERS = new ConcurrentHashMap<>();
 
-    /** The process-wide ledger, lazily built from {@code -Dacquire.ledger.backend} on first use. */
+    /** The ledger for the calling thread's space, lazily built from {@code -Dacquire.ledger.backend} on first use. */
     public static AcquisitionLedger shared() {
-        AcquisitionLedger l = shared;
-        if (l == null) {
-            synchronized (AcquisitionLedgers.class) {
-                if (shared == null) shared = build();
-                l = shared;
-            }
-        }
-        return l;
+        return LEDGERS.computeIfAbsent(EventLog.currentSpaceId(), k -> build());
     }
 
-    /** Install a specific ledger (tests / embedders). */
-    public static synchronized void use(AcquisitionLedger ledger) {
-        shared = ledger;
+    /** Install a specific ledger for the calling thread's space (tests / embedders). */
+    public static void use(AcquisitionLedger ledger) {
+        String space = EventLog.currentSpaceId();
+        if (ledger == null) LEDGERS.remove(space);
+        else LEDGERS.put(space, ledger);
     }
 
     // ── checksum handoff (Phase C3) ────────────────────────────────────────────────
     // CHECKSUM dedup hashes each candidate once on the run path (in SourceProcessor.collect); this transient
     // cache hands that hash to BatchProcessor.commit so the post-commit ledger record reuses it instead of
     // re-reading the file. Keyed by absolute path; entries are removed on take. A batch that never commits
-    // leaves a small orphan entry (harmless — recomputed on the next successful run).
+    // leaves a small orphan entry (harmless — recomputed on the next successful run). Stays process-wide
+    // (NOT per-space): the absolute-path key never collides across spaces — each space polls its own dirs.poll.
     private static final ConcurrentHashMap<String, String> PENDING_CHECKSUMS = new ConcurrentHashMap<>();
 
     /** Stash a freshly-computed checksum for {@code file}, to be consumed at commit. */

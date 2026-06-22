@@ -45,6 +45,17 @@ public final class EventLog {
      *  log/event to the right per-space log when one server hosts many spaces. */
     public static final String SPACE_MDC_KEY = "space";
 
+    /** Id of the default space — the {@linkplain #global() global log}'s space, and {@code SpaceRoot.legacy().id()}. */
+    public static final String DEFAULT_SPACE_ID = "default";
+
+    /** The space id the calling thread is in (its {@link #SPACE_MDC_KEY} MDC), or {@link #DEFAULT_SPACE_ID} when
+     *  none is set. The single source of truth for routing the per-space {@code MetricRegistry} label,
+     *  {@code ConnectionRegistry}, {@code StabilityGate}, and {@code AcquisitionLedgers} to a space. */
+    public static String currentSpaceId() {
+        String s = MDC.get(SPACE_MDC_KEY);
+        return (s == null || s.isEmpty()) ? DEFAULT_SPACE_ID : s;
+    }
+
     /** Per-space logs, keyed by space id. A hosted space {@linkplain #register registers} its own log here
      *  on start and {@linkplain #unregister removes} it on stop; {@link #current()} resolves through it. */
     private static final ConcurrentHashMap<String, EventLog> SPACES = new ConcurrentHashMap<>();
