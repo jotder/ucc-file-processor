@@ -29,6 +29,7 @@ import com.gamma.job.JobService;
 import com.gamma.report.ReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -405,8 +406,21 @@ public final class SourceService implements AutoCloseable {
         if (profile != null) {
             connections.put(profile.id(), profile);
             // Also publish into the process-wide registry so the static poll path (SourceConnectors.forConfig)
-            // can resolve a pipeline's source.connection binding to a remote connector (Phase E).
-            com.gamma.acquire.ConnectionRegistry.register(profile);
+            // can resolve a pipeline's source.connection binding to a remote connector (Phase E). Publish under
+            // THIS service's space so the per-space registry namespaces it correctly regardless of caller thread.
+            underSpace(() -> com.gamma.acquire.ConnectionRegistry.register(profile));
+        }
+    }
+
+    /** Run a process-wide-registry mutation under this service's {@link #spaceId} MDC, restoring the prior value. */
+    private void underSpace(Runnable action) {
+        String prev = MDC.get(EventLog.SPACE_MDC_KEY);
+        MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
+        try {
+            action.run();
+        } finally {
+            if (prev == null) MDC.remove(EventLog.SPACE_MDC_KEY);
+            else MDC.put(EventLog.SPACE_MDC_KEY, prev);
         }
     }
 
@@ -881,7 +895,7 @@ public final class SourceService implements AutoCloseable {
     public void unregisterConnection(String id) {
         if (id != null) {
             connections.remove(id.trim());
-            com.gamma.acquire.ConnectionRegistry.remove(id);
+            underSpace(() -> com.gamma.acquire.ConnectionRegistry.remove(id));
         }
     }
 
