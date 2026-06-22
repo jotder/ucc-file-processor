@@ -1,10 +1,10 @@
 package com.gamma.acquire;
 
+import com.gamma.util.JdbcDrivers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -42,16 +42,7 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
 
     /** Open a ledger DB by JDBC URL, registering the matching driver (bundled DuckDB, or Postgres). */
     public static DbAcquisitionLedger open(String url, String user, String pass) throws SQLException {
-        try {
-            if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
-            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("No JDBC driver on the classpath for " + url, e);
-        }
-        Connection c = (user == null && pass == null)
-                ? DriverManager.getConnection(url)
-                : DriverManager.getConnection(url, user, pass);
-        return new DbAcquisitionLedger(c);
+        return new DbAcquisitionLedger(JdbcDrivers.connect(url, user, pass));
     }
 
     @Override

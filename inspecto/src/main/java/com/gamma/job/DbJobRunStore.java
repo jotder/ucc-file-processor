@@ -1,11 +1,11 @@
 package com.gamma.job;
 
 import com.gamma.api.PublicApi;
+import com.gamma.util.JdbcDrivers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -49,13 +49,7 @@ public final class DbJobRunStore implements AutoCloseable {
      * driver otherwise). Postgres is supported by the same code if its driver is on the classpath.
      */
     public static DbJobRunStore open(String url) throws SQLException {
-        try {
-            if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
-            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("No JDBC driver on the classpath for " + url, e);
-        }
-        return new DbJobRunStore(DriverManager.getConnection(url));
+        return new DbJobRunStore(JdbcDrivers.connect(url));
     }
 
     private void initSchema() {

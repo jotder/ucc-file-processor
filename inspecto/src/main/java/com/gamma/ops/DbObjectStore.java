@@ -2,11 +2,11 @@ package com.gamma.ops;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamma.util.JdbcDrivers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -54,25 +54,16 @@ public final class DbObjectStore implements ObjectStore {
     }
 
     /**
-     * Open an object DB by JDBC URL, registering the matching driver. {@code jdbc:duckdb:} (bundled
-     * primary) and {@code jdbc:postgresql:} (deployment-supplied) are registered explicitly; any other
-     * URL is passed through to {@link DriverManager}.
+     * Open an object DB by JDBC URL via {@link JdbcDrivers#connect(String, String, String)}, which
+     * registers the bundled driver matching the scheme ({@code jdbc:duckdb:} primary,
+     * {@code jdbc:postgresql:} deployment-supplied).
      *
      * @param url  JDBC URL (e.g. {@code jdbc:duckdb:inspecto-ops.db})
      * @param user username, or {@code null}
      * @param pass password, or {@code null}
      */
     public static DbObjectStore open(String url, String user, String pass) throws SQLException {
-        try {
-            if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
-            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("No JDBC driver on the classpath for " + url, e);
-        }
-        Connection c = (user == null && pass == null)
-                ? DriverManager.getConnection(url)
-                : DriverManager.getConnection(url, user, pass);
-        return new DbObjectStore(c);
+        return new DbObjectStore(JdbcDrivers.connect(url, user, pass));
     }
 
     @Override

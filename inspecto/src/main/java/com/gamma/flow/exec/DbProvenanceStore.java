@@ -1,11 +1,11 @@
 package com.gamma.flow.exec;
 
 import com.gamma.api.PublicApi;
+import com.gamma.util.JdbcDrivers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -44,13 +44,7 @@ public final class DbProvenanceStore implements AutoCloseable {
 
     /** Open a provenance DB by JDBC URL (DuckDB primary, e.g. {@code jdbc:duckdb:provenance.duckdb}). */
     public static DbProvenanceStore open(String url) throws SQLException {
-        try {
-            if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
-            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("No JDBC driver on the classpath for " + url, e);
-        }
-        return new DbProvenanceStore(DriverManager.getConnection(url));
+        return new DbProvenanceStore(JdbcDrivers.connect(url));
     }
 
     private void initSchema() {

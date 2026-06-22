@@ -1,11 +1,11 @@
 package com.gamma.ops.link;
 
 import com.gamma.ops.ObjectType;
+import com.gamma.util.JdbcDrivers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -42,20 +42,11 @@ public final class DbLinkStore implements LinkStore {
     }
 
     /**
-     * Open a link DB by JDBC URL, registering the matching driver — {@code jdbc:duckdb:} (bundled
-     * primary) and {@code jdbc:postgresql:} explicitly, any other URL via {@link DriverManager}.
+     * Open a link DB by JDBC URL via {@link JdbcDrivers#connect(String, String, String)}, which
+     * registers the bundled driver matching the scheme ({@code jdbc:duckdb:} primary, {@code jdbc:postgresql:}).
      */
     public static DbLinkStore open(String url, String user, String pass) throws SQLException {
-        try {
-            if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
-            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("No JDBC driver on the classpath for " + url, e);
-        }
-        Connection c = (user == null && pass == null)
-                ? DriverManager.getConnection(url)
-                : DriverManager.getConnection(url, user, pass);
-        return new DbLinkStore(c);
+        return new DbLinkStore(JdbcDrivers.connect(url, user, pass));
     }
 
     @Override
