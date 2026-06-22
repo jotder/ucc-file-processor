@@ -5,6 +5,7 @@ import com.gamma.etl.BatchEvent;
 import com.gamma.flow.DeletionFence;
 import com.gamma.flow.FlowStore;
 import com.gamma.flow.exec.FlowJobRunner;
+import com.gamma.event.EventLog;
 import com.gamma.metrics.MetricRegistry;
 import com.gamma.report.ReportService;
 import com.gamma.service.BatchEventBus;
@@ -13,6 +14,7 @@ import com.gamma.service.Scheduler;
 import com.gamma.util.LockingRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -79,6 +81,9 @@ public final class JobService implements AutoCloseable {
     /** Optional deletion fence (T25): consulted before a {@code maintenance} job that declares a {@code store:}
      *  deletes, to surface a conflict when the delete races an active reader/writer. {@code null} = no fence. */
     private volatile DeletionFence.Guard deletionGuard;
+    /** The space this service's jobs belong to; each job run executes under this MDC so the per-space EventLog /
+     *  metric label / acquisition routing resolves correctly. Defaults to the default space (single-space identical). */
+    private volatile String spaceId = EventLog.DEFAULT_SPACE_ID;
 
     private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
     private final Map<String, Job> jobs = new LinkedHashMap<>();
@@ -225,7 +230,17 @@ public final class JobService implements AutoCloseable {
     }
 
     private void submit(String name, String trigger) {
-        workers.submit(() -> runJob(name, trigger));
+        // The default space runs with no MDC (it is the fallback namespace everywhere); a named space sets it so
+        // this job run's events/metrics/acquisition route to that space. Fresh per-task virtual thread → clear after.
+        boolean scoped = !EventLog.DEFAULT_SPACE_ID.equals(spaceId);
+        workers.submit(() -> {
+            if (scoped) MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
+            try {
+                runJob(name, trigger);
+            } finally {
+                if (scoped) MDC.remove(EventLog.SPACE_MDC_KEY);
+            }
+        });
     }
 
     private void runJob(String name, String trigger) {
@@ -274,6 +289,11 @@ public final class JobService implements AutoCloseable {
     /** Install the deletion fence (T25) consulted before a delete job declaring a {@code store:} runs. */
     public void deletionGuard(DeletionFence.Guard guard) {
         this.deletionGuard = guard;
+    }
+
+    /** Bind this service's jobs to a space so each run executes under its MDC (per-space routing). */
+    public void spaceId(String spaceId) {
+        if (spaceId != null && !spaceId.isBlank()) this.spaceId = spaceId;
     }
 
     /** Consult the fence for a {@code maintenance} job that declares the store(s) it deletes (T25). */

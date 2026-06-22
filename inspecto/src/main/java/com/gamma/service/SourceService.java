@@ -285,7 +285,10 @@ public final class SourceService implements AutoCloseable {
                 : new JobService(jobConfigs, bus, scheduler, reports,
                         System.getProperty("jobs.audit.dir", root.auditDir()), ServiceStores.openJobRunStore(root),
                         flowStore, System.getProperty("data.dir", root.dataDir()), ServiceStores.openProvenanceStore(root));
-        if (this.jobs != null) this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
+        if (this.jobs != null) {
+            this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
+            this.jobs.spaceId(spaceId);                     // run this space's jobs under its MDC (per-space routing)
+        }
         this.semanticModels    = List.copyOf(semanticModels);
         // Invalidate the catalog whenever configs are (re)indexed — the registry is now the
         // config-change signal the M1 catalog plan anticipated.
@@ -412,16 +415,28 @@ public final class SourceService implements AutoCloseable {
         }
     }
 
-    /** Run a process-wide-registry mutation under this service's {@link #spaceId} MDC, restoring the prior value. */
-    private void underSpace(Runnable action) {
+    /** Run {@code action} under this service's {@link #spaceId} MDC, restoring the prior value — so the per-space
+     *  routing (EventLog / metric label / ConnectionRegistry / StabilityGate / AcquisitionLedgers, and the parallel
+     *  poll workers that inherit the MDC) resolves to this space. The scheduler thread is reused across cycles, so
+     *  the value MUST be cleared/restored in the finally.
+     *
+     *  <p>The {@code default} space runs with <b>no</b> MDC set: {@code default} is the fallback namespace in all five
+     *  per-space singletons (and adds no metric label), so the default space resolves there by fallback. This keeps a
+     *  single-space deployment byte-identical and never collides with a named space's instances. */
+    private <T> T underSpace(java.util.function.Supplier<T> action) {
+        if (EventLog.DEFAULT_SPACE_ID.equals(spaceId)) return action.get();
         String prev = MDC.get(EventLog.SPACE_MDC_KEY);
         MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
         try {
-            action.run();
+            return action.get();
         } finally {
             if (prev == null) MDC.remove(EventLog.SPACE_MDC_KEY);
             else MDC.put(EventLog.SPACE_MDC_KEY, prev);
         }
+    }
+
+    private void underSpace(Runnable action) {
+        underSpace(() -> { action.run(); return null; });
     }
 
     /** All registered connection profiles by id — backs {@code GET /connections}. */
@@ -523,7 +538,7 @@ public final class SourceService implements AutoCloseable {
         long slaSweepSeconds = Long.getLong("objects.sla.sweep.seconds", 60L);
         if (slaSweepSeconds > 0)
             scheduler.everySeconds("sla-sweep", slaSweepSeconds, slaSweepSeconds,
-                    () -> objects.sweepIssueSla(System.currentTimeMillis()));
+                    () -> underSpace(() -> objects.sweepIssueSla(System.currentTimeMillis())));
         log.info("SourceService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
                 registry.size(), pollSeconds, maxConcurrentRuns);
         this.eventLog.emit(Event.builder(EventType.SERVICE_STARTED)
@@ -542,6 +557,10 @@ public final class SourceService implements AutoCloseable {
      * @return the run outcome (total / failed source counts)
      */
     public MultiSourceProcessor.RunResult runAllOnce() {
+        return underSpace(this::runAllOnceInSpace);   // cycle + its parallel workers run under this space's MDC
+    }
+
+    private MultiSourceProcessor.RunResult runAllOnceInSpace() {
         ingestLock.lock();   // never overlap with another cycle / operator trigger (see field doc)
         try {
             // Re-index configs once per cycle — now an mtime-cached rebuild, so a steady-state cycle
@@ -906,7 +925,7 @@ public final class SourceService implements AutoCloseable {
 
     /** Run a single registered pipeline once. Empty if no pipeline by that name. */
     public Optional<MultiSourceProcessor.RunResult> runPipeline(String pipelineName) {
-        return pathFor(pipelineName).map(p -> {
+        return underSpace(() -> pathFor(pipelineName).map(p -> {
             ingestLock.lock();   // serialize with the poll cycle / other triggers (see field doc)
             running.add(pipelineName);
             try {
@@ -916,7 +935,7 @@ public final class SourceService implements AutoCloseable {
                 running.remove(pipelineName);
                 ingestLock.unlock();
             }
-        });
+        }));
     }
 
     /** Pause a pipeline (the poll cycle skips it). Returns false if not registered. */
