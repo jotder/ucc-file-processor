@@ -78,7 +78,7 @@ public final class LocalFileSystemConnector implements SourceConnector {
             walk.filter(Files::isRegularFile)
                 .filter(p -> !p.startsWith(errorsDir))
                 .filter(p -> !p.startsWith(quarantineDir))
-                .filter(p -> !isMarkerFile(p.getFileName().toString()))   // never ingest a ready-marker sentinel
+                .filter(p -> !ReadyMarker.matches(readyMarker, p.getFileName().toString()))   // never ingest a ready-marker sentinel
                 .filter(p -> matchesAny(includes, p))
                 .filter(p -> excludes.isEmpty() || !matchesAny(excludes, p))
                 .forEach(p -> out.add(toRemote(p)));
@@ -94,7 +94,7 @@ public final class LocalFileSystemConnector implements SourceConnector {
         // "<name>.done"-style sentinel exists. Without one, defer to the engine's size/mtime stabilization.
         if (readyMarker == null) return Readiness.UNKNOWN;
         Path src = requireLocal(file);
-        Path marker = src.resolveSibling(applyTemplate(readyMarker, file.name()));
+        Path marker = src.resolveSibling(ReadyMarker.apply(readyMarker, file.name()));
         return Files.exists(marker) ? Readiness.READY : Readiness.NOT_READY;
     }
 
@@ -169,21 +169,6 @@ public final class LocalFileSystemConnector implements SourceConnector {
     private static boolean matchesAny(List<PathMatcher> matchers, Path p) {
         for (PathMatcher m : matchers) if (m.matches(p)) return true;
         return false;
-    }
-
-    /** Expand a {@code ready_marker} template for one file: {@code "{name}"} → the file name (else suffix it). */
-    private static String applyTemplate(String template, String name) {
-        return template.contains("{name}") ? template.replace("{name}", name) : name + template;
-    }
-
-    /** Whether {@code fileName} is itself a ready-marker sentinel (so discovery skips it, not just the data file). */
-    private boolean isMarkerFile(String fileName) {
-        if (readyMarker == null) return false;
-        int i = readyMarker.indexOf("{name}");
-        String prefix = i < 0 ? "" : readyMarker.substring(0, i);
-        String suffix = i < 0 ? readyMarker : readyMarker.substring(i + "{name}".length());
-        return fileName.length() > prefix.length() + suffix.length()
-                && fileName.startsWith(prefix) && fileName.endsWith(suffix);
     }
 
     /** Compile patterns to matchers, defaulting a bare (prefix-less) pattern sensibly (see {@link DiscoveryContext}). */
