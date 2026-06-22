@@ -10,7 +10,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** {@link SourceService#loadRcaTemplates} scans {@code *_rca.toon}, registering the valid ones and
+/** {@link ServiceBootstrap#loadRcaTemplates} scans {@code *_rca.toon}, registering the valid ones and
  *  warning + skipping any that fail to parse (mirrors the {@code loadAlerts} robustness contract). */
 class SourceServiceRcaTest {
 
@@ -25,7 +25,7 @@ class SourceServiceRcaTest {
         Path bad = dir.resolve("broken_rca.toon");
         Files.writeString(bad, "rca:\n  name: broken\n");   // no sections → invalid, must be skipped
 
-        List<RcaTemplate> loaded = SourceService.loadRcaTemplates(List.of(good, bad));
+        List<RcaTemplate> loaded = ServiceBootstrap.loadRcaTemplates(List.of(good, bad));
         assertEquals(1, loaded.size(), "the malformed template is skipped");
         assertEquals("standard-incident", loaded.get(0).name());
         assertEquals(3, loaded.get(0).sections().size());
