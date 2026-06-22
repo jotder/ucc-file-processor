@@ -32,7 +32,7 @@ final class AcquisitionTelemetry {
     }
 
     static void emitFileChanged(PipelineConfig cfg, RemoteFile f) {
-        EventLog.global().emit(Event.builder(EventType.FILE_CHANGED)
+        EventLog.current().emit(Event.builder(EventType.FILE_CHANGED)
                 .source(SOURCE)
                 .pipeline(cfg.identity().pipelineName())
                 .message("File changed: " + f.relativePath())
@@ -41,7 +41,7 @@ final class AcquisitionTelemetry {
 
     /** Emit the {@link EventType#SEQUENCE_GAP} fact for one missing key in the configured series (Phase D). */
     static void emitSequenceGap(PipelineConfig cfg, String expectedKey, String sequence, String unit) {
-        EventLog.global().emit(Event.builder(EventType.SEQUENCE_GAP)
+        EventLog.current().emit(Event.builder(EventType.SEQUENCE_GAP)
                 .source(SOURCE)
                 .pipeline(cfg.identity().pipelineName())
                 .message("Missing expected file in sequence: " + expectedKey)
@@ -59,7 +59,7 @@ final class AcquisitionTelemetry {
 
     /** Emit the {@link EventType#FILE_STABLE} lifecycle fact for a file the gate just released (Phase B). */
     static void emitFileStable(PipelineConfig cfg, RemoteFile f) {
-        EventLog.global().emit(Event.builder(EventType.FILE_STABLE)
+        EventLog.current().emit(Event.builder(EventType.FILE_STABLE)
                 .source(SOURCE)
                 .pipeline(cfg.identity().pipelineName())
                 .message("File stable: " + f.relativePath())
@@ -68,7 +68,7 @@ final class AcquisitionTelemetry {
 
     /** Emit a remote-acquisition lifecycle fact (DISCOVERED/VALIDATED/FETCH_FAILED) carrying the relative path (Phase E). */
     static void emitFileEvent(PipelineConfig cfg, String type, String message, String file) {
-        EventLog.global().emit(Event.builder(type)
+        EventLog.current().emit(Event.builder(type)
                 .source(SOURCE)
                 .pipeline(cfg.identity().pipelineName())
                 .message(message)
@@ -77,7 +77,7 @@ final class AcquisitionTelemetry {
 
     /** Emit {@link EventType#FILE_FETCHED} with the transferred byte count (Phase E). */
     static void emitFileFetched(PipelineConfig cfg, RemoteFile f, long bytes) {
-        EventLog.global().emit(Event.builder(EventType.FILE_FETCHED)
+        EventLog.current().emit(Event.builder(EventType.FILE_FETCHED)
                 .source(SOURCE)
                 .pipeline(cfg.identity().pipelineName())
                 .message("File fetched: " + f.relativePath())
@@ -126,7 +126,7 @@ final class AcquisitionTelemetry {
 
     /** Emit {@link EventType#FILE_ARCHIVED} when a source-side post-action finalized a processed file (Phase F). */
     static void emitFileArchived(PipelineConfig cfg, RemoteFile f, String action) {
-        EventLog.global().emit(Event.builder(EventType.FILE_ARCHIVED)
+        EventLog.current().emit(Event.builder(EventType.FILE_ARCHIVED)
                 .source(SOURCE)
                 .pipeline(cfg.identity().pipelineName())
                 .message("Source file finalized (" + action + "): " + f.relativePath())
@@ -136,7 +136,7 @@ final class AcquisitionTelemetry {
 
     /** Emit {@link EventType#SOURCE_CIRCUIT_OPEN} the moment a source's breaker trips OPEN (Phase F). */
     static void emitCircuitOpen(PipelineConfig cfg, String reason) {
-        EventLog.global().emit(Event.builder(EventType.SOURCE_CIRCUIT_OPEN)
+        EventLog.current().emit(Event.builder(EventType.SOURCE_CIRCUIT_OPEN)
                 .source(SOURCE)
                 .pipeline(cfg.identity().pipelineName())
                 .message("Source circuit breaker tripped OPEN: " + reason)

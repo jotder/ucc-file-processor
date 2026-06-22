@@ -124,7 +124,7 @@ public final class ObjectService {
                 .updatedAt(now)
                 .build();
         OperationalObject stored = store.create(obj);
-        EventLog.global().emit(Event.builder(EventType.OBJECT_OPENED)
+        EventLog.current().emit(Event.builder(EventType.OBJECT_OPENED)
                 .level(EventLevel.INFO)
                 .source(SOURCE)
                 .correlationId(correlationId)
@@ -220,7 +220,7 @@ public final class ObjectService {
             if (dueAt <= 0 || dueAt > now) continue;                         // no SLA set, or not yet due
             OperationalObject marked = store.update(
                     o.withAttributes(Map.of(ATTR_SLA_BREACHED_AT, Long.toString(now)), now));
-            EventLog.global().emit(Event.builder(EventType.OBJECT_SLA_BREACH)
+            EventLog.current().emit(Event.builder(EventType.OBJECT_SLA_BREACH)
                     .level(EventLevel.WARN)
                     .source(SOURCE)
                     .correlationId(marked.correlationId())
@@ -257,7 +257,7 @@ public final class ObjectService {
                 return existing;   // already linked — idempotent
         }
         ObjectLink created = links.add(ObjectLink.of(fromId, from.objectType(), toId, to.objectType(), rel));
-        EventLog.global().emit(Event.builder(EventType.OBJECT_LINKED)
+        EventLog.current().emit(Event.builder(EventType.OBJECT_LINKED)
                 .level(EventLevel.INFO)
                 .source(SOURCE)
                 .correlationId(from.correlationId())
@@ -363,7 +363,7 @@ public final class ObjectService {
 
     private ObjectNote addNote(ObjectNote note, String actor, String correlationId) {
         ObjectNote stored = notes.add(note);
-        EventLog.global().emit(Event.builder(EventType.OBJECT_NOTE)
+        EventLog.current().emit(Event.builder(EventType.OBJECT_NOTE)
                 .level(EventLevel.INFO)
                 .source(SOURCE)
                 .correlationId(correlationId)
@@ -396,7 +396,7 @@ public final class ObjectService {
         long now = System.currentTimeMillis();
         OperationalObject next = obj.withStatus(target, now, wf.isTerminal(target));
         OperationalObject updated = store.update(next);
-        EventLog.global().emit(Event.builder(EventType.OBJECT_ACTIVITY)
+        EventLog.current().emit(Event.builder(EventType.OBJECT_ACTIVITY)
                 .level(EventLevel.INFO)
                 .source(SOURCE)
                 .correlationId(obj.correlationId())

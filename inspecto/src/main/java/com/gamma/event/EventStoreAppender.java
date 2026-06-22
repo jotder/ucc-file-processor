@@ -40,7 +40,8 @@ public final class EventStoreAppender extends AppenderBase<ILoggingEvent> {
             Map<String, String> mdc = log.getMDCPropertyMap();
             String pipeline = mdc == null ? null : mdc.get("pipeline");
             String correlationId = mdc == null ? null : mdc.get("correlationId");
-            EventLog.global().emit(Event.log(log.getTimeStamp(), level, log.getLoggerName(),
+            // Route to the owning space's log (MDC "space"); falls back to the global log when unscoped.
+            EventLog.current().emit(Event.log(log.getTimeStamp(), level, log.getLoggerName(),
                     log.getFormattedMessage(), pipeline, correlationId, attributes(log, mdc)));
         } finally {
             INSIDE.set(Boolean.FALSE);
@@ -53,7 +54,9 @@ public final class EventStoreAppender extends AppenderBase<ILoggingEvent> {
         attrs.put("thread", log.getThreadName());
         if (mdc != null) {
             for (Map.Entry<String, String> e : mdc.entrySet()) {
-                if (!"pipeline".equals(e.getKey()) && !"correlationId".equals(e.getKey())) {
+                // pipeline/correlationId become first-class event fields; space is a routing key — none repeat in attrs.
+                if (!"pipeline".equals(e.getKey()) && !"correlationId".equals(e.getKey())
+                        && !EventLog.SPACE_MDC_KEY.equals(e.getKey())) {
                     attrs.put(e.getKey(), e.getValue());
                 }
             }

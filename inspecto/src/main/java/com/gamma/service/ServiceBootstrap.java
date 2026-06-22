@@ -50,8 +50,9 @@ final class ServiceBootstrap {
         }
         long pollSeconds = Long.getLong("service.poll.seconds", 60L);
         int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
+        SpaceRoot root   = SpaceRoot.legacy();
         SourceService svc = new SourceService(registry, enrichJobs, jobConfigs, semantics, alertRules,
-                pollSeconds, maxRuns, ServiceStores.openStatusStore());
+                pollSeconds, maxRuns, ServiceStores.openStatusStore(root), root);
         for (com.gamma.ops.rca.RcaTemplate t : loadRcaTemplates(resolveBySuffix(args, "_rca.toon")))
             svc.registerRcaTemplate(t);
         for (com.gamma.acquire.ConnectionProfile c : loadConnections(resolveBySuffix(args, "_connection.toon")))

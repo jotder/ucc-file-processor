@@ -1,9 +1,11 @@
 package com.gamma.event;
 
 import com.gamma.metrics.MetricRegistry;
+import org.slf4j.MDC;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -13,6 +15,12 @@ import java.util.function.Consumer;
  * {@link MetricRegistry#global()}. Any layer (ingest worker, scheduler, the SLF4J capture appender,
  * the batch-event bridge) records facts through {@link #global()} without threading a store through
  * constructors; the Control API reads them back through the same store via {@code SourceService.events()}.
+ *
+ * <h3>Per-space routing</h3>
+ * When one server hosts many {@code space}s, each owns its own {@code EventLog} instance ({@link #create()})
+ * {@linkplain #register registered} under its space id. Code with a direct handle (a {@code SourceService})
+ * emits to its own instance; code without one (the capture appender, deep poll-path emitters) calls
+ * {@link #current()}, which routes by the thread's {@link #SPACE_MDC_KEY} MDC and falls back to {@link #global()}.
  *
  * <h3>Store swap with no lost startup events</h3>
  * The global instance starts with a small {@link InMemoryEventStore} so the very first log lines at
@@ -33,8 +41,44 @@ public final class EventLog {
 
     private static final EventLog GLOBAL = new EventLog();
 
-    /** The process-wide event log the service and Control API share. */
+    /** MDC key carrying the owning space id; lets the capture appender and {@link #current()} route a
+     *  log/event to the right per-space log when one server hosts many spaces. */
+    public static final String SPACE_MDC_KEY = "space";
+
+    /** Per-space logs, keyed by space id. A hosted space {@linkplain #register registers} its own log here
+     *  on start and {@linkplain #unregister removes} it on stop; {@link #current()} resolves through it. */
+    private static final ConcurrentHashMap<String, EventLog> SPACES = new ConcurrentHashMap<>();
+
+    /** The process-wide event log — the fallback when no space is in scope, and the {@code default} space's log. */
     public static EventLog global() {
+        return GLOBAL;
+    }
+
+    /** A fresh, independent event log for a hosted space (its own store + subscribers). */
+    public static EventLog create() {
+        return new EventLog();
+    }
+
+    /** Register {@code log} as the event log for {@code spaceId}, so {@link #current()} and the capture
+     *  appender route to it while a thread carries that space in its {@link #SPACE_MDC_KEY} MDC. */
+    public static void register(String spaceId, EventLog log) {
+        if (spaceId != null && log != null) SPACES.put(spaceId, log);
+    }
+
+    /** Remove a previously {@linkplain #register registered} per-space log (on space teardown). */
+    public static void unregister(String spaceId) {
+        if (spaceId != null) SPACES.remove(spaceId);
+    }
+
+    /** The event log for the calling thread's MDC {@link #SPACE_MDC_KEY}, or {@link #global()} when no space
+     *  is in scope (or its log isn't registered). Used by code that has no injected handle — the capture
+     *  appender and the deep poll-path emitters. */
+    public static EventLog current() {
+        String spaceId = MDC.get(SPACE_MDC_KEY);
+        if (spaceId != null) {
+            EventLog log = SPACES.get(spaceId);
+            if (log != null) return log;
+        }
         return GLOBAL;
     }
 
