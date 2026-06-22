@@ -31,31 +31,40 @@ final class ServiceBootstrap {
     private ServiceBootstrap() {}
 
     /**
-     * Build a fully-wired service from CLI-style args: each path (file or dir) is
-     * scanned for {@code *_pipeline.toon} (Stage-1 sources) and {@code *_enrich.toon}
-     * (Stage-2 jobs). Reads {@code -Dservice.poll.seconds} (default 60) and
-     * {@code -Dservice.max.runs} (default = source count). Shared by the service and
-     * Control API entry points. Exits the JVM with a message if no sources are found.
+     * Build a fully-wired single-tenant service from CLI-style args (the legacy flat layout): each path (file or
+     * dir) is scanned for the {@code *.toon} config types. Reads {@code -Dservice.poll.seconds} (default 60) and
+     * {@code -Dservice.max.runs} (default = source count). Shared by the service and Control API entry points.
+     * Exits the JVM with a message if no sources are found.
      */
     static SourceService build(String[] args) throws IOException {
-        List<Path> registry = MultiSourceProcessor.resolveConfigs(args);
-        List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(args, "_enrich.toon"));
-        List<JobConfig> jobConfigs = loadJobs(resolveBySuffix(args, "_job.toon"));
-        List<SemanticModel> semantics = loadSemantics(resolveBySuffix(args, "_meta.toon"));
-        List<com.gamma.alert.AlertRule> alertRules = loadAlerts(resolveBySuffix(args, "_alert.toon"));
-        if (registry.isEmpty() && enrichJobs.isEmpty() && jobConfigs.isEmpty()) {
+        return buildFrom(SpaceRoot.legacy(), args, true);
+    }
+
+    /**
+     * Build a service rooted at {@code root}, discovering its {@code *.toon} configs by scanning {@code paths}.
+     * The single-tenant entry point passes {@link SpaceRoot#legacy()} + the CLI args; {@link SpaceBootstrap}
+     * passes a per-space {@link SpaceRoot} + its {@code config/} directory. When {@code exitIfEmpty} is set (the
+     * CLI), a config-less invocation exits the JVM; a space tolerates an empty {@code config/} (a freshly created
+     * space has no sources yet), so {@code SpaceBootstrap} passes {@code false}.
+     */
+    static SourceService buildFrom(SpaceRoot root, String[] paths, boolean exitIfEmpty) throws IOException {
+        List<Path> registry = MultiSourceProcessor.resolveConfigs(paths);
+        List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(paths, "_enrich.toon"));
+        List<JobConfig> jobConfigs = loadJobs(resolveBySuffix(paths, "_job.toon"));
+        List<SemanticModel> semantics = loadSemantics(resolveBySuffix(paths, "_meta.toon"));
+        List<com.gamma.alert.AlertRule> alertRules = loadAlerts(resolveBySuffix(paths, "_alert.toon"));
+        if (registry.isEmpty() && enrichJobs.isEmpty() && jobConfigs.isEmpty() && exitIfEmpty) {
             System.err.println("No *_pipeline.toon / *_enrich.toon / *_job.toon files found in: "
-                    + String.join(", ", args));
+                    + String.join(", ", paths));
             System.exit(1);
         }
         long pollSeconds = Long.getLong("service.poll.seconds", 60L);
         int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
-        SpaceRoot root   = SpaceRoot.legacy();
         SourceService svc = new SourceService(registry, enrichJobs, jobConfigs, semantics, alertRules,
                 pollSeconds, maxRuns, ServiceStores.openStatusStore(root), root);
-        for (com.gamma.ops.rca.RcaTemplate t : loadRcaTemplates(resolveBySuffix(args, "_rca.toon")))
+        for (com.gamma.ops.rca.RcaTemplate t : loadRcaTemplates(resolveBySuffix(paths, "_rca.toon")))
             svc.registerRcaTemplate(t);
-        for (com.gamma.acquire.ConnectionProfile c : loadConnections(resolveBySuffix(args, "_connection.toon")))
+        for (com.gamma.acquire.ConnectionProfile c : loadConnections(resolveBySuffix(paths, "_connection.toon")))
             svc.registerConnection(c);
         return svc;
     }

@@ -62,6 +62,9 @@ public interface SpaceRoot {
     /** Default JDBC URL for the status projection store. */
     String statusDbUrl();
 
+    /** Default JDBC URL for the acquisition (dedup) ledger, when {@code -Dacquire.ledger.backend=db}. */
+    String acquisitionLedgerDbUrl();
+
     /** The pre-spaces flat layout: historical file names in the working directory. */
     static SpaceRoot legacy() {
         return new LegacySpaceRoot();
@@ -108,6 +111,8 @@ final class LegacySpaceRoot implements SpaceRoot {
                 ? "jdbc:duckdb:ucc-status.db"
                 : "jdbc:duckdb:inspecto-status.db";
     }
+
+    public String acquisitionLedgerDbUrl() { return "jdbc:duckdb:inspecto-acquisition.db"; }
 }
 
 /** A self-contained per-space directory: {@code base/{config,data,audit,duckdb,flows}}. */
@@ -143,4 +148,6 @@ final class DirSpaceRoot implements SpaceRoot {
     public String notesDbUrl() { return duckdb("inspecto-ops-notes.db"); }
 
     public String statusDbUrl() { return duckdb("inspecto-status.db"); }
+
+    public String acquisitionLedgerDbUrl() { return duckdb("inspecto-acquisition.db"); }
 }

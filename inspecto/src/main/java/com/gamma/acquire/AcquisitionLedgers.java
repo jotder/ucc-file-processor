@@ -46,6 +46,11 @@ public final class AcquisitionLedgers {
         else LEDGERS.put(space, ledger);
     }
 
+    /** Install {@code ledger} for an explicit {@code spaceId} (the per-space bootstrap, which has no MDC set). */
+    public static void register(String spaceId, AcquisitionLedger ledger) {
+        if (spaceId != null && ledger != null) LEDGERS.put(spaceId, ledger);
+    }
+
     // ── checksum handoff (Phase C3) ────────────────────────────────────────────────
     // CHECKSUM dedup hashes each candidate once on the run path (in SourceProcessor.collect); this transient
     // cache hands that hash to BatchProcessor.commit so the post-commit ledger record reuses it instead of
@@ -91,10 +96,19 @@ public final class AcquisitionLedgers {
         return java.util.Optional.ofNullable(PENDING_DB_WATERMARKS.remove(key(dest)));
     }
 
+    /** The lazy default for a space with no explicitly {@linkplain #register registered} ledger: the JVM-wide URL. */
     private static AcquisitionLedger build() {
+        return build(System.getProperty("acquire.ledger.db.url", DEFAULT_DB_URL));
+    }
+
+    /**
+     * Build a ledger at {@code url}. The backend toggle ({@code -Dacquire.ledger.backend}, memory default | db)
+     * stays process-global — only the URL becomes per-space — mirroring {@link com.gamma.service.ServiceStores}.
+     * A {@code db} URL that fails to open degrades to in-memory so acquisition is never blocked.
+     */
+    public static AcquisitionLedger build(String url) {
         String backend = System.getProperty("acquire.ledger.backend", "memory");
         if (!"db".equalsIgnoreCase(backend)) return new InMemoryAcquisitionLedger();
-        String url = System.getProperty("acquire.ledger.db.url", DEFAULT_DB_URL);
         try {
             AcquisitionLedger db = DbAcquisitionLedger.open(url,
                     System.getProperty("acquire.ledger.db.user"), System.getProperty("acquire.ledger.db.password"));
