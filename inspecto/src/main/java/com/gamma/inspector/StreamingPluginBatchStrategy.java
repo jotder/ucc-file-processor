@@ -1,29 +1,7 @@
 package com.gamma.inspector;
 
-import com.gamma.etl.*;
-import com.gamma.util.DuckDbUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.nio.file.Paths;
-import java.sql.Connection;
-import java.sql.Statement;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
-import static com.gamma.inspector.BatchIngestStrategy.configure;
-import static com.gamma.inspector.BatchIngestStrategy.consolidatedBaseName;
-import static com.gamma.inspector.BatchIngestStrategy.dropTable;
-import static com.gamma.inspector.BatchIngestStrategy.dropView;
-import static com.gamma.inspector.BatchIngestStrategy.msg;
-import static com.gamma.inspector.BatchIngestStrategy.openTempDb;
-import static com.gamma.inspector.BatchIngestStrategy.partitionColumns;
-import static com.gamma.inspector.BatchIngestStrategy.unionAll;
-import static com.gamma.inspector.BatchIngestStrategy.writeAndTrace;
+import com.gamma.etl.Batch;
+import com.gamma.etl.PipelineConfig;
 
 /**
  * The unified plugin-ingester engine. Every plugin ingests via the single {@link StreamingFileIngester}
@@ -31,17 +9,12 @@ import static com.gamma.inspector.BatchIngestStrategy.writeAndTrace;
  * size — so the same ingester handles both pain points:
  *
  * <ul>
- *   <li><b>Generation mode</b> — when the batch's largest member is {@code >=
- *       processing.streaming.large_file_bytes}. Each member is streamed into a {@link DuckDbRecordSink}
- *       that flushes bounded "generations" to partitioned output as it goes, so a single
- *       multi-hundred-GB / TB file is processed with bounded heap <em>and</em> scratch. There is no
- *       cross-member union — each member writes its own per-generation output files.</li>
- *   <li><b>Union mode</b> — otherwise (the common many-small-files case). Each member's records are
- *       accumulated into a {@code raw_<KEY>_f<srcId>} table; after all members are ingested, each
- *       segment's per-member tables are unioned into one {@code raw_<KEY>}, then transformed → written →
- *       lineage-counted <em>once</em> for the whole batch. This amortises the fixed per-batch cost
- *       (one temp DB, one transform, one write) across thousands of files and consolidates output
- *       instead of exploding it into per-file fragments.</li>
+ *   <li><b>Generation mode</b> ({@link GenerationModeIngester}) — when the batch's largest member is
+ *       {@code >= processing.streaming.large_file_bytes}. Each member is streamed with bounded heap
+ *       and scratch; no cross-member union is performed.</li>
+ *   <li><b>Union mode</b> ({@link UnionModeIngester}) — otherwise (the common many-small-files case).
+ *       Per-member raw tables are unioned once after all members are ingested, then transformed →
+ *       written → lineage-counted once for the whole batch.</li>
  * </ul>
  *
  * <p>Quarantine/empty semantics are identical in both modes: an ingester {@code IOException}/decode
@@ -50,8 +23,6 @@ import static com.gamma.inspector.BatchIngestStrategy.writeAndTrace;
  * file fault, so it fails the batch instead of quarantining the input.
  */
 final class StreamingPluginBatchStrategy implements BatchIngestStrategy {
-
-    private static final Logger log = LoggerFactory.getLogger(StreamingPluginBatchStrategy.class);
 
     /** Default per-generation row budget when {@code processing.streaming.flush_records} is unset. */
     static final long DEFAULT_FLUSH_ROWS = 5_000_000L;
@@ -74,230 +45,8 @@ final class StreamingPluginBatchStrategy implements BatchIngestStrategy {
         if (generationMode) {
             long flush = forcedFlushRows > 0 ? forcedFlushRows
                     : (cfg.processing().flushRecords() > 0 ? cfg.processing().flushRecords() : DEFAULT_FLUSH_ROWS);
-            return ingestGeneration(batch, cfg, flush);
+            return GenerationModeIngester.run(batch, cfg, flush);
         }
-        return ingestUnion(batch, cfg);
-    }
-
-    private StreamingFileIngester instantiate(PipelineConfig cfg) {
-        try {
-            return (StreamingFileIngester) Class.forName(cfg.schemas().ingesterClass())
-                    .getDeclaredConstructor().newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException("Cannot instantiate streaming ingester: "
-                    + cfg.schemas().ingesterClass(), e);
-        }
-    }
-
-    // ── generation mode (huge single files) ─────────────────────────────────────
-
-    private IngestOutcome ingestGeneration(Batch batch, PipelineConfig cfg, long flushRows) {
-        LocalDateTime batchStart = LocalDateTime.now();
-        String batchStatus = "SUCCESS";
-        String batchError  = "";
-
-        StreamingFileIngester ingester = instantiate(cfg);
-
-        List<Batch.Member> survivors    = new ArrayList<>();
-        List<MemberAudit>  memberAudits = new ArrayList<>();
-        List<PartitionOutput> allOutputs = new ArrayList<>();
-        List<LineageRow>      allLineage = new ArrayList<>();
-        long totalInputRows = 0;
-
-        File tempDb = null;
-        try {
-            tempDb = openTempDb(cfg, "duckdb_stream_");
-            try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
-                configure(conn, cfg);
-
-                int memberIdx = 0;
-                for (Batch.Member m : batch.members()) {
-                    IngestProgress.track(cfg.identity().pipelineName(), batch.batchId(),
-                            m.file().getName(), ++memberIdx, batch.members().size());
-                    LocalDateTime mStart = LocalDateTime.now();
-                    String stem = CsvIngester.stripExtensions(m.file().getName());
-                    try (DuckDbRecordSink sink = new DuckDbRecordSink(
-                            conn, m.srcId(), cfg, batch.batchId(), stem, m.file().getName(), flushRows)) {
-                        try {
-                            ingester.ingest(m.file(), sink, m.srcId(), cfg);
-                            sink.finish();
-                        } catch (SinkFlushException e) {
-                            throw e;   // framework/schema fault → fail the batch (don't quarantine)
-                        } catch (Exception e) {
-                            QuarantineManager.quarantine(m.file(), "unreadable", false, cfg);
-                            memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_UNREADABLE", msg(e), mStart));
-                            continue;
-                        }
-
-                        long memberParsed = sink.parsedRows();
-                        long memberErrors = sink.errorRows();
-                        if (memberParsed == 0) {
-                            QuarantineManager.quarantine(m.file(), "field_mismatch", memberErrors > 0, cfg);
-                            memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_MISMATCH",
-                                    "0 valid rows across all segments", mStart));
-                            continue;
-                        }
-
-                        survivors.add(m);
-                        totalInputRows += memberParsed;
-                        allOutputs.addAll(sink.outputs());
-                        allLineage.addAll(sink.lineage());
-                        memberAudits.add(MemberAudit.accepted(m, memberParsed, memberErrors, mStart));
-                        log.info("[INGEST] [{}] streamed {} row(s) → {} output file(s){}",
-                                m.file().getName(), String.format("%,d", memberParsed),
-                                sink.outputs().size(),
-                                memberErrors > 0 ? "  rejected=" + memberErrors : "");
-                    }
-                }
-
-                if (survivors.isEmpty()) batchStatus = "EMPTY";
-            }
-        } catch (Exception e) {
-            batchStatus = "FAILED";
-            batchError  = msg(e);
-            log.error("Batch {} failed during streaming (generation) processing", batch.batchId(), e);
-        } finally {
-            if (tempDb != null) DuckDbUtil.deleteTempDb(tempDb);
-        }
-
-        String schemaNames = String.join(",", cfg.schemas().segments().keySet());
-        return new IngestOutcome(batchStart, batchStatus, batchError, survivors, memberAudits,
-                allOutputs, allLineage, totalInputRows, schemaNames);
-    }
-
-    // ── union mode (many small files) ────────────────────────────────────────────
-
-    private IngestOutcome ingestUnion(Batch batch, PipelineConfig cfg) {
-        LocalDateTime batchStart = LocalDateTime.now();
-        String batchStatus = "SUCCESS";
-        String batchError  = "";
-
-        StreamingFileIngester ingester = instantiate(cfg);
-
-        List<Batch.Member> survivors    = new ArrayList<>();
-        List<MemberAudit>  memberAudits = new ArrayList<>();
-        List<PartitionOutput> allOutputs = new ArrayList<>();
-        List<LineageRow>      allLineage = new ArrayList<>();
-        long totalInputRows = 0;
-
-        Map<Integer, String> srcIdToFile = new LinkedHashMap<>();
-        // segKey → (srcId → raw_<KEY>_f<srcId>) for members that contributed rows
-        Map<String, Map<Integer, String>> tablesBySeg = new LinkedHashMap<>();
-        for (String key : cfg.schemas().segments().keySet()) tablesBySeg.put(key, new LinkedHashMap<>());
-
-        File tempDb = null;
-        try {
-            tempDb = openTempDb(cfg, "duckdb_stream_");
-            try (Connection conn = DuckDbUtil.openConnection(tempDb)) {
-                configure(conn, cfg);
-
-                // ── ingest every member into its own raw tables ──────────────────
-                int memberIdx = 0;
-                for (Batch.Member m : batch.members()) {
-                    IngestProgress.track(cfg.identity().pipelineName(), batch.batchId(),
-                            m.file().getName(), ++memberIdx, batch.members().size());
-                    LocalDateTime mStart = LocalDateTime.now();
-                    String stem = CsvIngester.stripExtensions(m.file().getName());
-                    long memberParsed = 0, memberErrors = 0;
-                    Map<String, String> rawTables = Map.of();
-                    boolean quarantined = false;
-
-                    try (DuckDbRecordSink sink = new DuckDbRecordSink(
-                            conn, m.srcId(), cfg, batch.batchId(), stem, m.file().getName(),
-                            Long.MAX_VALUE, true)) {
-                        try {
-                            ingester.ingest(m.file(), sink, m.srcId(), cfg);
-                            sink.finish();
-                        } catch (SinkFlushException e) {
-                            throw e;   // framework/schema fault → fail the batch
-                        } catch (Exception e) {
-                            QuarantineManager.quarantine(m.file(), "unreadable", false, cfg);
-                            memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_UNREADABLE", msg(e), mStart));
-                            quarantined = true;
-                        }
-                        if (!quarantined) {
-                            memberParsed = sink.parsedRows();
-                            memberErrors = sink.errorRows();
-                            rawTables    = sink.rawTables();
-                        }
-                    }
-                    if (quarantined) continue;
-
-                    if (memberParsed == 0) {
-                        QuarantineManager.quarantine(m.file(), "field_mismatch", memberErrors > 0, cfg);
-                        memberAudits.add(MemberAudit.rejected(m, "QUARANTINED_MISMATCH",
-                                "0 valid rows across all segments", mStart));
-                        for (String t : rawTables.values()) dropTable(conn, t);
-                        continue;
-                    }
-
-                    survivors.add(m);
-                    srcIdToFile.put(m.srcId(), m.file().getName());
-                    totalInputRows += memberParsed;
-                    memberAudits.add(MemberAudit.accepted(m, memberParsed, memberErrors, mStart));
-                    for (Map.Entry<String, String> e : rawTables.entrySet())
-                        tablesBySeg.get(e.getKey()).put(m.srcId(), e.getValue());
-                }
-
-                if (survivors.isEmpty()) {
-                    batchStatus = "EMPTY";
-                } else {
-                    // ── union → transform → write → lineage per segment, once ─────
-                    for (Map.Entry<String, Map<String, Object>> entry : cfg.schemas().segments().entrySet()) {
-                        String              segKey    = entry.getKey();
-                        Map<String, Object> segSchema = entry.getValue();
-                        Map<Integer, String> contribs = tablesBySeg.get(segKey);
-                        if (contribs == null || contribs.isEmpty()) continue;
-
-                        // Consolidate the per-member raw tables through a lazy UNION ALL
-                        // *view* rather than copying every member's rows into a physical
-                        // raw_<KEY> table first. The single transform below pulls the union
-                        // through, so the batch is materialised once (transformed_<KEY>)
-                        // instead of twice (raw_<KEY> + transformed_<KEY>) — peak scratch
-                        // drops by ~1× the segment's data and the redundant copy is gone.
-                        // Mirrors the CSV streaming-UNION path (CsvBatchStrategy). The member
-                        // tables must outlive the transform (the view reads them), so they're
-                        // dropped only after the write/lineage below.
-                        String unionTable = "raw_" + segKey;
-                        List<String> memberTables = new ArrayList<>();
-                        Map<Integer, String> segSrcToFile = new LinkedHashMap<>();
-                        for (Map.Entry<Integer, String> ce : contribs.entrySet()) {
-                            memberTables.add(ce.getValue());   // already carries __src_id
-                            segSrcToFile.put(ce.getKey(), srcIdToFile.get(ce.getKey()));
-                        }
-                        if (memberTables.isEmpty()) continue;
-
-                        try (Statement st = conn.createStatement()) {
-                            st.execute("CREATE VIEW \"" + unionTable + "\" AS " + unionAll(memberTables));
-                        }
-
-                        String destTable = "transformed_" + segKey;
-                        DataTransformer.materialize(conn, segSchema, cfg, unionTable, destTable);
-
-                        var written = writeAndTrace(conn, destTable, partitionColumns(segSchema),
-                                cfg, Paths.get(cfg.dirs().database(), segKey).toString(),
-                                consolidatedBaseName(survivors, batch),
-                                batch.batchId(), segSrcToFile);
-
-                        allOutputs.addAll(written.outputs());
-                        allLineage.addAll(written.lineage());
-
-                        dropView(conn, unionTable);
-                        for (String mt : memberTables) dropTable(conn, mt);
-                        dropTable(conn, destTable);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            batchStatus = "FAILED";
-            batchError  = msg(e);
-            log.error("Batch {} failed during streaming (union) processing", batch.batchId(), e);
-        } finally {
-            if (tempDb != null) DuckDbUtil.deleteTempDb(tempDb);
-        }
-
-        String schemaNames = String.join(",", cfg.schemas().segments().keySet());
-        return new IngestOutcome(batchStart, batchStatus, batchError, survivors, memberAudits,
-                allOutputs, allLineage, totalInputRows, schemaNames);
+        return UnionModeIngester.run(batch, cfg);
     }
 }

@@ -31,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -48,7 +47,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Stream;
 
 /**
  * Long-running service that hosts the ETL: it loads a registry of pipeline configs,
@@ -941,139 +939,10 @@ public final class SourceService implements AutoCloseable {
     }
 
     /**
-     * Build a fully-wired service from CLI-style args: each path (file or dir) is
-     * scanned for {@code *_pipeline.toon} (Stage-1 sources) and {@code *_enrich.toon}
-     * (Stage-2 jobs). Reads {@code -Dservice.poll.seconds} (default 60) and
-     * {@code -Dservice.max.runs} (default = source count). Shared by the service and
-     * Control API entry points. Exits the JVM with a message if no sources are found.
+     * Build a fully-wired service from CLI-style args. Delegates to {@link ServiceBootstrap#build}
+     * (the config-discovery/parsing concern). Shared by the service and Control API entry points.
      */
     public static SourceService fromArgs(String[] args) throws IOException {
-        List<Path> registry = MultiSourceProcessor.resolveConfigs(args);
-        List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(args, "_enrich.toon"));
-        List<JobConfig> jobConfigs = loadJobs(resolveBySuffix(args, "_job.toon"));
-        List<SemanticModel> semantics = loadSemantics(resolveBySuffix(args, "_meta.toon"));
-        List<com.gamma.alert.AlertRule> alertRules = loadAlerts(resolveBySuffix(args, "_alert.toon"));
-        if (registry.isEmpty() && enrichJobs.isEmpty() && jobConfigs.isEmpty()) {
-            System.err.println("No *_pipeline.toon / *_enrich.toon / *_job.toon files found in: "
-                    + String.join(", ", args));
-            System.exit(1);
-        }
-        long pollSeconds = Long.getLong("service.poll.seconds", 60L);
-        int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
-        SourceService svc = new SourceService(registry, enrichJobs, jobConfigs, semantics, alertRules,
-                pollSeconds, maxRuns, ServiceStores.openStatusStore());
-        for (com.gamma.ops.rca.RcaTemplate t : loadRcaTemplates(resolveBySuffix(args, "_rca.toon")))
-            svc.registerRcaTemplate(t);
-        for (com.gamma.acquire.ConnectionProfile c : loadConnections(resolveBySuffix(args, "_connection.toon")))
-            svc.registerConnection(c);
-        return svc;
-    }
-
-    /** Walk CLI paths for files ending in {@code suffix} (file args matched directly). */
-    private static List<Path> resolveBySuffix(String[] args, String suffix) throws IOException {
-        List<Path> out = new ArrayList<>();
-        for (String a : args) {
-            Path p = Path.of(a);
-            if (Files.isDirectory(p)) {
-                try (Stream<Path> w = Files.walk(p)) {
-                    w.filter(Files::isRegularFile)
-                     .filter(f -> f.getFileName().toString().endsWith(suffix))
-                     .sorted().forEach(out::add);
-                }
-            } else if (Files.isRegularFile(p) && p.getFileName().toString().endsWith(suffix)) {
-                out.add(p);
-            }
-        }
-        return out;
-    }
-
-    /** Load each enrichment config; a bad one is warned and skipped (others still host). */
-    private static List<EnrichmentConfig> loadEnrichJobs(List<Path> paths) {
-        List<EnrichmentConfig> jobs = new ArrayList<>();
-        for (Path p : paths) {
-            try {
-                jobs.add(EnrichmentConfig.load(p.toString()));
-                log.info("Registered enrichment job from {}", p);
-            } catch (Exception e) {
-                log.warn("Could not load enrichment config {}: {}", p, e.getMessage());
-            }
-        }
-        return jobs;
-    }
-
-    /** Load each {@code *_meta.toon} semantic model; a bad one is warned and skipped. */
-    private static List<SemanticModel> loadSemantics(List<Path> paths) {
-        List<SemanticModel> models = new ArrayList<>();
-        for (Path p : paths) {
-            try {
-                models.add(SemanticModel.load(p.toString()));
-                log.info("Registered semantic model from {}", p);
-            } catch (Exception e) {
-                log.warn("Could not load semantic model {}: {}", p, e.getMessage());
-            }
-        }
-        return models;
-    }
-
-    /** Load each {@code *_alert.toon}; a bad one is warned and skipped (others still arm). */
-    private static List<com.gamma.alert.AlertRule> loadAlerts(List<Path> paths) {
-        List<com.gamma.alert.AlertRule> rules = new ArrayList<>();
-        for (Path p : paths) {
-            try {
-                com.gamma.alert.AlertRule r = com.gamma.alert.AlertRule.load(p);
-                rules.add(r);
-                log.info("Armed alert rule '{}' ({} {} {} over {}) from {}",
-                        r.name(), r.metric(), r.comparator(), r.threshold(), r.window(), p);
-            } catch (Exception e) {
-                log.warn("Could not load alert rule {}: {}", p, e.getMessage());
-            }
-        }
-        return rules;
-    }
-
-    /** Load each {@code *_rca.toon} (Phase 4); a bad one is warned and skipped (others still register). */
-    static List<com.gamma.ops.rca.RcaTemplate> loadRcaTemplates(List<Path> paths) {
-        List<com.gamma.ops.rca.RcaTemplate> out = new ArrayList<>();
-        for (Path p : paths) {
-            try {
-                com.gamma.ops.rca.RcaTemplate t = com.gamma.ops.rca.RcaTemplate.load(p);
-                out.add(t);
-                log.info("Loaded RCA template '{}' ({} section(s)) from {}", t.name(), t.sections().size(), p);
-            } catch (Exception e) {
-                log.warn("Could not load RCA template {}: {}", p, e.getMessage());
-            }
-        }
-        return out;
-    }
-
-    /** Load each {@code *_connection.toon} (Data Acquisition); a bad one is warned and skipped. */
-    static List<com.gamma.acquire.ConnectionProfile> loadConnections(List<Path> paths) {
-        List<com.gamma.acquire.ConnectionProfile> out = new ArrayList<>();
-        for (Path p : paths) {
-            try {
-                com.gamma.acquire.ConnectionProfile c = com.gamma.acquire.ConnectionProfile.load(p);
-                out.add(c);
-                log.info("Loaded connection profile '{}' ({} -> {}) from {}",
-                        c.id(), c.connector(), c.isRemote() ? c.testEndpoint() : "local", p);
-            } catch (Exception e) {
-                log.warn("Could not load connection profile {}: {}", p, e.getMessage());
-            }
-        }
-        return out;
-    }
-
-    /** Load each {@code *_job.toon}; a bad one is warned and skipped (others still host). */
-    private static List<JobConfig> loadJobs(List<Path> paths) {
-        List<JobConfig> jobs = new ArrayList<>();
-        for (Path p : paths) {
-            try {
-                JobConfig c = JobConfig.load(p.toString());
-                jobs.add(c);
-                log.info("Registered {} job '{}' from {}", c.type(), c.name(), p);
-            } catch (Exception e) {
-                log.warn("Could not load job config {}: {}", p, e.getMessage());
-            }
-        }
-        return jobs;
+        return ServiceBootstrap.build(args);
     }
 }

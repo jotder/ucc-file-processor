@@ -3,18 +3,6 @@ package com.gamma.control;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
-import com.gamma.assist.AssistRequest;
-import com.gamma.assist.AssistResult;
-import com.gamma.assist.spi.AssistAgent;
-import com.gamma.config.io.ConfigLoader;
-import com.gamma.config.safety.ConfigSafetyValidator;
-import com.gamma.config.safety.SafetyPolicy;
-import com.gamma.config.spec.ConfigSpecs;
-import com.gamma.config.spec.Finding;
-import com.gamma.config.spec.Severity;
-import com.gamma.etl.PipelineConfig;
-import com.gamma.inspector.MultiSourceProcessor;
-import com.gamma.inspector.ReprocessCommand;
 import com.gamma.service.SourceService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -27,10 +15,8 @@ import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -228,231 +214,14 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         get("/metrics", (e, m) ->
                 respondText(e, com.gamma.metrics.MetricRegistry.global().scrape()));
 
-        get ("/pipelines", (e, m) -> service.pipelines());
-        // Register a new pipeline from a config on disk under the write root (control scope).
-        post("/pipelines", (e, m) -> createPipeline(e, body(e)));
-        post("/pipelines/([^/]+)/trigger", (e, m) ->
-                service.runPipeline(name(m)).orElseThrow(() -> notFound(name(m))));
-        post("/pipelines/([^/]+)/pause", (e, m) -> {
-            if (!service.pause(name(m))) throw notFound(name(m));
-            return Map.of("pipeline", name(m), "paused", true);
-        });
-        post("/pipelines/([^/]+)/resume", (e, m) -> {
-            if (!service.resume(name(m))) throw notFound(name(m));
-            return Map.of("pipeline", name(m), "paused", false);
-        });
-
-        get("/pipelines/([^/]+)/commits",    (e, m) -> service.statusStore().committedBatches(cfg(m)));
-        get("/pipelines/([^/]+)/batches",    (e, m) -> service.statusStore().batches(cfg(m)));
-        get("/pipelines/([^/]+)/files",      (e, m) -> service.statusStore().files(cfg(m)));
-        get("/pipelines/([^/]+)/lineage",    (e, m) -> service.statusStore().lineage(cfg(m), query(e, "batchId")));
-        get("/pipelines/([^/]+)/quarantine", (e, m) -> service.statusStore().quarantine(cfg(m)));
-        // Inbox/processing status: files still pending (matched, not yet processed) + whether the
-        // pipeline is currently ingesting. Complements the audit-backed /files (processed history).
-        get("/pipelines/([^/]+)/pending",    (e, m) ->
-                service.inboxStatus(name(m)).orElseThrow(() -> notFound(name(m))));
-
-        post("/pipelines/([^/]+)/reprocess", (e, m) -> {
-            var path = service.pathFor(name(m)).orElseThrow(() -> notFound(name(m)));
-            String batchId = str(body(e), "batchId");
-            if (batchId == null) throw new ApiException(400, "body must include 'batchId'");
-            ReprocessCommand.run(path.toString(), batchId);
-            return Map.of("pipeline", name(m), "batchId", batchId, "status", "reprocessed");
-        });
-
-        post("/trigger", (e, m) -> service.runAllOnce());
-
-        // ── v2.8.0: aggregated reports (status snapshot + batch-audit rollup) ──
-        // v2.10.0: ?from=&to= scope the rollup to a date range (inclusive; date or datetime).
-        get("/status", (e, m) -> service.reports().statusReport());
-        get("/report", (e, m) -> service.reports().serviceReport(window(e)));
-        get("/pipelines/([^/]+)/report", (e, m) -> {
-            cfg(m);   // 404 if no such pipeline
-            return service.reports().batchReport(name(m), window(e));
-        });
-
-        // ── v2.8.0: config-driven jobs (cron / event / manual) ──
-        get("/jobs", (e, m) -> jobs().jobs());
-        // T27 job-execution reporting (DuckDB projection; 404 unless -Djobs.backend is set). Fixed
-        // sub-paths, registered before the /jobs/{name}/runs regex (single-segment, so no collision).
-        get("/jobs/metrics", (e, m) -> jobRunStore().metrics(query(e, "job")));
-        get("/jobs/runs", (e, m) -> jobRunStore().recentRuns(parseIntOr(query(e, "limit"), 50), query(e, "job")));
-        get("/jobs/failures", (e, m) -> jobRunStore().failureTrend(parseIntOr(query(e, "days"), 30)));
-        get("/jobs/([^/]+)/runs", (e, m) -> jobs().runsFor(name(m)));
-        post("/jobs/([^/]+)/trigger", (e, m) -> {
-            if (!jobs().trigger(name(m), query(e, "actor")))   // optional ?actor= attributes the manual fire (T32)
-                throw new ApiException(404, "no job named '" + name(m) + "'");
-            return Map.of("job", name(m), "status", "triggered");
-        });
-
-        // ── v2.9.0: Stage-2 enrichment run audit + lineage + rollup ──
-        get("/enrichment", (e, m) -> enrichment().views());
-        get("/enrichment/([^/]+)/runs", (e, m) -> enrichment().runs(enrichJob(m)));
-        get("/enrichment/([^/]+)/lineage", (e, m) ->
-                enrichment().lineage(enrichJob(m), query(e, "runId")));
-        get("/enrichment/([^/]+)/report", (e, m) ->
-                service.reports().enrichmentReport(enrichJob(m), window(e)));
-
-
-        // ── v3.3.0: embedded assist agent — POST /assist/{intent} (scope assist.read) ──
-        // ── v3.7.0: recent failure diagnoses (read-only) — registered before the POST catch-all ──
-        get("/assist/diagnoses", (e, m) ->
-                service.assistAgent()
-                        .map(a -> (Object) a.recentDiagnoses(parseIntOr(query(e, "limit"), 50)))
-                        .orElse(List.of()));
-        // ── v4.1 (B5): alert execution engine — operator-saved *_alert.toon rules evaluated against
-        // the batches ledger. Read-only listings + a manual evaluation sweep; the engine itself is
-        // event-driven off the batch bus and lives in the lean core (no agent required). ──
-        get("/alerts", (e, m) -> service.alertService()
-                .map(a -> (Object) a.recent(parseIntOr(query(e, "limit"), 50)))
-                .orElse(List.of()));
-        get("/alerts/rules", (e, m) -> service.alertService()
-                .map(a -> (Object) a.rules())
-                .orElse(List.of()));
-        post("/alerts/evaluate", (e, m) -> service.alertService()
-                .map(a -> (Object) a.evaluateAll())
-                .orElseThrow(() -> new ApiException(503,
-                        "alert engine not armed (no *_alert.toon rules loaded)")));
-
-        // ── Acquisition / Sources UI: a flat view of every pipeline's source acquisition config +
-        // a JSON acquisition-metrics snapshot (the Prometheus /metrics is text-only). CONTROL-scoped. ──
-        get("/sources", (e, m) -> service.sources());
-        get("/metrics/acquisition", (e, m) -> acquisitionMetrics());
-
-
-        // ── data-plane provenance (T22, §11): per-(node, relationship) record counts of a past flow run,
-        // for painting quantities onto the FlowGraph edges (Sankey). 404 unless -Dprovenance.backend is set. ──
-        get("/provenance", (e, m) -> provenanceData(query(e, "flow"), query(e, "batch")));
-        get("/provenance/batches", (e, m) -> provenanceBatches(query(e, "flow"), query(e, "limit")));
-
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
+                new PipelineRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
-                new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes()))
+                new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
+                new JobRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
+                new AssistRoutes()))
             module.register(this);
-
-        // ── v4.1: assist model-provider settings (masked read / validated write / round-trip test).
-        // Registered BEFORE the intent catch-all so "settings" never resolves as a skill intent. ──
-        get("/assist/settings", (e, m) -> assistAgentOr503().settings());
-        get("/assist/metrics", (e, m) -> assistAgentOr503().metrics());
-        post("/assist/settings/test", (e, m) -> assistAgentOr503().testSettings());
-        post("/assist/settings", (e, m) -> {
-            try {
-                return assistAgentOr503().updateSettings(body(e));
-            } catch (IllegalArgumentException ex) {
-                throw new ApiException(400, ex.getMessage());
-            }
-        });
-        post("/assist/(.+)", (e, m) -> assist(name(m), body(e)));
-    }
-
-    /**
-     * Dispatch one assist request to the in-process {@link AssistAgent} (v3.3.0). The {@code intent}
-     * (path segment) selects the skill; the JSON body supplies {@code screenContext},
-     * {@code partialInput}, and {@code userText}. The agent lives in the optional
-     * {@code file-processor-agent} module — core holds only this seam — so the agent may be absent.
-     *
-     * <p>Status mapping (fail-safe, never throws to the model): no agent on the classpath → 503;
-     * an unknown intent ({@link AssistResult.Status#UNSUPPORTED}) → 404; a skill whose model is
-     * unavailable ({@link AssistResult.Status#UNAVAILABLE}) → 503 with its message; otherwise the
-     * {@link AssistResult} is returned as JSON (200).
-     */
-    /** The in-process assist agent, or 503 when the optional module is absent (v4.1 settings routes). */
-    private AssistAgent assistAgentOr503() {
-        return service.assistAgent().orElseThrow(() -> new ApiException(503,
-                "assist agent not available (file-processor-agent not on classpath)"));
-    }
-
-    private Object assist(String intent, Map<String, Object> body) {
-        Optional<AssistAgent> agent = service.assistAgent();
-        if (agent.isEmpty())
-            throw new ApiException(503, "assist agent not available (file-processor-agent not on classpath)");
-        AssistRequest req = new AssistRequest(
-                intent, mapField(body, "screenContext"), mapField(body, "partialInput"), str(body, "userText"));
-        AssistResult result = agent.get().assist(req);
-        return switch (result.status()) {
-            case UNSUPPORTED -> throw new ApiException(404, "unknown assist intent: " + intent);
-            case UNAVAILABLE -> throw new ApiException(503,
-                    result.message() == null ? "assist model unavailable" : result.message());
-            case OK -> result;
-        };
-    }
-
-    /** A nested JSON object from a request body as a {@code Map}, or an empty map when absent/not an object. */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> mapField(Map<String, Object> body, String key) {
-        Object v = body.get(key);
-        return (v instanceof Map<?, ?> map) ? (Map<String, Object>) map : Map.of();
-    }
-
-    /**
-     * Register a new pipeline from a config already on disk under the write root (v4.1.0, scope
-     * {@code control}). Pairs with {@code POST /config/write}: author + persist a {@code .toon}
-     * there, then register it so the running service processes it on the next poll cycle — no
-     * restart. (Registration is in-memory; a registered pipeline survives a restart only if its
-     * file also lies under a config dir the service is launched with — keep {@code assist.write.root}
-     * inside the launched config tree to get both.)
-     *
-     * <p>Body {@code {"configPath":"…"}} — absolute, or relative to {@code -Dassist.write.root}.
-     * Gated fail-closed: registration disabled unless the write root is set → 503; missing
-     * {@code configPath} → 400; a path resolving outside the root → 403; no file there → 404; a
-     * config that fails spec / hard-fail safety (R6) validation → 422 (findings returned); an id
-     * colliding with a <em>different</em> registered pipeline → 409. On success the new pipeline's
-     * {@link SourceService.PipelineView} is returned.
-     */
-    private Object createPipeline(HttpExchange ex, Map<String, Object> body) throws IOException {
-        if (writeRoot == null)
-            throw new ApiException(503, "pipeline registration disabled: set -Dassist.write.root to enable");
-        String configPath = str(body, "configPath");
-        if (configPath == null || configPath.isBlank())
-            throw new ApiException(400, "body must include 'configPath'");
-
-        Path candidate = Path.of(configPath.trim());
-        Path resolved = (candidate.isAbsolute() ? candidate : writeRoot.resolve(candidate)).normalize();
-        if (!resolved.startsWith(writeRoot))
-            throw new ApiException(403, "configPath escapes the write root");
-        if (!Files.isRegularFile(resolved))
-            throw new ApiException(404, "no config file at "
-                    + writeRoot.relativize(resolved).toString().replace('\\', '/'));
-
-        // Validate before registering: spec + the hard-fail safety gate (R6). Block on ERRORs —
-        // the file may have been placed here without going through POST /config/write.
-        Map<String, Object> raw;
-        try {
-            raw = ConfigLoader.filesystem().decode(resolved.toString());
-        } catch (RuntimeException parse) {
-            throw new ApiException(422, "config does not parse: " + parse.getMessage());
-        }
-        List<Finding> findings = new ArrayList<>(ConfigLoader.filesystem().validate(ConfigSpecs.pipeline(), raw));
-        findings.addAll(ConfigSafetyValidator.check("pipeline", raw, SafetyPolicy.defaultPolicy()));
-        // ERROR here: registration loads the config for real, so an unresolvable schema_file is a
-        // guaranteed failure — block with a structured, field-anchored finding instead of letting
-        // PipelineConfig.load() surface it as an opaque "config is not a valid pipeline" 422.
-        findings.addAll(ConfigRoutes.schemaFileFindings("pipeline", raw, Severity.ERROR));
-        if (findings.stream().anyMatch(f -> f.severity() == Severity.ERROR)) {
-            respond(ex, 422, Map.of("registered", false,
-                    "error", "config has ERROR-level findings; not registered", "findings", findings));
-            return HANDLED;
-        }
-
-        String id;
-        try {
-            id = service.registerPipeline(resolved);
-        } catch (IllegalStateException collision) {
-            throw new ApiException(409, collision.getMessage());
-        } catch (RuntimeException invalid) {
-            throw new ApiException(422, "config is not a valid pipeline: " + invalid.getMessage());
-        }
-
-        SourceService.PipelineView view = service.pipelines().stream()
-                .filter(p -> p.name().equals(id)).findFirst().orElse(null);
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("registered", true);
-        r.put("id", id);
-        r.put("path", writeRoot.relativize(resolved).toString().replace('\\', '/'));
-        r.put("pipeline", view);
-        r.put("findings", findings);   // warnings only at this point
-        return r;
     }
 
     // ── dispatch ───────────────────────────────────────────────────────────────
@@ -581,91 +350,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     // ── helpers ──────────────────────────────────────────────────────────────────
 
-    private PipelineConfig cfg(Matcher m) {
-        return service.configFor(name(m)).orElseThrow(() -> notFound(name(m)));
-    }
-
-    /**
-     * {@code GET /provenance?flow=&batch=} — the per-(node, relationship) record counts of one flow run (T22).
-     * A consumer paints each {@code (nodeId, rel)} onto its outgoing {@code FlowGraph} edge as the Sankey weight.
-     * 400 if either param is missing, 404 when no provenance backend is configured.
-     */
-    private Object provenanceData(String flow, String batch) {
-        if (flow == null || flow.isBlank() || batch == null || batch.isBlank())
-            throw new ApiException(400, "both 'flow' and 'batch' query params are required");
-        return provenanceStore().query(flow, batch);
-    }
-
-    /** {@code GET /provenance/batches?flow=&limit=} — recent runs of a flow (newest first) to pick one to inspect. */
-    private Object provenanceBatches(String flow, String limit) {
-        if (flow == null || flow.isBlank())
-            throw new ApiException(400, "the 'flow' query param is required");
-        return provenanceStore().batches(flow, parseIntOr(limit, 20));
-    }
-
-    /** The DuckDB data-plane provenance store (T21/T22), or a 404 when no backend is configured (-Dprovenance.backend). */
-    private com.gamma.flow.exec.DbProvenanceStore provenanceStore() {
-        return jobs().provenanceStore().orElseThrow(() -> new ApiException(404,
-                "provenance DB not enabled (set -Dprovenance.backend=duckdb)"));
-    }
-
-    /** The job registry, or a 404 when no jobs are registered on this service. */
-    private com.gamma.job.JobService jobs() {
-        return service.jobService().orElseThrow(() -> new ApiException(404, "no jobs registered"));
-    }
-
-    /** The DuckDB job-run reporting store (T27), or a 404 when no backend is configured (-Djobs.backend). */
-    private com.gamma.job.DbJobRunStore jobRunStore() {
-        return jobs().runStore().orElseThrow(() -> new ApiException(404,
-                "job reporting DB not enabled (set -Djobs.backend=duckdb)"));
-    }
-
-    /** The enrichment service, or a 404 when no enrichment jobs are registered. */
-    private com.gamma.service.EnrichmentService enrichment() {
-        return service.enrichmentService()
-                .orElseThrow(() -> new ApiException(404, "no enrichment jobs registered"));
-    }
-
-    /** Resolve a path-named enrichment job to its name, 404 when it is not registered. */
-    private String enrichJob(Matcher m) {
-        String n = name(m);
-        if (enrichment().config(n).isEmpty())
-            throw new ApiException(404, "no enrichment job named '" + n + "'");
-        return n;
-    }
-
-    private static String name(Matcher m) {
-        return ApiContext.name(m);
-    }
-
-    private static String param(Matcher m, int g) {
-        return ApiContext.param(m, g);
-    }
-
-    private static int parseIntOr(String s, int def) {
-        return ApiContext.parseIntOr(s, def);
-    }
-
-    /** Build a report {@link com.gamma.report.ReportService.Window} from {@code ?from=&to=}. */
-    private static com.gamma.report.ReportService.Window window(HttpExchange ex) {
-        return com.gamma.report.ReportService.Window.of(query(ex, "from"), query(ex, "to"));
-    }
-
-    /** Acquisition metric names exposed (as JSON) by {@code GET /metrics/acquisition}. */
-    private static final java.util.Set<String> ACQ_METRICS = java.util.Set.of(
-            "inspecto_files_discovered_total", "inspecto_files_downloaded_total", "inspecto_downloads_failed_total",
-            "inspecto_post_actions_failed_total", "inspecto_watermark_skipped_total", "inspecto_bytes_transferred_total",
-            "inspecto_fetch_seconds", "inspecto_active_connections", "inspecto_files_waiting_stability");
-
-    /** {@code GET /metrics/acquisition} — the acquisition counters/gauges/histogram as JSON (UI dashboard). */
-    private Object acquisitionMetrics() {
-        return com.gamma.metrics.MetricRegistry.global().snapshot(ACQ_METRICS::contains);
-    }
-
-    private static ApiException notFound(String name) {
-        return new ApiException(404, "no pipeline named '" + name + "'");
-    }
-
     @Override
     public Map<String, Object> body(HttpExchange ex) throws IOException {
         try (InputStream in = ex.getRequestBody()) {
@@ -680,14 +364,6 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     @Override
     public Path writeRoot() { return writeRoot; }
-
-    private static String str(Map<String, Object> body, String key) {
-        return ApiContext.str(body, key);
-    }
-
-    private static String query(HttpExchange ex, String key) {
-        return ApiContext.query(ex, key);
-    }
 
     // Route registration. The core (Personal edition) is auth-free — every route is open.
     // Standard/Enterprise editions re-introduce authorization out-of-band via the security module.
