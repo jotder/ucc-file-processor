@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
 import com.gamma.service.SourceService;
+import com.gamma.service.SpaceManager;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.slf4j.Logger;
@@ -126,7 +127,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private static final Object HANDLED = ApiContext.HANDLED;
 
     private final HttpServer http;
-    private final SourceService service;
+    private final SpaceManager spaces;
     private final ObjectMapper json = new ObjectMapper();
     private final List<Route> routes = new ArrayList<>();
     /** Allowed CORS origin ({@code -Dcontrol.cors}); {@code null} ⇒ CORS disabled (default). */
@@ -141,11 +142,25 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private final Path writeRoot;
 
     /**
+     * Control plane over a single running service — wrapped as the {@code default} space. The long-standing
+     * single-tenant entry point (and every test); behaviour is unchanged.
+     *
      * @param service the running service to control
      * @param port    TCP port (0 = ephemeral; read back via {@link #port()})
      */
     public ControlApi(SourceService service, int port) throws IOException {
-        this.service = service;
+        this(SpaceManager.single(service), port);
+    }
+
+    /**
+     * Control plane over a {@link SpaceManager} hosting one or more spaces. Until the {@code /spaces/{id}} request
+     * seam lands, every request resolves the manager's {@linkplain SpaceManager#current() current} (default) space.
+     *
+     * @param spaces the hosted spaces to control
+     * @param port   TCP port (0 = ephemeral; read back via {@link #port()})
+     */
+    public ControlApi(SpaceManager spaces, int port) throws IOException {
+        this.spaces = spaces;
         String cors  = System.getProperty("control.cors");
         this.corsOrigin = blank(cors) ? null : cors.trim();
         String ui    = System.getProperty("ui.dir");
@@ -185,22 +200,34 @@ public final class ControlApi implements AutoCloseable, ApiContext {
      * </pre>
      */
     public static void main(String[] args) throws Exception {
-        if (args.length < 1) {
-            System.err.println("Usage: ControlApi [-Dcontrol.port=8080] "
-                    + "[-Dservice.poll.seconds=N] [-Dservice.max.runs=M] <pipeline.toon | dir> [more ...]");
-            System.exit(1);
+        // Multi-space mode: -Dspaces.root points at a container dir of spaces/<id>/; each is booted in isolation.
+        // Legacy single-tenant mode (no -Dspaces.root): build the one default space from the CLI config args.
+        String spacesRoot = System.getProperty("spaces.root");
+        SpaceManager spaces;
+        if (spacesRoot != null && !spacesRoot.isBlank()) {
+            spaces = SpaceManager.discover(Path.of(spacesRoot.trim()));
+            if (spaces.size() == 0) {
+                System.err.println("No spaces (a dir with a config/ subtree) found under -Dspaces.root=" + spacesRoot);
+                System.exit(1);
+            }
+        } else {
+            if (args.length < 1) {
+                System.err.println("Usage: ControlApi [-Dcontrol.port=8080] [-Dspaces.root=DIR] "
+                        + "[-Dservice.poll.seconds=N] [-Dservice.max.runs=M] <pipeline.toon | dir> [more ...]");
+                System.exit(1);
+            }
+            spaces = SpaceManager.single(SourceService.fromArgs(args));
         }
-        SourceService svc = SourceService.fromArgs(args);
         int port = Integer.getInteger("control.port", 8080);
-        ControlApi api = new ControlApi(svc, port);
+        ControlApi api = new ControlApi(spaces, port);
 
         java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             api.close();
-            svc.close();
+            spaces.close();
             latch.countDown();
         }, "inspecto-shutdown"));
-        svc.start();
+        spaces.startAll();
         api.start();
         latch.await();   // block until SIGTERM/SIGINT
     }
@@ -209,7 +236,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     private void registerRoutes() {
         get ("/health", (e, m) -> Map.of("status", "UP"));
-        get ("/ready",  (e, m) -> Map.of("status", "READY", "pipelines", service.pipelines().size()));
+        get ("/ready",  (e, m) -> Map.of("status", "READY", "pipelines", service().pipelines().size()));
         // Prometheus scrape endpoint — text exposition, open (scrapers don't carry tokens)
         get("/metrics", (e, m) ->
                 respondText(e, com.gamma.metrics.MetricRegistry.global().scrape()));
@@ -360,7 +387,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     }
 
     @Override
-    public SourceService service() { return service; }
+    public SourceService service() { return spaces.current().service(); }
 
     @Override
     public Path writeRoot() { return writeRoot; }
