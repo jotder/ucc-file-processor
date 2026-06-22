@@ -4,11 +4,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
 import com.gamma.etl.PipelineConfig;
+import com.gamma.util.JdbcDrivers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -82,10 +82,9 @@ public final class DbStatusStore implements StatusStore, AutoCloseable {
     }
 
     /**
-     * Open a status DB by JDBC URL, registering the matching driver. {@code jdbc:duckdb:}
-     * (the bundled primary engine) and {@code jdbc:postgresql:} (driver supplied by the
-     * deployment) are registered explicitly; any other URL is passed through to
-     * {@link DriverManager} as-is (assumes the driver self-registers). A Postgres URL with
+     * Open a status DB by JDBC URL via {@link JdbcDrivers#connect(String, String, String)}, which
+     * registers the bundled driver matching the scheme: {@code jdbc:duckdb:} (the bundled primary
+     * engine) and {@code jdbc:postgresql:} (driver supplied by the deployment). A Postgres URL with
      * no PG driver on the classpath fails with a clear message — it is not bundled.
      *
      * @param url  JDBC URL (e.g. {@code jdbc:duckdb:inspecto-status.db})
@@ -93,16 +92,7 @@ public final class DbStatusStore implements StatusStore, AutoCloseable {
      * @param pass password, or {@code null}
      */
     public static DbStatusStore open(String url, String user, String pass) throws SQLException {
-        try {
-            if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
-            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("No JDBC driver on the classpath for " + url, e);
-        }
-        Connection c = (user == null && pass == null)
-                ? DriverManager.getConnection(url)
-                : DriverManager.getConnection(url, user, pass);
-        return new DbStatusStore(c);
+        return new DbStatusStore(JdbcDrivers.connect(url, user, pass));
     }
 
     // ── reads (StatusStore) ──────────────────────────────────────────────────────

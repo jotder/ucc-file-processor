@@ -1,18 +1,16 @@
 package com.gamma.flow.exec;
 
 import com.gamma.api.PublicApi;
+import com.gamma.util.JdbcDrivers;
+import com.gamma.util.JdbcRows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,13 +42,7 @@ public final class DbProvenanceStore implements AutoCloseable {
 
     /** Open a provenance DB by JDBC URL (DuckDB primary, e.g. {@code jdbc:duckdb:provenance.duckdb}). */
     public static DbProvenanceStore open(String url) throws SQLException {
-        try {
-            if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
-            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("No JDBC driver on the classpath for " + url, e);
-        }
-        return new DbProvenanceStore(DriverManager.getConnection(url));
+        return new DbProvenanceStore(JdbcDrivers.connect(url));
     }
 
     private void initSchema() {
@@ -95,7 +87,7 @@ public final class DbProvenanceStore implements AutoCloseable {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, flowId);
             ps.setString(2, batchId);
-            return rows(ps);
+            return JdbcRows.query(ps);
         } catch (SQLException e) {
             log.warn("provenance query failed: {}", e.getMessage());
             return new ArrayList<>();
@@ -109,25 +101,11 @@ public final class DbProvenanceStore implements AutoCloseable {
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, flowId);
             ps.setInt(2, Math.max(1, limit));
-            return rows(ps);
+            return JdbcRows.query(ps);
         } catch (SQLException e) {
             log.warn("provenance batches query failed: {}", e.getMessage());
             return new ArrayList<>();
         }
-    }
-
-    private static List<Map<String, Object>> rows(PreparedStatement ps) throws SQLException {
-        List<Map<String, Object>> out = new ArrayList<>();
-        try (ResultSet rs = ps.executeQuery()) {
-            ResultSetMetaData md = rs.getMetaData();
-            int n = md.getColumnCount();
-            while (rs.next()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                for (int c = 1; c <= n; c++) row.put(md.getColumnLabel(c), rs.getObject(c));
-                out.add(row);
-            }
-        }
-        return out;
     }
 
     @Override

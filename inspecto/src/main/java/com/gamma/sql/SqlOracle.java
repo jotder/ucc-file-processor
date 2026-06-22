@@ -1,15 +1,14 @@
 package com.gamma.sql;
 
 import com.gamma.config.spec.Finding;
+import com.gamma.util.JdbcRows;
 
 import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,7 +32,7 @@ import java.util.Map;
  *
  * <h3>What it returns</h3>
  * On success: {@code ok=true}, the authoritative {@code columnsProduced} (from the candidate's
- * {@link ResultSetMetaData}, not the model's claim), and — only when {@link Request#sampleRows()} —
+ * {@code ResultSetMetaData}, not the model's claim), and — only when {@link Request#sampleRows()} —
  * up to five preview rows. On failure: {@code ok=false} with the verbatim guard finding or DuckDB plan
  * error in {@code error}, ready to feed back to the repair loop.
  *
@@ -184,28 +183,19 @@ public final class SqlOracle {
             }
 
             // Authoritative column list (independent of any rows).
-            List<String> columns = new ArrayList<>();
+            List<String> columns;
             try (Statement st = sb.statement();
                  ResultSet rs = st.executeQuery("SELECT * FROM (" + candidate + ") AS __k LIMIT 0")) {
-                ResultSetMetaData md = rs.getMetaData();
-                for (int i = 1; i <= md.getColumnCount(); i++) columns.add(md.getColumnLabel(i));
+                columns = JdbcRows.columnLabels(rs);
             }
 
             // Optional preview rows (over the bounded input materialisation).
             List<Map<String, Object>> sample = List.of();
             if (req.sampleRows()) {
-                sample = new ArrayList<>();
                 try (Statement st = sb.statement();
                      ResultSet rs = st.executeQuery(
                              "SELECT * FROM (" + candidate + ") AS __k LIMIT " + SAMPLE_OUTPUT_ROWS)) {
-                    ResultSetMetaData md = rs.getMetaData();
-                    while (rs.next()) {
-                        Map<String, Object> row = new LinkedHashMap<>();
-                        for (int i = 1; i <= md.getColumnCount(); i++) {
-                            row.put(md.getColumnLabel(i), rs.getObject(i));
-                        }
-                        sample.add(row);
-                    }
+                    sample = JdbcRows.toMaps(rs);
                 }
             }
             return Result.success(columns, sample);

@@ -4,6 +4,7 @@ import com.gamma.acquire.AcquisitionException;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
+import com.gamma.acquire.ReadyMarker;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SecretResolver;
 import com.gamma.acquire.SourceConnector;
@@ -129,7 +130,7 @@ public final class FtpConnector implements SourceConnector {
             if (f.isDirectory()) {
                 if (depth < maxDepth) walk(client, join(absDir, name), rel, depth + 1, maxDepth, filter, out);
             } else if (f.isFile() && depth <= maxDepth) {
-                if (isMarker(name) || !filter.accepts(rel)) continue;
+                if (ReadyMarker.matches(readyMarker, name) || !filter.accepts(rel)) continue;
                 long size = f.getSize() >= 0 ? f.getSize() : RemoteFile.SIZE_UNKNOWN;
                 Instant mtime = f.getTimestamp() != null ? f.getTimestamp().toInstant() : null;
                 out.add(new RemoteFile(name, rel, size, mtime, null, null, null));
@@ -142,7 +143,7 @@ public final class FtpConnector implements SourceConnector {
         if (readyMarker == null) return Readiness.UNKNOWN;
         FTPClient client = ensureConnected();
         try {
-            String marker = join(parentOf(remotePath(file)), applyMarker(readyMarker, file.name()));
+            String marker = join(parentOf(remotePath(file)), ReadyMarker.apply(readyMarker, file.name()));
             // listFiles on a specific path returns the entry iff it exists.
             FTPFile[] hit = client.listFiles(marker);
             return (hit != null && hit.length > 0) ? Readiness.READY : Readiness.NOT_READY;
@@ -354,19 +355,6 @@ public final class FtpConnector implements SourceConnector {
             built.append(built.length() == 0 ? "" : "/").append(seg);
             client.makeDirectory(built.toString());   // ignore failures (already exists)
         }
-    }
-
-    private boolean isMarker(String name) {
-        if (readyMarker == null) return false;
-        int i = readyMarker.indexOf("{name}");
-        String prefix = i < 0 ? "" : readyMarker.substring(0, i);
-        String suffix = i < 0 ? readyMarker : readyMarker.substring(i + "{name}".length());
-        return name.length() > prefix.length() + suffix.length()
-                && name.startsWith(prefix) && name.endsWith(suffix);
-    }
-
-    private static String applyMarker(String template, String name) {
-        return template.contains("{name}") ? template.replace("{name}", name) : name + template;
     }
 
     private static String join(String a, String b) {

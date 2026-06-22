@@ -1,14 +1,14 @@
 package com.gamma.job;
 
 import com.gamma.api.PublicApi;
+import com.gamma.util.JdbcDrivers;
+import com.gamma.util.JdbcRows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -49,13 +49,7 @@ public final class DbJobRunStore implements AutoCloseable {
      * driver otherwise). Postgres is supported by the same code if its driver is on the classpath.
      */
     public static DbJobRunStore open(String url) throws SQLException {
-        try {
-            if (url.startsWith("jdbc:duckdb:")) Class.forName("org.duckdb.DuckDBDriver");
-            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new SQLException("No JDBC driver on the classpath for " + url, e);
-        }
-        return new DbJobRunStore(DriverManager.getConnection(url));
+        return new DbJobRunStore(JdbcDrivers.connect(url));
     }
 
     private void initSchema() {
@@ -138,7 +132,7 @@ public final class DbJobRunStore implements AutoCloseable {
             int i = 1;
             if (filtered) ps.setString(i++, job);
             ps.setInt(i, Math.max(1, limit));
-            return rows(ps);
+            return JdbcRows.query(ps);
         } catch (SQLException e) {
             log.warn("recent job runs query failed: {}", e.getMessage());
             return new ArrayList<>();
@@ -156,26 +150,11 @@ public final class DbJobRunStore implements AutoCloseable {
                 + " FROM " + T_RUNS + " GROUP BY \"day\" ORDER BY \"day\" DESC LIMIT ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, Math.max(1, days));
-            return rows(ps);
+            return JdbcRows.query(ps);
         } catch (SQLException e) {
             log.warn("job failure-trend query failed: {}", e.getMessage());
             return new ArrayList<>();
         }
-    }
-
-    /** Materialise a result set into ordered column→value maps (column labels as returned by the driver). */
-    private static List<Map<String, Object>> rows(PreparedStatement ps) throws SQLException {
-        List<Map<String, Object>> out = new ArrayList<>();
-        try (ResultSet rs = ps.executeQuery()) {
-            ResultSetMetaData md = rs.getMetaData();
-            int n = md.getColumnCount();
-            while (rs.next()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                for (int c = 1; c <= n; c++) row.put(md.getColumnLabel(c), rs.getObject(c));
-                out.add(row);
-            }
-        }
-        return out;
     }
 
     @Override

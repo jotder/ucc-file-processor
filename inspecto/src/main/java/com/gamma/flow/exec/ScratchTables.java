@@ -1,13 +1,13 @@
 package com.gamma.flow.exec;
 
+import com.gamma.util.JdbcRows;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -66,29 +66,18 @@ final class ScratchTables {
 
     /** Read up to {@code cap} rows of {@code table} as ordered column→value maps. */
     static List<Map<String, Object>> readRows(Connection conn, String table, int cap) throws SQLException {
-        List<Map<String, Object>> rows = new ArrayList<>();
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery("SELECT * FROM " + q(table) + " LIMIT " + Math.max(0, cap))) {
-            ResultSetMetaData md = rs.getMetaData();
-            int n = md.getColumnCount();
-            while (rs.next()) {
-                Map<String, Object> m = new LinkedHashMap<>();
-                for (int c = 1; c <= n; c++) m.put(md.getColumnLabel(c), rs.getObject(c));
-                rows.add(m);
-            }
+            return JdbcRows.toMaps(rs);
         }
-        return rows;
     }
 
     /** The column names of {@code table}, in declared order (works even when the table is empty). */
     static List<String> columnNames(Connection conn, String table) throws SQLException {
-        List<String> cols = new ArrayList<>();
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery("SELECT * FROM " + q(table) + " LIMIT 0")) {
-            ResultSetMetaData md = rs.getMetaData();
-            for (int c = 1; c <= md.getColumnCount(); c++) cols.add(md.getColumnLabel(c));
+            return JdbcRows.columnLabels(rs);
         }
-        return cols;
     }
 
     /** Quote a SQL identifier. */
