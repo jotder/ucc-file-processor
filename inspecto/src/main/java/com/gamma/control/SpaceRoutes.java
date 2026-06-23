@@ -14,10 +14,15 @@ import java.util.Map;
  * {@link SpaceManager container} itself rather than a single space's engine:
  * <pre>
  *   GET    /spaces                 list every hosted space's manifest                              [v4.7.0]
+ *   GET    /spaces/_meta           server capabilities: {multiSpace} — true when CRUD is supported [v4.9.0]
  *   POST   /spaces                 body {id, display_name?, description?} — create + boot a space  [v4.7.0]
  *   POST   /spaces/import?id={id}  create + boot a new space seeded from an uploaded bundle zip    [v4.8.0]
  *   DELETE /spaces/{id}[?purge=]   deregister + drain a space; ?purge=true also deletes its files  [v4.7.0]
  * </pre>
+ *
+ * <p>{@code _meta} is a non-{@link SpaceId} sentinel (underscore is outside the id charset), so the
+ * capability probe never collides with a real space. The UI reads it once at startup to decide whether to
+ * show the space-switcher + CRUD — robust even when the space list is empty (a fresh discover-mode server).
  *
  * <p>({@code import} is therefore a reserved space id for the {@code POST} verb — {@code POST /spaces/import}
  * always creates-from-bundle; a space named {@code import} is still listable/deletable/scopable as normal.)
@@ -37,6 +42,10 @@ final class SpaceRoutes implements RouteModule {
                 .sorted(java.util.Comparator.comparing(c -> c.id().value()))
                 .map(SpaceRoutes::manifest)
                 .toList());
+
+        // Server capability probe — lets the UI distinguish the discover (CRUD-capable) runtime from a
+        // single-tenant server without inferring it from the (possibly empty) space list. See class javadoc.
+        api.get("/spaces/_meta", (e, m) -> Map.of("multiSpace", api.spaces().supportsCrud()));
 
         api.post("/spaces", (e, m) -> createSpace(api, api.body(e)));
 

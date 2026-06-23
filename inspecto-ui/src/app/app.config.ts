@@ -20,16 +20,18 @@ import { firstValueFrom } from 'rxjs';
 import { TranslocoHttpLoader } from './core/transloco/transloco.http-loader';
 import { AUTH_HTTP_CLIENT } from './modules/auth/auth-http-client.token';
 import { errorInterceptor as inspectoErrorInterceptor } from './inspecto/api/error.interceptor';
+import { spaceInterceptor } from './inspecto/api/space.interceptor';
 
 export const appConfig: ApplicationConfig = {
     providers: [
         // Zone.js change detection (explicit opt-in for Angular 21)
         provideZoneChangeDetection({ eventCoalescing: true }),
 
-        // Main HttpClient — ControlApi is fully open (no auth), so the only global interceptor is
-        // the error/connectivity tracker. No bearer token is attached and there is no 401 handling.
+        // Main HttpClient — ControlApi is fully open (no auth). The space interceptor runs first to
+        // scope each call to the active space (rewrites /api/<path> → /api/spaces/<id>/<path>), then the
+        // error/connectivity tracker observes the result. No bearer token is attached, no 401 handling.
         provideHttpClient(
-            withInterceptors([inspectoErrorInterceptor])
+            withInterceptors([spaceInterceptor, inspectoErrorInterceptor])
         ),
 
         // Interceptor-free HttpClient for the vendored template AuthService only.

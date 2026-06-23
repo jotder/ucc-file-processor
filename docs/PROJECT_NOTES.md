@@ -78,6 +78,12 @@ Consumes `agent-kernel` 1.0.0 (1.1.0 available; bump optional, Abstain-only ⇒ 
   (no restart): `GET/POST /spaces`, `DELETE /spaces/{id}?purge=` (purge = opt-in file removal). **No flat
   fallback** — migrate once via `com.gamma.service.SpaceMigrator`. Editions/auth stay future SPI (no
   `if(edition==)`). → [`configuration.md` §Spaces](configuration.md).
+  **UI (Stage 7):** `SpacesService` (signals) + a global `spaceInterceptor` rewrite `/api/<p>` →
+  `/api/spaces/<id>/<p>` so every feature service stays space-agnostic (no-op single-tenant = byte-identical);
+  header space-switcher + `modules/admin/spaces` admin (CRUD + per-space/per-data-source zip export + import
+  with dry-run preview + create-from-bundle). The UI tells discover from single-tenant via the additive
+  **`GET /spaces/_meta` → `{multiSpace}`** (= `SpaceManager.supportsCrud()`), never by space-list length (a
+  fresh discover server returns `[]`). See the `angular-ui` skill §7.
 
 ---
 

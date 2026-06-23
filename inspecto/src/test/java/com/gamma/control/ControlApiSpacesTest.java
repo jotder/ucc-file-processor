@@ -47,6 +47,9 @@ class ControlApiSpacesTest {
     void createListSeamAndDeleteSpacesOverHttp(@TempDir Path root) throws Exception {
         try (Ctx c = open(root)) {
             assertEquals(0, json(send(c.port, "GET", "/spaces", null)).size(), "starts empty");
+            // capability probe: the discover runtime is CRUD-capable even with no spaces yet
+            assertTrue(json(send(c.port, "GET", "/spaces/_meta", null)).get("multiSpace").asBoolean(),
+                    "discover mode advertises multiSpace=true");
 
             // ── create + boot a space ──
             HttpResponse<String> created = send(c.port, "POST", "/spaces",

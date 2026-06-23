@@ -1,0 +1,130 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Spaces</h1>
+            <div class="text-secondary mt-1">
+                Each space is an isolated project — its own pipelines, connections, schemas, events and data
+                under <code>spaces/&lt;id&gt;/</code>. Create empty spaces or onboard them from an exported
+                bundle, export a whole space or one data source, and switch the active space from the header.
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-icon-button (click)="reload()" [disabled]="loading" aria-label="Refresh">
+                <mat-icon [svgIcon]="'heroicons_outline:arrow-path'"></mat-icon>
+            </button>
+            @if (spaces.multiSpace()) {
+                <button mat-stroked-button (click)="createFromBundle()">
+                    <mat-icon svgIcon="heroicons_outline:arrow-up-tray"></mat-icon>
+                    <span class="ml-2">From bundle</span>
+                </button>
+                <button mat-flat-button color="primary" (click)="newSpace()">
+                    <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                    <span class="ml-2">New space</span>
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (!loading && !spaces.multiSpace()) {
+        <inspecto-empty-state
+            class="mt-8 block"
+            icon="heroicons_outline:square-3-stack-3d"
+            title="Single-tenant server"
+            message="This server hosts a single space. Launch with -Dspaces.root=DIR (and migrate the flat layout with the SpaceMigrator command) to host and manage many isolated spaces."
+        ></inspecto-empty-state>
+    }
+
+    @if (!loading && spaces.multiSpace() && spaces.availableSpaces().length === 0) {
+        <inspecto-empty-state
+            class="mt-8 block"
+            icon="heroicons_outline:square-3-stack-3d"
+            title="No spaces yet"
+            message="Create your first space, or onboard one from an exported bundle."
+            actionLabel="New space"
+            (action)="newSpace()"
+        ></inspecto-empty-state>
+    }
+
+    <!-- Spaces -->
+    @if (spaces.multiSpace()) {
+        <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+            @for (s of spaces.availableSpaces(); track s.id) {
+                <div class="bg-card flex flex-col rounded-2xl p-5 shadow">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="truncate text-lg font-semibold">{{ s.displayName || s.id }}</span>
+                                @if (isCurrent(s)) {
+                                    <span class="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                                }
+                            </div>
+                            <div class="text-secondary mt-0.5 font-mono text-xs">{{ s.id }}</div>
+                            @if (s.description) {
+                                <div class="text-secondary mt-1 text-sm">{{ s.description }}</div>
+                            }
+                            @if (s.createdAt) {
+                                <div class="text-secondary mt-1 text-xs">created {{ s.createdAt }}</div>
+                            }
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <button mat-icon-button (click)="toggleDataSources(s)"
+                                    [matTooltip]="expanded[s.id] ? 'Hide data sources' : 'Show data sources'"
+                                    [attr.aria-label]="expanded[s.id] ? 'Hide data sources' : 'Show data sources'"
+                                    [attr.aria-expanded]="expanded[s.id] ? 'true' : 'false'">
+                                <mat-icon class="icon-size-5"
+                                          [svgIcon]="expanded[s.id] ? 'heroicons_outline:chevron-up' : 'heroicons_outline:chevron-down'"></mat-icon>
+                            </button>
+                            <button mat-icon-button (click)="exportSpace(s)" matTooltip="Export space (.zip)" aria-label="Export space">
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+                            </button>
+                            <button mat-icon-button (click)="importInto(s)" matTooltip="Import bundle" aria-label="Import bundle">
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-up-tray"></mat-icon>
+                            </button>
+                            <button mat-icon-button [matMenuTriggerFor]="rowMenu" matTooltip="Remove" aria-label="Remove space">
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                            </button>
+                            <mat-menu #rowMenu="matMenu">
+                                <button mat-menu-item (click)="remove(s, false)">
+                                    <mat-icon svgIcon="heroicons_outline:eye-slash"></mat-icon>
+                                    <span>Unload (keep files)</span>
+                                </button>
+                                <button mat-menu-item (click)="remove(s, true)">
+                                    <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+                                    <span>Delete &amp; purge files</span>
+                                </button>
+                            </mat-menu>
+                        </div>
+                    </div>
+
+                    <!-- Data sources -->
+                    @if (expanded[s.id]) {
+                        <div class="mt-4 border-t pt-3">
+                            <div class="text-secondary mb-2 text-sm font-medium">Data sources</div>
+                            @if (dsLoading[s.id]) {
+                                <div class="flex items-center gap-2 text-sm"><mat-spinner diameter="16"></mat-spinner> Loading…</div>
+                            } @else if ((dataSources[s.id]?.length ?? 0) === 0) {
+                                <div class="text-secondary text-sm">No data sources in this space yet.</div>
+                            } @else {
+                                <div class="flex flex-col gap-1">
+                                    @for (ds of dataSources[s.id]; track ds) {
+                                        <div class="flex items-center justify-between rounded bg-gray-100 px-2 py-1 text-sm dark:bg-gray-700">
+                                            <span class="truncate font-mono">{{ ds }}</span>
+                                            <button mat-icon-button (click)="exportDataSource(s.id, ds)"
+                                                    matTooltip="Export data source (.zip)" [attr.aria-label]="'Export ' + ds">
+                                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
