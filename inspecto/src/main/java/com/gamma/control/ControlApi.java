@@ -266,7 +266,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
-                new SpaceRoutes(),
+                new SpaceRoutes(), new DataSourceRoutes(),
                 new PipelineRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
