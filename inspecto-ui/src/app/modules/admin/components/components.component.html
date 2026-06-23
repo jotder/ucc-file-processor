@@ -20,10 +20,9 @@
     </div>
 
     @if (writesDisabled) {
-        <div class="mt-4 flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-            <mat-icon class="icon-size-5 shrink-0" svgIcon="heroicons_outline:lock-closed"></mat-icon>
-            <span>Component editing is disabled on this server (no write root configured). Listing remains available.</span>
-        </div>
+        <inspecto-alert class="mt-4 block" variant="warning" icon="heroicons_outline:lock-closed">
+            Component editing is disabled on this server (no write root configured). Listing remains available.
+        </inspecto-alert>
     }
 
     <!-- One section per kind -->

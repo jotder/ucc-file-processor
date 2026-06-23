@@ -10,6 +10,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { ToastrService } from 'ngx-toastr';
 import { ConfigService, ConfigSpec, ConfigType, FieldSpec, ValidateResult } from 'app/inspecto/api';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
+import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 
 const CONFIG_TYPES: ConfigType[] = ['pipeline', 'enrichment', 'job', 'schema', 'meta'];
 
@@ -32,6 +33,7 @@ const CONFIG_TYPES: ConfigType[] = ['pipeline', 'enrichment', 'job', 'schema', '
         MatSelectModule,
         MatTabsModule,
         InspectoSkeletonComponent,
+        StatusBadgeComponent,
     ],
     templateUrl: './config.component.html',
     encapsulation: ViewEncapsulation.None,

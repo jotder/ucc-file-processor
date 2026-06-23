@@ -8,6 +8,7 @@ import { forkJoin } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ComponentDef, ComponentsService, ComponentType, COMPONENT_TYPES } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { ComponentFormDialog, ComponentFormResult } from './component-form.dialog';
 
@@ -19,7 +20,7 @@ import { ComponentFormDialog, ComponentFormResult } from './component-form.dialo
 @Component({
     selector: 'app-components',
     standalone: true,
-    imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, InspectoEmptyStateComponent],
+    imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, InspectoEmptyStateComponent, InspectoAlertComponent],
     templateUrl: './components.component.html',
     encapsulation: ViewEncapsulation.None,
 })

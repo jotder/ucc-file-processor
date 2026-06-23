@@ -59,7 +59,7 @@
                             <div class="flex items-center gap-2">
                                 <span class="truncate text-lg font-semibold">{{ s.displayName || s.id }}</span>
                                 @if (isCurrent(s)) {
-                                    <span class="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-green-800 dark:bg-green-900 dark:text-green-200">Active</span>
+                                    <inspecto-status-badge value="ACTIVE" label="Active"></inspecto-status-badge>
                                 }
                             </div>
                             <div class="text-secondary mt-0.5 font-mono text-xs">{{ s.id }}</div>

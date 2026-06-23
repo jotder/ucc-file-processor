@@ -15,6 +15,7 @@ import {
     AssistSettingsTest,
     AssistSettingsUpdate,
 } from 'app/inspecto/api';
+import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 
 /** Display names for the provider dropdown. */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -47,6 +48,7 @@ const TIERS = ['small', 'medium', 'large'] as const;
         MatProgressSpinnerModule,
         MatSelectModule,
         UpperCasePipe,
+        InspectoAlertComponent,
     ],
     templateUrl: './model-settings.component.html',
     encapsulation: ViewEncapsulation.None,

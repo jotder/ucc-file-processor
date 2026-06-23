@@ -9,6 +9,7 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, GridApi } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 
+import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import {
@@ -49,6 +50,7 @@ interface DemoRow {
         MatTooltipModule,
         AgGridAngular,
         StatusBadgeComponent,
+        InspectoAlertComponent,
         InspectoEmptyStateComponent,
         InspectoSkeletonComponent,
     ],
@@ -120,6 +122,7 @@ export class DesignSystemComponent {
     // ── Snippets (copy-paste) ────────────────────────────────────────────────────────────────
     readonly snippets = {
         badge: `<inspecto-status-badge [value]="event.level" />\n// in an ag-Grid cellRenderer:\ncellRenderer: (p) => statusBadgeHtml(p.value)`,
+        alert: `<inspecto-alert variant="warning" title="Read-only">\n  Editing is disabled (no write root configured).\n</inspecto-alert>`,
         empty: `<inspecto-empty-state\n  icon="heroicons_outline:queue-list"\n  title="Nothing yet"\n  message="No events match the current filters."\n  actionLabel="Clear filters"\n  (action)="reset()" />`,
         skeleton: `<inspecto-skeleton width="40%" height="0.875rem" />   <!-- a label -->\n<inspecto-skeleton [lines]="4" />                     <!-- a paragraph -->\n<inspecto-skeleton height="12rem" />                  <!-- a block -->`,
         grid: `<ag-grid-angular\n  class="h-[42rem] w-full"\n  [theme]="themeSvc.theme()"\n  [rowData]="rows"\n  [columnDefs]="columnDefs"\n  [defaultColDef]="defaultColDef"\n  [loading]="loading"\n  [overlayNoRowsTemplate]="emptyOverlay"\n  (firstDataRendered)="refreshActions($event)"\n  (rowDataUpdated)="refreshActions($event)" />`,
