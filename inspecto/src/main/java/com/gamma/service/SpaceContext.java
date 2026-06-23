@@ -1,11 +1,16 @@
 package com.gamma.service;
 
+import com.gamma.util.AtomicFiles;
 import com.gamma.util.ToonHelper;
+import dev.toonformat.jtoon.JToon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -52,6 +57,15 @@ public final class SpaceContext implements AutoCloseable {
     public record SpaceManifest(String displayName, String description, String createdAt) {
 
         private static final Logger log = LoggerFactory.getLogger(SpaceContext.class);
+
+        /** Write this manifest to {@code space.toon} at {@code path} (canonical TOON, crash-safe). */
+        void write(Path path) throws IOException {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("display_name", displayName);
+            m.put("description", description);
+            m.put("created_at", createdAt);
+            AtomicFiles.write(path, JToon.encode(m).getBytes(StandardCharsets.UTF_8), ".space-");
+        }
 
         /** Read {@code space.toon} at {@code path}, defaulting the display name to {@code fallbackId} when absent. */
         static SpaceManifest read(Path path, String fallbackId) {

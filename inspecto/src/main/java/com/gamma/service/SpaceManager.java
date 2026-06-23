@@ -1,13 +1,18 @@
 package com.gamma.service;
 
+import com.gamma.acquire.AcquisitionLedgers;
 import com.gamma.event.EventLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
@@ -28,16 +33,27 @@ import java.util.stream.Stream;
  *       bad one so one broken space never blocks the others.</li>
  * </ul>
  *
+ * <p>In {@link #discover} mode the container root is remembered, so spaces can be {@link #create created} and
+ * {@link #delete deleted} at runtime (no restart); {@link #single} mode hosts exactly one space and rejects both.
+ * The {@code /spaces/{id}} request seam (ControlApi, Stage 4) routes a request to a chosen space; an un-scoped
+ * request resolves {@link #current()} (the {@code default} or sole space).
+ *
  * <p>{@link AutoCloseable}: {@link #close()} drains every space in turn (the existing drain-first
- * {@link SourceService#close()}). The {@code /spaces/{id}} request seam that routes to a chosen space is added
- * in a later stage; until then {@link #current()} resolves the {@code default} (or sole) space.
+ * {@link SourceService#close()}).
  */
 public final class SpaceManager implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(SpaceManager.class);
     private static final SpaceId DEFAULT = SpaceId.of(EventLog.DEFAULT_SPACE_ID);
 
+    /** The convention subdirectories a space owns under its root (also what {@link SpaceRoot} addresses). */
+    private static final List<String> SPACE_SUBDIRS = List.of("config", "data", "audit", "duckdb", "flows");
+
     private final ConcurrentHashMap<SpaceId, SpaceContext> spaces = new ConcurrentHashMap<>();
+    /** Serialises the rare create/delete admin mutations; reads ({@link #space}/{@link #current}) stay lock-free. */
+    private final Object lifecycleLock = new Object();
+    /** The container root ({@code -Dspaces.root}) new spaces are created under; {@code null} in single-tenant mode. */
+    private volatile Path spacesRoot;
 
     private SpaceManager() {}
 
@@ -53,6 +69,7 @@ public final class SpaceManager implements AutoCloseable {
     /** Boot every space under {@code spacesRoot} (each a dir with a {@code config/} subtree); a bad one is skipped. */
     public static SpaceManager discover(Path spacesRoot) throws IOException {
         SpaceManager m = new SpaceManager();
+        m.spacesRoot = spacesRoot.toAbsolutePath().normalize();   // remembered so runtime create/delete can mint/remove dirs
         if (!Files.isDirectory(spacesRoot)) {
             log.warn("Spaces root {} does not exist — no spaces booted", spacesRoot.toAbsolutePath());
             return m;
@@ -79,6 +96,92 @@ public final class SpaceManager implements AutoCloseable {
     /** Arm every hosted space's poll loop / schedules. */
     public void startAll() {
         spaces.values().forEach(SpaceContext::start);
+    }
+
+    // ── runtime CRUD (no restart) ─────────────────────────────────────────────
+
+    /** Whether this manager can mint/remove spaces at runtime (false for the single-tenant {@link #single} mode). */
+    public boolean supportsCrud() {
+        return spacesRoot != null;
+    }
+
+    /**
+     * Create a new space under {@code spaces/<id>/}: make its convention dirs + {@code space.toon} manifest, boot it
+     * via {@link SpaceBootstrap}, {@link SpaceContext#start() start} it, and register it — all without a restart.
+     * Serialised with {@link #delete}.
+     *
+     * @throws IllegalStateException when this manager hosts a single space ({@link #single}; no container root), or a
+     *                               space with this id (or its directory) already exists
+     */
+    public SpaceContext create(SpaceId id, String displayName, String description) throws IOException {
+        if (spacesRoot == null)
+            throw new IllegalStateException("This server hosts a single space; set -Dspaces.root to manage many");
+        synchronized (lifecycleLock) {
+            if (spaces.containsKey(id))
+                throw new IllegalStateException("Space already exists: " + id.value());
+            Path base = spacesRoot.resolve(id.value());
+            if (Files.exists(base))
+                throw new IllegalStateException("Space directory already exists: " + base);
+            for (String sub : SPACE_SUBDIRS) Files.createDirectories(base.resolve(sub));
+            String name = (displayName == null || displayName.isBlank()) ? id.value() : displayName.trim();
+            new SpaceContext.SpaceManifest(name, description == null ? "" : description.trim(), Instant.now().toString())
+                    .write(base.resolve("space.toon"));
+
+            SpaceContext ctx = SpaceBootstrap.load(SpaceRoot.under(base));
+            try {
+                ctx.start();
+            } catch (RuntimeException e) {
+                ctx.close();   // don't leak a started-but-unregistered service
+                throw e;
+            }
+            spaces.put(id, ctx);
+            log.info("Created space '{}' at {}", id.value(), base);
+            return ctx;
+        }
+    }
+
+    /**
+     * Remove a hosted space: deregister it first (new requests {@code 404} at once), then drain-and-close its service
+     * (the existing {@link SourceService#close()}). When {@code purge} is set, the space's directory tree
+     * ({@code config/data/audit/duckdb/flows} + manifest) is then deleted from disk; otherwise the files are left for
+     * a later manual cleanup or re-discovery. Serialised with {@link #create}.
+     *
+     * @return {@code false} when no space with {@code id} is hosted (nothing to do)
+     * @throws IllegalStateException when this manager hosts a single space ({@link #single})
+     */
+    public boolean delete(SpaceId id, boolean purge) throws IOException {
+        if (spacesRoot == null)
+            throw new IllegalStateException("This server hosts a single space; set -Dspaces.root to manage many");
+        SpaceContext ctx;
+        synchronized (lifecycleLock) {
+            ctx = spaces.remove(id);
+        }
+        if (ctx == null) return false;
+        ctx.close();
+        AcquisitionLedgers.unregister(id.value());   // release the per-space ledger SpaceBootstrap registered (+ its DB handle)
+        if (purge) {
+            Path base = spacesRoot.resolve(id.value()).normalize();   // SpaceId is jailed: no separators/.. can escape
+            if (base.startsWith(spacesRoot) && Files.isDirectory(base)) deleteRecursively(base);
+            log.info("Deleted + purged space '{}' ({})", id.value(), base);
+        } else {
+            log.info("Deleted space '{}' (files left on disk)", id.value());
+        }
+        return true;
+    }
+
+    /** Recursively delete {@code dir} (deepest entries first). */
+    private static void deleteRecursively(Path dir) throws IOException {
+        try (Stream<Path> walk = Files.walk(dir)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.delete(p);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
     }
 
     /** The hosted space with {@code id}, if present. */

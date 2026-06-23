@@ -47,4 +47,60 @@ class SpaceManagerTest {
             assertEquals(0, mgr.size());
         }
     }
+
+    @Test
+    void createMintsBootsAndRegistersANewSpace(@TempDir Path root) throws Exception {
+        try (SpaceManager mgr = SpaceManager.discover(root)) {   // empty container → 0 spaces, but root is remembered
+            assertTrue(mgr.supportsCrud());
+            SpaceContext ctx = mgr.create(SpaceId.of("acme"), "ACME Corp", "the acme space");
+            assertEquals(1, mgr.size());
+            assertSame(ctx, mgr.space(SpaceId.of("acme")).orElseThrow());
+            assertEquals("ACME Corp", ctx.manifest().displayName(), "the written manifest is read back into the context");
+            Path base = root.resolve("acme");
+            assertTrue(Files.isDirectory(base.resolve("config")), "config dir created");
+            assertTrue(Files.isDirectory(base.resolve("duckdb")), "duckdb dir created");
+            assertTrue(Files.exists(base.resolve("space.toon")), "manifest written");
+        }
+    }
+
+    @Test
+    void createRejectsADuplicate(@TempDir Path root) throws Exception {
+        try (SpaceManager mgr = SpaceManager.discover(root)) {
+            mgr.create(SpaceId.of("acme"), null, null);   // null display name → defaults to the id
+            assertThrows(IllegalStateException.class, () -> mgr.create(SpaceId.of("acme"), null, null));
+            assertEquals(1, mgr.size());
+        }
+    }
+
+    @Test
+    void deleteWithoutPurgeDeregistersButKeepsFiles(@TempDir Path root) throws Exception {
+        try (SpaceManager mgr = SpaceManager.discover(root)) {
+            mgr.create(SpaceId.of("acme"), null, null);
+            assertTrue(mgr.delete(SpaceId.of("acme"), false));
+            assertEquals(0, mgr.size());
+            assertTrue(mgr.space(SpaceId.of("acme")).isEmpty(), "deregistered → later requests 404");
+            assertTrue(Files.isDirectory(root.resolve("acme")), "files left on disk when not purging");
+            assertFalse(mgr.delete(SpaceId.of("acme"), false), "deleting an absent space is a no-op");
+        }
+    }
+
+    @Test
+    void deleteWithPurgeRemovesTheDirectory(@TempDir Path root) throws Exception {
+        try (SpaceManager mgr = SpaceManager.discover(root)) {
+            mgr.create(SpaceId.of("acme"), null, null);
+            assertTrue(mgr.delete(SpaceId.of("acme"), true));
+            assertEquals(0, mgr.size());
+            assertFalse(Files.exists(root.resolve("acme")), "purge removed the space directory tree");
+        }
+    }
+
+    @Test
+    void crudIsUnsupportedInSingleTenantMode() {
+        SourceService svc = new SourceService(List.of(), 60, 1);
+        try (SpaceManager mgr = SpaceManager.single(svc)) {   // mgr.close() drains svc — don't double-close it
+            assertFalse(mgr.supportsCrud());
+            assertThrows(IllegalStateException.class, () -> mgr.create(SpaceId.of("acme"), null, null));
+            assertThrows(IllegalStateException.class, () -> mgr.delete(SpaceId.of("default"), false));
+        }
+    }
 }

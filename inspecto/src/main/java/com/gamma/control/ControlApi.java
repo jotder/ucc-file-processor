@@ -53,6 +53,9 @@ import java.util.regex.Pattern;
  * <pre>
  *   GET  /health                              liveness (open)
  *   GET  /ready                               readiness (open)
+ *   GET  /spaces                              list hosted spaces (manifests)               [v4.7.0]
+ *   POST /spaces                              body {id,display_name?,description?} — create + boot a space [v4.7.0]
+ *   DELETE /spaces/{id}[?purge=true]          deregister + drain a space; purge also deletes its files [v4.7.0]
  *   GET  /pipelines                           list pipelines + state
  *   POST /pipelines                           body {"configPath":"…"} — register a new pipeline   [v4.1.0]
  *   POST /pipelines/{name}/trigger            run one pipeline once
@@ -263,6 +266,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
+                new SpaceRoutes(),
                 new PipelineRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
@@ -438,6 +442,9 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     @Override
     public SourceService service() { return currentContext().service(); }
+
+    @Override
+    public SpaceManager spaces() { return spaces; }
 
     /**
      * The write-jail root for {@code POST /config/write} and disk-registration, scoped to the bound space: a

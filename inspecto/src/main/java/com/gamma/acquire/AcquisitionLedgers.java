@@ -51,6 +51,18 @@ public final class AcquisitionLedgers {
         if (spaceId != null && ledger != null) LEDGERS.put(spaceId, ledger);
     }
 
+    /** Remove and {@link AcquisitionLedger#close() close} the ledger for {@code spaceId} (on space deletion); no-op if none. */
+    public static void unregister(String spaceId) {
+        AcquisitionLedger removed = (spaceId == null) ? null : LEDGERS.remove(spaceId);
+        if (removed != null) {
+            try {
+                removed.close();
+            } catch (Exception e) {
+                log.warn("Error closing acquisition ledger for space {}: {}", spaceId, e.getMessage());
+            }
+        }
+    }
+
     // ── checksum handoff (Phase C3) ────────────────────────────────────────────────
     // CHECKSUM dedup hashes each candidate once on the run path (in SourceProcessor.collect); this transient
     // cache hands that hash to BatchProcessor.commit so the post-commit ledger record reuses it instead of
