@@ -6,7 +6,7 @@
 
 The framework uses three config files in `.toon` format (JToon). Only the generation config is hand-authored; the other two are machine-generated and then maintained.
 
-Config files live under `inspecto/config/<adapter>/`.  All `dirs.*` and `schema_file` paths are relative to the **sandbox root** (the JVM working directory).
+Config files live under a space's `config/<adapter>/` directory (e.g. `spaces/<id>/config/<adapter>/`; see [Spaces](#spaces-multi-project-layout) below).  All `dirs.*` and `schema_file` paths are relative to the **sandbox root** (the JVM working directory) — for the multi-space runtime that is the repo/bundle root you launch from, so the bundled example configs use repo-root-relative paths such as `spaces/<id>/config/...` and `spaces/<id>/data/...`.
 
 ## Spaces (multi-project layout)
 

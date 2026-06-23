@@ -11,4 +11,4 @@ if [[ -z "${jar:-}" ]]; then
 fi
 java --enable-native-access=ALL-UNNAMED \
      -jar "$jar" \
-     inspecto/config/voucher/voucher_unknown_pipeline.toon
+     spaces/ucc/config/voucher/voucher_pipeline.toon

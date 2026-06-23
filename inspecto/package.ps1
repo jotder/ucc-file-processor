@@ -76,14 +76,8 @@ if (Test-Path $bundleDir) {
     $null = New-Item -ItemType Directory $bundleDir
 }
 
-$null = New-Item -ItemType Directory "$bundleDir\config\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\inbox\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\database\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\backup\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\temp\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\errors\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\quarantine\voucher" -Force
-$null = New-Item -ItemType Directory "$bundleDir\markers\voucher" -Force
+# The per-space layout (config + runtime dirs) is bundled from the repo's spaces/ tree in step 4;
+# runtime dirs (data/audit/duckdb/flows) are created on first run, so nothing to pre-create here.
 
 # ── step 3: copy JAR (canonical name for deployment) ──────────────────────────
 Copy-Item $jarSrc "$bundleDir\file-processor.jar"
@@ -103,31 +97,22 @@ if ($uiBuilt -and (Test-Path $uiDistRoot)) {
     }
 }
 
-# ── step 4: copy configs — rewrite schema_file paths for bundle-root CWD ──────
-# Local configs use  "inspecto/config/<adapter>/..."  (relative to sandbox root).
-# Deployed configs use  "config/<adapter>/..."          (relative to bundle root).
-function Copy-Config([string]$src, [string]$dst) {
-    $content = Get-Content $src -Raw
-    $content = $content -replace 'inspecto/config/', 'config/'
-    Set-Content -Path $dst -Value $content -NoNewline
+# ── step 4: copy the multi-space config tree (configs + space.toon) ───────────
+# Each space's pipeline configs use repo-root-relative paths (spaces/<id>/config|data/...), which
+# resolve identically from the bundle root — no path rewrite needed. Runtime state
+# (data/audit/duckdb/flows) is created on first run and is intentionally NOT bundled.
+$spacesSrc = Join-Path $sandboxRoot 'spaces'
+if (Test-Path $spacesSrc) {
+    $spacesOut = Join-Path $bundleDir 'spaces'
+    Copy-Item $spacesSrc $spacesOut -Recurse -Force
+    foreach ($gen in 'data','audit','duckdb','flows') {
+        Get-ChildItem -Path $spacesOut -Recurse -Directory -Filter $gen -ErrorAction SilentlyContinue |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Write-Host "Bundled spaces tree → $spacesOut" -ForegroundColor Green
+} else {
+    Write-Host "  (no spaces/ tree found at $spacesSrc — skipping config bundle)" -ForegroundColor Yellow
 }
-# voucher.grammar.toon may be absent on a clean checkout. Copy it when present rather than
-# aborting the whole bundle under $ErrorActionPreference='Stop'.
-function Copy-IfPresent([string]$src, [string]$dst) {
-    if (Test-Path $src) { Copy-Item $src $dst }
-    else { Write-Host "  (skipping missing optional config: $src)" -ForegroundColor Yellow }
-}
-
-Copy-Config    "$adjParserDir\config\voucher\voucher_pipeline.toon" `
-               "$bundleDir\config\voucher\voucher_pipeline.toon"
-Copy-Item      "$adjParserDir\config\voucher\voucher_76.toon"       `
-               "$bundleDir\config\voucher\voucher_76.toon"
-Copy-Item      "$adjParserDir\config\voucher\voucher_116.toon"      `
-               "$bundleDir\config\voucher\voucher_116.toon"
-Copy-Item      "$adjParserDir\config\voucher\voucher_537.toon"      `
-               "$bundleDir\config\voucher\voucher_537.toon"
-Copy-IfPresent "$adjParserDir\config\voucher\voucher.grammar.toon"  `
-               "$bundleDir\config\voucher\voucher.grammar.toon"
 
 # ── step 4b: copy runnable examples ───────────────────────────────────────────
 # The examples/ tree is self-contained (each example uses paths relative to its own
@@ -148,15 +133,15 @@ if (Test-Path $examplesSrc) {
 @'
 #!/usr/bin/env bash
 # Usage: ./run.sh <adapter>
-# Looks up the pipeline file as config/<adapter>/*_pipeline.toon (first match wins),
+# Looks up the pipeline file as spaces/<space>/config/<adapter>/*_pipeline.toon (first match wins),
 # so it transparently handles both "<adapter>_pipeline.toon" and variants like
-# "<adapter>_unknown_pipeline.toon".
+# "<adapter>_unknown_pipeline.toon" across every space.
 set -euo pipefail
 cd "$(dirname "$0")"
 ADAPTER="${1:?Usage: run.sh <adapter>   (e.g. voucher)}"
-PIPELINE=$(ls "config/${ADAPTER}"/*_pipeline.toon 2>/dev/null | head -1)
+PIPELINE=$(ls spaces/*/config/"${ADAPTER}"/*_pipeline.toon 2>/dev/null | head -1)
 if [ -z "$PIPELINE" ]; then
-    echo "ERROR: no pipeline file found at config/${ADAPTER}/*_pipeline.toon" >&2
+    echo "ERROR: no pipeline file found at spaces/*/config/${ADAPTER}/*_pipeline.toon" >&2
     exit 1
 fi
 echo "[run.sh] Using pipeline: $PIPELINE"
@@ -169,9 +154,9 @@ exec "$JAVA" --enable-native-access=ALL-UNNAMED \
 $runBatContent = @'
 @echo off
 rem Usage: run.bat ADAPTER         (e.g. voucher)
-rem Looks up the pipeline file as config\ADAPTER\*_pipeline.toon (first match wins),
+rem Looks up the pipeline file as spaces\SPACE\config\ADAPTER\*_pipeline.toon (first match wins),
 rem so it handles both "ADAPTER_pipeline.toon" and variants like
-rem "ADAPTER_unknown_pipeline.toon".
+rem "ADAPTER_unknown_pipeline.toon" across every space.
 setlocal
 cd /d "%~dp0"
 if "%1"=="" (
@@ -179,11 +164,11 @@ if "%1"=="" (
     exit /b 1
 )
 set "PIPELINE="
-for %%F in (config\%1\*_pipeline.toon) do (
+for %%F in (spaces\*\config\%1\*_pipeline.toon) do (
     if not defined PIPELINE set "PIPELINE=%%F"
 )
 if not defined PIPELINE (
-    echo ERROR: no pipeline file found at config\%1\*_pipeline.toon
+    echo ERROR: no pipeline file found at spaces\*\config\%1\*_pipeline.toon
     exit /b 1
 )
 echo [run.bat] Using pipeline: %PIPELINE%
@@ -209,11 +194,11 @@ if exist "runtime\bin\java.exe" set "JAVA=runtime\bin\java.exe"
 #
 # Examples:
 #   ./ura.sh help
-#   ./ura.sh search           config/voucher/voucher_pipeline.toon
-#   ./ura.sh copy             config/voucher/voucher_pipeline.toon
-#   ./ura.sh --dry-run backup config/voucher/voucher_pipeline.toon
-#   ./ura.sh prepare-inbox    config/voucher/voucher_pipeline.toon
-#   ./ura.sh create-schema    voucher  samples/voucher_sample.csv  config/voucher/voucher_gen.toon
+#   ./ura.sh search           spaces/ucc/config/voucher/voucher_pipeline.toon
+#   ./ura.sh copy             spaces/ucc/config/voucher/voucher_pipeline.toon
+#   ./ura.sh --dry-run backup spaces/ucc/config/voucher/voucher_pipeline.toon
+#   ./ura.sh prepare-inbox    spaces/ucc/config/voucher/voucher_pipeline.toon
+#   ./ura.sh create-schema    voucher  samples/voucher_sample.csv  spaces/ucc/config/voucher/voucher_gen.toon
 set -euo pipefail
 cd "$(dirname "$0")"
 JAVA="java"; [ -x "runtime/bin/java" ] && JAVA="runtime/bin/java"
@@ -251,41 +236,40 @@ if exist "runtime\bin\java.exe" set "JAVA=runtime\bin\java.exe"
 # control plane) and ASSIST_TOKEN (optional, enables the assist/catalog read routes).
 @'
 #!/usr/bin/env bash
-# Usage: CONTROL_TOKEN=... [ASSIST_TOKEN=...] [PORT=8080] ./serve.sh [config-dir-or-pipeline ...]
-# Starts the control plane + operator UI. With no args it serves every pipeline under config/.
+# Usage: CONTROL_TOKEN=... [ASSIST_TOKEN=...] [PORT=8080] [SPACES_ROOT=spaces] ./serve.sh
+# Starts the control plane + operator UI over every space under the spaces/ root (discover mode).
 set -euo pipefail
 cd "$(dirname "$0")"
 PORT="${PORT:-8080}"
-ARGS=("$@"); if [ ${#ARGS[@]} -eq 0 ]; then ARGS=("config"); fi
-JAVA_OPTS=(--enable-native-access=ALL-UNNAMED "-Dcontrol.port=${PORT}")
+SPACES_ROOT="${SPACES_ROOT:-spaces}"
+JAVA_OPTS=(--enable-native-access=ALL-UNNAMED "-Dcontrol.port=${PORT}" "-Dspaces.root=${SPACES_ROOT}")
 [ -d ui ] && JAVA_OPTS+=("-Dui.dir=./ui")
 [ -n "${CONTROL_TOKEN:-}" ] && JAVA_OPTS+=("-Dcontrol.token=${CONTROL_TOKEN}")
 [ -n "${ASSIST_TOKEN:-}" ]  && JAVA_OPTS+=("-Dassist.read.token=${ASSIST_TOKEN}")
 [ -n "${CORS_ORIGIN:-}" ]   && JAVA_OPTS+=("-Dcontrol.cors=${CORS_ORIGIN}")
 JAVA="java"; [ -x "runtime/bin/java" ] && JAVA="runtime/bin/java"
-echo "[serve.sh] ControlApi on :${PORT}  (UI: $([ -d ui ] && echo ./ui || echo none))"
-exec "$JAVA" "${JAVA_OPTS[@]}" -cp file-processor.jar com.gamma.control.ControlApi "${ARGS[@]}"
+echo "[serve.sh] ControlApi on :${PORT}  (spaces: ./${SPACES_ROOT}, UI: $([ -d ui ] && echo ./ui || echo none))"
+exec "$JAVA" "${JAVA_OPTS[@]}" -cp file-processor.jar com.gamma.control.ControlApi
 '@ | Set-Content -Path "$bundleDir\serve.sh" -NoNewline
 
 $serveBatContent = @'
 @echo off
-rem Usage: set CONTROL_TOKEN=... && serve.bat [config-dir-or-pipeline ...]
-rem Optional env: ASSIST_TOKEN, PORT (default 8080), CORS_ORIGIN.
-rem Starts the control plane + operator UI (serves bundled .\ui via -Dui.dir).
+rem Usage: set CONTROL_TOKEN=... && serve.bat
+rem Optional env: ASSIST_TOKEN, PORT (default 8080), CORS_ORIGIN, SPACES_ROOT (default spaces).
+rem Starts the control plane + operator UI over every space under .\spaces (serves bundled .\ui).
 setlocal
 cd /d "%~dp0"
 if "%PORT%"=="" set "PORT=8080"
-set "ARGS=%*"
-if "%ARGS%"=="" set "ARGS=config"
-set "OPTS=--enable-native-access=ALL-UNNAMED -Dcontrol.port=%PORT%"
+if "%SPACES_ROOT%"=="" set "SPACES_ROOT=spaces"
+set "OPTS=--enable-native-access=ALL-UNNAMED -Dcontrol.port=%PORT% -Dspaces.root=%SPACES_ROOT%"
 if exist ui set "OPTS=%OPTS% -Dui.dir=./ui"
 if not "%CONTROL_TOKEN%"=="" set "OPTS=%OPTS% -Dcontrol.token=%CONTROL_TOKEN%"
 if not "%ASSIST_TOKEN%"=="" set "OPTS=%OPTS% -Dassist.read.token=%ASSIST_TOKEN%"
 if not "%CORS_ORIGIN%"=="" set "OPTS=%OPTS% -Dcontrol.cors=%CORS_ORIGIN%"
 set "JAVA=java"
 if exist "runtime\bin\java.exe" set "JAVA=runtime\bin\java.exe"
-echo [serve.bat] ControlApi on :%PORT%
-"%JAVA%" %OPTS% -cp file-processor.jar com.gamma.control.ControlApi %ARGS%
+echo [serve.bat] ControlApi on :%PORT%  (spaces: .\%SPACES_ROOT%)
+"%JAVA%" %OPTS% -cp file-processor.jar com.gamma.control.ControlApi
 '@
 [System.IO.File]::WriteAllText(
     "$bundleDir\serve.bat",
@@ -357,8 +341,8 @@ Write-Host "       then open http://localhost:8080/  (UI served from ./ui)"
 Write-Host "  5. Pre-ETL utilities:"
 Write-Host "       ura.bat help            (Windows)"
 Write-Host "       bash ura.sh help        (Linux)"
-Write-Host "       bash ura.sh search  config/voucher/voucher_pipeline.toon"
-Write-Host "       bash ura.sh backup  config/voucher/voucher_pipeline.toon"
+Write-Host "       bash ura.sh search  spaces/ucc/config/voucher/voucher_pipeline.toon"
+Write-Host "       bash ura.sh backup  spaces/ucc/config/voucher/voucher_pipeline.toon"
 Write-Host "  6. Try the worked feature examples (self-contained, synthetic data):"
 Write-Host "       pwsh examples/run-example.ps1 01-ingest/hello-csv     (Windows)"
 Write-Host "       bash examples/run-example.sh  01-ingest/hello-csv     (Linux)"

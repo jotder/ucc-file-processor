@@ -26,6 +26,12 @@
 /file-processor-4.0/
 /data/
 
+# Multi-space runtime output — keep spaces/<id>/config/ + space.toon tracked; ignore generated state.
+/spaces/*/data/
+/spaces/*/audit/
+/spaces/*/duckdb/
+/spaces/*/flows/
+
 # Dry-run and audit outputs produced by ad-hoc local runs in the module root
 /inspecto/available_files.csv*
 /inspecto/missing_files.csv*
