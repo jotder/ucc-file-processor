@@ -141,6 +141,45 @@ public final class SpaceManager implements AutoCloseable {
     }
 
     /**
+     * Create a new space seeded from a bundle zip: mint its convention dirs, unpack the bundle's config files into
+     * {@code config/} (jailed against zip-slip) and its {@code space.toon} (or a default), then boot + register it —
+     * no restart. The fresh {@link SpaceBootstrap} boot discovers every config uniformly, so pipelines, connections
+     * and jobs are all live. Serialised with {@link #create}/{@link #delete}.
+     *
+     * @throws IllegalArgumentException if the zip is not a valid bundle (delegated from {@link BundleImporter#parse})
+     * @throws IllegalStateException    single-tenant mode, or a space with this id / directory already exists
+     */
+    public SpaceContext createFromBundle(SpaceId id, byte[] zip) throws IOException {
+        if (spacesRoot == null)
+            throw new IllegalStateException("This server hosts a single space; set -Dspaces.root to manage many");
+        BundleImporter.Bundle bundle = BundleImporter.parse(zip);   // validates the manifest before touching disk
+        synchronized (lifecycleLock) {
+            if (spaces.containsKey(id))
+                throw new IllegalStateException("Space already exists: " + id.value());
+            Path base = spacesRoot.resolve(id.value());
+            if (Files.exists(base))
+                throw new IllegalStateException("Space directory already exists: " + base);
+            for (String sub : SPACE_SUBDIRS) Files.createDirectories(base.resolve(sub));
+            BundleImporter.writeConfig(bundle, base.resolve("config"));
+            Path manifest = base.resolve("space.toon");
+            if (bundle.spaceToon() != null) Files.write(manifest, bundle.spaceToon());
+            else new SpaceContext.SpaceManifest(id.value(), "", Instant.now().toString()).write(manifest);
+
+            SpaceContext ctx = SpaceBootstrap.load(SpaceRoot.under(base));
+            try {
+                ctx.start();
+            } catch (RuntimeException e) {
+                ctx.close();
+                throw e;
+            }
+            spaces.put(id, ctx);
+            log.info("Created space '{}' from bundle at {} ({} config file(s))",
+                    id.value(), base, bundle.configEntries().size());
+            return ctx;
+        }
+    }
+
+    /**
      * Remove a hosted space: deregister it first (new requests {@code 404} at once), then drain-and-close its service
      * (the existing {@link SourceService#close()}). When {@code purge} is set, the space's directory tree
      * ({@code config/data/audit/duckdb/flows} + manifest) is then deleted from disk; otherwise the files are left for

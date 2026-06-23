@@ -15,8 +15,12 @@ import java.util.Map;
  * <pre>
  *   GET    /spaces                 list every hosted space's manifest                              [v4.7.0]
  *   POST   /spaces                 body {id, display_name?, description?} — create + boot a space  [v4.7.0]
+ *   POST   /spaces/import?id={id}  create + boot a new space seeded from an uploaded bundle zip    [v4.8.0]
  *   DELETE /spaces/{id}[?purge=]   deregister + drain a space; ?purge=true also deletes its files  [v4.7.0]
  * </pre>
+ *
+ * <p>({@code import} is therefore a reserved space id for the {@code POST} verb — {@code POST /spaces/import}
+ * always creates-from-bundle; a space named {@code import} is still listable/deletable/scopable as normal.)
  *
  * <p>These coexist with the per-space request seam: {@code ControlApi.dispatch} only treats a path as
  * space-scoped when it has a trailing segment ({@code /spaces/{id}/<rest>}), so the bare {@code /spaces} and
@@ -36,7 +40,24 @@ final class SpaceRoutes implements RouteModule {
 
         api.post("/spaces", (e, m) -> createSpace(api, api.body(e)));
 
+        api.post("/spaces/import", (e, m) -> importSpace(api, e));
+
         api.delete("/spaces/([^/]+)", (e, m) -> deleteSpace(api, e, ApiContext.name(m)));
+    }
+
+    /** Create + boot a new space seeded from an uploaded bundle zip; the new id comes from {@code ?id=}. */
+    private Object importSpace(ApiContext api, HttpExchange e) throws IOException {
+        requireMultiSpace(api);
+        String id = ApiContext.query(e, "id");
+        if (id == null || !SpaceId.isValid(id))
+            throw new ApiException(400, "query param 'id' is required and must be a valid space id ([a-z0-9-], 1-63 chars)");
+        try {
+            return manifest(api.spaces().createFromBundle(SpaceId.of(id), e.getRequestBody().readAllBytes()));
+        } catch (IllegalArgumentException badBundle) {   // not a bundle / invalid manifest / zip-slip
+            throw new ApiException(400, badBundle.getMessage());
+        } catch (IllegalStateException conflict) {       // id / directory already exists
+            throw new ApiException(409, conflict.getMessage());
+        }
     }
 
     /** Create + boot a space from {@code {id, display_name?, description?}}. */
