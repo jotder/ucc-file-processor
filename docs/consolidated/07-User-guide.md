@@ -34,7 +34,7 @@ include the optional assist agent. Full build/deploy detail: [06-Operations](06-
 
 ## 2. Onboard a new source
 
-A source is three config files under `inspecto/config/<source>/`. Only the first is hand-authored.
+A source is three config files under a space's `config/<source>/` directory (`spaces/<id>/config/<source>/`). Only the first is hand-authored.
 
 | File | Authored | Purpose |
 |---|---|---|

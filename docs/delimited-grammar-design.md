@@ -43,7 +43,7 @@ The Java parser stays as a correctness fallback. **Nothing that works today may 
 ## 4. Config decomposition (3 files)
 
 ```
-config/voucher/
+spaces/ucc/config/voucher/
   voucher.grammar.toon     ← NEW: HOW to tokenize (the old csv_settings, reusable)
   voucher_537.toon         ← event type (columns + types + partitions) — UNCHANGED
   voucher_116.toon         ← event type — UNCHANGED
@@ -93,11 +93,11 @@ processing:
   threads: 3
   duckdb_threads: 0
   file_pattern: "glob:**/*.csv"
-  grammar: config/voucher/voucher.grammar.toon     # ← replaces the inline csv_settings block
+  grammar: spaces/ucc/config/voucher/voucher.grammar.toon     # ← replaces the inline csv_settings block
   schemas[3]{column_count,file_pattern,schema_file,table}:
-    76,  "glob:**/*other*", "config/voucher/voucher_76.toon",  voucher_other
-    116, "glob:**/*main*",  "config/voucher/voucher_116.toon", voucher_main
-    537, "",                "config/voucher/voucher_537.toon", voucher
+    76,  "glob:**/*other*", "spaces/ucc/config/voucher/voucher_76.toon",  voucher_other
+    116, "glob:**/*main*",  "spaces/ucc/config/voucher/voucher_116.toon", voucher_main
+    537, "",                "spaces/ucc/config/voucher/voucher_537.toon", voucher
 ```
 
 ## 5. Backward-compatible alias semantics (D1)

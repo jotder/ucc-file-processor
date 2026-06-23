@@ -1,7 +1,9 @@
 # Handover — Multi-space (multi-project) feature
 
-**Date:** 2026-06-23 · **Branch:** `feat/multi-space` (off `master` @ `c5f50a3`) · **Status:** Stages 1–5 of 7
-done, committed, **NOT pushed** · **Build:** full reactor green (1033 tests, 0 failures / 0 errors / 1 pre-existing skip).
+**Date:** 2026-06-23 · **Branch:** `feat/multi-space` (off `master` @ `c5f50a3`) · **Status:** **all 7 stages done**,
+committed (incl. `ffbf311` example-config migration into `spaces/` + a docs-path sweep), **NOT pushed** · **Build:**
+full reactor green at Stage 6d (1045 tests, 0 failures / 0 errors / 1 pre-existing skip); Stage 7 added the Angular UI
+plus a `GET /spaces/_meta` enabler, verified green (UI `test:ci` 98 pass + targeted backend tests + preview smoke).
 
 This is a self-contained handover. The authoritative live state is `SESSION_STATUS.local.md` (top section); the
 durable model is in `docs/PROJECT_NOTES.md` (§3 key decision, §4 the per-space-MDC gotcha); the approved design is
@@ -41,7 +43,7 @@ ServiceLoader SPI, **no `if(edition==…)` in core**.
 - **Entry point:** `ControlApi.main` → `SpaceManager.discover(-Dspaces.root)` (multi) or
   `SpaceManager.single(SourceService.fromArgs(args))` (single-tenant, unchanged).
 
-## 3. What's done (Stages 1–5)
+## 3. What's done — foundation + CRUD (Stages 1–5)
 
 | Stage | Commit | Summary |
 |---|---|---|
@@ -65,10 +67,12 @@ deletes files — purge is opt-in by user decision). `SpaceManager.delete` also 
 [--dry-run] <configDir>` — idempotent, cross-fs-safe. **Caveat:** cannot rewrite *absolute* schema/grammar paths
 inside configs (author relative paths); custom non-default flat `-D` locations are manual.
 
-## 4. What's left
+## 4. What's done — bundle + UI (Stages 6–7)
 
-**Nothing — all 7 stages are done.** Stage 6 (data-source bundle resolver + zip export/import + import-preview,
-`7be7d1d`/`34cacc2`/`d7bb1c8`/`da7a64b`) and Stage 7 (the Angular UI) are complete.
+**Nothing is left — all 7 stages are done.** Stage 6 (data-source bundle resolver + zip export/import +
+import-preview, `7be7d1d`/`34cacc2`/`d7bb1c8`/`da7a64b`) and Stage 7 (the Angular UI, `b60d550`) are complete.
+The shipped example configs were then migrated into the multi-space layout (`ffbf311`: `spaces/default` =
+subscriber + events + connections, `spaces/ucc` = voucher) and the docs/CLI path references swept to match.
 
 - **Stage 6 (backend) — DONE:** `DataSourceBundle` resolver, zip export/import (`bundle.toon` manifest;
   selective per-data-source **and** whole-space), import-preview dry-run, all over the `/spaces/{id}/` seam.
@@ -79,6 +83,10 @@ inside configs (author relative paths); custom non-default flat `-D` locations a
   preview/create-from-bundle). One additive backend enabler: **`GET /spaces/_meta` → `{multiSpace}`** so the UI
   detects discover vs single-tenant even when the space list is empty. Verified: UI lint:tokens + build +
   test:ci (98 pass) + targeted backend tests + preview smoke — all green.
+
+**Open follow-up (not a blocker):** the full `package.ps1` bundle build (npm + jlink) + booting the produced bundle
+has **not** been re-run since the `spaces/` config migration — smoke-test the bundle before any release. `package.ps1`
+itself was updated to bundle the `spaces/` tree and launch with `-Dspaces.root`, but the produced artifact is unverified.
 
 ## 5. Key decisions & deviations (so you don't re-derive them)
 

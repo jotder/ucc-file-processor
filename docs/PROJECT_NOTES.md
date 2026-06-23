@@ -113,6 +113,13 @@ Consumes `agent-kernel` 1.0.0 (1.1.0 available; bump optional, Abstain-only ⇒ 
   `MultiSourceProcessor.runAll`/`runConfigs` **and** `SourceProcessor`'s per-batch executor (the batch commit,
   per-batch metrics and event log fire there, not on the poll thread). Miss one and that space's metrics/events
   silently fall back to `"default"`. The `default` space sets NO MDC, so single-space output stays label-free.
+- **Pipeline-internal paths resolve against the JVM CWD, NOT the space root.** A pipeline's `schema_file`,
+  `grammar`, and `dirs.*` are `Paths.get(...)` in `PipelineConfigParser` with **no rebasing** to `spaces/<id>/`.
+  Only the *space discovery* layer (`-Dspaces.root`, `SpaceRoot`) is space-relative. So when configs were moved
+  under `spaces/<id>/config/` (`ffbf311`), every in-config path had to be rewritten to repo/bundle-root-relative
+  form (`spaces/<id>/config/…`, `spaces/<id>/data/…`) — and the `SpaceMigrator` cannot auto-fix absolute or
+  author-relative paths for the same reason. Shipped examples now: `spaces/default` (subscriber + events +
+  connections), `spaces/ucc` (voucher; lowercase id `ucc`, display "UCC").
 
 ---
 

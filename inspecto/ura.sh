@@ -6,10 +6,10 @@
 #
 # Examples:
 #   ./ura.sh help
-#   ./ura.sh search           config/adjustment/adjustment_pipeline.toon
-#   ./ura.sh copy             config/voucher/voucher_unknown_pipeline.toon
-#   ./ura.sh --dry-run backup config/adjustment/adjustment_pipeline.toon
-#   ./ura.sh prepare-inbox    config/adjustment/adjustment_pipeline.toon
+#   ./ura.sh search           spaces/ucc/config/voucher/voucher_pipeline.toon
+#   ./ura.sh copy             spaces/ucc/config/voucher/voucher_pipeline.toon
+#   ./ura.sh --dry-run backup spaces/ucc/config/voucher/voucher_pipeline.toon
+#   ./ura.sh prepare-inbox    spaces/ucc/config/voucher/voucher_pipeline.toon
 #   ./ura.sh create-schema    adjustment  samples/adj_sample.csv  config/adjustment/adj_gen.toon
 #
 # This script targets the fat JAR in target/ — build once with 'mvn clean package'.

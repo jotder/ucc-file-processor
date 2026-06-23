@@ -82,7 +82,7 @@ Each segment key has its own schema toon. Use the `partitions[N]{...}` tabular l
 > **JToon list syntax matters.** JToon does **not** parse YAML-style `- key: value` list items. Use the `name[N]{col1,col2,col3}:` tabular form everywhere — the same form `raw.fields[N]{...}` and `mapping.rules[N]{...}` already use. A YAML-style list silently parses as `null`, and `PartitionDef.fromSchema` then falls through to the empty-list branch, so every row lands in the `year=1900/month=01/day=01` sentinel partition. Symptoms: single output file regardless of how many distinct dates you have.
 
 ```yaml
-# file: config/events/call_schema.toon
+# file: spaces/default/config/events/call_schema.toon
 
 partitions[4]{column,source,type}:
   event_type,EVENT_TYPE,VARCHAR    # column emitted by the ingester (define it on the sink)
@@ -148,8 +148,8 @@ processing:
   file_pattern: "glob:**/*.bin"
   ingester: com.acme.etl.MyCdrIngester   # fully-qualified StreamingFileIngester in the fat JAR
   segments:
-    CALL: config/events/call_schema.toon  # key must match the segment key the ingester emits
-    SMS:  config/events/sms_schema.toon
+    CALL: spaces/default/config/events/call_schema.toon  # key must match the segment key the ingester emits
+    SMS:  spaces/default/config/events/sms_schema.toon
   streaming:                # optional — mode selection + generation budget
     large_file_bytes: 268435456   # ≥ this (per member) → generation mode; else union mode
     flush_records: 5000000        # rows per generation flush
@@ -227,8 +227,8 @@ Wire it up exactly like a custom ingester:
 processing:
   ingester: com.gamma.ingester.TypedRecordIngester
   segments:
-    CALL: config/events/call_schema.toon
-    SMS:  config/events/sms_schema.toon
+    CALL: spaces/default/config/events/call_schema.toon
+    SMS:  spaces/default/config/events/sms_schema.toon
   csv_settings:
     delimiter: ","
 ```
@@ -253,7 +253,7 @@ emitted ⇒ `QUARANTINED_MISMATCH`.
 processing:
   ingester: com.gamma.ingester.FixedWidthRecordIngester
   segments:
-    REC: config/subscriber/subscriber_schema.toon   # exactly one segment
+    REC: spaces/default/config/subscriber/subscriber_schema.toon   # exactly one segment
   ingester_config:
     record_length: 40
     encoding: utf-8                                  # optional (default UTF-8)

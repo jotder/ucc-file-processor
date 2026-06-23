@@ -10,14 +10,15 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Verifies the shipped sample catalog artifacts under {@code config/events/} are valid and
- * round-trip (P7): the described {@code call_schema.toon} projects domain-described columns, and
+ * Verifies the shipped sample catalog artifacts under {@code spaces/default/config/events/} are valid
+ * and round-trip (P7): the described {@code call_schema.toon} projects domain-described columns, and
  * {@code events_meta.toon} loads into a KPI catalog with quoted colon-bearing refs intact. Runs in
  * CI, so a future edit that breaks the shipped samples fails the build.
  */
 class ShippedCatalogSamplesTest {
 
-    private static final Path EVENTS = Path.of("config", "events");
+    // Module CWD is inspecto/; the shipped events samples live in the default space at the repo root.
+    private static final Path EVENTS = Path.of("..", "spaces", "default", "config", "events");
 
     @Test
     void describedSchemaProjectsDomainColumns() throws Exception {

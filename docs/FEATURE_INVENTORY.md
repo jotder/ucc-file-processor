@@ -170,7 +170,7 @@ authored-flow TOON shape lives only in test Java strings: `ControlApiFlowCrudTes
 
 ---
 
-## 2. Existing example configs (under `inspecto/config/`)
+## 2. Existing example configs (under `spaces/<id>/config/` — `ucc` hosts voucher; `default` hosts subscriber, events, connections)
 
 | File | Demonstrates |
 |---|---|
@@ -188,8 +188,8 @@ authored-flow TOON shape lives only in test Java strings: `ControlApiFlowCrudTes
 | `connections/cdr_sftp_connection.toon` | SFTP: key auth, bastion tunnel, `${ENV:…}` secret |
 | `connections/local_demo_connection.toon` | Local/demo SFTP stub |
 
-**Sample input data** lives under `data/` (voucher CDR samples, incl. a `.csv.gz`). No sample data
-exists for subscriber `.dat`, adjustment, events/CALL, connections, jobs, or flows.
+**Sample input data** lives under each space's own `data/` dir (`spaces/<id>/data/…`, created on first
+run; gitignored). No committed sample data exists for subscriber `.dat`, events/CALL, connections, jobs, or flows.
 
 ---
 
@@ -200,9 +200,9 @@ Builds `file-processor-deploy.zip`. Bundle layout:
 ```
 file-processor-deploy/
   file-processor.jar          shaded fat JAR
-  config/{adjustment,voucher}/ …      path-rewritten: "inspecto/config/" → "config/"
+  spaces/{default,ucc}/       per-space config trees + space.toon (bundled verbatim; configs use
+                              repo/bundle-root-relative spaces/<id>/… paths — no rewrite, no flat config/)
   examples/                   the runnable example suite (run-example.ps1|sh + catalog)   ← added 2026-06-20
-  inbox|database|backup|temp|errors|quarantine|markers/   pre-created for adjustment+voucher
   run.(bat|sh)                one-shot ETL launcher
   serve.(bat|sh)              long-running ControlApi + UI
   ura.(bat|sh)                utility CLI (com.gamma.util.MainApp)

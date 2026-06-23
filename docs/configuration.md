@@ -291,7 +291,7 @@ processing:
     enabled: true
     marker_extension: .processed
     retention_days: 90
-  schema_file: "inspecto/config/<data_source>/<data_source>_schema.toon"
+  schema_file: "spaces/<id>/config/<data_source>/<data_source>_schema.toon"
   csv_settings:
     delimiter: ","
     skip_header_lines: 0
@@ -555,7 +555,7 @@ fixedwidth:
   plugin — wire it via `processing.ingester` + `processing.segments` + `ingester_config` (see
   [Plugin Ingester](plugins.md#fixed-length-binary-records-fixedwidthrecordingester)), not the
   `fixedwidth:` block above.
-- Worked example: `inspecto/config/subscriber/` (`subscriber.grammar.toon` + `subscriber_schema.toon`
+- Worked example: `spaces/default/config/subscriber/` (`subscriber.grammar.toon` + `subscriber_schema.toon`
   + `subscriber_pipeline.toon`).
 
 ---
@@ -626,7 +626,7 @@ batch by file size.
 processing:
   ingester: com.acme.etl.MyCdrIngester
   segments:
-    CALL: config/events/call_schema.toon
+    CALL: spaces/default/config/events/call_schema.toon
   streaming:
     large_file_bytes: 268435456     # default 256 MB. A batch whose largest member is ≥ this runs in
                                      # bounded GENERATION mode (huge files); smaller batches use UNION
