@@ -68,6 +68,16 @@ Consumes `agent-kernel` 1.0.0 (1.1.0 available; bump optional, Abstain-only ⇒ 
   `inspecto-agent-hosted` (physically absent from air-gapped builds). The zero-new-dep rule was retired
   2026-06-13 (logback replaced slf4j-simple, user-approved) — still no gratuitous deps.
 - **Flow-graph track is `master`-only** (`feat:` → master; empty merge-forward set; retired lines untouched).
+- **Multi-space (multi-project), `master`-only `feat:` track.** One server hosts many isolated **spaces**
+  (`-Dspaces.root`, default `./spaces`); each = `spaces/<id>/{config,data,audit,duckdb,flows}` + `space.toon`.
+  The ~40-method `@PublicApi` per-instance `SourceService` is **wrapped, not rewritten**: `SpaceManager` →
+  `SpaceContext` → unchanged `SourceService`. Isolation of the five process-wide singletons (EventLog /
+  MetricRegistry `space` label / ConnectionRegistry / StabilityGate / AcquisitionLedgers) is by the **`space`
+  SLF4J MDC** (`EventLog.currentSpaceId()`; fallback `"default"` = no MDC = byte-identical single-space). API
+  seam: `/spaces/{id}/…` (`ControlApi.dispatch` strips + MDC-binds; un-prefixed → current/default). Space CRUD
+  (no restart): `GET/POST /spaces`, `DELETE /spaces/{id}?purge=` (purge = opt-in file removal). **No flat
+  fallback** — migrate once via `com.gamma.service.SpaceMigrator`. Editions/auth stay future SPI (no
+  `if(edition==)`). → [`configuration.md` §Spaces](configuration.md).
 
 ---
 
@@ -91,6 +101,12 @@ Consumes `agent-kernel` 1.0.0 (1.1.0 available; bump optional, Abstain-only ⇒ 
   single-file `COPY` path lives in `PartitionSinkWriter`; the legacy writer is untouched.
 - **Flow seed = exactly one `source_store`** in Phase-A live execution (rejects 0 or >1; multi-source merge is
   the `transform.merge` path).
+- **Per-space `space` MDC must reach EVERY worker thread on the execution path.** Singleton routing reads the
+  MDC on the *current* thread, and MDC does NOT cross thread-pool boundaries. Each executor running ingest/commit
+  work must `MDC.getCopyOfContextMap()` on the caller + `setContextMap` on the worker + `clear()` in finally —
+  `MultiSourceProcessor.runAll`/`runConfigs` **and** `SourceProcessor`'s per-batch executor (the batch commit,
+  per-batch metrics and event log fire there, not on the poll thread). Miss one and that space's metrics/events
+  silently fall back to `"default"`. The `default` space sets NO MDC, so single-space output stays label-free.
 
 ---
 
