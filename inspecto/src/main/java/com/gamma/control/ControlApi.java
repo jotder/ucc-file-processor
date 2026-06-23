@@ -3,12 +3,16 @@ package com.gamma.control;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
+import com.gamma.event.EventLog;
 import com.gamma.service.SourceService;
+import com.gamma.service.SpaceContext;
+import com.gamma.service.SpaceId;
 import com.gamma.service.SpaceManager;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,6 +40,14 @@ import java.util.regex.Pattern;
  * re-introduce them out-of-band via the security module (OIDC resource-server validating
  * IAM-issued JWTs + RBAC/ABAC), without the core engine carrying any auth code. See
  * {@code docs/EDITIONS.md}.
+ *
+ * <h3>Per-space routing</h3>
+ * One process hosts many isolated spaces (see {@link SpaceManager}). Every route below may be addressed under a
+ * {@code /spaces/{id}} prefix ({@code GET /spaces/acme/pipelines}); {@link #dispatch} strips the prefix, binds the
+ * request to that space, and matches the <em>unchanged</em> patterns against the remainder, so each space's
+ * service/stores/events/metric-label resolve in isolation. An unknown id is a {@code 404}. {@code /health},
+ * {@code /ready}, {@code /metrics} (and the future {@code /spaces} CRUD group) stay un-prefixed and server-global;
+ * an un-prefixed API path resolves the {@code default} (or sole) space, so single-space callers are unaffected.
  *
  * <h3>Routes</h3>
  * <pre>
@@ -125,6 +137,14 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     private static final Logger log = LoggerFactory.getLogger(ControlApi.class);
     private static final Object HANDLED = ApiContext.HANDLED;
+
+    /**
+     * Captures a per-space request prefix {@code /spaces/<id>/<rest>}: group 1 = the space id (same charset as
+     * {@link SpaceId}), group 2 = the remaining path (with leading {@code /}) matched against the unchanged route
+     * table. {@code /spaces} and {@code /spaces/<id>} with no trailing path deliberately do <em>not</em> match —
+     * they stay server-global for the {@code SpaceRoutes} CRUD group.
+     */
+    private static final Pattern SPACE_PREFIX = Pattern.compile("^/spaces/([a-z0-9][a-z0-9-]{0,62})(/.*)$");
 
     private final HttpServer http;
     private final SpaceManager spaces;
@@ -263,11 +283,31 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         if (path.startsWith("/api/")) path = path.substring(4);
         else if (path.equals("/api")) path = "/";
         if (corsOrigin != null) applyCors(ex);     // rides every response written below
+        boolean spaceBound = false;
         try {
             // CORS preflight: answer before route matching (no token, no body).
             if (corsOrigin != null && "OPTIONS".equals(method)) {
                 ex.sendResponseHeaders(204, -1);
                 return;
+            }
+            // Per-space request seam: a "/spaces/{id}/<rest>" path binds this request to that space and is then
+            // matched as "/<rest>" against the unchanged route table — so RouteModules never see the prefix. An
+            // unknown id is a 404. The bound space is carried on the SLF4J MDC (the same per-space routing key the
+            // engine singletons read — Stage 3a), so service()/writeRoot() and every space-scoped singleton resolve
+            // to it for the life of this request only. "default" sets no MDC (the fallback namespace everywhere),
+            // keeping single-space output byte-identical. /health, /ready, /metrics and /spaces CRUD stay un-prefixed.
+            Matcher sp = SPACE_PREFIX.matcher(path);
+            if (sp.matches()) {
+                String id = sp.group(1);
+                if (spaces.space(SpaceId.of(id)).isEmpty()) {
+                    respond(ex, 404, Map.of("error", "no such space '" + id + "'"));
+                    return;
+                }
+                path = sp.group(2);
+                if (!EventLog.DEFAULT_SPACE_ID.equals(id)) {
+                    MDC.put(EventLog.SPACE_MDC_KEY, id);
+                    spaceBound = true;
+                }
             }
             boolean pathMatched = false;
             for (Route r : routes) {
@@ -289,6 +329,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             log.error("{} {} failed", method, path, e);
             respond(ex, 500, Map.of("error", String.valueOf(e.getMessage())));
         } finally {
+            if (spaceBound) MDC.remove(EventLog.SPACE_MDC_KEY);
             ex.close();
         }
     }
@@ -386,11 +427,28 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         }
     }
 
-    @Override
-    public SourceService service() { return spaces.current().service(); }
+    /**
+     * The space this request is bound to: the one named by the request's space MDC (set by {@link #dispatch} for a
+     * {@code /spaces/{id}} path), or — for an un-prefixed request — the manager's
+     * {@linkplain SpaceManager#current() current} (default/first) space.
+     */
+    private SpaceContext currentContext() {
+        return spaces.space(SpaceId.of(EventLog.currentSpaceId())).orElseGet(spaces::current);
+    }
 
     @Override
-    public Path writeRoot() { return writeRoot; }
+    public SourceService service() { return currentContext().service(); }
+
+    /**
+     * The write-jail root for {@code POST /config/write} and disk-registration, scoped to the bound space: a
+     * discovered space writes into its own {@code config/} tree (hot-reloaded by {@code ConfigRegistry.rebuild});
+     * the legacy/default space keeps the server-global {@code -Dassist.write.root} (unchanged single-tenant behaviour).
+     */
+    @Override
+    public Path writeRoot() {
+        Path spaceConfig = currentContext().root().config();
+        return spaceConfig != null ? spaceConfig : writeRoot;
+    }
 
     // Route registration. The core (Personal edition) is auth-free — every route is open.
     // Standard/Enterprise editions re-introduce authorization out-of-band via the security module.
