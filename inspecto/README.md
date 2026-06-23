@@ -165,8 +165,9 @@ from the repository root instead.
 
 ## 2. Onboard a new source
 
-A source is described by **three config files** under `inspecto/config/<source>/`. Only the
-first is hand-authored; the other two are generated and then tuned.
+A source is described by **three config files** under a space's `config/<source>/` directory
+(e.g. `spaces/<id>/config/<source>/` — see [Spaces](../docs/configuration.md#spaces-multi-project-layout)).
+Only the first is hand-authored; the other two are generated and then tuned.
 
 | File | Authored | Purpose |
 |---|---|---|
@@ -198,7 +199,7 @@ formats, write a `StreamingFileIngester` plugin instead of a schema; see [Plugin
 From the **repository root**, the bundled sample scripts run a pipeline end-to-end:
 
 ```powershell
-run-voucher.bat          # Windows — runs config/voucher/voucher_unknown_pipeline.toon
+run-voucher.bat          # Windows — runs spaces/ucc/config/voucher/voucher_pipeline.toon
 bash run-voucher.sh      # Linux / Mac
 ```
 

@@ -1,0 +1,39 @@
+name: VOUCHER_UNKNOWN_ETL
+active: true
+version: 1
+
+dirs:
+  poll:       spaces/ucc/data/inbox/voucher/unknown
+  database:   spaces/ucc/data/voucher/database
+  backup:     spaces/ucc/data/voucher/backup
+  temp:       spaces/ucc/data/voucher/temp
+  errors:     spaces/ucc/data/voucher/errors
+  quarantine: spaces/ucc/data/voucher/quarantine
+  markers:    spaces/ucc/data/voucher/markers
+  status_dir: spaces/ucc/data/voucher/status
+  log_dir:    spaces/ucc/data/voucher/logs
+
+output:
+  format: CSV
+  compression: snappy
+
+processing:
+  threads: 3
+  duckdb_threads: 0
+  file_pattern: "glob:**/*.csv"
+  batch:
+    max_files: 500
+    max_bytes: 268435456
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+    retention_days: 90
+  schemas[3]{column_count,file_pattern,schema_file,table}:
+    76,  "glob:**/*other*",    "spaces/ucc/config/voucher/voucher_76.toon",  voucher_other
+    116, "glob:**/*main*",     "spaces/ucc/config/voucher/voucher_116.toon", voucher_main
+    537, "",                   "spaces/ucc/config/voucher/voucher_537.toon", voucher
+  duckdb:
+    temp_directory: ""
+    memory_limit: ""
+    max_temp_directory_size: ""
+  grammar: spaces/ucc/config/voucher/voucher.grammar.toon

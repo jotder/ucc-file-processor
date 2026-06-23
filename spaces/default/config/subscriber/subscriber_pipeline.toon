@@ -1,0 +1,29 @@
+name: SUBSCRIBER_ETL
+active: true
+version: 1
+
+dirs:
+  poll:       spaces/default/data/inbox/subscriber
+  database:   spaces/default/data/subscriber/database
+  backup:     spaces/default/data/subscriber/backup
+  temp:       spaces/default/data/subscriber/temp
+  errors:     spaces/default/data/subscriber/errors
+  quarantine: spaces/default/data/subscriber/quarantine
+  markers:    spaces/default/data/subscriber/markers
+  status_dir: spaces/default/data/subscriber/status
+  log_dir:    spaces/default/data/subscriber/logs
+
+output:
+  format: PARQUET
+  compression: snappy
+
+processing:
+  threads: 4
+  duckdb_threads: 0
+  file_pattern: "glob:**/*.dat"
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+    retention_days: 90
+  grammar:     spaces/default/config/subscriber/subscriber.grammar.toon
+  schema_file: spaces/default/config/subscriber/subscriber_schema.toon

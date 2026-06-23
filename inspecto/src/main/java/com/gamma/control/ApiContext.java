@@ -2,6 +2,7 @@ package com.gamma.control;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.service.SourceService;
+import com.gamma.service.SpaceManager;
 import com.sun.net.httpserver.HttpExchange;
 
 import java.io.IOException;
@@ -37,8 +38,11 @@ interface ApiContext {
     /** Parse the request body as a JSON object map (an empty map when the body is empty). */
     Map<String, Object> body(HttpExchange ex) throws IOException;
 
-    /** The running service host the routes act on. */
+    /** The running service host the routes act on (the request's bound space, per the {@code /spaces/{id}} seam). */
     SourceService service();
+
+    /** The container of all hosted spaces — for the server-global {@code SpaceRoutes} CRUD group only. */
+    SpaceManager spaces();
 
     /** The configured write root, or {@code null} when filesystem writes are disabled. */
     Path writeRoot();

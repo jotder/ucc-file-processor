@@ -199,7 +199,7 @@ public final class FlowJobRunner implements Job {
             Map<String, Long> counts = new LinkedHashMap<>();
             for (ProvenanceRow r : rows) counts.put(r.nodeId() + "|" + r.rel(), r.rowCount());
             for (ConservationCheck.Imbalance im : ConservationCheck.imbalances(g, counts)) {
-                EventLog.global().emit(Event.builder(EventType.FLOW_CONSERVATION_IMBALANCE)
+                EventLog.current().emit(Event.builder(EventType.FLOW_CONSERVATION_IMBALANCE)
                         .level("LOSS".equals(im.kind()) ? EventLevel.ERROR : EventLevel.WARN)
                         .source(FlowJobRunner.class.getName())
                         .pipeline(flowId)

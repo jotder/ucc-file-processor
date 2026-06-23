@@ -68,6 +68,22 @@ Consumes `agent-kernel` 1.0.0 (1.1.0 available; bump optional, Abstain-only ⇒ 
   `inspecto-agent-hosted` (physically absent from air-gapped builds). The zero-new-dep rule was retired
   2026-06-13 (logback replaced slf4j-simple, user-approved) — still no gratuitous deps.
 - **Flow-graph track is `master`-only** (`feat:` → master; empty merge-forward set; retired lines untouched).
+- **Multi-space (multi-project), `master`-only `feat:` track.** One server hosts many isolated **spaces**
+  (`-Dspaces.root`, default `./spaces`); each = `spaces/<id>/{config,data,audit,duckdb,flows}` + `space.toon`.
+  The ~40-method `@PublicApi` per-instance `SourceService` is **wrapped, not rewritten**: `SpaceManager` →
+  `SpaceContext` → unchanged `SourceService`. Isolation of the five process-wide singletons (EventLog /
+  MetricRegistry `space` label / ConnectionRegistry / StabilityGate / AcquisitionLedgers) is by the **`space`
+  SLF4J MDC** (`EventLog.currentSpaceId()`; fallback `"default"` = no MDC = byte-identical single-space). API
+  seam: `/spaces/{id}/…` (`ControlApi.dispatch` strips + MDC-binds; un-prefixed → current/default). Space CRUD
+  (no restart): `GET/POST /spaces`, `DELETE /spaces/{id}?purge=` (purge = opt-in file removal). **No flat
+  fallback** — migrate once via `com.gamma.service.SpaceMigrator`. Editions/auth stay future SPI (no
+  `if(edition==)`). → [`configuration.md` §Spaces](configuration.md).
+  **UI (Stage 7):** `SpacesService` (signals) + a global `spaceInterceptor` rewrite `/api/<p>` →
+  `/api/spaces/<id>/<p>` so every feature service stays space-agnostic (no-op single-tenant = byte-identical);
+  header space-switcher + `modules/admin/spaces` admin (CRUD + per-space/per-data-source zip export + import
+  with dry-run preview + create-from-bundle). The UI tells discover from single-tenant via the additive
+  **`GET /spaces/_meta` → `{multiSpace}`** (= `SpaceManager.supportsCrud()`), never by space-list length (a
+  fresh discover server returns `[]`). See the `angular-ui` skill §7.
 
 ---
 
@@ -91,6 +107,19 @@ Consumes `agent-kernel` 1.0.0 (1.1.0 available; bump optional, Abstain-only ⇒ 
   single-file `COPY` path lives in `PartitionSinkWriter`; the legacy writer is untouched.
 - **Flow seed = exactly one `source_store`** in Phase-A live execution (rejects 0 or >1; multi-source merge is
   the `transform.merge` path).
+- **Per-space `space` MDC must reach EVERY worker thread on the execution path.** Singleton routing reads the
+  MDC on the *current* thread, and MDC does NOT cross thread-pool boundaries. Each executor running ingest/commit
+  work must `MDC.getCopyOfContextMap()` on the caller + `setContextMap` on the worker + `clear()` in finally —
+  `MultiSourceProcessor.runAll`/`runConfigs` **and** `SourceProcessor`'s per-batch executor (the batch commit,
+  per-batch metrics and event log fire there, not on the poll thread). Miss one and that space's metrics/events
+  silently fall back to `"default"`. The `default` space sets NO MDC, so single-space output stays label-free.
+- **Pipeline-internal paths resolve against the JVM CWD, NOT the space root.** A pipeline's `schema_file`,
+  `grammar`, and `dirs.*` are `Paths.get(...)` in `PipelineConfigParser` with **no rebasing** to `spaces/<id>/`.
+  Only the *space discovery* layer (`-Dspaces.root`, `SpaceRoot`) is space-relative. So when configs were moved
+  under `spaces/<id>/config/` (`ffbf311`), every in-config path had to be rewritten to repo/bundle-root-relative
+  form (`spaces/<id>/config/…`, `spaces/<id>/data/…`) — and the `SpaceMigrator` cannot auto-fix absolute or
+  author-relative paths for the same reason. Shipped examples now: `spaces/default` (subscriber + events +
+  connections), `spaces/ucc` (voucher; lowercase id `ucc`, display "UCC").
 
 ---
 

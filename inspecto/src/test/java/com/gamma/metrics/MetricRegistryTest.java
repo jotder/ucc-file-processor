@@ -1,6 +1,9 @@
 package com.gamma.metrics;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
+
+import com.gamma.event.EventLog;
 
 import java.util.Map;
 
@@ -65,5 +68,28 @@ class MetricRegistryTest {
         MetricRegistry r = new MetricRegistry();
         r.inc("inspecto_x", "x", Map.of("p", "a\"b\\c"));
         assertTrue(r.scrape().contains("inspecto_x{p=\"a\\\"b\\\\c\"} 1"), r.scrape());
+    }
+
+    @Test
+    void spaceMdcIsAutoMergedAsALabel() {
+        MetricRegistry r = new MetricRegistry();
+        MDC.put(EventLog.SPACE_MDC_KEY, "tenant-a");
+        try {
+            r.inc("inspecto_y", "y", Map.of("pipeline", "p"));
+        } finally {
+            MDC.remove(EventLog.SPACE_MDC_KEY);
+        }
+        // space is sorted into the label set (pipeline before space)
+        assertTrue(r.scrape().contains("inspecto_y{pipeline=\"p\",space=\"tenant-a\"} 1"), r.scrape());
+    }
+
+    @Test
+    void noSpaceMdcMeansNoSpaceLabel() {
+        MetricRegistry r = new MetricRegistry();
+        MDC.remove(EventLog.SPACE_MDC_KEY); // defensive: ensure no leak from another test
+        r.inc("inspecto_z", "z", Map.of("pipeline", "p"));
+        String out = r.scrape();
+        assertTrue(out.contains("inspecto_z{pipeline=\"p\"} 1"), out);
+        assertFalse(out.contains("space="), out);
     }
 }

@@ -3,11 +3,16 @@ package com.gamma.control;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
+import com.gamma.event.EventLog;
 import com.gamma.service.SourceService;
+import com.gamma.service.SpaceContext;
+import com.gamma.service.SpaceId;
+import com.gamma.service.SpaceManager;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,10 +41,21 @@ import java.util.regex.Pattern;
  * IAM-issued JWTs + RBAC/ABAC), without the core engine carrying any auth code. See
  * {@code docs/EDITIONS.md}.
  *
+ * <h3>Per-space routing</h3>
+ * One process hosts many isolated spaces (see {@link SpaceManager}). Every route below may be addressed under a
+ * {@code /spaces/{id}} prefix ({@code GET /spaces/acme/pipelines}); {@link #dispatch} strips the prefix, binds the
+ * request to that space, and matches the <em>unchanged</em> patterns against the remainder, so each space's
+ * service/stores/events/metric-label resolve in isolation. An unknown id is a {@code 404}. {@code /health},
+ * {@code /ready}, {@code /metrics} (and the future {@code /spaces} CRUD group) stay un-prefixed and server-global;
+ * an un-prefixed API path resolves the {@code default} (or sole) space, so single-space callers are unaffected.
+ *
  * <h3>Routes</h3>
  * <pre>
  *   GET  /health                              liveness (open)
  *   GET  /ready                               readiness (open)
+ *   GET  /spaces                              list hosted spaces (manifests)               [v4.7.0]
+ *   POST /spaces                              body {id,display_name?,description?} — create + boot a space [v4.7.0]
+ *   DELETE /spaces/{id}[?purge=true]          deregister + drain a space; purge also deletes its files [v4.7.0]
  *   GET  /pipelines                           list pipelines + state
  *   POST /pipelines                           body {"configPath":"…"} — register a new pipeline   [v4.1.0]
  *   POST /pipelines/{name}/trigger            run one pipeline once
@@ -125,8 +141,16 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private static final Logger log = LoggerFactory.getLogger(ControlApi.class);
     private static final Object HANDLED = ApiContext.HANDLED;
 
+    /**
+     * Captures a per-space request prefix {@code /spaces/<id>/<rest>}: group 1 = the space id (same charset as
+     * {@link SpaceId}), group 2 = the remaining path (with leading {@code /}) matched against the unchanged route
+     * table. {@code /spaces} and {@code /spaces/<id>} with no trailing path deliberately do <em>not</em> match —
+     * they stay server-global for the {@code SpaceRoutes} CRUD group.
+     */
+    private static final Pattern SPACE_PREFIX = Pattern.compile("^/spaces/([a-z0-9][a-z0-9-]{0,62})(/.*)$");
+
     private final HttpServer http;
-    private final SourceService service;
+    private final SpaceManager spaces;
     private final ObjectMapper json = new ObjectMapper();
     private final List<Route> routes = new ArrayList<>();
     /** Allowed CORS origin ({@code -Dcontrol.cors}); {@code null} ⇒ CORS disabled (default). */
@@ -141,11 +165,25 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private final Path writeRoot;
 
     /**
+     * Control plane over a single running service — wrapped as the {@code default} space. The long-standing
+     * single-tenant entry point (and every test); behaviour is unchanged.
+     *
      * @param service the running service to control
      * @param port    TCP port (0 = ephemeral; read back via {@link #port()})
      */
     public ControlApi(SourceService service, int port) throws IOException {
-        this.service = service;
+        this(SpaceManager.single(service), port);
+    }
+
+    /**
+     * Control plane over a {@link SpaceManager} hosting one or more spaces. Until the {@code /spaces/{id}} request
+     * seam lands, every request resolves the manager's {@linkplain SpaceManager#current() current} (default) space.
+     *
+     * @param spaces the hosted spaces to control
+     * @param port   TCP port (0 = ephemeral; read back via {@link #port()})
+     */
+    public ControlApi(SpaceManager spaces, int port) throws IOException {
+        this.spaces = spaces;
         String cors  = System.getProperty("control.cors");
         this.corsOrigin = blank(cors) ? null : cors.trim();
         String ui    = System.getProperty("ui.dir");
@@ -185,22 +223,34 @@ public final class ControlApi implements AutoCloseable, ApiContext {
      * </pre>
      */
     public static void main(String[] args) throws Exception {
-        if (args.length < 1) {
-            System.err.println("Usage: ControlApi [-Dcontrol.port=8080] "
-                    + "[-Dservice.poll.seconds=N] [-Dservice.max.runs=M] <pipeline.toon | dir> [more ...]");
-            System.exit(1);
+        // Multi-space mode: -Dspaces.root points at a container dir of spaces/<id>/; each is booted in isolation.
+        // Legacy single-tenant mode (no -Dspaces.root): build the one default space from the CLI config args.
+        String spacesRoot = System.getProperty("spaces.root");
+        SpaceManager spaces;
+        if (spacesRoot != null && !spacesRoot.isBlank()) {
+            spaces = SpaceManager.discover(Path.of(spacesRoot.trim()));
+            if (spaces.size() == 0) {
+                System.err.println("No spaces (a dir with a config/ subtree) found under -Dspaces.root=" + spacesRoot);
+                System.exit(1);
+            }
+        } else {
+            if (args.length < 1) {
+                System.err.println("Usage: ControlApi [-Dcontrol.port=8080] [-Dspaces.root=DIR] "
+                        + "[-Dservice.poll.seconds=N] [-Dservice.max.runs=M] <pipeline.toon | dir> [more ...]");
+                System.exit(1);
+            }
+            spaces = SpaceManager.single(SourceService.fromArgs(args));
         }
-        SourceService svc = SourceService.fromArgs(args);
         int port = Integer.getInteger("control.port", 8080);
-        ControlApi api = new ControlApi(svc, port);
+        ControlApi api = new ControlApi(spaces, port);
 
         java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             api.close();
-            svc.close();
+            spaces.close();
             latch.countDown();
         }, "inspecto-shutdown"));
-        svc.start();
+        spaces.startAll();
         api.start();
         latch.await();   // block until SIGTERM/SIGINT
     }
@@ -209,13 +259,14 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     private void registerRoutes() {
         get ("/health", (e, m) -> Map.of("status", "UP"));
-        get ("/ready",  (e, m) -> Map.of("status", "READY", "pipelines", service.pipelines().size()));
+        get ("/ready",  (e, m) -> Map.of("status", "READY", "pipelines", service().pipelines().size()));
         // Prometheus scrape endpoint — text exposition, open (scrapers don't carry tokens)
         get("/metrics", (e, m) ->
                 respondText(e, com.gamma.metrics.MetricRegistry.global().scrape()));
 
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
+                new SpaceRoutes(), new DataSourceRoutes(),
                 new PipelineRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
@@ -236,11 +287,31 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         if (path.startsWith("/api/")) path = path.substring(4);
         else if (path.equals("/api")) path = "/";
         if (corsOrigin != null) applyCors(ex);     // rides every response written below
+        boolean spaceBound = false;
         try {
             // CORS preflight: answer before route matching (no token, no body).
             if (corsOrigin != null && "OPTIONS".equals(method)) {
                 ex.sendResponseHeaders(204, -1);
                 return;
+            }
+            // Per-space request seam: a "/spaces/{id}/<rest>" path binds this request to that space and is then
+            // matched as "/<rest>" against the unchanged route table — so RouteModules never see the prefix. An
+            // unknown id is a 404. The bound space is carried on the SLF4J MDC (the same per-space routing key the
+            // engine singletons read — Stage 3a), so service()/writeRoot() and every space-scoped singleton resolve
+            // to it for the life of this request only. "default" sets no MDC (the fallback namespace everywhere),
+            // keeping single-space output byte-identical. /health, /ready, /metrics and /spaces CRUD stay un-prefixed.
+            Matcher sp = SPACE_PREFIX.matcher(path);
+            if (sp.matches()) {
+                String id = sp.group(1);
+                if (spaces.space(SpaceId.of(id)).isEmpty()) {
+                    respond(ex, 404, Map.of("error", "no such space '" + id + "'"));
+                    return;
+                }
+                path = sp.group(2);
+                if (!EventLog.DEFAULT_SPACE_ID.equals(id)) {
+                    MDC.put(EventLog.SPACE_MDC_KEY, id);
+                    spaceBound = true;
+                }
             }
             boolean pathMatched = false;
             for (Route r : routes) {
@@ -262,6 +333,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             log.error("{} {} failed", method, path, e);
             respond(ex, 500, Map.of("error", String.valueOf(e.getMessage())));
         } finally {
+            if (spaceBound) MDC.remove(EventLog.SPACE_MDC_KEY);
             ex.close();
         }
     }
@@ -359,11 +431,31 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         }
     }
 
-    @Override
-    public SourceService service() { return service; }
+    /**
+     * The space this request is bound to: the one named by the request's space MDC (set by {@link #dispatch} for a
+     * {@code /spaces/{id}} path), or — for an un-prefixed request — the manager's
+     * {@linkplain SpaceManager#current() current} (default/first) space.
+     */
+    private SpaceContext currentContext() {
+        return spaces.space(SpaceId.of(EventLog.currentSpaceId())).orElseGet(spaces::current);
+    }
 
     @Override
-    public Path writeRoot() { return writeRoot; }
+    public SourceService service() { return currentContext().service(); }
+
+    @Override
+    public SpaceManager spaces() { return spaces; }
+
+    /**
+     * The write-jail root for {@code POST /config/write} and disk-registration, scoped to the bound space: a
+     * discovered space writes into its own {@code config/} tree (hot-reloaded by {@code ConfigRegistry.rebuild});
+     * the legacy/default space keeps the server-global {@code -Dassist.write.root} (unchanged single-tenant behaviour).
+     */
+    @Override
+    public Path writeRoot() {
+        Path spaceConfig = currentContext().root().config();
+        return spaceConfig != null ? spaceConfig : writeRoot;
+    }
 
     // Route registration. The core (Personal edition) is auth-free — every route is open.
     // Standard/Enterprise editions re-introduce authorization out-of-band via the security module.

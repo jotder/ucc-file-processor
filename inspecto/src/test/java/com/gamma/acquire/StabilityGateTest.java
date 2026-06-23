@@ -1,6 +1,9 @@
 package com.gamma.acquire;
 
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
+
+import com.gamma.event.EventLog;
 
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -150,5 +153,20 @@ class StabilityGateTest {
         assertEquals(List.of(f), gate.filter("META", List.of(f), conn, 1_000, 2).ready(),
                 "listing metadata (size+mtime) drives stabilization with no disk stat");
         gate.clear();
+    }
+
+    @Test
+    void sharedGateIsPerSpace() {
+        try {
+            MDC.put(EventLog.SPACE_MDC_KEY, "space-a");
+            StabilityGate a = StabilityGate.shared();
+            MDC.put(EventLog.SPACE_MDC_KEY, "space-b");
+            StabilityGate b = StabilityGate.shared();
+            assertNotSame(a, b, "each space gets its own gate ⇒ sightings can't collide across spaces");
+            MDC.put(EventLog.SPACE_MDC_KEY, "space-a");
+            assertSame(a, StabilityGate.shared(), "same space resolves to the same gate");
+        } finally {
+            MDC.remove(EventLog.SPACE_MDC_KEY);
+        }
     }
 }

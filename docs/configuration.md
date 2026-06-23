@@ -6,7 +6,51 @@
 
 The framework uses three config files in `.toon` format (JToon). Only the generation config is hand-authored; the other two are machine-generated and then maintained.
 
-Config files live under `inspecto/config/<adapter>/`.  All `dirs.*` and `schema_file` paths are relative to the **sandbox root** (the JVM working directory).
+Config files live under a space's `config/<adapter>/` directory (e.g. `spaces/<id>/config/<adapter>/`; see [Spaces](#spaces-multi-project-layout) below).  All `dirs.*` and `schema_file` paths are relative to the **sandbox root** (the JVM working directory) — for the multi-space runtime that is the repo/bundle root you launch from, so the bundled example configs use repo-root-relative paths such as `spaces/<id>/config/...` and `spaces/<id>/data/...`.
+
+## Spaces (multi-project layout)
+
+One server can host **many isolated spaces** (projects) at once. A space is a self-contained directory under a
+container root — launch with `-Dspaces.root=<dir>` (default `./spaces`):
+
+```
+spaces/
+  <id>/                     # id: [a-z0-9-], 1–63 chars, not starting with '-'
+    space.toon              # manifest: display_name, description, created_at
+    config/                 # this space's *.toon tree (scanned at boot; hot-reloadable)
+    data/  ( data/events/ ) # partition output  ( + rolling Parquet events )
+    audit/                  # run journal, watermarks, commit logs
+    duckdb/                 # this space's *.duckdb / *.db stores
+    flows/                  # authored flows
+```
+
+Each space is fully isolated: its own service, scheduler, event log, stores, connection registry and metric
+`space` label. Store **backends** (`status.backend`, `objects.backend`, `events.backend`, …) stay process-global
+`-D` flags; only their location defaults move under the space root.
+
+- **API:** every route is addressable under `/spaces/{id}/…` (e.g. `GET /spaces/acme/pipelines`); an unknown id
+  is a `404`. `/health`, `/ready`, `/metrics` stay un-prefixed and server-global. An un-prefixed API path resolves
+  the `default` (or sole) space.
+- **Space CRUD** (server-global): `GET /spaces` (list), `POST /spaces` `{id,display_name?,description?}` (create +
+  boot, no restart), `DELETE /spaces/{id}` (deregister + stop; add `?purge=true` to also delete its files).
+- **Single-tenant mode** (no `-Dspaces.root`, a config/dir passed on the CLI) hosts one `default` space and is
+  byte-identical to the pre-spaces behaviour; CRUD returns `409`.
+
+### Migrating a flat deployment
+
+There is no flat fallback — migrate the existing single-tenant layout into `spaces/default/` once:
+
+```
+java -cp inspecto.jar com.gamma.service.SpaceMigrator \
+     [--id default] [--root ./spaces] [--from .] [--dry-run] <configDir>
+```
+
+It relocates `<configDir>` → `spaces/<id>/config` and the working-dir artifacts (`database/` → `data/`,
+`jobs_audit/` → `audit/`, `inspecto-events/` → `data/events/`, the `*.duckdb`/`*.db` files → `duckdb/`) and writes
+`space.toon`. It is **idempotent** (a re-run relocates nothing) and `--dry-run` prints the plan without moving.
+**Caveat:** a config that references a schema by an *absolute* path keeps pointing at the old location after its
+file moves — author relative paths, or fix them up after migrating. Custom (non-default) flat locations must be
+moved by hand.
 
 ### Configuration by source format
 
@@ -247,7 +291,7 @@ processing:
     enabled: true
     marker_extension: .processed
     retention_days: 90
-  schema_file: "inspecto/config/<data_source>/<data_source>_schema.toon"
+  schema_file: "spaces/<id>/config/<data_source>/<data_source>_schema.toon"
   csv_settings:
     delimiter: ","
     skip_header_lines: 0
@@ -511,7 +555,7 @@ fixedwidth:
   plugin — wire it via `processing.ingester` + `processing.segments` + `ingester_config` (see
   [Plugin Ingester](plugins.md#fixed-length-binary-records-fixedwidthrecordingester)), not the
   `fixedwidth:` block above.
-- Worked example: `inspecto/config/subscriber/` (`subscriber.grammar.toon` + `subscriber_schema.toon`
+- Worked example: `spaces/default/config/subscriber/` (`subscriber.grammar.toon` + `subscriber_schema.toon`
   + `subscriber_pipeline.toon`).
 
 ---
@@ -582,7 +626,7 @@ batch by file size.
 processing:
   ingester: com.acme.etl.MyCdrIngester
   segments:
-    CALL: config/events/call_schema.toon
+    CALL: spaces/default/config/events/call_schema.toon
   streaming:
     large_file_bytes: 268435456     # default 256 MB. A batch whose largest member is ≥ this runs in
                                      # bounded GENERATION mode (huge files); smaller batches use UNION

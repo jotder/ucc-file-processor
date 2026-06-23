@@ -279,7 +279,7 @@ No native DuckDB fixed-width reader, so the engine carves slices itself. Two rou
   ```
   Config: `frontend: fixedwidth` + a `fixedwidth:` block (`record`, `trim`, `min_record_length`,
   `fields[]{name,start,length}`) — inline under `csv_settings` or in a reusable `*.grammar.toon`.
-  Worked example: `inspecto/config/subscriber/`. (The earlier `read_text`+`UNNEST(string_split(...))`
+  Worked example: `spaces/default/config/subscriber/`. (The earlier `read_text`+`UNNEST(string_split(...))`
   sketch was rejected — it materialises the whole file as one VARCHAR cell; the `read_csv` single-column
   form streams instead.)
 - **Binary fixed-length** (no newlines, `record_length: N`) — the shipped

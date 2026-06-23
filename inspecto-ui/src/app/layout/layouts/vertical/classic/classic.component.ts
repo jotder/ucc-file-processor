@@ -14,6 +14,7 @@ import { Navigation } from 'app/core/navigation/navigation.types';
 // import { QuickChatComponent } from 'app/layout/common/quick-chat/quick-chat.component';
 // import { ShortcutsComponent } from 'app/layout/common/shortcuts/shortcuts.component';
 import { SearchComponent } from 'app/layout/common/search/search.component';
+import { SpaceSwitcherComponent } from 'app/layout/common/space-switcher/space-switcher.component';
 import { UserComponent } from 'app/layout/common/user/user.component';
 import { environment } from 'environments/environment';
 import { Subject, takeUntil } from 'rxjs';
@@ -29,6 +30,7 @@ import { Subject, takeUntil } from 'rxjs';
         MatButtonModule,
         MatIconModule,
         SearchComponent,
+        SpaceSwitcherComponent,
         UserComponent,
         RouterOutlet,
         // LanguagesComponent,

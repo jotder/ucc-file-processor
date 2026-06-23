@@ -21,6 +21,7 @@ import com.gamma.metrics.MetricRegistry;
 import com.gamma.util.LogSetup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.File;
 import java.nio.file.*;
@@ -117,15 +118,24 @@ public class SourceProcessor {
         Semaphore permits  = new Semaphore(maxConcurrent);
         int failedBatches  = 0;
 
+        // Propagate the caller's space (MDC) onto each batch worker: the commit listener (the service's event-bus
+        // sink), the per-batch metrics and the event log all fire on these threads, so without this their per-space
+        // routing would fall back to "default". Mirrors MultiSourceProcessor.runAll/runConfigs (Stage 3a).
+        Map<String, String> mdc = MDC.getCopyOfContextMap();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<?>> futures = new ArrayList<>();
             for (Batch b : batches) {
                 futures.add(executor.submit(() -> {
-                    permits.acquire();
+                    if (mdc != null) MDC.setContextMap(mdc);
                     try {
-                        BatchProcessor.process(b, cfg, audit);
+                        permits.acquire();
+                        try {
+                            BatchProcessor.process(b, cfg, audit);
+                        } finally {
+                            permits.release();
+                        }
                     } finally {
-                        permits.release();
+                        MDC.clear();
                     }
                     return null;
                 }));

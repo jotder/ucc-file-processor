@@ -29,6 +29,7 @@ import com.gamma.job.JobService;
 import com.gamma.report.ReportService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -138,9 +139,18 @@ public final class SourceService implements AutoCloseable {
      *  "under processing" signal of {@link #inboxStatus(String)}. Ingest is synchronous within a cycle,
      *  so a pipeline is "running" only while its batches are actively being processed. */
     private final Set<String> running = ConcurrentHashMap.newKeySet();
-    /** Authored-flow store ({@code <assist.write.root>/flows}); lets the deletion fence (T32) see flow jobs as
+    /** The filesystem locations this service's stores read/write — {@link SpaceRoot#legacy()} for the
+     *  single-tenant constructors, or a per-space directory when hosted by a {@code SpaceManager}. */
+    private final SpaceRoot root;
+    /** This service's space id ({@code "default"} for the legacy single-tenant layout). */
+    private final String spaceId;
+    /** This space's event log — {@link EventLog#global()} for the {@code default} space, a fresh instance
+     *  otherwise; {@linkplain EventLog#register registered} under {@link #spaceId} so MDC-routed emitters
+     *  (the capture appender, the poll-path telemetry) reach it. */
+    private final EventLog eventLog;
+    /** Authored-flow store ({@link SpaceRoot#flowsDir()}); lets the deletion fence (T32) see flow jobs as
      *  store producers/consumers. {@code null} when no write root is configured. */
-    private final FlowStore flowStore = ServiceStores.openFlowStore();
+    private final FlowStore flowStore;
     /** Serializes ingest cycles so an operator-triggered run (Control API {@code /trigger},
      *  {@code /pipelines/{name}/trigger}) can never overlap the scheduled poll cycle or another
      *  trigger. The scheduler is already non-overlapping (fixed-delay); this guards the
@@ -243,6 +253,26 @@ public final class SourceService implements AutoCloseable {
                          List<JobConfig> jobConfigs, List<SemanticModel> semanticModels,
                          List<com.gamma.alert.AlertRule> alertRules,
                          long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
+        this(registry, enrichJobs, jobConfigs, semanticModels, alertRules,
+                pollSeconds, maxConcurrentRuns, statusStore, SpaceRoot.legacy());
+    }
+
+    /**
+     * Full constructor (multi-space). Adds the {@link SpaceRoot} that decides where this service's stores
+     * read/write — {@link SpaceRoot#legacy()} for the single-tenant entry points above, or a per-space
+     * directory when hosted by a {@code SpaceManager}. All earlier constructors delegate here.
+     */
+    SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+                  List<JobConfig> jobConfigs, List<SemanticModel> semanticModels,
+                  List<com.gamma.alert.AlertRule> alertRules,
+                  long pollSeconds, int maxConcurrentRuns, StatusStore statusStore, SpaceRoot root) {
+        this.root              = root;
+        this.spaceId           = root.id();
+        // The default space reuses the process-wide log (so legacy single-tenant behaviour is unchanged and
+        // the capture appender's global fallback still hits it); a hosted space gets its own instance.
+        this.eventLog          = "default".equals(spaceId) ? EventLog.global() : EventLog.create();
+        EventLog.register(spaceId, eventLog);
+        this.flowStore         = ServiceStores.openFlowStore(root);
         this.registry          = new CopyOnWriteArrayList<>(registry);
         this.pollSeconds       = Math.max(1, pollSeconds);
         this.maxConcurrentRuns = Math.max(1, maxConcurrentRuns);
@@ -253,9 +283,12 @@ public final class SourceService implements AutoCloseable {
         this.jobs              = jobConfigs.isEmpty()
                 ? null
                 : new JobService(jobConfigs, bus, scheduler, reports,
-                        System.getProperty("jobs.audit.dir", "jobs_audit"), ServiceStores.openJobRunStore(),
-                        flowStore, System.getProperty("data.dir", "database"), ServiceStores.openProvenanceStore());
-        if (this.jobs != null) this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
+                        System.getProperty("jobs.audit.dir", root.auditDir()), ServiceStores.openJobRunStore(root),
+                        flowStore, System.getProperty("data.dir", root.dataDir()), ServiceStores.openProvenanceStore(root));
+        if (this.jobs != null) {
+            this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
+            this.jobs.spaceId(spaceId);                     // run this space's jobs under its MDC (per-space routing)
+        }
         this.semanticModels    = List.copyOf(semanticModels);
         // Invalidate the catalog whenever configs are (re)indexed — the registry is now the
         // config-change signal the M1 catalog plan anticipated.
@@ -275,15 +308,15 @@ public final class SourceService implements AutoCloseable {
         // Object Engine (Phase 2, v4.3.0): the mutable Layer-2 store for managed objects (alerts now;
         // issues/cases later). Built from -Dobjects.backend (memory|db); always present so /objects
         // works even with no alert rules. Fired alerts are promoted into it by the AlertService below.
-        this.objectStore = ServiceStores.openObjectStore();
-        this.linkStore = ServiceStores.openLinkStore();
-        this.noteStore = ServiceStores.openNoteStore();
+        this.objectStore = ServiceStores.openObjectStore(root);
+        this.linkStore = ServiceStores.openLinkStore(root);
+        this.noteStore = ServiceStores.openNoteStore(root);
         this.objects = new com.gamma.ops.ObjectService(objectStore, java.util.Map.of(), linkStore, noteStore);
         // Phase D2: promote selected domain events to managed objects (SEQUENCE_GAP → ALERT) via an EventLog
         // subscriber. Registered unconditionally (independent of *_alert.toon rules — a gap is not a batch
         // metric) and de-registered in close() so repeated service instances don't accumulate listeners.
         this.eventObjectBridge = new com.gamma.ops.EventObjectBridge(this.objects)::onEvent;
-        EventLog.global().addSubscriber(this.eventObjectBridge);
+        this.eventLog.addSubscriber(this.eventObjectBridge);
         // Alert engine (v4.1, B5): deterministic, lean-core, event-driven. Subscribed here (before
         // start()) so it sees the first terminal batch; null when no *_alert.toon was loaded. Phase 2:
         // also persists each fired alert as a managed ALERT object via the Object Engine above.
@@ -297,8 +330,8 @@ public final class SourceService implements AutoCloseable {
         // -Devents.backend (memory|parquet), installed into the process-wide EventLog so the SLF4J
         // capture appender (INFO+) and the domain emitters below share one sink, and subscribed to the
         // bus here (before start()) so the first terminal batch is recorded as a structured event.
-        this.events = ServiceStores.openEventStore();
-        EventLog.global().installStore(events);
+        this.events = ServiceStores.openEventStore(root);
+        this.eventLog.installStore(events);
         bus.subscribe(this::onBatchEvent);
         String viewsFile = System.getProperty("events.views.file");
         this.savedViews = new SavedViewStore(viewsFile == null ? null : Path.of(viewsFile));
@@ -376,9 +409,34 @@ public final class SourceService implements AutoCloseable {
         if (profile != null) {
             connections.put(profile.id(), profile);
             // Also publish into the process-wide registry so the static poll path (SourceConnectors.forConfig)
-            // can resolve a pipeline's source.connection binding to a remote connector (Phase E).
-            com.gamma.acquire.ConnectionRegistry.register(profile);
+            // can resolve a pipeline's source.connection binding to a remote connector (Phase E). Publish under
+            // THIS service's space so the per-space registry namespaces it correctly regardless of caller thread.
+            underSpace(() -> com.gamma.acquire.ConnectionRegistry.register(profile));
         }
+    }
+
+    /** Run {@code action} under this service's {@link #spaceId} MDC, restoring the prior value — so the per-space
+     *  routing (EventLog / metric label / ConnectionRegistry / StabilityGate / AcquisitionLedgers, and the parallel
+     *  poll workers that inherit the MDC) resolves to this space. The scheduler thread is reused across cycles, so
+     *  the value MUST be cleared/restored in the finally.
+     *
+     *  <p>The {@code default} space runs with <b>no</b> MDC set: {@code default} is the fallback namespace in all five
+     *  per-space singletons (and adds no metric label), so the default space resolves there by fallback. This keeps a
+     *  single-space deployment byte-identical and never collides with a named space's instances. */
+    private <T> T underSpace(java.util.function.Supplier<T> action) {
+        if (EventLog.DEFAULT_SPACE_ID.equals(spaceId)) return action.get();
+        String prev = MDC.get(EventLog.SPACE_MDC_KEY);
+        MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
+        try {
+            return action.get();
+        } finally {
+            if (prev == null) MDC.remove(EventLog.SPACE_MDC_KEY);
+            else MDC.put(EventLog.SPACE_MDC_KEY, prev);
+        }
+    }
+
+    private void underSpace(Runnable action) {
+        underSpace(() -> { action.run(); return null; });
     }
 
     /** All registered connection profiles by id — backs {@code GET /connections}. */
@@ -414,7 +472,7 @@ public final class SourceService implements AutoCloseable {
         if (!ok) {
             b.attr("error", e.error()).attr("offendingFile", e.offendingFile()).attr("errorRows", e.errorRows());
         }
-        EventLog.global().emit(b);
+        this.eventLog.emit(b);
     }
 
     /**
@@ -480,10 +538,10 @@ public final class SourceService implements AutoCloseable {
         long slaSweepSeconds = Long.getLong("objects.sla.sweep.seconds", 60L);
         if (slaSweepSeconds > 0)
             scheduler.everySeconds("sla-sweep", slaSweepSeconds, slaSweepSeconds,
-                    () -> objects.sweepIssueSla(System.currentTimeMillis()));
+                    () -> underSpace(() -> objects.sweepIssueSla(System.currentTimeMillis())));
         log.info("SourceService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
                 registry.size(), pollSeconds, maxConcurrentRuns);
-        EventLog.global().emit(Event.builder(EventType.SERVICE_STARTED)
+        this.eventLog.emit(Event.builder(EventType.SERVICE_STARTED)
                 .source(SourceService.class.getName())
                 .message("SourceService started")
                 .attr("pipelines", registry.size())
@@ -499,6 +557,10 @@ public final class SourceService implements AutoCloseable {
      * @return the run outcome (total / failed source counts)
      */
     public MultiSourceProcessor.RunResult runAllOnce() {
+        return underSpace(this::runAllOnceInSpace);   // cycle + its parallel workers run under this space's MDC
+    }
+
+    private MultiSourceProcessor.RunResult runAllOnceInSpace() {
         ingestLock.lock();   // never overlap with another cycle / operator trigger (see field doc)
         try {
             // Re-index configs once per cycle — now an mtime-cached rebuild, so a steady-state cycle
@@ -653,7 +715,7 @@ public final class SourceService implements AutoCloseable {
         for (DeletionFence.Conflict c : conflicts) {
             log.warn("Deletion fence: store '{}' has an active reader/writer — producers={}, consumers={}",
                     c.store(), c.activeProducers(), c.activeConsumers());
-            EventLog.global().emit(Event.builder(EventType.STORE_DELETE_CONFLICT)
+            this.eventLog.emit(Event.builder(EventType.STORE_DELETE_CONFLICT)
                     .source(SourceService.class.getName())
                     .message("Delete of store '" + c.store() + "' races an active flow")
                     .attr("store", c.store())
@@ -702,7 +764,7 @@ public final class SourceService implements AutoCloseable {
             ingestLock.unlock();
         }
         log.info("Registered pipeline '{}' from {} ({} pipeline(s) now active)", id, norm, registry.size());
-        EventLog.global().emit(Event.builder(EventType.PIPELINE_REGISTERED)
+        this.eventLog.emit(Event.builder(EventType.PIPELINE_REGISTERED)
                 .source(SourceService.class.getName()).pipeline(id)
                 .message("Pipeline registered: " + id)
                 .attr("configPath", norm.toString()).attr("activePipelines", registry.size()));
@@ -852,7 +914,7 @@ public final class SourceService implements AutoCloseable {
     public void unregisterConnection(String id) {
         if (id != null) {
             connections.remove(id.trim());
-            com.gamma.acquire.ConnectionRegistry.remove(id);
+            underSpace(() -> com.gamma.acquire.ConnectionRegistry.remove(id));
         }
     }
 
@@ -863,7 +925,7 @@ public final class SourceService implements AutoCloseable {
 
     /** Run a single registered pipeline once. Empty if no pipeline by that name. */
     public Optional<MultiSourceProcessor.RunResult> runPipeline(String pipelineName) {
-        return pathFor(pipelineName).map(p -> {
+        return underSpace(() -> pathFor(pipelineName).map(p -> {
             ingestLock.lock();   // serialize with the poll cycle / other triggers (see field doc)
             running.add(pipelineName);
             try {
@@ -873,7 +935,7 @@ public final class SourceService implements AutoCloseable {
                 running.remove(pipelineName);
                 ingestLock.unlock();
             }
-        });
+        }));
     }
 
     /** Pause a pipeline (the poll cycle skips it). Returns false if not registered. */
@@ -881,7 +943,7 @@ public final class SourceService implements AutoCloseable {
         if (pathFor(pipelineName).isEmpty()) return false;
         paused.add(pipelineName);
         log.info("Pipeline '{}' paused", pipelineName);
-        EventLog.global().emit(Event.builder(EventType.PIPELINE_PAUSED)
+        this.eventLog.emit(Event.builder(EventType.PIPELINE_PAUSED)
                 .source(SourceService.class.getName()).pipeline(pipelineName)
                 .message("Pipeline paused: " + pipelineName));
         return true;
@@ -892,7 +954,7 @@ public final class SourceService implements AutoCloseable {
         if (pathFor(pipelineName).isEmpty()) return false;
         paused.remove(pipelineName);
         log.info("Pipeline '{}' resumed", pipelineName);
-        EventLog.global().emit(Event.builder(EventType.PIPELINE_RESUMED)
+        this.eventLog.emit(Event.builder(EventType.PIPELINE_RESUMED)
                 .source(SourceService.class.getName()).pipeline(pipelineName)
                 .message("Pipeline resumed: " + pipelineName));
         return true;
@@ -907,7 +969,8 @@ public final class SourceService implements AutoCloseable {
         if (jobs != null) jobs.close();               // drain in-flight job runs first
         triggerWorkers.close();                        // drain in-flight event-triggered flow runs (T13)
         if (enrichment != null) enrichment.close();   // drain in-flight recomputes first
-        EventLog.global().removeSubscriber(eventObjectBridge);   // de-register the D2 gap→ALERT bridge
+        this.eventLog.removeSubscriber(eventObjectBridge);   // de-register the D2 gap→ALERT bridge
+        EventLog.unregister(spaceId);                  // stop MDC-routing to this space's log
         scheduler.close();
         if (status instanceof AutoCloseable c) {       // close a DB-backed store's connection
             try { c.close(); } catch (Exception e) { log.warn("Error closing status store: {}", e.getMessage()); }

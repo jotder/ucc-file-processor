@@ -154,7 +154,7 @@ public final class AlertService {
                         .attr("value", value)
                         .attr("severity", rule.severity())
                         .build();
-                EventLog.global().emit(firedEvent);
+                EventLog.current().emit(firedEvent);
                 persistAlertObject(rule, alert, display, value, firedEvent.eventId());
             }
         }

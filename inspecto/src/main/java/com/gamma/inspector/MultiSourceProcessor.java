@@ -4,6 +4,7 @@ import com.gamma.api.PublicApi;
 import com.gamma.etl.PipelineConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -11,6 +12,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -128,24 +130,30 @@ public final class MultiSourceProcessor {
                                    java.util.function.Consumer<com.gamma.etl.BatchEvent> onCommit) {
         Semaphore permits   = new Semaphore(Math.max(1, maxConcurrent));
         AtomicInteger failed = new AtomicInteger();
+        Map<String, String> mdc = MDC.getCopyOfContextMap();   // propagate the caller's space (MDC) onto each worker
 
         try (ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<?>> futures = new ArrayList<>();
             for (Path cfgPath : configs) {
                 futures.add(exec.submit(() -> {
-                    permits.acquire();
+                    if (mdc != null) MDC.setContextMap(mdc);
                     try {
-                        PipelineConfig cfg = PipelineConfig.load(cfgPath.toString());
-                        SourceProcessor.run(cfg, onCommit);
-                        log.info("Source '{}' completed", cfg.identity().pipelineName());
-                    } catch (SourceProcessor.BatchProcessingException e) {
-                        failed.incrementAndGet();
-                        log.error("Source {} had batch failures: {}", cfgPath, e.getMessage());
-                    } catch (Exception e) {
-                        failed.incrementAndGet();
-                        log.error("Source {} failed to run", cfgPath, e);
+                        permits.acquire();
+                        try {
+                            PipelineConfig cfg = PipelineConfig.load(cfgPath.toString());
+                            SourceProcessor.run(cfg, onCommit);
+                            log.info("Source '{}' completed", cfg.identity().pipelineName());
+                        } catch (SourceProcessor.BatchProcessingException e) {
+                            failed.incrementAndGet();
+                            log.error("Source {} had batch failures: {}", cfgPath, e.getMessage());
+                        } catch (Exception e) {
+                            failed.incrementAndGet();
+                            log.error("Source {} failed to run", cfgPath, e);
+                        } finally {
+                            permits.release();
+                        }
                     } finally {
-                        permits.release();
+                        MDC.clear();
                     }
                     return null;
                 }));
@@ -174,24 +182,30 @@ public final class MultiSourceProcessor {
                                        java.util.function.Consumer<com.gamma.etl.BatchEvent> onCommit) {
         Semaphore permits    = new Semaphore(Math.max(1, maxConcurrent));
         AtomicInteger failed = new AtomicInteger();
+        Map<String, String> mdc = MDC.getCopyOfContextMap();   // propagate the caller's space (MDC) onto each worker
 
         try (ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<?>> futures = new ArrayList<>();
             for (PipelineConfig cfg : configs) {
                 futures.add(exec.submit(() -> {
-                    permits.acquire();
+                    if (mdc != null) MDC.setContextMap(mdc);
                     try {
-                        SourceProcessor.run(cfg, onCommit);
-                        log.info("Source '{}' completed", cfg.identity().pipelineName());
-                    } catch (SourceProcessor.BatchProcessingException e) {
-                        failed.incrementAndGet();
-                        log.error("Source '{}' had batch failures: {}",
-                                cfg.identity().pipelineName(), e.getMessage());
-                    } catch (Exception e) {
-                        failed.incrementAndGet();
-                        log.error("Source '{}' failed to run", cfg.identity().pipelineName(), e);
+                        permits.acquire();
+                        try {
+                            SourceProcessor.run(cfg, onCommit);
+                            log.info("Source '{}' completed", cfg.identity().pipelineName());
+                        } catch (SourceProcessor.BatchProcessingException e) {
+                            failed.incrementAndGet();
+                            log.error("Source '{}' had batch failures: {}",
+                                    cfg.identity().pipelineName(), e.getMessage());
+                        } catch (Exception e) {
+                            failed.incrementAndGet();
+                            log.error("Source '{}' failed to run", cfg.identity().pipelineName(), e);
+                        } finally {
+                            permits.release();
+                        }
                     } finally {
-                        permits.release();
+                        MDC.clear();
                     }
                     return null;
                 }));

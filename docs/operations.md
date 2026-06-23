@@ -244,10 +244,10 @@ Each concurrent batch opens its own DuckDB connection, and DuckDB defaults to on
 # one or more pipeline toons and/or directories (searched for *_pipeline.toon)
 java -cp file-processor.jar com.gamma.inspector.MultiSourceProcessor \
      -Dsources.max=4 \
-     config/adjustment/adjustment_pipeline.toon \
-     config/voucher/voucher_unknown_pipeline.toon
+     spaces/default/config/subscriber/subscriber_pipeline.toon \
+     spaces/ucc/config/voucher/voucher_pipeline.toon
 # or point it at a directory tree of configs:
-java -cp file-processor.jar com.gamma.inspector.MultiSourceProcessor config/
+java -cp file-processor.jar com.gamma.inspector.MultiSourceProcessor spaces/ucc/config
 ```
 
 Sources run on a virtual-thread executor bounded by `-Dsources.max` (default: all resolved sources in parallel). Each source is isolated — one source failing (bad config or batch failures) is logged and counted but never aborts the others; the process exits non-zero if any source failed. A failed source does not stop the rest.
@@ -269,13 +269,13 @@ Each poll cycle reloads configs (so edits are picked up without a restart) and r
 
 ### Stage-2 enrichment (`EnrichmentProcessor`)
 
-The multiplexer (Stage 1) deliberately does no joins/aggregation. The separate **enrichment engine** turns its partitioned output into reports/KPIs, reading the Hive-partitioned tree with DuckDB, applying a configured columnar transform (reference joins + aggregation), and writing a new partitioned dataset **idempotently** (`OVERWRITE_OR_IGNORE`). Config is an `*_enrich.toon` (see `config/events/events_daily_kpi.toon`).
+The multiplexer (Stage 1) deliberately does no joins/aggregation. The separate **enrichment engine** turns its partitioned output into reports/KPIs, reading the Hive-partitioned tree with DuckDB, applying a configured columnar transform (reference joins + aggregation), and writing a new partitioned dataset **idempotently** (`OVERWRITE_OR_IGNORE`). Config is an `*_enrich.toon` (see `spaces/default/config/events/events_daily_kpi.toon`).
 
 ```bash
 # Full recompute over all input partitions
-java -cp file-processor.jar com.gamma.enrich.EnrichmentProcessor config/events/events_daily_kpi.toon
+java -cp file-processor.jar com.gamma.enrich.EnrichmentProcessor spaces/default/config/events/events_daily_kpi.toon
 # Incremental — recompute only the given partitions (semicolon-separated)
-java -cp file-processor.jar com.gamma.enrich.EnrichmentProcessor config/events/events_daily_kpi.toon \
+java -cp file-processor.jar com.gamma.enrich.EnrichmentProcessor spaces/default/config/events/events_daily_kpi.toon \
      --partitions "event_type=CALL/year=2020/month=04/day=03"
 ```
 
@@ -460,7 +460,7 @@ job:
   type: enrich
   cron: "0 0 * * * *"        # top of every hour
   on_pipeline: EVENTS         # also fire on the upstream's batch-commit event
-  config: config/events/events_daily_kpi_enrich.toon
+  config: spaces/default/config/events/events_daily_kpi_enrich.toon
 ```
 
 The cron parser is a small, dependency-free quartz-like engine: `*`, ranges (`9-17`),

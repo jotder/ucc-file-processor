@@ -113,6 +113,11 @@ class ControlApiTest {
             HttpResponse<String> ready = send(c.port, "GET", "/ready", null);
             assertEquals(200, ready.statusCode());
             assertEquals(1, json(ready).get("pipelines").asInt());
+
+            // a single-tenant server advertises multiSpace=false so the UI hides the switcher + CRUD
+            HttpResponse<String> meta = send(c.port, "GET", "/spaces/_meta", null);
+            assertEquals(200, meta.statusCode());
+            assertFalse(json(meta).get("multiSpace").asBoolean());
         }
     }
 
