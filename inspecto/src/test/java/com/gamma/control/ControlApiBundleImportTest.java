@@ -73,6 +73,22 @@ class ControlApiBundleImportTest {
     }
 
     @Test
+    void previewsAnImportWithoutWriting(@TempDir Path root) throws Exception {
+        try (Ctx c = open(root)) {
+            byte[] bundle = getBytes(c.port, "/spaces/alpha/datasources/test_etl/export").body();
+
+            HttpResponse<String> pv = post(c.port, "/spaces/beta/import/preview", bundle);
+            assertEquals(200, pv.statusCode(), pv.body());
+            JsonNode r = JSON.readTree(pv.body());
+            assertTrue(r.get("dataSources").toString().contains("test_etl"), "lists the bundled data source");
+            assertTrue(r.get("conflicts").isEmpty(), "no clash in empty beta");
+            assertTrue(r.get("valid").asBoolean(), "the exported pipeline validates: " + r.get("findings"));
+
+            assertTrue(idList(c.port, "/spaces/beta/datasources").isEmpty(), "preview wrote nothing");
+        }
+    }
+
+    @Test
     void createsANewSpaceFromAWholeSpaceBundle(@TempDir Path root) throws Exception {
         try (Ctx c = open(root)) {
             byte[] spaceBundle = getBytes(c.port, "/spaces/alpha/export").body();
