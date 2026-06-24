@@ -6,6 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ConnectionProfile, ConnectionTestResult, ConnectionsService } from 'app/inspecto/api';
+import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ConnectionFormDialog, ConnectionFormResult } from './connection-form.dialog';
 
@@ -18,7 +19,7 @@ import { ConnectionFormDialog, ConnectionFormResult } from './connection-form.di
 @Component({
     selector: 'app-connections',
     standalone: true,
-    imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule],
+    imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, InspectoAlertComponent],
     templateUrl: './connections.component.html',
     encapsulation: ViewEncapsulation.None,
 })

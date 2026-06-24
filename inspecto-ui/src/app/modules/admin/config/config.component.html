@@ -136,10 +136,13 @@
         <!-- Findings -->
         @if (result) {
             <div class="mt-8">
-                <p class="font-semibold" [class.text-green-600]="result.clean" [class.text-red-600]="!result.clean">
-                    {{ result.clean ? '✓ Clean' : '✗ ' + result.findings.length + ' finding(s)' }}
+                <p class="flex items-center gap-2 font-semibold">
+                    <inspecto-status-badge
+                        [value]="result.clean ? 'OK' : 'ERROR'"
+                        [label]="result.clean ? 'Clean' : result.findings.length + ' finding(s)'"
+                    />
                     @if (result.safetyChecked) {
-                        <span class="text-secondary ml-2 text-sm font-normal">safety checked</span>
+                        <span class="text-secondary text-sm font-normal">safety checked</span>
                     }
                 </p>
                 @if (result.findings.length) {

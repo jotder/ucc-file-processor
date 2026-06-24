@@ -26,11 +26,11 @@
     @if (settings?.supported) {
         <div class="bg-card mt-6 max-w-160 rounded-2xl p-6 shadow sm:p-8">
             @if (hostedJarMissing) {
-                <div class="mb-6 rounded-lg border border-amber-400 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                <inspecto-alert class="mb-6 block" variant="warning">
                     Hosted providers are greyed out because the
                     <code>file-processor-agent-hosted</code> jar is not on the server classpath
                     (air-gapped build).
-                </div>
+                </inspecto-alert>
             }
 
             <!-- Provider -->

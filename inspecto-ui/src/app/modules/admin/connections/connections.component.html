@@ -27,10 +27,9 @@
     </div>
 
     @if (writesDisabled) {
-        <div class="mt-4 flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-            <mat-icon class="icon-size-5 shrink-0" svgIcon="heroicons_outline:lock-closed"></mat-icon>
-            <span>Connection editing is disabled on this server (no write root configured). Listing and Test remain available.</span>
-        </div>
+        <inspecto-alert class="mt-4 block" variant="warning" icon="heroicons_outline:lock-closed">
+            Connection editing is disabled on this server (no write root configured). Listing and Test remain available.
+        </inspecto-alert>
     }
 
     @if (!loading && connections.length === 0) {
@@ -86,20 +85,16 @@
 
                 <!-- Test result -->
                 @if (results[c.id]; as r) {
-                    <div class="mt-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
-                         [class.bg-green-100]="r.reachable" [class.text-green-800]="r.reachable"
-                         [class.dark:bg-green-900]="r.reachable" [class.dark:text-green-200]="r.reachable"
-                         [class.bg-red-100]="!r.reachable" [class.text-red-800]="!r.reachable"
-                         [class.dark:bg-red-900]="!r.reachable" [class.dark:text-red-200]="!r.reachable">
-                        <mat-icon class="icon-size-5 shrink-0"
-                                  [svgIcon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"></mat-icon>
-                        <span>
-                            <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>
-                            @if (r.latencyMs != null) { · {{ r.latencyMs }} ms }
-                            · secrets {{ r.secretsResolved ? 'resolved' : 'unresolved' }}
-                            <div class="text-secondary mt-0.5">{{ r.detail }}</div>
-                        </span>
-                    </div>
+                    <inspecto-alert
+                        class="mt-4 block"
+                        [variant]="r.reachable ? 'success' : 'error'"
+                        [icon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"
+                    >
+                        <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>
+                        @if (r.latencyMs != null) { · {{ r.latencyMs }} ms }
+                        · secrets {{ r.secretsResolved ? 'resolved' : 'unresolved' }}
+                        <div class="text-secondary mt-0.5">{{ r.detail }}</div>
+                    </inspecto-alert>
                 }
             </div>
         }

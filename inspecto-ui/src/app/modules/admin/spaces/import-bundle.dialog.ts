@@ -101,7 +101,7 @@ export interface ImportBundleData {
                             <div class="text-sm">These data sources already exist in “{{ data.spaceId }}”:</div>
                             <div class="flex flex-wrap gap-1">
                                 @for (c of p.conflicts; track c) {
-                                    <span class="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800 dark:bg-amber-900 dark:text-amber-200">{{ c }}</span>
+                                    <span class="rounded bg-gray-100 px-2 py-0.5 text-xs dark:bg-gray-700">{{ c }}</span>
                                 }
                             </div>
                             <mat-checkbox [formControl]="overwrite">Overwrite existing data sources</mat-checkbox>

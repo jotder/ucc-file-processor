@@ -43,6 +43,32 @@
             <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.badge }}</code></pre>
         </section>
 
+        <!-- ── Alert / banner ───────────────────────────────────────────────────────────── -->
+        <section>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">Alert / banner</h2>
+                <button mat-stroked-button (click)="copy(snippets.alert)">
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard"></mat-icon>
+                    <span class="ml-1">Copy snippet</span>
+                </button>
+            </div>
+            <p class="text-secondary mb-4 text-sm">
+                <code>&lt;inspecto-alert&gt;</code> for inline, per-screen notices (writes disabled, feature
+                unavailable, jar missing) — instead of re-rolling <code>bg-amber-100 …</code> boxes. The <!-- ds-allow: prose, not a real class -->
+                message is projected, so it can carry <code>&lt;code&gt;</code> and links. Distinct from the
+                always-mounted <code>&lt;inspecto-connectivity-banner&gt;</code>.
+            </p>
+            <div class="bg-card flex flex-col gap-3 rounded-2xl p-6 shadow">
+                <inspecto-alert variant="info" title="Heads up">An informational note.</inspecto-alert>
+                <inspecto-alert variant="warning" title="Read-only">
+                    Editing is disabled on this server (no write root configured).
+                </inspecto-alert>
+                <inspecto-alert variant="error">Something failed and needs attention.</inspecto-alert>
+                <inspecto-alert variant="success">The operation completed.</inspecto-alert>
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.alert }}</code></pre>
+        </section>
+
         <!-- ── Empty state ──────────────────────────────────────────────────────────────── -->
         <section>
             <div class="mb-3 flex items-center justify-between">

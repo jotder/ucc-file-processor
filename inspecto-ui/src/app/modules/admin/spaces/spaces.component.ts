@@ -9,6 +9,7 @@ import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, Space, SpacesService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { SpaceFormDialog } from './space-form.dialog';
 import { ImportBundleData, ImportBundleDialog } from './import-bundle.dialog';
 
@@ -28,6 +29,7 @@ import { ImportBundleData, ImportBundleDialog } from './import-bundle.dialog';
         MatProgressSpinnerModule,
         MatTooltipModule,
         InspectoEmptyStateComponent,
+        StatusBadgeComponent,
     ],
     templateUrl: './spaces.component.html',
     encapsulation: ViewEncapsulation.None,
