@@ -27,7 +27,8 @@ import { canvasTheme } from 'app/inspecto/theme/chart-tokens';
     selector: 'inspecto-graph-view',
     standalone: true,
     template: '<div #host class="h-full w-full"></div>',
-    host: { class: 'block h-160 w-full' },
+    // Bigger + viewport-dynamic (was a fixed 40rem); autoFit:'view' scales the graph to fill it.
+    host: { class: 'block w-full min-h-96 h-[62vh]' },
 })
 export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     @Input({ required: true }) data: G6GraphData | null = null;

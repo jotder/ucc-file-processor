@@ -237,13 +237,30 @@ function graphOf(name: string): FlowGraph | null {
     };
 }
 
+/** Build the combined topology: every flow's nodes + edges, namespaced `<flow>/<node>` and tagged with `flow`. */
 function combined() {
-    return {
-        flows: [...STORE.values()].map((f) => ({ name: f.name, active: f.active })),
-        nodes: [],
-        edges: [],
-        links: [],
-    };
+    const flows = [...STORE.values()];
+    const nodes = flows.flatMap((f) =>
+        f.nodes.map((n) => ({
+            id: `${f.name}/${n.id}`,
+            type: n.type,
+            category: CATEGORY_OF.get(n.type) ?? 'TRANSFORM',
+            label: n.name || n.id,
+            name: n.name,
+            use: n.use,
+            flow: f.name,
+        })),
+    );
+    const edges = flows.flatMap((f) =>
+        f.edges.map((e) => ({
+            from: `${f.name}/${e.from}`,
+            to: `${f.name}/${e.to}`,
+            rel: e.rel,
+            kind: edgeKind(e.rel),
+            flow: f.name,
+        })),
+    );
+    return { flows: flows.map((f) => ({ name: f.name, active: f.active })), nodes, edges, links: [] };
 }
 
 function dryRun(name: string): FlowDryRunResult {

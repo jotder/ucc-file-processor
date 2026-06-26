@@ -23,14 +23,15 @@
                     }
                 </mat-select>
             </mat-form-field>
-            <button mat-stroked-button (click)="startNew()">
-                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon> New
+            <button mat-icon-button (click)="startNew()" matTooltip="New flow" aria-label="New flow">
+                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
             </button>
-            <button mat-flat-button color="primary" [disabled]="!dirty() || saving()" (click)="save()">
-                <mat-icon svgIcon="heroicons_outline:check"></mat-icon> Save
+            <button mat-icon-button color="primary" [disabled]="!dirty() || saving()" (click)="save()"
+                    matTooltip="Save" aria-label="Save flow">
+                <mat-icon svgIcon="heroicons_outline:check"></mat-icon>
             </button>
             <button mat-icon-button [matMenuTriggerFor]="flowMenu" [disabled]="!selectedId()"
-                    aria-label="More flow actions">
+                    matTooltip="More flow actions" aria-label="More flow actions">
                 <mat-icon svgIcon="heroicons_outline:ellipsis-vertical"></mat-icon>
             </button>
             <mat-menu #flowMenu="matMenu">
@@ -39,24 +40,28 @@
                     <span>Delete flow</span>
                 </button>
             </mat-menu>
-            <button mat-stroked-button [disabled]="!selectedId()" (click)="toggleDryRun()">
-                <mat-icon svgIcon="heroicons_outline:play"></mat-icon> Dry-run
+            <button mat-icon-button [disabled]="!selectedId()" (click)="toggleDryRun()"
+                    matTooltip="Dry-run" aria-label="Dry-run">
+                <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
             </button>
-            <button mat-stroked-button [disabled]="!selectedId()" (click)="toggleValidate()">
-                <mat-icon svgIcon="heroicons_outline:shield-check"></mat-icon> Validate
+            <button mat-icon-button [disabled]="!selectedId()" (click)="toggleValidate()"
+                    matTooltip="Validate" aria-label="Validate">
+                <mat-icon svgIcon="heroicons_outline:shield-check"></mat-icon>
             </button>
             @if (isActive()) {
-                <button mat-stroked-button [disabled]="activating()" (click)="deactivate()">
-                    <mat-icon svgIcon="heroicons_outline:pause"></mat-icon> Deactivate
+                <button mat-icon-button [disabled]="activating()" (click)="deactivate()"
+                        matTooltip="Deactivate" aria-label="Deactivate">
+                    <mat-icon svgIcon="heroicons_outline:pause"></mat-icon>
                 </button>
             } @else {
-                <button mat-stroked-button [disabled]="!selectedId() || activating()" (click)="activate()">
-                    <mat-icon svgIcon="heroicons_outline:bolt"></mat-icon> Activate
+                <button mat-icon-button color="primary" [disabled]="!selectedId() || activating()" (click)="activate()"
+                        matTooltip="Activate" aria-label="Activate">
+                    <mat-icon svgIcon="heroicons_outline:bolt"></mat-icon>
                 </button>
             }
-            <button mat-stroked-button [disabled]="!hasSelection()" (click)="onDeleteKey()"
-                    aria-label="Delete the selected node or edge">
-                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete selected
+            <button mat-icon-button [disabled]="!hasSelection()" (click)="onDeleteKey()"
+                    matTooltip="Delete selected" aria-label="Delete the selected node or edge">
+                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
             </button>
             <button mat-icon-button (click)="toggleInspector()"
                     [matTooltip]="inspectorOpen() ? 'Hide properties' : 'Show properties'"
