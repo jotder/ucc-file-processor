@@ -12,9 +12,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { FlowCombined, FlowGraph, FlowNode, FlowSummary, FlowsService, ProvenanceBatch } from 'app/inspecto/api';
+import { FlowCombined, FlowGraph, FlowNode, FlowSummary, FlowsService, IconMap, IconMapService, ProvenanceBatch } from 'app/inspecto/api';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
@@ -49,6 +50,7 @@ export type FlowsViewMode = 'flow' | 'combined' | 'editor';
         MatButtonToggleModule,
         MatFormFieldModule,
         MatIconModule,
+        MatMenuModule,
         MatSelectModule,
         MatTooltipModule,
         GraphViewComponent,
@@ -61,7 +63,10 @@ export type FlowsViewMode = 'flow' | 'combined' | 'editor';
 })
 export class FlowsComponent implements OnInit {
     private api = inject(FlowsService);
+    private iconMapApi = inject(IconMapService);
 
+    /** Configurable processor icons/colours (empty until loaded → mappers fall back to the per-kind glyph). */
+    readonly iconMap = signal<IconMap>({});
     readonly flows = signal<FlowSummary[]>([]);
     readonly nodeTypeGroups = signal<NodeTypeGroup[]>([]);
     readonly selected = signal<string | null>(null);
@@ -77,6 +82,12 @@ export class FlowsComponent implements OnInit {
     readonly combinedLoading = signal(false);
     readonly combinedUnavailable = signal(false);
 
+    /** Per-pipeline picker: search box over the pipeline dropdown (top of the canvas). */
+    readonly pipeSearch = signal('');
+    /** Combined view: which pipelines are shown (empty ⇒ all) + the multiselect's search box. */
+    readonly combinedSelected = signal<string[]>([]);
+    readonly combinedSearch = signal('');
+
     // ── data-plane provenance overlay (T22): paint a past run's per-edge counts onto the flow graph ──
     readonly provBatches = signal<ProvenanceBatch[]>([]);
     readonly provBatch = signal<string | null>(null);
@@ -85,13 +96,32 @@ export class FlowsComponent implements OnInit {
     /** The selected flow's graph mapped to G6 data, with the provenance overlay when a run is selected. */
     readonly g6Data = computed<G6GraphData | null>(() => {
         const g = this.graph();
-        return g ? toFlowG6Data(g, this.provCounts() ?? undefined) : null;
+        return g ? toFlowG6Data(g, this.provCounts() ?? undefined, this.iconMap()) : null;
     });
 
-    /** The combined topology mapped to G6 data (flow nodes + synthetic store join nodes). */
+    /** The combined topology mapped to G6 data, filtered to the chosen pipelines (empty selection ⇒ all). */
     readonly combinedG6 = computed<G6GraphData | null>(() => {
         const c = this.combined();
-        return c ? toCombinedG6Data(c) : null;
+        if (!c) return null;
+        const sel = this.combinedSelected();
+        const active = sel.length ? new Set(sel) : new Set(c.flows.map((f) => f.name));
+        const nodes = c.nodes.filter((n) => !n.flow || active.has(n.flow));
+        const ids = new Set(nodes.map((n) => n.id));
+        const edges = c.edges.filter((e) => ids.has(e.from) && ids.has(e.to));
+        return toCombinedG6Data({ ...c, nodes, edges }, this.iconMap());
+    });
+
+    /** Pipeline dropdown options for the per-pipeline view, filtered by the search box. */
+    readonly pipeOptions = computed<FlowSummary[]>(() => {
+        const q = this.pipeSearch().trim().toLowerCase();
+        return q ? this.flows().filter((f) => f.name.toLowerCase().includes(q)) : this.flows();
+    });
+
+    /** Flow names offered in the combined multiselect, filtered by its search box. */
+    readonly combinedFlowOptions = computed<string[]>(() => {
+        const q = this.combinedSearch().trim().toLowerCase();
+        const names = (this.combined()?.flows ?? []).map((f) => f.name);
+        return q ? names.filter((n) => n.toLowerCase().includes(q)) : names;
     });
 
     readonly nodeDisplayLabel = nodeDisplayLabel;
@@ -121,6 +151,11 @@ export class FlowsComponent implements OnInit {
         this.api.nodeTypes().subscribe({
             next: (ts) => this.nodeTypeGroups.set(groupByCategory(ts)),
             error: () => this.nodeTypeGroups.set([]),
+        });
+        // Configurable icons degrade independently — failure just keeps the built-in per-kind glyphs.
+        this.iconMapApi.get().subscribe({
+            next: (m) => this.iconMap.set(m),
+            error: () => this.iconMap.set({}),
         });
     }
 
@@ -186,6 +221,7 @@ export class FlowsComponent implements OnInit {
         this.api.combined().subscribe({
             next: (c) => {
                 this.combined.set(c);
+                if (!this.combinedSelected().length) this.combinedSelected.set(c.flows.map((f) => f.name));
                 this.combinedLoading.set(false);
             },
             error: () => {
@@ -198,4 +234,16 @@ export class FlowsComponent implements OnInit {
 
     /** A category accent dot for the legend / palette (runtime colour from the token palette). */
     readonly legendCategories = CATEGORY_ORDER;
+
+    onPipeSearch(e: Event): void {
+        this.pipeSearch.set((e.target as HTMLInputElement).value);
+    }
+
+    onCombinedSearch(e: Event): void {
+        this.combinedSearch.set((e.target as HTMLInputElement).value);
+    }
+
+    setCombinedSelected(names: string[]): void {
+        this.combinedSelected.set(names);
+    }
 }

@@ -141,6 +141,48 @@ export interface FlowDryRunResult {
     sinks: DryRunSink[];
 }
 
+/** Result of testing a single processor node over a bounded sample (POST /components/{type}/{id}/test). */
+export interface ComponentTestResult {
+    type: string;
+    id: string;
+    ok: boolean;
+    detail: string;
+    rowCount: number;
+    rows: Record<string, unknown>[];
+}
+
+// ── Run-to-here (the in-editor build-and-test loop) ──
+
+/** One relationship a node produced during a run-to-here (success/unmatched/kept/dropped/route:<key>). */
+export interface FlowRunRelation {
+    node: string;
+    rel: string;
+    rowCount: number;
+    rows: Record<string, unknown>[];
+}
+
+/** The materialized output a run-to-here landed (scratch only — never a production write). */
+export interface FlowRunOutput {
+    store: string;
+    format: string;
+    path: string;
+    rowCount: number;
+}
+
+/**
+ * Result of running an authored flow up to a node over picked inbox files
+ * (POST /flows/authored/{id}/run?to={nodeId}). Per-relation counts + a bounded sample, plus the scratch
+ * Parquet the run landed — the editor's incremental "build a little, test a little" feedback.
+ */
+export interface FlowRunResult {
+    seedNode: string;
+    toNode: string;
+    files: string[];
+    relations: FlowRunRelation[];
+    output: FlowRunOutput | null;
+    warnings: string[];
+}
+
 // ── Data-plane provenance (T22) — per-edge record counts of a past flow run ──
 
 /** One run of a flow that recorded provenance (GET /provenance/batches), newest first. */
@@ -213,6 +255,23 @@ export class FlowsService {
     dryRunAuthored(id: string, sampleRows: Record<string, unknown>[]): Observable<FlowDryRunResult> {
         return this.http.post<FlowDryRunResult>(
             apiUrl(`/flows/authored/${encodeURIComponent(id)}/dry-run`), { sampleRows });
+    }
+
+    /** Test a single processor node over a bounded sample (no production write) — the per-processor test. */
+    testNode(type: string, id: string): Observable<ComponentTestResult> {
+        return this.http.post<ComponentTestResult>(
+            apiUrl(`/components/${encodeURIComponent(type)}/${encodeURIComponent(id)}/test`), {});
+    }
+
+    /**
+     * Run the authored flow up to {nodeId} over the chosen inbox `files`, materializing to a scratch store
+     * (no production write). Drives the editor's run-to-here loop — per-relation counts + the Parquet landed.
+     */
+    runToNode(id: string, nodeId: string, files: string[]): Observable<FlowRunResult> {
+        return this.http.post<FlowRunResult>(
+            apiUrl(`/flows/authored/${encodeURIComponent(id)}/run`),
+            { files },
+            { params: { to: nodeId } });
     }
 
     // ── data-plane provenance (T22; 404 unless -Dprovenance.backend=duckdb) ──

@@ -22,6 +22,23 @@ export const CHART_SERIES = {
     error: '#ef4444',
 } as const;
 
+/** Amber for "needs attention" canvas cues (Tailwind amber-500). */
+const WARN = '#f59e0b';
+
+/**
+ * Outline stroke for a flow-editor node's status cue, or {@code null} to keep the category colour
+ * ({@code configured}). Status is also conveyed by a label glyph + the inspector chip (never colour alone).
+ */
+export function nodeStatusStroke(status: string): string | null {
+    switch (status) {
+        case 'tested':       return CHART_SERIES.success;
+        case 'rejects':      return WARN;
+        case 'unconfigured': return WARN;
+        case 'dangling':     return CHART_SERIES.error;
+        default:             return null; // 'configured' → keep the category colour
+    }
+}
+
 /** Categorical accent per catalog node kind — drives the legend and node outlines. */
 export const NODE_KIND_COLORS: Record<NodeKind, string> = {
     SOURCE: '#5B8FF9',
@@ -34,6 +51,12 @@ export const NODE_KIND_COLORS: Record<NodeKind, string> = {
 };
 
 export const NODE_KIND_FALLBACK = '#9AA0A6';
+
+/** Curated colour palette offered in the configurable-icon picker (the kind accents + a few extras). */
+export const ICON_COLOR_SWATCHES: readonly string[] = [
+    '#5B8FF9', '#61DDAA', '#65789B', '#F6BD16', '#7262FD', '#78D3F8', '#F6903D',
+    '#EF4444', '#22C55E', '#A855F7', '#0EA5E9', '#94A3B8',
+];
 
 /** Scheme-dependent colours shared by the chart and graph hosts. */
 export interface CanvasTheme {

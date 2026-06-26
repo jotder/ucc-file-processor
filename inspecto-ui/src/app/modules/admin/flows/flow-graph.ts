@@ -1,6 +1,16 @@
 import { NodeKind } from 'app/inspecto/api';
-import { AuthoredFlow, FlowCombined, FlowGraph, FlowNode, FlowNodeType, ProvenanceCount } from 'app/inspecto/api';
-import { G6GraphData, nodeColor } from 'app/modules/admin/catalog/catalog-graph';
+import {
+    AuthoredFlow,
+    AuthoredNode,
+    ComponentType,
+    FlowCombined,
+    FlowGraph,
+    FlowNode,
+    FlowNodeType,
+    IconMap,
+    ProvenanceCount,
+} from 'app/inspecto/api';
+import { GLYPH_LIBRARY, G6GraphData, iconDataUri, nodeColor, nodeIcon } from 'app/modules/admin/catalog/catalog-graph';
 
 /**
  * Pure mappers that turn the flow-graph projection (GET /flows/{id}/graph) into AntV G6 data for the
@@ -11,6 +21,135 @@ import { G6GraphData, nodeColor } from 'app/modules/admin/catalog/catalog-graph'
  * {@link FlowNode.category} is mapped onto a NodeKind purely for that visual reuse (so colours come
  * from the existing token palette, never a hardcoded value here).
  */
+
+/** The registry component a node category binds (parser→grammar, transform, sink); null for sources/control. */
+export function bindKindFor(category: string): ComponentType | null {
+    switch (category) {
+        case 'PARSE':     return 'grammar';
+        case 'TRANSFORM': return 'transform';
+        case 'SINK':      return 'sink';
+        default:          return null;
+    }
+}
+
+// ── Node status (canvas state) + flow validation (Stages 2 & 4) ──
+
+/** A node's authoring status, shown on the canvas + inspector. */
+export type NodeStatus = 'unconfigured' | 'dangling' | 'configured' | 'tested' | 'rejects';
+
+/** A test outcome recorded for a node after a run-to-here (drives `tested`/`rejects`). */
+export type TestOutcome = 'tested' | 'rejects';
+
+/** Glyph prefixed to a node's canvas label so status reads as text, not colour alone ('' = none). */
+export function statusGlyph(status: NodeStatus): string {
+    switch (status) {
+        case 'unconfigured': return '⚠ ';
+        case 'dangling':     return '⚠ ';
+        case 'tested':       return '✓ ';
+        case 'rejects':      return '✕ ';
+        default:             return '';
+    }
+}
+
+/** Human label for a node status (the inspector chip). */
+export function statusLabel(status: NodeStatus): string {
+    switch (status) {
+        case 'unconfigured': return 'Needs config';
+        case 'dangling':     return 'Missing component';
+        case 'configured':   return 'Configured';
+        case 'tested':       return 'Tested';
+        case 'rejects':      return 'Has rejects';
+    }
+}
+
+/**
+ * Compute a node's status. A node that binds a component (or a source's connection) but has no `use` ref is
+ * `unconfigured`; a bound registry ref absent from `validRefs` is `dangling` (only checked when
+ * `checkDangling`, so the canvas doesn't false-flag before the registry has loaded); a recorded test outcome
+ * wins over the otherwise-`configured` baseline.
+ */
+export function computeNodeStatus(
+    node: AuthoredNode,
+    category: string,
+    validRefs: ReadonlySet<string>,
+    tested: ReadonlyMap<string, TestOutcome>,
+    checkDangling = true,
+): NodeStatus {
+    const bindKind = bindKindFor(category);
+    const needsRef = bindKind != null || category === 'SOURCE';
+    const ref = node.use?.trim();
+    const hasInlineConfig = !!node.config && Object.keys(node.config).length > 0;
+    // Unconfigured only when it binds something but is configured neither by a ref nor inline.
+    if (needsRef && !ref && !hasInlineConfig) return 'unconfigured';
+    if (checkDangling && ref && bindKind && !validRefs.has(ref)) return 'dangling';
+    return tested.get(node.id) ?? 'configured';
+}
+
+/** One validation finding for the editor's Validate panel; `error` blocks activation. */
+export interface FlowFinding {
+    severity: 'error' | 'warning' | 'info';
+    nodeId?: string;
+    message: string;
+}
+
+/**
+ * Validate an authored flow for activation: every node configured + its refs resolvable, a source feeding it,
+ * a sink draining it, and no orphan (non-source node with no input). `error`-severity findings block Activate.
+ */
+export function validateFlow(
+    flow: AuthoredFlow,
+    typeCat: ReadonlyMap<string, string>,
+    validRefs: ReadonlySet<string>,
+    tested: ReadonlyMap<string, TestOutcome>,
+): FlowFinding[] {
+    const findings: FlowFinding[] = [];
+    if (!flow.nodes.length) {
+        return [{ severity: 'error', message: 'The pipeline has no nodes.' }];
+    }
+    const incoming = new Set(flow.edges.map((e) => e.to));
+    let hasSource = false;
+    let hasSink = false;
+    for (const n of flow.nodes) {
+        const cat = typeCat.get(n.type) ?? 'TRANSFORM';
+        if (cat === 'SOURCE') hasSource = true;
+        if (cat === 'SINK') hasSink = true;
+        const name = n.name || n.id;
+        const status = computeNodeStatus(n, cat, validRefs, tested);
+        if (status === 'unconfigured') {
+            findings.push({ severity: 'error', nodeId: n.id, message: `${name}: needs configuration.` });
+        } else if (status === 'dangling') {
+            findings.push({ severity: 'error', nodeId: n.id, message: `${name}: references a missing ${bindKindFor(cat)} (${n.use}).` });
+        } else if (status === 'configured') {
+            findings.push({ severity: 'info', nodeId: n.id, message: `${name}: not yet tested.` });
+        } else if (status === 'rejects') {
+            findings.push({ severity: 'warning', nodeId: n.id, message: `${name}: last run had unmatched/dropped rows.` });
+        }
+        if (cat !== 'SOURCE' && !incoming.has(n.id)) {
+            findings.push({ severity: 'warning', nodeId: n.id, message: `${name}: has no input connection.` });
+        }
+    }
+    if (!hasSource) findings.push({ severity: 'warning', message: 'No source node — nothing feeds the pipeline.' });
+    if (!hasSink) findings.push({ severity: 'warning', message: 'No writer/sink — the pipeline produces no output.' });
+    return findings;
+}
+
+/**
+ * Resolve a node's configurable icon + colour: an exact `type` rule wins over a `category` rule, and
+ * anything unmapped falls back to the built-in per-kind glyph. Returns the data-URI icon + the stroke colour
+ * embedded into the G6 node data so the host renders it without knowing the map.
+ */
+export function resolveNodeIcon(
+    type: string | undefined,
+    category: string,
+    map: IconMap | undefined,
+): { iconSrc: string; color: string } {
+    const rule = (type ? map?.[type] : undefined) ?? map?.[category];
+    if (rule && GLYPH_LIBRARY[rule.glyph]) {
+        return { iconSrc: iconDataUri(GLYPH_LIBRARY[rule.glyph], rule.color), color: rule.color };
+    }
+    const kind = categoryVisualKind(category);
+    return { iconSrc: nodeIcon(kind), color: nodeColor(kind) };
+}
 
 /** Map a flow node category onto a catalog NodeKind for shape/colour reuse (cosmetic only). */
 export function categoryVisualKind(category: string): NodeKind {
@@ -30,6 +169,19 @@ export function categoryColor(category: string): string {
     return nodeColor(categoryVisualKind(category));
 }
 
+/** Friendly palette group name per category — the user-facing processor taxonomy. */
+export function categoryLabel(category: string): string {
+    switch (category) {
+        case 'SOURCE':    return 'Collector';
+        case 'PARSE':     return 'Parser';
+        case 'TRANSFORM': return 'Transformer';
+        case 'SINK':      return 'Writer';
+        case 'CONTROL':   return 'Control';
+        case 'STORE':     return 'Store';
+        default:          return category;
+    }
+}
+
 /** A flow node's display label: the user-given name if set, else the type label. */
 export function nodeDisplayLabel(n: FlowNode): string {
     return n.name && n.name.trim() ? n.name : n.label;
@@ -41,11 +193,15 @@ export function nodeDisplayLabel(n: FlowNode): string {
  * that relationship and a {@code weight} drives the line width — the structure plane painted with quantities
  * (§11). Edges with no recorded count are left at their default style.
  */
-export function toFlowG6Data(g: FlowGraph, counts?: Map<string, number>): G6GraphData {
+export function toFlowG6Data(g: FlowGraph, counts?: Map<string, number>, iconMap?: IconMap): G6GraphData {
     return {
         nodes: g.nodes.map((n) => ({
             id: n.id,
-            data: { label: nodeDisplayLabel(n), kind: categoryVisualKind(n.category) },
+            data: {
+                label: nodeDisplayLabel(n),
+                kind: categoryVisualKind(n.category),
+                ...(iconMap ? resolveNodeIcon(n.type, n.category, iconMap) : {}),
+            },
         })),
         // a flow can carry several edges between the same pair (e.g. data + a route branch), so the id
         // folds in the relationship + row index to stay unique.
@@ -75,13 +231,14 @@ export function provenanceCounts(rows: ProvenanceCount[]): Map<string, number> {
  * drawn alongside the intra-flow edges. Node ids are already unique (flow nodes `<flow>/<node>`, store
  * nodes `store:<name>`), so they're used verbatim.
  */
-export function toCombinedG6Data(c: FlowCombined): G6GraphData {
+export function toCombinedG6Data(c: FlowCombined, iconMap?: IconMap): G6GraphData {
     return {
         nodes: c.nodes.map((n) => ({
             id: n.id,
             data: {
                 label: n.category === 'STORE' ? (n.store ?? n.label) : nodeDisplayLabel(n),
                 kind: categoryVisualKind(n.category),
+                ...(iconMap ? resolveNodeIcon(n.type, n.category, iconMap) : {}),
             },
         })),
         edges: c.edges.map((e, i) => ({
@@ -103,15 +260,25 @@ export function typeCategoryMap(types: FlowNodeType[]): Map<string, string> {
  * which drives shape + outline colour — is resolved from the palette ({@link typeCategoryMap}); an unknown
  * type falls back to TRANSFORM so a plugin/unknown node still renders.
  */
-export function authoredToG6(flow: AuthoredFlow, typeCat: Map<string, string>): G6GraphData {
+export function authoredToG6(
+    flow: AuthoredFlow,
+    typeCat: Map<string, string>,
+    statusOf?: (node: AuthoredNode) => NodeStatus,
+    iconMap?: IconMap,
+): G6GraphData {
     return {
-        nodes: flow.nodes.map((n) => ({
-            id: n.id,
-            data: {
-                label: n.name && n.name.trim() ? n.name : n.id,
-                kind: categoryVisualKind(typeCat.get(n.type) ?? 'TRANSFORM'),
-            },
-        })),
+        nodes: flow.nodes.map((n) => {
+            const category = typeCat.get(n.type) ?? 'TRANSFORM';
+            return {
+                id: n.id,
+                data: {
+                    label: n.name && n.name.trim() ? n.name : n.id,
+                    kind: categoryVisualKind(category),
+                    status: statusOf ? statusOf(n) : 'configured',
+                    ...(iconMap ? resolveNodeIcon(n.type, category, iconMap) : {}),
+                },
+            };
+        }),
         edges: flow.edges.map((e, i) => ({
             id: `${e.from}->${e.to}:${e.rel}:${i}`,
             source: e.from,

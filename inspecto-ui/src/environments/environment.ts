@@ -12,6 +12,14 @@ export const environment = {
     // environment.ts is the one that actually ships.)
     apiBaseUrl: '/api',
     hmr: false,
+    // Prototype-only: serve mocked connect/explore/test/sample for the connection workbench until the
+    // real library + control routes land (B2). The connectionMockInterceptor only intercepts the three
+    // new /connections/{id}/{probe,explore,sample} paths; flip false / remove the interceptor in B2.
+    mockConnectionProbe: true,
+    // Prototype-only: serve the Pipelines graph editor fully offline (node-type palette, authored-flow
+    // CRUD, dry-run, per-processor test) from an in-memory store. Flip false / remove the interceptor
+    // once the real flow backend is wired.
+    mockFlows: true,
     apiVersion: '/api/v1',
     basePath: '/',
     authVersion:"/oauth",

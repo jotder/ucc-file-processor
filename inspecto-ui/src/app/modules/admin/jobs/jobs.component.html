@@ -32,9 +32,8 @@
                 </mat-slide-toggle>
             }
 
-            <button mat-stroked-button (click)="mode === 'reporting' ? loadReport() : load()">
+            <button mat-icon-button (click)="mode === 'reporting' ? loadReport() : load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
-                <span class="ml-2">Refresh</span>
             </button>
 
             @if (mode === 'schedules') {

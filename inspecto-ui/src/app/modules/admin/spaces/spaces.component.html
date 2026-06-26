@@ -17,9 +17,8 @@
                 <mat-icon [svgIcon]="'heroicons_outline:arrow-path'"></mat-icon>
             </button>
             @if (spaces.multiSpace()) {
-                <button mat-stroked-button (click)="createFromBundle()">
+                <button mat-icon-button (click)="createFromBundle()" matTooltip="Create from bundle" aria-label="Create from bundle">
                     <mat-icon svgIcon="heroicons_outline:arrow-up-tray"></mat-icon>
-                    <span class="ml-2">From bundle</span>
                 </button>
                 <button mat-flat-button color="primary" (click)="newSpace()">
                     <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>

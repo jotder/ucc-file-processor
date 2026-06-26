@@ -2,8 +2,8 @@
     <!-- Header -->
     <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
         <div>
-            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Pipelines</h1>
-            <div class="text-secondary mt-1.5">Configured pipelines with lifecycle actions</div>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Runs</h1>
+            <div class="text-secondary mt-1.5">Pipeline runs and lifecycle actions</div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
             <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
@@ -11,9 +11,8 @@
                 <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
             </mat-form-field>
             <mat-slide-toggle [(ngModel)]="autoRefresh">Auto</mat-slide-toggle>
-            <button mat-stroked-button (click)="load()">
+            <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
-                <span class="ml-2">Refresh</span>
             </button>
             <button mat-flat-button color="primary" [disabled]="loading" (click)="runAll()">
                 <mat-icon svgIcon="heroicons_outline:play"></mat-icon>

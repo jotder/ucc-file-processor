@@ -14,9 +14,8 @@
                 <mat-label>Search</mat-label>
                 <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
             </mat-form-field>
-            <button mat-flat-button color="primary" (click)="load()">
+            <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
-                <span class="ml-2">Refresh</span>
             </button>
         </div>
     </div>

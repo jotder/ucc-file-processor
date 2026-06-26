@@ -64,6 +64,7 @@ export const appRoutes: Route[] = [
             { path: 'design', loadChildren: () => import('app/modules/admin/design-system/design-system.routes') },
             { path: 'assist', loadChildren: () => import('app/modules/admin/assist/assist.routes') },
             { path: 'settings/models', loadChildren: () => import('app/modules/admin/model-settings/model-settings.routes') },
+            { path: 'settings/icons', loadChildren: () => import('app/modules/admin/icon-settings/icon-settings.routes') },
         ]
     }
 ];

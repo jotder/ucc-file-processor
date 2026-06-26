@@ -3,7 +3,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { FlowEditorComponent } from './flow-editor.component';
-import { AuthoredFlow, FlowDryRunResult, FlowsService } from 'app/inspecto/api';
+import { AuthoredFlow, ComponentsService, FlowDryRunResult, FlowsService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ToastrService } from 'ngx-toastr';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -12,9 +12,11 @@ import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 function canvasMock() {
     return {
         addNode: vi.fn(),
+        addNodeAtCenter: vi.fn(),
         addEdge: vi.fn(),
         removeElement: vi.fn(),
         updateNodeLabel: vi.fn(),
+        setNodeStatus: vi.fn(),
     };
 }
 
@@ -56,6 +58,7 @@ describe('FlowEditorComponent', () => {
             providers: [
                 provideNoopAnimations(),
                 { provide: FlowsService, useValue: api },
+                { provide: ComponentsService, useValue: { list: vi.fn().mockReturnValue(of([])) } },
                 { provide: ToastrService, useValue: { success: vi.fn(), error: vi.fn() } },
                 { provide: InspectoConfirmService, useValue: { confirmDestructive: vi.fn().mockResolvedValue(true) } },
             ],
@@ -82,6 +85,17 @@ describe('FlowEditorComponent', () => {
         expect(m.nodes[2].type).toBe('transform.filter');
         expect(c.dirty()).toBe(true);
         expect(canvasOf(c).addNode).toHaveBeenCalled();
+    });
+
+    it('clicking a palette node adds it at the canvas centre (the no-mouse path)', () => {
+        const c = make();
+        c.model.set(structuredClone(FLOW));
+        c.addFromPalette('transform.filter');
+        const m = c.model()!;
+        expect(m.nodes).toHaveLength(3);
+        expect(m.nodes[2].type).toBe('transform.filter');
+        expect(canvasOf(c).addNodeAtCenter).toHaveBeenCalled();
+        expect(c.dirty()).toBe(true);
     });
 
     it('two-click connect adds a new edge between the two nodes', () => {

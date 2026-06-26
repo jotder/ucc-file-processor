@@ -1,0 +1,172 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Breadcrumb + header -->
+    <nav aria-label="Breadcrumb" class="text-secondary text-sm">
+        <a class="hover:text-primary" [routerLink]="['..']">Connections</a>
+        <span class="px-1">/</span>
+        <span class="font-mono">{{ id }}</span>
+    </nav>
+
+    <div class="mt-1 flex items-center justify-between gap-3">
+        <div class="min-w-0">
+            <h1 class="truncate font-mono text-3xl font-extrabold leading-tight tracking-tight">{{ id }}</h1>
+            @if (connection(); as c) {
+                <div class="text-secondary mt-1 text-sm">
+                    <span class="mr-2 inline-block rounded bg-gray-200 px-2 py-0.5 font-mono text-xs uppercase dark:bg-gray-700">{{ c.connector }}</span>
+                    {{ c.host || 'local' }}{{ c.port ? ':' + c.port : '' }}
+                    @if (c.basePath) { · <span class="font-mono">{{ c.basePath }}</span> }
+                </div>
+            }
+        </div>
+        <inspecto-status-badge class="shrink-0" [value]="statusChip().value" [label]="statusChip().label" />
+    </div>
+
+    <!-- Test (graded probe) -->
+    <section class="bg-card mt-6 rounded-2xl p-5 shadow">
+        <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+                <div class="flex flex-wrap items-baseline gap-x-3">
+                    <h2 class="text-lg font-semibold">Test connection</h2>
+                    @if (probeSummary(); as s) {
+                        <span class="text-secondary text-sm">{{ s.passed }} passed@if (s.skipped) { · {{ s.skipped }} skipped }@if (s.failed) { · {{ s.failed }} failed }</span>
+                    }
+                </div>
+                @if (lastTested(); as t) {
+                    <div class="text-secondary mt-0.5 text-xs">Last tested {{ t.toLocaleTimeString() }}</div>
+                }
+            </div>
+            <button mat-flat-button color="primary" (click)="runProbe()" [disabled]="probing()">
+                @if (probing()) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:bolt"></mat-icon>
+                <span class="ml-2">Run test</span>
+            </button>
+        </div>
+
+        @if (probe(); as p) {
+            <inspecto-alert
+                class="mt-4 block"
+                [variant]="p.ok ? 'success' : 'error'"
+                [icon]="p.ok ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"
+            >
+                <span class="font-semibold">{{ p.ok ? 'All checks passed' : 'Some checks failed' }}</span>
+                · {{ p.endpoint }} · secrets {{ p.secretsResolved ? 'resolved' : 'unresolved' }}
+            </inspecto-alert>
+
+            <ul class="mt-4 flex flex-col gap-2">
+                @for (c of p.checks; track c.check) {
+                    <li class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <inspecto-status-badge [value]="checkStatus(c)" />
+                        <span class="font-medium capitalize">{{ c.check }}</span>
+                        <span class="text-secondary text-sm">{{ c.detail }}</span>
+                        @if (c.latencyMs != null) {
+                            <span class="text-secondary ml-auto text-xs">{{ c.latencyMs }} ms</span>
+                        }
+                    </li>
+                }
+            </ul>
+        } @else if (!probing()) {
+            <p class="text-secondary mt-3 text-sm">
+                Runs a graded probe against the external system: reachability, authentication, read &amp; write
+                permission, and a sample listing — works for local directories too.
+            </p>
+        }
+    </section>
+
+    <!-- Explore + Sample -->
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <section class="bg-card rounded-2xl p-5 shadow lg:col-span-1">
+            <h2 class="text-lg font-semibold">Explore</h2>
+            <p class="text-secondary mt-1 text-sm">Browse the resource — select a file or table to preview a sample.</p>
+            @if (selected(); as sel) {
+                <div class="text-secondary mt-1 truncate font-mono text-xs" aria-live="polite">{{ sel.path }}</div>
+            }
+
+            <div class="relative mt-3">
+                <mat-icon class="icon-size-4 text-secondary pointer-events-none absolute left-2 top-1/2 -translate-y-1/2" svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                <input
+                    type="text"
+                    class="bg-card w-full rounded border border-gray-300 py-1.5 pl-8 pr-2 text-sm dark:border-gray-600"
+                    placeholder="Filter resources…"
+                    aria-label="Filter resources"
+                    (input)="onTreeFilter($event)"
+                />
+            </div>
+
+            <div class="mt-4">
+                @if (exploring()) {
+                    <inspecto-skeleton [lines]="5" height="1.25rem" />
+                } @else if (rootNodes().length) {
+                    <app-connection-tree
+                        [nodes]="rootNodes()"
+                        [childrenByPath]="childrenByPath()"
+                        [expanded]="expanded()"
+                        [loadingPaths]="loadingPaths()"
+                        [selectedPath]="selected()?.path ?? null"
+                        [filter]="treeFilter()"
+                        (expand)="onExpand($event)"
+                        (select)="onSelect($event)"
+                    />
+                } @else {
+                    <inspecto-empty-state
+                        icon="heroicons_outline:folder-open"
+                        message="Nothing to explore — connect and test first, or the resource is empty."
+                    />
+                }
+            </div>
+        </section>
+
+        <section class="bg-card rounded-2xl p-5 shadow lg:col-span-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap items-baseline gap-x-3">
+                    <h2 class="text-lg font-semibold">Sample</h2>
+                    @if (sample(); as s) {
+                        <span class="text-secondary text-sm">{{ s.rows.length }} rows × {{ s.columns.length }} cols</span>
+                    }
+                </div>
+                <div class="flex items-center gap-2">
+                    @if (sample()) {
+                        <button mat-stroked-button class="min-w-0 px-3" (click)="copyCsv()" matTooltip="Copy as CSV" aria-label="Copy sample as CSV">
+                            <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard-document"></mat-icon>
+                        </button>
+                        <button mat-stroked-button class="min-w-0 px-3" (click)="downloadCsv()" matTooltip="Download CSV" aria-label="Download sample as CSV">
+                            <mat-icon class="icon-size-4" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+                        </button>
+                    }
+                    <span class="text-secondary text-xs">rows</span>
+                    <mat-button-toggle-group [value]="sampleLimit()" (change)="setLimit($event.value)" aria-label="Sample size">
+                        @for (n of limitOptions; track n) {
+                            <mat-button-toggle [value]="n">{{ n }}</mat-button-toggle>
+                        }
+                    </mat-button-toggle-group>
+                </div>
+            </div>
+            @if (selected(); as s) {
+                <div class="text-secondary mt-1 truncate font-mono text-xs">{{ s.path }}</div>
+            }
+
+            <div class="mt-4">
+                @if (sampling()) {
+                    <inspecto-skeleton [lines]="6" height="1.25rem" />
+                } @else if (sample(); as s) {
+                    @if (s.truncated) {
+                        <inspecto-alert class="mb-3 block" variant="info" icon="heroicons_outline:information-circle">
+                            {{ s.detail }} — preview only, never persisted.
+                        </inspecto-alert>
+                    }
+                    <ag-grid-angular
+                        class="h-96 w-full"
+                        [theme]="themeSvc.theme()"
+                        [rowData]="s.rows"
+                        [columnDefs]="sampleCols()"
+                        [defaultColDef]="defaultColDef"
+                        [overlayNoRowsTemplate]="noRowsTpl"
+                    />
+                } @else {
+                    <inspecto-empty-state
+                        icon="heroicons_outline:table-cells"
+                        message="Pick a file or table in Explore to preview its first rows."
+                    />
+                }
+            </div>
+        </section>
+    </div>
+</div>

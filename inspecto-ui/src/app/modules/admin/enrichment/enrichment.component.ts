@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, RowClickedEvent } from 'ag-grid-community';
 import { AuditRow, EnrichmentJobView, EnrichmentRunReport, EnrichmentService } from 'app/inspecto/api';
@@ -31,6 +32,7 @@ type EnrTab = 'runs' | 'lineage' | 'report';
         MatInputModule,
         MatProgressSpinnerModule,
         MatTabsModule,
+        MatTooltipModule,
         AgGridAngular,
     ],
     templateUrl: './enrichment.component.html',

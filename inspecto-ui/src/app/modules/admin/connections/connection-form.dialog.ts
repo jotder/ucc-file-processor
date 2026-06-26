@@ -5,10 +5,12 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, ConnectionProfile, ConnectionsService } from 'app/inspecto/api';
+import { apiErrorMessage, ConnectionProfile, ConnectionsService, ConnectionTestResult } from 'app/inspecto/api';
+import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 
 /** Dialog data: `profile` set ⇒ edit mode (id locked); absent ⇒ create. */
 interface ConnectionFormData {
@@ -36,8 +38,10 @@ export interface ConnectionFormResult {
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
+        MatProgressSpinnerModule,
         MatSelectModule,
         MatSlideToggleModule,
+        InspectoAlertComponent,
     ],
     template: `
         <h2 mat-dialog-title>{{ isEdit ? 'Edit connection' : 'New connection' }}</h2>
@@ -93,6 +97,27 @@ export interface ConnectionFormResult {
                     </mat-form-field>
                 </div>
 
+                <!-- Test the entered connection (no save) -->
+                <div class="pt-1">
+                    <button type="button" mat-stroked-button (click)="testConnection()" [disabled]="testing">
+                        @if (testing) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:bolt"></mat-icon>
+                        <span class="ml-1">Test connection</span>
+                    </button>
+                    @if (testResult; as r) {
+                        <inspecto-alert
+                            class="mt-2 block"
+                            [variant]="r.reachable ? 'success' : 'error'"
+                            [icon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"
+                        >
+                            <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>@if (r.latencyMs != null) {
+                                · {{ r.latencyMs }} ms
+                            } · secrets {{ r.secretsResolved ? 'resolved' : 'unresolved' }}
+                            <div class="text-secondary mt-0.5">{{ r.endpoint }} — {{ r.detail }}</div>
+                        </inspecto-alert>
+                    }
+                </div>
+
                 <!-- Options key/value editor -->
                 <div class="pt-2">
                     <div class="mb-1 flex items-center justify-between">
@@ -146,6 +171,25 @@ export interface ConnectionFormResult {
                                 <mat-hint>a $&#123;ENV:VAR&#125; reference</mat-hint>
                             </mat-form-field>
                         </div>
+                        <div class="mt-2">
+                            <button type="button" mat-stroked-button (click)="testTunnel()" [disabled]="tunnelTesting">
+                                @if (tunnelTesting) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:bolt"></mat-icon>
+                                <span class="ml-1">Test tunnel</span>
+                            </button>
+                            @if (tunnelResult; as r) {
+                                <inspecto-alert
+                                    class="mt-2 block"
+                                    [variant]="r.reachable ? 'success' : 'error'"
+                                    [icon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"
+                                >
+                                    <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>@if (r.latencyMs != null) {
+                                        · {{ r.latencyMs }} ms
+                                    }
+                                    <div class="text-secondary mt-0.5">{{ r.endpoint }} — {{ r.detail }}</div>
+                                </inspecto-alert>
+                            }
+                        </div>
                     }
                 </div>
             </mat-dialog-content>
@@ -169,6 +213,10 @@ export class ConnectionFormDialog {
     readonly isEdit = !!this.data.profile;
     tunnelEnabled = false;
     saving = false;
+    testing = false;
+    testResult: ConnectionTestResult | null = null;
+    tunnelTesting = false;
+    tunnelResult: ConnectionTestResult | null = null;
 
     form: FormGroup = this.fb.group({
         id: [
@@ -233,6 +281,38 @@ export class ConnectionFormDialog {
 
     toggleTunnel(on: boolean): void {
         this.tunnelEnabled = on;
+    }
+
+    /** Test the entered connection endpoint without saving (build the profile from the form, probe it). */
+    testConnection(): void {
+        this.testing = true;
+        this.testResult = null;
+        this.api.testProfile(this.build(), 'connection').subscribe({
+            next: (r) => {
+                this.testing = false;
+                this.testResult = r;
+            },
+            error: (e) => {
+                this.testing = false;
+                this.toastr.warning(apiErrorMessage(e, 'Test failed'));
+            },
+        });
+    }
+
+    /** Test the SSH tunnel/bastion hop without saving. */
+    testTunnel(): void {
+        this.tunnelTesting = true;
+        this.tunnelResult = null;
+        this.api.testProfile(this.build(), 'tunnel').subscribe({
+            next: (r) => {
+                this.tunnelTesting = false;
+                this.tunnelResult = r;
+            },
+            error: (e) => {
+                this.tunnelTesting = false;
+                this.toastr.warning(apiErrorMessage(e, 'Tunnel test failed'));
+            },
+        });
     }
 
     private build(): ConnectionProfile {
