@@ -36,6 +36,32 @@
             <button mat-stroked-button [disabled]="!selectedId()" (click)="toggleDryRun()">
                 <mat-icon svgIcon="heroicons_outline:play"></mat-icon> Dry-run
             </button>
+            <button mat-stroked-button [disabled]="!selectedId()" (click)="toggleValidate()">
+                <mat-icon svgIcon="heroicons_outline:shield-check"></mat-icon> Validate
+            </button>
+            @if (isActive()) {
+                <button mat-stroked-button [disabled]="activating()" (click)="deactivate()">
+                    <mat-icon svgIcon="heroicons_outline:pause"></mat-icon> Deactivate
+                </button>
+            } @else {
+                <button mat-stroked-button [disabled]="!selectedId() || activating()" (click)="activate()">
+                    <mat-icon svgIcon="heroicons_outline:bolt"></mat-icon> Activate
+                </button>
+            }
+            <button mat-stroked-button [disabled]="!hasSelection()" (click)="onDeleteKey()"
+                    aria-label="Delete the selected node or edge">
+                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete selected
+            </button>
+            <button mat-icon-button (click)="toggleInspector()"
+                    [matTooltip]="inspectorOpen() ? 'Hide properties' : 'Show properties'"
+                    [attr.aria-label]="inspectorOpen() ? 'Hide properties' : 'Show properties'">
+                <mat-icon [svgIcon]="inspectorOpen() ? 'heroicons_outline:chevron-double-right' : 'heroicons_outline:chevron-double-left'"></mat-icon>
+            </button>
+            @if (isActive()) {
+                <span class="inline-flex items-center gap-1 text-sm" style="color: var(--gamma-primary)">
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:bolt"></mat-icon> active
+                </span>
+            }
             @if (dirty()) {
                 <span class="text-sm" style="color: var(--gamma-warn)">unsaved changes</span>
             }
@@ -59,33 +85,112 @@
             message="Create a flow to start composing a topology.">
         </inspecto-empty-state>
     } @else {
-        <!-- editor body: palette | canvas | inspector -->
-        <div class="flex min-h-0 flex-1 gap-3">
-            <!-- palette -->
-            <div class="w-48 shrink-0 overflow-auto rounded p-2" style="background: var(--gamma-bg-card)">
-                <h3 class="mb-2 text-sm font-semibold">Palette</h3>
-                @for (group of paletteGroups(); track group.category) {
-                    <div class="mb-3">
-                        <div class="mb-1 flex items-center gap-1 text-xs uppercase opacity-70">
-                            <span class="inline-block h-2 w-2 rounded-full"
-                                  [style.background]="categoryColor(group.category)"></span>
-                            {{ group.category }}
-                        </div>
-                        @for (t of group.types; track t.type) {
-                            <div class="mb-1 cursor-grab rounded border px-2 py-1 text-sm"
-                                 style="border-color: var(--gamma-border)"
-                                 draggable="true"
-                                 [matTooltip]="t.description"
-                                 (dragstart)="$event.dataTransfer?.setData('text/flow-node-type', t.type)">
-                                {{ t.label }}
+        <!-- palette toolbar (drag a processor onto the canvas) -->
+        <div class="flex flex-wrap items-center gap-1.5 rounded p-2" style="background: var(--gamma-bg-card)">
+            @for (group of paletteGroups(); track group.category) {
+                <span class="ml-1 flex items-center gap-1 text-xs font-semibold uppercase opacity-70">
+                    <span class="inline-block h-2 w-2 rounded-full" [style.background]="categoryColor(group.category)"></span>
+                    {{ categoryLabel(group.category) }}
+                </span>
+                @for (t of group.types; track t.type) {
+                    <button type="button"
+                            class="flex cursor-grab items-center gap-1 rounded border px-2 py-1 text-xs"
+                            style="border-color: var(--gamma-border)"
+                            draggable="true"
+                            [matTooltip]="t.description"
+                            (dragstart)="$event.dataTransfer?.setData('text/flow-node-type', t.type)">
+                        <mat-icon class="icon-size-4" [svgIcon]="paletteHeroIcon(group.category)"></mat-icon>
+                        {{ t.label }}
+                    </button>
+                }
+            }
+            <span class="ml-auto pr-1 text-xs opacity-60">
+                drag node to move · Shift-drag to link · double-click to configure
+            </span>
+        </div>
+
+        <!-- editor body: canvas + the property panel as a right-side drawer -->
+        <mat-drawer-container class="min-h-0 flex-1 overflow-hidden rounded" [hasBackdrop]="false"
+                              style="background: var(--gamma-bg-card)">
+            <!-- inspector drawer (collapsible property panel; toggled from the toolbar) -->
+            <mat-drawer #inspectorDrawer position="end" mode="over" [opened]="inspectorOpen()"
+                        [disableClose]="true" class="w-72 p-3"
+                        style="background: var(--gamma-bg-card); border-left: 1px solid var(--gamma-border)">
+                @if (selectedNode(); as n) {
+                    <div class="mb-1 flex items-center justify-between gap-2">
+                        <h3 class="truncate text-sm font-semibold">Node · {{ n.id }}</h3>
+                        <span class="shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold"
+                              [style.color]="categoryColor(typeCategory(n.type))"
+                              style="background: var(--gamma-bg-default)">
+                            {{ categoryLabel(typeCategory(n.type)) }}
+                        </span>
+                    </div>
+                    <p class="mb-1 text-xs opacity-70">{{ n.type }}</p>
+                    <p class="mb-2 inline-flex items-center gap-1 text-xs font-semibold"
+                       [style.color]="statusTint(statusOf(n))">
+                        <mat-icon class="icon-size-4" [svgIcon]="statusIcon(statusOf(n))"></mat-icon>
+                        {{ statusLabel(statusOf(n)) }}
+                    </p>
+
+                    @if (n.name) {
+                        <p class="text-sm"><span class="opacity-70">name:</span> {{ n.name }}</p>
+                    }
+                    @if (n.use) {
+                        <p class="text-sm"><span class="opacity-70">use:</span> {{ n.use }}</p>
+                    }
+                    @if (n.description) {
+                        <p class="text-sm opacity-80">{{ n.description }}</p>
+                    }
+
+                    @if (configEntries(n); as rows) {
+                        @if (rows.length) {
+                            <div class="mt-2">
+                                <span class="text-xs font-semibold uppercase opacity-70">Config</span>
+                                @for (c of rows; track c.k) {
+                                    <div class="truncate text-sm"><span class="opacity-70">{{ c.k }}:</span> {{ c.v }}</div>
+                                }
                             </div>
                         }
-                    </div>
-                }
-            </div>
+                    }
 
-            <!-- canvas -->
-            <div class="min-w-0 flex-1 rounded" style="background: var(--gamma-bg-card)">
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button mat-flat-button color="primary" type="button" (click)="openNodeConfig(n)">
+                            <mat-icon svgIcon="heroicons_outline:cog-6-tooth"></mat-icon> Configure
+                        </button>
+                        <button mat-stroked-button type="button" (click)="openRunToHere(n)">
+                            <mat-icon svgIcon="heroicons_outline:play"></mat-icon> Run to here
+                        </button>
+                        <button mat-stroked-button type="button" (click)="armConnect()">
+                            <mat-icon svgIcon="heroicons_outline:arrow-right"></mat-icon> Connect
+                        </button>
+                        <button mat-stroked-button type="button" (click)="onDeleteKey()" aria-label="Delete node">
+                            <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete
+                        </button>
+                    </div>
+                } @else if (selectedEdgeId()) {
+                    <h3 class="mb-2 text-sm font-semibold">Connection</h3>
+                    <mat-form-field class="w-full" subscriptSizing="dynamic">
+                        <mat-label>Relationship</mat-label>
+                        <mat-select [value]="selectedEdgeRel()" (selectionChange)="setEdgeRel($event.value)">
+                            @for (r of candidateRels(); track r) {
+                                <mat-option [value]="r">{{ r }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <p class="mt-1 text-xs opacity-60">The source's output this connection carries.</p>
+                    <button class="mt-3" mat-stroked-button type="button" (click)="onDeleteKey()" aria-label="Delete connection">
+                        <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete connection
+                    </button>
+                } @else {
+                    <p class="text-sm opacity-70">
+                        Drag a processor from the toolbar onto the canvas. Click a node or edge to select it;
+                        <b>double-click</b> a node (or use <b>Configure</b>) to edit its attributes.
+                        <b>Delete selected</b> removes the selected item.
+                    </p>
+                }
+            </mat-drawer>
+
+            <mat-drawer-content class="min-w-0">
                 <app-flow-editor-graph
                     [data]="g6Data()"
                     [graphKey]="selectedId()"
@@ -93,72 +198,13 @@
                     (edgeSelected)="onEdgeSelected($event)"
                     (backgroundClick)="onBackgroundClick()"
                     (dropAdd)="onDropAdd($event)"
-                    (deleteKey)="onDeleteKey()">
+                    (deleteKey)="onDeleteKey()"
+                    (edgeCreated)="onEdgeCreated($event)"
+                    (nodeHover)="onNodeHover($event)"
+                    (nodeOpen)="onNodeOpen($event)">
                 </app-flow-editor-graph>
-            </div>
-
-            <!-- inspector -->
-            <div class="w-72 shrink-0 overflow-auto rounded p-3" style="background: var(--gamma-bg-card)">
-                @if (selectedNode(); as n) {
-                    <h3 class="mb-2 text-sm font-semibold">Node · {{ n.id }}</h3>
-                    <p class="mb-2 text-xs opacity-70">{{ n.type }}</p>
-                    <form [formGroup]="nodeForm" (ngSubmit)="applyNode()">
-                        <mat-form-field class="w-full" subscriptSizing="dynamic">
-                            <mat-label>Name</mat-label>
-                            <input matInput formControlName="name" />
-                        </mat-form-field>
-                        <mat-form-field class="w-full" subscriptSizing="dynamic">
-                            <mat-label>Description</mat-label>
-                            <input matInput formControlName="description" />
-                        </mat-form-field>
-                        <mat-form-field class="w-full" subscriptSizing="dynamic">
-                            <mat-label>Use (component ref)</mat-label>
-                            <input matInput formControlName="use" placeholder="transform/my_component" />
-                        </mat-form-field>
-
-                        <div class="mb-1 mt-2 flex items-center justify-between">
-                            <span class="text-xs font-semibold uppercase opacity-70">Config</span>
-                            <button mat-icon-button type="button" (click)="addConfigRow()"
-                                    aria-label="Add config entry">
-                                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-                            </button>
-                        </div>
-                        <div formArrayName="config">
-                            @for (row of configRows.controls; track $index) {
-                                <div class="mb-1 flex items-center gap-1" [formGroupName]="$index">
-                                    <mat-form-field subscriptSizing="dynamic" class="flex-1">
-                                        <input matInput formControlName="key" placeholder="key" />
-                                    </mat-form-field>
-                                    <mat-form-field subscriptSizing="dynamic" class="flex-1">
-                                        <input matInput formControlName="value" placeholder="value" />
-                                    </mat-form-field>
-                                    <button mat-icon-button type="button" (click)="removeConfigRow($index)"
-                                            aria-label="Remove config entry">
-                                        <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
-                                    </button>
-                                </div>
-                            }
-                        </div>
-
-                        <div class="mt-3 flex flex-wrap gap-2">
-                            <button mat-flat-button color="primary" type="submit">Apply</button>
-                            <button mat-stroked-button type="button" (click)="armConnect()">
-                                <mat-icon svgIcon="heroicons_outline:arrow-right"></mat-icon> Connect
-                            </button>
-                        </div>
-                    </form>
-                } @else if (selectedEdgeId()) {
-                    <h3 class="mb-2 text-sm font-semibold">Edge</h3>
-                    <p class="text-sm opacity-70">{{ selectedEdgeId() }}</p>
-                    <p class="mt-2 text-xs opacity-70">Press Delete to remove this edge.</p>
-                } @else {
-                    <p class="text-sm opacity-70">
-                        Drag a node type onto the canvas. Click a node to edit it; use <b>Connect</b> then click a
-                        target to draw an edge. Select + Delete removes an element.
-                    </p>
-                }
-            </div>
-        </div>
+            </mat-drawer-content>
+        </mat-drawer-container>
 
         <!-- dry-run drawer -->
         @if (dryRunOpen()) {
@@ -205,5 +251,53 @@
                 }
             </div>
         }
+
+        <!-- validation findings (Stage 4) -->
+        @if (validateOpen()) {
+            <div class="rounded p-3" style="background: var(--gamma-bg-card)">
+                <div class="mb-2 flex items-center gap-2">
+                    <h3 class="text-sm font-semibold">Validation</h3>
+                    <span class="text-xs opacity-70">{{ findings().length }} finding(s)</span>
+                </div>
+                @if (!findings().length) {
+                    <p class="inline-flex items-center gap-1 text-sm" style="color: var(--gamma-primary)">
+                        <mat-icon class="icon-size-4" svgIcon="heroicons_outline:check-circle"></mat-icon>
+                        No issues — ready to activate.
+                    </p>
+                } @else {
+                    <ul class="flex flex-col gap-0.5">
+                        @for (f of findings(); track $index) {
+                            <li>
+                                <button type="button"
+                                        class="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+                                        (click)="selectFinding(f.nodeId)">
+                                    <mat-icon class="icon-size-4 mt-0.5 shrink-0" [svgIcon]="findingIcon(f.severity)"
+                                              [style.color]="findingTint(f.severity)"></mat-icon>
+                                    <span>{{ f.message }}</span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    }
+
+    <!-- hover preview tooltip -->
+    @if (hoverTip(); as t) {
+        <div class="pointer-events-none fixed z-50 max-w-xs rounded border p-2 text-xs shadow-lg"
+             style="background: var(--gamma-bg-card); border-color: var(--gamma-border)"
+             [style.left.px]="t.x + 14"
+             [style.top.px]="t.y + 14">
+            <div class="font-semibold">{{ t.name }}</div>
+            <div class="opacity-70">{{ t.type }}@if (t.category) { · {{ t.category }} }</div>
+            @if (t.config.length) {
+                <div class="mt-1">
+                    @for (c of t.config; track c.k) {
+                        <div class="truncate"><span class="opacity-70">{{ c.k }}:</span> {{ c.v }}</div>
+                    }
+                </div>
+            }
+        </div>
     }
 </div>

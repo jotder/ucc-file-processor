@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { apiUrl } from './api-base';
+import { apiUrl, toParams } from './api-base';
 
 /** An SSH/bastion hop in front of a target system (part of a connection profile). */
 export interface ConnectionTunnel {
@@ -57,6 +57,14 @@ export class ConnectionsService {
     /** Test reachability of the profile's endpoint (the tunnel hop when one is configured). */
     test(id: string): Observable<ConnectionTestResult> {
         return this.http.post<ConnectionTestResult>(apiUrl(`/connections/${encodeURIComponent(id)}/test`), {});
+    }
+
+    /**
+     * Test an <em>unsaved</em> profile straight from a form (no persistence). {@code target} selects which
+     * endpoint to probe — the connection itself or its SSH tunnel hop.
+     */
+    testProfile(profile: ConnectionProfile, target: 'connection' | 'tunnel' = 'connection'): Observable<ConnectionTestResult> {
+        return this.http.post<ConnectionTestResult>(apiUrl('/connections/test'), profile, { params: toParams({ target }) });
     }
 
     /**

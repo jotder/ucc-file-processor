@@ -22,6 +22,23 @@ export const CHART_SERIES = {
     error: '#ef4444',
 } as const;
 
+/** Amber for "needs attention" canvas cues (Tailwind amber-500). */
+const WARN = '#f59e0b';
+
+/**
+ * Outline stroke for a flow-editor node's status cue, or {@code null} to keep the category colour
+ * ({@code configured}). Status is also conveyed by a label glyph + the inspector chip (never colour alone).
+ */
+export function nodeStatusStroke(status: string): string | null {
+    switch (status) {
+        case 'tested':       return CHART_SERIES.success;
+        case 'rejects':      return WARN;
+        case 'unconfigured': return WARN;
+        case 'dangling':     return CHART_SERIES.error;
+        default:             return null; // 'configured' → keep the category colour
+    }
+}
+
 /** Categorical accent per catalog node kind — drives the legend and node outlines. */
 export const NODE_KIND_COLORS: Record<NodeKind, string> = {
     SOURCE: '#5B8FF9',

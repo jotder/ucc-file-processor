@@ -21,6 +21,8 @@ import { TranslocoHttpLoader } from './core/transloco/transloco.http-loader';
 import { AUTH_HTTP_CLIENT } from './modules/auth/auth-http-client.token';
 import { errorInterceptor as inspectoErrorInterceptor } from './inspecto/api/error.interceptor';
 import { spaceInterceptor } from './inspecto/api/space.interceptor';
+import { connectionMockInterceptor } from './inspecto/api/connection-mock.interceptor';
+import { flowMockInterceptor } from './inspecto/api/flow-mock.interceptor';
 
 export const appConfig: ApplicationConfig = {
     providers: [
@@ -31,7 +33,9 @@ export const appConfig: ApplicationConfig = {
         // scope each call to the active space (rewrites /api/<path> → /api/spaces/<id>/<path>), then the
         // error/connectivity tracker observes the result. No bearer token is attached, no 401 handling.
         provideHttpClient(
-            withInterceptors([spaceInterceptor, inspectoErrorInterceptor])
+            // connectionMockInterceptor is first so it short-circuits the mocked connection-workbench
+            // routes (probe/explore/sample) before the space rewrite; prototype-only, see the flag.
+            withInterceptors([connectionMockInterceptor, flowMockInterceptor, spaceInterceptor, inspectoErrorInterceptor])
         ),
 
         // Interceptor-free HttpClient for the vendored template AuthService only.

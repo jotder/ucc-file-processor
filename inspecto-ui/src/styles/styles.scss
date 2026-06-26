@@ -26,3 +26,50 @@
     outline-offset: 2px;
     border-radius: 6px;
 }
+
+/* Material dialogs render with gamma's LIGHT Material theme even in dark mode (gamma's dark scheme is only
+ * the --gamma-* vars, not a dark Material theme). In the CDK overlay the dialog surface stays white while
+ * gamma's white text leaks in → white-on-white labels, and typed input ink is dark-on-dark. Re-point the
+ * dialog / filled-form-field / select MDC tokens at the --gamma-* vars (present in the overlay) so every
+ * modal — confirm, connection form, … — is legible in dark mode. Light mode is already consistent. */
+body.dark {
+    .mat-mdc-dialog-container {
+        --mdc-dialog-container-color: var(--gamma-bg-card);
+        --mdc-dialog-subhead-color: var(--gamma-text-default);
+        --mdc-dialog-supporting-text-color: var(--gamma-text-secondary);
+
+        --mdc-filled-text-field-container-color: var(--gamma-bg-default);
+        --mdc-filled-text-field-input-text-color: var(--gamma-text-default);
+        --mdc-filled-text-field-label-text-color: var(--gamma-text-secondary);
+        --mdc-filled-text-field-focus-label-text-color: var(--gamma-primary);
+        --mdc-filled-text-field-caret-color: var(--gamma-primary);
+        --mdc-filled-text-field-active-indicator-color: var(--gamma-border);
+        --mdc-filled-text-field-hover-active-indicator-color: var(--gamma-text-secondary);
+        --mdc-filled-text-field-focus-active-indicator-color: var(--gamma-primary);
+        --mdc-filled-text-field-supporting-text-color: var(--gamma-text-secondary);
+
+        --mat-select-enabled-trigger-text-color: var(--gamma-text-default);
+        --mat-select-placeholder-text-color: var(--gamma-text-secondary);
+        --mat-select-enabled-arrow-color: var(--gamma-text-secondary);
+    }
+
+    .mat-mdc-dialog-surface {
+        background-color: var(--gamma-bg-card);
+        color: var(--gamma-text-default);
+    }
+
+    /* Title + content read their color from MDC tokens that resolve before our override wins, so set the
+       element colors directly (light) — same reason the input ink needs !important below. */
+    .mat-mdc-dialog-container .mat-mdc-dialog-title {
+        color: var(--gamma-text-default) !important;
+    }
+    .mat-mdc-dialog-container .mat-mdc-dialog-content {
+        color: var(--gamma-text-default) !important;
+    }
+
+    /* gamma's form-field override paints the input ink with !important; match it for light text on the wells. */
+    .mat-mdc-dialog-container .mat-mdc-input-element {
+        color: var(--gamma-text-default) !important;
+        caret-color: var(--gamma-primary);
+    }
+}

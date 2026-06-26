@@ -2,11 +2,11 @@
     <!-- Header -->
     <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
         <div>
-            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Flows</h1>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Pipelines</h1>
             <div class="text-secondary mt-1.5">
                 @switch (mode()) {
                     @case ('combined') { Pipelines and the jobs over their output, joined at the shared store }
-                    @case ('editor') { Author and edit a flow topology on an interactive canvas }
+                    @case ('editor') { Author and edit a pipeline topology on an interactive canvas }
                     @default { Every pipeline as a node graph — read-only }
                 }
             </div>
@@ -18,7 +18,7 @@
                 aria-label="Flow view mode"
                 hideSingleSelectionIndicator
             >
-                <mat-button-toggle value="flow">Per-flow</mat-button-toggle>
+                <mat-button-toggle value="flow">Per-pipeline</mat-button-toggle>
                 <mat-button-toggle value="combined">Combined</mat-button-toggle>
                 <mat-button-toggle value="editor">Editor</mat-button-toggle>
             </mat-button-toggle-group>

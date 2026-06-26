@@ -16,9 +16,10 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { GammaConfigService } from '@gamma/services/config';
 import { CanvasEvent, Graph, GraphData, NodeData, NodeEvent } from '@antv/g6';
-import { G6GraphData, nodeColor, nodeShape } from 'app/modules/admin/catalog/catalog-graph';
+import { G6GraphData, nodeColor, nodeIcon } from 'app/modules/admin/catalog/catalog-graph';
 import { NodeKind } from 'app/inspecto/api';
-import { canvasTheme } from 'app/inspecto/theme/chart-tokens';
+import { canvasTheme, nodeStatusStroke } from 'app/inspecto/theme/chart-tokens';
+import { NodeStatus, statusGlyph } from './flow-graph';
 
 /**
  * Interactive AntV G6 host for the flow editor. Unlike the read-only {@link GraphViewComponent} (which
@@ -27,9 +28,11 @@ import { canvasTheme } from 'app/inspecto/theme/chart-tokens';
  * positions survive edits. It only rebuilds when {@link graphKey} (the selected flow id) changes or the
  * colour scheme flips. Authored flows store no coordinates, so node moves are purely visual (not emitted).
  *
- * <p>Edge creation is **two-click** (driven by the parent via {@link nodeSelected}), deliberately avoiding
- * G6 v5's `create-edge` drag behavior. New nodes arrive by HTML5 drag-drop from the palette
- * ({@link dropAdd}); Delete/Backspace removes the selection ({@link deleteKey}).
+ * <p>Gestures: plain **drag moves** a node (`drag-element`); **Shift+drag** from one node to another draws
+ * an edge ({@link edgeCreated} via `create-edge`) — both share the drag gesture, so the Shift modifier
+ * disambiguates them. Edge creation is also available **two-click** (driven by the parent via
+ * {@link nodeSelected}). Double-click opens a node's config ({@link nodeOpen}). New nodes arrive by HTML5
+ * drag-drop from the palette ({@link dropAdd}); Delete/Backspace removes the selection ({@link deleteKey}).
  */
 @Component({
     selector: 'app-flow-editor-graph',
@@ -39,7 +42,7 @@ import { canvasTheme } from 'app/inspecto/theme/chart-tokens';
         class="h-full w-full focus:outline-none"
         tabindex="0"
         role="application"
-        aria-label="Flow editor canvas — drag a node type from the palette, click two nodes to connect, Delete to remove"
+        aria-label="Flow editor canvas — drag a node type from the palette, drag node-to-node to connect, double-click a node to configure, Delete to remove"
         (dragover)="onDragOver($event)"
         (drop)="onDrop($event)"
         (keydown)="onKeydown($event)"
@@ -54,10 +57,16 @@ export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDes
     @Input() graphKey: string | null = null;
 
     @Output() nodeSelected = new EventEmitter<string>();
+    /** Double-click a node to open its configuration popup (NiFi "Configure"). */
+    @Output() nodeOpen = new EventEmitter<string>();
     @Output() edgeSelected = new EventEmitter<string>();
     @Output() backgroundClick = new EventEmitter<void>();
     @Output() dropAdd = new EventEmitter<{ type: string; x: number; y: number }>();
     @Output() deleteKey = new EventEmitter<void>();
+    /** Drag-to-draw: a new edge was dragged from one node to another (source→target). */
+    @Output() edgeCreated = new EventEmitter<{ source: string; target: string }>();
+    /** Hover preview: node id + viewport coords on enter, or null on leave. */
+    @Output() nodeHover = new EventEmitter<{ id: string; x: number; y: number } | null>();
 
     @ViewChild('host') private hostEl!: ElementRef<HTMLDivElement>;
     private graph: Graph | null = null;
@@ -131,6 +140,13 @@ export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDes
         this.graph.draw();
     }
 
+    /** Repaint a node's authoring status (outline colour + dash + label glyph). Merges into existing data. */
+    setNodeStatus(id: string, status: NodeStatus): void {
+        if (!this.graph) return;
+        this.graph.updateNodeData([{ id, data: { status } }]);
+        this.graph.draw();
+    }
+
     // ── HTML5 drag-drop + keyboard ──
 
     onDragOver(e: DragEvent): void {
@@ -173,18 +189,27 @@ export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDes
         this.graph = null;
         const { fg, surface: nodeFill, edge } = canvasTheme(this.dark);
         const kindOf = (d: NodeData): NodeKind => (d.data as { kind: NodeKind }).kind;
+        const statusOf = (d: NodeData): NodeStatus => (d.data as { status?: NodeStatus }).status ?? 'configured';
         const graph = new Graph({
             container: this.hostEl.nativeElement,
             data: (this.data ?? { nodes: [], edges: [] }) as unknown as GraphData,
             autoFit: 'view',
             node: {
-                type: (d) => nodeShape(kindOf(d)),
+                // Uniform rounded "processor" tile (NiFi style); the category icon + outline distinguish kinds.
+                type: 'rect',
                 style: {
-                    size: 32,
+                    size: [46, 34],
+                    radius: 8,
                     fill: nodeFill,
-                    stroke: (d) => nodeColor(kindOf(d)),
-                    lineWidth: 2,
-                    labelText: (d) => (d.data as { label: string }).label,
+                    // Outline = status colour when set (tested/rejects/unconfigured/dangling), else the category colour.
+                    stroke: (d) => nodeStatusStroke(statusOf(d)) ?? nodeColor(kindOf(d)),
+                    lineWidth: 1.5,
+                    // Dashed outline flags the "needs attention" states (unconfigured / dangling); [] = solid.
+                    lineDash: (d) => (statusOf(d) === 'unconfigured' || statusOf(d) === 'dangling' ? [4, 3] : []),
+                    iconSrc: (d) => nodeIcon(kindOf(d)),
+                    iconWidth: 22,
+                    iconHeight: 22,
+                    labelText: (d) => statusGlyph(statusOf(d)) + (d.data as { label: string }).label,
                     labelFill: fg,
                     labelFontSize: 11,
                     labelPlacement: 'bottom',
@@ -203,17 +228,55 @@ export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDes
                 },
             },
             layout: { type: 'antv-dagre', rankdir: 'LR', nodesep: 18, ranksep: 60 },
-            behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element', 'click-select'],
+            behaviors: [
+                'drag-canvas',
+                'zoom-canvas',
+                'click-select',
+                {
+                    // Plain drag MOVES a node (positions are visual-only; authored flows store no coords).
+                    // Gated to plain drag so Shift+drag is free for create-edge below — both share the drag
+                    // gesture, so the Shift modifier is what disambiguates move vs. connect.
+                    type: 'drag-element',
+                    key: 'drag-element',
+                    enable: (e: { shiftKey?: boolean; targetType?: string }) =>
+                        e?.targetType === 'node' && !e?.shiftKey,
+                },
+                {
+                    // Hold Shift and drag from one node onto another to draw an edge (the inspector's two-click
+                    // "Connect" remains the discoverable path). Shift-gated so plain drag can reposition nodes.
+                    type: 'create-edge',
+                    key: 'create-edge',
+                    trigger: 'drag',
+                    enable: (e: { shiftKey?: boolean }) => !!e?.shiftKey,
+                    style: { stroke: edge, lineWidth: 1.5, endArrow: true, lineDash: [4, 3] },
+                    onCreate: (e: { source?: string; target?: string }) => {
+                        const source = e?.source;
+                        const target = e?.target;
+                        if (!source || !target || source === target) return false;
+                        this.edgeCreated.emit({ source, target });
+                        return { id: `${source}->${target}:data:${Date.now()}`, source, target, data: { kind: 'data' } };
+                    },
+                },
+            ],
         });
         graph.on(NodeEvent.CLICK, (e) => {
             const id = (e as unknown as { target?: { id?: string } }).target?.id;
             if (id) this.nodeSelected.emit(id);
+        });
+        graph.on('node:dblclick', (e) => {
+            const id = (e as unknown as { target?: { id?: string } }).target?.id;
+            if (id) this.nodeOpen.emit(id);
         });
         graph.on('edge:click', (e) => {
             const id = (e as unknown as { target?: { id?: string } }).target?.id;
             if (id) this.edgeSelected.emit(id);
         });
         graph.on(CanvasEvent.CLICK, () => this.backgroundClick.emit());
+        graph.on('node:pointerenter', (e) => {
+            const ev = e as unknown as { target?: { id?: string }; client?: { x: number; y: number } };
+            if (ev.target?.id) this.nodeHover.emit({ id: ev.target.id, x: ev.client?.x ?? 0, y: ev.client?.y ?? 0 });
+        });
+        graph.on('node:pointerleave', () => this.nodeHover.emit(null));
         graph.render();
         this.graph = graph;
     }

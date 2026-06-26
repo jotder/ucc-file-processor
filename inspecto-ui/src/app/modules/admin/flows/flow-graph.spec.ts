@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { FlowCombined, FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
+import { AuthoredFlow, FlowCombined, FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
 import {
+    TestOutcome,
+    bindKindFor,
     categoryVisualKind,
+    computeNodeStatus,
     groupByCategory,
     nodeDisplayLabel,
     provenanceCounts,
     toCombinedG6Data,
     toFlowG6Data,
+    validateFlow,
 } from './flow-graph';
 
 const node = (over: Partial<FlowNode>): FlowNode =>
@@ -98,6 +102,73 @@ describe('toCombinedG6Data', () => {
         expect(new Set(edges.map((e) => e.id)).size).toBe(3);
         expect(edges.some((e) => e.source === 'orders_etl/sink' && e.target === 'store:orders')).toBe(true);
         expect(edges.some((e) => e.source === 'store:orders' && e.target === 'orders_rollup/src')).toBe(true);
+    });
+});
+
+describe('bindKindFor', () => {
+    it('maps a node category to the registry kind it binds', () => {
+        expect(bindKindFor('PARSE')).toBe('grammar');
+        expect(bindKindFor('TRANSFORM')).toBe('transform');
+        expect(bindKindFor('SINK')).toBe('sink');
+        expect(bindKindFor('SOURCE')).toBeNull();
+        expect(bindKindFor('CONTROL')).toBeNull();
+    });
+});
+
+describe('computeNodeStatus', () => {
+    const refs = new Set(['grammar/cdr_csv']);
+    const noTests = new Map<string, TestOutcome>();
+
+    it('flags a parser with no grammar as unconfigured', () => {
+        expect(computeNodeStatus({ id: 'p', type: 'parser.dsv' }, 'PARSE', refs, noTests)).toBe('unconfigured');
+    });
+
+    it('flags a bound-but-missing ref as dangling (only once the registry is loaded)', () => {
+        const n = { id: 'p', type: 'parser.dsv', use: 'grammar/ghost' };
+        expect(computeNodeStatus(n, 'PARSE', refs, noTests)).toBe('dangling');
+        expect(computeNodeStatus(n, 'PARSE', refs, noTests, false)).toBe('configured'); // pre-load: no false flag
+    });
+
+    it('is configured when the ref resolves, and a recorded test outcome wins', () => {
+        const n = { id: 'p', type: 'parser.dsv', use: 'grammar/cdr_csv' };
+        expect(computeNodeStatus(n, 'PARSE', refs, noTests)).toBe('configured');
+        expect(computeNodeStatus(n, 'PARSE', refs, new Map([['p', 'tested']]))).toBe('tested');
+        expect(computeNodeStatus(n, 'PARSE', refs, new Map([['p', 'rejects']]))).toBe('rejects');
+    });
+
+    it('treats a source as unconfigured until a connection is bound', () => {
+        expect(computeNodeStatus({ id: 's', type: 'collector.file' }, 'SOURCE', refs, noTests)).toBe('unconfigured');
+        expect(computeNodeStatus({ id: 's', type: 'collector.file', use: 'connections/cdr' }, 'SOURCE', refs, noTests)).toBe('configured');
+    });
+});
+
+describe('validateFlow', () => {
+    const typeCat = new Map([['collector.file', 'SOURCE'], ['parser.dsv', 'PARSE'], ['sink.file', 'SINK']]);
+    const refs = new Set(['grammar/cdr_csv']);
+
+    it('reports an error for an unconfigured node and blocks activation', () => {
+        const flow: AuthoredFlow = {
+            name: 'f', active: false,
+            nodes: [
+                { id: 'src', type: 'collector.file', use: 'connections/cdr' },
+                { id: 'parse', type: 'parser.dsv' },          // no grammar → error
+                { id: 'write', type: 'sink.file', use: 'sink/out' },
+            ],
+            edges: [{ from: 'src', rel: 'success', to: 'parse' }, { from: 'parse', rel: 'success', to: 'write' }],
+        };
+        const findings = validateFlow(flow, typeCat, refs, new Map());
+        expect(findings.some((f) => f.severity === 'error' && f.nodeId === 'parse')).toBe(true);
+    });
+
+    it('warns when there is no source or no sink', () => {
+        const flow: AuthoredFlow = {
+            name: 'f', active: false,
+            nodes: [{ id: 'parse', type: 'parser.dsv', use: 'grammar/cdr_csv' }],
+            edges: [],
+        };
+        const findings = validateFlow(flow, typeCat, refs, new Map());
+        expect(findings.some((f) => /no source/i.test(f.message))).toBe(true);
+        expect(findings.some((f) => /no writer/i.test(f.message))).toBe(true);
     });
 });
 

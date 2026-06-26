@@ -4,9 +4,11 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ConnectionProfile, ConnectionTestResult, ConnectionsService } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ConnectionFormDialog, ConnectionFormResult } from './connection-form.dialog';
 
@@ -19,7 +21,7 @@ import { ConnectionFormDialog, ConnectionFormResult } from './connection-form.di
 @Component({
     selector: 'app-connections',
     standalone: true,
-    imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, InspectoAlertComponent],
+    imports: [MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, RouterLink, InspectoAlertComponent, StatusBadgeComponent],
     templateUrl: './connections.component.html',
     encapsulation: ViewEncapsulation.None,
 })
@@ -35,6 +37,8 @@ export class ConnectionsComponent implements OnInit {
     results: Record<string, ConnectionTestResult> = {};
     /** Flipped true once a mutate (create/update/delete) returns 503 — hides the mutate actions. */
     writesDisabled = false;
+    /** Free-text filter over id / connector / host / database / base path / username / options. */
+    filterText = '';
 
     ngOnInit(): void {
         this.load();
@@ -87,6 +91,37 @@ export class ConnectionsComponent implements OnInit {
 
     optionEntries(c: ConnectionProfile): { key: string; value: string }[] {
         return Object.entries(c.options ?? {}).map(([key, value]) => ({ key, value }));
+    }
+
+    onFilter(ev: Event): void {
+        this.filterText = (ev.target as HTMLInputElement).value;
+    }
+
+    /** Connections matching the current filter (all when the filter is blank). */
+    get visibleConnections(): ConnectionProfile[] {
+        const q = this.filterText.trim().toLowerCase();
+        if (!q) return this.connections;
+        return this.connections.filter((c) => this.matchesFilter(c, q));
+    }
+
+    private matchesFilter(c: ConnectionProfile, q: string): boolean {
+        const opts = Object.entries(c.options ?? {}).flatMap(([k, v]) => [k, v]);
+        return [c.id, c.connector, c.host, c.database, c.basePath, c.username, c.tunnel?.host, ...opts]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(q);
+    }
+
+    /** Status token (drives the card health chip) from the last test result, or UNTESTED. */
+    healthValue(c: ConnectionProfile): string {
+        const r = this.results[c.id];
+        return r ? (r.reachable ? 'REACHABLE' : 'UNREACHABLE') : 'UNTESTED';
+    }
+
+    healthLabel(c: ConnectionProfile): string {
+        const r = this.results[c.id];
+        return r ? (r.reachable ? 'Reachable' : 'Unreachable') : 'Untested';
     }
 
     create(): void {
