@@ -4,8 +4,9 @@
 > contract), 1 (in-graph choose-or-create component binding), 3 (the test loop: pick inbox files → run
 > subgraph → matched/unmatched + scratch Parquet), 2 (canvas node-status + edge relationship picker), and
 > 4 (validate & gated activate) are implemented and verified end-to-end (`lint:tokens` ✓, prod `build` ✓,
-> `test:ci` ✓ — 126 passed incl. new dialog + pure-logic specs, live preview ✓). Stage 5 (ergonomics) and
-> the real backend remain. The **authoring-UX** companion to
+> `test:ci` ✓ — 127 passed incl. new dialog + pure-logic specs, live preview ✓), plus Stage 5 ergonomics
+> in part (overflow-menu delete, keyboard-addable palette, trimmed header). Remaining: the rest of Stage 5
+> (hover-port connect, side-drawer) and the real backend. The **authoring-UX** companion to
 > [`flow-graph-design.md`](flow-graph-design.md) (the graph model) and
 > [`acquire-controller-service-design.md`](acquire-controller-service-design.md) (the connection/source layer).
 > Those two settle *what the graph is*; this doc settles *how a pipeline developer builds one*, NiFi-style:
@@ -156,8 +157,12 @@ branches are silently dropped. After a run, edges show **record counts** (the pr
 - **Stage 4 — validate & activate. ✅ DONE.** `validateFlow` walks the graph (unconfigured/dangling = error,
   no source/sink + orphan = warning, untested = info); the Validate panel lists findings (click → select the
   node), and **Activate** is gated on zero errors (Deactivate toggles back). Pure logic unit-tested.
-- **Stage 5 — ergonomics.** Hover-port connect, split deletes, keyboard palette, trim headers, side-drawer
-  inspector, normalize inline styles to `bg-card`.
+- **Stage 5 — ergonomics. ◐ PARTIAL.** Done: "Delete flow" moved to an overflow menu (disambiguated from
+  "Delete selected"); palette processors are click/keyboard-addable (`addFromPalette` → canvas centre — the
+  no-mouse path, a WCAG fix), each with an `Add <label>` aria-label; the verbose connections header trimmed.
+  **Deferred (separate effort):** hover-port drag-to-connect (a G6 v5 interaction rework, hard to verify
+  headless — two-click Connect remains the discoverable path), the side-drawer inspector (needs a canvas
+  resize-observer), and the inline-style→`bg-card` normalization (cosmetic).
 - **Deferred — backend wiring.** Swap mocks for the real `/run` materialization + registry binding + Parquet.
   Out of scope now; the Stage-0 contract is the seam.
 

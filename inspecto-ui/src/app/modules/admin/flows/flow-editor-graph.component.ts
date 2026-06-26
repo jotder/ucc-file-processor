@@ -113,6 +113,14 @@ export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDes
         this.graph.draw();
     }
 
+    /** Add a node at the viewport centre — the keyboard/click path to add (no drag coordinates). */
+    addNodeAtCenter(id: string, label: string, kind: NodeKind): void {
+        if (!this.graph) return;
+        const rect = this.hostEl.nativeElement.getBoundingClientRect();
+        const [x, y] = this.toGraphPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        this.addNode(id, label, kind, x, y);
+    }
+
     addEdge(id: string, source: string, target: string, kind: string): void {
         if (!this.graph) return;
         this.graph.addEdgeData([{ id, source, target, data: { kind } }]);

@@ -29,10 +29,16 @@
             <button mat-flat-button color="primary" [disabled]="!dirty() || saving()" (click)="save()">
                 <mat-icon svgIcon="heroicons_outline:check"></mat-icon> Save
             </button>
-            <button mat-stroked-button [disabled]="!selectedId()" (click)="deleteFlow()"
-                    aria-label="Delete flow">
-                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+            <button mat-icon-button [matMenuTriggerFor]="flowMenu" [disabled]="!selectedId()"
+                    aria-label="More flow actions">
+                <mat-icon svgIcon="heroicons_outline:ellipsis-vertical"></mat-icon>
             </button>
+            <mat-menu #flowMenu="matMenu">
+                <button mat-menu-item (click)="deleteFlow()">
+                    <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+                    <span>Delete flow</span>
+                </button>
+            </mat-menu>
             <button mat-stroked-button [disabled]="!selectedId()" (click)="toggleDryRun()">
                 <mat-icon svgIcon="heroicons_outline:play"></mat-icon> Dry-run
             </button>
@@ -98,6 +104,8 @@
                             style="border-color: var(--gamma-border)"
                             draggable="true"
                             [matTooltip]="t.description"
+                            [attr.aria-label]="'Add ' + t.label"
+                            (click)="addFromPalette(t.type)"
                             (dragstart)="$event.dataTransfer?.setData('text/flow-node-type', t.type)">
                         <mat-icon class="icon-size-4" [svgIcon]="paletteHeroIcon(group.category)"></mat-icon>
                         {{ t.label }}
@@ -105,7 +113,7 @@
                 }
             }
             <span class="ml-auto pr-1 text-xs opacity-60">
-                drag node to move · Shift-drag to link · double-click to configure
+                click or drag to add · Shift-drag to link · double-click to configure
             </span>
         </div>
 

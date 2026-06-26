@@ -14,6 +14,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -67,6 +68,7 @@ import {
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
+        MatMenuModule,
         MatSelectModule,
         MatSidenavModule,
         MatTooltipModule,
@@ -458,14 +460,35 @@ export class FlowEditorComponent implements OnInit {
         });
     }
 
+    /** Palette drag-drop: place the new node where it was dropped. */
     onDropAdd(e: { type: string; x: number; y: number }): void {
-        const m = this.model();
-        if (!m) return;
-        const id = this.uniqueNodeId(e.type);
-        const node: AuthoredNode = { id, type: e.type };
-        this.model.set({ ...m, nodes: [...m.nodes, node] });
-        this.canvas?.addNode(id, id, categoryVisualKind(this.typeCat().get(e.type) ?? 'TRANSFORM'), e.x, e.y);
-        this.canvas?.setNodeStatus(id, this.statusOf(node)); // a new node starts unconfigured/configured
+        if (!this.model()) return;
+        const node = this.insertNode(e.type);
+        this.canvas?.addNode(node.id, node.id, this.visualKind(e.type), e.x, e.y);
+        this.selectNewNode(node);
+    }
+
+    /** Palette click / keyboard (Enter): add the node at the canvas centre — the no-mouse path to add. */
+    addFromPalette(type: string): void {
+        if (!this.model()) return;
+        const node = this.insertNode(type);
+        this.canvas?.addNodeAtCenter(node.id, node.id, this.visualKind(type));
+        this.selectNewNode(node);
+    }
+
+    private visualKind(type: string): ReturnType<typeof categoryVisualKind> {
+        return categoryVisualKind(this.typeCat().get(type) ?? 'TRANSFORM');
+    }
+
+    private insertNode(type: string): AuthoredNode {
+        const id = this.uniqueNodeId(type);
+        const node: AuthoredNode = { id, type };
+        this.model.update((m) => (m ? { ...m, nodes: [...m.nodes, node] } : m));
+        return node;
+    }
+
+    private selectNewNode(node: AuthoredNode): void {
+        this.canvas?.setNodeStatus(node.id, this.statusOf(node)); // a new node starts unconfigured/configured
         this.dirty.set(true);
         this.selectedNode.set(node);
         this.inspectorOpen.set(true);

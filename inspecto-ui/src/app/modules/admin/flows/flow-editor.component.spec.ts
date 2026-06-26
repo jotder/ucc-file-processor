@@ -12,6 +12,7 @@ import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 function canvasMock() {
     return {
         addNode: vi.fn(),
+        addNodeAtCenter: vi.fn(),
         addEdge: vi.fn(),
         removeElement: vi.fn(),
         updateNodeLabel: vi.fn(),
@@ -84,6 +85,17 @@ describe('FlowEditorComponent', () => {
         expect(m.nodes[2].type).toBe('transform.filter');
         expect(c.dirty()).toBe(true);
         expect(canvasOf(c).addNode).toHaveBeenCalled();
+    });
+
+    it('clicking a palette node adds it at the canvas centre (the no-mouse path)', () => {
+        const c = make();
+        c.model.set(structuredClone(FLOW));
+        c.addFromPalette('transform.filter');
+        const m = c.model()!;
+        expect(m.nodes).toHaveLength(3);
+        expect(m.nodes[2].type).toBe('transform.filter');
+        expect(canvasOf(c).addNodeAtCenter).toHaveBeenCalled();
+        expect(c.dirty()).toBe(true);
     });
 
     it('two-click connect adds a new edge between the two nodes', () => {
