@@ -141,9 +141,8 @@
                         }
                     </mat-select>
                 </mat-form-field>
-                <button mat-stroked-button (click)="loadFiles()">
+                <button mat-icon-button (click)="loadFiles()" matTooltip="Reload" aria-label="Reload">
                     <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
-                    <span class="ml-2">Reload</span>
                 </button>
             </div>
             <ag-grid-angular

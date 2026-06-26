@@ -5,6 +5,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
@@ -36,6 +37,7 @@ import { ObjectCreateDialog } from './object-create.dialog';
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
+        MatTooltipModule,
         AgGridAngular,
     ],
     templateUrl: './objects.component.html',

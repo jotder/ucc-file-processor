@@ -9,9 +9,8 @@
             <mat-slide-toggle [checked]="live" (change)="toggleLive($event.checked)" matTooltip="Auto-refresh the newest events every 5s">
                 Live tail
             </mat-slide-toggle>
-            <button mat-stroked-button (click)="load()">
+            <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
-                <span class="ml-2">Refresh</span>
             </button>
         </div>
     </div>

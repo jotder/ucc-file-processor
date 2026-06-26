@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
@@ -30,6 +31,7 @@ import { ReprocessDialog } from './reprocess.dialog';
         MatIconModule,
         MatInputModule,
         MatSlideToggleModule,
+        MatTooltipModule,
         AgGridAngular,
     ],
     templateUrl: './pipelines.component.html',

@@ -5,6 +5,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, RowClickedEvent } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
@@ -25,6 +26,7 @@ import { DiagnosisDetailDialog } from './diagnosis-detail.dialog';
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
+        MatTooltipModule,
         AgGridAngular,
     ],
     templateUrl: './diagnoses.component.html',
