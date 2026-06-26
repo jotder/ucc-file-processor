@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AuthoredFlow, FlowCombined, FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
+import { NODE_KIND_COLORS } from 'app/inspecto/theme/chart-tokens';
 import {
     TestOutcome,
     bindKindFor,
@@ -8,6 +9,7 @@ import {
     groupByCategory,
     nodeDisplayLabel,
     provenanceCounts,
+    resolveNodeIcon,
     toCombinedG6Data,
     toFlowG6Data,
     validateFlow,
@@ -102,6 +104,35 @@ describe('toCombinedG6Data', () => {
         expect(new Set(edges.map((e) => e.id)).size).toBe(3);
         expect(edges.some((e) => e.source === 'orders_etl/sink' && e.target === 'store:orders')).toBe(true);
         expect(edges.some((e) => e.source === 'store:orders' && e.target === 'orders_rollup/src')).toBe(true);
+    });
+});
+
+describe('resolveNodeIcon', () => {
+    const map = {
+        PARSE: { glyph: 'lines', color: NODE_KIND_COLORS.SCHEMA },
+        'parser.dsv': { glyph: 'filter', color: NODE_KIND_COLORS.ENRICHMENT },
+    };
+
+    it('prefers an exact type rule over the category rule', () => {
+        const r = resolveNodeIcon('parser.dsv', 'PARSE', map);
+        expect(r.color).toBe(NODE_KIND_COLORS.ENRICHMENT);
+        expect(r.iconSrc.startsWith('data:image/svg+xml')).toBe(true);
+    });
+
+    it('falls back to the category rule, then to the built-in kind glyph', () => {
+        expect(resolveNodeIcon('parser.other', 'PARSE', map).color).toBe(NODE_KIND_COLORS.SCHEMA);
+        // no rule for SINK in this map → built-in fallback still yields an icon
+        expect(resolveNodeIcon('sink.file', 'SINK', map).iconSrc.startsWith('data:image/svg+xml')).toBe(true);
+    });
+
+    it('embeds iconSrc+color into toFlowG6Data only when a map is supplied', () => {
+        const g = {
+            name: 'F', active: true, produces: [], consumes: [],
+            nodes: [node({ id: 'p', type: 'parser.dsv', category: 'PARSE' })],
+            edges: [],
+        };
+        expect(toFlowG6Data(g, undefined, map).nodes[0].data.iconSrc).toBeTruthy();
+        expect(toFlowG6Data(g).nodes[0].data.iconSrc).toBeUndefined();
     });
 });
 

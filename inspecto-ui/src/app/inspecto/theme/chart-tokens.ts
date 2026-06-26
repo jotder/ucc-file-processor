@@ -52,6 +52,12 @@ export const NODE_KIND_COLORS: Record<NodeKind, string> = {
 
 export const NODE_KIND_FALLBACK = '#9AA0A6';
 
+/** Curated colour palette offered in the configurable-icon picker (the kind accents + a few extras). */
+export const ICON_COLOR_SWATCHES: readonly string[] = [
+    '#5B8FF9', '#61DDAA', '#65789B', '#F6BD16', '#7262FD', '#78D3F8', '#F6903D',
+    '#EF4444', '#22C55E', '#A855F7', '#0EA5E9', '#94A3B8',
+];
+
 /** Scheme-dependent colours shared by the chart and graph hosts. */
 export interface CanvasTheme {
     /** Label / tick / legend text. */

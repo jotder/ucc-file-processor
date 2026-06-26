@@ -28,6 +28,8 @@ import {
     FlowRunResult,
     FlowsService,
     FlowSummary,
+    IconMap,
+    IconMapService,
     apiErrorMessage,
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
@@ -82,6 +84,7 @@ import {
 export class FlowEditorComponent implements OnInit {
     private api = inject(FlowsService);
     private components = inject(ComponentsService);
+    private iconMapApi = inject(IconMapService);
     private fb = inject(FormBuilder);
     private toast = inject(ToastrService);
     private confirm = inject(InspectoConfirmService);
@@ -90,6 +93,8 @@ export class FlowEditorComponent implements OnInit {
     @ViewChild(FlowEditorGraphComponent) private canvas?: FlowEditorGraphComponent;
 
     readonly flows = signal<FlowSummary[]>([]);
+    /** Configurable processor icons/colours (empty until loaded → fall back to the per-kind glyph). */
+    readonly iconMap = signal<IconMap>({});
     readonly selectedId = signal<string | null>(null);
     readonly model = signal<AuthoredFlow | null>(null);
     readonly paletteGroups = signal<NodeTypeGroup[]>([]);
@@ -195,7 +200,7 @@ export class FlowEditorComponent implements OnInit {
     /** The selected flow's editable model mapped to G6 data — fed to the host only on a flow switch. */
     readonly g6Data = computed<G6GraphData | null>(() => {
         const m = this.model();
-        return m ? authoredToG6(m, this.typeCat(), (n) => this.statusOf(n)) : null;
+        return m ? authoredToG6(m, this.typeCat(), (n) => this.statusOf(n), this.iconMap()) : null;
     });
 
     /** A node's authoring status — the canvas outline cue and the inspector chip. */
@@ -247,6 +252,10 @@ export class FlowEditorComponent implements OnInit {
             error: () => this.paletteGroups.set([]),
         });
         this.loadComponentRefs();
+        this.iconMapApi.get().subscribe({
+            next: (m) => this.iconMap.set(m),
+            error: () => this.iconMap.set({}),
+        });
     }
 
     /** Load existing registry refs (grammar/transform/sink) so the canvas can flag dangling `use` bindings. */

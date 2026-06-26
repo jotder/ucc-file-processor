@@ -14,7 +14,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { FlowCombined, FlowGraph, FlowNode, FlowSummary, FlowsService, ProvenanceBatch } from 'app/inspecto/api';
+import { FlowCombined, FlowGraph, FlowNode, FlowSummary, FlowsService, IconMap, IconMapService, ProvenanceBatch } from 'app/inspecto/api';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
@@ -61,7 +61,10 @@ export type FlowsViewMode = 'flow' | 'combined' | 'editor';
 })
 export class FlowsComponent implements OnInit {
     private api = inject(FlowsService);
+    private iconMapApi = inject(IconMapService);
 
+    /** Configurable processor icons/colours (empty until loaded → mappers fall back to the per-kind glyph). */
+    readonly iconMap = signal<IconMap>({});
     readonly flows = signal<FlowSummary[]>([]);
     readonly nodeTypeGroups = signal<NodeTypeGroup[]>([]);
     readonly selected = signal<string | null>(null);
@@ -85,13 +88,13 @@ export class FlowsComponent implements OnInit {
     /** The selected flow's graph mapped to G6 data, with the provenance overlay when a run is selected. */
     readonly g6Data = computed<G6GraphData | null>(() => {
         const g = this.graph();
-        return g ? toFlowG6Data(g, this.provCounts() ?? undefined) : null;
+        return g ? toFlowG6Data(g, this.provCounts() ?? undefined, this.iconMap()) : null;
     });
 
     /** The combined topology mapped to G6 data (flow nodes + synthetic store join nodes). */
     readonly combinedG6 = computed<G6GraphData | null>(() => {
         const c = this.combined();
-        return c ? toCombinedG6Data(c) : null;
+        return c ? toCombinedG6Data(c, this.iconMap()) : null;
     });
 
     readonly nodeDisplayLabel = nodeDisplayLabel;
@@ -121,6 +124,11 @@ export class FlowsComponent implements OnInit {
         this.api.nodeTypes().subscribe({
             next: (ts) => this.nodeTypeGroups.set(groupByCategory(ts)),
             error: () => this.nodeTypeGroups.set([]),
+        });
+        // Configurable icons degrade independently — failure just keeps the built-in per-kind glyphs.
+        this.iconMapApi.get().subscribe({
+            next: (m) => this.iconMap.set(m),
+            error: () => this.iconMap.set({}),
         });
     }
 

@@ -198,6 +198,8 @@ export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDes
         const { fg, surface: nodeFill, edge } = canvasTheme(this.dark);
         const kindOf = (d: NodeData): NodeKind => (d.data as { kind: NodeKind }).kind;
         const statusOf = (d: NodeData): NodeStatus => (d.data as { status?: NodeStatus }).status ?? 'configured';
+        const iconOf = (d: NodeData): string => (d.data as { iconSrc?: string }).iconSrc ?? nodeIcon(kindOf(d));
+        const colorOf = (d: NodeData): string => (d.data as { color?: string }).color ?? nodeColor(kindOf(d));
         const graph = new Graph({
             container: this.hostEl.nativeElement,
             data: (this.data ?? { nodes: [], edges: [] }) as unknown as GraphData,
@@ -209,12 +211,13 @@ export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDes
                     size: [46, 34],
                     radius: 8,
                     fill: nodeFill,
-                    // Outline = status colour when set (tested/rejects/unconfigured/dangling), else the category colour.
-                    stroke: (d) => nodeStatusStroke(statusOf(d)) ?? nodeColor(kindOf(d)),
+                    // Outline = status colour when set (tested/rejects/unconfigured/dangling), else the
+                    // node's configured/category colour.
+                    stroke: (d) => nodeStatusStroke(statusOf(d)) ?? colorOf(d),
                     lineWidth: 1.5,
                     // Dashed outline flags the "needs attention" states (unconfigured / dangling); [] = solid.
                     lineDash: (d) => (statusOf(d) === 'unconfigured' || statusOf(d) === 'dangling' ? [4, 3] : []),
-                    iconSrc: (d) => nodeIcon(kindOf(d)),
+                    iconSrc: (d) => iconOf(d),
                     iconWidth: 22,
                     iconHeight: 22,
                     labelText: (d) => statusGlyph(statusOf(d)) + (d.data as { label: string }).label,

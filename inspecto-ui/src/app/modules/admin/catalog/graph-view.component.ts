@@ -70,17 +70,25 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         if (!this.data?.nodes.length) return;
         const { fg, surface: nodeFill, edge } = canvasTheme(this.dark);
         const kindOf = (d: NodeData): NodeKind => (d.data as { kind: NodeKind }).kind;
+        const iconOf = (d: NodeData): string | undefined => (d.data as { iconSrc?: string }).iconSrc;
+        const colorOf = (d: NodeData): string => (d.data as { color?: string }).color ?? nodeColor(kindOf(d));
         const graph = new Graph({
             container: this.hostEl.nativeElement,
             data: this.data as unknown as GraphData,
             autoFit: 'view',
             node: {
-                type: (d) => nodeShape(kindOf(d)),
+                // Icon tile (rounded rect + glyph) when the data carries a resolved icon (flow/pipeline views);
+                // otherwise the per-kind shape (the catalog metadata graph).
+                type: (d) => (iconOf(d) ? 'rect' : nodeShape(kindOf(d))),
                 style: {
-                    size: 32,
+                    size: (d) => (iconOf(d) ? [46, 34] : 32),
+                    radius: 8,
                     fill: nodeFill,
-                    stroke: (d) => nodeColor(kindOf(d)),
+                    stroke: (d) => colorOf(d),
                     lineWidth: 2,
+                    iconSrc: (d) => iconOf(d),
+                    iconWidth: 22,
+                    iconHeight: 22,
                     labelText: (d) => (d.data as { label: string }).label,
                     labelFill: fg,
                     labelFontSize: 11,

@@ -14,6 +14,8 @@ import {
     FlowSummary,
 } from './flows.service';
 import { ComponentDef } from './components.service';
+import { IconMap } from './icon-map.service';
+import { NODE_KIND_COLORS } from '../theme/chart-tokens';
 
 /**
  * PROTOTYPE-ONLY mock for the Pipelines graph editor (the `flows` feature). Serves the node-type palette,
@@ -98,6 +100,25 @@ const COMPONENT_STORE: Record<string, ComponentDef[]> = {
     ],
 };
 
+/** Configurable processor-icon map (mutable). Seeded with category defaults + a few sub-type overrides. */
+const C = NODE_KIND_COLORS; // category accent colours, sourced from the canvas token owner
+const ICON_MAP: IconMap = {
+    SOURCE: { glyph: 'arrow-in', color: C.SOURCE },
+    PARSE: { glyph: 'lines', color: C.SCHEMA },
+    TRANSFORM: { glyph: 'transform', color: C.ENRICHMENT },
+    SINK: { glyph: 'cylinder', color: C.TABLE },
+    CONTROL: { glyph: 'bell', color: C.KPI },
+    'collector.file': { glyph: 'file', color: C.SOURCE },
+    'collector.database': { glyph: 'database', color: C.SOURCE },
+    'collector.stream': { glyph: 'stream', color: C.SOURCE },
+    'transform.filter': { glyph: 'filter', color: C.ENRICHMENT },
+    'transform.route': { glyph: 'route', color: C.ENRICHMENT },
+    'transform.aggregate': { glyph: 'sigma', color: C.ENRICHMENT },
+    'transform.alert': { glyph: 'bell', color: C.KPI },
+    'sink.file': { glyph: 'write', color: C.TABLE },
+    'sink.database': { glyph: 'database', color: C.TABLE },
+};
+
 const LATENCY_MS = 200;
 
 const FLOWS = /\/flows$/;
@@ -114,6 +135,7 @@ const PROV = /\/provenance$/;
 const COMPONENT_TEST = /\/components\/([^/]+)\/([^/]+)\/test$/;
 const COMPONENT_ONE = /\/components\/([^/]+)\/([^/]+)$/;
 const COMPONENTS = /\/components\/([^/]+)$/;
+const ICON_MAP_RE = /\/config\/icon-map$/;
 
 export const flowMockInterceptor: HttpInterceptorFn = (req, next) => {
     if (!(environment as { mockFlows?: boolean }).mockFlows) return next(req);
@@ -154,6 +176,13 @@ export const flowMockInterceptor: HttpInterceptorFn = (req, next) => {
     if (req.method === 'PUT' && (m = url.match(COMPONENT_ONE))) return reply(componentSave(dec(m[1]), req.body, dec(m[2])));
     if (req.method === 'GET' && (m = url.match(COMPONENTS))) return reply(componentList(dec(m[1])));
     if (req.method === 'POST' && (m = url.match(COMPONENTS))) return reply(componentSave(dec(m[1]), req.body));
+
+    if (req.method === 'GET' && ICON_MAP_RE.test(url)) return reply({ ...ICON_MAP });
+    if (req.method === 'PUT' && ICON_MAP_RE.test(url)) {
+        for (const k of Object.keys(ICON_MAP)) delete ICON_MAP[k];
+        Object.assign(ICON_MAP, req.body as IconMap);
+        return reply({ ...ICON_MAP });
+    }
 
     if (req.method === 'GET' && (PROV_BATCHES.test(url) || PROV.test(url))) return reply([]);
 

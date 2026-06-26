@@ -1,0 +1,81 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Processor Icons</h1>
+            <div class="text-secondary mt-1 max-w-2xl">
+                Choose the icon and colour for each processor type and sub-type. A sub-type overrides its
+                category default; an <em>inherit</em> row falls back to the category, then the built-in icon.
+                Pipeline graphs render these.
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button mat-stroked-button (click)="reset()" [disabled]="saving()">Reset</button>
+            <button mat-flat-button color="primary" (click)="save()" [disabled]="saving() || loading()">
+                <mat-icon svgIcon="heroicons_outline:check"></mat-icon>
+                <span class="ml-1">Save</span>
+            </button>
+        </div>
+    </div>
+
+    @if (loading()) {
+        <p class="text-secondary mt-8 text-sm">Loading…</p>
+    } @else {
+        @for (g of groups(); track g.category) {
+            <section class="bg-card mt-6 rounded-2xl p-5 shadow">
+                <h2 class="text-secondary mb-1 text-sm font-semibold uppercase tracking-wider">{{ categoryLabel(g.category) }}</h2>
+                <ng-container
+                    *ngTemplateOutlet="row; context: { key: g.category, type: undefined, label: 'Default', category: g.category }"
+                ></ng-container>
+                @for (t of g.types; track t.type) {
+                    <ng-container
+                        *ngTemplateOutlet="row; context: { key: t.type, type: t.type, label: t.label, category: g.category }"
+                    ></ng-container>
+                }
+            </section>
+        }
+    }
+</div>
+
+<ng-template #row let-key="key" let-type="type" let-label="label" let-category="category">
+    <div class="flex flex-wrap items-center gap-4 border-t py-2.5" style="border-color: var(--gamma-border)">
+        <img class="h-7 w-7 shrink-0" [src]="previewSrc(type, category)" alt="" />
+        <span class="w-40 text-sm font-medium">{{ label }}</span>
+
+        <mat-form-field subscriptSizing="dynamic" class="w-44">
+            <mat-label>Icon</mat-label>
+            <mat-select
+                [value]="selectedGlyph(key)"
+                (selectionChange)="setGlyph(key, type, category, $event.value)"
+                [attr.aria-label]="'Icon for ' + label"
+            >
+                <mat-option [value]="''">— inherit —</mat-option>
+                @for (gName of glyphNames; track gName) {
+                    <mat-option [value]="gName">
+                        <img class="mr-2 inline-block h-4 w-4 align-middle" [src]="glyphOptionSrc(gName, effColor(type, category))" alt="" />
+                        {{ gName }}
+                    </mat-option>
+                }
+            </mat-select>
+        </mat-form-field>
+
+        <div class="flex flex-wrap items-center gap-1.5" role="group" [attr.aria-label]="'Colour for ' + label">
+            @for (sw of swatches; track sw) {
+                <button
+                    type="button"
+                    class="h-6 w-6 rounded-full border"
+                    style="border-color: var(--gamma-border)"
+                    [style.background]="sw"
+                    [style.outline]="selectedColor(key) === sw ? '2px solid var(--gamma-primary)' : ''"
+                    [style.outline-offset.px]="1"
+                    [disabled]="!hasRule(key)"
+                    [attr.aria-label]="'Colour ' + sw"
+                    [attr.aria-pressed]="selectedColor(key) === sw"
+                    (click)="setColor(key, sw)"
+                ></button>
+            }
+            @if (!hasRule(key)) {
+                <span class="text-secondary ml-1 text-xs">inherited</span>
+            }
+        </div>
+    </div>
+</ng-template>

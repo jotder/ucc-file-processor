@@ -7,9 +7,10 @@ import {
     FlowGraph,
     FlowNode,
     FlowNodeType,
+    IconMap,
     ProvenanceCount,
 } from 'app/inspecto/api';
-import { G6GraphData, nodeColor } from 'app/modules/admin/catalog/catalog-graph';
+import { GLYPH_LIBRARY, G6GraphData, iconDataUri, nodeColor, nodeIcon } from 'app/modules/admin/catalog/catalog-graph';
 
 /**
  * Pure mappers that turn the flow-graph projection (GET /flows/{id}/graph) into AntV G6 data for the
@@ -132,6 +133,24 @@ export function validateFlow(
     return findings;
 }
 
+/**
+ * Resolve a node's configurable icon + colour: an exact `type` rule wins over a `category` rule, and
+ * anything unmapped falls back to the built-in per-kind glyph. Returns the data-URI icon + the stroke colour
+ * embedded into the G6 node data so the host renders it without knowing the map.
+ */
+export function resolveNodeIcon(
+    type: string | undefined,
+    category: string,
+    map: IconMap | undefined,
+): { iconSrc: string; color: string } {
+    const rule = (type ? map?.[type] : undefined) ?? map?.[category];
+    if (rule && GLYPH_LIBRARY[rule.glyph]) {
+        return { iconSrc: iconDataUri(GLYPH_LIBRARY[rule.glyph], rule.color), color: rule.color };
+    }
+    const kind = categoryVisualKind(category);
+    return { iconSrc: nodeIcon(kind), color: nodeColor(kind) };
+}
+
 /** Map a flow node category onto a catalog NodeKind for shape/colour reuse (cosmetic only). */
 export function categoryVisualKind(category: string): NodeKind {
     switch (category) {
@@ -174,11 +193,15 @@ export function nodeDisplayLabel(n: FlowNode): string {
  * that relationship and a {@code weight} drives the line width — the structure plane painted with quantities
  * (§11). Edges with no recorded count are left at their default style.
  */
-export function toFlowG6Data(g: FlowGraph, counts?: Map<string, number>): G6GraphData {
+export function toFlowG6Data(g: FlowGraph, counts?: Map<string, number>, iconMap?: IconMap): G6GraphData {
     return {
         nodes: g.nodes.map((n) => ({
             id: n.id,
-            data: { label: nodeDisplayLabel(n), kind: categoryVisualKind(n.category) },
+            data: {
+                label: nodeDisplayLabel(n),
+                kind: categoryVisualKind(n.category),
+                ...(iconMap ? resolveNodeIcon(n.type, n.category, iconMap) : {}),
+            },
         })),
         // a flow can carry several edges between the same pair (e.g. data + a route branch), so the id
         // folds in the relationship + row index to stay unique.
@@ -208,13 +231,14 @@ export function provenanceCounts(rows: ProvenanceCount[]): Map<string, number> {
  * drawn alongside the intra-flow edges. Node ids are already unique (flow nodes `<flow>/<node>`, store
  * nodes `store:<name>`), so they're used verbatim.
  */
-export function toCombinedG6Data(c: FlowCombined): G6GraphData {
+export function toCombinedG6Data(c: FlowCombined, iconMap?: IconMap): G6GraphData {
     return {
         nodes: c.nodes.map((n) => ({
             id: n.id,
             data: {
                 label: n.category === 'STORE' ? (n.store ?? n.label) : nodeDisplayLabel(n),
                 kind: categoryVisualKind(n.category),
+                ...(iconMap ? resolveNodeIcon(n.type, n.category, iconMap) : {}),
             },
         })),
         edges: c.edges.map((e, i) => ({
@@ -240,16 +264,21 @@ export function authoredToG6(
     flow: AuthoredFlow,
     typeCat: Map<string, string>,
     statusOf?: (node: AuthoredNode) => NodeStatus,
+    iconMap?: IconMap,
 ): G6GraphData {
     return {
-        nodes: flow.nodes.map((n) => ({
-            id: n.id,
-            data: {
-                label: n.name && n.name.trim() ? n.name : n.id,
-                kind: categoryVisualKind(typeCat.get(n.type) ?? 'TRANSFORM'),
-                status: statusOf ? statusOf(n) : 'configured',
-            },
-        })),
+        nodes: flow.nodes.map((n) => {
+            const category = typeCat.get(n.type) ?? 'TRANSFORM';
+            return {
+                id: n.id,
+                data: {
+                    label: n.name && n.name.trim() ? n.name : n.id,
+                    kind: categoryVisualKind(category),
+                    status: statusOf ? statusOf(n) : 'configured',
+                    ...(iconMap ? resolveNodeIcon(n.type, category, iconMap) : {}),
+                },
+            };
+        }),
         edges: flow.edges.map((e, i) => ({
             id: `${e.from}->${e.to}:${e.rel}:${i}`,
             source: e.from,
