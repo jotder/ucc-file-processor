@@ -19,7 +19,13 @@ function create() {
             { provide: MatDialogRef, useValue: { close } },
             {
                 provide: MAT_DIALOG_DATA,
-                useValue: { model: { projection: '*', where: emptyGroup(), sqlOverride: null }, sql: 'SELECT *\nFROM "alerts"', sourceName: 'alerts' },
+                useValue: {
+                    model: { projection: '*', where: emptyGroup(), sqlOverride: null },
+                    sql: 'SELECT *\nFROM "alerts"',
+                    sourceName: 'alerts',
+                    params: [{ name: 'levelValue', field: 'level', operator: '=', value: 'ERROR' }],
+                    paramSql: 'SELECT *\nFROM "alerts"\nWHERE "level" = :levelValue',
+                },
             },
             { provide: RulesService, useValue: { save } },
             { provide: ToastrService, useValue: { success: () => {}, error: () => {} } },
@@ -37,11 +43,17 @@ describe('RuleSaveDialog', () => {
         expect(save).not.toHaveBeenCalled();
     });
 
-    it('saves a named rule and closes with it', () => {
+    it('saves a named rule with its parameters and closes with it', () => {
         const { c, close, save } = create();
         c.form.get('name')!.setValue('high_error');
         c.save();
-        expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'high_error', source: 'alerts' }));
+        expect(save).toHaveBeenCalledWith(
+            expect.objectContaining({
+                id: 'high_error',
+                source: 'alerts',
+                params: [expect.objectContaining({ name: 'levelValue', value: 'ERROR' })],
+            }),
+        );
         expect(close).toHaveBeenCalled();
     });
 

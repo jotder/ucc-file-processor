@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -9,17 +9,32 @@ import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, GridApi } from 'ag-grid-community';
 import {
     actionsColumn,
+    autoColumns,
     INSPECTO_DEFAULT_COL_DEF,
     InspectoGridThemeService,
     InspectoRowAction,
     noRowsOverlay,
     refreshActionsCells,
 } from 'app/inspecto/grid';
-import { compileSql, emptyGroup, QueryChange, QueryModel, QueryPanelComponent, QuerySource } from 'app/inspecto/query';
+import {
+    ColumnMeta,
+    compileSql,
+    compileSqlWithParams,
+    ConditionGroup,
+    emptyGroup,
+    inferColumns,
+    QueryConditionGroupComponent,
+    QueryModel,
+    QuerySource,
+} from 'app/inspecto/query';
 import { RuleSaveDialog, RuleTemplate } from 'app/inspecto/rule';
+import { ColumnChooserComponent } from './column-chooser.component';
 import { fieldNames } from './core/column-resolve';
 import { downloadCsv, toCsv } from './core/csv';
 import { quickFilterRows } from './core/quick-filter';
+import { SqlEditorComponent } from './sql/sql-editor.component';
+import { runSql } from './sql/sql-run';
+import { SqlHistoryService } from './sql/sql-history.service';
 
 /** The four product tiers (the "mobile version" analogy). */
 export type DataTableTier = 'mini' | 'standard' | 'pro' | 'proMax';
@@ -27,7 +42,8 @@ export type DataTableTier = 'mini' | 'standard' | 'pro' | 'proMax';
 interface Caps {
     search: boolean;
     export: boolean;
-    filter: boolean;
+    /** The column chooser (show/hide in standard; SELECT projection in pro). */
+    columns: boolean;
     query: boolean;
     save: boolean;
 }
@@ -35,13 +51,13 @@ interface Caps {
 function capsFor(tier: DataTableTier): Caps {
     switch (tier) {
         case 'mini':
-            return { search: false, export: false, filter: false, query: false, save: false };
+            return { search: false, export: false, columns: false, query: false, save: false };
         case 'standard':
-            return { search: true, export: true, filter: true, query: false, save: false };
+            return { search: true, export: true, columns: true, query: false, save: false };
         case 'pro':
-            return { search: true, export: true, filter: true, query: true, save: false };
+            return { search: true, export: true, columns: true, query: true, save: false };
         case 'proMax':
-            return { search: true, export: true, filter: true, query: true, save: true };
+            return { search: true, export: true, columns: true, query: true, save: true };
     }
 }
 
@@ -49,13 +65,14 @@ function capsFor(tier: DataTableTier): Caps {
  * **Data table** — one tiered component that consolidates every ag-Grid surface in the app:
  *
  * - **mini** — the themed grid (rows / columns / empty / loading / row actions / single-select).
- * - **standard** — mini + a toolbar: client-side **search**, per-column **filters**, sort, **CSV export**.
- * - **pro** — standard + the offline **SQL/query editor** (embeds {@link QueryPanelComponent}).
- * - **pro max** — pro + **save as rule template** (a `(saveRule)` ask the host wires to the rule store).
+ * - **standard** — mini + an icon-only toolbar: **column chooser**, **search**, **CSV export**.
+ * - **pro** — standard + an always-on **SQL editor** (CodeMirror, lazy-loaded) that runs real SQL offline
+ *   (AlaSQL) and re-renders the grid, plus an icon-toggled **filter builder** that regenerates the SQL.
+ * - **pro max** — pro + **save as rule** (parameterized `:fieldValue` template via the rule store).
  *
- * Reusable logic lives in framework-free `core/` (csv · quick-filter · column-resolve · `DataTableController`)
- * and in `inspecto/query` (the Pro engine) — this component is a thin shell over them. Grid theming/cell
- * helpers come from `inspecto/grid`.
+ * Reusable logic lives in framework-free `core/` (csv · quick-filter · column-resolve) and `sql/`
+ * (`runSql` · `SqlHistoryService` · the CodeMirror wiring), plus `inspecto/query` (compile/eval). This
+ * component orchestrates; the heavy editor is `@defer`-loaded so mini/standard hosts never pull CodeMirror.
  */
 @Component({
     selector: 'inspecto-data-table',
@@ -68,7 +85,9 @@ function capsFor(tier: DataTableTier): Caps {
         MatInputModule,
         MatTooltipModule,
         AgGridAngular,
-        QueryPanelComponent,
+        ColumnChooserComponent,
+        QueryConditionGroupComponent,
+        SqlEditorComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './data-table.component.html',
@@ -76,6 +95,7 @@ function capsFor(tier: DataTableTier): Caps {
 export class DataTableComponent {
     readonly gridTheme = inject(InspectoGridThemeService);
     private dialog = inject(MatDialog);
+    private history = inject(SqlHistoryService);
 
     readonly tier = input<DataTableTier>('standard');
     readonly rows = input<unknown[]>([]);
@@ -99,60 +119,135 @@ export class DataTableComponent {
     readonly savable = input<boolean | undefined>(undefined);
 
     readonly rowClick = output<Record<string, unknown>>();
-    readonly queryChange = output<QueryChange>();
     /** Pro Max: emitted after a rule template is saved via the built-in save dialog. */
     readonly ruleSaved = output<RuleTemplate>();
 
+    // ── toolbar state ────────────────────────────────────────────────────────────
     readonly search = signal('');
-    private lastQuery: QueryChange | null = null;
+    readonly searchOpen = signal(false);
+    /** Chosen columns (null ⇒ all). Drives grid visibility (standard) and SQL projection (pro). */
+    readonly chosen = signal<string[] | null>(null);
+    /** Pro: whether the filter-builder panel is expanded. */
+    readonly filterOpen = signal(false);
 
-    /** Pro/Pro Max: whether the query editor is showing (vs the interactive grid). */
-    readonly queryOpen = signal(false);
+    // ── pro query state ──────────────────────────────────────────────────────────
+    readonly where = signal<ConditionGroup>(emptyGroup('AND'));
+    /** Result of the last successful Run (null ⇒ show the source rows). */
+    readonly proResult = signal<Record<string, unknown>[] | null>(null);
+    readonly proError = signal<string | null>(null);
+    readonly running = signal(false);
 
     private readonly caps = computed(() => capsFor(this.tier()));
-    /** A "Query" toggle is offered (pro+) — the grid stays the default view so row actions/click survive. */
     readonly canQuery = computed(() => this.queryable() ?? this.caps().query);
-    readonly showSearch = computed(() => (this.searchable() ?? this.caps().search) && !this.queryOpen());
+    readonly showSearch = computed(() => this.searchable() ?? this.caps().search);
+    readonly showColumns = computed(() => this.caps().columns);
     readonly showExport = computed(() => this.exportable() ?? this.caps().export);
-    readonly showSave = computed(() => (this.savable() ?? this.caps().save) && this.queryOpen());
-    readonly hasToolbar = computed(() => this.showSearch() || this.showExport() || this.canQuery() || this.showSave());
-
-    toggleQuery(): void {
-        this.queryOpen.update((v) => !v);
-    }
+    readonly showSave = computed(() => this.savable() ?? this.caps().save);
+    readonly hasToolbar = computed(
+        () => this.showSearch() || this.showColumns() || this.showExport() || this.showSave() || this.canQuery(),
+    );
 
     private readonly rowsRec = computed(() => this.rows() as Record<string, unknown>[]);
+    readonly columnsCache = computed<ColumnMeta[]>(() => inferColumns(this.rowsRec()));
+
+    /** Every available field name (explicit columns win, else the row keys). */
+    readonly allFields = computed<string[]>(() => {
+        const explicit = this.columns();
+        if (explicit) return explicit.map((c) => String(c.field)).filter((f) => f && f !== 'undefined');
+        return fieldNames(this.rowsRec());
+    });
+
+    /** Pro projection from the chooser: `'*'` when all (or none) are chosen, else the chosen names. */
+    private readonly projection = computed<string[] | '*'>(() => {
+        const sel = this.chosen();
+        const all = this.allFields();
+        return !sel || sel.length === 0 || sel.length === all.length ? '*' : sel;
+    });
+
+    readonly querySource = computed<QuerySource>(() => ({
+        name: this.sourceName(),
+        rows: this.rowsRec(),
+        columns: this.columnsCache(),
+    }));
+    private readonly model = computed<QueryModel>(() => ({
+        projection: this.projection(),
+        where: this.where(),
+        sqlOverride: null,
+    }));
+    /** SQL generated from the chooser + filter builder; the editor seeds/resets from this. */
+    readonly generatedSql = computed(() => compileSql(this.model(), this.querySource()));
+    /** The current editor text (resets to {@link generatedSql}, overridden by hand edits / history picks). */
+    readonly currentSql = linkedSignal(() => this.generatedSql());
 
     readonly defaultColDef = computed<ColDef>(() => ({
         ...INSPECTO_DEFAULT_COL_DEF,
-        filter: this.caps().filter,
-        floatingFilter: this.caps().filter,
+        filter: this.caps().columns,
+        floatingFilter: this.caps().columns,
         minWidth: 110,
         flex: 1,
     }));
 
+    /** Rows shown in the grid: the last Run result in pro, else the source rows. */
+    readonly displayRows = computed<unknown[]>(() => this.proResult() ?? this.rows());
+
     readonly gridColumns = computed<ColDef[]>(() => {
-        const base = this.columns() ?? fieldNames(this.rowsRec()).map((f) => ({ field: f }) as ColDef);
         const acts = this.rowActions();
+        const result = this.proResult();
+        let base: ColDef[];
+        if (result != null) {
+            base = result.length ? autoColumns(result) : [];
+        } else {
+            const all = this.columns() ?? this.allFields().map((f) => ({ field: f }) as ColDef);
+            const sel = this.chosen();
+            base = sel ? all.filter((c) => sel.includes(String(c.field))) : all;
+        }
         return acts.length ? [...base, actionsColumn(acts)] : base;
     });
 
     readonly noRows = computed(() => noRowsOverlay(this.noRowsTitle(), this.noRowsHint()));
-    readonly querySource = computed<QuerySource>(() => ({ name: this.sourceName(), rows: this.rowsRec() }));
 
-    onQueryChange(c: QueryChange): void {
-        this.lastQuery = c;
-        this.queryChange.emit(c);
+    // ── toolbar handlers ───────────────────────────────────────────────────────────
+    toggleSearch(): void {
+        this.searchOpen.update((v) => !v);
+    }
+    onChosen(cols: string[]): void {
+        this.chosen.set(cols);
+    }
+    toggleFilter(): void {
+        this.filterOpen.update((v) => !v);
+    }
+    onWhereChanged(): void {
+        this.where.update((w) => ({ ...w })); // new root ref so generatedSql recomputes
     }
 
-    /** Open the save-as-rule dialog with the current query (or a default if none yet), emit on success. */
+    // ── pro: run / save ──────────────────────────────────────────────────────────
+    onRunSql(sql: string): void {
+        this.running.set(true);
+        this.proError.set(null);
+        runSql(sql, this.sourceName(), this.rowsRec()).then((res) => {
+            this.running.set(false);
+            if (res.ok) {
+                this.proResult.set(res.rows);
+                this.history.addRun(this.sourceName(), sql); // only successful runs enter history
+            } else {
+                this.proError.set(res.error ?? 'Query failed.'); // erroneous SQL: don't render, don't record
+            }
+        });
+    }
+
+    /** Open the save-as-rule dialog with the current query parameterized as `:fieldValue` binds. */
     onSaveRule(): void {
-        const q = this.lastQuery ?? this.defaultQuery();
+        const src = this.querySource();
+        const m = this.model();
+        const { sql: paramSql, params } = compileSqlWithParams(m, src);
+        const displaySql = this.currentSql() || this.generatedSql();
+        const diverged = displaySql.trim() !== this.generatedSql().trim();
+        const modelToSave: QueryModel = diverged ? { ...m, sqlOverride: displaySql } : m;
         this.dialog
             .open(RuleSaveDialog, {
-                width: '520px',
+                width: '560px',
                 autoFocus: false,
-                data: { model: q.model, sql: q.sql, sourceName: this.sourceName() },
+                data: { model: modelToSave, sql: displaySql, sourceName: this.sourceName(), params, paramSql },
             })
             .afterClosed()
             .subscribe((saved?: RuleTemplate) => {
@@ -160,16 +255,14 @@ export class DataTableComponent {
             });
     }
 
-    private defaultQuery(): QueryChange {
-        const model: QueryModel = { projection: '*', where: emptyGroup(), sqlOverride: null };
-        return { model, sql: compileSql(model, this.querySource()) };
-    }
-
     exportCsv(): void {
-        const explicit = (this.columns() ?? []).map((c) => String(c.field)).filter((f) => f && f !== 'undefined');
-        const cols = fieldNames(this.rowsRec(), explicit);
-        const rows = quickFilterRows(this.rowsRec(), this.search(), cols);
-        downloadCsv(this.exportName(), toCsv(rows, cols));
+        const rowsR = this.displayRows() as Record<string, unknown>[];
+        const visible = this.gridColumns()
+            .map((c) => String(c.field))
+            .filter((f) => f && f !== 'undefined' && f !== 'actions');
+        const cols = fieldNames(rowsR, visible);
+        const filtered = quickFilterRows(rowsR, this.search(), cols);
+        downloadCsv(this.exportName(), toCsv(filtered, cols));
     }
 
     onRowClicked(e: { data?: Record<string, unknown> }): void {

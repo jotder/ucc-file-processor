@@ -25,7 +25,7 @@
                         ],
                         "tsConfig": "tsconfig.app.json",
                         "inlineStyleLanguage": "scss",
-                        "allowedCommonJsDependencies": [],
+                        "allowedCommonJsDependencies": ["alasql"],
                         "assets": [
                             "src/assets",
                             {
