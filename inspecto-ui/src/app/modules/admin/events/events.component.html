@@ -130,18 +130,18 @@
                 message="No events match the current filters."
             ></inspecto-empty-state>
         } @else {
-            <ag-grid-angular
-                class="h-[42rem] w-full"
-                [theme]="themeSvc.theme()"
-                [rowData]="events"
-                [columnDefs]="columnDefs"
-                [defaultColDef]="defaultColDef"
-                [pagination]="true"
-                [paginationPageSize]="50"
+            <inspecto-data-table
+                tier="pro"
+                sourceName="events"
+                exportName="events"
+                [rows]="events"
+                [columns]="columnDefs"
+                [rowActions]="actions"
                 [loading]="loading"
-                (firstDataRendered)="refreshActions($event)"
-                (rowDataUpdated)="refreshActions($event)"
-            ></ag-grid-angular>
+                [searchable]="false"
+                [exportable]="false"
+                [pageSize]="50"
+            />
         }
     </div>
 </div>

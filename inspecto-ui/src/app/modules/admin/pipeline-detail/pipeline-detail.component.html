@@ -129,10 +129,6 @@
                 the status counts cover <b>processed</b> files recorded in the durable audit.
             </p>
             <div class="mt-3 flex items-center gap-3">
-                <mat-form-field class="gamma-mat-dense w-72" subscriptSizing="dynamic">
-                    <mat-label>Search filename</mat-label>
-                    <input matInput [(ngModel)]="fileSearch" placeholder="search filename…" />
-                </mat-form-field>
                 <mat-form-field class="gamma-mat-dense w-44" subscriptSizing="dynamic">
                     <mat-label>Status</mat-label>
                     <mat-select [(ngModel)]="fileStatus">
@@ -145,39 +141,30 @@
                     <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
                 </button>
             </div>
-            <ag-grid-angular
-                class="mt-4 h-[36rem] w-full"
-                [theme]="themeSvc.theme()"
-                [rowData]="filteredFiles"
-                [columnDefs]="fileColumns"
-                [defaultColDef]="defaultColDef"
-                [pagination]="true"
-                [paginationPageSize]="25"
-                (firstDataRendered)="refreshActions($event)"
-                (rowDataUpdated)="refreshActions($event)"
-            ></ag-grid-angular>
+            <inspecto-data-table
+                class="mt-4 block"
+                tier="standard"
+                sourceName="files"
+                exportName="files"
+                [rows]="filteredFiles"
+                [rowActions]="fileRowActions"
+                noRowsTitle="No files"
+                noRowsHint="No processed files match the current filter."
+                (rowClick)="openBatchById($any($event)['batch_id'])"
+            />
         }
 
         <!-- Generic audit-row grid (batches / lineage / quarantine / commits) -->
         @if (activeTab !== 'report' && activeTab !== 'files' && !loading) {
-            <div class="mt-4">
-                <mat-form-field class="gamma-mat-dense w-72" subscriptSizing="dynamic">
-                    <mat-label>Search</mat-label>
-                    <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
-                </mat-form-field>
-            </div>
-            <ag-grid-angular
-                class="mt-3 h-[36rem] w-full"
-                [theme]="themeSvc.theme()"
-                [rowData]="rows"
-                [columnDefs]="columns"
-                [defaultColDef]="defaultColDef"
-                [pagination]="true"
-                [paginationPageSize]="25"
-                [quickFilterText]="quickFilter"
-                (firstDataRendered)="refreshActions($event)"
-                (rowDataUpdated)="refreshActions($event)"
-            ></ag-grid-angular>
+            <inspecto-data-table
+                class="mt-4 block"
+                tier="standard"
+                [sourceName]="activeTab"
+                [exportName]="activeTab"
+                [rows]="rows"
+                [rowActions]="auditRowActions"
+                noRowsTitle="No rows"
+            />
         }
     </div>
 </div>

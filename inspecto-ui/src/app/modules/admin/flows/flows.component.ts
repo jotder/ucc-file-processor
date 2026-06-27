@@ -15,31 +15,27 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { FlowCombined, FlowGraph, FlowNode, FlowSummary, FlowsService, IconMap, IconMapService, ProvenanceBatch } from 'app/inspecto/api';
+import { FlowCombined, FlowNode, FlowsService, IconMap, IconMapService } from 'app/inspecto/api';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import { FlowEditorComponent } from './flow-editor.component';
 import {
     CATEGORY_ORDER,
-    COMBINED_CATEGORY_ORDER,
     NodeTypeGroup,
     categoryColor,
     groupByCategory,
     nodeDisplayLabel,
-    provenanceCounts,
     toCombinedG6Data,
-    toFlowG6Data,
 } from './flow-graph';
 
-/** Which lens the Flows pane shows: per-pipeline graph, the combined join view, or the authoring editor. */
-export type FlowsViewMode = 'flow' | 'combined' | 'editor';
+/** Which lens the Pipelines pane shows: the (multi-pipeline) topology View, or the authoring Editor. */
+export type FlowsViewMode = 'combined' | 'editor';
 
 /**
- * Flows — the read-only pipeline-as-graph visualiser (doc §6, T31). Lists every registered pipeline
- * (lifted to a flow graph by the backend), renders the selected flow in the shared G6 host, shows a
- * node-type palette grouped by category, and a node inspector on click. Read-only: authoring / CRUD /
- * per-node dry-run land in a later phase.
+ * Pipelines — the topology **View** (one or many pipelines, joined at their shared stores, rendered in the
+ * shared G6 host with a node-type palette + a node inspector on click) and the authoring **Editor**. The
+ * View is read-only; selecting a single pipeline in the multiselect just narrows the same topology.
  */
 @Component({
     selector: 'app-flows',
@@ -67,39 +63,21 @@ export class FlowsComponent implements OnInit {
 
     /** Configurable processor icons/colours (empty until loaded → mappers fall back to the per-kind glyph). */
     readonly iconMap = signal<IconMap>({});
-    readonly flows = signal<FlowSummary[]>([]);
     readonly nodeTypeGroups = signal<NodeTypeGroup[]>([]);
-    readonly selected = signal<string | null>(null);
-    readonly graph = signal<FlowGraph | null>(null);
     readonly selectedNode = signal<FlowNode | null>(null);
-    readonly loading = signal(false);
-    readonly graphLoading = signal(false);
-    readonly unavailable = signal(false);
 
-    // ── combined topology (T24): all flows joined at their shared stores ──
-    readonly mode = signal<FlowsViewMode>('flow');
+    /** Which lens is shown: the topology View (combined) or the authoring Editor. */
+    readonly mode = signal<FlowsViewMode>('combined');
+
+    // ── topology View (T24): one or many pipelines joined at their shared stores ──
     readonly combined = signal<FlowCombined | null>(null);
     readonly combinedLoading = signal(false);
     readonly combinedUnavailable = signal(false);
-
-    /** Per-pipeline picker: search box over the pipeline dropdown (top of the canvas). */
-    readonly pipeSearch = signal('');
-    /** Combined view: which pipelines are shown (empty ⇒ all) + the multiselect's search box. */
+    /** Which pipelines are shown (empty ⇒ all) + the multiselect's search box. */
     readonly combinedSelected = signal<string[]>([]);
     readonly combinedSearch = signal('');
 
-    // ── data-plane provenance overlay (T22): paint a past run's per-edge counts onto the flow graph ──
-    readonly provBatches = signal<ProvenanceBatch[]>([]);
-    readonly provBatch = signal<string | null>(null);
-    readonly provCounts = signal<Map<string, number> | null>(null);
-
-    /** The selected flow's graph mapped to G6 data, with the provenance overlay when a run is selected. */
-    readonly g6Data = computed<G6GraphData | null>(() => {
-        const g = this.graph();
-        return g ? toFlowG6Data(g, this.provCounts() ?? undefined, this.iconMap()) : null;
-    });
-
-    /** The combined topology mapped to G6 data, filtered to the chosen pipelines (empty selection ⇒ all). */
+    /** The topology mapped to G6 data, filtered to the chosen pipelines (empty selection ⇒ all). */
     readonly combinedG6 = computed<G6GraphData | null>(() => {
         const c = this.combined();
         if (!c) return null;
@@ -111,13 +89,7 @@ export class FlowsComponent implements OnInit {
         return toCombinedG6Data({ ...c, nodes, edges }, this.iconMap());
     });
 
-    /** Pipeline dropdown options for the per-pipeline view, filtered by the search box. */
-    readonly pipeOptions = computed<FlowSummary[]>(() => {
-        const q = this.pipeSearch().trim().toLowerCase();
-        return q ? this.flows().filter((f) => f.name.toLowerCase().includes(q)) : this.flows();
-    });
-
-    /** Flow names offered in the combined multiselect, filtered by its search box. */
+    /** Pipeline names offered in the multiselect, filtered by its search box. */
     readonly combinedFlowOptions = computed<string[]>(() => {
         const q = this.combinedSearch().trim().toLowerCase();
         const names = (this.combined()?.flows ?? []).map((f) => f.name);
@@ -126,27 +98,15 @@ export class FlowsComponent implements OnInit {
 
     readonly nodeDisplayLabel = nodeDisplayLabel;
     readonly categoryColor = categoryColor;
-    readonly combinedLegend = COMBINED_CATEGORY_ORDER;
+    /** Category accent dots for the legend / palette (runtime colour from the token palette). */
+    readonly legendCategories = CATEGORY_ORDER;
 
     ngOnInit(): void {
         this.load();
     }
 
+    /** Load the palette, the icon map, and the combined topology (the View tab's data). */
     load(): void {
-        this.loading.set(true);
-        this.unavailable.set(false);
-        this.api.list().subscribe({
-            next: (fs) => {
-                this.flows.set(fs);
-                this.loading.set(false);
-                if (fs.length && !this.selected()) this.select(fs[0].name);
-            },
-            error: () => {
-                this.loading.set(false);
-                this.flows.set([]);
-                this.unavailable.set(true);
-            },
-        });
         // The palette degrades independently — a failed catalog fetch must not blank the page.
         this.api.nodeTypes().subscribe({
             next: (ts) => this.nodeTypeGroups.set(groupByCategory(ts)),
@@ -157,62 +117,7 @@ export class FlowsComponent implements OnInit {
             next: (m) => this.iconMap.set(m),
             error: () => this.iconMap.set({}),
         });
-    }
-
-    select(name: string): void {
-        if (this.selected() === name && this.graph()) return;
-        this.selected.set(name);
-        this.selectedNode.set(null);
-        this.clearProvenance();
-        this.graphLoading.set(true);
-        this.api.graph(name).subscribe({
-            next: (g) => {
-                this.graph.set(g);
-                this.graphLoading.set(false);
-            },
-            error: () => {
-                this.graph.set(null);
-                this.graphLoading.set(false);
-            },
-        });
-        // The overlay degrades independently — no provenance backend ⇒ no runs ⇒ the selector stays hidden.
-        this.api.provenanceBatches(name).subscribe({
-            next: (bs) => this.provBatches.set(bs),
-            error: () => this.provBatches.set([]),
-        });
-    }
-
-    /** Paint a run's per-edge record counts onto the graph (or clear the overlay when {@code batch} is null). */
-    selectRun(batch: string | null): void {
-        this.provBatch.set(batch);
-        const flow = this.selected();
-        if (!batch || !flow) {
-            this.provCounts.set(null);
-            return;
-        }
-        this.api.provenance(flow, batch).subscribe({
-            next: (rows) => this.provCounts.set(provenanceCounts(rows)),
-            error: () => this.provCounts.set(null),
-        });
-    }
-
-    private clearProvenance(): void {
-        this.provBatches.set([]);
-        this.provBatch.set(null);
-        this.provCounts.set(null);
-    }
-
-    onNodeClick(id: string): void {
-        const pool = this.mode() === 'combined' ? this.combined()?.nodes : this.graph()?.nodes;
-        this.selectedNode.set(pool?.find((n) => n.id === id) ?? null);
-    }
-
-    /** Switch lens; lazy-load the combined topology the first time it is shown. */
-    setMode(m: FlowsViewMode): void {
-        if (this.mode() === m) return;
-        this.mode.set(m);
-        this.selectedNode.set(null);
-        if (m === 'combined' && !this.combined() && !this.combinedLoading()) this.loadCombined();
+        this.loadCombined();
     }
 
     loadCombined(): void {
@@ -232,11 +137,15 @@ export class FlowsComponent implements OnInit {
         });
     }
 
-    /** A category accent dot for the legend / palette (runtime colour from the token palette). */
-    readonly legendCategories = CATEGORY_ORDER;
+    /** Switch lens (topology View ↔ Editor). */
+    setMode(m: FlowsViewMode): void {
+        if (this.mode() === m) return;
+        this.mode.set(m);
+        this.selectedNode.set(null);
+    }
 
-    onPipeSearch(e: Event): void {
-        this.pipeSearch.set((e.target as HTMLInputElement).value);
+    onNodeClick(id: string): void {
+        this.selectedNode.set(this.combined()?.nodes.find((n) => n.id === id) ?? null);
     }
 
     onCombinedSearch(e: Event): void {

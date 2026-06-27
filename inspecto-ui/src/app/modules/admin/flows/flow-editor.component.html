@@ -96,34 +96,57 @@
             message="Create a flow to start composing a topology.">
         </inspecto-empty-state>
     } @else {
-        <!-- palette toolbar (drag a processor onto the canvas) -->
-        <div class="flex flex-wrap items-center gap-1.5 rounded p-2" style="background: var(--gamma-bg-card)">
-            @for (group of paletteGroups(); track group.category) {
-                <span class="ml-1 flex items-center gap-1 text-xs font-semibold uppercase opacity-70">
-                    <span class="inline-block h-2 w-2 rounded-full" [style.background]="categoryColor(group.category)"></span>
-                    {{ categoryLabel(group.category) }}
-                </span>
-                @for (t of group.types; track t.type) {
-                    <button type="button"
-                            class="flex cursor-grab items-center gap-1 rounded border px-2 py-1 text-xs"
-                            style="border-color: var(--gamma-border)"
-                            draggable="true"
-                            [matTooltip]="t.description"
-                            [attr.aria-label]="'Add ' + t.label"
-                            (click)="addFromPalette(t.type)"
-                            (dragstart)="$event.dataTransfer?.setData('text/flow-node-type', t.type)">
-                        <mat-icon class="icon-size-4" [svgIcon]="paletteHeroIcon(group.category)"></mat-icon>
-                        {{ t.label }}
-                    </button>
-                }
-            }
-            <span class="ml-auto pr-1 text-xs opacity-60">
-                click or drag to add · Shift-drag to link · double-click to configure
-            </span>
-        </div>
+        <!-- editor body: canvas + floating palette + right-side property drawer -->
+        <div class="relative min-h-0 flex-1">
 
-        <!-- editor body: canvas + the property panel as a right-side drawer -->
-        <mat-drawer-container class="min-h-0 flex-1 overflow-hidden rounded" [hasBackdrop]="false"
+            <!-- colour-legend toggle — top-right of canvas; opens the floating palette -->
+            <button type="button"
+                    class="absolute right-2 top-2 z-10 flex items-center gap-1 rounded border px-2 py-1 text-xs"
+                    style="background: var(--gamma-bg-card); border-color: var(--gamma-border)"
+                    (click)="paletteOpen.set(!paletteOpen())"
+                    [matTooltip]="paletteOpen() ? 'Hide palette' : 'Show processor palette'"
+                    [attr.aria-label]="paletteOpen() ? 'Hide palette' : 'Show processor palette'">
+                @for (g of paletteGroups(); track g.category) {
+                    <span class="h-2.5 w-2.5 rounded-full" [style.background]="categoryColor(g.category)"></span>
+                }
+            </button>
+
+            <!-- floating palette panel (hidden by default, toggled by colour legend) -->
+            @if (paletteOpen()) {
+                <!-- pointer-events-none on the wrapper so drags/drops pass through to the canvas below;
+                     only the interactive content div restores pointer events -->
+                <div class="pointer-events-none absolute right-2 top-10 z-20 max-h-80 w-56">
+                <div class="pointer-events-auto overflow-y-auto rounded border shadow-lg"
+                     style="background: var(--gamma-bg-card); border-color: var(--gamma-border)">
+                    <div class="p-2">
+                        @for (group of paletteGroups(); track group.category) {
+                            <div class="mb-0.5 mt-2 flex items-center gap-1 text-xs font-semibold uppercase opacity-60">
+                                <span class="h-2 w-2 rounded-full" [style.background]="categoryColor(group.category)"></span>
+                                {{ categoryLabel(group.category) }}
+                            </div>
+                            @for (t of group.types; track t.type) {
+                                <button type="button"
+                                        class="flex w-full cursor-grab items-center gap-1.5 rounded px-2 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10"
+                                        draggable="true"
+                                        [matTooltip]="t.description"
+                                        [attr.aria-label]="'Add ' + t.label"
+                                        (click)="addFromPalette(t.type)"
+                                        (dragstart)="$event.dataTransfer?.setData('text/flow-node-type', t.type)">
+                                    <mat-icon class="icon-size-4 shrink-0" [svgIcon]="paletteHeroIcon(group.category)"></mat-icon>
+                                    {{ t.label }}
+                                </button>
+                            }
+                        }
+                    </div>
+                    <div class="border-t px-3 py-1.5 text-xs opacity-50"
+                         style="border-color: var(--gamma-border)">
+                        click to add at centre · drag to position
+                    </div>
+                </div><!-- pointer-events-auto -->
+                </div><!-- pointer-events-none wrapper -->
+            }
+
+        <mat-drawer-container class="h-full overflow-hidden rounded" [hasBackdrop]="false"
                               style="background: var(--gamma-bg-card)">
             <!-- inspector drawer (collapsible property panel; toggled from the toolbar) -->
             <mat-drawer #inspectorDrawer position="end" mode="over" [opened]="inspectorOpen()"
@@ -218,6 +241,7 @@
                 </app-flow-editor-graph>
             </mat-drawer-content>
         </mat-drawer-container>
+        </div><!-- end relative canvas wrapper -->
 
         <!-- dry-run drawer -->
         @if (dryRunOpen()) {

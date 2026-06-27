@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -24,6 +25,8 @@ import {
     noRowsOverlay,
     refreshActionsCells,
 } from 'app/inspecto/grid';
+import { QuerySource } from 'app/inspecto/query';
+import { DataTableComponent, DataTableTier } from 'app/inspecto/data-table';
 
 interface DemoRow {
     pipeline: string;
@@ -44,6 +47,7 @@ interface DemoRow {
     imports: [
         ReactiveFormsModule,
         MatButtonModule,
+        MatButtonToggleModule,
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
@@ -53,6 +57,7 @@ interface DemoRow {
         InspectoAlertComponent,
         InspectoEmptyStateComponent,
         InspectoSkeletonComponent,
+        DataTableComponent,
     ],
     templateUrl: './design-system.component.html',
 })
@@ -119,6 +124,21 @@ export class DesignSystemComponent {
         this.toast.success(`Valid id: ${this.form.value.id}`);
     }
 
+    // ── Data table (tiered: mini / standard / pro / pro max) ─────────────────────────────────
+    readonly dtTiers: DataTableTier[] = ['mini', 'standard', 'pro', 'proMax'];
+    readonly dtTier = signal<DataTableTier>('standard');
+    readonly querySource: QuerySource = {
+        name: 'cdr_sample',
+        rows: Array.from({ length: 40 }, (_, i) => ({
+            id: 1000 + i,
+            msisdn: '8801' + String(700000000 + i),
+            cell_id: 'CELL-' + (100 + (i % 8)),
+            duration_s: (i * 37) % 600,
+            tariff: ['standard', 'premium', 'roaming'][i % 3],
+            start_time: `2026-06-${String(1 + (i % 27)).padStart(2, '0')} 0${i % 9}:${String(10 + (i % 50)).padStart(2, '0')}:00`,
+        })),
+    };
+
     // ── Snippets (copy-paste) ────────────────────────────────────────────────────────────────
     readonly snippets = {
         badge: `<inspecto-status-badge [value]="event.level" />\n// in an ag-Grid cellRenderer:\ncellRenderer: (p) => statusBadgeHtml(p.value)`,
@@ -127,6 +147,7 @@ export class DesignSystemComponent {
         skeleton: `<inspecto-skeleton width="40%" height="0.875rem" />   <!-- a label -->\n<inspecto-skeleton [lines]="4" />                     <!-- a paragraph -->\n<inspecto-skeleton height="12rem" />                  <!-- a block -->`,
         grid: `<ag-grid-angular\n  class="h-[42rem] w-full"\n  [theme]="themeSvc.theme()"\n  [rowData]="rows"\n  [columnDefs]="columnDefs"\n  [defaultColDef]="defaultColDef"\n  [loading]="loading"\n  [overlayNoRowsTemplate]="emptyOverlay"\n  (firstDataRendered)="refreshActions($event)"\n  (rowDataUpdated)="refreshActions($event)" />`,
         form: `form = this.fb.group({\n  id: ['', [Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)]],\n});\nsubmit() {\n  if (this.form.invalid) { this.form.markAllAsTouched(); return; }\n  // ...\n}`,
+        dataTable: `<!-- one component, four tiers; logic lives in inspecto/data-table/core + inspecto/query -->\n<inspecto-data-table\n  [tier]="'standard'"            // 'mini' | 'standard' | 'pro' | 'proMax'\n  [rows]="rows"\n  [columns]="columnDefs"         // optional; omitted ⇒ one column per row key\n  [rowActions]="actions"\n  sourceName="cdr"\n  (rowClick)="open($event)"\n  (queryChange)="onQuery($event)"   // pro+\n  (ruleSaved)="onRuleSaved($event)" />  // pro max`,
     };
     copy(text: string): void {
         navigator.clipboard?.writeText(text).then(

@@ -20,12 +20,6 @@
                 <mat-button-toggle value="reporting">Reporting</mat-button-toggle>
             </mat-button-toggle-group>
 
-            @if (mode === 'schedules') {
-                <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
-                    <mat-label>Search</mat-label>
-                    <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
-                </mat-form-field>
-            }
             @if (mode === 'reporting') {
                 <mat-slide-toggle [checked]="live" (change)="toggleLive($event.checked)" matTooltip="Auto-refresh the reporting view every 5s">
                     Live tail
@@ -59,20 +53,16 @@
                     message="No jobs are registered (the scheduler has no configured jobs)."
                 ></inspecto-empty-state>
             } @else {
-                <ag-grid-angular
-                    class="w-full"
-                    [domLayout]="'autoHeight'"
-                    [theme]="themeSvc.theme()"
-                    [rowData]="jobs"
-                    [columnDefs]="columnDefs"
-                    [defaultColDef]="defaultColDef"
-                    [pagination]="jobs.length > 25"
-                    [paginationPageSize]="25"
-                    [quickFilterText]="quickFilter"
+                <inspecto-data-table
+                    tier="standard"
+                    sourceName="jobs"
+                    exportName="jobs"
+                    [rows]="jobs"
+                    [columns]="columnDefs"
+                    [rowActions]="scheduleActions"
                     [loading]="loading"
-                    (firstDataRendered)="refreshActions($event)"
-                    (rowDataUpdated)="refreshActions($event)"
-                ></ag-grid-angular>
+                    [autoHeight]="true"
+                />
             }
         } @else {
             <!-- Reporting (T27) -->
@@ -145,18 +135,15 @@
                         message="No job runs recorded yet for this filter."
                     ></inspecto-empty-state>
                 } @else {
-                    <ag-grid-angular
-                        class="h-[36rem] w-full"
-                        [theme]="themeSvc.theme()"
-                        [rowData]="runs"
-                        [columnDefs]="reportColumnDefs"
-                        [defaultColDef]="defaultColDef"
-                        [pagination]="true"
-                        [paginationPageSize]="50"
+                    <inspecto-data-table
+                        tier="standard"
+                        sourceName="job-runs"
+                        exportName="job-runs"
+                        [rows]="runs"
+                        [columns]="reportColumnDefs"
+                        [rowActions]="runActions"
                         [loading]="reportLoading"
-                        (firstDataRendered)="refreshActions($event)"
-                        (rowDataUpdated)="refreshActions($event)"
-                    ></ag-grid-angular>
+                    />
                 }
             }
         }

@@ -22,39 +22,31 @@
 
         <!-- Tables -->
         @if (activeTab === 'tables' && !loading) {
-            <mat-form-field class="gamma-mat-dense mt-6 w-72" subscriptSizing="dynamic">
-                <mat-icon matPrefix svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
-                <input matInput [(ngModel)]="search" placeholder="Search tables…" />
-            </mat-form-field>
-            <ag-grid-angular
-                class="mt-4 h-160 w-full"
-                [theme]="gridTheme.theme()"
-                [rowData]="nodes"
-                [columnDefs]="nodeColumns"
-                [defaultColDef]="defaultColDef"
-                [quickFilterText]="search"
-                [pagination]="true"
-                [paginationPageSize]="25"
-                [overlayNoRowsTemplate]="noRowsTables"
-                (rowClicked)="onNodeRowClicked($event)">
-            </ag-grid-angular>
+            <inspecto-data-table
+                class="mt-6"
+                tier="standard"
+                sourceName="tables"
+                exportName="catalog-tables"
+                [rows]="nodes"
+                [columns]="nodeColumns"
+                noRowsTitle="No tables found"
+                noRowsHint="No catalog tables match the current filter."
+                (rowClick)="onNodeRowClicked($any($event))"
+            />
         }
 
         <!-- KPIs -->
         @if (activeTab === 'kpis' && !loading) {
-            <mat-form-field class="gamma-mat-dense mt-6 w-72" subscriptSizing="dynamic">
-                <mat-icon matPrefix svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
-                <input matInput [(ngModel)]="search" placeholder="Search KPIs…" />
-            </mat-form-field>
-            <ag-grid-angular
-                class="mt-4 h-160 w-full"
-                [theme]="gridTheme.theme()"
-                [rowData]="kpis"
-                [columnDefs]="kpiColumns"
-                [defaultColDef]="defaultColDef"
-                [quickFilterText]="search"
-                [overlayNoRowsTemplate]="noRowsKpis">
-            </ag-grid-angular>
+            <inspecto-data-table
+                class="mt-6"
+                tier="standard"
+                sourceName="kpis"
+                exportName="catalog-kpis"
+                [rows]="kpis"
+                [columns]="kpiColumns"
+                noRowsTitle="No KPIs found"
+                noRowsHint="No KPI definitions are registered in the catalog."
+            />
         }
 
         <!-- Graph -->

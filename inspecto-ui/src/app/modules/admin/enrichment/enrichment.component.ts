@@ -8,10 +8,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AgGridAngular } from 'ag-grid-angular';
-import { ColDef, RowClickedEvent } from 'ag-grid-community';
+import { ColDef } from 'ag-grid-community';
 import { AuditRow, EnrichmentJobView, EnrichmentRunReport, EnrichmentService } from 'app/inspecto/api';
-import { autoColumns, fmtDateTime, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
+import { fmtDateTime } from 'app/inspecto/grid';
 
 type EnrTab = 'runs' | 'lineage' | 'report';
 
@@ -33,19 +33,17 @@ type EnrTab = 'runs' | 'lineage' | 'report';
         MatProgressSpinnerModule,
         MatTabsModule,
         MatTooltipModule,
-        AgGridAngular,
+        DataTableComponent,
     ],
     templateUrl: './enrichment.component.html',
     encapsulation: ViewEncapsulation.None,
 })
 export class EnrichmentComponent implements OnInit {
     private api = inject(EnrichmentService);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     jobs: EnrichmentJobView[] = [];
     loading = false;
     unavailable = false;
-    quickFilter = '';
 
     selected: EnrichmentJobView | null = null;
 
@@ -67,7 +65,6 @@ export class EnrichmentComponent implements OnInit {
     to: Date | null = null;
     report: EnrichmentRunReport | null = null;
 
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly jobColumns: ColDef<EnrichmentJobView>[] = [
         { field: 'name', headerName: 'Job', flex: 1 },
         { field: 'onPipeline', headerName: 'On pipeline', flex: 1 },
@@ -77,9 +74,6 @@ export class EnrichmentComponent implements OnInit {
         { field: 'lastRunStatus', headerName: 'Last status', width: 120 },
         { field: 'lastRunTime', headerName: 'Last run', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
     ];
-    get detailColumns(): ColDef[] {
-        return autoColumns(this.rows);
-    }
 
     ngOnInit(): void {
         this.load();
@@ -101,9 +95,9 @@ export class EnrichmentComponent implements OnInit {
         });
     }
 
-    onRowClick(e: RowClickedEvent<EnrichmentJobView>): void {
-        if (!e.data) return;
-        this.selected = e.data;
+    onRowClick(row: EnrichmentJobView): void {
+        if (!row) return;
+        this.selected = row;
         this.selectedIndex = 0;
         this.report = null;
         this.lineageRunId = '';

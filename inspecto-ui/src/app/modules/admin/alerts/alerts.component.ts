@@ -3,11 +3,10 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { AlertRule, AlertsService, apiErrorMessage, FiredAlert } from 'app/inspecto/api';
-import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
 
 /**
  * Alerts — the core alert engine's surface (v4.1, B5): recent fired alerts (GET /alerts) over the
@@ -23,7 +22,7 @@ import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } fro
         MatButtonModule,
         MatIconModule,
         MatProgressSpinnerModule,
-        AgGridAngular,
+        DataTableComponent,
     ],
     templateUrl: './alerts.component.html',
     encapsulation: ViewEncapsulation.None,
@@ -31,18 +30,11 @@ import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } fro
 export class AlertsComponent implements OnInit {
     private api = inject(AlertsService);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     alerts: FiredAlert[] = [];
     rules: AlertRule[] = [];
     loading = false;
     evaluating = false;
-
-    /** Empty-state overlay shown when no alerts have fired. */
-    readonly noRows = noRowsOverlay(
-        'No alerts fired',
-        'Breaches of the armed alert rules will appear here.',
-    );
 
     readonly columnDefs: ColDef<FiredAlert>[] = [
         {
@@ -59,8 +51,6 @@ export class AlertsComponent implements OnInit {
         { field: 'value', headerName: 'Value', width: 110 },
         { field: 'message', headerName: 'Message', flex: 3, wrapText: true, autoHeight: true },
     ];
-
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     ngOnInit(): void {
         this.load();

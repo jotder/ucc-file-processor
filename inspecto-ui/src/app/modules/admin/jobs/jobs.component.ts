@@ -9,7 +9,6 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ChartData } from 'chart.js';
 import { Subscription, forkJoin } from 'rxjs';
@@ -28,7 +27,8 @@ import { AssistDialog } from 'app/inspecto/components/assist.dialog';
 import { InspectoChartComponent } from 'app/inspecto/components/chart.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
-import { actionsColumn, fmtDateTime, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
+import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
 import { JobRunsDialog } from './job-runs.dialog';
 import { JobRunDetailDialog } from './job-run-detail.dialog';
@@ -73,7 +73,7 @@ export function fmtDuration(ms: number | undefined | null): string {
         MatSelectModule,
         MatSlideToggleModule,
         MatTooltipModule,
-        AgGridAngular,
+        DataTableComponent,
         InspectoChartComponent,
         InspectoEmptyStateComponent,
     ],
@@ -85,7 +85,6 @@ export class JobsComponent implements OnInit, OnDestroy {
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     mode: JobsViewMode = 'schedules';
 
@@ -93,7 +92,6 @@ export class JobsComponent implements OnInit, OnDestroy {
     jobs: JobView[] = [];
     loading = false;
     unavailable = false;
-    quickFilter = '';
 
     // ── reporting view (T27) ─────────────────────────────────────────────────────
     metrics: JobMetrics | null = null;
@@ -125,7 +123,6 @@ export class JobsComponent implements OnInit, OnDestroy {
         });
     }
 
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<JobView>[] = [
         { field: 'name', headerName: 'Job', flex: 1 },
         { field: 'type', headerName: 'Type', width: 110 },
@@ -135,18 +132,19 @@ export class JobsComponent implements OnInit, OnDestroy {
         { field: 'lastStatus', headerName: 'Last status', width: 120 },
         { field: 'lastRunTime', headerName: 'Last run', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
         { field: 'nextFire', headerName: 'Next fire', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
-        actionsColumn<JobView>([
-            {
-                icon: 'heroicons_outline:play',
-                hint: 'Run now',
-                onClick: (j) => this.trigger(j),
-            },
-            {
-                icon: 'heroicons_outline:list-bullet',
-                hint: 'Run history',
-                onClick: (j) => this.openRuns(j),
-            },
-        ], 120),
+    ];
+
+    readonly scheduleActions: InspectoRowAction<JobView>[] = [
+        {
+            icon: 'heroicons_outline:play',
+            hint: 'Run now',
+            onClick: (j) => this.trigger(j),
+        },
+        {
+            icon: 'heroicons_outline:list-bullet',
+            hint: 'Run history',
+            onClick: (j) => this.openRuns(j),
+        },
     ];
 
     /** Reporting grid: the durable run history (newest first) from the DuckDB projection. */
@@ -163,10 +161,10 @@ export class JobsComponent implements OnInit, OnDestroy {
         },
         { field: 'durationMs', headerName: 'Duration', width: 110, valueFormatter: (p) => fmtDuration(p.value as number) },
         { field: 'message', headerName: 'Message', flex: 1, minWidth: 220 },
-        actionsColumn<JobRunRow>(
-            [{ icon: 'heroicons_outline:information-circle', hint: 'Details', onClick: (r) => this.openRunDetail(r) }],
-            80,
-        ),
+    ];
+
+    readonly runActions: InspectoRowAction<JobRunRow>[] = [
+        { icon: 'heroicons_outline:information-circle', hint: 'Details', onClick: (r) => this.openRunDetail(r) },
     ];
 
     ngOnInit(): void {
@@ -283,6 +281,4 @@ export class JobsComponent implements OnInit, OnDestroy {
     openRunDetail(row: JobRunRow): void {
         this.dialog.open(JobRunDetailDialog, { data: row, width: '600px', maxHeight: '85vh' });
     }
-
-    readonly refreshActions = refreshActionsCells;
 }

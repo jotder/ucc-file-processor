@@ -1,0 +1,93 @@
+<div class="space-y-3">
+    <!-- Projection -->
+    <div class="flex flex-wrap items-end gap-2">
+        <mat-form-field subscriptSizing="dynamic" class="w-72">
+            <mat-label>Columns ({{ selectedColumns().length }}/{{ allColumnNames().length }})</mat-label>
+            <mat-select multiple [value]="selectedColumns()" [disabled]="overrideActive()"
+                        (selectionChange)="setProjection($event.value)">
+                @for (name of allColumnNames(); track name) {
+                    <mat-option [value]="name">{{ name }}</mat-option>
+                }
+            </mat-select>
+        </mat-form-field>
+        <span class="text-secondary text-xs">from <span class="font-mono">{{ sourceName() }}</span></span>
+    </div>
+
+    <!-- Filter builder (paused when the SQL is hand-edited) -->
+    @if (!overrideActive()) {
+        <div>
+            <div class="mb-1 text-xs font-semibold uppercase tracking-wider opacity-60">Filter</div>
+            <inspecto-query-condition-group
+                [group]="where()"
+                [columns]="columnsCache()"
+                [root]="true"
+                (changed)="onWhereChanged()"
+            />
+        </div>
+    }
+
+    <!-- Generated / editable SQL -->
+    <div>
+        <div class="mb-1 flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider opacity-60">SQL</span>
+            <span class="flex-1"></span>
+            @if (overrideActive()) {
+                <button mat-stroked-button type="button" (click)="revertToBuilder()">
+                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-uturn-left"></mat-icon>
+                    <span class="ml-1">Revert to builder</span>
+                </button>
+            } @else {
+                <button mat-stroked-button type="button" (click)="editSql()"
+                        matTooltip="Hand-edit the SQL — typecasts, substring, aggregate functions, …">
+                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                    <span class="ml-1">Edit SQL</span>
+                </button>
+            }
+        </div>
+        @if (overrideActive()) {
+            <textarea
+                class="w-full rounded border p-2 font-mono text-xs"
+                style="background: var(--gamma-bg-default); border-color: var(--gamma-border)"
+                rows="5"
+                aria-label="SQL editor"
+                [value]="sql()"
+                (input)="onOverrideInput($any($event.target).value)"
+            ></textarea>
+        } @else {
+            <pre class="max-h-40 overflow-auto rounded border p-2 font-mono text-xs"
+                 style="background: var(--gamma-bg-default); border-color: var(--gamma-border)">{{ sql() }}</pre>
+        }
+    </div>
+
+    <!-- Live preview -->
+    <div>
+        <div class="mb-1 flex flex-wrap items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider opacity-60">Preview</span>
+            <span class="text-sm font-semibold">{{ previewRows().length }} row(s)</span>
+            <span class="flex-1"></span>
+            <mat-form-field subscriptSizing="dynamic" class="w-48">
+                <mat-label>Search rows</mat-label>
+                <input matInput [value]="quickFilter()" (input)="quickFilter.set($any($event.target).value)" />
+            </mat-form-field>
+        </div>
+        @if (overrideActive()) {
+            <inspecto-alert class="mb-2 block" variant="info" icon="heroicons_outline:information-circle">
+                Custom SQL isn't executed in the browser — this preview shows the sample rows. The query runs
+                for real on the server once wired.
+            </inspecto-alert>
+        }
+        <ag-grid-angular
+            class="w-full"
+            style="height: 22rem"
+            [theme]="gridTheme.theme()"
+            [rowData]="previewRows()"
+            [columnDefs]="gridColumns()"
+            [defaultColDef]="defaultColDef"
+            [quickFilterText]="quickFilter()"
+            [pagination]="true"
+            [paginationPageSize]="25"
+            [paginationPageSizeSelector]="pageSizes"
+            [overlayNoRowsTemplate]="noRows"
+        ></ag-grid-angular>
+    </div>
+</div>

@@ -5,9 +5,8 @@
             <h1 class="text-3xl font-extrabold leading-none tracking-tight">Pipelines</h1>
             <div class="text-secondary mt-1.5">
                 @switch (mode()) {
-                    @case ('combined') { Pipelines and the jobs over their output, joined at the shared store }
                     @case ('editor') { Author and edit a pipeline topology on an interactive canvas }
-                    @default { Every pipeline as a node graph — read-only }
+                    @default { One or many pipelines as a node graph, joined at their shared stores — read-only }
                 }
             </div>
         </div>
@@ -15,36 +14,34 @@
             <mat-button-toggle-group
                 [value]="mode()"
                 (change)="setMode($event.value)"
-                aria-label="Flow view mode"
+                aria-label="Pipelines view mode"
                 hideSingleSelectionIndicator
             >
-                <mat-button-toggle value="flow">Per-pipeline</mat-button-toggle>
-                <mat-button-toggle value="combined">Combined</mat-button-toggle>
-                <mat-button-toggle value="editor">Editor</mat-button-toggle>
+                <mat-button-toggle value="combined">View</mat-button-toggle>
+                <mat-button-toggle value="editor">Edit</mat-button-toggle>
             </mat-button-toggle-group>
-            <button
-                mat-icon-button
-                (click)="mode() === 'combined' ? loadCombined() : load()"
-                matTooltip="Refresh"
-                aria-label="Refresh flows"
-            >
-                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
-            </button>
+            @if (mode() === 'combined') {
+                <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh pipelines">
+                    <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                </button>
+            }
         </div>
     </div>
 
     <!-- Main -->
     <div class="flex flex-auto flex-col p-6 sm:p-10">
-        @if (mode() === 'flow') {
-            @if (unavailable() || (!loading() && flows().length === 0)) {
+        @if (mode() === 'editor') {
+            <!-- Edit (T32): author/edit a pipeline on an interactive canvas -->
+            <app-flow-editor></app-flow-editor>
+        } @else {
+            <!-- View: the chosen pipelines (one or many), joined at their shared stores -->
+            @if (combinedUnavailable()) {
                 <inspecto-empty-state
-                    icon="heroicons_outline:arrows-right-left"
-                    [message]="unavailable()
-                        ? 'Could not load flows from the control API.'
-                        : 'No pipelines are registered, so there are no flows to show yet.'"
+                    icon="heroicons_outline:share"
+                    message="Could not load the pipeline topology from the control API."
                 ></inspecto-empty-state>
-            } @else {
-                <!-- Top bar: pipeline search + dropdown (left) · palette-from-legend (right) -->
+            } @else if (combined(); as c) {
+                <!-- Top bar: search + multiselect of pipelines (left) · palette popup (right) -->
                 <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div class="flex flex-wrap items-center gap-2">
                         <div class="relative">
@@ -54,20 +51,22 @@
                                 class="bg-card w-44 rounded border border-gray-300 py-1.5 pl-8 pr-2 text-sm dark:border-gray-600"
                                 placeholder="Search pipelines…"
                                 aria-label="Search pipelines"
-                                (input)="onPipeSearch($event)"
+                                (input)="onCombinedSearch($event)"
                             />
                         </div>
-                        <mat-form-field subscriptSizing="dynamic" class="w-64">
-                            <mat-label>Pipeline</mat-label>
-                            <mat-select [value]="selected()" (selectionChange)="select($event.value)">
-                                @for (f of pipeOptions(); track f.name) {
-                                    <mat-option [value]="f.name">
-                                        {{ f.name }}
-                                        <span class="text-secondary text-xs">· {{ f.nodeCount }} · {{ f.active ? 'Active' : 'Inactive' }}</span>
-                                    </mat-option>
+                        <mat-form-field subscriptSizing="dynamic" class="w-72">
+                            <mat-label>Pipelines</mat-label>
+                            <mat-select multiple [value]="combinedSelected()"
+                                        (selectionChange)="setCombinedSelected($event.value)">
+                                @for (n of combinedFlowOptions(); track n) {
+                                    <mat-option [value]="n">{{ n }}</mat-option>
                                 }
                             </mat-select>
                         </mat-form-field>
+                        <span class="text-secondary text-xs">
+                            {{ combinedSelected().length || c.flows.length }} of {{ c.flows.length }} shown
+                            @if (c.links.length) { · {{ c.links.length }} store link{{ c.links.length === 1 ? '' : 's' }} }
+                        </span>
                     </div>
 
                     <!-- Color legend doubles as the palette trigger (click to reveal node types) -->
@@ -75,9 +74,9 @@
                         <button mat-stroked-button [matMenuTriggerFor]="paletteMenu"
                                 matTooltip="Show the processor palette" aria-label="Show the processor palette">
                             <span class="flex items-center gap-1.5">
-                                @for (c of legendCategories; track c) {
+                                @for (cat of legendCategories; track cat) {
                                     <span class="inline-block h-2.5 w-2.5 rounded-full"
-                                          [style.backgroundColor]="categoryColor(c)" aria-hidden="true"></span>
+                                          [style.backgroundColor]="categoryColor(cat)" aria-hidden="true"></span>
                                 }
                                 <span class="ml-1 text-xs">Palette</span>
                             </span>
@@ -105,83 +104,7 @@
                     }
                 </div>
 
-                <!-- Full-width canvas + node inspector -->
-                @if (graph(); as g) {
-                    <section class="bg-card rounded-2xl p-5 shadow" aria-label="Flow graph">
-                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                            <span class="font-medium">{{ g.name }}</span>
-                            <div class="flex flex-wrap items-center gap-3">
-                                @if (provCounts()) {
-                                    <span class="text-secondary text-xs">edge labels = records on that relationship</span>
-                                }
-                                @if (provBatches().length) {
-                                    <mat-form-field subscriptSizing="dynamic" class="w-64">
-                                        <mat-label>Provenance run</mat-label>
-                                        <mat-select [value]="provBatch()"
-                                                    (selectionChange)="selectRun($event.value)"
-                                                    aria-label="Overlay a past run's record counts">
-                                            <mat-option [value]="null">No overlay</mat-option>
-                                            @for (b of provBatches(); track b.batchId) {
-                                                <mat-option [value]="b.batchId">{{ b.runTs }} · {{ b.totalRows }} rows</mat-option>
-                                            }
-                                        </mat-select>
-                                    </mat-form-field>
-                                }
-                            </div>
-                        </div>
-                        <inspecto-graph-view [data]="g6Data()" (nodeClick)="onNodeClick($event)"></inspecto-graph-view>
-                    </section>
-
-                    @if (selectedNode(); as n) {
-                        <div class="mt-6">
-                            <ng-container *ngTemplateOutlet="nodeInspector; context: { $implicit: n }"></ng-container>
-                        </div>
-                    } @else {
-                        <div class="text-secondary mt-3 px-1 text-sm">Select a node to inspect it.</div>
-                    }
-                } @else {
-                    <inspecto-empty-state
-                        icon="heroicons_outline:arrows-right-left"
-                        [message]="graphLoading() ? 'Loading flow…' : 'Select a flow to view its graph.'"
-                    ></inspecto-empty-state>
-                }
-            }
-        } @else if (mode() === 'combined') {
-            <!-- Combined topology (T24): the chosen pipelines, joined at their shared stores -->
-            @if (combinedUnavailable()) {
-                <inspecto-empty-state
-                    icon="heroicons_outline:share"
-                    message="Could not load the combined topology from the control API."
-                ></inspecto-empty-state>
-            } @else if (combined(); as c) {
-                <!-- Top bar: search + multiselect of pipelines to combine -->
-                <div class="mb-4 flex flex-wrap items-center gap-3">
-                    <div class="relative">
-                        <mat-icon class="icon-size-4 text-secondary pointer-events-none absolute left-2 top-1/2 -translate-y-1/2" svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
-                        <input
-                            type="text"
-                            class="bg-card w-44 rounded border border-gray-300 py-1.5 pl-8 pr-2 text-sm dark:border-gray-600"
-                            placeholder="Search pipelines…"
-                            aria-label="Search pipelines to combine"
-                            (input)="onCombinedSearch($event)"
-                        />
-                    </div>
-                    <mat-form-field subscriptSizing="dynamic" class="w-72">
-                        <mat-label>Pipelines to combine</mat-label>
-                        <mat-select multiple [value]="combinedSelected()"
-                                    (selectionChange)="setCombinedSelected($event.value)">
-                            @for (n of combinedFlowOptions(); track n) {
-                                <mat-option [value]="n">{{ n }}</mat-option>
-                            }
-                        </mat-select>
-                    </mat-form-field>
-                    <span class="text-secondary text-xs">
-                        {{ combinedSelected().length || c.flows.length }} of {{ c.flows.length }} shown
-                        @if (c.links.length) { · {{ c.links.length }} store link{{ c.links.length === 1 ? '' : 's' }} }
-                    </span>
-                </div>
-
-                <section class="bg-card rounded-2xl p-5 shadow" aria-label="Combined flow topology">
+                <section class="bg-card rounded-2xl p-5 shadow" aria-label="Pipeline topology">
                     <inspecto-graph-view [data]="combinedG6()" (nodeClick)="onNodeClick($event)"></inspecto-graph-view>
                 </section>
 
@@ -195,17 +118,14 @@
             } @else {
                 <inspecto-empty-state
                     icon="heroicons_outline:share"
-                    [message]="combinedLoading() ? 'Loading combined topology…' : 'No flows to combine yet.'"
+                    [message]="combinedLoading() ? 'Loading topology…' : 'No pipelines to show yet.'"
                 ></inspecto-empty-state>
             }
-        } @else {
-            <!-- Editor (T32): author/edit a flow on an interactive canvas -->
-            <app-flow-editor></app-flow-editor>
         }
     </div>
 </div>
 
-<!-- Shared node inspector (used by both the per-flow and combined views) -->
+<!-- Shared node inspector -->
 <ng-template #nodeInspector let-n>
     <section class="bg-card rounded-2xl p-5 shadow" aria-label="Node details">
         <div class="mb-3 text-lg font-semibold">{{ nodeDisplayLabel(n) }}</div>

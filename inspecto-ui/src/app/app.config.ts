@@ -23,6 +23,7 @@ import { errorInterceptor as inspectoErrorInterceptor } from './inspecto/api/err
 import { spaceInterceptor } from './inspecto/api/space.interceptor';
 import { connectionMockInterceptor } from './inspecto/api/connection-mock.interceptor';
 import { flowMockInterceptor } from './inspecto/api/flow-mock.interceptor';
+import { opsMockInterceptor } from './inspecto/api/ops-mock.interceptor';
 
 export const appConfig: ApplicationConfig = {
     providers: [
@@ -35,7 +36,7 @@ export const appConfig: ApplicationConfig = {
         provideHttpClient(
             // connectionMockInterceptor is first so it short-circuits the mocked connection-workbench
             // routes (probe/explore/sample) before the space rewrite; prototype-only, see the flag.
-            withInterceptors([connectionMockInterceptor, flowMockInterceptor, spaceInterceptor, inspectoErrorInterceptor])
+            withInterceptors([connectionMockInterceptor, flowMockInterceptor, opsMockInterceptor, spaceInterceptor, inspectoErrorInterceptor])
         ),
 
         // Interceptor-free HttpClient for the vendored template AuthService only.

@@ -6,10 +6,6 @@
             <div class="text-secondary mt-1.5">{{ subtitle }}</div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
-            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
-                <mat-label>Search</mat-label>
-                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
-            </mat-form-field>
             <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>
@@ -22,20 +18,17 @@
 
     <!-- Main -->
     <div class="flex flex-auto flex-col p-6 sm:p-10">
-        <ag-grid-angular
-            class="h-[42rem] w-full"
-            [theme]="themeSvc.theme()"
-            [rowData]="objects"
-            [columnDefs]="columnDefs"
-            [defaultColDef]="defaultColDef"
-            [pagination]="true"
-            [paginationPageSize]="25"
-            [quickFilterText]="quickFilter"
+        <inspecto-data-table
+            tier="pro"
+            [sourceName]="type.toLowerCase()"
+            [exportName]="type.toLowerCase()"
+            [rows]="objects"
+            [columns]="columnDefs"
+            [rowActions]="actions"
             [loading]="loading"
-            [overlayNoRowsTemplate]="noRows"
-            (rowClicked)="onRowClicked($event)"
-            (firstDataRendered)="refreshActions($event)"
-            (rowDataUpdated)="refreshActions($event)"
-        ></ag-grid-angular>
+            noRowsTitle="No {{ createLabel }}s yet"
+            noRowsHint="New {{ createLabel }}s will appear here once they're created."
+            (rowClick)="onRowClicked($any($event))"
+        />
     </div>
 </div>

@@ -6,10 +6,6 @@
             <div class="text-secondary mt-1.5">Configured acquisition sources and collection metrics</div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
-            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
-                <mat-label>Search</mat-label>
-                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
-            </mat-form-field>
             <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>
@@ -45,20 +41,16 @@
                 message="No acquisition sources are configured (no pipeline declares a source block)."
             ></inspecto-empty-state>
         } @else {
-            <ag-grid-angular
-                class="w-full"
-                [domLayout]="'autoHeight'"
-                [theme]="themeSvc.theme()"
-                [rowData]="sources"
-                [columnDefs]="columnDefs"
-                [defaultColDef]="defaultColDef"
-                [pagination]="sources.length > 25"
-                [paginationPageSize]="25"
-                [quickFilterText]="quickFilter"
+            <inspecto-data-table
+                tier="standard"
+                sourceName="sources"
+                exportName="sources"
+                [rows]="sources"
+                [columns]="columnDefs"
+                [rowActions]="rowActions"
                 [loading]="loading"
-                (firstDataRendered)="refreshActions($event)"
-                (rowDataUpdated)="refreshActions($event)"
-            ></ag-grid-angular>
+                [autoHeight]="true"
+            />
         }
     </div>
 </div>

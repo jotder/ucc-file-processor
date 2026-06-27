@@ -1,0 +1,119 @@
+<div class="rounded-lg border p-2" style="border-color: var(--gamma-border)">
+    <div class="mb-2 flex flex-wrap items-center gap-2">
+        <mat-button-toggle-group
+            [value]="group.op"
+            (change)="setOp($event.value)"
+            hideSingleSelectionIndicator
+            aria-label="Match operator"
+        >
+            <mat-button-toggle value="AND">AND</mat-button-toggle>
+            <mat-button-toggle value="OR">OR</mat-button-toggle>
+        </mat-button-toggle-group>
+        <span class="text-secondary text-xs">match {{ group.op === 'AND' ? 'all' : 'any' }} of</span>
+        <span class="flex-1"></span>
+        <button mat-stroked-button type="button" (click)="addCondition()">
+            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
+            <span class="ml-1">Condition</span>
+        </button>
+        <button mat-stroked-button type="button" (click)="addGroup()" matTooltip="Add a nested group">
+            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
+            <span class="ml-1">Group</span>
+        </button>
+    </div>
+
+    @if (group.items.length === 0) {
+        <div class="text-secondary px-1 py-1 text-xs">No conditions — matches all rows.</div>
+    }
+
+    <div class="space-y-2">
+        @for (it of group.items; track it; let i = $index) {
+            @if (it.kind === 'group') {
+                <div class="flex items-start gap-2">
+                    <div class="min-w-0 flex-1">
+                        <inspecto-query-condition-group
+                            [group]="asGroup(it)"
+                            [columns]="columns"
+                            (changed)="changed.emit()"
+                        />
+                    </div>
+                    <button mat-icon-button type="button" (click)="removeAt(i)" aria-label="Remove group">
+                        <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+                    </button>
+                </div>
+            } @else {
+                <div class="flex flex-wrap items-center gap-2">
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Field</mat-label>
+                        <mat-select
+                            [value]="asCondition(it).field"
+                            (selectionChange)="onFieldChange(asCondition(it), $event.value)"
+                        >
+                            @for (col of columns; track col.name) {
+                                <mat-option [value]="col.name">{{ col.name }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic" class="w-36">
+                        <mat-label>Operator</mat-label>
+                        <mat-select
+                            [value]="asCondition(it).operator"
+                            (selectionChange)="onOperatorChange(asCondition(it), $event.value)"
+                        >
+                            @for (o of operatorsForCondition(asCondition(it)); track o.op) {
+                                <mat-option [value]="o.op">{{ o.label }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    @switch (arity(asCondition(it))) {
+                        @case (1) {
+                            <mat-form-field subscriptSizing="dynamic" class="w-40">
+                                <mat-label>Value</mat-label>
+                                <input
+                                    matInput
+                                    [type]="inputType(asCondition(it))"
+                                    [value]="asCondition(it).value ?? ''"
+                                    (input)="onValue(asCondition(it), $any($event.target).value)"
+                                />
+                            </mat-form-field>
+                        }
+                        @case (2) {
+                            <mat-form-field subscriptSizing="dynamic" class="w-28">
+                                <mat-label>From</mat-label>
+                                <input
+                                    matInput
+                                    [type]="inputType(asCondition(it))"
+                                    [value]="asCondition(it).value ?? ''"
+                                    (input)="onValue(asCondition(it), $any($event.target).value)"
+                                />
+                            </mat-form-field>
+                            <mat-form-field subscriptSizing="dynamic" class="w-28">
+                                <mat-label>To</mat-label>
+                                <input
+                                    matInput
+                                    [type]="inputType(asCondition(it))"
+                                    [value]="asCondition(it).value2 ?? ''"
+                                    (input)="onValue2(asCondition(it), $any($event.target).value)"
+                                />
+                            </mat-form-field>
+                        }
+                        @case ('list') {
+                            <mat-form-field subscriptSizing="dynamic" class="w-56">
+                                <mat-label>Values</mat-label>
+                                <input
+                                    matInput
+                                    placeholder="a, b, c"
+                                    [value]="asCondition(it).value ?? ''"
+                                    (input)="onValue(asCondition(it), $any($event.target).value)"
+                                />
+                                <mat-hint>comma-separated</mat-hint>
+                            </mat-form-field>
+                        }
+                    }
+                    <button mat-icon-button type="button" (click)="removeAt(i)" aria-label="Remove condition">
+                        <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+                    </button>
+                </div>
+            }
+        }
+    </div>
+</div>

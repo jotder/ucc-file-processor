@@ -47,7 +47,7 @@ import { NodeStatus, statusGlyph } from './flow-graph';
         (drop)="onDrop($event)"
         (keydown)="onKeydown($event)"
     ></div>`,
-    host: { class: 'block h-160 w-full' },
+    host: { class: 'block h-full w-full' },
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDestroy {
@@ -264,6 +264,11 @@ export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDes
                         const source = e?.source;
                         const target = e?.target;
                         if (!source || !target || source === target) return false;
+                        // Reject if an edge already exists between these two nodes (any rel).
+                        const alreadyLinked = this.graph
+                            ?.getEdgeData()
+                            .some((x) => x.source === source && x.target === target);
+                        if (alreadyLinked) return false;
                         this.edgeCreated.emit({ source, target });
                         return { id: `${source}->${target}:data:${Date.now()}`, source, target, data: { kind: 'data' } };
                     },

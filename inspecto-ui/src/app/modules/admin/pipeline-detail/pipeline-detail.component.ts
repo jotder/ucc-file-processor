@@ -11,12 +11,11 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { AgGridAngular } from 'ag-grid-angular';
-import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin, Observable } from 'rxjs';
 import { apiErrorMessage, AuditRow, BatchAuditReport, InboxStatus, PipelinesService } from 'app/inspecto/api';
-import { actionsColumn, autoColumns, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
+import { InspectoRowAction } from 'app/inspecto/grid';
 import { BatchDetailDialog } from './batch-detail.dialog';
 
 type TabKey = 'batches' | 'files' | 'lineage' | 'quarantine' | 'commits' | 'report';
@@ -42,7 +41,7 @@ type FileFilter = 'ALL' | 'SUCCESS' | 'REJECTED' | 'ERRORED';
         MatSelectModule,
         MatTabsModule,
         MatTooltipModule,
-        AgGridAngular,
+        DataTableComponent,
         RouterLink,
     ],
     templateUrl: './pipeline-detail.component.html',
@@ -54,7 +53,6 @@ export class PipelineDetailComponent implements OnInit {
     private router = inject(Router);
     private dialog = inject(MatDialog);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     name = '';
     loading = false;
@@ -73,13 +71,11 @@ export class PipelineDetailComponent implements OnInit {
     }
 
     rows: AuditRow[] = []; // generic grid (batches/lineage/quarantine/commits)
-    quickFilter = '';
     lineageBatchId = '';
 
     // files tab
     allFiles: AuditRow[] = [];
     inbox: InboxStatus | null = null;
-    fileSearch = '';
     fileStatus: FileFilter = 'ALL';
     readonly fileFilters: FileFilter[] = ['ALL', 'SUCCESS', 'REJECTED', 'ERRORED'];
 
@@ -87,9 +83,6 @@ export class PipelineDetailComponent implements OnInit {
     from: Date | null = null;
     to: Date | null = null;
     report: BatchAuditReport | null = null;
-
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
-    readonly refreshActions = refreshActionsCells;
 
     ngOnInit(): void {
         this.name = this.route.snapshot.paramMap.get('name') || '';
@@ -168,40 +161,32 @@ export class PipelineDetailComponent implements OnInit {
         });
     }
 
-    // ── grid columns (audit rows are loose maps; derive from keys) ───────────────
-    get columns(): ColDef[] {
-        const cols = autoColumns(this.rows);
-        if (this.activeTab === 'batches') {
-            cols.push(
-                actionsColumn<AuditRow>([
-                    {
-                        icon: 'heroicons_outline:rectangle-group',
-                        hint: 'Lineage & details',
-                        onClick: (r) => this.openBatchById(r['batch_id']),
-                    },
-                    {
-                        icon: 'heroicons_outline:arrow-path',
-                        hint: 'Reprocess this batch',
-                        onClick: (r) => this.reprocessRow(r),
-                    },
-                ], 110),
-            );
-        }
-        return cols;
+    // ── row actions (audit rows are loose maps; columns are auto-derived by the data table) ──
+    private readonly batchActions: InspectoRowAction<AuditRow>[] = [
+        {
+            icon: 'heroicons_outline:rectangle-group',
+            hint: 'Lineage & details',
+            onClick: (r) => this.openBatchById(r['batch_id']),
+        },
+        {
+            icon: 'heroicons_outline:arrow-path',
+            hint: 'Reprocess this batch',
+            onClick: (r) => this.reprocessRow(r),
+        },
+    ];
+
+    /** Batch actions only on the Batches tab; lineage/quarantine/commits are read-only. */
+    get auditRowActions(): InspectoRowAction<AuditRow>[] {
+        return this.activeTab === 'batches' ? this.batchActions : [];
     }
 
-    get fileColumns(): ColDef[] {
-        return [
-            ...autoColumns(this.allFiles),
-            actionsColumn<AuditRow>([
-                {
-                    icon: 'heroicons_outline:rectangle-group',
-                    hint: 'Open the batch this file belongs to',
-                    onClick: (r) => this.openBatchById(r['batch_id']),
-                },
-            ], 70),
-        ];
-    }
+    readonly fileRowActions: InspectoRowAction<AuditRow>[] = [
+        {
+            icon: 'heroicons_outline:rectangle-group',
+            hint: 'Open the batch this file belongs to',
+            onClick: (r) => this.openBatchById(r['batch_id']),
+        },
+    ];
 
     // ── file-processing status ───────────────────────────────────────────────────
     private isSuccess(f: AuditRow): boolean {
@@ -223,9 +208,7 @@ export class PipelineDetailComponent implements OnInit {
     }
 
     get filteredFiles(): AuditRow[] {
-        const q = this.fileSearch.trim().toLowerCase();
         return this.allFiles.filter((f) => {
-            if (q && !(f['filename'] || '').toLowerCase().includes(q)) return false;
             switch (this.fileStatus) {
                 case 'SUCCESS': return this.isSuccess(f);
                 case 'REJECTED': return !this.isSuccess(f);

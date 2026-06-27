@@ -38,16 +38,15 @@
 
     <!-- Fired alerts grid -->
     <div class="mt-4 flex-auto">
-        <ag-grid-angular
-            class="h-160 w-full"
-            [theme]="themeSvc.theme()"
-            [rowData]="alerts"
-            [columnDefs]="columnDefs"
-            [defaultColDef]="defaultColDef"
-            [pagination]="true"
-            [paginationPageSize]="25"
+        <inspecto-data-table
+            tier="pro"
+            sourceName="alerts"
+            exportName="alerts"
+            [rows]="alerts"
+            [columns]="columnDefs"
             [loading]="loading"
-            [overlayNoRowsTemplate]="noRows"
-        ></ag-grid-angular>
+            noRowsTitle="No alerts fired"
+            noRowsHint="Breaches of the armed alert rules will appear here."
+        />
     </div>
 </div>

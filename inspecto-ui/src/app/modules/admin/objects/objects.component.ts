@@ -7,19 +7,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ObjectsService, OperationalObject } from 'app/inspecto/api';
+import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
-import {
-    actionsColumn,
-    fmtDateTime,
-    INSPECTO_DEFAULT_COL_DEF,
-    InspectoGridThemeService,
-    noRowsOverlay,
-    refreshActionsCells,
-} from 'app/inspecto/grid';
+import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { ObjectCreateDialog } from './object-create.dialog';
 
 /**
@@ -38,7 +31,7 @@ import { ObjectCreateDialog } from './object-create.dialog';
         MatIconModule,
         MatInputModule,
         MatTooltipModule,
-        AgGridAngular,
+        DataTableComponent,
     ],
     templateUrl: './objects.component.html',
     encapsulation: ViewEncapsulation.None,
@@ -50,7 +43,6 @@ export class ObjectsComponent implements OnInit {
     private toastr = inject(ToastrService);
     private route = inject(ActivatedRoute);
     private router = inject(Router);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     /** Object type this pane manages ('CASE' | 'ISSUE'), from route data. */
     readonly type = (this.route.snapshot.data['type'] as string) ?? 'ISSUE';
@@ -59,13 +51,6 @@ export class ObjectsComponent implements OnInit {
 
     objects: OperationalObject[] = [];
     loading = false;
-    quickFilter = '';
-
-    /** Empty-state overlay shown when the grid has no rows. */
-    readonly noRows = noRowsOverlay(
-        `No ${this.createLabel}s yet`,
-        `New ${this.createLabel}s will appear here once they're created.`,
-    );
 
     get createLabel(): string {
         return this.type === 'CASE' ? 'case' : this.type === 'ISSUE' ? 'issue' : 'object';
@@ -82,7 +67,6 @@ export class ObjectsComponent implements OnInit {
         return ObjectsComponent.NEXT[o.objectType]?.[(o.status ?? '').toUpperCase()];
     }
 
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<OperationalObject>[] = [
         { field: 'title', headerName: 'Title', flex: 1 },
         { field: 'status', headerName: 'Status', width: 140 },
@@ -92,25 +76,23 @@ export class ObjectsComponent implements OnInit {
         { field: 'correlationId', headerName: 'Pipeline / corr.', width: 160 },
         { field: 'createdAt', headerName: 'Created', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
         { field: 'updatedAt', headerName: 'Updated', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
-        actionsColumn<OperationalObject>(
-            [
-                {
-                    icon: 'heroicons_outline:eye',
-                    hint: 'Open details',
-                    onClick: (o) => this.open(o),
-                },
-                {
-                    icon: 'heroicons_outline:arrow-right-circle',
-                    hint: (o) => {
-                        const a = this.nextAction(o);
-                        return a ? `Advance: ${a}` : 'No further action';
-                    },
-                    visible: (o) => !!this.nextAction(o),
-                    onClick: (o) => this.advance(o),
-                },
-            ],
-            150,
-        ),
+    ];
+
+    readonly actions: InspectoRowAction<OperationalObject>[] = [
+        {
+            icon: 'heroicons_outline:eye',
+            hint: 'Open details',
+            onClick: (o) => this.open(o),
+        },
+        {
+            icon: 'heroicons_outline:arrow-right-circle',
+            hint: (o) => {
+                const a = this.nextAction(o);
+                return a ? `Advance: ${a}` : 'No further action';
+            },
+            visible: (o) => !!this.nextAction(o),
+            onClick: (o) => this.advance(o),
+        },
     ];
 
     /** Open the detail pane for an object (also the grid's row-click target). */
@@ -118,8 +100,8 @@ export class ObjectsComponent implements OnInit {
         this.router.navigate([this.type === 'CASE' ? '/cases' : '/issues', o.id]);
     }
 
-    onRowClicked(e: { data?: OperationalObject }): void {
-        if (e.data?.id) this.open(e.data);
+    onRowClicked(o: OperationalObject): void {
+        if (o?.id) this.open(o);
     }
 
     ngOnInit(): void {
@@ -165,6 +147,4 @@ export class ObjectsComponent implements OnInit {
             error: (e) => this.toastr.error(apiErrorMessage(e, 'Transition failed')),
         });
     }
-
-    readonly refreshActions = refreshActionsCells;
 }

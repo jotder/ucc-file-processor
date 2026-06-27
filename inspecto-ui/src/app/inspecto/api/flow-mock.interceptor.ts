@@ -13,7 +13,7 @@ import {
     FlowRunResult,
     FlowSummary,
 } from './flows.service';
-import { ComponentDef } from './components.service';
+import { ComponentDef, ParserPreview, ParserTreeNode } from './components.service';
 import { IconMap } from './icon-map.service';
 import { NODE_KIND_COLORS } from '../theme/chart-tokens';
 
@@ -119,6 +119,28 @@ const ICON_MAP: IconMap = {
     'sink.database': { glyph: 'database', color: C.TABLE },
 };
 
+/** In-memory ASN.1 schema-module library (mutable; locally-uploaded modules are added here). */
+const ASN1_MODULES: Record<string, string> = {
+    'cdr_3gpp_ts32297': [
+        '-- 3GPP TS 32.297 CDR record (abridged sample)',
+        'CallEventRecord ::= SEQUENCE {',
+        '    recordType        [0] INTEGER,',
+        '    servedIMSI        [1] OCTET STRING,',
+        '    callDuration      [2] INTEGER,',
+        '    recordOpeningTime [3] GeneralizedTime',
+        '}',
+    ].join('\n'),
+    'map_rel99': [
+        '-- MAP Rel-99 (abridged sample)',
+        'MAP-Protocol DEFINITIONS ::= BEGIN',
+        '    SubscriberInfo ::= SEQUENCE {',
+        '        imsi      [0] OCTET STRING,',
+        '        msisdn    [1] OCTET STRING OPTIONAL',
+        '    }',
+        'END',
+    ].join('\n'),
+};
+
 const LATENCY_MS = 200;
 
 const FLOWS = /\/flows$/;
@@ -133,9 +155,12 @@ const FLOW_GRAPH = /\/flows\/([^/]+)\/graph$/;
 const PROV_BATCHES = /\/provenance\/batches$/;
 const PROV = /\/provenance$/;
 const COMPONENT_TEST = /\/components\/([^/]+)\/([^/]+)\/test$/;
+const GRAMMAR_PREVIEW = /\/components\/grammar\/preview$/;
 const COMPONENT_ONE = /\/components\/([^/]+)\/([^/]+)$/;
 const COMPONENTS = /\/components\/([^/]+)$/;
 const ICON_MAP_RE = /\/config\/icon-map$/;
+const ASN1_MODULES_RE = /\/asn1\/modules$/;
+const ASN1_MODULE_ONE = /\/asn1\/modules\/([^/]+)$/;
 
 export const flowMockInterceptor: HttpInterceptorFn = (req, next) => {
     if (!(environment as { mockFlows?: boolean }).mockFlows) return next(req);
@@ -168,6 +193,10 @@ export const flowMockInterceptor: HttpInterceptorFn = (req, next) => {
         STORE.delete(id(m));
         return reply({ deleted: true });
     }
+    if (req.method === 'POST' && GRAMMAR_PREVIEW.test(url)) {
+        const b = (req.body ?? {}) as { parserType?: string; content?: Record<string, unknown>; sampleText?: string };
+        return reply(parsePreview(b.parserType ?? 'dsv', b.content ?? {}, b.sampleText ?? ''));
+    }
     if (req.method === 'POST' && (m = url.match(COMPONENT_TEST))) {
         return reply(componentTest(decodeURIComponent(m[1]), decodeURIComponent(m[2])));
     }
@@ -182,6 +211,21 @@ export const flowMockInterceptor: HttpInterceptorFn = (req, next) => {
         for (const k of Object.keys(ICON_MAP)) delete ICON_MAP[k];
         Object.assign(ICON_MAP, req.body as IconMap);
         return reply({ ...ICON_MAP });
+    }
+
+    // ASN.1 schema-module library — backs the parser config's `schema_spec` picker (download + upload).
+    if (req.method === 'GET' && ASN1_MODULES_RE.test(url)) {
+        return reply(Object.keys(ASN1_MODULES).map((name) => ({ name })));
+    }
+    if (req.method === 'GET' && (m = url.match(ASN1_MODULE_ONE))) {
+        const name = dec(m[1]);
+        return reply(name in ASN1_MODULES ? { name, text: ASN1_MODULES[name] } : null);
+    }
+    if (req.method === 'POST' && ASN1_MODULES_RE.test(url)) {
+        const b = (req.body ?? {}) as { name?: string; text?: string };
+        const name = String(b.name ?? 'uploaded.asn1');
+        ASN1_MODULES[name] = String(b.text ?? '');
+        return reply({ name });
     }
 
     if (req.method === 'GET' && (PROV_BATCHES.test(url) || PROV.test(url))) return reply([]);
@@ -370,6 +414,75 @@ function componentSave(type: string, body: unknown, idFromUrl?: string): Compone
     else list.push(def);
     return def;
 }
+
+/** Hierarchical parser ids preview as a tree; everything else previews as a flat table. */
+const HIERARCHICAL = new Set(['asn1', 'json', 'xml']);
+
+/**
+ * Mock the parse of `sampleText` under a parser config. DSV genuinely splits the pasted text on its
+ * configured delimiter (so the test loop feels live); the other tabular formats return canned rows, and the
+ * hierarchical formats return a small record forest for the tree view. Pure mock — no real codec.
+ */
+function parsePreview(parserType: string, content: Record<string, unknown>, sampleText: string): ParserPreview {
+    if (HIERARCHICAL.has(parserType)) {
+        return { kind: 'tree', recordCount: SAMPLE_TREE.length, nodes: SAMPLE_TREE };
+    }
+    if (parserType === 'dsv' && sampleText.trim()) {
+        return dsvPreview(content, sampleText);
+    }
+    const rows = [
+        { id: 1001, msisdn: '8801700000001', start_time: '2026-06-24 09:00:00', duration_s: 42 },
+        { id: 1002, msisdn: '8801700000002', start_time: '2026-06-24 09:01:30', duration_s: 17 },
+        { id: 1003, msisdn: '8801700000003', start_time: '2026-06-24 09:03:11', duration_s: 8 },
+    ];
+    return { kind: 'table', columns: Object.keys(rows[0]), rows, rowCount: rows.length, rejectedRows: 0 };
+}
+
+/** Split the pasted sample on the configured delimiter, honouring the header-position property. */
+function dsvPreview(content: Record<string, unknown>, sampleText: string): ParserPreview {
+    const delim = String(content['column_delimiter'] || ',');
+    const lines = sampleText.replace(/\r\n/g, '\n').split('\n').filter((l) => l.length > 0);
+    const hasHeader = String(content['header_position'] ?? 'top') === 'top';
+    const headerCells = lines.length ? lines[0].split(delim) : [];
+    const columns = hasHeader && headerCells.length
+        ? headerCells.map((c) => c.trim())
+        : headerCells.map((_, i) => `c${i}`);
+    const bodyLines = hasHeader ? lines.slice(1) : lines;
+    let rejectedRows = 0;
+    const rows: Record<string, unknown>[] = [];
+    for (const line of bodyLines) {
+        const cells = line.split(delim);
+        if (cells.length !== columns.length) { rejectedRows++; continue; }
+        const row: Record<string, unknown> = {};
+        columns.forEach((c, i) => (row[c] = cells[i]?.trim() ?? ''));
+        rows.push(row);
+    }
+    return { kind: 'table', columns, rows, rowCount: rows.length, rejectedRows };
+}
+
+/** A tiny two-record forest mirroring the seeded CDR sample, for the hierarchical (ASN.1/JSON/XML) tree view. */
+const SAMPLE_TREE: ParserTreeNode[] = [
+    {
+        label: 'record[0]', type: 'SEQUENCE', children: [
+            { label: 'id', type: 'INTEGER', value: '1001' },
+            { label: 'msisdn', type: 'string', value: '8801700000001' },
+            { label: 'call', type: 'SEQUENCE', children: [
+                { label: 'start_time', type: 'timestamp', value: '2026-06-24 09:00:00' },
+                { label: 'duration_s', type: 'INTEGER', value: '42' },
+            ] },
+        ],
+    },
+    {
+        label: 'record[1]', type: 'SEQUENCE', children: [
+            { label: 'id', type: 'INTEGER', value: '1002' },
+            { label: 'msisdn', type: 'string', value: '8801700000002' },
+            { label: 'call', type: 'SEQUENCE', children: [
+                { label: 'start_time', type: 'timestamp', value: '2026-06-24 09:01:30' },
+                { label: 'duration_s', type: 'INTEGER', value: '17' },
+            ] },
+        ],
+    },
+];
 
 function componentTest(type: string, idRef: string) {
     return {

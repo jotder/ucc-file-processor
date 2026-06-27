@@ -192,6 +192,39 @@
             <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.form }}</code></pre>
         </section>
 
+        <!-- ── Data table (mini / standard / pro / pro max) ──────────────────────────────── -->
+        <section>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">Data table</h2>
+                <button mat-stroked-button (click)="copy(snippets.dataTable)">
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard"></mat-icon>
+                    <span class="ml-1">Copy snippet</span>
+                </button>
+            </div>
+            <p class="text-secondary mb-4 text-sm">
+                One <code>&lt;inspecto-data-table [tier]&gt;</code> (<code>inspecto/data-table</code>)
+                consolidates every grid. Tiers, like phone versions:
+                <b>mini</b> = the grid;
+                <b>standard</b> = + search · filter · sort · CSV export;
+                <b>pro</b> = + the offline SQL/query editor (projection, nested AND/OR, Advanced SQL);
+                <b>pro max</b> = + save the query as a reusable rule template. The heavy logic lives in
+                framework-free <code>core/</code> (csv · quick-filter · controller) + <code>inspecto/query</code>;
+                the component is a thin shell.
+            </p>
+            <div class="mb-3">
+                <mat-button-toggle-group [value]="dtTier()" (change)="dtTier.set($event.value)"
+                                         hideSingleSelectionIndicator aria-label="Data-table tier">
+                    @for (t of dtTiers; track t) {
+                        <mat-button-toggle [value]="t">{{ t }}</mat-button-toggle>
+                    }
+                </mat-button-toggle-group>
+            </div>
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <inspecto-data-table [tier]="dtTier()" [rows]="querySource.rows" sourceName="cdr_sample" exportName="cdr_sample" />
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.dataTable }}</code></pre>
+        </section>
+
         <!-- ── Graph hosts (AntV G6) ────────────────────────────────────────────────────── -->
         <section>
             <h2 class="mb-3 text-xl font-semibold">Graph hosts (AntV G6)</h2>

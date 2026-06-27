@@ -1,0 +1,55 @@
+@if (hasToolbar()) {
+    <div class="mb-2 flex flex-wrap items-center gap-2">
+        @if (showSearch()) {
+            <mat-form-field subscriptSizing="dynamic" class="w-56">
+                <mat-label>Search</mat-label>
+                <input matInput [value]="search()" (input)="search.set($any($event.target).value)" />
+            </mat-form-field>
+        }
+        <span class="flex-1"></span>
+        @if (canQuery()) {
+            <button mat-stroked-button type="button" [class.text-primary]="queryOpen()" (click)="toggleQuery()"
+                    matTooltip="Query editor — projection, filter, SQL">
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:funnel"></mat-icon>
+                <span class="ml-1">{{ queryOpen() ? 'Grid' : 'Query' }}</span>
+            </button>
+        }
+        @if (showSave()) {
+            <button mat-stroked-button type="button" (click)="onSaveRule()"
+                    matTooltip="Save this query as a reusable rule template">
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:bookmark-square"></mat-icon>
+                <span class="ml-1">Save as rule</span>
+            </button>
+        }
+        @if (showExport()) {
+            <button mat-stroked-button type="button" (click)="exportCsv()" matTooltip="Export rows to CSV">
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+                <span class="ml-1">Export</span>
+            </button>
+        }
+    </div>
+}
+
+@if (queryOpen()) {
+    <!-- Pro / Pro Max: the offline SQL/query editor over the same rows. -->
+    <inspecto-query-panel [source]="querySource()" (queryChange)="onQueryChange($event)" />
+} @else {
+    <ag-grid-angular
+        class="w-full"
+        [style.height]="autoHeight() ? null : height()"
+        [domLayout]="autoHeight() ? 'autoHeight' : 'normal'"
+        [theme]="gridTheme.theme()"
+        [rowData]="rows()"
+        [columnDefs]="gridColumns()"
+        [defaultColDef]="defaultColDef()"
+        [quickFilterText]="search()"
+        [pagination]="true"
+        [paginationPageSize]="pageSize()"
+        [rowSelection]="singleSelect() ? 'single' : undefined"
+        [loading]="loading()"
+        [overlayNoRowsTemplate]="noRows()"
+        (rowClicked)="onRowClicked($event)"
+        (firstDataRendered)="refresh($event)"
+        (rowDataUpdated)="refresh($event)"
+    ></ag-grid-angular>
+}

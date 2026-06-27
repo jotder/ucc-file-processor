@@ -1,0 +1,227 @@
+<h2 mat-dialog-title>{{ isEdit ? 'Edit connection' : 'New connection' }}</h2>
+<form [formGroup]="form" (ngSubmit)="submit()">
+    <mat-dialog-content class="space-y-3">
+        <!-- Id + connection type -->
+        <div class="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+            <mat-form-field subscriptSizing="dynamic">
+                <mat-label>Id</mat-label>
+                <input matInput formControlName="id" required />
+                @if (form.get('id'); as c) {
+                    @if (c.hasError('required')) {
+                        <mat-error>Id is required.</mat-error>
+                    } @else if (c.hasError('pattern')) {
+                        <mat-error>Start with a letter or digit; then letters, digits, <code>. _ -</code> only.</mat-error>
+                    }
+                }
+            </mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
+                <mat-label>Connection type</mat-label>
+                <mat-select [value]="connType()" (selectionChange)="onTypeChange($event.value)">
+                    @for (t of types; track t.type) {
+                        <mat-option [value]="t.type">{{ t.label }} — {{ t.description }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+        </div>
+
+        <!-- Routing (SSH tunnel + proxy) — hidden behind a routing icon, popped open on click -->
+        <div>
+            <button
+                type="button"
+                mat-stroked-button
+                (click)="routingOpen.set(!routingOpen())"
+                [attr.aria-expanded]="routingOpen()"
+                aria-controls="routing-panel"
+                matTooltip="SSH tunnel & proxy routing"
+            >
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrows-right-left"></mat-icon>
+                <span class="ml-1">Routing</span>
+                @if (tunnelEnabled()) { <span class="ml-2 text-xs opacity-70">· SSH tunnel</span> }
+                @if (proxyEnabled()) { <span class="ml-1 text-xs opacity-70">· proxy</span> }
+            </button>
+        </div>
+
+        @if (routingOpen()) {
+        <section id="routing-panel" class="rounded-lg border p-3" style="border-color: var(--gamma-border)" aria-label="Connection routing">
+            <mat-slide-toggle [checked]="tunnelEnabled()" (change)="tunnelEnabled.set($event.checked)">
+                SSH tunnel (bastion host)
+            </mat-slide-toggle>
+            @if (tunnelEnabled()) {
+                <div formGroupName="tunnel" class="mt-2 grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                    <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Bastion host</mat-label>
+                        <input matInput formControlName="host" />
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Bastion port</mat-label>
+                        <input matInput type="number" formControlName="port" />
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Bastion username</mat-label>
+                        <input matInput formControlName="username" />
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Auth method</mat-label>
+                        <mat-select formControlName="auth">
+                            <mat-option value="password">password</mat-option>
+                            <mat-option value="key">key</mat-option>
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Bastion password / passphrase</mat-label>
+                        <input matInput formControlName="password" />
+                        <mat-hint>{{ secretHint }}</mat-hint>
+                    </mat-form-field>
+                </div>
+                <div class="mt-2">
+                    <button type="button" mat-stroked-button (click)="testTunnel()" [disabled]="tunnelTesting()">
+                        @if (tunnelTesting()) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:bolt"></mat-icon>
+                        <span class="ml-1">Test tunnel</span>
+                    </button>
+                    @if (tunnelResult(); as r) {
+                        <inspecto-alert
+                            class="mt-2 block"
+                            [variant]="r.reachable ? 'success' : 'error'"
+                            [icon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"
+                        >
+                            <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>@if (r.latencyMs != null) {
+                                · {{ r.latencyMs }} ms
+                            }
+                            <div class="text-secondary mt-0.5">{{ r.endpoint }} — {{ r.detail }}</div>
+                        </inspecto-alert>
+                    }
+                </div>
+            }
+
+            <div class="mt-3">
+                <mat-slide-toggle [checked]="proxyEnabled()" (change)="proxyEnabled.set($event.checked)">
+                    Use proxy
+                </mat-slide-toggle>
+                @if (proxyEnabled()) {
+                    <div formGroupName="proxy" class="mt-2 grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Proxy type</mat-label>
+                            <mat-select formControlName="type">
+                                <mat-option value="HTTP">HTTP</mat-option>
+                                <mat-option value="SOCKS5">SOCKS5</mat-option>
+                            </mat-select>
+                        </mat-form-field>
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Proxy host</mat-label>
+                            <input matInput formControlName="host" />
+                        </mat-form-field>
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Proxy port</mat-label>
+                            <input matInput type="number" formControlName="port" />
+                        </mat-form-field>
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Proxy username</mat-label>
+                            <input matInput formControlName="username" />
+                        </mat-form-field>
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Proxy password</mat-label>
+                            <input matInput formControlName="password" />
+                            <mat-hint>{{ secretHint }}</mat-hint>
+                        </mat-form-field>
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" mat-stroked-button (click)="testProxy()" [disabled]="proxyTesting()">
+                            @if (proxyTesting()) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:bolt"></mat-icon>
+                            <span class="ml-1">Test proxy</span>
+                        </button>
+                        @if (proxyResult(); as r) {
+                            <inspecto-alert
+                                class="mt-2 block"
+                                [variant]="r.reachable ? 'success' : 'error'"
+                                [icon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"
+                            >
+                                <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>@if (r.latencyMs != null) {
+                                    · {{ r.latencyMs }} ms
+                                }
+                                <div class="text-secondary mt-0.5">{{ r.endpoint }} — {{ r.detail }}</div>
+                            </inspecto-alert>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+        }
+
+        <!-- Per-type attributes -->
+        <section [formGroup]="attrsForm()" aria-label="Connection settings">
+            <div class="mb-1 text-xs font-semibold uppercase tracking-wider opacity-60">{{ connTypeLabel() }} settings</div>
+            <div class="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+                @for (a of attrs(); track a.key) {
+                    @switch (a.control) {
+                        @case ('checkbox') {
+                            <div class="flex items-center py-2">
+                                <mat-checkbox [formControlName]="a.key">{{ a.label }}</mat-checkbox>
+                            </div>
+                        }
+                        @case ('select') {
+                            <mat-form-field subscriptSizing="dynamic">
+                                <mat-label>{{ a.label }}</mat-label>
+                                <mat-select [formControlName]="a.key">
+                                    @for (o of a.options ?? []; track o) {
+                                        <mat-option [value]="o">{{ o }}</mat-option>
+                                    }
+                                </mat-select>
+                                @if (a.hint) { <mat-hint>{{ a.hint }}</mat-hint> }
+                            </mat-form-field>
+                        }
+                        @case ('number') {
+                            <mat-form-field subscriptSizing="dynamic">
+                                <mat-label>{{ a.label }}</mat-label>
+                                <input matInput type="number" [formControlName]="a.key" />
+                                @if (a.hint) { <mat-hint>{{ a.hint }}</mat-hint> }
+                            </mat-form-field>
+                        }
+                        @default {
+                            <mat-form-field subscriptSizing="dynamic">
+                                <mat-label>{{ a.label }}</mat-label>
+                                <input matInput [formControlName]="a.key" />
+                                @if (a.hint) {
+                                    <mat-hint>{{ a.hint }}</mat-hint>
+                                } @else if (a.control === 'password') {
+                                    <mat-hint>{{ secretHint }}</mat-hint>
+                                }
+                                @if (attrsForm().get(a.key)?.hasError('required')) {
+                                    <mat-error>{{ a.label }} is required.</mat-error>
+                                }
+                            </mat-form-field>
+                        }
+                    }
+                }
+            </div>
+        </section>
+
+        <!-- Test the entered connection (no save) -->
+        <div class="pt-1">
+            <button type="button" mat-stroked-button (click)="testConnection()" [disabled]="testing()">
+                @if (testing()) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:bolt"></mat-icon>
+                <span class="ml-1">Test connection</span>
+            </button>
+            @if (testResult(); as r) {
+                <inspecto-alert
+                    class="mt-2 block"
+                    [variant]="r.reachable ? 'success' : 'error'"
+                    [icon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"
+                >
+                    <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>@if (r.latencyMs != null) {
+                        · {{ r.latencyMs }} ms
+                    } · secrets {{ r.secretsResolved ? 'resolved' : 'unresolved' }}
+                    <div class="text-secondary mt-0.5">{{ r.endpoint }} — {{ r.detail }}</div>
+                </inspecto-alert>
+            }
+        </div>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+        <button type="button" mat-button mat-dialog-close>Cancel</button>
+        <button type="submit" mat-flat-button color="primary" [disabled]="saving()">
+            {{ isEdit ? 'Save' : 'Create' }}
+        </button>
+    </mat-dialog-actions>
+</form>

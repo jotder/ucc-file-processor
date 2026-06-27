@@ -3,18 +3,16 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
-import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, DEFAULT_REFRESH_MS, optimisticMutate, PipelinesService, PipelineView, visibleInterval } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
-import { actionsColumn, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
+import { InspectoRowAction } from 'app/inspecto/grid';
 import { ReprocessDialog } from './reprocess.dialog';
 
 /**
@@ -27,12 +25,10 @@ import { ReprocessDialog } from './reprocess.dialog';
     imports: [
         FormsModule,
         MatButtonModule,
-        MatFormFieldModule,
         MatIconModule,
-        MatInputModule,
         MatSlideToggleModule,
         MatTooltipModule,
-        AgGridAngular,
+        DataTableComponent,
     ],
     templateUrl: './pipelines.component.html',
     encapsulation: ViewEncapsulation.None,
@@ -44,48 +40,40 @@ export class PipelinesComponent implements OnInit {
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     private destroyRef = inject(DestroyRef);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     pipelines: PipelineView[] = [];
     loading = false;
     autoRefresh = true;
-    quickFilter = '';
     private dialogOpen = false;
 
-    /** Empty-state overlay shown when no pipelines are configured. */
-    readonly noRows = noRowsOverlay(
-        'No pipelines configured',
-        'Pipelines are defined by *_pipeline.toon configs on the server.',
-    );
-
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<PipelineView>[] = [
         { field: 'name', headerName: 'Pipeline', flex: 1 },
         { field: 'configPath', headerName: 'Config', flex: 2 },
         { field: 'paused', headerName: 'Paused', width: 100 },
         { field: 'committedBatches', headerName: 'Committed', width: 120 },
-        actionsColumn<PipelineView>([
-            {
-                icon: 'heroicons_outline:play',
-                hint: 'Trigger',
-                onClick: (p) => this.trigger(p.name),
-            },
-            {
-                icon: (p) => (p.paused ? 'heroicons_outline:play-circle' : 'heroicons_outline:pause-circle'),
-                hint: (p) => (p.paused ? 'Resume' : 'Pause'),
-                onClick: (p) => this.togglePause(p),
-            },
-            {
-                icon: 'heroicons_outline:arrow-path',
-                hint: 'Reprocess batch',
-                onClick: (p) => this.openReprocess(p.name),
-            },
-            {
-                icon: 'heroicons_outline:chevron-right',
-                hint: 'Open detail',
-                onClick: (p) => this.openDetail(p.name),
-            },
-        ], 200),
+    ];
+
+    readonly rowActions: InspectoRowAction<PipelineView>[] = [
+        {
+            icon: 'heroicons_outline:play',
+            hint: 'Trigger',
+            onClick: (p) => this.trigger(p.name),
+        },
+        {
+            icon: (p) => (p.paused ? 'heroicons_outline:play-circle' : 'heroicons_outline:pause-circle'),
+            hint: (p) => (p.paused ? 'Resume' : 'Pause'),
+            onClick: (p) => this.togglePause(p),
+        },
+        {
+            icon: 'heroicons_outline:arrow-path',
+            hint: 'Reprocess batch',
+            onClick: (p) => this.openReprocess(p.name),
+        },
+        {
+            icon: 'heroicons_outline:chevron-right',
+            hint: 'Open detail',
+            onClick: (p) => this.openDetail(p.name),
+        },
     ];
 
     ngOnInit(): void {
@@ -186,6 +174,4 @@ export class PipelinesComponent implements OnInit {
     openDetail(name: string): void {
         this.router.navigate(['/pipelines', name]);
     }
-
-    readonly refreshActions = refreshActionsCells;
 }

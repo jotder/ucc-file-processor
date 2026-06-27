@@ -6,10 +6,6 @@
             <div class="text-secondary mt-1.5">Stage-2 jobs: runs, lineage and rollup reports</div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
-            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
-                <mat-label>Search</mat-label>
-                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
-            </mat-form-field>
             <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>
@@ -23,19 +19,18 @@
                 No enrichment jobs are registered.
             </div>
         } @else {
-            <ag-grid-angular
-                class="h-80 w-full"
-                [theme]="themeSvc.theme()"
-                [rowData]="jobs"
-                [columnDefs]="jobColumns"
-                [defaultColDef]="defaultColDef"
-                [pagination]="true"
-                [paginationPageSize]="10"
-                [quickFilterText]="quickFilter"
+            <inspecto-data-table
+                tier="standard"
+                sourceName="enrichment_jobs"
+                exportName="enrichment_jobs"
+                [rows]="jobs"
+                [columns]="jobColumns"
                 [loading]="loading"
-                rowSelection="single"
-                (rowClicked)="onRowClick($event)"
-            ></ag-grid-angular>
+                [singleSelect]="true"
+                [pageSize]="10"
+                height="20rem"
+                (rowClick)="onRowClick($any($event))"
+            />
         }
 
         @if (selected) {
@@ -105,15 +100,15 @@
                 }
 
                 @if (activeTab !== 'report' && !detailLoading) {
-                    <ag-grid-angular
-                        class="mt-4 h-96 w-full"
-                        [theme]="themeSvc.theme()"
-                        [rowData]="rows"
-                        [columnDefs]="detailColumns"
-                        [defaultColDef]="defaultColDef"
-                        [pagination]="true"
-                        [paginationPageSize]="25"
-                    ></ag-grid-angular>
+                    <div class="mt-4">
+                        <inspecto-data-table
+                            tier="pro"
+                            sourceName="enrichment"
+                            exportName="enrichment"
+                            [rows]="rows"
+                            height="24rem"
+                        />
+                    </div>
                 }
             </div>
         }

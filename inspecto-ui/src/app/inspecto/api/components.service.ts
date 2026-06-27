@@ -3,8 +3,10 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { apiUrl } from './api-base';
 
-/** The reusable component-registry kinds (mirrors backend `ComponentStore.WRITABLE_TYPES`). */
-export type ComponentType = 'grammar' | 'schema' | 'transform' | 'sink';
+/** The reusable component-registry kinds (mirrors backend `ComponentStore.WRITABLE_TYPES`). `rule` backs the
+ *  data-table Pro Max rule templates; it is intentionally NOT in {@link COMPONENT_TYPES} (not a flow-node
+ *  palette component). */
+export type ComponentType = 'grammar' | 'schema' | 'transform' | 'sink' | 'rule';
 
 /** The component kinds, in palette order, for the list/editor. */
 export const COMPONENT_TYPES: ComponentType[] = ['grammar', 'schema', 'transform', 'sink'];
@@ -48,6 +50,47 @@ export interface SinkPreview {
     rowCount: number;
     rows: Record<string, unknown>[];
     warnings: string[];
+}
+
+/** One node in a hierarchical parse preview (ASN.1 / JSON / XML) — a labelled value with optional children. */
+export interface ParserTreeNode {
+    label: string;
+    /** The decoded value at a leaf (absent for container nodes). */
+    value?: string;
+    /** A type tag shown as a chip (e.g. `SEQUENCE`, `string`, element name). */
+    type?: string;
+    children?: ParserTreeNode[];
+}
+
+/** Flat parse preview (DSV / TXT / Parquet / XLSX / HTML / Other) — rows for the rich data grid. */
+export interface ParserTablePreview {
+    kind: 'table';
+    columns: string[];
+    rows: Record<string, unknown>[];
+    rowCount: number;
+    rejectedRows: number;
+}
+
+/** Hierarchical parse preview — a forest of records for the collapsible tree view. */
+export interface ParserTreePreview {
+    kind: 'tree';
+    recordCount: number;
+    nodes: ParserTreeNode[];
+}
+
+/** A parse-preview result — flat for tabular formats, tree for hierarchical ones (discriminated on `kind`). */
+export type ParserPreview = ParserTablePreview | ParserTreePreview;
+
+/** One ASN.1 schema module in the library (the parser's `schema_spec` references it by name). */
+export interface Asn1Module {
+    name: string;
+    description?: string;
+}
+
+/** An ASN.1 module's downloaded source text (for the read-only viewer). */
+export interface Asn1ModuleSource {
+    name: string;
+    text: string;
 }
 
 /**
@@ -102,5 +145,29 @@ export class ComponentsService {
     /** Scratch-validate a sink against sample rows (store/format/partition checks; no write). */
     testSink(id: string, sampleRows: Record<string, unknown>[]): Observable<SinkPreview> {
         return this.http.post<SinkPreview>(apiUrl(`/components/sink/${encodeURIComponent(id)}/test`), { sampleRows });
+    }
+
+    /**
+     * Parse `sampleText` with an in-progress (unsaved) parser config — the parser-editor's build-and-test
+     * loop. Returns a flat table for tabular formats or a tree for hierarchical ones (ASN.1 / JSON / XML).
+     * Stateless (no saved component id needed), scratch-only.
+     */
+    previewParse(parserType: string, content: Record<string, unknown>, sampleText: string): Observable<ParserPreview> {
+        return this.http.post<ParserPreview>(apiUrl('/components/grammar/preview'), { parserType, content, sampleText });
+    }
+
+    /** The ASN.1 schema-module library (the parser config's `schema_spec` picker options). */
+    asn1Modules(): Observable<Asn1Module[]> {
+        return this.http.get<Asn1Module[]>(apiUrl('/asn1/modules'));
+    }
+
+    /** Download one ASN.1 module's source text for the read-only viewer. */
+    asn1Module(name: string): Observable<Asn1ModuleSource> {
+        return this.http.get<Asn1ModuleSource>(apiUrl(`/asn1/modules/${encodeURIComponent(name)}`));
+    }
+
+    /** Register a locally-uploaded ASN.1 module so it joins the library and can be referenced by name. */
+    uploadAsn1Module(name: string, text: string): Observable<Asn1Module> {
+        return this.http.post<Asn1Module>(apiUrl('/asn1/modules'), { name, text });
     }
 }

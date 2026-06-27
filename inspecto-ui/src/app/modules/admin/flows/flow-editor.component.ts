@@ -37,6 +37,7 @@ import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import { FlowEditorGraphComponent } from './flow-editor-graph.component';
 import { NodeConfigDialog, NodeConfigResult } from './node-config.dialog';
+import { ParserConfigDialog } from './parser-config.dialog';
 import { RunToHereDialog } from './run-to-here.dialog';
 import {
     FlowFinding,
@@ -111,6 +112,7 @@ export class FlowEditorComponent implements OnInit {
     /** Set when a write returns 503 (no `-Dassist.write.root`) — the editor is read-only. */
     readonly unavailable = signal(false);
 
+    readonly paletteOpen = signal(false);
     readonly dryRunOpen = signal(false);
     readonly dryRunResult = signal<FlowDryRunResult | null>(null);
     readonly dryRunError = signal<string | null>(null);
@@ -378,16 +380,26 @@ export class FlowEditorComponent implements OnInit {
     }
 
     openNodeConfig(node: AuthoredNode): void {
-        const ref = this.dialog.open(NodeConfigDialog, {
-            width: '520px',
-            autoFocus: false,
-            data: {
-                node,
-                typeLabel: node.type,
-                categoryLabel: categoryLabel(this.typeCategory(node.type)),
-                bindKind: bindKindFor(this.typeCategory(node.type)),
-            },
-        });
+        const category = this.typeCategory(node.type);
+        // Parsers get the rich multi-pane parser editor; every other category uses the generic config popup.
+        const ref =
+            category === 'PARSE'
+                ? this.dialog.open(ParserConfigDialog, {
+                      width: '1100px',
+                      maxWidth: '95vw',
+                      autoFocus: false,
+                      data: { node, typeLabel: node.type, categoryLabel: categoryLabel(category) },
+                  })
+                : this.dialog.open(NodeConfigDialog, {
+                      width: '520px',
+                      autoFocus: false,
+                      data: {
+                          node,
+                          typeLabel: node.type,
+                          categoryLabel: categoryLabel(category),
+                          bindKind: bindKindFor(category),
+                      },
+                  });
         ref.afterClosed().subscribe((res?: NodeConfigResult) => {
             if (res?.node) this.applyNodePatch(res.node);
         });

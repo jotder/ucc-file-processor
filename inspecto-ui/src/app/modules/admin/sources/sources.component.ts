@@ -1,12 +1,8 @@
 import { Component, inject, OnInit, ViewEncapsulation } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef } from 'ag-grid-community';
 import { ChartData } from 'chart.js';
 import {
@@ -21,7 +17,8 @@ import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ToastrService } from 'ngx-toastr';
 import { InspectoChartComponent } from 'app/inspecto/components/chart.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
-import { actionsColumn, refreshActionsCells, INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
+import { InspectoRowAction } from 'app/inspecto/grid';
 import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
 import { SourceDetailDialog } from './source-detail.dialog';
 
@@ -40,13 +37,10 @@ interface MetricCard {
     selector: 'app-sources',
     standalone: true,
     imports: [
-        FormsModule,
         MatButtonModule,
-        MatFormFieldModule,
         MatIconModule,
-        MatInputModule,
         MatTooltipModule,
-        AgGridAngular,
+        DataTableComponent,
         InspectoChartComponent,
         InspectoEmptyStateComponent,
     ],
@@ -60,17 +54,14 @@ export class SourcesComponent implements OnInit {
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     sources: SourceView[] = [];
     loading = false;
     unavailable = false;
-    quickFilter = '';
 
     cards: MetricCard[] = [];
     discoveredData: ChartData | null = null;
 
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<SourceView>[] = [
         { field: 'pipeline', headerName: 'Pipeline', flex: 1 },
         { field: 'id', headerName: 'Source', flex: 1 },
@@ -89,18 +80,19 @@ export class SourcesComponent implements OnInit {
         },
         { field: 'fetchParallel', headerName: 'Parallel', width: 110 },
         { field: 'guarantee', headerName: 'Guarantee', width: 140 },
-        actionsColumn<SourceView>([
-            {
-                icon: 'heroicons_outline:play',
-                hint: 'Run now',
-                onClick: (s) => this.trigger(s),
-            },
-            {
-                icon: 'heroicons_outline:information-circle',
-                hint: 'Details',
-                onClick: (s) => this.openDetail(s),
-            },
-        ], 120),
+    ];
+
+    readonly rowActions: InspectoRowAction<SourceView>[] = [
+        {
+            icon: 'heroicons_outline:play',
+            hint: 'Run now',
+            onClick: (s) => this.trigger(s),
+        },
+        {
+            icon: 'heroicons_outline:information-circle',
+            hint: 'Details',
+            onClick: (s) => this.openDetail(s),
+        },
     ];
 
     ngOnInit(): void {
@@ -195,6 +187,4 @@ export class SourcesComponent implements OnInit {
     openDetail(source: SourceView): void {
         this.dialog.open(SourceDetailDialog, { data: source, width: '680px', maxHeight: '85vh' });
     }
-
-    readonly refreshActions = refreshActionsCells;
 }

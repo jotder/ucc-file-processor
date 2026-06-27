@@ -81,17 +81,19 @@ function mockDetail(id: string): ConnectionProfile {
 
 function mockProfileTest(p: Partial<ConnectionProfile> | null, target: string): ConnectionTestResult {
     const prof = p ?? {};
-    const isTunnel = target === 'tunnel';
-    const tunnel = (prof as ConnectionProfile).tunnel;
-    const host = isTunnel ? tunnel?.host : prof.host;
-    const port = isTunnel ? tunnel?.port : prof.port;
+    const profile = prof as ConnectionProfile;
     const connector = prof.connector || 'sftp';
     const id = prof.id || '(unsaved)';
-    if (!isTunnel && connector === 'local') {
+    // Pick the endpoint under test: the bastion hop, the proxy, or the connection itself.
+    const hop = target === 'tunnel' ? profile.tunnel : target === 'proxy' ? profile.proxy : null;
+    const label = target === 'tunnel' ? 'tunnel' : target === 'proxy' ? 'proxy' : '';
+    const host = hop ? hop.host : prof.host;
+    const port = hop ? hop.port : prof.port;
+    if (!hop && connector === 'local') {
         return { id, connector, endpoint: 'local', reachable: true, latencyMs: 0, secretsResolved: true, detail: 'local source — no remote endpoint to test' };
     }
     if (!host) {
-        return { id, connector, endpoint: isTunnel ? 'tunnel: (none)' : '(no host)', reachable: false, secretsResolved: true, detail: `no ${isTunnel ? 'tunnel ' : ''}host configured` };
+        return { id, connector, endpoint: label ? `${label}: (none)` : '(no host)', reachable: false, secretsResolved: true, detail: `no ${label ? label + ' ' : ''}host configured` };
     }
     const reachable = !String(host).toLowerCase().includes('down');
     return { id, connector, endpoint: `${host}:${port ?? '?'}`, reachable, latencyMs: reachable ? 14 : undefined, secretsResolved: true, detail: reachable ? 'TCP connect ok' : 'connect timed out' };

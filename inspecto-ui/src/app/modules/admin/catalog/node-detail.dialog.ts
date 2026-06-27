@@ -2,10 +2,9 @@ import { Component, inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AgGridAngular } from 'ag-grid-angular';
-import { ColDef, RowClickedEvent } from 'ag-grid-community';
+import { ColDef } from 'ag-grid-community';
 import { CatalogService, MetadataNode, NodeDetail } from 'app/inspecto/api';
-import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
 import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.component';
 
 /**
@@ -14,7 +13,7 @@ import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.compo
  */
 @Component({
     standalone: true,
-    imports: [MatDialogModule, MatButtonModule, MatProgressSpinnerModule, AgGridAngular, AssistPanelComponent],
+    imports: [MatDialogModule, MatButtonModule, MatProgressSpinnerModule, DataTableComponent, AssistPanelComponent],
     template: `
         <h2 mat-dialog-title>{{ detail?.node?.label || 'Node' }}</h2>
         <mat-dialog-content>
@@ -43,14 +42,16 @@ import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.compo
                 <div class="mt-4 font-semibold">
                     Neighbours ({{ detail.neighbors.nodes.length }} nodes, {{ detail.neighbors.edges.length }} edges)
                 </div>
-                <ag-grid-angular
-                    class="mt-2 h-48 w-full"
-                    [theme]="gridTheme.theme()"
-                    [rowData]="detail.neighbors.nodes"
-                    [columnDefs]="neighbourColumns"
-                    [defaultColDef]="defaultColDef"
-                    (rowClicked)="onNeighbourClicked($event)">
-                </ag-grid-angular>
+                <inspecto-data-table
+                    tier="mini"
+                    sourceName="neighbours"
+                    [rows]="detail.neighbors.nodes"
+                    [columns]="neighbourColumns"
+                    height="12rem"
+                    noRowsTitle="No neighbours"
+                    (rowClick)="onNeighbourClicked($any($event))"
+                />
+
 
                 <div class="mt-4 font-semibold">Explain this entity</div>
                 <!-- re-keyed on node id so the panel resets while walking neighbours -->
@@ -71,8 +72,6 @@ import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.compo
 })
 export class NodeDetailDialog {
     private api = inject(CatalogService);
-    readonly gridTheme = inject(InspectoGridThemeService);
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     loading = false;
     detail: NodeDetail | null = null;
@@ -97,8 +96,8 @@ export class NodeDetailDialog {
         });
     }
 
-    onNeighbourClicked(e: RowClickedEvent<MetadataNode>): void {
-        if (e.data) this.load(e.data.id);
+    onNeighbourClicked(row: MetadataNode): void {
+        if (row) this.load(row.id);
     }
 
     pretty(v: unknown): string {

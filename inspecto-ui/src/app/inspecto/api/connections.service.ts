@@ -11,6 +11,15 @@ export interface ConnectionTunnel {
     password?: string; // a ${…} reference or '***' — never a value
 }
 
+/** An HTTP/SOCKS proxy in front of a target system (part of a connection profile). */
+export interface ConnectionProxy {
+    type: string; // HTTP | SOCKS5
+    host: string;
+    port?: number;
+    username?: string;
+    password?: string; // a ${…} reference or '***' — never a value
+}
+
 /**
  * A reusable remote-system connection profile (GET /connections) — host/port/credentials/database/base
  * path for a source, authored as a `*_connection.toon` and referenced by pipelines via `source.connection`.
@@ -27,6 +36,7 @@ export interface ConnectionProfile {
     password?: string;
     options?: Record<string, string>;
     tunnel?: ConnectionTunnel;
+    proxy?: ConnectionProxy;
 }
 
 /** The outcome of POST /connections/{id}/test — a TCP reachability + secret-resolution probe. */
@@ -63,7 +73,7 @@ export class ConnectionsService {
      * Test an <em>unsaved</em> profile straight from a form (no persistence). {@code target} selects which
      * endpoint to probe — the connection itself or its SSH tunnel hop.
      */
-    testProfile(profile: ConnectionProfile, target: 'connection' | 'tunnel' = 'connection'): Observable<ConnectionTestResult> {
+    testProfile(profile: ConnectionProfile, target: 'connection' | 'tunnel' | 'proxy' = 'connection'): Observable<ConnectionTestResult> {
         return this.http.post<ConnectionTestResult>(apiUrl('/connections/test'), profile, { params: toParams({ target }) });
     }
 

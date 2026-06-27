@@ -1,6 +1,7 @@
-import { Component, inject } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -8,9 +9,11 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ConnectionProfile, ConnectionsService, ConnectionTestResult } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { CONNECTION_TYPES, attrsFor, connTypeDef, typeForConnector } from './connection-types';
 
 /** Dialog data: `profile` set ⇒ edit mode (id locked); absent ⇒ create. */
 interface ConnectionFormData {
@@ -24,9 +27,11 @@ export interface ConnectionFormResult {
 }
 
 /**
- * Create/edit a connection profile. Secrets are authored as `${ENV:…}` references, never raw values;
- * on edit the masked `'***'` is preserved server-side when re-submitted unchanged. Submits to
- * POST /connections (create) or PUT /connections/{id} (edit).
+ * Create/edit a connection profile — a schema-driven, typed form (mirrors the parser-config dialog). A
+ * connection-type dropdown (Database / FTP / FTPS / Local / SFTP) drives the per-type attribute sheet; the
+ * shared SSH-tunnel (bastion) and proxy routing sit at the top of the form (the tunnel is on by default for
+ * a new connection). Secrets are authored as `${ENV:…}` references, never raw values; on edit a masked
+ * `'***'` is preserved server-side. Submits to POST /connections (create) or PUT /connections/{id} (edit).
  */
 @Component({
     selector: 'app-connection-form-dialog',
@@ -35,172 +40,18 @@ export interface ConnectionFormResult {
         ReactiveFormsModule,
         MatDialogModule,
         MatButtonModule,
+        MatCheckboxModule,
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
         MatProgressSpinnerModule,
         MatSelectModule,
         MatSlideToggleModule,
+        MatTooltipModule,
         InspectoAlertComponent,
     ],
-    template: `
-        <h2 mat-dialog-title>{{ isEdit ? 'Edit connection' : 'New connection' }}</h2>
-        <form [formGroup]="form" (ngSubmit)="submit()">
-            <mat-dialog-content class="space-y-2">
-                <div class="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-                    <mat-form-field subscriptSizing="dynamic">
-                        <mat-label>Id</mat-label>
-                        <input matInput formControlName="id" required />
-                        @if (form.get('id'); as c) {
-                            @if (c.hasError('required')) {
-                                <mat-error>Id is required.</mat-error>
-                            } @else if (c.hasError('pattern')) {
-                                <mat-error>Start with a letter or digit; then letters, digits, <code>. _ -</code> only.</mat-error>
-                            }
-                        }
-                    </mat-form-field>
-                    <mat-form-field subscriptSizing="dynamic">
-                        <mat-label>Connector</mat-label>
-                        <mat-select formControlName="connector" required>
-                            @for (c of connectors; track c) {
-                                <mat-option [value]="c">{{ c }}</mat-option>
-                            }
-                        </mat-select>
-                        @if (form.get('connector')?.hasError('required')) {
-                            <mat-error>Choose a connector.</mat-error>
-                        }
-                    </mat-form-field>
-                    <mat-form-field subscriptSizing="dynamic">
-                        <mat-label>Host</mat-label>
-                        <input matInput formControlName="host" />
-                    </mat-form-field>
-                    <mat-form-field subscriptSizing="dynamic">
-                        <mat-label>Port</mat-label>
-                        <input matInput type="number" formControlName="port" />
-                    </mat-form-field>
-                    <mat-form-field subscriptSizing="dynamic">
-                        <mat-label>Database</mat-label>
-                        <input matInput formControlName="database" />
-                    </mat-form-field>
-                    <mat-form-field subscriptSizing="dynamic">
-                        <mat-label>Base path</mat-label>
-                        <input matInput formControlName="basePath" />
-                    </mat-form-field>
-                    <mat-form-field subscriptSizing="dynamic">
-                        <mat-label>Username</mat-label>
-                        <input matInput formControlName="username" />
-                    </mat-form-field>
-                    <mat-form-field subscriptSizing="dynamic">
-                        <mat-label>Password</mat-label>
-                        <input matInput formControlName="password" />
-                        <mat-hint>a $&#123;ENV:VAR&#125; reference, not a raw secret</mat-hint>
-                    </mat-form-field>
-                </div>
-
-                <!-- Test the entered connection (no save) -->
-                <div class="pt-1">
-                    <button type="button" mat-stroked-button (click)="testConnection()" [disabled]="testing">
-                        @if (testing) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
-                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:bolt"></mat-icon>
-                        <span class="ml-1">Test connection</span>
-                    </button>
-                    @if (testResult; as r) {
-                        <inspecto-alert
-                            class="mt-2 block"
-                            [variant]="r.reachable ? 'success' : 'error'"
-                            [icon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"
-                        >
-                            <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>@if (r.latencyMs != null) {
-                                · {{ r.latencyMs }} ms
-                            } · secrets {{ r.secretsResolved ? 'resolved' : 'unresolved' }}
-                            <div class="text-secondary mt-0.5">{{ r.endpoint }} — {{ r.detail }}</div>
-                        </inspecto-alert>
-                    }
-                </div>
-
-                <!-- Options key/value editor -->
-                <div class="pt-2">
-                    <div class="mb-1 flex items-center justify-between">
-                        <span class="font-medium">Options</span>
-                        <button type="button" mat-stroked-button (click)="addOption()">
-                            <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-                            <span class="ml-1">Add</span>
-                        </button>
-                    </div>
-                    <div formArrayName="options" class="space-y-2">
-                        @for (o of options.controls; track o; let i = $index) {
-                            <div [formGroupName]="i" class="flex items-center gap-2">
-                                <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                                    <mat-label>Key</mat-label>
-                                    <input matInput formControlName="key" />
-                                </mat-form-field>
-                                <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                                    <mat-label>Value</mat-label>
-                                    <input matInput formControlName="value" />
-                                </mat-form-field>
-                                <button type="button" mat-icon-button (click)="removeOption(i)" aria-label="Remove option">
-                                    <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
-                                </button>
-                            </div>
-                        }
-                    </div>
-                </div>
-
-                <!-- Optional tunnel -->
-                <div class="pt-2">
-                    <mat-slide-toggle [checked]="tunnelEnabled" (change)="toggleTunnel($event.checked)">
-                        SSH tunnel (bastion hop)
-                    </mat-slide-toggle>
-                    @if (tunnelEnabled) {
-                        <div formGroupName="tunnel" class="mt-2 grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-                            <mat-form-field subscriptSizing="dynamic">
-                                <mat-label>Tunnel host</mat-label>
-                                <input matInput formControlName="host" />
-                            </mat-form-field>
-                            <mat-form-field subscriptSizing="dynamic">
-                                <mat-label>Tunnel port</mat-label>
-                                <input matInput type="number" formControlName="port" />
-                            </mat-form-field>
-                            <mat-form-field subscriptSizing="dynamic">
-                                <mat-label>Tunnel username</mat-label>
-                                <input matInput formControlName="username" />
-                            </mat-form-field>
-                            <mat-form-field subscriptSizing="dynamic">
-                                <mat-label>Tunnel password</mat-label>
-                                <input matInput formControlName="password" />
-                                <mat-hint>a $&#123;ENV:VAR&#125; reference</mat-hint>
-                            </mat-form-field>
-                        </div>
-                        <div class="mt-2">
-                            <button type="button" mat-stroked-button (click)="testTunnel()" [disabled]="tunnelTesting">
-                                @if (tunnelTesting) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
-                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:bolt"></mat-icon>
-                                <span class="ml-1">Test tunnel</span>
-                            </button>
-                            @if (tunnelResult; as r) {
-                                <inspecto-alert
-                                    class="mt-2 block"
-                                    [variant]="r.reachable ? 'success' : 'error'"
-                                    [icon]="r.reachable ? 'heroicons_outline:check-circle' : 'heroicons_outline:x-circle'"
-                                >
-                                    <span class="font-semibold">{{ r.reachable ? 'Reachable' : 'Unreachable' }}</span>@if (r.latencyMs != null) {
-                                        · {{ r.latencyMs }} ms
-                                    }
-                                    <div class="text-secondary mt-0.5">{{ r.endpoint }} — {{ r.detail }}</div>
-                                </inspecto-alert>
-                            }
-                        </div>
-                    }
-                </div>
-            </mat-dialog-content>
-            <mat-dialog-actions align="end">
-                <button type="button" mat-button mat-dialog-close>Cancel</button>
-                <button type="submit" mat-flat-button color="primary" [disabled]="form.invalid || saving">
-                    {{ isEdit ? 'Save' : 'Create' }}
-                </button>
-            </mat-dialog-actions>
-        </form>
-    `,
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    templateUrl: './connection-form.dialog.html',
 })
 export class ConnectionFormDialog {
     private fb = inject(FormBuilder);
@@ -209,29 +60,46 @@ export class ConnectionFormDialog {
     private ref = inject(MatDialogRef<ConnectionFormDialog, ConnectionFormResult>);
     readonly data = inject<ConnectionFormData>(MAT_DIALOG_DATA);
 
-    readonly connectors = ['local', 'sftp', 'ftp', 'ftps', 'db'];
+    readonly types = CONNECTION_TYPES;
     readonly isEdit = !!this.data.profile;
-    tunnelEnabled = false;
-    saving = false;
-    testing = false;
-    testResult: ConnectionTestResult | null = null;
-    tunnelTesting = false;
-    tunnelResult: ConnectionTestResult | null = null;
+    readonly secretHint = 'a ${ENV:VAR} reference, not a raw secret';
 
-    form: FormGroup = this.fb.group({
+    /** Selected connection type → drives the per-type attribute sheet + the saved `connector`. */
+    readonly connType = signal<string>(this.data.profile ? typeForConnector(this.data.profile.connector) : 'sftp');
+    readonly attrs = computed(() => attrsFor(this.connType()));
+    readonly connTypeLabel = computed(() => connTypeDef(this.connType()).label);
+
+    /** The routing panel (SSH tunnel + proxy) is hidden behind a routing icon; this pops it open. */
+    readonly routingOpen = signal(false);
+    /** SSH tunnel (bastion) and proxy are both unselected initially. */
+    readonly tunnelEnabled = signal(false);
+    readonly proxyEnabled = signal(false);
+
+    readonly saving = signal(false);
+    readonly testing = signal(false);
+    readonly testResult = signal<ConnectionTestResult | null>(null);
+    readonly tunnelTesting = signal(false);
+    readonly tunnelResult = signal<ConnectionTestResult | null>(null);
+    readonly proxyTesting = signal(false);
+    readonly proxyResult = signal<ConnectionTestResult | null>(null);
+
+    /** The per-type attribute form (rebuilt whenever the connection type changes). */
+    readonly attrsForm = signal<FormGroup>(this.fb.group({}));
+
+    readonly form = this.fb.group({
         id: [
             { value: '', disabled: this.isEdit },
             [Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)],
         ],
-        connector: ['local', Validators.required],
-        host: [''],
-        port: [null as number | null],
-        database: [''],
-        basePath: [''],
-        username: [''],
-        password: [''],
-        options: this.fb.array([] as FormGroup[]),
         tunnel: this.fb.group({
+            host: [''],
+            port: [22 as number | null],
+            username: [''],
+            auth: ['password'],
+            password: [''],
+        }),
+        proxy: this.fb.group({
+            type: ['HTTP'],
             host: [''],
             port: [null as number | null],
             username: [''],
@@ -241,124 +109,163 @@ export class ConnectionFormDialog {
 
     constructor() {
         const p = this.data.profile;
+        this.rebuildAttrs(this.connType(), p);
         if (p) {
-            this.form.patchValue({
-                id: p.id,
-                connector: p.connector,
-                host: p.host ?? '',
-                port: p.port ?? null,
-                database: p.database ?? '',
-                basePath: p.basePath ?? '',
-                username: p.username ?? '',
-                password: p.password ?? '',
-            });
-            for (const [key, value] of Object.entries(p.options ?? {})) {
-                this.options.push(this.fb.group({ key: [key], value: [value] }));
-            }
+            this.form.patchValue({ id: p.id });
+            // On edit, reflect the stored routing (a new connection keeps the default-on tunnel).
+            this.tunnelEnabled.set(!!p.tunnel?.host);
             if (p.tunnel?.host) {
-                this.tunnelEnabled = true;
-                this.form.get('tunnel')!.patchValue({
+                this.form.controls.tunnel.patchValue({
                     host: p.tunnel.host,
-                    port: p.tunnel.port ?? null,
+                    port: p.tunnel.port ?? 22,
                     username: p.tunnel.username ?? '',
                     password: p.tunnel.password ?? '',
                 });
             }
+            if (p.proxy?.host) {
+                this.proxyEnabled.set(true);
+                this.form.controls.proxy.patchValue({
+                    type: p.proxy.type ?? 'HTTP',
+                    host: p.proxy.host,
+                    port: p.proxy.port ?? null,
+                    username: p.proxy.username ?? '',
+                    password: p.proxy.password ?? '',
+                });
+            }
+            // Reveal the routing panel up front when an existing profile already uses a tunnel or proxy.
+            if (p.tunnel?.host || p.proxy?.host) this.routingOpen.set(true);
         }
     }
 
-    get options(): FormArray {
-        return this.form.get('options') as FormArray;
+    /** Switch connection type → rebuild the attribute sheet to that type's defaults; clear the stale test. */
+    onTypeChange(type: string): void {
+        this.connType.set(type);
+        this.rebuildAttrs(type);
+        this.testResult.set(null);
     }
 
-    addOption(): void {
-        this.options.push(this.fb.group({ key: [''], value: [''] }));
+    /** (Re)build the per-type attribute form, seeding from {@code profile} (edit) or the type defaults. */
+    private rebuildAttrs(type: string, profile?: ConnectionProfile): void {
+        const fields = profile as unknown as Record<string, unknown> | undefined;
+        const group: Record<string, unknown[]> = {};
+        for (const a of attrsFor(type)) {
+            const fallback = a.default ?? (a.control === 'checkbox' ? false : '');
+            const stored = profile ? (a.target === 'option' ? profile.options?.[a.key] : fields?.[a.target]) : undefined;
+            let init: unknown = stored ?? fallback;
+            if (a.control === 'checkbox') init = init === true || init === 'true';
+            group[a.key] = [init, a.required ? [Validators.required] : []];
+        }
+        this.attrsForm.set(this.fb.group(group));
     }
 
-    removeOption(i: number): void {
-        this.options.removeAt(i);
-    }
-
-    toggleTunnel(on: boolean): void {
-        this.tunnelEnabled = on;
-    }
-
-    /** Test the entered connection endpoint without saving (build the profile from the form, probe it). */
-    testConnection(): void {
-        this.testing = true;
-        this.testResult = null;
-        this.api.testProfile(this.build(), 'connection').subscribe({
-            next: (r) => {
-                this.testing = false;
-                this.testResult = r;
-            },
-            error: (e) => {
-                this.testing = false;
-                this.toastr.warning(apiErrorMessage(e, 'Test failed'));
-            },
-        });
-    }
-
-    /** Test the SSH tunnel/bastion hop without saving. */
-    testTunnel(): void {
-        this.tunnelTesting = true;
-        this.tunnelResult = null;
-        this.api.testProfile(this.build(), 'tunnel').subscribe({
-            next: (r) => {
-                this.tunnelTesting = false;
-                this.tunnelResult = r;
-            },
-            error: (e) => {
-                this.tunnelTesting = false;
-                this.toastr.warning(apiErrorMessage(e, 'Tunnel test failed'));
-            },
-        });
-    }
-
+    /** Assemble the ConnectionProfile from the form (type-mapped fields + options + tunnel + proxy). */
     private build(): ConnectionProfile {
-        const v = this.form.getRawValue();
+        const def = connTypeDef(this.connType());
+        const id = String(this.form.getRawValue().id ?? '').trim();
+        const profile: ConnectionProfile = { id, connector: def.connector };
+        const fields = profile as unknown as Record<string, unknown>;
+        const raw = this.attrsForm().getRawValue() as Record<string, unknown>;
         const options: Record<string, string> = {};
-        for (const o of v.options as { key: string; value: string }[]) {
-            if (o.key?.trim()) options[o.key.trim()] = o.value ?? '';
+        for (const a of def.attrs) {
+            let v = raw[a.key];
+            if (a.control === 'number') v = v === '' || v == null ? null : Number(v);
+            if (a.target === 'option') {
+                if (a.control === 'checkbox') options[a.key] = v ? 'true' : 'false';
+                else if (v !== '' && v != null) options[a.key] = String(v);
+            } else if (v !== '' && v != null) {
+                fields[a.target] = v;
+            }
         }
-        const profile: ConnectionProfile = {
-            id: v.id,
-            connector: v.connector,
-        };
-        if (v.host) profile.host = v.host;
-        if (v.port != null) profile.port = Number(v.port);
-        if (v.database) profile.database = v.database;
-        if (v.basePath) profile.basePath = v.basePath;
-        if (v.username) profile.username = v.username;
-        if (v.password) profile.password = v.password;
         if (Object.keys(options).length) profile.options = options;
-        if (this.tunnelEnabled && v.tunnel?.host) {
+
+        const t = this.form.getRawValue().tunnel;
+        if (this.tunnelEnabled() && t?.host) {
             profile.tunnel = {
-                host: v.tunnel.host,
-                port: v.tunnel.port != null ? Number(v.tunnel.port) : undefined,
-                username: v.tunnel.username || undefined,
-                password: v.tunnel.password || undefined,
+                host: t.host,
+                port: t.port != null ? Number(t.port) : undefined,
+                username: t.username || undefined,
+                password: t.password || undefined,
+            };
+        }
+        const px = this.form.getRawValue().proxy;
+        if (this.proxyEnabled() && px?.host) {
+            profile.proxy = {
+                type: px.type ?? 'HTTP',
+                host: px.host,
+                port: px.port != null ? Number(px.port) : undefined,
+                username: px.username || undefined,
+                password: px.password || undefined,
             };
         }
         return profile;
     }
 
+    /** Test the entered connection endpoint without saving. */
+    testConnection(): void {
+        this.testing.set(true);
+        this.testResult.set(null);
+        this.api.testProfile(this.build(), 'connection').subscribe({
+            next: (r) => {
+                this.testing.set(false);
+                this.testResult.set(r);
+            },
+            error: (e) => {
+                this.testing.set(false);
+                this.toastr.warning(apiErrorMessage(e, 'Test failed'));
+            },
+        });
+    }
+
+    /** Test the SSH tunnel / bastion hop without saving. */
+    testTunnel(): void {
+        this.tunnelTesting.set(true);
+        this.tunnelResult.set(null);
+        this.api.testProfile(this.build(), 'tunnel').subscribe({
+            next: (r) => {
+                this.tunnelTesting.set(false);
+                this.tunnelResult.set(r);
+            },
+            error: (e) => {
+                this.tunnelTesting.set(false);
+                this.toastr.warning(apiErrorMessage(e, 'Tunnel test failed'));
+            },
+        });
+    }
+
+    /** Test the proxy hop without saving. */
+    testProxy(): void {
+        this.proxyTesting.set(true);
+        this.proxyResult.set(null);
+        this.api.testProfile(this.build(), 'proxy').subscribe({
+            next: (r) => {
+                this.proxyTesting.set(false);
+                this.proxyResult.set(r);
+            },
+            error: (e) => {
+                this.proxyTesting.set(false);
+                this.toastr.warning(apiErrorMessage(e, 'Proxy test failed'));
+            },
+        });
+    }
+
     submit(): void {
-        if (this.form.invalid) {
-            this.form.markAllAsTouched(); // surface inline mat-error messages
+        const af = this.attrsForm();
+        if (this.form.invalid || af.invalid) {
+            this.form.markAllAsTouched();
+            af.markAllAsTouched();
             return;
         }
         const profile = this.build();
-        this.saving = true;
+        this.saving.set(true);
         const req$ = this.isEdit ? this.api.update(profile.id, profile) : this.api.create(profile);
         req$.subscribe({
             next: (saved) => {
-                this.saving = false;
+                this.saving.set(false);
                 this.toastr.success(`Connection "${profile.id}" ${this.isEdit ? 'updated' : 'created'}`);
                 this.ref.close({ saved });
             },
             error: (e) => {
-                this.saving = false;
+                this.saving.set(false);
                 const msg =
                     e?.status === 503
                         ? 'Writes are disabled (no write root configured).'

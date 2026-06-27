@@ -6,10 +6,6 @@
             <div class="text-secondary mt-1.5">Pipeline runs and lifecycle actions</div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
-            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
-                <mat-label>Search</mat-label>
-                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
-            </mat-form-field>
             <mat-slide-toggle [(ngModel)]="autoRefresh">Auto</mat-slide-toggle>
             <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
@@ -23,20 +19,17 @@
 
     <!-- Main -->
     <div class="flex flex-auto flex-col p-6 sm:p-10">
-        <ag-grid-angular
-            class="w-full"
-            [domLayout]="'autoHeight'"
-            [theme]="themeSvc.theme()"
-            [rowData]="pipelines"
-            [columnDefs]="columnDefs"
-            [defaultColDef]="defaultColDef"
-            [pagination]="pipelines.length > 25"
-            [paginationPageSize]="25"
-            [quickFilterText]="quickFilter"
+        <inspecto-data-table
+            tier="standard"
+            sourceName="pipelines"
+            exportName="pipelines"
+            [rows]="pipelines"
+            [columns]="columnDefs"
+            [rowActions]="rowActions"
             [loading]="loading"
-            [overlayNoRowsTemplate]="noRows"
-            (firstDataRendered)="refreshActions($event)"
-            (rowDataUpdated)="refreshActions($event)"
-        ></ag-grid-angular>
+            [autoHeight]="true"
+            noRowsTitle="No pipelines configured"
+            noRowsHint="Pipelines are defined by *_pipeline.toon configs on the server."
+        />
     </div>
 </div>

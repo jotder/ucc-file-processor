@@ -73,3 +73,11 @@ body.dark {
         caret-color: var(--gamma-primary);
     }
 }
+
+/* Full-screen dialog toggle: the panel class is added/removed at runtime (e.g. the parser-config dialog's
+ * full-screen button). !important beats the inline width/maxWidth the dialog was opened with. */
+.dialog-fullscreen.cdk-overlay-pane {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+}

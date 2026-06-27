@@ -9,7 +9,6 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AgGridAngular } from 'ag-grid-angular';
 import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { Subscription } from 'rxjs';
 import {
@@ -24,13 +23,8 @@ import {
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
-import {
-    actionsColumn,
-    fmtDateTime,
-    INSPECTO_DEFAULT_COL_DEF,
-    InspectoGridThemeService,
-    refreshActionsCells,
-} from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
+import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { ToastrService } from 'ngx-toastr';
 import { EventDetailDialog, EventDrilldown } from './event-detail.dialog';
 
@@ -57,8 +51,8 @@ const LIVE_TAIL_MS = 5000;
         MatSelectModule,
         MatSlideToggleModule,
         MatTooltipModule,
-        AgGridAngular,
         InspectoEmptyStateComponent,
+        DataTableComponent,
     ],
     templateUrl: './events.component.html',
     encapsulation: ViewEncapsulation.None,
@@ -68,7 +62,6 @@ export class EventsComponent implements OnInit, OnDestroy {
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     readonly levels = EVENT_LEVELS;
     readonly types = EVENT_TYPES;
@@ -93,7 +86,6 @@ export class EventsComponent implements OnInit, OnDestroy {
     selectedView = '';
     saveName = '';
 
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
     readonly columnDefs: ColDef<EventRow>[] = [
         { headerName: 'Time', width: 180, valueGetter: (p) => p.data?.ts, valueFormatter: (p) => fmtDateTime(p.value) },
         {
@@ -107,13 +99,14 @@ export class EventsComponent implements OnInit, OnDestroy {
         { field: 'correlationId', headerName: 'Correlation', width: 150, valueFormatter: (p) => p.value ?? '—' },
         { field: 'source', headerName: 'Source', flex: 1, minWidth: 160 },
         { field: 'message', headerName: 'Message', flex: 2, minWidth: 220 },
-        actionsColumn<EventRow>([
-            {
-                icon: 'heroicons_outline:information-circle',
-                hint: 'Details',
-                onClick: (e) => this.openDetail(e),
-            },
-        ], 80),
+    ];
+
+    readonly actions: InspectoRowAction<EventRow>[] = [
+        {
+            icon: 'heroicons_outline:information-circle',
+            hint: 'Details',
+            onClick: (e) => this.openDetail(e),
+        },
     ];
 
     ngOnInit(): void {
@@ -263,6 +256,4 @@ export class EventsComponent implements OnInit, OnDestroy {
             error: () => this.toastr.error('Delete failed'),
         });
     }
-
-    readonly refreshActions = refreshActionsCells;
 }

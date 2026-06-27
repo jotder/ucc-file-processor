@@ -9,8 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
-import { AgGridAngular } from 'ag-grid-angular';
-import { ColDef, RowClickedEvent } from 'ag-grid-community';
+import { ColDef } from 'ag-grid-community';
 import {
     CatalogService,
     GraphDirection,
@@ -19,7 +18,8 @@ import {
     MetadataNode,
     NodeKind,
 } from 'app/inspecto/api';
-import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, fmtDateTime, noRowsOverlay } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
+import { fmtDateTime } from 'app/inspecto/grid';
 import { G6GraphData, legendFor, toG6Data } from './catalog-graph';
 import { GraphViewComponent } from './graph-view.component';
 import { NodeDetailDialog } from './node-detail.dialog';
@@ -43,7 +43,7 @@ type CatTab = 'tables' | 'kpis' | 'graph';
         MatProgressSpinnerModule,
         MatSelectModule,
         MatTabsModule,
-        AgGridAngular,
+        DataTableComponent,
         GraphViewComponent,
     ],
     templateUrl: './catalog.component.html',
@@ -51,8 +51,6 @@ type CatTab = 'tables' | 'kpis' | 'graph';
 export class CatalogComponent implements OnInit {
     private api = inject(CatalogService);
     private dialog = inject(MatDialog);
-    readonly gridTheme = inject(InspectoGridThemeService);
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     readonly tabs: { id: CatTab; label: string }[] = [
         { id: 'tables', label: 'Tables' },
@@ -67,11 +65,6 @@ export class CatalogComponent implements OnInit {
     loading = false;
     nodes: MetadataNode[] = [];
     kpis: KpiCatalogEntry[] = [];
-    search = '';
-
-    /** Empty-state overlays for the Tables / KPIs grids. */
-    readonly noRowsTables = noRowsOverlay('No tables found', 'No catalog tables match the current filter.');
-    readonly noRowsKpis = noRowsOverlay('No KPIs found', 'No KPI definitions are registered in the catalog.');
 
     // graph traversal
     graphFrom = '';
@@ -162,7 +155,7 @@ export class CatalogComponent implements OnInit {
             });
     }
 
-    onNodeRowClicked(e: RowClickedEvent<MetadataNode>): void {
-        if (e.data) this.openNode(e.data.id);
+    onNodeRowClicked(row: MetadataNode): void {
+        if (row) this.openNode(row.id);
     }
 }

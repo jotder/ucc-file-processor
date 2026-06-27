@@ -10,10 +10,6 @@
                 <mat-label>Limit</mat-label>
                 <input matInput type="number" min="1" max="500" [(ngModel)]="limit" />
             </mat-form-field>
-            <mat-form-field class="gamma-mat-dense w-56" subscriptSizing="dynamic">
-                <mat-label>Search</mat-label>
-                <input matInput [(ngModel)]="quickFilter" placeholder="filter rows…" />
-            </mat-form-field>
             <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>
@@ -22,18 +18,16 @@
 
     <!-- Main -->
     <div class="flex flex-auto flex-col p-6 sm:p-10">
-        <ag-grid-angular
-            class="h-[42rem] w-full"
-            [theme]="themeSvc.theme()"
-            [rowData]="diagnoses"
-            [columnDefs]="columnDefs"
-            [defaultColDef]="defaultColDef"
-            [pagination]="true"
-            [paginationPageSize]="25"
-            [quickFilterText]="quickFilter"
+        <inspecto-data-table
+            tier="standard"
+            sourceName="diagnoses"
+            exportName="diagnoses"
+            [rows]="diagnoses"
+            [columns]="columnDefs"
             [loading]="loading"
-            [overlayNoRowsTemplate]="noRows"
-            (rowClicked)="openDetail($event)"
-        ></ag-grid-angular>
+            noRowsTitle="No diagnoses yet"
+            noRowsHint="None recorded, or the assist agent is not running."
+            (rowClick)="openDetail($any($event))"
+        />
     </div>
 </div>

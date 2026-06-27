@@ -6,11 +6,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AgGridAngular } from 'ag-grid-angular';
-import { ColDef, RowClickedEvent } from 'ag-grid-community';
+import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { AssistService, Diagnosis } from 'app/inspecto/api';
-import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, noRowsOverlay } from 'app/inspecto/grid';
+import { DataTableComponent } from 'app/inspecto/data-table';
 import { DiagnosisDetailDialog } from './diagnosis-detail.dialog';
 
 /**
@@ -27,7 +26,7 @@ import { DiagnosisDetailDialog } from './diagnosis-detail.dialog';
         MatIconModule,
         MatInputModule,
         MatTooltipModule,
-        AgGridAngular,
+        DataTableComponent,
     ],
     templateUrl: './diagnoses.component.html',
     encapsulation: ViewEncapsulation.None,
@@ -36,18 +35,10 @@ export class DiagnosesComponent implements OnInit {
     private api = inject(AssistService);
     private dialog = inject(MatDialog);
     private toastr = inject(ToastrService);
-    readonly themeSvc = inject(InspectoGridThemeService);
 
     diagnoses: Diagnosis[] = [];
     loading = false;
     limit = 50;
-    quickFilter = '';
-
-    /** Empty-state overlay shown when the grid has no diagnoses. */
-    readonly noRows = noRowsOverlay(
-        'No diagnoses yet',
-        'None recorded, or the assist agent is not running.',
-    );
 
     readonly columnDefs: ColDef<Diagnosis>[] = [
         {
@@ -63,8 +54,6 @@ export class DiagnosesComponent implements OnInit {
         { field: 'rootCause', headerName: 'Root cause', flex: 3, wrapText: true, autoHeight: true },
         { field: 'heuristicOnly', headerName: 'Heuristic', width: 110 },
     ];
-
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     ngOnInit(): void {
         this.load();
@@ -85,8 +74,8 @@ export class DiagnosesComponent implements OnInit {
         });
     }
 
-    openDetail(e: RowClickedEvent<Diagnosis>): void {
-        if (!e.data) return;
-        this.dialog.open(DiagnosisDetailDialog, { data: e.data, width: '760px', maxHeight: '85vh' });
+    openDetail(row: Diagnosis): void {
+        if (!row) return;
+        this.dialog.open(DiagnosisDetailDialog, { data: row, width: '760px', maxHeight: '85vh' });
     }
 }
