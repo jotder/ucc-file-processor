@@ -22,9 +22,14 @@
 # Local build / deploy artifacts and ad-hoc run output
 /file-processor-deploy.zip
 /file-processor-deploy/
+/file-processor-deploy-old/
 /.graalvm-cache/
 /file-processor-4.0/
 /data/
+
+# Scratch flow config + ad-hoc test-connection artifact
+/inspecto/config/
+/spaces/default/config/test_connection.toon
 
 # Multi-space runtime output — keep spaces/<id>/config/ + space.toon tracked; ignore generated state.
 /spaces/*/data/
