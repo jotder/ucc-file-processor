@@ -179,13 +179,21 @@ export class DataTableComponent {
     /** The current editor text (resets to {@link generatedSql}, overridden by hand edits / history picks). */
     readonly currentSql = linkedSignal(() => this.generatedSql());
 
-    readonly defaultColDef = computed<ColDef>(() => ({
-        ...INSPECTO_DEFAULT_COL_DEF,
-        filter: this.caps().columns,
-        floatingFilter: this.caps().columns,
-        minWidth: 110,
-        flex: 1,
-    }));
+    readonly defaultColDef = computed<ColDef>(() => {
+        const filterable = this.caps().columns;
+        return {
+            ...INSPECTO_DEFAULT_COL_DEF,
+            // Always show a sort affordance: a neutral up/down glyph when the column is unsorted.
+            sortable: true,
+            unSortIcon: true,
+            // Filter (a text search popup) lives behind a funnel icon in the header — no floating-filter row.
+            filter: filterable,
+            floatingFilter: false,
+            suppressHeaderFilterButton: !filterable,
+            minWidth: 110,
+            flex: 1,
+        };
+    });
 
     /** Rows shown in the grid: the last Run result in pro, else the source rows. */
     readonly displayRows = computed<unknown[]>(() => this.proResult() ?? this.rows());
