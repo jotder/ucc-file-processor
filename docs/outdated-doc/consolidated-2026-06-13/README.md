@@ -1,5 +1,11 @@
 # Inspecto — Consolidated Documentation Set
 
+> **⚠️ ARCHIVED — frozen 2026-06-13 snapshot (archived 2026-06-28).** This stakeholder set has been
+> superseded and is kept for provenance only. For current material use: the per-topic docs under `docs/`,
+> the forward plan in `docs/roadmap/` (STAKEHOLDER_OVERVIEW / ROADMAP), and the engineering knowledge bundles
+> `docs/okf-backend/` + `inspecto-ui/docs/okf/`. The ADR log it references lives permanently in
+> `inspecto-agent/docs/adr/`. Do not update this snapshot.
+
 Authoritative, deduplicated document set synthesized from 44 source markdown files across the
 sandbox (engine, agent, UI, and planning docs). Built for stakeholder review; reflects the
 **current truth** of the project as of **2026-06-13** (v4.x · `4.0.0-SNAPSHOT` · Java 25+ · DuckDB).

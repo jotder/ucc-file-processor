@@ -24,6 +24,17 @@
   constraints, and the worked-example build plan. Point-in-time snapshot (2026-06-20). Pairs with the
   runnable suite in [`../inspecto/examples/`](../inspecto/examples).
 
+## Engineering knowledge bundles (OKF)
+
+Structured, agent- and human-readable [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+bundles — one concept per file, cross-linked, and indexed by graphify. They **summarize and link** the deep
+topic docs (each concept cites its authoritative doc); they don't replace them.
+
+- [`okf-backend/`](okf-backend/index.md) — the Java backend: engine, acquisition, control plane, flow-graph,
+  components, config, editions, agent, build/run, gotchas.
+- [`../inspecto-ui/docs/okf/`](../inspecto-ui/docs/okf/index.md) — the Angular frontend: architecture,
+  conventions, design system, the 21 feature screens, API services.
+
 ## Production investigation (the hub)
 
 - [`ADVANCED_GUIDE.md`](ADVANCED_GUIDE.md) — **Advanced Operations & Internals Guide.** Per-component process,
@@ -75,11 +86,12 @@
 
 - [`ui/accessibility-audit.md`](ui/accessibility-audit.md) — inspecto-ui WCAG/a11y audit + remediation.
 
-## Consolidated reference & plans
+## Plans
 
-- [`consolidated/`](consolidated/README.md) — consolidated reference snapshot (exec summary, PRD, architecture,
-  implementation status, roadmap, operations, user guide, decisions). *(Broad cross-cutting set; the individual
-  docs above are the maintained source for each topic — re-sync the snapshot when it drifts.)*
+- The **consolidated stakeholder snapshot** is **archived** (frozen 2026-06-13) under
+  [`outdated-doc/consolidated-2026-06-13/`](outdated-doc/consolidated-2026-06-13/README.md). Its live
+  equivalents: the per-topic docs above, the stakeholder narrative in
+  [`roadmap/STAKEHOLDER_OVERVIEW.md`](roadmap/STAKEHOLDER_OVERVIEW.md), and the OKF bundles (above).
 - [`assist-agent-improvement-plan.md`](assist-agent-improvement-plan.md) — assist-agent improvement plan (active).
 
 ## Task-specific topics (load as needed)
@@ -92,9 +104,10 @@ Add topic files in `docs/learnings/` and list them here.
 
 [`outdated-doc/`](outdated-doc/) holds superseded/historical material, not maintained:
 `v2-*` / `v3-*` planning, `refactor-blueprint-v4`, `design-notes`, `design_analysis`,
-`test-coverage`, `ticketing_systems_requirement`, and the `superpowers/` specs+plans. Move a doc back up and add it
+`test-coverage`, `ticketing_systems_requirement`, the `superpowers/` specs+plans, and the
+`consolidated-2026-06-13/` stakeholder snapshot. Move a doc back up and add it
 to this index if it becomes current again.
 
 ---
 
-**Last Updated**: 2026-06-19
+**Last Updated**: 2026-06-28

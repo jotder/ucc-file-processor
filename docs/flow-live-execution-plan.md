@@ -25,7 +25,7 @@ authored flow is therefore **job-style** — it declares a `source_store` (data 
 - The "compile authored flow → `PipelineConfig` → run via the poll loop" shortcut **does not apply**:
   `FlowCompiler.toConfigMap` only round-trips **lifted** graphs (typed `cfg` sub-records), not
   UI-authored ones (plain-map `cfg`), and the legacy pipeline shape can't express a rich multi-node
-  transform DAG. Confirmed in [`FlowCompiler.java`](../inspecto/src/main/java/com/gamma/flow/FlowCompiler.java:127).
+  transform DAG. Confirmed in [`FlowCompiler.java`](../inspecto/src/main/java/com/gamma/flow/FlowCompiler.java).
 - The right path is to **drive `FlowExecutor` directly**, hosted as a **`Job`** on the existing
   `JobService` scheduler (cron / event / manual) — which already gives us scheduling, audit, the
   deletion fence (T25), `DbJobRunStore` reporting (T27), and batch-event chaining for free.

@@ -49,7 +49,7 @@ needed. Deep links (e.g. `/pipelines/adjustment_etl`) resolve to the SPA; unknow
 still return JSON.
 
 **Development (live, two servers).** Run the backend with CORS enabled for the dev server, then run
-the SPA on `:4200`:
+the SPA on `:4204`:
 
 ```bash
 java -Dcontrol.token=dev -Dassist.read.token=dev -Dcontrol.cors=http://localhost:4204 \
@@ -231,7 +231,7 @@ have a *"include sample rows"* toggle.
 | Assist screens say "agent not available" | The optional `file-processor-agent` module isn't on the server classpath. Build the whole reactor and restart, or operate without assist. |
 | A screen is empty | The backend returned an empty list (e.g. no jobs/enrichment registered) — the console shows an empty state, not an error. |
 | Pipeline shows 0 pipelines / a config won't load | The server couldn't load that config (missing schema/grammar file, bad path). Check the server log; fix the config and restart. |
-| UI loads but every API call fails in dev | The dev proxy or `-Dcontrol.cors` origin is wrong. Ensure the backend was started with `-Dcontrol.cors=http://localhost:4200` and the proxy targets `:8080`. |
+| UI loads but every API call fails in dev | The dev proxy or `-Dcontrol.cors` origin is wrong. Ensure the backend was started with `-Dcontrol.cors=http://localhost:4204` and the proxy targets `:8080`. |
 
 ---
 

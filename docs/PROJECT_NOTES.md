@@ -17,7 +17,7 @@
 
 ## 1. Identity & module map
 
-**Inspecto** (formerly *UCC File Processor*; repo `C:/sandbox/ucc-file-processor`). Java 26 / Maven
+**Inspecto** (formerly *UCC File Processor*; repo `C:/sandbox/ucc-file-processor`). Java 25+ (built on 26) / Maven
 multi-module · embedded **DuckDB** · **TOON** config · OpenCSV. Mainline = `master`; current release line
 = `4.x`. Editions = build flavors (see below), **never branches**.
 
@@ -50,6 +50,7 @@ Consumes `agent-kernel` 1.0.0 (1.1.0 available; bump optional, Abstain-only ⇒ 
 | Perf benchmarks & tuning | [`performance.md`](performance.md) |
 | Strategy / roadmap / stakeholder decks | [`roadmap/`](roadmap/) |
 | Curated index of all current docs | [`INDEX.md`](INDEX.md) |
+| Engineering knowledge bundles (OKF; cross-linked, graphify-indexed) | [`okf-backend/`](okf-backend/index.md) (backend) · [`../inspecto-ui/docs/okf/`](../inspecto-ui/docs/okf/index.md) (frontend) |
 
 ---
 

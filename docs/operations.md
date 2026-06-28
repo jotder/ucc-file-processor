@@ -361,7 +361,7 @@ Angular SPA as static files, so one process hosts both the API and the UI (v4.1)
   **API** paths still return JSON `404` — routes always win over the static fallback. Static assets
   are PUBLIC (no token) so the shell loads before the operator connects. A path-traversal guard
   confines reads under the root.
-- `-Dcontrol.cors=<origin>` (e.g. `http://localhost:4200`, or `*`) — enable CORS headers + `OPTIONS`
+- `-Dcontrol.cors=<origin>` (e.g. `http://localhost:4204`, or `*`) — enable CORS headers + `OPTIONS`
   preflight, for a separately-hosted dev SPA. Omit for prod (same-origin needs no CORS).
 
 Both flags are **off by default**: unset, the control plane behaves exactly as a headless API. The

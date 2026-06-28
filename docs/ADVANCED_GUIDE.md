@@ -33,7 +33,7 @@ drift; treat them as hints, confirm against code. **Last verified against code: 
 
 ## 1. What Inspecto is (one paragraph)
 
-A framework-free Java 24 (build JDK 26) ETL / file-processing platform: it **acquires** files (local or remote),
+A framework-free Java 25 (build JDK 26) ETL / file-processing platform: it **acquires** files (local or remote),
 **parses + validates + transforms** them with DuckDB into Hive-partitioned Parquet/CSV, and exposes an
 **operational-intelligence** layer (events, metrics, alerts, managed cases/issues) over a small JDK-`HttpServer`
 Control API + Angular UI. No Spring/Quarkus; DI is manual constructors; optional capability is `ServiceLoader`
