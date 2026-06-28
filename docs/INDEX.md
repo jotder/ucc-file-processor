@@ -67,6 +67,16 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
 - [`data_acquisition_framework.md`](data_acquisition_framework.md) — acquisition requirement + as-built pointer
   (Phases A–F shipped on `4.x`).
 - [`delimited-grammar-design.md`](delimited-grammar-design.md) — delimited-grammar parsing design.
+- [`rule-builder-design.md`](rule-builder-design.md) — visual rule/query builder (the **Query Core**:
+  projection + nested filter + SQL + live preview; aggregation = its Phase 2). **Active (design).**
+- [`superpower/component-model.md`](superpower/component-model.md) — **the unified metamodel**: every artifact
+  is a `Component` (kind + config + parts + wiring); pipelines/jobs/dashboards are composites; the relationship
+  graph is derived. The frame Studio + the component registry are instances of. Build sequence in
+  [`superpower/component-model-adoption-plan.md`](superpower/component-model-adoption-plan.md). **Active (design).**
+- [`superpower/report-builder-design.md`](superpower/report-builder-design.md) — **Studio**: KPI / report /
+  dashboard builder over the Query Core (datasets · `VizPlugin` registry · charts · dashboards;
+  offline-author/DuckDB-later). The visualization head on the rule-builder. Paired with its execution plan in
+  [`superpower/studio-implementation-plan.md`](superpower/studio-implementation-plan.md). **Active (design).**
 
 ## Strategy & roadmap (stakeholder-facing)
 
