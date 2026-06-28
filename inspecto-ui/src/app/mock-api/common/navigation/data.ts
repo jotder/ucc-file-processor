@@ -18,7 +18,6 @@ export const defaultNavigation: GammaNavigationItem[] = [
             { id: 'flows',      title: 'Pipelines',  type: 'basic', icon: 'heroicons_outline:share',                  link: '/flows' },
             { id: 'pipelines',  title: 'Runs',       type: 'basic', icon: 'heroicons_outline:queue-list',             link: '/pipelines' },
             { id: 'components', title: 'Components', type: 'basic', icon: 'heroicons_outline:puzzle-piece',          link: '/components' },
-            { id: 'jobs',       title: 'Jobs',       type: 'basic', icon: 'heroicons_outline:clock',                  link: '/jobs' },
             { id: 'enrichment', title: 'Enrichment', type: 'basic', icon: 'heroicons_outline:funnel',                 link: '/enrichment' },
             { id: 'catalog',    title: 'Catalog',    type: 'basic', icon: 'heroicons_outline:share',                  link: '/catalog' }
         ]
@@ -39,6 +38,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
         type    : 'collapsable',
         icon    : 'heroicons_outline:bolt',
         children: [
+            { id: 'scheduler', title: 'Scheduler', type: 'basic', icon: 'heroicons_outline:clock',                 link: '/jobs' },
             { id: 'events',    title: 'Events',    type: 'basic', icon: 'heroicons_outline:queue-list',            link: '/events' },
             { id: 'diagnoses', title: 'Diagnoses', type: 'basic', icon: 'heroicons_outline:wrench-screwdriver',    link: '/diagnoses' },
             { id: 'alerts',    title: 'Alerts',    type: 'basic', icon: 'heroicons_outline:bell-alert',            link: '/alerts' },

@@ -2,11 +2,11 @@
     <!-- Header -->
     <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
         <div>
-            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Jobs &amp; Schedules</h1>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Scheduler</h1>
             <div class="text-secondary mt-1.5">
                 {{ mode === 'reporting'
                     ? 'Execution reporting over the durable run history'
-                    : 'Registered cron / event / manual jobs' }}
+                    : 'All configured scheduled jobs — cron, event-driven, and manual' }}
             </div>
         </div>
         <div class="mt-4 flex flex-wrap items-center gap-3 sm:mt-0">
@@ -31,14 +31,9 @@
             </button>
 
             @if (mode === 'schedules') {
-                <button
-                    mat-flat-button
-                    color="primary"
-                    matTooltip="Describe a schedule in plain English (nl-to-schedule, draft-only)"
-                    (click)="openSchedule()"
-                >
+                <button mat-flat-button color="primary" (click)="newJob()">
                     <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-                    <span class="ml-2">New schedule</span>
+                    <span class="ml-2">New job</span>
                 </button>
             }
         </div>
@@ -62,6 +57,7 @@
                     [rowActions]="scheduleActions"
                     [loading]="loading"
                     [autoHeight]="true"
+                    (rowClick)="openDetail($event)"
                 />
             }
         } @else {

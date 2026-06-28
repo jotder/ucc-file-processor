@@ -27,6 +27,11 @@ export const environment = {
     // Prototype-only: serve Studio's new component kinds (dataset/chart/dashboard) from an in-memory store
     // until the backend storage enum is widened. Flip false / remove the studioMockInterceptor once wired.
     mockStudio: true,
+    // Prototype-only: serve the Scheduler's write actions (create/edit/delete/enable/disable/reschedule) and
+    // per-run logs/events from an in-memory store. The read endpoints (list/runs/trigger) already exist on the
+    // backend; the mock seeds jobs so the page works offline. Flip false / remove jobsMockInterceptor once the
+    // real Java endpoints land (see the plan's follow-on).
+    mockJobs: true,
     apiVersion: '/api/v1',
     basePath: '/',
     authVersion:"/oauth",

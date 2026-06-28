@@ -25,6 +25,7 @@ import { connectionMockInterceptor } from './inspecto/api/connection-mock.interc
 import { studioMockInterceptor } from './inspecto/api/studio-mock.interceptor';
 import { flowMockInterceptor } from './inspecto/api/flow-mock.interceptor';
 import { opsMockInterceptor } from './inspecto/api/ops-mock.interceptor';
+import { jobsMockInterceptor } from './inspecto/api/jobs-mock.interceptor';
 
 export const appConfig: ApplicationConfig = {
     providers: [
@@ -39,7 +40,7 @@ export const appConfig: ApplicationConfig = {
             // routes (probe/explore/sample) before the space rewrite; prototype-only, see the flag.
             // studioMockInterceptor runs before flowMockInterceptor so it claims the Studio component kinds'
             // /components/{dataset|chart|dashboard} routes before flow-mock's generic /components/* CRUD.
-            withInterceptors([connectionMockInterceptor, studioMockInterceptor, flowMockInterceptor, opsMockInterceptor, spaceInterceptor, inspectoErrorInterceptor])
+            withInterceptors([connectionMockInterceptor, studioMockInterceptor, flowMockInterceptor, opsMockInterceptor, jobsMockInterceptor, spaceInterceptor, inspectoErrorInterceptor])
         ),
 
         // Interceptor-free HttpClient for the vendored template AuthService only.

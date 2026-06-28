@@ -57,6 +57,7 @@ export const appRoutes: Route[] = [
             { path: 'sources', loadChildren: () => import('app/modules/admin/sources/sources.routes') },
             { path: 'connections', loadChildren: () => import('app/modules/admin/connections/connections.routes') },
             { path: 'jobs', loadChildren: () => import('app/modules/admin/jobs/jobs.routes') },
+            { path: 'jobs/:name', loadChildren: () => import('app/modules/admin/jobs/job-detail/job-detail.routes') },
             { path: 'enrichment', loadChildren: () => import('app/modules/admin/enrichment/enrichment.routes') },
             { path: 'catalog', loadChildren: () => import('app/modules/admin/catalog/catalog.routes') },
             { path: 'studio', loadChildren: () => import('app/modules/admin/studio/studio.routes') },

@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
 import { Observable, of, throwError } from 'rxjs';
@@ -28,6 +29,7 @@ function create(reporting: 'ok' | '404', listResult: Observable<JobView[]> = of(
         imports: [JobsComponent],
         providers: [
             provideNoopAnimations(),
+            provideRouter([]),
             { provide: JobsService, useValue: stub },
             { provide: ToastrService, useValue: {} },
             { provide: MatDialog, useValue: {} },

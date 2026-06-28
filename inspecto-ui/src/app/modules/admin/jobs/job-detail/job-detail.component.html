@@ -1,0 +1,150 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    @if (loading() && !job()) {
+        <div class="flex items-center gap-3 p-8"><mat-spinner diameter="24" /><span class="text-secondary">Loading…</span></div>
+    } @else if (!job()) {
+        <inspecto-empty-state
+            class="m-8 block"
+            icon="heroicons_outline:clock"
+            title="Job not found"
+            message="This scheduled job no longer exists."
+        />
+    } @else {
+        <!-- Header -->
+        <div class="bg-card flex flex-col gap-4 border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+            <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <nav class="text-secondary mb-1 flex items-center gap-1 text-sm" aria-label="Breadcrumb">
+                        <a routerLink="/jobs" class="hover:underline">Scheduler</a>
+                        <span class="px-1">/</span>
+                        <span class="truncate font-mono">{{ job()!.name }}</span>
+                    </nav>
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-3xl font-extrabold leading-none tracking-tight">{{ job()!.name }}</h1>
+                        <inspecto-status-badge [value]="job()!.enabled ? 'enabled' : 'disabled'" />
+                    </div>
+                    <div class="text-secondary mt-1.5">{{ whatScheduled() }} · {{ scheduleSummary() }}</div>
+                </div>
+                <div class="flex flex-shrink-0 flex-wrap items-center gap-2">
+                    <button mat-stroked-button (click)="runNow()">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:play"></mat-icon><span class="ml-1">Run now</span>
+                    </button>
+                    <button mat-stroked-button (click)="edit(true)">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:calendar-days"></mat-icon><span class="ml-1">Reschedule</span>
+                    </button>
+                    <button mat-stroked-button (click)="edit(false)">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon><span class="ml-1">Edit</span>
+                    </button>
+                    <button mat-stroked-button (click)="toggleEnabled()">
+                        <mat-icon class="icon-size-5" [svgIcon]="job()!.enabled ? 'heroicons_outline:pause-circle' : 'heroicons_outline:play-circle'"></mat-icon>
+                        <span class="ml-1">{{ job()!.enabled ? 'Disable' : 'Enable' }}</span>
+                    </button>
+                    <button mat-stroked-button (click)="remove()" aria-label="Delete job">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon><span class="ml-1">Delete</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex flex-auto flex-col p-6 sm:p-10">
+            <mat-tab-group [(selectedIndex)]="selectedIndex" animationDuration="0ms">
+                <!-- Schedule -->
+                <mat-tab label="Schedule">
+                    <div class="bg-card mt-6 grid grid-cols-1 gap-x-8 gap-y-3 rounded-2xl p-6 shadow sm:grid-cols-2">
+                        <div><div class="text-secondary text-xs uppercase tracking-wider">Type</div><div class="mt-0.5">{{ whatScheduled() }}</div></div>
+                        <div><div class="text-secondary text-xs uppercase tracking-wider">Schedule</div><div class="mt-0.5 font-mono">{{ scheduleSummary() }}</div></div>
+                        <div><div class="text-secondary text-xs uppercase tracking-wider">Next fire</div><div class="mt-0.5">{{ fmtDateTime(job()!.nextFire) || '—' }}</div></div>
+                        <div><div class="text-secondary text-xs uppercase tracking-wider">Last run</div><div class="mt-0.5">{{ fmtDateTime(job()!.lastRunTime) || '—' }}</div></div>
+                        <div><div class="text-secondary text-xs uppercase tracking-wider">Last result</div><div class="mt-0.5">@if (job()!.lastStatus) { <inspecto-status-badge [value]="job()!.lastStatus!" /> } @else { — }</div></div>
+                        <div><div class="text-secondary text-xs uppercase tracking-wider">Catch-up on restart</div><div class="mt-0.5">{{ job()!.catchUp ? 'Yes' : 'No' }}</div></div>
+                    </div>
+
+                    <div class="mt-4">
+                        <div class="text-secondary mb-2 text-xs font-semibold uppercase tracking-wider">Parameters</div>
+                        @if (paramRows().length) {
+                            <div class="bg-card rounded-2xl p-4 shadow">
+                                @for (p of paramRows(); track p.key) {
+                                    <div class="flex gap-3 border-b py-1.5 last:border-0">
+                                        <div class="text-secondary w-48 flex-shrink-0 font-mono">{{ p.key }}</div>
+                                        <div class="min-w-0 break-all font-mono">{{ p.value }}</div>
+                                    </div>
+                                }
+                            </div>
+                        } @else {
+                            <div class="text-secondary text-sm">No parameters.</div>
+                        }
+                    </div>
+                </mat-tab>
+
+                <!-- Execution history -->
+                <mat-tab label="Execution history">
+                    <div class="mt-6">
+                        @if (!runsLoading() && runs().length === 0) {
+                            <inspecto-empty-state
+                                icon="heroicons_outline:queue-list"
+                                title="No runs yet"
+                                message="Use “Run now” to trigger the job; its runs will appear here."
+                            />
+                        } @else {
+                            <inspecto-data-table
+                                tier="standard"
+                                sourceName="job-runs"
+                                exportName="job-runs"
+                                [rows]="runs()"
+                                [columns]="runColumns"
+                                [loading]="runsLoading()"
+                                noRowsTitle="No runs yet"
+                                (rowClick)="onRunRowClick($event)"
+                            />
+                            <div class="text-secondary mt-2 text-xs">Tip: click a run to see its logs &amp; events.</div>
+                        }
+                    </div>
+                </mat-tab>
+
+                <!-- Logs & events -->
+                <mat-tab label="Logs &amp; events">
+                    <div class="mt-6">
+                        @if (selectedRun(); as run) {
+                            <div class="mb-3 flex items-center gap-2 text-sm">
+                                <span class="text-secondary">Run</span>
+                                <span class="font-mono">{{ run.runId }}</span>
+                                <inspecto-status-badge [value]="run.status" />
+                                <span class="text-secondary">{{ fmtDateTime(run.startTime) }}</span>
+                                @if (run.status === 'RUNNING') { <span class="text-secondary">· live-tailing…</span> }
+                            </div>
+
+                            <inspecto-data-table
+                                tier="standard"
+                                sourceName="job-logs"
+                                exportName="job-logs"
+                                [rows]="logs()?.logs ?? []"
+                                [columns]="logColumns"
+                                [loading]="logsLoading()"
+                                noRowsTitle="No log lines"
+                            />
+
+                            @if (logs()?.events?.length) {
+                                <div class="text-secondary mb-2 mt-6 text-xs font-semibold uppercase tracking-wider">Events</div>
+                                <div class="bg-card rounded-2xl p-4 shadow">
+                                    @for (e of logs()!.events; track $index) {
+                                        <div class="flex gap-3 border-b py-1.5 last:border-0 text-sm">
+                                            <span class="text-secondary w-40 flex-shrink-0">{{ fmtDateTime(e.ts) }}</span>
+                                            <span class="w-40 flex-shrink-0 font-mono">{{ e.type }}</span>
+                                            <span class="min-w-0">{{ e.message }}</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        } @else {
+                            <inspecto-empty-state
+                                icon="heroicons_outline:document-text"
+                                title="No run selected"
+                                message="Select a run in Execution history to view its logs and events."
+                            />
+                        }
+                    </div>
+                </mat-tab>
+            </mat-tab-group>
+        </div>
+    }
+</div>

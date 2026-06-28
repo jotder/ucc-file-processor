@@ -1,0 +1,93 @@
+<h2 mat-dialog-title>{{ isEdit ? 'Edit job — ' + data.job?.name : 'New scheduled job' }}</h2>
+
+<mat-dialog-content class="!pt-2">
+    @if (writesDisabled()) {
+        <inspecto-alert class="mb-4 block" variant="warning" icon="heroicons_outline:lock-closed">
+            Job writes are disabled on this server (no write root configured).
+        </inspecto-alert>
+    }
+
+    <form [formGroup]="form" class="flex flex-col gap-1">
+        <div class="flex flex-wrap gap-3">
+            <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                <mat-label>Job id</mat-label>
+                <input matInput formControlName="name" placeholder="e.g. cdr_ingest_daily" />
+                @if (form.controls.name.hasError('pattern')) {
+                    <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
+                }
+            </mat-form-field>
+            <mat-form-field class="w-44" subscriptSizing="dynamic">
+                <mat-label>Type</mat-label>
+                <mat-select formControlName="type">
+                    @for (t of types; track t) { <mat-option [value]="t">{{ t }}</mat-option> }
+                </mat-select>
+            </mat-form-field>
+        </div>
+
+        <!-- Schedule -->
+        <div class="mt-3 text-secondary text-xs font-semibold uppercase tracking-wider" [class.text-primary]="data.focusSchedule">Schedule</div>
+        <mat-form-field class="w-full" subscriptSizing="dynamic">
+            <mat-label>Trigger</mat-label>
+            <mat-select formControlName="scheduleMode">
+                <mat-option value="cron">Cron schedule</mat-option>
+                <mat-option value="event">On pipeline (event-driven)</mat-option>
+                <mat-option value="manual">Manual only</mat-option>
+            </mat-select>
+        </mat-form-field>
+
+        @if (form.controls.scheduleMode.value === 'cron') {
+            <div class="flex flex-wrap items-center gap-3">
+                <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                    <mat-label>Cron expression</mat-label>
+                    <input matInput formControlName="cron" placeholder="0 0 6 * * *" />
+                    <mat-hint>5 or 6 fields (sec min hour day month weekday)</mat-hint>
+                </mat-form-field>
+                <mat-form-field class="w-48" subscriptSizing="dynamic">
+                    <mat-label>Preset</mat-label>
+                    <mat-select (selectionChange)="applyPreset($event.value)">
+                        @for (p of cronPresets; track p.cron) { <mat-option [value]="p.cron">{{ p.label }}</mat-option> }
+                    </mat-select>
+                </mat-form-field>
+            </div>
+        } @else if (form.controls.scheduleMode.value === 'event') {
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <mat-label>On pipeline</mat-label>
+                <input matInput formControlName="onPipeline" placeholder="e.g. cdr_ingest" />
+                <mat-hint>Runs when this pipeline commits a batch.</mat-hint>
+            </mat-form-field>
+        }
+
+        <mat-slide-toggle class="mt-3" formControlName="enabled">Enabled (armed)</mat-slide-toggle>
+
+        <!-- Params -->
+        <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Parameters</div>
+        <div formArrayName="params" class="flex flex-col gap-2">
+            @for (p of paramsArray.controls; track $index; let i = $index) {
+                <div [formGroupName]="i" class="flex items-center gap-2">
+                    <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                        <mat-label>Key</mat-label>
+                        <input matInput formControlName="key" />
+                    </mat-form-field>
+                    <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                        <mat-label>Value</mat-label>
+                        <input matInput formControlName="value" />
+                    </mat-form-field>
+                    <button mat-icon-button type="button" (click)="removeParam(i)" matTooltip="Remove" aria-label="Remove parameter">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                    </button>
+                </div>
+            }
+            <button mat-stroked-button type="button" class="self-start" (click)="addParam()">
+                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                <span class="ml-1">Add parameter</span>
+            </button>
+        </div>
+    </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
+        {{ isEdit ? 'Save changes' : 'Create job' }}
+    </button>
+</mat-dialog-actions>

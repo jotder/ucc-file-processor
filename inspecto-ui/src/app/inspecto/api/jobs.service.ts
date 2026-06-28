@@ -2,7 +2,46 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { apiUrl, toParams } from './api-base';
-import { JobRun, JobView } from './models';
+import { JobRun, JobType, JobView } from './models';
+
+/** A single scheduled job with its full config (GET /jobs/{name}) — the list `JobView` plus the type-specific
+ *  `params` and the catch-up flag. (List endpoint omits these; they're shown on the detail page.) */
+export interface JobDetail extends JobView {
+  params?: Record<string, unknown>;
+  catchUp?: boolean;
+}
+
+/** The editable shape for create (POST /jobs) and edit (PUT /jobs/{name}). A job is cron-scheduled, event-driven
+ *  (`onPipeline`), or manual (neither). */
+export interface JobUpsert {
+  name: string;
+  type: JobType;
+  cron?: string | null;
+  onPipeline?: string | null;
+  enabled: boolean;
+  catchUp?: boolean;
+  params?: Record<string, unknown>;
+}
+
+/** One log line for a job run (GET /jobs/{name}/runs/{runId}/logs). */
+export interface JobLogLine {
+  ts: string;
+  level: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG' | string;
+  message: string;
+}
+
+/** One domain event emitted during a job run. */
+export interface JobEvent {
+  ts: string;
+  type: string;
+  message: string;
+}
+
+/** A run's logs + events (GET /jobs/{name}/runs/{runId}/logs). */
+export interface JobRunLogs {
+  logs: JobLogLine[];
+  events: JobEvent[];
+}
 
 /** Aggregate job-execution metrics (GET /jobs/metrics) — the DuckDB reporting projection (T27). */
 export interface JobMetrics {
@@ -48,6 +87,29 @@ export class JobsService {
   }
   trigger(name: string): Observable<{ job: string; status: string }> {
     return this.http.post<{ job: string; status: string }>(apiUrl(`/jobs/${encodeURIComponent(name)}/trigger`), {});
+  }
+
+  // ── single job + management (mock-served until the real Java endpoints land — see the plan) ──
+  get(name: string): Observable<JobDetail> {
+    return this.http.get<JobDetail>(apiUrl(`/jobs/${encodeURIComponent(name)}`));
+  }
+  create(body: JobUpsert): Observable<JobDetail> {
+    return this.http.post<JobDetail>(apiUrl('/jobs'), body);
+  }
+  update(name: string, body: JobUpsert): Observable<JobDetail> {
+    return this.http.put<JobDetail>(apiUrl(`/jobs/${encodeURIComponent(name)}`), body);
+  }
+  remove(name: string): Observable<unknown> {
+    return this.http.delete(apiUrl(`/jobs/${encodeURIComponent(name)}`));
+  }
+  setEnabled(name: string, enabled: boolean): Observable<JobDetail> {
+    return this.http.post<JobDetail>(apiUrl(`/jobs/${encodeURIComponent(name)}/${enabled ? 'enable' : 'disable'}`), {});
+  }
+  reschedule(name: string, cron: string): Observable<JobDetail> {
+    return this.http.post<JobDetail>(apiUrl(`/jobs/${encodeURIComponent(name)}/reschedule`), { cron });
+  }
+  runLogs(name: string, runId: string): Observable<JobRunLogs> {
+    return this.http.get<JobRunLogs>(apiUrl(`/jobs/${encodeURIComponent(name)}/runs/${encodeURIComponent(runId)}/logs`));
   }
 
   // ── T27 reporting (404 unless the DuckDB backend is on: -Djobs.backend=duckdb) ──

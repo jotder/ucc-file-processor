@@ -12,9 +12,11 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ChartData } from 'chart.js';
 import { Subscription, forkJoin } from 'rxjs';
+import { Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import {
     apiErrorMessage,
+    JobDetail,
     JobFailureDay,
     JobMetrics,
     JobRunRow,
@@ -23,14 +25,14 @@ import {
     visibleInterval,
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
-import { AssistDialog } from 'app/inspecto/components/assist.dialog';
 import { InspectoChartComponent } from 'app/inspecto/components/chart.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
-import { JobRunsDialog } from './job-runs.dialog';
+import { fmtDuration, scheduleSummary, whatScheduled } from './job-display';
+import { JobFormDialog } from './job-form.dialog';
 import { JobRunDetailDialog } from './job-run-detail.dialog';
 
 /** Which lens the Jobs pane shows: the schedule registry, or execution reporting over the run history. */
@@ -39,15 +41,8 @@ export type JobsViewMode = 'schedules' | 'reporting';
 /** Live-tail poll cadence (ms) for the reporting view — pauses while the tab is hidden. */
 const LIVE_TAIL_MS = 5000;
 
-/** Format a duration in ms for display (e.g. `450ms`, `1.2s`, `2m 03s`). */
-export function fmtDuration(ms: number | undefined | null): string {
-    if (ms == null) return '—';
-    if (ms < 1000) return `${ms}ms`;
-    const s = ms / 1000;
-    if (s < 60) return `${s.toFixed(1)}s`;
-    const m = Math.floor(s / 60);
-    return `${m}m ${String(Math.round(s % 60)).padStart(2, '0')}s`;
-}
+// fmtDuration moved to job-display (shared with the detail view); re-exported for existing importers.
+export { fmtDuration };
 
 /**
  * Jobs & schedules — two lenses over the same job layer:
@@ -85,6 +80,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
+    private router = inject(Router);
 
     mode: JobsViewMode = 'schedules';
 
@@ -111,40 +107,49 @@ export class JobsComponent implements OnInit, OnDestroy {
 
     readonly fmtDuration = fmtDuration;
 
-    openSchedule(): void {
-        this.dialog.open(AssistDialog, {
-            data: {
-                title: 'New schedule — describe it in plain English',
-                intent: 'nl-to-schedule',
-                placeholder: 'e.g. run the daily-roaming ingest every weekday at 6am',
-            },
-            width: '680px',
-            maxHeight: '85vh',
-        });
+    /** Open the create dialog; reload the list when a job is saved. */
+    newJob(): void {
+        this.dialog
+            .open(JobFormDialog, { data: {}, width: '640px', maxHeight: '88vh' })
+            .afterClosed()
+            .subscribe((r) => {
+                if (r?.saved) {
+                    this.toastr.success(`Job "${r.saved.name}" created`);
+                    this.load();
+                }
+            });
     }
 
     readonly columnDefs: ColDef<JobView>[] = [
-        { field: 'name', headerName: 'Job', flex: 1 },
-        { field: 'type', headerName: 'Type', width: 110 },
-        { field: 'cron', headerName: 'Cron', flex: 1 },
-        { field: 'onPipeline', headerName: 'On pipeline', flex: 1 },
-        { field: 'enabled', headerName: 'Enabled', width: 100 },
-        { field: 'lastStatus', headerName: 'Last status', width: 120 },
-        { field: 'lastRunTime', headerName: 'Last run', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
+        { field: 'name', headerName: 'Job', flex: 1, minWidth: 160 },
+        { headerName: "What's scheduled", flex: 1, minWidth: 150, valueGetter: (p) => (p.data ? whatScheduled(p.data) : '') },
+        { headerName: 'Schedule', flex: 1, minWidth: 150, valueGetter: (p) => (p.data ? scheduleSummary(p.data) : '') },
         { field: 'nextFire', headerName: 'Next fire', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
+        {
+            field: 'enabled',
+            headerName: 'Enabled',
+            width: 110,
+            cellRenderer: (p: ICellRendererParams<JobView>) => statusBadgeHtml(p.value ? 'enabled' : 'disabled'),
+        },
+        {
+            field: 'lastStatus',
+            headerName: 'Last result',
+            width: 120,
+            cellRenderer: (p: ICellRendererParams<JobView>) => (p.value ? statusBadgeHtml(p.value as string) : '—'),
+        },
+        { field: 'lastRunTime', headerName: 'Last run', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
     ];
 
     readonly scheduleActions: InspectoRowAction<JobView>[] = [
+        { icon: 'heroicons_outline:play', hint: 'Run now', onClick: (j) => this.trigger(j) },
         {
-            icon: 'heroicons_outline:play',
-            hint: 'Run now',
-            onClick: (j) => this.trigger(j),
+            icon: (j) => (j.enabled ? 'heroicons_outline:pause-circle' : 'heroicons_outline:play-circle'),
+            hint: (j) => (j.enabled ? 'Disable' : 'Enable'),
+            onClick: (j) => this.toggleEnabled(j),
         },
-        {
-            icon: 'heroicons_outline:list-bullet',
-            hint: 'Run history',
-            onClick: (j) => this.openRuns(j),
-        },
+        { icon: 'heroicons_outline:calendar-days', hint: 'Reschedule', onClick: (j) => this.edit(j, true) },
+        { icon: 'heroicons_outline:pencil-square', hint: 'Edit', onClick: (j) => this.edit(j, false) },
+        { icon: 'heroicons_outline:trash', hint: 'Delete', onClick: (j) => this.remove(j) },
     ];
 
     /** Reporting grid: the durable run history (newest first) from the DuckDB projection. */
@@ -210,8 +215,49 @@ export class JobsComponent implements OnInit, OnDestroy {
         });
     }
 
-    openRuns(job: JobView): void {
-        this.dialog.open(JobRunsDialog, { data: { job: job.name }, width: '820px', maxHeight: '80vh' });
+    /** Row-click target → the job detail page. */
+    openDetail(row: Record<string, unknown>): void {
+        const name = row?.['name'] as string | undefined;
+        if (name) this.router.navigate(['/jobs', name]);
+    }
+
+    toggleEnabled(job: JobView): void {
+        this.api.setEnabled(job.name, !job.enabled).subscribe({
+            next: () => {
+                this.toastr.success(`${job.name} ${job.enabled ? 'disabled' : 'enabled'}`);
+                this.load();
+            },
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Could not update ${job.name}`)),
+        });
+    }
+
+    /** Open the edit (or reschedule-focused) dialog seeded with the job's full config; reload on save. */
+    edit(job: JobView, focusSchedule: boolean): void {
+        this.api.get(job.name).subscribe({
+            next: (detail: JobDetail) => {
+                this.dialog
+                    .open(JobFormDialog, { data: { job: detail, focusSchedule }, width: '640px', maxHeight: '88vh' })
+                    .afterClosed()
+                    .subscribe((r) => {
+                        if (r?.saved) {
+                            this.toastr.success(`Job "${r.saved.name}" saved`);
+                            this.load();
+                        }
+                    });
+            },
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Could not load ${job.name}`)),
+        });
+    }
+
+    async remove(job: JobView): Promise<void> {
+        if (!(await this.confirm.confirmDestructive(`Delete scheduled job "${job.name}"?`, { title: 'Delete job' }))) return;
+        this.api.remove(job.name).subscribe({
+            next: () => {
+                this.toastr.success(`Job "${job.name}" deleted`);
+                this.load();
+            },
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Could not delete ${job.name}`)),
+        });
     }
 
     // ── reporting (T27) ──────────────────────────────────────────────────────────
