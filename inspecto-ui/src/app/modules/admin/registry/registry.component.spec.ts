@@ -5,17 +5,21 @@ import { of } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
+import { AuthoredFlow, FlowSummary, FlowsService } from 'app/inspecto/api';
 import { Component as ModelComponent } from 'app/inspecto/component-model';
 import { ComponentsDataProvider } from './components-data-provider';
 import { RegistryComponent } from './registry.component';
 
-function configure(byKind: Record<string, ModelComponent[]>) {
+function configure(byKind: Record<string, ModelComponent[]>, flows: { summaries?: FlowSummary[]; raw?: Record<string, AuthoredFlow> } = {}) {
+    const summaries = flows.summaries ?? [];
+    const raw = flows.raw ?? {};
     TestBed.configureTestingModule({
         imports: [RegistryComponent],
         providers: [
             provideNoopAnimations(),
             provideRouter([]),
             { provide: ComponentsDataProvider, useValue: { list: (k: string) => Promise.resolve(byKind[k] ?? []) } },
+            { provide: FlowsService, useValue: { authoredList: () => of(summaries), authoredRaw: (id: string) => of(raw[id]) } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
         ],
     });
@@ -35,6 +39,31 @@ describe('RegistryComponent', () => {
         expect(edges).toContain('chart/ch1->dataset/cdr');
         expect(edges).toContain('dashboard/db1->chart/ch1');
         expect(c.refRows()).toHaveLength(2);
+    });
+
+    it('loads pipelines and derives node→component reference edges from use=<kind>/<id>', async () => {
+        const flow: AuthoredFlow = {
+            name: 'cdr_pipeline',
+            active: true,
+            nodes: [
+                { id: 'src', type: 'collector' },
+                { id: 'parse', type: 'dsv', use: 'grammar/cdr_csv' },
+                { id: 'write', type: 'parquet', use: 'sink/cdr_parquet' },
+            ],
+            edges: [{ from: 'src', to: 'parse', rel: 'data' }, { from: 'parse', to: 'write', rel: 'data' }],
+        };
+        configure(
+            {
+                grammar: [{ kind: 'grammar', id: 'cdr_csv', name: 'cdr_csv', config: {} }],
+                sink: [{ kind: 'sink', id: 'cdr_parquet', name: 'cdr_parquet', config: {} }],
+            },
+            { summaries: [{ name: 'cdr_pipeline', active: true, nodeCount: 3, edgeCount: 2, produces: [], consumes: [] }], raw: { cdr_pipeline: flow } },
+        );
+        const c = TestBed.createComponent(RegistryComponent).componentInstance;
+        await c.load();
+        const edges = c.graph().edges.map((e) => `${e.source}->${e.target}`);
+        expect(edges).toContain('pipeline/cdr_pipeline->grammar/cdr_csv');
+        expect(edges).toContain('pipeline/cdr_pipeline->sink/cdr_parquet');
     });
 
     it('flags a dangling reference as a ghost node', async () => {
