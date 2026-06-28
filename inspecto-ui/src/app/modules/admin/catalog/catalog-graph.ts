@@ -6,26 +6,13 @@ import { ICON_COLOR_SWATCHES, NODE_KIND_COLORS, NODE_KIND_FALLBACK } from 'app/i
  * Kept free of Angular/G6 imports so they unit-test without TestBed.
  */
 
-export interface G6Node {
-    id: string;
-    /** `iconSrc`/`color` are present when a configurable icon is resolved; absent ⇒ host uses the kind shape. */
-    data: { label: string; kind: NodeKind; iconSrc?: string; color?: string };
-}
+// The G6 graph-data types now live in the shared `inspecto/graph` lib (so framework-agnostic libraries — the
+// component-model reuse-graph — can target the GraphViewComponent host without importing this feature).
+// Imported for this file's own mappers and re-exported so the existing catalog / flow importers stay unchanged.
+import type { G6Edge, G6GraphData, G6Node } from 'app/inspecto/graph';
+export type { G6Edge, G6GraphData, G6Node };
 
 export { ICON_COLOR_SWATCHES };
-
-/** G6 edges key the endpoints as source/target (the API graph uses from/to). */
-export interface G6Edge {
-    id: string;
-    source: string;
-    target: string;
-    data: { kind: string };
-}
-
-export interface G6GraphData {
-    nodes: G6Node[];
-    edges: G6Edge[];
-}
 
 /** Built-in G6 node type per metadata kind. Unknown kinds fall back to a circle. */
 export function nodeShape(kind: NodeKind): string {

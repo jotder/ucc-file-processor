@@ -1,0 +1,75 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Registry</h1>
+            <div class="text-secondary mt-1">The component reuse graph — composition and references across every kind.</div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading()) { <mat-spinner diameter="24"></mat-spinner> }
+            <button mat-icon-button (click)="load()" [disabled]="loading()" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+        </div>
+    </div>
+
+    @if (!loading() && components().length === 0) {
+        <inspecto-empty-state
+            class="mt-8 block"
+            icon="heroicons_outline:share"
+            title="No components yet"
+            message="Create datasets, charts, dashboards or pipeline components — they’ll appear here as a relationship graph."
+        />
+    } @else {
+        <!-- Reuse graph -->
+        <div class="bg-card mt-6 rounded-2xl p-2 shadow">
+            <inspecto-graph-view [data]="graph()" (nodeClick)="onNodeClick($event)" />
+        </div>
+
+        <!-- Selected node detail -->
+        @if (selected(); as sc) {
+            <div class="bg-card mt-4 rounded-2xl p-5 shadow">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="text-secondary text-xs font-semibold uppercase tracking-wider">{{ sc.kind }}</div>
+                        <div class="break-all font-mono text-lg font-semibold">{{ sc.name }}</div>
+                    </div>
+                    @if (editorLink(sc); as link) {
+                        <a mat-stroked-button [routerLink]="link">
+                            <mat-icon class="icon-size-4" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                            <span class="ml-2">Open</span>
+                        </a>
+                    }
+                </div>
+                @if (selectedRefs().length) {
+                    <div class="text-secondary mt-3 text-xs font-semibold uppercase tracking-wider">References</div>
+                    <ul class="mt-1 list-inside list-disc text-sm">
+                        @for (p of selectedRefs(); track p.partId) {
+                            <li class="font-mono">{{ p.ref.kind }}/{{ p.ref.id ?? '(inline)' }}</li>
+                        }
+                    </ul>
+                } @else {
+                    <div class="text-secondary mt-3 text-sm">No outgoing references (a leaf component).</div>
+                }
+            </div>
+        } @else if (selectedId()) {
+            <div class="bg-card text-secondary mt-4 rounded-2xl p-5 text-sm shadow">
+                <span class="font-mono">{{ selectedId() }}</span> — referenced but not found in the registry (a dangling reference).
+            </div>
+        }
+
+        <!-- Reference table (a view over the derived edges) -->
+        <div class="mt-6">
+            <div class="text-secondary mb-2 text-xs font-semibold uppercase tracking-wider">References ({{ refRows().length }})</div>
+            <inspecto-data-table
+                tier="standard"
+                [rows]="refRows()"
+                [columns]="refColumns"
+                [loading]="loading()"
+                sourceName="references"
+                exportName="component-references"
+                noRowsTitle="No references yet"
+                noRowsHint="Composite components (charts, dashboards) draw the reference edges."
+            />
+        </div>
+    }
+</div>

@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { getKind } from 'app/inspecto/component-model';
 import { allViz } from 'app/inspecto/viz';
+import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
 import { CHART_KIND, validateChartConfig } from './chart.kind';
 
 describe('chart ComponentKind', () => {
+    // Re-seed the (guarded) builtins so this is immune to a co-worker spec having cleared the shared registry.
+    beforeEach(() => registerBuiltinViz());
+
     it('registers on the model with a mapping wiring and dataset as a part kind', () => {
         expect(getKind('chart')).toBe(CHART_KIND);
         expect(CHART_KIND.wiring).toBe('mapping');

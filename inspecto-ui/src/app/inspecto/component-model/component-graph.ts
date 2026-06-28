@@ -1,27 +1,12 @@
+import { G6Edge, G6GraphData, G6Node } from 'app/inspecto/graph';
 import { Component } from './component-types';
 
 /**
- * Generic graph-data shape — a superset of the catalog `G6GraphData`, with `kind` widened to `string` so any
- * ComponentKind id is valid. The registry / reuse-graph view (adoption-plan P3) renders this through the
- * existing G6 host (`GraphViewComponent`). Colors come from tokens via `resolveKind`, never hardcoded here.
+ * The relationship-graph derivation for the registry / reuse-graph view (adoption-plan P3). Emits the shared
+ * {@link G6GraphData} so it renders directly through the existing G6 host (`GraphViewComponent`) — no separate
+ * shape. `kind` is the (free-string) ComponentKind id; colours come from tokens via `resolveKind`, never
+ * hardcoded here.
  */
-export interface GraphNode {
-    id: string;
-    data: { label: string; kind: string; color?: string; missing?: boolean };
-}
-
-export interface GraphEdge {
-    id: string;
-    source: string;
-    target: string;
-    data: { kind: string };
-}
-
-export interface GraphData {
-    nodes: GraphNode[];
-    edges: GraphEdge[];
-}
-
 export interface ComponentGraphInput {
     /** The universe to graph (or a focused subset). */
     components: Component[];
@@ -32,20 +17,20 @@ export interface ComponentGraphInput {
 /**
  * Derive the relationship graph: one node per component plus a `uses` edge from each composite to every
  * part's referent. A reference to a component absent from `components` still renders, as a ghost node
- * (`data.missing`). Pure; emits {@link GraphData}.
+ * (`data.missing`). Pure; emits {@link G6GraphData}.
  */
-export function deriveComponentGraph(input: ComponentGraphInput): GraphData {
+export function deriveComponentGraph(input: ComponentGraphInput): G6GraphData {
     const { components, resolveKind } = input;
     const nodeId = (kind: string, id: string): string => `${kind}/${id}`;
     const known = new Set(components.map((c) => nodeId(c.kind, c.id)));
 
-    const nodes = new Map<string, GraphNode>();
-    const edges: GraphEdge[] = [];
+    const nodes = new Map<string, G6Node>();
+    const edges: G6Edge[] = [];
 
     const ensureNode = (kind: string, id: string, label: string, missing: boolean): string => {
         const nid = nodeId(kind, id);
         if (!nodes.has(nid)) {
-            const node: GraphNode = { id: nid, data: { label, kind } };
+            const node: G6Node = { id: nid, data: { label, kind } };
             const color = resolveKind?.(kind)?.color;
             if (color) node.data.color = color;
             if (missing) node.data.missing = true;
