@@ -19,6 +19,7 @@ export * from './objects.service';
 export * from './connections.service';
 export * from './connection-probe.service';
 export * from './connection-mock.interceptor';
+export * from './studio-mock.interceptor';
 export * from './flow-mock.interceptor';
 export * from './components.service';
 export * from './icon-map.service';

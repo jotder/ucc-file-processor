@@ -1,0 +1,73 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Breadcrumb + header -->
+    <nav class="text-secondary mb-1 text-sm" aria-label="Breadcrumb">
+        <a routerLink="/studio/datasets" class="hover:underline">Datasets</a>
+        <span class="px-1">/</span>
+        <span>{{ editing() ? id : 'New dataset' }}</span>
+    </nav>
+    <div class="flex items-center justify-between">
+        <h1 class="text-3xl font-extrabold leading-tight tracking-tight">
+            {{ editing() ? 'Edit dataset' : 'New dataset' }}
+        </h1>
+        <div class="flex items-center gap-2">
+            <button mat-button routerLink="/studio/datasets">Cancel</button>
+            <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
+                @if (saving()) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
+                <span>Save dataset</span>
+            </button>
+        </div>
+    </div>
+
+    @if (writesDisabled()) {
+        <inspecto-alert class="mt-4 block" variant="warning" icon="heroicons_outline:lock-closed">
+            Dataset editing is disabled on this server (no write root configured).
+        </inspecto-alert>
+    }
+
+    <form [formGroup]="form" class="bg-card mt-6 grid grid-cols-1 gap-4 rounded-2xl p-5 shadow sm:grid-cols-3">
+        <mat-form-field subscriptSizing="dynamic">
+            <mat-label>Dataset id</mat-label>
+            <input matInput formControlName="name" placeholder="e.g. cdr_view" />
+            @if (form.controls.name.hasError('pattern')) {
+                <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
+            }
+        </mat-form-field>
+
+        <mat-form-field subscriptSizing="dynamic">
+            <mat-label>Kind</mat-label>
+            <mat-select formControlName="kind">
+                @for (k of kinds; track k) { <mat-option [value]="k">{{ k }}</mat-option> }
+            </mat-select>
+        </mat-form-field>
+
+        <mat-form-field subscriptSizing="dynamic">
+            <mat-label>Source</mat-label>
+            <mat-select formControlName="sourceName">
+                @for (s of sourceNames; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
+            </mat-select>
+        </mat-form-field>
+
+        @if (!isVirtual()) {
+            <mat-form-field class="sm:col-span-3" subscriptSizing="dynamic">
+                <mat-label>Physical reference</mat-label>
+                <input matInput formControlName="physicalRef" placeholder="catalog table / parquet path / cache id" />
+            </mat-form-field>
+        }
+    </form>
+
+    <!-- Virtual: author the SQL view with the Query Core -->
+    @if (isVirtual()) {
+        <section class="mt-6">
+            <h2 class="mb-2 text-lg font-semibold">Query</h2>
+            <inspecto-query-panel [source]="querySource()" (queryChange)="onQueryChange($event)" />
+        </section>
+    }
+
+    <!-- Column roles / formats -->
+    <section class="mt-6">
+        <h2 class="mb-2 text-lg font-semibold">Columns</h2>
+        <div class="bg-card overflow-x-auto rounded-2xl p-5 shadow">
+            <app-dataset-columns [columns]="columns()" (columnsChange)="onColumnsChange($event)" />
+        </div>
+    </section>
+</div>

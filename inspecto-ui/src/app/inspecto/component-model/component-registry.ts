@@ -6,12 +6,16 @@ import { ComponentKind } from './component-kind';
  */
 const KINDS = new Map<string, ComponentKind>();
 
-/** Register a kind. Throws on a duplicate id so collisions surface at startup, not silently. */
-export function registerKind(kind: ComponentKind): void {
+/**
+ * Register a kind. Generic in the config shape so kinds with a concrete `config` type (e.g. a `DatasetConfig`,
+ * a chart's config) register without a cast; stored under the base type. Throws on a duplicate id so
+ * collisions surface at startup, not silently.
+ */
+export function registerKind<C>(kind: ComponentKind<C>): void {
     if (KINDS.has(kind.id)) {
         throw new Error(`Duplicate ComponentKind '${kind.id}'`);
     }
-    KINDS.set(kind.id, kind);
+    KINDS.set(kind.id, kind as ComponentKind);
 }
 
 export function getKind(id: string): ComponentKind | undefined {

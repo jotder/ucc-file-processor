@@ -1,0 +1,84 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Datasets</h1>
+            <div class="text-secondary mt-1">
+                Reusable data sources — physical tables, virtual SQL views, or materialized results — that
+                charts and dashboards build on.
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading()) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-icon-button (click)="load()" [disabled]="loading()" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+            @if (!writesDisabled()) {
+                <button mat-flat-button color="primary" routerLink="new">
+                    <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                    <span class="ml-2">New dataset</span>
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="relative mt-4 max-w-md">
+        <mat-icon class="icon-size-4 text-secondary pointer-events-none absolute left-2 top-1/2 -translate-y-1/2" svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+        <input
+            type="text"
+            class="bg-card w-full rounded border border-gray-300 py-1.5 pl-8 pr-2 text-sm dark:border-gray-600"
+            placeholder="Filter datasets…"
+            aria-label="Filter datasets"
+            (input)="onFilter($event)"
+        />
+    </div>
+
+    @if (writesDisabled()) {
+        <inspecto-alert class="mt-4 block" variant="warning" icon="heroicons_outline:lock-closed">
+            Dataset editing is disabled on this server (no write root configured). Listing remains available.
+        </inspecto-alert>
+    }
+
+    @if (!loading() && datasets().length === 0) {
+        <inspecto-empty-state
+            class="mt-8 block"
+            icon="heroicons_outline:table-cells"
+            title="No datasets yet"
+            message="Use “New dataset” to shape a source with the Query Core, then chart it."
+        />
+    }
+
+    <!-- Datasets -->
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        @for (d of visibleDatasets(); track d.id) {
+            <div class="bg-card flex flex-col rounded-2xl p-5 shadow">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                        <div class="break-all font-mono text-lg font-semibold">{{ d.id }}</div>
+                        <div class="text-secondary mt-0.5 flex flex-wrap items-center gap-2 text-sm">
+                            <inspecto-status-badge [value]="d.kind" [label]="d.kind" />
+                            <span>source: <span class="font-mono">{{ d.sourceName }}</span></span>
+                            <span>· {{ columnCount(d) }} columns</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-1">
+                        <button mat-icon-button [routerLink]="[d.id]" matTooltip="Edit" aria-label="Edit">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                        </button>
+                        @if (!writesDisabled()) {
+                            <button mat-icon-button (click)="remove(d)" matTooltip="Delete" aria-label="Delete">
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (datasets().length && visibleDatasets().length === 0) {
+        <div class="text-secondary mt-8">No datasets match “{{ filterText() }}”.</div>
+    }
+</div>

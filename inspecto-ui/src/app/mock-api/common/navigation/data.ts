@@ -47,6 +47,15 @@ export const defaultNavigation: GammaNavigationItem[] = [
         ]
     },
     {
+        id      : 'studio-group',
+        title   : 'Studio',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:presentation-chart-line',
+        children: [
+            { id: 'studio-datasets', title: 'Datasets', type: 'basic', icon: 'heroicons_outline:table-cells', link: '/studio/datasets' }
+        ]
+    },
+    {
         id      : 'settings-group',
         title   : 'Settings',
         type    : 'collapsable',

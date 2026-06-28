@@ -24,6 +24,9 @@ export const environment = {
     // fully offline from in-memory datasets, so the reusable query panel can be exercised with no backend.
     // Flip false / remove the opsMockInterceptor once these surfaces are wired to the real backend.
     mockOps: true,
+    // Prototype-only: serve Studio's new component kinds (dataset/chart/dashboard) from an in-memory store
+    // until the backend storage enum is widened. Flip false / remove the studioMockInterceptor once wired.
+    mockStudio: true,
     apiVersion: '/api/v1',
     basePath: '/',
     authVersion:"/oauth",
