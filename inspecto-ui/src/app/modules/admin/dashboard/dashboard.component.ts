@@ -29,6 +29,7 @@ import { InspectoChartComponent } from 'app/inspecto/components/chart.component'
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, fmtDateTime } from 'app/inspecto/grid';
+import { fmtBytes, fmtInt, fmtPercent } from 'app/inspecto/format';
 import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
 
 /**
@@ -150,7 +151,7 @@ export class DashboardComponent implements OnInit {
     }
 
     get errorRatePct(): string {
-        return this.report ? (this.report.errorRate * 100).toFixed(1) + '%' : '—';
+        return this.report ? fmtPercent(this.report.errorRate) : '—';
     }
 
     private total(m: AcquisitionMetrics, name: string): number {
@@ -167,27 +168,11 @@ export class DashboardComponent implements OnInit {
             return;
         }
         this.acqCards = [
-            { label: 'Files discovered', value: this.fmtInt(discovered) },
-            { label: 'Files downloaded', value: this.fmtInt(downloaded) },
-            { label: 'Downloads failed', value: this.fmtInt(failed) },
-            { label: 'Bytes transferred', value: this.fmtBytes(bytes) },
+            { label: 'Files discovered', value: fmtInt(discovered) },
+            { label: 'Files downloaded', value: fmtInt(downloaded) },
+            { label: 'Downloads failed', value: fmtInt(failed) },
+            { label: 'Bytes transferred', value: fmtBytes(bytes) },
         ];
-    }
-
-    private fmtInt(n: number): string {
-        return Math.round(n).toLocaleString();
-    }
-
-    private fmtBytes(n: number): string {
-        if (n < 1024) return `${Math.round(n)} B`;
-        const units = ['KB', 'MB', 'GB', 'TB'];
-        let v = n / 1024;
-        let i = 0;
-        while (v >= 1024 && i < units.length - 1) {
-            v /= 1024;
-            i++;
-        }
-        return `${v.toFixed(1)} ${units[i]}`;
     }
 
     /** Short clock time for the activity feed. */

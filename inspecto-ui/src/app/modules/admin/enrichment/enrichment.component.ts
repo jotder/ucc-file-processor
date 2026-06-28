@@ -11,6 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ColDef } from 'ag-grid-community';
 import { AuditRow, EnrichmentJobView, EnrichmentRunReport, EnrichmentService } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
+import { FmtPercentPipe } from 'app/inspecto/format';
 import { fmtDateTime } from 'app/inspecto/grid';
 
 type EnrTab = 'runs' | 'lineage' | 'report';
@@ -34,6 +35,7 @@ type EnrTab = 'runs' | 'lineage' | 'report';
         MatTabsModule,
         MatTooltipModule,
         DataTableComponent,
+        FmtPercentPipe,
     ],
     templateUrl: './enrichment.component.html',
     encapsulation: ViewEncapsulation.None,

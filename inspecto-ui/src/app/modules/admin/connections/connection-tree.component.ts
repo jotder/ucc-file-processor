@@ -3,6 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ResourceNode } from 'app/inspecto/api';
+import { fmtBytes } from 'app/inspecto/format';
 
 /**
  * Minimal recursive resource-tree (the connection "Explore" pane). Presentational: the parent
@@ -145,14 +146,6 @@ export class ConnectionTreeComponent {
     }
 
     size(bytes: number): string {
-        if (bytes < 1024) return `${bytes} B`;
-        const units = ['KB', 'MB', 'GB', 'TB'];
-        let v = bytes / 1024;
-        let i = 0;
-        while (v >= 1024 && i < units.length - 1) {
-            v /= 1024;
-            i++;
-        }
-        return `${v.toFixed(1)} ${units[i]}`;
+        return fmtBytes(bytes);
     }
 }

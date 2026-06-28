@@ -19,6 +19,7 @@ import { InspectoChartComponent } from 'app/inspecto/components/chart.component'
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoRowAction } from 'app/inspecto/grid';
+import { fmtBytes, fmtInt } from 'app/inspecto/format';
 import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
 import { SourceDetailDialog } from './source-detail.dialog';
 
@@ -137,12 +138,12 @@ export class SourcesComponent implements OnInit {
         const active = this.total(m, 'inspecto_active_connections');
 
         this.cards = [
-            { label: 'Files discovered', value: this.fmtInt(discovered) },
-            { label: 'Files downloaded', value: this.fmtInt(downloaded) },
-            { label: 'Downloads failed', value: this.fmtInt(failed) },
-            { label: 'Watermark skipped', value: this.fmtInt(skipped) },
-            { label: 'Bytes transferred', value: this.fmtBytes(bytes) },
-            { label: 'Active connections', value: this.fmtInt(active) },
+            { label: 'Files discovered', value: fmtInt(discovered) },
+            { label: 'Files downloaded', value: fmtInt(downloaded) },
+            { label: 'Downloads failed', value: fmtInt(failed) },
+            { label: 'Watermark skipped', value: fmtInt(skipped) },
+            { label: 'Bytes transferred', value: fmtBytes(bytes) },
+            { label: 'Active connections', value: fmtInt(active) },
         ];
 
         this.discoveredData = {
@@ -155,22 +156,6 @@ export class SourcesComponent implements OnInit {
                 },
             ],
         };
-    }
-
-    private fmtInt(n: number): string {
-        return Math.round(n).toLocaleString();
-    }
-
-    private fmtBytes(n: number): string {
-        if (n < 1024) return `${Math.round(n)} B`;
-        const units = ['KB', 'MB', 'GB', 'TB'];
-        let v = n / 1024;
-        let i = 0;
-        while (v >= 1024 && i < units.length - 1) {
-            v /= 1024;
-            i++;
-        }
-        return `${v.toFixed(1)} ${units[i]}`;
     }
 
     async trigger(source: SourceView): Promise<void> {

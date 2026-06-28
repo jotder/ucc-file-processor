@@ -67,7 +67,7 @@
                             <th scope="row">Failed</th><td>{{ report.failed }}</td>
                         </tr>
                         <tr class="border-b">
-                            <th scope="row">Error rate</th><td>{{ (report.errorRate * 100).toFixed(1) }}%</td>
+                            <th scope="row">Error rate</th><td>{{ report.errorRate | fmtPercent }}</td>
                             <th scope="row">Output rows</th><td>{{ report.totalOutputRows }}</td>
                             <th scope="row">Output files</th><td>{{ report.totalOutputFiles ?? '—' }}</td>
                         </tr>

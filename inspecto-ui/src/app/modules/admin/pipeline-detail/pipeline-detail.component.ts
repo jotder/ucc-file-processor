@@ -15,6 +15,7 @@ import { ToastrService } from 'ngx-toastr';
 import { forkJoin, Observable } from 'rxjs';
 import { apiErrorMessage, AuditRow, BatchAuditReport, InboxStatus, PipelinesService } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
+import { FmtPercentPipe } from 'app/inspecto/format';
 import { InspectoRowAction } from 'app/inspecto/grid';
 import { BatchDetailDialog } from './batch-detail.dialog';
 
@@ -42,6 +43,7 @@ type FileFilter = 'ALL' | 'SUCCESS' | 'REJECTED' | 'ERRORED';
         MatTabsModule,
         MatTooltipModule,
         DataTableComponent,
+        FmtPercentPipe,
         RouterLink,
     ],
     templateUrl: './pipeline-detail.component.html',

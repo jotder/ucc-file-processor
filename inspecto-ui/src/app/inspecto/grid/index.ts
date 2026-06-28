@@ -72,12 +72,9 @@ export function noRowsOverlay(title = 'No data to display', hint?: string): stri
     );
 }
 
-/** Grid date-time column formatter (epoch millis or ISO string). */
-export function fmtDateTime(value: unknown): string {
-    if (!value) return '';
-    const d = typeof value === 'number' ? new Date(value) : new Date(String(value));
-    return isNaN(d.getTime()) ? String(value) : d.toLocaleString();
-}
+/** Grid date-time column formatter — now lives in the shared `inspecto/format` lib; re-exported here so the
+ *  many `from 'app/inspecto/grid'` importers (grids' `valueFormatter`s) stay unchanged. */
+export { fmtDateTime } from 'app/inspecto/format';
 
 /** ag-Grid theme that follows the gamma scheme (light/dark/auto) — bind `[theme]="themeSvc.theme()"`. */
 @Injectable({ providedIn: 'root' })
