@@ -16,6 +16,14 @@ export function compileSql(model: QueryModel, source: QuerySource): string {
     return where ? `SELECT ${proj}\nFROM ${from}\nWHERE ${where}` : `SELECT ${proj}\nFROM ${from}`;
 }
 
+/**
+ * Compile just a WHERE body (no `WHERE` keyword) from a condition group — the reusable predicate compiler
+ * the Studio QuerySpec compiler shares with {@link compileSql}. Empty when the group has no complete leaves.
+ */
+export function compileWhere(where: ConditionGroup, cols: ColumnMeta[]): string {
+    return compileGroup(where, cols);
+}
+
 function compileGroup(group: ConditionGroup, cols: ColumnMeta[]): string {
     const parts = group.items
         .map((it) => (it.kind === 'group' ? wrap(compileGroup(it, cols)) : compileCondition(it, cols)))
@@ -58,7 +66,8 @@ function compileCondition(c: Condition, cols: ColumnMeta[]): string {
     }
 }
 
-function quoteIdent(name: string): string {
+/** Quote an identifier DuckDB-style (`"col"`), doubling embedded quotes. Shared with the Studio QuerySpec compiler. */
+export function quoteIdent(name: string): string {
     return `"${name.replace(/"/g, '""')}"`;
 }
 

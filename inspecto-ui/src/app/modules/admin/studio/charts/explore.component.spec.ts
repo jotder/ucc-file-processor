@@ -1,0 +1,65 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { of } from 'rxjs';
+import { describe, expect, it } from 'vitest';
+import { GammaConfigService } from '@gamma/services/config';
+import { ToastrService } from 'ngx-toastr';
+import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
+import { Dataset } from '../datasets/dataset-types';
+import { DatasetsService } from '../datasets/datasets.service';
+import { ChartsService } from './charts.service';
+import { ExploreComponent } from './explore.component';
+
+const DS: Dataset = {
+    id: 'cdr_sample',
+    name: 'cdr_sample',
+    kind: 'virtual',
+    sourceName: 'cdr',
+    columns: [
+        { name: 'tariff', type: 'string', role: 'dimension' },
+        { name: 'duration_s', type: 'number', role: 'metric' },
+    ],
+    metrics: [],
+};
+
+function create() {
+    TestBed.configureTestingModule({
+        imports: [ExploreComponent],
+        providers: [
+            provideNoopAnimations(),
+            provideRouter([]),
+            { provide: DatasetsService, useValue: { list: () => of([DS]), get: () => of(DS) } },
+            { provide: ChartsService, useValue: { get: () => of(null), save: () => of(null) } },
+            { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => of(undefined) }) } },
+            { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
+            { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
+        ],
+    });
+    return TestBed.createComponent(ExploreComponent);
+}
+
+describe('ExploreComponent', () => {
+    it('loads datasets on init', () => {
+        const fixture = create();
+        fixture.detectChanges();
+        expect(fixture.componentInstance.datasets()).toHaveLength(1);
+    });
+
+    it('selecting a dataset picks a recommended viz and auto-assigns channels', () => {
+        const c = create().componentInstance;
+        c.onSelectDataset('cdr_sample');
+        expect(c.dataset()?.id).toBe('cdr_sample');
+        expect(c.vizType()).toBeTruthy();
+        // a metric field got mapped onto some channel
+        const mapped = Object.values(c.controls()).some((vals) => vals?.some((v) => v.field === 'duration_s'));
+        expect(mapped).toBe(true);
+    });
+
+    it('renders the initial (no dataset) state with no a11y violations', async () => {
+        const fixture = create();
+        fixture.detectChanges();
+        await expectNoA11yViolations(fixture.nativeElement);
+    });
+});

@@ -1,0 +1,84 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <nav class="text-secondary mb-1 text-sm" aria-label="Breadcrumb">
+        <a routerLink="/studio/charts" class="hover:underline">Charts</a>
+        <span class="px-1">/</span>
+        <span>{{ editing() ? id : 'New chart' }}</span>
+    </nav>
+    <div class="flex items-center justify-between">
+        <h1 class="text-3xl font-extrabold leading-tight tracking-tight">{{ editing() ? 'Edit chart' : 'Explore' }}</h1>
+        <div class="flex items-center gap-2">
+            <button mat-button routerLink="/studio/charts">Cancel</button>
+            <button mat-flat-button color="primary" (click)="save()" [disabled]="!dataset() || !plugin()">
+                <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
+                <span class="ml-2">Save chart</span>
+            </button>
+        </div>
+    </div>
+
+    @if (writesDisabled()) {
+        <inspecto-alert class="mt-4 block" variant="warning" icon="heroicons_outline:lock-closed">
+            Chart saving is disabled on this server (no write root configured).
+        </inspecto-alert>
+    }
+
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[20rem_1fr]">
+        <!-- Controls column -->
+        <div class="flex flex-col gap-4">
+            <mat-form-field subscriptSizing="dynamic">
+                <mat-label>Dataset</mat-label>
+                <mat-select [ngModel]="selectedId()" (ngModelChange)="onSelectDataset($event)" aria-label="Dataset">
+                    @for (d of datasets(); track d.id) {
+                        <mat-option [value]="d.id">{{ d.name }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+
+            @if (dataset()) {
+                <div>
+                    <div class="text-secondary mb-1 text-xs font-semibold uppercase tracking-wider">Visualization</div>
+                    <div class="flex flex-wrap gap-1">
+                        @for (p of recommended(); track p.meta.type) {
+                            <button
+                                mat-stroked-button
+                                class="!min-w-0"
+                                [color]="vizType() === p.meta.type ? 'primary' : undefined"
+                                (click)="setVizType(p.meta.type)"
+                                [attr.aria-pressed]="vizType() === p.meta.type"
+                            >
+                                <mat-icon class="icon-size-4" [svgIcon]="p.meta.icon"></mat-icon>
+                                <span class="ml-1">{{ p.meta.label }}</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                @if (plugin(); as p) {
+                    <div>
+                        <div class="text-secondary mb-2 text-xs font-semibold uppercase tracking-wider">Fields</div>
+                        <app-explore-controls
+                            [plugin]="p"
+                            [fields]="fields()"
+                            [values]="controls()"
+                            (valuesChange)="onControls($event)"
+                        />
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Live preview -->
+        <div class="bg-card min-h-[20rem] rounded-2xl p-5 shadow">
+            @if (!dataset()) {
+                <div class="text-secondary flex h-64 items-center justify-center text-sm">
+                    Pick a dataset to start exploring.
+                </div>
+            } @else if (plugin(); as p) {
+                <div class="mb-2 flex items-center gap-2">
+                    <h2 class="text-lg font-semibold">{{ p.meta.label }}</h2>
+                    @if (running()) { <span class="text-secondary text-xs">updating…</span> }
+                </div>
+                <inspecto-viz-render [plugin]="p" [props]="props()" [title]="sourceName()" />
+            }
+        </div>
+    </div>
+</div>

@@ -52,7 +52,8 @@ export const defaultNavigation: GammaNavigationItem[] = [
         type    : 'collapsable',
         icon    : 'heroicons_outline:presentation-chart-line',
         children: [
-            { id: 'studio-datasets', title: 'Datasets', type: 'basic', icon: 'heroicons_outline:table-cells', link: '/studio/datasets' }
+            { id: 'studio-datasets', title: 'Datasets', type: 'basic', icon: 'heroicons_outline:table-cells',         link: '/studio/datasets' },
+            { id: 'studio-charts',   title: 'Charts',   type: 'basic', icon: 'heroicons_outline:chart-pie',           link: '/studio/charts' }
         ]
     },
     {

@@ -1,0 +1,66 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Charts</h1>
+            <div class="text-secondary mt-1">Saved visualizations built on your datasets.</div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading()) { <mat-spinner diameter="24"></mat-spinner> }
+            <button mat-icon-button (click)="load()" [disabled]="loading()" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+            <button mat-flat-button color="primary" routerLink="new">
+                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                <span class="ml-2">New chart</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="relative mt-4 max-w-md">
+        <mat-icon class="icon-size-4 text-secondary pointer-events-none absolute left-2 top-1/2 -translate-y-1/2" svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+        <input
+            type="text"
+            class="bg-card w-full rounded border border-gray-300 py-1.5 pl-8 pr-2 text-sm dark:border-gray-600"
+            placeholder="Filter charts…"
+            aria-label="Filter charts"
+            (input)="onFilter($event)"
+        />
+    </div>
+
+    @if (!loading() && charts().length === 0) {
+        <inspecto-empty-state
+            class="mt-8 block"
+            icon="heroicons_outline:chart-pie"
+            title="No charts yet"
+            message="Use “New chart” to pick a dataset and explore a visualization."
+        />
+    }
+
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        @for (c of visibleCharts(); track c.id) {
+            <div class="bg-card flex flex-col rounded-2xl p-5 shadow">
+                <div class="flex items-start justify-between">
+                    <div class="min-w-0">
+                        <div class="break-all font-mono text-lg font-semibold">{{ c.id }}</div>
+                        <div class="text-secondary mt-0.5 flex flex-wrap items-center gap-2 text-sm">
+                            <inspecto-status-badge [value]="c.vizType" [label]="c.vizType" />
+                            <span>dataset: <span class="font-mono">{{ c.datasetId }}</span></span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button mat-icon-button [routerLink]="[c.id]" matTooltip="Edit" aria-label="Edit">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                        </button>
+                        <button mat-icon-button (click)="remove(c)" matTooltip="Delete" aria-label="Delete">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (charts().length && visibleCharts().length === 0) {
+        <div class="text-secondary mt-8">No charts match “{{ filterText() }}”.</div>
+    }
+</div>

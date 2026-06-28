@@ -26,6 +26,15 @@ export const CHART_SERIES = {
 const WARN = '#f59e0b';
 
 /**
+ * Categorical series ramp for Studio charts (multi-series line/bar/area, pie slices). Canvas can't read CSS
+ * vars, so — like the other tokens here — these are the sanctioned hardcoded series colours. Reuses the
+ * catalog kind accents so the platform's chart palette stays consistent.
+ */
+export const CHART_CATEGORICAL: readonly string[] = [
+    '#5B8FF9', '#61DDAA', '#F6BD16', '#7262FD', '#F6903D', '#78D3F8', '#EF4444', '#65789B', '#22C55E', '#A855F7',
+];
+
+/**
  * Outline stroke for a flow-editor node's status cue, or {@code null} to keep the category colour
  * ({@code configured}). Status is also conveyed by a label glyph + the inspector chip (never colour alone).
  */
