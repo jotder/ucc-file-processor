@@ -1,0 +1,99 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <nav class="text-secondary mb-1 text-sm" aria-label="Breadcrumb">
+        <a routerLink="/studio/dashboards" class="hover:underline">Dashboards</a>
+        <span class="px-1">/</span>
+        <span>{{ editing() ? id : 'New dashboard' }}</span>
+    </nav>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <h1 class="text-3xl font-extrabold leading-tight tracking-tight">{{ editing() ? 'Edit dashboard' : 'New dashboard' }}</h1>
+        <form [formGroup]="form" class="flex items-center gap-2">
+            <mat-form-field subscriptSizing="dynamic">
+                <mat-label>Dashboard id</mat-label>
+                <input matInput formControlName="name" placeholder="e.g. cdr_overview" />
+                @if (form.controls.name.hasError('pattern')) {
+                    <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
+                }
+            </mat-form-field>
+            <button type="button" mat-button routerLink="/studio/dashboards">Cancel</button>
+            <button type="button" mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
+                <span>Save dashboard</span>
+            </button>
+        </form>
+    </div>
+
+    @if (writesDisabled()) {
+        <inspecto-alert class="mt-4 block" variant="warning" icon="heroicons_outline:lock-closed">
+            Dashboard saving is disabled on this server (no write root configured).
+        </inspecto-alert>
+    }
+
+    <!-- Toolbar: add chart + cross-filter -->
+    <div class="bg-card mt-6 flex flex-col gap-4 rounded-2xl p-5 shadow">
+        <div class="flex flex-wrap items-center gap-4">
+            <mat-form-field subscriptSizing="dynamic" class="w-64">
+                <mat-label>Add chart</mat-label>
+                <mat-select [ngModel]="null" (ngModelChange)="addChart($event)" [ngModelOptions]="{ standalone: true }" aria-label="Add chart">
+                    @for (c of charts(); track c.id) {
+                        <mat-option [value]="c.id">{{ c.name }} <span class="text-secondary">({{ c.vizType }})</span></mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+            <span class="text-secondary text-sm">{{ tiles().length }} tile(s)</span>
+        </div>
+
+        @if (filterColumns().length) {
+            <div>
+                <div class="text-secondary mb-1 text-xs font-semibold uppercase tracking-wider">Cross-filter</div>
+                <inspecto-query-condition-group
+                    [group]="filter()"
+                    [columns]="filterColumns()"
+                    [root]="true"
+                    (changed)="onFilterChanged()"
+                />
+            </div>
+        }
+    </div>
+
+    <!-- Tile grid -->
+    @if (tiles().length === 0) {
+        <div class="text-secondary mt-8">No tiles yet — add a saved chart above.</div>
+    } @else {
+        <div
+            cdkDropList
+            cdkDropListOrientation="mixed"
+            (cdkDropListDropped)="drop($event)"
+            class="mt-6 flex flex-wrap gap-4"
+        >
+            @for (tile of tiles(); track $index) {
+                <div
+                    cdkDrag
+                    class="min-w-0 grow"
+                    [style.flex-basis]="tile.span === 2 ? '100%' : 'calc(50% - 0.5rem)'"
+                >
+                    <div class="relative">
+                        <div class="absolute right-2 top-2 z-10 flex items-center gap-1">
+                            <button mat-icon-button cdkDragHandle matTooltip="Drag to reorder" aria-label="Drag to reorder">
+                                <mat-icon class="icon-size-4" svgIcon="heroicons_outline:arrows-pointing-out"></mat-icon>
+                            </button>
+                            <button mat-icon-button (click)="toggleSpan($index)" [matTooltip]="tile.span === 1 ? 'Widen' : 'Narrow'" aria-label="Toggle width">
+                                <mat-icon class="icon-size-4" svgIcon="heroicons_outline:arrows-right-left"></mat-icon>
+                            </button>
+                            <button mat-icon-button (click)="removeTile($index)" matTooltip="Remove" aria-label="Remove tile">
+                                <mat-icon class="icon-size-4" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                            </button>
+                        </div>
+                        @if (chartOf(tile); as chart) {
+                            @if (datasetOf(tile); as dataset) {
+                                <app-dashboard-tile [chart]="chart" [dataset]="dataset" [filter]="filter()" />
+                            } @else {
+                                <div class="bg-card text-secondary rounded-2xl p-4 text-sm shadow">Dataset for “{{ chart.datasetId }}” not found.</div>
+                            }
+                        } @else {
+                            <div class="bg-card text-secondary rounded-2xl p-4 text-sm shadow">Chart “{{ tile.chartId }}” not found.</div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

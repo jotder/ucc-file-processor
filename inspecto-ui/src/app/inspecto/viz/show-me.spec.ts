@@ -34,6 +34,7 @@ const CATEGORICAL_FIELDS: VizField[] = [
 
 describe('recommend', () => {
     beforeEach(() => {
+        clearViz(); // immune to builtins a prior spec left in the shared (per-worker) registry
         registerViz(LINE);
         registerViz(BAR);
         registerViz(TABLE);

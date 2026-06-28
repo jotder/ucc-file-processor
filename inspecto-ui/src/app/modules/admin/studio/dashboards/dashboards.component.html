@@ -1,0 +1,61 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Dashboards</h1>
+            <div class="text-secondary mt-1">Compositions of charts with a shared cross-filter.</div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading()) { <mat-spinner diameter="24"></mat-spinner> }
+            <button mat-icon-button (click)="load()" [disabled]="loading()" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+            <button mat-flat-button color="primary" routerLink="new">
+                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                <span class="ml-2">New dashboard</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="relative mt-4 max-w-md">
+        <mat-icon class="icon-size-4 text-secondary pointer-events-none absolute left-2 top-1/2 -translate-y-1/2" svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+        <input
+            type="text"
+            class="bg-card w-full rounded border border-gray-300 py-1.5 pl-8 pr-2 text-sm dark:border-gray-600"
+            placeholder="Filter dashboards…"
+            aria-label="Filter dashboards"
+            (input)="onFilter($event)"
+        />
+    </div>
+
+    @if (!loading() && dashboards().length === 0) {
+        <inspecto-empty-state
+            class="mt-8 block"
+            icon="heroicons_outline:squares-2x2"
+            title="No dashboards yet"
+            message="Use “New dashboard” to arrange saved charts into a grid."
+        />
+    }
+
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        @for (d of visibleDashboards(); track d.id) {
+            <div class="bg-card flex items-start justify-between rounded-2xl p-5 shadow">
+                <div class="min-w-0">
+                    <div class="break-all font-mono text-lg font-semibold">{{ d.id }}</div>
+                    <div class="text-secondary mt-0.5 text-sm">{{ d.tiles.length }} chart tile(s)</div>
+                </div>
+                <div class="flex items-center gap-1">
+                    <button mat-icon-button [routerLink]="[d.id]" matTooltip="Open" aria-label="Open">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="remove(d)" matTooltip="Delete" aria-label="Delete">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (dashboards().length && visibleDashboards().length === 0) {
+        <div class="text-secondary mt-8">No dashboards match “{{ filterText() }}”.</div>
+    }
+</div>

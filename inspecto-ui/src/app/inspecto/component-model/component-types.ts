@@ -33,19 +33,26 @@ export interface ComponentRef {
 }
 
 /**
- * Which composition strategy a kind authors. Only the variants a real kind consumes are defined; `layout`
- * (dashboard grid) and `schedule` (job) are added when those kinds land (see the adoption plan's STOP).
+ * Which composition strategy a kind authors. Only the variants a real kind consumes are defined; `schedule`
+ * (job) is added when that kind lands (see the adoption plan's STOP). `layout` arrived with P2 (dashboard).
  */
-export type WiringStrategy = 'none' | 'graph' | 'mapping';
+export type WiringStrategy = 'none' | 'graph' | 'mapping' | 'layout';
 
 /** Kind-specific topology over a composite's parts. */
 export type Wiring =
     | { strategy: 'none' }
     | { strategy: 'graph'; nodes: WiringNode[]; edges: WiringEdge[] } // pipeline / flow DAG
-    | { strategy: 'mapping'; channels: Record<string, string> }; // chart field → channel
+    | { strategy: 'mapping'; channels: Record<string, string> } // chart field → channel
+    | { strategy: 'layout'; tiles: LayoutTile[] }; // dashboard grid
 
 export interface WiringNode {
     partId: string;
+}
+
+/** One placed tile in a dashboard's grid wiring — which part, and how wide (column span). */
+export interface LayoutTile {
+    partId: string;
+    w: number;
 }
 
 /** A directed wire between two parts. `rel` is the semantic relationship; `kind` the flow class. */

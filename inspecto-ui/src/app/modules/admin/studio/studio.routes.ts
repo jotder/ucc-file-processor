@@ -10,4 +10,5 @@ export default [
     { path: '', pathMatch: 'full', redirectTo: 'datasets' },
     { path: 'datasets', loadChildren: () => import('./datasets/datasets.routes') },
     { path: 'charts', loadChildren: () => import('./charts/charts.routes') },
+    { path: 'dashboards', loadChildren: () => import('./dashboards/dashboards.routes') },
 ] as Routes;
