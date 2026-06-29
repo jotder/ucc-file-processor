@@ -65,6 +65,16 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
+## Working artifacts stay in the repo
+
+**Never put work artifacts on the user profile.** Plans, specs, designs, hand-offs, notes — anything
+produced for this project — must live **under the repo**, so they are IDE-readable and committable:
+
+- **Plans / designs / specs** → `docs/superpower/` (or the right `docs/` file). Do **not** leave them in
+  `~/.claude/plans/` or anywhere under the user profile. When a plan is approved, persist it in-repo.
+- **Live working state / hand-off** → `SESSION_STATUS.local.md` (gitignored but in-repo).
+- The user's auto-memory index is a thin pointer only; durable project knowledge belongs in the repo.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
