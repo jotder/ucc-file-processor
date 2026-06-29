@@ -172,7 +172,7 @@ export function categoryColor(category: string): string {
 /** Friendly palette group name per category — the user-facing processor taxonomy. */
 export function categoryLabel(category: string): string {
     switch (category) {
-        case 'SOURCE':    return 'Collector';
+        case 'SOURCE':    return 'Source';
         case 'PARSE':     return 'Parser';
         case 'TRANSFORM': return 'Transformer';
         case 'SINK':      return 'Writer';
