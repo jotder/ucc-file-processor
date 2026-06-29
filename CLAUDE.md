@@ -65,6 +65,19 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
+## Canonical vocabulary (binding)
+
+**`docs/GLOSSARY.md` is the single source of truth for what every concept is called.** Words must never be
+confusing or ambiguous. In all UI text, model/field names, API routes, config keys, docs, and conversation:
+
+- Use the **canonical term**; never a banned synonym. The hard bans: ⛔ *Flow* → **Pipeline** · ⛔ *Data Store*
+  (relation) → **Dataset** · ⛔ *Issue* → **Incident** · ⛔ bare *Rule* → **Expectation / Alert Rule / Decision
+  Rule** · ⛔ *Metric* (BI) → **Measure** · ⛔ *Collector* (noun) → **Source**.
+- **One concept → one word; one word → one concept.** Always distinguish **Type** (template) from **Instance**
+  (e.g. *Visualization Type* → *Widget*).
+- The rename rolls out **UI → model → backend** (map in `docs/GLOSSARY.md` §13). When you touch any of these
+  layers, conform to the canonical term and update the touchpoint table.
+
 ## Working artifacts stay in the repo
 
 **Never put work artifacts on the user profile.** Plans, specs, designs, hand-offs, notes — anything
