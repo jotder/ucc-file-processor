@@ -168,6 +168,15 @@ final class ServiceStores {
     }
 
     /**
+     * The in-app notification feed (Phase B2) for the single {@code appUser}. The feed is low-volume, so
+     * the lean {@link com.gamma.notify.InMemoryNotificationStore} is the default and currently the only
+     * backend; a durable DuckDB backend would mirror {@link #openObjectStore(SpaceRoot)} when needed.
+     */
+    static com.gamma.notify.NotificationStore openNotificationStore(SpaceRoot root) {
+        return new com.gamma.notify.InMemoryNotificationStore();
+    }
+
+    /**
      * Select the status backend from system properties (M5):
      * {@code -Dstatus.backend=file} (default) reads the on-disk audit directly;
      * {@code -Dstatus.backend=db} projects it into a database. The DB engine is chosen by

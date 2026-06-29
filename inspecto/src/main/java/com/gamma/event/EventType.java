@@ -23,6 +23,14 @@ public final class EventType {
     /** A captured SLF4J/logback log record (level ≥ {@link EventLevel#CAPTURE_THRESHOLD}). */
     public static final String LOG = "LOG";
 
+    // ── audit trail (who did what, when, where) ─────────────────────────────────────
+    /** A user/system action recorded for the security audit trail; "who / what / where" detail rides
+     *  in {@link AuditAttrs} keys. Emitted centrally for state-changing Control API requests. */
+    public static final String AUDIT = "AUDIT";
+    /** An attempt to reach a forbidden/unknown API route (the auth-free analogue of 401/403):
+     *  a non-GET request that matched no route (404) or a disallowed method on a read-only route (405). */
+    public static final String ACCESS_DENIED = "ACCESS_DENIED";
+
     // ── service / pipeline lifecycle ──────────────────────────────────────────────
     public static final String SERVICE_STARTED     = "SERVICE_STARTED";
     public static final String PIPELINE_REGISTERED = "PIPELINE_REGISTERED";

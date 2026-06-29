@@ -40,6 +40,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
         children: [
             { id: 'scheduler', title: 'Scheduler', type: 'basic', icon: 'heroicons_outline:clock',                 link: '/jobs' },
             { id: 'events',    title: 'Events',    type: 'basic', icon: 'heroicons_outline:queue-list',            link: '/events' },
+            { id: 'audit',     title: 'Audit log', type: 'basic', icon: 'heroicons_outline:shield-check',          link: '/audit' },
             { id: 'diagnoses', title: 'Diagnoses', type: 'basic', icon: 'heroicons_outline:wrench-screwdriver',    link: '/diagnoses' },
             { id: 'alerts',    title: 'Alerts',    type: 'basic', icon: 'heroicons_outline:bell-alert',            link: '/alerts' },
             { id: 'issues',    title: 'Issues',    type: 'basic', icon: 'heroicons_outline:exclamation-triangle',  link: '/issues' },
@@ -65,6 +66,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
         icon    : 'heroicons_outline:cog-8-tooth',
         children: [
             { id: 'config',         title: 'Config',         type: 'basic', icon: 'heroicons_outline:adjustments-horizontal', link: '/config' },
+            { id: 'notification-prefs', title: 'Notifications', type: 'basic', icon: 'heroicons_outline:bell',                link: '/settings/notifications' },
             { id: 'spaces',         title: 'Spaces',         type: 'basic', icon: 'heroicons_outline:square-3-stack-3d',      link: '/spaces' },
             { id: 'model-settings', title: 'Model Settings', type: 'basic', icon: 'heroicons_outline:cpu-chip',               link: '/settings/models' },
             { id: 'icon-settings',  title: 'Processor Icons', type: 'basic', icon: 'heroicons_outline:paint-brush',           link: '/settings/icons' },

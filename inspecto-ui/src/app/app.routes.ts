@@ -47,6 +47,7 @@ export const appRoutes: Route[] = [
             { path: 'dashboard', loadChildren: () => import('app/modules/admin/dashboard/dashboard.routes') },
             { path: 'diagnoses', loadChildren: () => import('app/modules/admin/diagnoses/diagnoses.routes') },
             { path: 'events', loadChildren: () => import('app/modules/admin/events/events.routes') },
+            { path: 'audit', loadChildren: () => import('app/modules/admin/audit-logs/audit-logs.routes') },
             { path: 'alerts', loadChildren: () => import('app/modules/admin/alerts/alerts.routes') },
             { path: 'cases', loadChildren: () => import('app/modules/admin/objects/cases.routes') },
             { path: 'issues', loadChildren: () => import('app/modules/admin/objects/issues.routes') },
@@ -68,6 +69,7 @@ export const appRoutes: Route[] = [
             { path: 'assist', loadChildren: () => import('app/modules/admin/assist/assist.routes') },
             { path: 'settings/models', loadChildren: () => import('app/modules/admin/model-settings/model-settings.routes') },
             { path: 'settings/icons', loadChildren: () => import('app/modules/admin/icon-settings/icon-settings.routes') },
+            { path: 'settings/notifications', loadChildren: () => import('app/modules/admin/notification-preferences/notification-preferences.routes') },
         ]
     }
 ];

@@ -115,6 +115,24 @@ public record Event(String eventId, long ts, EventLevel level, String type, Stri
             return this;
         }
 
+        // ── audit anatomy (type = EventType.AUDIT) — convenience over attr(); see AuditAttrs ──
+        /** Who acted (defaults to {@code appUser} at the edge when absent). */
+        public Builder actor(String actor) { return attr(AuditAttrs.ACTOR, actor); }
+        /** Actor kind ({@code user}/{@code system}/{@code api_key}/…). */
+        public Builder actorType(String actorType) { return attr(AuditAttrs.ACTOR_TYPE, actorType); }
+        /** What happened, as a dotted action name (e.g. {@code pipeline.deleted}). */
+        public Builder action(String action) { return attr(AuditAttrs.ACTION, action); }
+        /** Coarse action class ({@code data_mutation}/{@code destructive}/{@code export}/…). */
+        public Builder actionCategory(String category) { return attr(AuditAttrs.ACTION_CATEGORY, category); }
+        /** The resource acted upon. */
+        public Builder target(String type, String id) {
+            return attr(AuditAttrs.TARGET_TYPE, type).attr(AuditAttrs.TARGET_ID, id);
+        }
+        /** Originating client IP. */
+        public Builder ip(String ip) { return attr(AuditAttrs.IP, ip); }
+        /** Originating request {@code User-Agent}. */
+        public Builder userAgent(String ua) { return attr(AuditAttrs.USER_AGENT, ua); }
+
         public Event build() {
             return new Event(null, ts, level, type, source, pipeline, correlationId, message, attributes);
         }

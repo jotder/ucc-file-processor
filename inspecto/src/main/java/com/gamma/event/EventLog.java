@@ -141,6 +141,9 @@ public final class EventLog {
     /** Append one event and bump the {@code inspecto_events_total{level,type}} counter. Never throws. */
     public void emit(Event event) {
         if (event == null) return;
+        // Single scrub seam: redact any secret in the message/attributes before it is ever persisted
+        // or handed to a subscriber. Cheap (same reference) for the clean common case; never throws.
+        event = SecretScrubber.scrub(event);
         try {
             store.get().append(event);
             MetricRegistry.global().inc("inspecto_events_total", "Operational events recorded",

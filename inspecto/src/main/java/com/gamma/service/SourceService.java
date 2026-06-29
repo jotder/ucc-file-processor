@@ -333,6 +333,16 @@ public final class SourceService implements AutoCloseable {
         this.events = ServiceStores.openEventStore(root);
         this.eventLog.installStore(events);
         bus.subscribe(this::onBatchEvent);
+        // Notification engine (Phase B2): render operational events into the appUser's in-app feed.
+        // Subscribed on the EventLog (the unified event stream, so it sees BATCH_FAILED/SEQUENCE_GAP/…);
+        // each match is handed to NotificationService's own virtual-thread executor — never run inline on
+        // the emit/ingest thread (which may hold ingestLock inside the synchronous bus publish).
+        this.notifications = ServiceStores.openNotificationStore(root);
+        this.notificationPreferences = new com.gamma.notify.NotificationPreferences();
+        this.notificationService = new com.gamma.notify.NotificationService(
+                notifications, com.gamma.notify.NotificationRules.defaults(), notificationPreferences);
+        this.notificationSubscriber = notificationService::onEvent;
+        this.eventLog.addSubscriber(notificationSubscriber);
         String viewsFile = System.getProperty("events.views.file");
         this.savedViews = new SavedViewStore(viewsFile == null ? null : Path.of(viewsFile));
         CatalogOverlay.Stage2Reads stage2 = enrichment == null ? null : new CatalogOverlay.Stage2Reads() {
@@ -362,6 +372,13 @@ public final class SourceService implements AutoCloseable {
     /** The EventLog→ObjectService bridge (Phase D2); held so {@link #close()} can de-register it. */
     private final java.util.function.Consumer<com.gamma.event.Event> eventObjectBridge;
 
+    /** In-app notification feed (Phase B2) and its event→feed engine; the subscriber is held so
+     *  {@link #close()} can de-register it (mirrors {@link #eventObjectBridge}). */
+    private final com.gamma.notify.NotificationStore notifications;
+    private final com.gamma.notify.NotificationPreferences notificationPreferences;
+    private final com.gamma.notify.NotificationService notificationService;
+    private final java.util.function.Consumer<com.gamma.event.Event> notificationSubscriber;
+
     /** The alert engine, when any {@code *_alert.toon} rules are armed — backs {@code /alerts}. */
     public java.util.Optional<com.gamma.alert.AlertService> alertService() {
         return java.util.Optional.ofNullable(alerting);
@@ -380,6 +397,21 @@ public final class SourceService implements AutoCloseable {
     /** Operator-saved event views (Phase 1, v4.2.0) — always present (in-memory when no file set). */
     public SavedViewStore savedViews() {
         return savedViews;
+    }
+
+    /** The in-app notification feed (Phase B2) backing the {@code /notifications*} API. */
+    public com.gamma.notify.NotificationStore notifications() {
+        return notifications;
+    }
+
+    /** The notification engine (event→feed); exposed so the SSE endpoint can attach a live listener. */
+    public com.gamma.notify.NotificationService notificationService() {
+        return notificationService;
+    }
+
+    /** The single appUser's notification preference grid (Phase B6) — backs {@code /notifications/preferences}. */
+    public com.gamma.notify.NotificationPreferences notificationPreferences() {
+        return notificationPreferences;
     }
 
     /** The Object Engine (Phase 2, v4.3.0) — managed operational objects + their workflows; backs the
@@ -970,6 +1002,9 @@ public final class SourceService implements AutoCloseable {
         triggerWorkers.close();                        // drain in-flight event-triggered flow runs (T13)
         if (enrichment != null) enrichment.close();   // drain in-flight recomputes first
         this.eventLog.removeSubscriber(eventObjectBridge);   // de-register the D2 gap→ALERT bridge
+        this.eventLog.removeSubscriber(notificationSubscriber);   // de-register the B2 event→feed engine
+        try { notificationService.close(); } catch (Exception e) { log.warn("Error closing notification service: {}", e.getMessage()); }
+        try { notifications.close(); } catch (Exception e) { log.warn("Error closing notification store: {}", e.getMessage()); }
         EventLog.unregister(spaceId);                  // stop MDC-routing to this space's log
         scheduler.close();
         if (status instanceof AutoCloseable c) {       // close a DB-backed store's connection

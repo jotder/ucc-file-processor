@@ -28,3 +28,4 @@ export * from './sources.service';
 export * from './acquisition-metrics.service';
 export * from './events.service';
 export * from './flows.service';
+export * from './notifications.service';

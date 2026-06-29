@@ -47,6 +47,30 @@ interface ApiContext {
     /** The configured write root, or {@code null} when filesystem writes are disabled. */
     Path writeRoot();
 
+    /** The acting identity for the audit trail. Auth-free core has no session, so the actor defaults to
+     *  {@code appUser}; an edition's security module supplies the real principal via {@code X-Actor}. */
+    static String actor(HttpExchange ex) {
+        String a = ex.getRequestHeaders().getFirst("X-Actor");
+        return (a == null || a.isBlank()) ? "appUser" : a.trim();
+    }
+
+    /** The originating client IP — the first {@code X-Forwarded-For} hop when present (proxy/dev), else
+     *  the socket peer address. {@code null} only if the address is somehow unavailable. */
+    static String ip(HttpExchange ex) {
+        String fwd = ex.getRequestHeaders().getFirst("X-Forwarded-For");
+        if (fwd != null && !fwd.isBlank()) {
+            int comma = fwd.indexOf(',');
+            return (comma > 0 ? fwd.substring(0, comma) : fwd).trim();
+        }
+        var addr = ex.getRemoteAddress();
+        return addr == null || addr.getAddress() == null ? null : addr.getAddress().getHostAddress();
+    }
+
+    /** The request {@code User-Agent}, or {@code null} if absent. */
+    static String userAgent(HttpExchange ex) {
+        return ex.getRequestHeaders().getFirst("User-Agent");
+    }
+
     /** Decode the {@code key} query-string parameter, or {@code null} if absent. */
     static String query(HttpExchange ex, String key) {
         String q = ex.getRequestURI().getQuery();

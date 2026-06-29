@@ -271,6 +271,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
                 new JobRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
+                new NotificationRoutes(),
                 new AssistRoutes()))
             module.register(this);
     }
@@ -321,12 +322,16 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 if (!r.method.equals(method)) continue;
                 Object result = r.handler.handle(ex, m);
                 if (result != HANDLED) respond(ex, 200, result);
+                AuditTrail.record(ex, method, path, 200);   // audit successful state-changing requests
                 return;
             }
             // No API route matched the path: a GET may be an SPA asset / deep link (PUBLIC).
             if (!pathMatched && "GET".equals(method) && serveStatic(ex, path)) return;
-            respond(ex, pathMatched ? 405 : 404,
-                    Map.of("error", pathMatched ? "method not allowed" : "not found"));
+            int status = pathMatched ? 405 : 404;
+            // A non-GET attempt at a forbidden/unknown route (or a disallowed method on a read-only
+            // route — the append-only immutability guard) is the auth-free analogue of a 401/403.
+            if (!"GET".equals(method)) AuditTrail.accessDenied(ex, method, path, status);
+            respond(ex, status, Map.of("error", pathMatched ? "method not allowed" : "not found"));
         } catch (ApiException ae) {
             respond(ex, ae.status, Map.of("error", ae.getMessage()));
         } catch (Exception e) {
