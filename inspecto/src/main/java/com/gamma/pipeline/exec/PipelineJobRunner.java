@@ -40,7 +40,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * <b>T32 Phase A — run an authored {@code *_flow.toon} flow for real, as a {@link JobType#FLOW} job.</b>
+ * <b>T32 Phase A — run an authored {@code *_flow.toon} flow for real, as a {@link JobType#PIPELINE} job.</b>
  *
  * <p>An authored flow is <em>job-style</em> (§3.8, T23): it reads a {@code source_store} (data already
  * at rest), runs its {@code transform.*} nodes, and writes its sink {@code store}(s) — it is not a
@@ -63,7 +63,7 @@ import java.util.Set;
  * <pre>
  * job:
  *   name: nightly_rollup
- *   type: flow                 # this runner
+ *   type: pipeline             # this runner
  *   flow: events_rollup        # authored flow id (PipelineStore.get)
  *   cron: "0 2 * * *"          # OR on_pipeline: events_etl  (event)  OR manual (trigger API)
  *   data_dir: database         # optional — overrides the injected data root
@@ -114,7 +114,7 @@ public final class PipelineJobRunner implements Job {
     }
 
     @Override public String name() { return cfg.name(); }
-    @Override public JobType type() { return JobType.FLOW; }
+    @Override public JobType type() { return JobType.PIPELINE; }
 
     @Override
     public JobResult run() throws Exception {

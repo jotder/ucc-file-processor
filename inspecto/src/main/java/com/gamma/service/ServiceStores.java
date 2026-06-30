@@ -57,7 +57,7 @@ final class ServiceStores {
     }
 
     /**
-     * Data-plane provenance store for FLOW jobs (T21), gated by {@code -Dprovenance.backend=duckdb} (or a full
+     * Data-plane provenance store for PIPELINE jobs (T21), gated by {@code -Dprovenance.backend=duckdb} (or a full
      * {@code jdbc:} URL); default off ⇒ {@code null} ⇒ flow runs record no per-edge counts and {@code /provenance}
      * 404s. Mirrors {@link #openJobRunStore(SpaceRoot)}.
      */

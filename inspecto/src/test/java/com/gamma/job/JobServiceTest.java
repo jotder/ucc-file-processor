@@ -238,24 +238,24 @@ class JobServiceTest {
         }
     }
 
-    // ── T32: flow jobs (JobType.FLOW) ──────────────────────────────────────────
+    // ── T32: flow jobs (JobType.PIPELINE) ──────────────────────────────────────────
 
     @Test
     void flowJobIsBuiltWhenAFlowStoreIsConfigured(@TempDir Path dir) throws Exception {
-        JobConfig fj = new JobConfig("fj", JobType.FLOW, null, null, true, false, Map.of("flow", "some_flow"));
+        JobConfig fj = new JobConfig("fj", JobType.PIPELINE, null, null, true, false, Map.of("flow", "some_flow"));
         com.gamma.pipeline.PipelineStore store = new com.gamma.pipeline.PipelineStore(dir.resolve("flows"));
         try (Scheduler s = new Scheduler();
              JobService js = new JobService(List.of(fj), new BatchEventBus(), s, null,
                      dir.resolve("audit").toString(), null, store, dir.resolve("data").toString())) {
             js.start();
             assertTrue(js.has("fj"), "a flow job is built when a flow store is configured");
-            assertEquals("FLOW", js.jobs().get(0).type(), "the listing reports the FLOW type");
+            assertEquals("PIPELINE", js.jobs().get(0).type(), "the listing reports the PIPELINE type");
         }
     }
 
     @Test
     void flowJobWithoutAFlowStoreFailsClosed(@TempDir Path dir) throws Exception {
-        JobConfig fj = new JobConfig("fj", JobType.FLOW, null, null, true, false, Map.of("flow", "some_flow"));
+        JobConfig fj = new JobConfig("fj", JobType.PIPELINE, null, null, true, false, Map.of("flow", "some_flow"));
         // the 5-arg constructor leaves the flow store null → building a flow job must fail closed
         try (Scheduler s = new Scheduler()) {
             assertThrows(IllegalStateException.class, () ->
@@ -271,7 +271,7 @@ class JobServiceTest {
         PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
 
-        JobConfig fj = new JobConfig("nightly", JobType.FLOW, null, null, true, false,
+        JobConfig fj = new JobConfig("nightly", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
         BatchEventBus bus = new BatchEventBus();
         AtomicReference<Set<String>> midRun = new AtomicReference<>();
@@ -286,23 +286,23 @@ class JobServiceTest {
             JobRun run = await(() -> js.lastRunOf("nightly").orElse(null));
 
             assertEquals("SUCCESS", run.status(), run.message());
-            assertEquals("FLOW", run.type());
+            assertEquals("PIPELINE", run.type());
             assertNotNull(midRun.get(), "the flow's chain event fired");
             assertTrue(midRun.get().contains("evt_rollup"), "flow tracked as running mid-run: " + midRun.get());
             assertTrue(js.runningFlows().isEmpty(), "the running-flow set is cleaned up after the run");
         }
     }
 
-    // ── T32 Phase B: a FLOW job is a first-class scheduled/chained job ───────────
+    // ── T32 Phase B: a PIPELINE job is a first-class scheduled/chained job ───────────
 
     @Test
     void cronFiresAFlowJob(@TempDir Path dir) throws Exception {
-        // cron arming is type-agnostic in JobService.start(); prove it actually fires a FLOW job.
+        // cron arming is type-agnostic in JobService.start(); prove it actually fires a PIPELINE job.
         String dataDir = dir.resolve("data").toString();
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
         PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
-        JobConfig fj = new JobConfig("ticker", JobType.FLOW, "* * * * * *", null, true, false,
+        JobConfig fj = new JobConfig("ticker", JobType.PIPELINE, "* * * * * *", null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
         try (Scheduler s = new Scheduler();
              JobService js = new JobService(List.of(fj), new BatchEventBus(), s, null,
@@ -312,7 +312,7 @@ class JobServiceTest {
             JobRun run = await(() -> js.runsFor("ticker").stream()
                     .filter(r -> "SUCCESS".equals(r.status())).findFirst().orElse(null));
             assertEquals("schedule", run.trigger(), "cron fire records the schedule trigger");
-            assertEquals("FLOW", run.type());
+            assertEquals("PIPELINE", run.type());
         }
     }
 
@@ -324,7 +324,7 @@ class JobServiceTest {
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
         PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
-        JobConfig fj = new JobConfig("rollup_job", JobType.FLOW, null, "events_etl", true, false,
+        JobConfig fj = new JobConfig("rollup_job", JobType.PIPELINE, null, "events_etl", true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
         BatchEventBus bus = new BatchEventBus();
         try (Scheduler s = new Scheduler();
@@ -334,7 +334,7 @@ class JobServiceTest {
             bus.publish(new BatchEvent("events_etl", "b1", "SUCCESS", List.of("p=1"), 1L, 1L, 0));
             JobRun run = await(() -> js.lastRunOf("rollup_job").orElse(null));
             assertEquals("SUCCESS", run.status(), run.message());
-            assertEquals("FLOW", run.type());
+            assertEquals("PIPELINE", run.type());
             assertTrue(run.trigger().startsWith("event:events_etl"), "fired by the upstream commit: " + run.trigger());
             assertTrue(Files.exists(Path.of(dataDir, "rollup")), "the flow job wrote its sink store");
         }
@@ -348,7 +348,7 @@ class JobServiceTest {
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
         PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
-        JobConfig flowJob = new JobConfig("rollup_job", JobType.FLOW, null, null, true, false,
+        JobConfig flowJob = new JobConfig("rollup_job", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
         JobConfig downstream = maintenance("after_rollup", null, "rollup_job", Map.of("task", "heartbeat"));
         BatchEventBus bus = new BatchEventBus();
@@ -365,12 +365,12 @@ class JobServiceTest {
 
     @Test
     void flowRunsAreProjectedIntoTheReportingStoreAsTypeFlow(@TempDir Path dir) throws Exception {
-        // T27 reporting: a FLOW run reaches the DuckDB job-run store, typed FLOW (jobs-pane reporting).
+        // T27 reporting: a PIPELINE run reaches the DuckDB job-run store, typed PIPELINE (jobs-pane reporting).
         String dataDir = dir.resolve("data").toString();
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
         PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
-        JobConfig fj = new JobConfig("nightly_rollup", JobType.FLOW, null, null, true, false,
+        JobConfig fj = new JobConfig("nightly_rollup", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
         DbJobRunStore runStore = DbJobRunStore.open("jdbc:duckdb:");   // in-memory; closed by js.close()
         try (Scheduler s = new Scheduler();
@@ -383,7 +383,7 @@ class JobServiceTest {
                     "the flow run was projected into the reporting store");
             List<Map<String, Object>> recent = runStore.recentRuns(10, "nightly_rollup");
             assertFalse(recent.isEmpty(), "the flow run is queryable in the reporting store");
-            assertEquals("FLOW", recent.get(0).get("type"), "reported as a FLOW run");
+            assertEquals("PIPELINE", recent.get(0).get("type"), "reported as a PIPELINE run");
         }
     }
 

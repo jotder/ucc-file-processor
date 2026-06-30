@@ -51,7 +51,7 @@ class PipelineJobRunnerTest {
                         new PipelineNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
                 List.of(PipelineEdge.data("src", "flt"), PipelineEdge.data("flt", "out"))));
 
-        JobConfig cfg = new JobConfig("nightly", JobType.FLOW, null, null, true, false,
+        JobConfig cfg = new JobConfig("nightly", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
         JobResult res = new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run();
 
@@ -70,7 +70,7 @@ class PipelineJobRunnerTest {
                         new PipelineNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
                 List.of(PipelineEdge.data("src", "out"))));
 
-        JobConfig cfg = new JobConfig("nightly", JobType.FLOW, null, null, true, false,
+        JobConfig cfg = new JobConfig("nightly", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir, "batch_id", "fixed-1"));
         BatchEventBus bus = new BatchEventBus();
 
@@ -101,7 +101,7 @@ class PipelineJobRunnerTest {
                         new PipelineEdge("r", PipelineRel.route("hi"), "sink_hi"),
                         new PipelineEdge("r", PipelineRel.route("lo"), "sink_lo"))));
 
-        JobConfig cfg = new JobConfig("splitjob", JobType.FLOW, null, null, true, false,
+        JobConfig cfg = new JobConfig("splitjob", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "split_flow", "data_dir", dataDir));
         JobResult res = new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run();
 
@@ -119,7 +119,7 @@ class PipelineJobRunnerTest {
                         new PipelineNode("out", "sink.persistent", "O", null, Map.of("store", "o"), null)),
                 List.of(PipelineEdge.data("acq", "out"))));
 
-        JobConfig cfg = new JobConfig("j", JobType.FLOW, null, null, true, false,
+        JobConfig cfg = new JobConfig("j", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "no_src", "data_dir", dataDir));
         PipelineJobRunner runner = new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir, tmp.resolve("audit").toString());
         assertThrows(IllegalArgumentException.class, runner::run);
@@ -140,7 +140,7 @@ class PipelineJobRunnerTest {
                         new PipelineNode("out", "sink.persistent", "Combined", null, Map.of("store", "combined"), null)),
                 List.of(PipelineEdge.data("src_a", "m"), PipelineEdge.data("src_b", "m"), PipelineEdge.data("m", "out"))));
 
-        JobConfig cfg = new JobConfig("merge_job", JobType.FLOW, null, null, true, false,
+        JobConfig cfg = new JobConfig("merge_job", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "merged_flow", "data_dir", dataDir));
         JobResult res = new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run();
 
@@ -163,7 +163,7 @@ class PipelineJobRunnerTest {
                         new PipelineNode("v", "sink.view", "ActiveSubs", null, Map.of("store", "active_subs"), null)),
                 List.of(PipelineEdge.data("src", "flt"), PipelineEdge.data("flt", "v"))));
 
-        JobConfig cfg = new JobConfig("kpi_job", JobType.FLOW, null, null, true, false,
+        JobConfig cfg = new JobConfig("kpi_job", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "subs_kpi", "data_dir", dataDir));
         JobResult res = new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run();
 
@@ -187,14 +187,14 @@ class PipelineJobRunnerTest {
                 List.of(PipelineEdge.data("src", "out"))));
 
         // run 1 — no prior watermark ⇒ reads all of batch1 (ids 1,2)
-        JobConfig r1 = new JobConfig("incjob", JobType.FLOW, null, null, true, false,
+        JobConfig r1 = new JobConfig("incjob", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "inc_flow", "data_dir", dataDir, "incremental_column", "id", "batch_id", "inc1"));
         assertTrue(new PipelineJobRunner(r1, new BatchEventBus(), store, dataDir, auditDir).run().success());
         assertEquals(List.of(1, 2), readIds(dataDir, "rollup"), "first run reads the whole store");
 
         // new data arrives, then run 2 — watermark=2 ⇒ reads only ids 3,4 and appends (output accumulates)
         seedParquetFile(dataDir, "events", "batch2", "(3,200),(4,300)");
-        JobConfig r2 = new JobConfig("incjob", JobType.FLOW, null, null, true, false,
+        JobConfig r2 = new JobConfig("incjob", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "inc_flow", "data_dir", dataDir, "incremental_column", "id", "batch_id", "inc2"));
         assertTrue(new PipelineJobRunner(r2, new BatchEventBus(), store, dataDir, auditDir).run().success());
         assertEquals(List.of(1, 2, 3, 4), readIds(dataDir, "rollup"), "second run appends only the new rows");
@@ -216,7 +216,7 @@ class PipelineJobRunnerTest {
                         new PipelineNode("out", "sink.persistent", "Combined", null, Map.of("store", "combined"), null)),
                 List.of(PipelineEdge.data("src_a", "m"), PipelineEdge.data("src_b", "m"), PipelineEdge.data("m", "out"))));
 
-        JobConfig run1 = new JobConfig("inc_job", JobType.FLOW, null, null, true, false,
+        JobConfig run1 = new JobConfig("inc_job", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "inc_merge", "data_dir", dataDir, "incremental_column", "amt", "batch_id", "b1"));
         new PipelineJobRunner(run1, new BatchEventBus(), store, dataDir, auditDir).run();
         assertEquals(List.of(1, 2, 3), readIds(dataDir, "combined"), "run 1 (no watermark) reads every source in full");
@@ -224,7 +224,7 @@ class PipelineJobRunnerTest {
         // new rows arrive in BOTH sources, each past that source's OWN amt watermark (events_a:20, events_b:15)
         seedParquetFile(dataDir, "events_a", "a2", "(4,30)");
         seedParquetFile(dataDir, "events_b", "b2", "(5,25)");
-        JobConfig run2 = new JobConfig("inc_job", JobType.FLOW, null, null, true, false,
+        JobConfig run2 = new JobConfig("inc_job", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "inc_merge", "data_dir", dataDir, "incremental_column", "amt", "batch_id", "b2"));
         new PipelineJobRunner(run2, new BatchEventBus(), store, dataDir, auditDir).run();
 
@@ -246,7 +246,7 @@ class PipelineJobRunnerTest {
                         PipelineNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
                         new PipelineNode("v", "sink.view", "ActiveSubs", null, Map.of("store", "active_subs"), null)),
                 List.of(PipelineEdge.data("src", "flt"), PipelineEdge.data("flt", "v"))));
-        JobConfig cfg = new JobConfig("kpi_job", JobType.FLOW, null, null, true, false,
+        JobConfig cfg = new JobConfig("kpi_job", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "subs_kpi", "data_dir", dataDir));
         assertTrue(new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run().success());
 
@@ -270,7 +270,7 @@ class PipelineJobRunnerTest {
                         PipelineNode.of("m", "transform.merge", Map.of("type", "union")),
                         new PipelineNode("v", "sink.view", "Merged", null, Map.of("store", "merged"), null)),
                 List.of(PipelineEdge.data("src_a", "m"), PipelineEdge.data("src_b", "m"), PipelineEdge.data("m", "v"))));
-        JobConfig cfg = new JobConfig("mv_job", JobType.FLOW, null, null, true, false,
+        JobConfig cfg = new JobConfig("mv_job", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "merge_view", "data_dir", dataDir));
         assertTrue(new PipelineJobRunner(cfg, new BatchEventBus(), store, dataDir, auditDir).run().success());
 
@@ -291,13 +291,13 @@ class PipelineJobRunnerTest {
                 List.of(PipelineNode.of("src", "acquisition", Map.of("source_store", "events")),
                         new PipelineNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
                 List.of(PipelineEdge.data("src", "out"))));
-        JobConfig r1 = new JobConfig("istr", JobType.FLOW, null, null, true, false,
+        JobConfig r1 = new JobConfig("istr", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "inc_str", "data_dir", dataDir, "incremental_column", "ts", "batch_id", "i1"));
         new PipelineJobRunner(r1, new BatchEventBus(), store, dataDir, auditDir).run();
         assertEquals(List.of(1, 2), readIds(dataDir, "rollup"), "run 1 reads the whole store");
 
         seedTsFile(dataDir, "events", "a2", "(3,'2020-01-03')");
-        JobConfig r2 = new JobConfig("istr", JobType.FLOW, null, null, true, false,
+        JobConfig r2 = new JobConfig("istr", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "inc_str", "data_dir", dataDir, "incremental_column", "ts", "batch_id", "i2"));
         new PipelineJobRunner(r2, new BatchEventBus(), store, dataDir, auditDir).run();
         // truncated watermark '2020-01-' would re-admit ids 1,2 (lexically > the prefix) → [1,1,2,2,3];
@@ -318,7 +318,7 @@ class PipelineJobRunnerTest {
                         new PipelineNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
                 List.of(PipelineEdge.data("src", "flt"), PipelineEdge.data("flt", "out"))));
 
-        JobConfig cfg = new JobConfig("provjob", JobType.FLOW, null, null, true, false,
+        JobConfig cfg = new JobConfig("provjob", JobType.PIPELINE, null, null, true, false,
                 Map.of("flow", "prov_flow", "data_dir", dataDir, "batch_id", "prov1"));
 
         String url = "jdbc:duckdb:" + tmp.resolve("prov.duckdb").toString().replace("\\", "/");

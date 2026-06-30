@@ -9,7 +9,7 @@ import java.sql.Statement;
 
 /**
  * <b>T32 Phase A — seed a flow job's {@code source_store} as a DuckDB view.</b> A flow run as a
- * {@link com.gamma.job.JobType#FLOW} job reads data already at rest (the {@code source_store} a node
+ * {@link com.gamma.job.JobType#PIPELINE} job reads data already at rest (the {@code source_store} a node
  * declares, §3.8) rather than re-acquiring it; this helper registers that store's Hive-partitioned
  * dataset as a view the {@link PipelineExecutor} can seed from, exactly as the Stage-2
  * {@link com.gamma.enrich.EnrichmentEngine} registers its {@code input} view.
