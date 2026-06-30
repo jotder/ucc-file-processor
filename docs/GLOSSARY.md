@@ -297,7 +297,7 @@ touchpoint before renaming; the backend hits below are *known examples*, not an 
 |---|---|---|
 | Flow | **Pipeline** | UI `/flows` route, "Pipelines/Flow" nav; backend `FlowGraph`, `FlowTrigger`, `AuthoredFlow`, `JobType.FLOW`, `flow/` package, `/flows` API |
 | Data Store | **Dataset** | Studio datasets UI; `dataset-types.ts` (already "Dataset" — verify no "store" labels); backend `ComponentStore` stays = *physical store*, not a Dataset |
-| Issue | **Incident** | `/issues` route + nav, issue components/services; backend issue store/API |
+| Issue | **Incident** | ✅ **DONE** (`2878b31`, breaking → 5.0): `ObjectType.INCIDENT`, `/objects?type=INCIDENT` + `objectType` value, UI `/issues`→`/incidents` (route file renamed), ops-mock seeds INCIDENT. No DB migration (in-memory `ObjectStore`). |
 | Rule *(bare)* | **Expectation** / **Alert Rule** / **Decision Rule** | rule builder UI; `AlertRule`, rule services — split by purpose |
 | Metric *(BI sense)* | **Measure** | Studio chart/KPI config field names; keep ops `MetricRegistry`/`MetricsService` as **Metric** |
 | Collector *(noun)* | **Source** | any "Collector" labels → "Source"; keep `collect()` verbs |
@@ -305,5 +305,6 @@ touchpoint before renaming; the backend hits below are *known examples*, not an 
 | `EVENT_TABLE` / `TRANSFORMED_TABLE` / `REFERENCE_TABLE` | **Table** / **Derived Table** / **Reference Dataset** | `MetadataGraphService` NodeKind + `catalog-graph.ts` — ⚠️ external enum values |
 | `LineageRow` *(file→partition rows)* | **Provenance** *(concept)* | `inspecto/etl/LineageRow.java`, `BatchAuditWriter`; the asset graph keeps the name *Lineage* |
 
-**Do not rename yet** — this table is the agreed target. Renaming is a separate, tracked effort starting with the
-UI. When a rename lands, update the touchpoint here.
+**Migration underway** (the *2b* coordinated breaking change, toward **5.0** — one term per verified PR). ✅ = the
+rename has landed (see the touchpoint cell for the commit); unmarked rows are the agreed target, not yet started.
+**Save Flow→Pipeline for last** (largest blast radius). When a rename lands, mark its row ✅ and record the commit.
