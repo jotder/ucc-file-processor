@@ -84,13 +84,13 @@ public final class EventType {
     public static final String ALERT_FIRED     = "ALERT_FIRED";
     public static final String CONFIG_VALIDATED = "CONFIG_VALIDATED";
 
-    /** A managed object (ALERT/ISSUE/…) was created in its workflow's initial state (Phase 2). */
+    /** A managed object (ALERT/INCIDENT/…) was created in its workflow's initial state (Phase 2). */
     public static final String OBJECT_OPENED   = "OBJECT_OPENED";
     /** A managed object changed state via a workflow transition (ack/resolve/…) (Phase 2). */
     public static final String OBJECT_ACTIVITY = "OBJECT_ACTIVITY";
-    /** An object (an ISSUE) passed its {@code dueAt} while still unresolved — an SLA breach (Phase 3). */
+    /** An object (an INCIDENT) passed its {@code dueAt} while still unresolved — an SLA breach (Phase 3). */
     public static final String OBJECT_SLA_BREACH = "OBJECT_SLA_BREACH";
-    /** Two objects were correlated by an {@code OBJECT_LINK} (e.g. {@code Case CONTAINS Issue}) (Phase 4). */
+    /** Two objects were correlated by an {@code OBJECT_LINK} (e.g. {@code Case CONTAINS Incident}) (Phase 4). */
     public static final String OBJECT_LINKED = "OBJECT_LINKED";
     /** A note was added to an object — a comment or an attachment reference ({@code noteKind} attr) (Phase 4). */
     public static final String OBJECT_NOTE = "OBJECT_NOTE";

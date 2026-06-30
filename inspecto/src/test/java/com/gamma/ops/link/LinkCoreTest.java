@@ -16,25 +16,25 @@ class LinkCoreTest {
 
     @Test
     void objectLinkValidatesNormalisesAndMaps() {
-        ObjectLink l = ObjectLink.of("CASE-1", ObjectType.CASE, "ISSUE-1", ObjectType.ISSUE, "contains");
+        ObjectLink l = ObjectLink.of("CASE-1", ObjectType.CASE, "INCIDENT-1", ObjectType.INCIDENT, "contains");
         assertEquals("CONTAINS", l.relationship(), "relationship is upper-cased");
-        assertEquals("ISSUE-1", l.other("CASE-1"));
-        assertEquals("CASE-1", l.other("ISSUE-1"));
+        assertEquals("INCIDENT-1", l.other("CASE-1"));
+        assertEquals("CASE-1", l.other("INCIDENT-1"));
         assertNull(l.other("SOMETHING-ELSE"));
         assertEquals("CASE", l.toMap().get("fromType"));
-        assertEquals("ISSUE", l.toMap().get("toType"));
+        assertEquals("INCIDENT", l.toMap().get("toType"));
         assertThrows(IllegalArgumentException.class,
-                () -> new ObjectLink("", ObjectType.CASE, "x", ObjectType.ISSUE, "r", 1), "blank from rejected");
+                () -> new ObjectLink("", ObjectType.CASE, "x", ObjectType.INCIDENT, "r", 1), "blank from rejected");
         assertThrows(IllegalArgumentException.class,
-                () -> new ObjectLink("a", ObjectType.CASE, "b", ObjectType.ISSUE, "  ", 1), "blank relationship rejected");
+                () -> new ObjectLink("a", ObjectType.CASE, "b", ObjectType.INCIDENT, "  ", 1), "blank relationship rejected");
     }
 
     @Test
     void inMemoryAddIncidentAndAllNewestFirst() {
         InMemoryLinkStore store = new InMemoryLinkStore();
-        store.add(new ObjectLink("C", ObjectType.CASE, "I1", ObjectType.ISSUE, "CONTAINS", 100));
-        store.add(new ObjectLink("C", ObjectType.CASE, "I2", ObjectType.ISSUE, "CONTAINS", 200));
-        store.add(new ObjectLink("I1", ObjectType.ISSUE, "A1", ObjectType.ALERT, "ESCALATED_FROM", 300));
+        store.add(new ObjectLink("C", ObjectType.CASE, "I1", ObjectType.INCIDENT, "CONTAINS", 100));
+        store.add(new ObjectLink("C", ObjectType.CASE, "I2", ObjectType.INCIDENT, "CONTAINS", 200));
+        store.add(new ObjectLink("I1", ObjectType.INCIDENT, "A1", ObjectType.ALERT, "ESCALATED_FROM", 300));
 
         List<ObjectLink> incidentC = store.incident("C");
         assertEquals(2, incidentC.size());
@@ -48,14 +48,14 @@ class LinkCoreTest {
     @Test
     void dbLinkStoreRoundTrips() throws Exception {
         try (DbLinkStore store = DbLinkStore.open("jdbc:duckdb:", null, null)) {   // in-memory database
-            store.add(new ObjectLink("C", ObjectType.CASE, "I1", ObjectType.ISSUE, "CONTAINS", 100));
-            store.add(new ObjectLink("I1", ObjectType.ISSUE, "A1", ObjectType.ALERT, "ESCALATED_FROM", 200));
+            store.add(new ObjectLink("C", ObjectType.CASE, "I1", ObjectType.INCIDENT, "CONTAINS", 100));
+            store.add(new ObjectLink("I1", ObjectType.INCIDENT, "A1", ObjectType.ALERT, "ESCALATED_FROM", 200));
 
             List<ObjectLink> incidentI1 = store.incident("I1");
             assertEquals(2, incidentI1.size(), "both directions");
             ObjectLink top = incidentI1.get(0);
             assertEquals(200, top.createdAt(), "newest-first");
-            assertEquals(ObjectType.ISSUE, top.fromType());
+            assertEquals(ObjectType.INCIDENT, top.fromType());
             assertEquals(ObjectType.ALERT, top.toType());
             assertEquals("ESCALATED_FROM", top.relationship());
             assertEquals(2, store.all(10).size());

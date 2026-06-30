@@ -17,7 +17,7 @@ import { ObjectCreateDialog } from './object-create.dialog';
 
 /**
  * Operational-object list pane (Phase 2–4) — one reusable grid driven by route data: `/cases`
- * (type CASE) and `/issues` (type ISSUE) both render this with a different `type`/`title`. Lists the
+ * (type CASE) and `/incidents` (type INCIDENT) both render this with a different `type`/`title`. Lists the
  * objects of that type, with a create dialog and a one-click "advance lifecycle" action (the backend
  * still validates each transition). The detail pane (graph + comments/attachments) is a separate route.
  */
@@ -44,8 +44,8 @@ export class ObjectsComponent implements OnInit {
     private route = inject(ActivatedRoute);
     private router = inject(Router);
 
-    /** Object type this pane manages ('CASE' | 'ISSUE'), from route data. */
-    readonly type = (this.route.snapshot.data['type'] as string) ?? 'ISSUE';
+    /** Object type this pane manages ('CASE' | 'INCIDENT'), from route data. */
+    readonly type = (this.route.snapshot.data['type'] as string) ?? 'INCIDENT';
     readonly title = (this.route.snapshot.data['title'] as string) ?? 'Objects';
     readonly subtitle = (this.route.snapshot.data['subtitle'] as string) ?? '';
 
@@ -53,12 +53,12 @@ export class ObjectsComponent implements OnInit {
     loading = false;
 
     get createLabel(): string {
-        return this.type === 'CASE' ? 'case' : this.type === 'ISSUE' ? 'issue' : 'object';
+        return this.type === 'CASE' ? 'case' : this.type === 'INCIDENT' ? 'incident' : 'object';
     }
 
     /** The next happy-path workflow action from a given status, per object type (backend re-validates). */
     private static readonly NEXT: Record<string, Record<string, string>> = {
-        ISSUE: { OPEN: 'assign', ASSIGNED: 'start', IN_PROGRESS: 'resolve', RESOLVED: 'close' },
+        INCIDENT: { OPEN: 'assign', ASSIGNED: 'start', IN_PROGRESS: 'resolve', RESOLVED: 'close' },
         CASE: { OPEN: 'investigate', INVESTIGATING: 'escalate', ESCALATED: 'resolve', RESOLVED: 'close' },
         ALERT: { OPEN: 'ack', ACKNOWLEDGED: 'resolve' },
     };
@@ -97,7 +97,7 @@ export class ObjectsComponent implements OnInit {
 
     /** Open the detail pane for an object (also the grid's row-click target). */
     open(o: OperationalObject): void {
-        this.router.navigate([this.type === 'CASE' ? '/cases' : '/issues', o.id]);
+        this.router.navigate([this.type === 'CASE' ? '/cases' : '/incidents', o.id]);
     }
 
     onRowClicked(o: OperationalObject): void {

@@ -23,7 +23,7 @@ type TabKey = 'overview' | 'graph' | 'events' | 'comments' | 'attachments';
  * Operational-object detail (Phase 2–4) — one object with its lifecycle actions, its correlation
  * graph (reusing the catalog G6 view fed by GET /objects/{id}/graph), and its append-only note thread
  * (comments + attachment references), plus a one-click RCA skeleton. Reused for {@code /cases/:id} and
- * {@code /issues/:id}; type-agnostic (it reads the object's own {@code objectType}).
+ * {@code /incidents/:id}; type-agnostic (it reads the object's own {@code objectType}).
  */
 @Component({
     selector: 'app-object-detail',
@@ -87,7 +87,7 @@ export class ObjectDetailComponent implements OnInit {
 
     /** Legal next workflow actions from the current status, per object type (backend re-validates). */
     private static readonly TRANSITIONS: Record<string, Record<string, string[]>> = {
-        ISSUE: { OPEN: ['assign'], ASSIGNED: ['start'], IN_PROGRESS: ['resolve'], RESOLVED: ['close'] },
+        INCIDENT: { OPEN: ['assign'], ASSIGNED: ['start'], IN_PROGRESS: ['resolve'], RESOLVED: ['close'] },
         CASE: { OPEN: ['investigate'], INVESTIGATING: ['escalate', 'resolve'], ESCALATED: ['resolve'], RESOLVED: ['close'] },
         ALERT: { OPEN: ['ack', 'resolve'], ACKNOWLEDGED: ['resolve'] },
     };
@@ -243,16 +243,16 @@ export class ObjectDetailComponent implements OnInit {
 
     onNodeClick(nodeId: string): void {
         if (!nodeId || nodeId === this.id) return;
-        const base = this.router.url.split('/')[1] || 'issues';
+        const base = this.router.url.split('/')[1] || 'incidents';
         this.router.navigate(['/' + base, nodeId]);
     }
 
-    /** The owning list route (`issues` / `cases`) this detail was opened from. */
+    /** The owning list route (`incidents` / `cases`) this detail was opened from. */
     get listBase(): string {
-        return this.router.url.split('/')[1] || 'issues';
+        return this.router.url.split('/')[1] || 'incidents';
     }
 
-    /** Title-cased label for the breadcrumb (e.g. `Issues`). */
+    /** Title-cased label for the breadcrumb (e.g. `Incidents`). */
     get listLabel(): string {
         const b = this.listBase;
         return b.charAt(0).toUpperCase() + b.slice(1);

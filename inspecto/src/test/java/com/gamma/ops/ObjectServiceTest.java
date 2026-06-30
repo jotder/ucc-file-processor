@@ -92,12 +92,12 @@ class ObjectServiceTest {
         assertThrows(IllegalStateException.class, () -> svc.transitionTo(o.id(), "OPEN", "x"));
     }
 
-    // ── Phase 3: ISSUE lifecycle + SLA sweep ────────────────────────────────────────
+    // ── Phase 3: INCIDENT lifecycle + SLA sweep ────────────────────────────────────────
 
     @Test
-    void issueLifecycleWalk() {
+    void incidentLifecycleWalk() {
         ObjectService svc = new ObjectService(new InMemoryObjectStore());
-        OperationalObject o = svc.open(ObjectType.ISSUE, "bad rows", "investigate", "HIGH", "P1",
+        OperationalObject o = svc.open(ObjectType.INCIDENT, "bad rows", "investigate", "HIGH", "P1",
                 null, "alice", "pipeC", Map.of());
         assertEquals("OPEN", o.status());
         assertEquals("P1", o.priority(), "the fuller open() carries priority");
@@ -107,50 +107,50 @@ class ObjectServiceTest {
         assertEquals("IN_PROGRESS", svc.transition(o.id(), "start", "alice").status());
         OperationalObject resolved = svc.transition(o.id(), "resolve", "alice");
         assertEquals("RESOLVED", resolved.status());
-        assertEquals(0, resolved.closedAt(), "RESOLVED is not terminal for an ISSUE");
+        assertEquals(0, resolved.closedAt(), "RESOLVED is not terminal for an INCIDENT");
         OperationalObject closed = svc.transition(o.id(), "close", "bob");
         assertEquals("CLOSED", closed.status());
         assertTrue(closed.isClosed(), "CLOSED is terminal → closedAt set");
         assertThrows(IllegalStateException.class, () -> svc.transition(o.id(), "start", null),
-                "cannot reopen a closed issue");
+                "cannot reopen a closed incident");
     }
 
     @Test
-    void slaSweepBreachesOverdueUnresolvedIssues() {
+    void slaSweepBreachesOverdueUnresolvedIncidents() {
         InMemoryEventStore events = new InMemoryEventStore();
         EventLog.global().installStore(events);
         ObjectService svc = new ObjectService(new InMemoryObjectStore());
 
         long now = System.currentTimeMillis();
-        OperationalObject overdue = svc.open(ObjectType.ISSUE, "overdue", "d", "HIGH", "pipeD",
+        OperationalObject overdue = svc.open(ObjectType.INCIDENT, "overdue", "d", "HIGH", "pipeD",
                 Map.of(ObjectService.ATTR_DUE_AT, Long.toString(now - 60_000)));
-        OperationalObject future = svc.open(ObjectType.ISSUE, "not yet", "d", "LOW", "pipeE",
+        OperationalObject future = svc.open(ObjectType.INCIDENT, "not yet", "d", "LOW", "pipeE",
                 Map.of(ObjectService.ATTR_DUE_AT, Long.toString(now + 3_600_000)));
-        OperationalObject noSla = svc.open(ObjectType.ISSUE, "no sla", "d", "LOW", "pipeF", Map.of());
+        OperationalObject noSla = svc.open(ObjectType.INCIDENT, "no sla", "d", "LOW", "pipeF", Map.of());
 
-        assertEquals(1, svc.sweepIssueSla(now), "only the overdue issue breaches");
+        assertEquals(1, svc.sweepIncidentSla(now), "only the overdue incident breaches");
         assertEquals(1, activityFor(events, EventType.OBJECT_SLA_BREACH, overdue.id()).size());
         assertTrue(svc.get(overdue.id()).orElseThrow().attributes().containsKey(ObjectService.ATTR_SLA_BREACHED_AT));
         assertFalse(svc.get(future.id()).orElseThrow().attributes().containsKey(ObjectService.ATTR_SLA_BREACHED_AT));
         assertFalse(svc.get(noSla.id()).orElseThrow().attributes().containsKey(ObjectService.ATTR_SLA_BREACHED_AT));
 
         // idempotent: a second sweep at the same instant does not re-breach or re-emit
-        assertEquals(0, svc.sweepIssueSla(now));
+        assertEquals(0, svc.sweepIncidentSla(now));
         assertEquals(1, activityFor(events, EventType.OBJECT_SLA_BREACH, overdue.id()).size());
     }
 
     @Test
-    void slaSweepIgnoresResolvedAndClosedIssues() {
+    void slaSweepIgnoresResolvedAndClosedIncidents() {
         ObjectService svc = new ObjectService(new InMemoryObjectStore());
         long now = System.currentTimeMillis();
-        OperationalObject o = svc.open(ObjectType.ISSUE, "fixed in time", "d", "HIGH", "pipeG",
+        OperationalObject o = svc.open(ObjectType.INCIDENT, "fixed in time", "d", "HIGH", "pipeG",
                 Map.of(ObjectService.ATTR_DUE_AT, Long.toString(now - 60_000)));
         svc.transition(o.id(), "assign", "a");
         svc.transition(o.id(), "start", "a");
         svc.transition(o.id(), "resolve", "a");   // RESOLVED — the SLA clock has stopped
-        assertEquals(0, svc.sweepIssueSla(now), "a resolved issue past its due time does not breach");
+        assertEquals(0, svc.sweepIncidentSla(now), "a resolved incident past its due time does not breach");
         svc.transition(o.id(), "close", "a");      // CLOSED — still no breach
-        assertEquals(0, svc.sweepIssueSla(now));
+        assertEquals(0, svc.sweepIncidentSla(now));
     }
 
     // ── Phase 4: correlation links + graph ──────────────────────────────────────────
@@ -161,12 +161,12 @@ class ObjectServiceTest {
         EventLog.global().installStore(events);
         ObjectService svc = new ObjectService(new InMemoryObjectStore());
         OperationalObject c = svc.open(ObjectType.CASE, "investigation", "d", "HIGH", "corr", Map.of());
-        OperationalObject i = svc.open(ObjectType.ISSUE, "bad rows", "d", "HIGH", "corr", Map.of());
+        OperationalObject i = svc.open(ObjectType.INCIDENT, "bad rows", "d", "HIGH", "corr", Map.of());
 
         ObjectLink link = svc.link(c.id(), i.id(), "contains", "alice");
         assertEquals("CONTAINS", link.relationship());
         assertEquals(ObjectType.CASE, link.fromType());
-        assertEquals(ObjectType.ISSUE, link.toType());
+        assertEquals(ObjectType.INCIDENT, link.toType());
         assertEquals(1, svc.linksOf(c.id()).size());
         assertEquals(1, svc.linksOf(i.id()).size(), "link is incident from both ends");
         assertEquals(1, activityFor(events, EventType.OBJECT_LINKED, c.id()).stream()
@@ -189,12 +189,12 @@ class ObjectServiceTest {
     void graphTraversesToDepth() {
         ObjectService svc = new ObjectService(new InMemoryObjectStore());
         OperationalObject c = svc.open(ObjectType.CASE, "case", "d", "HIGH", null, Map.of());
-        OperationalObject i = svc.open(ObjectType.ISSUE, "issue", "d", "HIGH", null, Map.of());
+        OperationalObject i = svc.open(ObjectType.INCIDENT, "incident", "d", "HIGH", null, Map.of());
         OperationalObject a = svc.open(ObjectType.ALERT, "alert", "d", "HIGH", null, Map.of());
-        svc.link(c.id(), i.id(), "CONTAINS", null);       // CASE — ISSUE
-        svc.link(i.id(), a.id(), "ESCALATED_FROM", null); // ISSUE — ALERT
+        svc.link(c.id(), i.id(), "CONTAINS", null);       // CASE — INCIDENT
+        svc.link(i.id(), a.id(), "ESCALATED_FROM", null); // INCIDENT — ALERT
 
-        // depth 1 from the case reaches the issue (not the alert)
+        // depth 1 from the case reaches the incident (not the alert)
         Map<String, Object> g1 = svc.graph(c.id(), 1);
         assertEquals(2, ((List<?>) g1.get("nodes")).size());
         assertEquals(1, ((List<?>) g1.get("edges")).size());

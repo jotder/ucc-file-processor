@@ -12,7 +12,7 @@ import java.util.Optional;
  * In-memory {@link ObjectStore} — the <b>lean default</b> ({@code -Dobjects.backend=memory}), mirroring
  * {@link com.gamma.event.InMemoryEventStore} as the zero-extra-infrastructure backend so the Alert
  * Center works out of the box and tests stay light. Operational objects are low-volume (one per fired
- * alert / opened issue), so a plain map keyed by id is ample; durable retention is
+ * alert / opened incident), so a plain map keyed by id is ample; durable retention is
  * {@code DbObjectStore}'s job.
  *
  * <p>Thread-safe: all access is {@code synchronized} on the map.

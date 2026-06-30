@@ -9,7 +9,7 @@ export default [
         data: {
             type: 'CASE',
             title: 'Cases',
-            subtitle: 'Investigations — correlate alerts & issues and track them to resolution',
+            subtitle: 'Investigations — correlate alerts & incidents and track them to resolution',
         },
     },
     { path: ':id', component: ObjectDetailComponent },

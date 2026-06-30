@@ -46,9 +46,9 @@ public final class ObjectService {
 
     private static final String SOURCE = ObjectService.class.getName();
 
-    /** Attribute key holding an issue's SLA deadline as epoch millis (string) — set at creation (Phase 3). */
+    /** Attribute key holding an incident's SLA deadline as epoch millis (string) — set at creation (Phase 3). */
     public static final String ATTR_DUE_AT = "dueAt";
-    /** Attribute key stamped (epoch millis) when an SLA breach has been emitted — makes {@link #sweepIssueSla} idempotent. */
+    /** Attribute key stamped (epoch millis) when an SLA breach has been emitted — makes {@link #sweepIncidentSla} idempotent. */
     public static final String ATTR_SLA_BREACHED_AT = "slaBreachedAt";
 
     private final ObjectStore store;
@@ -104,7 +104,7 @@ public final class ObjectService {
     /**
      * Open a new object in its workflow's initial state, persist it, and emit an
      * {@link EventType#OBJECT_OPENED} event. The fuller form carries {@code priority}/{@code owner}/
-     * {@code assignee} — the operator-set fields an issue is created with (Phase 3's {@code POST /objects}).
+     * {@code assignee} — the operator-set fields an incident is created with (Phase 3's {@code POST /objects}).
      */
     public OperationalObject open(ObjectType type, String title, String description, String severity,
                                   String priority, String owner, String assignee,
@@ -195,24 +195,24 @@ public final class ObjectService {
     }
 
     /**
-     * SLA sweep (Phase 3): breach every {@link ObjectType#ISSUE} that has passed its {@link #ATTR_DUE_AT}
-     * deadline while still being worked. An issue qualifies when it carries a {@code dueAt} attribute at
+     * SLA sweep (Phase 3): breach every {@link ObjectType#INCIDENT} that has passed its {@link #ATTR_DUE_AT}
+     * deadline while still being worked. An incident qualifies when it carries a {@code dueAt} attribute at
      * or before {@code now}, is not yet {@code RESOLVED} and not terminal ({@code CLOSED}), and has not
      * already breached. Each new breach stamps a {@link #ATTR_SLA_BREACHED_AT} marker (so repeated sweeps
      * never re-fire) and emits an {@link EventType#OBJECT_SLA_BREACH} event onto {@link EventLog#global()},
-     * so the breach surfaces in the Event Viewer next to the issue's {@code OBJECT_ACTIVITY} history.
+     * so the breach surfaces in the Event Viewer next to the incident's {@code OBJECT_ACTIVITY} history.
      *
      * <p>Intended to be driven by {@link com.gamma.service.Scheduler} (see {@code SourceService}); {@code now}
-     * is injected so the schedule and tests evaluate against the same clock. Safe to call with no issues.
+     * is injected so the schedule and tests evaluate against the same clock. Safe to call with no incidents.
      *
      * @param now the wall-clock instant (epoch millis) to evaluate deadlines against
-     * @return the number of issues newly breached by this sweep
+     * @return the number of incidents newly breached by this sweep
      */
-    public int sweepIssueSla(long now) {
-        List<OperationalObject> issues = store.query(ObjectQuery.builder()
-                .objectType(ObjectType.ISSUE).limit(ObjectQuery.MAX_LIMIT).build());
+    public int sweepIncidentSla(long now) {
+        List<OperationalObject> incidents = store.query(ObjectQuery.builder()
+                .objectType(ObjectType.INCIDENT).limit(ObjectQuery.MAX_LIMIT).build());
         int breached = 0;
-        for (OperationalObject o : issues) {
+        for (OperationalObject o : incidents) {
             if (o.isClosed()) continue;                                      // terminal (CLOSED) — settled
             if ("RESOLVED".equalsIgnoreCase(o.status())) continue;           // fixed — SLA clock stopped
             if (o.attributes().containsKey(ATTR_SLA_BREACHED_AT)) continue;  // already breached — idempotent
@@ -224,7 +224,7 @@ public final class ObjectService {
                     .level(EventLevel.WARN)
                     .source(SOURCE)
                     .correlationId(marked.correlationId())
-                    .message("ISSUE " + marked.id() + " breached SLA: due " + dueAt
+                    .message("INCIDENT " + marked.id() + " breached SLA: due " + dueAt
                             + ", overdue " + (now - dueAt) + "ms")
                     .attr("objectId", marked.id())
                     .attr("objectType", marked.objectType().name())
@@ -242,7 +242,7 @@ public final class ObjectService {
 
     /**
      * Persist a directed correlation {@link ObjectLink} {@code from --relationship--> to} (e.g. a CASE
-     * {@code CONTAINS} an ISSUE) and emit an {@link EventType#OBJECT_LINKED} event so the correlation
+     * {@code CONTAINS} an INCIDENT) and emit an {@link EventType#OBJECT_LINKED} event so the correlation
      * shows in the Event Viewer. Both endpoints must exist (else {@link NoSuchElementException} → 404).
      * Idempotent: an identical edge (same {@code from}/{@code to}/{@code relationship}) is returned as-is
      * rather than duplicated. A {@code null} {@code relationship} defaults to {@link LinkRelationship#RELATED_TO}.

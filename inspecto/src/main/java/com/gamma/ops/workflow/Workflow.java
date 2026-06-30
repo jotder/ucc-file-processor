@@ -92,9 +92,9 @@ public record Workflow(ObjectType objectType, String initialState, Set<Transitio
      * <ul>
      *   <li>{@link ObjectType#ALERT} (Phase 2): {@code OPEN → ACKNOWLEDGED → RESOLVED} (with a direct
      *       {@code OPEN → RESOLVED} for "resolve without acking"); {@code RESOLVED} is terminal.</li>
-     *   <li>{@link ObjectType#ISSUE} (Phase 3): {@code OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED}
+     *   <li>{@link ObjectType#INCIDENT} (Phase 3): {@code OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED}
      *       (actions {@code assign}/{@code start}/{@code resolve}/{@code close}); only {@code CLOSED} is
-     *       terminal, so a {@code RESOLVED} issue can still be reopened-then-closed by config if desired,
+     *       terminal, so a {@code RESOLVED} incident can still be reopened-then-closed by config if desired,
      *       and the SLA clock (which stops at {@code RESOLVED}) is distinct from closure.</li>
      *   <li>{@link ObjectType#CASE} (Phase 4): {@code OPEN → INVESTIGATING → ESCALATED → RESOLVED → CLOSED}
      *       (actions {@code investigate}/{@code escalate}/{@code resolve}/{@code close}, plus a direct
@@ -112,8 +112,8 @@ public record Workflow(ObjectType objectType, String initialState, Set<Transitio
                             new Transition("OPEN", "RESOLVED", "resolve")),
                     Set.of("RESOLVED"));
         }
-        if (type == ObjectType.ISSUE) {
-            return new Workflow(ObjectType.ISSUE, "OPEN",
+        if (type == ObjectType.INCIDENT) {
+            return new Workflow(ObjectType.INCIDENT, "OPEN",
                     Set.of(new Transition("OPEN", "ASSIGNED", "assign"),
                             new Transition("ASSIGNED", "IN_PROGRESS", "start"),
                             new Transition("IN_PROGRESS", "RESOLVED", "resolve"),

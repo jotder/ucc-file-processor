@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { apiUrl, toParams } from './api-base';
 
-/** A managed operational object (GET /objects) — ALERT / ISSUE / CASE / TASK on one table. */
+/** A managed operational object (GET /objects) — ALERT / INCIDENT / CASE / TASK on one table. */
 export interface OperationalObject {
     id: string;
     objectType: string;
@@ -94,7 +94,7 @@ export interface CreateObject {
 
 /**
  * The Operational Intelligence object engine (Phases 2–4; CONTROL scope). One table backs ALERTs
- * (auto-promoted), ISSUEs and CASEs (operator-created), each walking a config-driven workflow; objects
+ * (auto-promoted), INCIDENTs and CASEs (operator-created), each walking a config-driven workflow; objects
  * carry correlation links (an OBJECT_LINK graph) and an append-only note thread (comments / attachment
  * references / RCA skeletons).
  */
