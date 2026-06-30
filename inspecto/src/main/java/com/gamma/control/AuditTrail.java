@@ -121,10 +121,15 @@ final class AuditTrail {
         return new Action(resource(path) + "." + verb, category);
     }
 
-    /** First path segment, singularised: {@code /runs/x} → {@code run}; {@code /} → {@code service}. */
+    /**
+     * First path segment, singularised — with {@code runs} mapped back to {@code pipeline} (the ingest
+     * resource is exposed at {@code /runs}, but the audited entity is a pipeline config):
+     * {@code /runs/x} → {@code pipeline}; {@code /} → {@code service}.
+     */
     private static String resource(String path) {
         String[] seg = path.split("/");
         String head = seg.length > 1 && !seg[1].isEmpty() ? seg[1] : "service";
+        if (head.equals("runs")) return "pipeline";   // /runs is the ingest route; the audited entity is a pipeline
         return head.endsWith("s") ? head.substring(0, head.length() - 1) : head;
     }
 

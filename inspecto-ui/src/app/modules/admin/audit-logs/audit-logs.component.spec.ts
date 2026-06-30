@@ -15,12 +15,12 @@ const AUDIT_EVENT = {
     source: 'audit',
     pipeline: null,
     correlationId: null,
-    message: 'appUser run.deleted orders',
+    message: 'appUser pipeline.deleted orders',
     attributes: {
         actor: 'appUser',
-        action: 'run.deleted',
+        action: 'pipeline.deleted',
         action_category: 'destructive',
-        target_type: 'run',
+        target_type: 'pipeline',
         target_id: 'orders',
         ip: '127.0.0.1',
     },
@@ -59,8 +59,8 @@ describe('AuditLogsComponent', () => {
         expect(cmp.rows().length).toBe(1);
         const row = cmp.rows()[0];
         expect(row.actor).toBe('appUser');
-        expect(row.action).toBe('run.deleted');
-        expect(row.target).toBe('run:orders');
+        expect(row.action).toBe('pipeline.deleted');
+        expect(row.target).toBe('pipeline:orders');
     });
 
     // audit-logs uses the data-table pro tier (CodeMirror @defer + ag-Grid); axe over it is heavy and

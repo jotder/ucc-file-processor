@@ -9,11 +9,11 @@ class AuditTrailTest {
 
     @Test
     void classifiesDestructiveAndMutatingActions() {
-        assertEquals(new AuditTrail.Action("run.deleted", "destructive"),
+        assertEquals(new AuditTrail.Action("pipeline.deleted", "destructive"),
                 AuditTrail.classify("DELETE", "/runs/orders"));
-        assertEquals(new AuditTrail.Action("run.triggered", "data_mutation"),
+        assertEquals(new AuditTrail.Action("pipeline.triggered", "data_mutation"),
                 AuditTrail.classify("POST", "/runs/orders/trigger"));
-        assertEquals(new AuditTrail.Action("run.created", "data_mutation"),
+        assertEquals(new AuditTrail.Action("pipeline.created", "data_mutation"),
                 AuditTrail.classify("POST", "/runs"));
         assertEquals(new AuditTrail.Action("connection.updated", "data_mutation"),
                 AuditTrail.classify("PUT", "/connections/sftp1"));

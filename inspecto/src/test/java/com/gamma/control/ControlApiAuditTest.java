@@ -56,15 +56,15 @@ class ControlApiAuditTest {
             JsonNode audit = null;
             for (JsonNode e : events) {
                 if ("AUDIT".equals(e.get("type").asText())
-                        && "run.triggered".equals(e.get("attributes").get("action").asText())) {
+                        && "pipeline.triggered".equals(e.get("attributes").get("action").asText())) {
                     audit = e;
                 }
             }
-            assertNotNull(audit, "a run.triggered AUDIT event was recorded");
+            assertNotNull(audit, "a pipeline.triggered AUDIT event was recorded");
             JsonNode attrs = audit.get("attributes");
             assertEquals("appUser", attrs.get("actor").asText(), "auth-free default actor");
             assertEquals("data_mutation", attrs.get("action_category").asText());
-            assertEquals("run", attrs.get("target_type").asText());
+            assertEquals("pipeline", attrs.get("target_type").asText());
             assertEquals(c.name, attrs.get("target_id").asText());
             assertFalse(attrs.get("ip").asText().isBlank(), "client ip captured");
         }
