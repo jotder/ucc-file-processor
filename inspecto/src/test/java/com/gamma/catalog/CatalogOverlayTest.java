@@ -94,7 +94,7 @@ class CatalogOverlayTest {
                         row("partition", "event_type=CALL/year=2021")));
         CatalogOverlay ov = new CatalogOverlay(p -> Optional.of(cfg), ss, null);
 
-        MetadataNode call = new MetadataNode("event:mini_etl/CALL", NodeKind.EVENT_TABLE, "CALL",
+        MetadataNode call = new MetadataNode("event:mini_etl/CALL", NodeKind.TABLE, "CALL",
                 Description.EMPTY, Map.of("source", "mini_etl", "eventType", "CALL"));
         OperationalOverlay o = ov.overlayFor(call);
         assertEquals(2, o.lineageRefs().size(), "only the two CALL partitions, not SMS");
@@ -115,13 +115,13 @@ class CatalogOverlayTest {
         CatalogOverlay ov = new CatalogOverlay(p -> Optional.empty(),
                 store(Set.of(), List.of(), List.of(), List.of()), stage2);
 
-        MetadataNode x = new MetadataNode("xform:DAILY", NodeKind.TRANSFORMED_TABLE, "DAILY", Description.EMPTY, Map.of());
+        MetadataNode x = new MetadataNode("xform:DAILY", NodeKind.DERIVED_TABLE, "DAILY", Description.EMPTY, Map.of());
         OperationalOverlay o = ov.overlayFor(x);
         assertEquals("SUCCESS", o.latestStatus());
         assertEquals(7, o.totalOutputRows());
         assertEquals(1, o.lineageRefs().size());
 
-        MetadataNode notHosted = new MetadataNode("xform:OTHER", NodeKind.TRANSFORMED_TABLE, "OTHER", Description.EMPTY, Map.of());
+        MetadataNode notHosted = new MetadataNode("xform:OTHER", NodeKind.DERIVED_TABLE, "OTHER", Description.EMPTY, Map.of());
         assertEquals(OperationalOverlay.NONE, ov.overlayFor(notHosted));
     }
 
@@ -129,7 +129,7 @@ class CatalogOverlayTest {
     void semanticAndReferenceNodesHaveNoOverlay() {
         CatalogOverlay ov = new CatalogOverlay(p -> Optional.empty(),
                 store(Set.of(), List.of(), List.of(), List.of()), null);
-        for (NodeKind k : List.of(NodeKind.KPI, NodeKind.REPORT, NodeKind.REFERENCE_TABLE)) {
+        for (NodeKind k : List.of(NodeKind.KPI, NodeKind.REPORT, NodeKind.REFERENCE_DATASET)) {
             MetadataNode n = new MetadataNode(IdScheme.token(k) + ":x", k, "x", Description.EMPTY, Map.of());
             assertEquals(OperationalOverlay.NONE, ov.overlayFor(n), "no overlay for " + k);
         }

@@ -249,18 +249,18 @@ public final class KpiToSqlSkill implements Capability {
     /** A data view for the oracle, or {@code null} if the node is not a queryable table. */
     private static SqlOracle.ViewSpec viewSpecFor(MetadataNode n) {
         return switch (n.kind()) {
-            case REFERENCE_TABLE -> {
+            case REFERENCE_DATASET -> {
                 String path = strAttr(n, "path");
                 if (path.isBlank()) yield null;
                 yield new SqlOracle.ViewSpec(n.label(), formatOr(n, "CSV"), path, false);
             }
-            case EVENT_TABLE -> {
+            case TABLE -> {
                 String root = strAttr(n, "outputGlob");
                 if (root.isBlank()) yield null;
                 String fmt = formatOr(n, "PARQUET");
                 yield new SqlOracle.ViewSpec(n.label(), fmt, glob(root, fmt), true);
             }
-            case TRANSFORMED_TABLE -> {
+            case DERIVED_TABLE -> {
                 String root = strAttr(n, "outputDb");
                 if (root.isBlank()) yield null;
                 String fmt = formatOr(n, "PARQUET");

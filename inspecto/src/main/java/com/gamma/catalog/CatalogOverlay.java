@@ -16,11 +16,11 @@ import java.util.function.Function;
  * platform already writes — reusing the very reads the Control API exposes, never re-parsing CSVs.
  *
  * <ul>
- *   <li><b>SOURCE / RAW_SCHEMA / EVENT_TABLE / COLUMN</b> → Stage-1 {@link StatusStore}: latest
+ *   <li><b>SOURCE / RAW_SCHEMA / TABLE / COLUMN</b> → Stage-1 {@link StatusStore}: latest
  *       batch status + cumulative output rows/bytes, parsed/error rows (completeness/error), and
  *       distinct output partitions (lineage). No committed batch ⇒ {@link OperationalOverlay#NO_DATA}.</li>
- *   <li><b>TRANSFORMED_TABLE</b> → Stage-2 enrichment run/lineage audit.</li>
- *   <li><b>REFERENCE_TABLE / KPI / REPORT</b> → {@link OperationalOverlay#NONE} (config/semantic
+ *   <li><b>DERIVED_TABLE</b> → Stage-2 enrichment run/lineage audit.</li>
+ *   <li><b>REFERENCE_DATASET / KPI / REPORT</b> → {@link OperationalOverlay#NONE} (config/semantic
  *       artifacts with no runtime footprint).</li>
  * </ul>
  *
@@ -54,9 +54,9 @@ public final class CatalogOverlay implements MetadataGraphService.OverlaySource 
     public OperationalOverlay overlayFor(MetadataNode node) {
         if (node == null) return OperationalOverlay.NONE;
         return switch (node.kind()) {
-            case SOURCE, RAW_SCHEMA, EVENT_TABLE, COLUMN -> stage1(node);
-            case TRANSFORMED_TABLE -> stage2(node);
-            case REFERENCE_TABLE, KPI, REPORT -> OperationalOverlay.NONE;
+            case SOURCE, RAW_SCHEMA, TABLE, COLUMN -> stage1(node);
+            case DERIVED_TABLE -> stage2(node);
+            case REFERENCE_DATASET, KPI, REPORT -> OperationalOverlay.NONE;
         };
     }
 
@@ -89,7 +89,7 @@ public final class CatalogOverlay implements MetadataGraphService.OverlaySource 
             errored += parseLong(f.get("error_rows"));
         }
 
-        String eventType = node.kind() == NodeKind.EVENT_TABLE
+        String eventType = node.kind() == NodeKind.TABLE
                 ? str(node.attrs().get("eventType")) : "";
         List<String> lineage = distinctPartitions(statusStore.lineage(cfg, null), eventType);
 

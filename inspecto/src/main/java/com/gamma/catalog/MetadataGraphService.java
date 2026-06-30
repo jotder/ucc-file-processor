@@ -19,10 +19,10 @@ import java.util.Set;
  * node, via an injected {@link OverlaySource} that reuses the existing audit reads.
  *
  * <p>The relationship spine the user cares about is explicit in the edges:
- * {@code SOURCE -EMITS-> EVENT_TABLE}, {@code SOURCE -DECLARES-> RAW_SCHEMA -DESCRIBES-> COLUMN},
- * {@code RAW_SCHEMA -MATERIALIZES-> EVENT_TABLE -FEEDS-> TRANSFORMED_TABLE}, references
+ * {@code SOURCE -EMITS-> TABLE}, {@code SOURCE -DECLARES-> RAW_SCHEMA -DESCRIBES-> COLUMN},
+ * {@code RAW_SCHEMA -MATERIALIZES-> TABLE -FEEDS-> DERIVED_TABLE}, references
  * {@code -JOINS_INTO->} transforms, and {@code KPI -COMPUTED_FROM-> table/column},
- * {@code REPORT -USES-> kpi/table} — so a consumer can walk from a KPI all the way down to the
+ * {@code REPORT -CONSUMES-> kpi/table} — so a consumer can walk from a KPI all the way down to the
  * source columns that feed it.
  */
 public final class MetadataGraphService {
@@ -105,7 +105,7 @@ public final class MetadataGraphService {
     public List<MetadataNode> tables() {
         List<MetadataNode> out = new ArrayList<>();
         for (MetadataNode n : structural().nodes()) {
-            if (n.kind() == NodeKind.EVENT_TABLE || n.kind() == NodeKind.TRANSFORMED_TABLE) out.add(n);
+            if (n.kind() == NodeKind.TABLE || n.kind() == NodeKind.DERIVED_TABLE) out.add(n);
         }
         return out;
     }

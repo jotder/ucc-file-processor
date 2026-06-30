@@ -8,20 +8,20 @@ package com.gamma.catalog;
  * lives on the {@link MetadataNode#overlay()}, not on edges.
  */
 public enum EdgeKind {
-    /** SOURCE → EVENT_TABLE: the source emits this partitioned event table. */
+    /** SOURCE → TABLE: the source emits this partitioned event table. */
     EMITS,
     /** SOURCE → RAW_SCHEMA: the source declares this input schema. */
     DECLARES,
     /** RAW_SCHEMA → COLUMN: the schema describes this column. */
     DESCRIBES,
-    /** RAW_SCHEMA → EVENT_TABLE: the raw schema is partitioned/materialized into this event table. */
+    /** RAW_SCHEMA → TABLE: the raw schema is partitioned/materialized into this event table. */
     MATERIALIZES,
-    /** EVENT_TABLE → TRANSFORMED_TABLE (or TRANSFORMED → TRANSFORMED): data lineage / feeds. */
+    /** TABLE → DERIVED_TABLE (or DERIVED → DERIVED): data lineage / feeds. */
     FEEDS,
-    /** REFERENCE_TABLE → TRANSFORMED_TABLE: the reference is joined into the transform. */
+    /** REFERENCE_DATASET → DERIVED_TABLE: the reference is joined into the transform. */
     JOINS_INTO,
     /** KPI → table/column: the KPI is computed from this input. */
     COMPUTED_FROM,
-    /** REPORT → KPI/table: the report uses this artifact. */
-    USES
+    /** REPORT → KPI/table: the report consumes this artifact. */
+    CONSUMES
 }

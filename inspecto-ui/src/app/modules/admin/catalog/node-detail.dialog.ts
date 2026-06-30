@@ -111,6 +111,6 @@ export class NodeDetailDialog {
 
     /** Table-kind nodes (a store) carry cross-engine lineage; SOURCE/SCHEMA/COLUMN/KPI/REPORT do not. */
     isStore(kind: string): boolean {
-        return kind === 'EVENT_TABLE' || kind === 'TRANSFORMED_TABLE' || kind === 'REFERENCE_TABLE';
+        return kind === 'TABLE' || kind === 'DERIVED_TABLE' || kind === 'REFERENCE_DATASET';
     }
 }

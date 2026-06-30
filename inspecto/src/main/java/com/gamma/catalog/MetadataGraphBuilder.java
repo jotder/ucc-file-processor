@@ -17,7 +17,7 @@ import java.util.Set;
  * sources, schemas, columns and emitted event tables from the pipelines, Stage-2 transforms and
  * references from the enrichments, and the KPI/report semantic layer — wired together with the typed
  * edges ({@code DECLARES}, {@code DESCRIBES}, {@code EMITS}, {@code MATERIALIZES}, {@code FEEDS},
- * {@code JOINS_INTO}, {@code COMPUTED_FROM}, {@code USES}). Empty COLUMN descriptions are filled via
+ * {@code JOINS_INTO}, {@code COMPUTED_FROM}, {@code CONSUMES}). Empty COLUMN descriptions are filled via
  * the {@link DescriptionProvider} SPI. Pure and stateless apart from its inputs — {@link MetadataGraphService}
  * caches the result and attaches the operational overlay separately.
  */
@@ -25,9 +25,9 @@ final class MetadataGraphBuilder {
 
     /** Order in which a bare ref (no {@code kind:} prefix) is resolved to a concrete node id. */
     private static final NodeKind[] RESOLUTION_ORDER = {
-            NodeKind.TRANSFORMED_TABLE, NodeKind.EVENT_TABLE, NodeKind.KPI,
+            NodeKind.DERIVED_TABLE, NodeKind.TABLE, NodeKind.KPI,
             NodeKind.REPORT, NodeKind.COLUMN, NodeKind.SOURCE,
-            NodeKind.RAW_SCHEMA, NodeKind.REFERENCE_TABLE
+            NodeKind.RAW_SCHEMA, NodeKind.REFERENCE_DATASET
     };
 
     private final ConfigSource cs;
@@ -87,7 +87,7 @@ final class MetadataGraphBuilder {
                 attrs.put("grain", en.output().partitions());
                 attrs.put("format", en.output().format());
             }
-            nodes.put(xid, new MetadataNode(xid, NodeKind.TRANSFORMED_TABLE, en.name(),
+            nodes.put(xid, new MetadataNode(xid, NodeKind.DERIVED_TABLE, en.name(),
                     Description.EMPTY, attrs));
 
             for (EnrichmentConfig.Reference r : en.references()) {
@@ -95,7 +95,7 @@ final class MetadataGraphBuilder {
                 Map<String, Object> rattrs = new LinkedHashMap<>();
                 rattrs.put("path", str(r.path()));
                 rattrs.put("format", str(r.format()));
-                nodes.put(rid, new MetadataNode(rid, NodeKind.REFERENCE_TABLE, r.name(),
+                nodes.put(rid, new MetadataNode(rid, NodeKind.REFERENCE_DATASET, r.name(),
                         Description.EMPTY, rattrs));
                 edges.add(new MetadataEdge(rid, xid, EdgeKind.JOINS_INTO));
             }
@@ -165,7 +165,7 @@ final class MetadataGraphBuilder {
                 String rid = IdScheme.report(r.name());
                 for (String use : r.uses()) {
                     String tgt = resolve(use, nodes.keySet());
-                    if (tgt != null) edges.add(new MetadataEdge(rid, tgt, EdgeKind.USES));
+                    if (tgt != null) edges.add(new MetadataEdge(rid, tgt, EdgeKind.CONSUMES));
                 }
             }
         }
@@ -243,7 +243,7 @@ final class MetadataGraphBuilder {
         if (dbRoot != null) evAttrs.put("outputGlob", dbRoot);
         if (outputFormat != null && !outputFormat.isBlank()) evAttrs.put("format", outputFormat);
         String label = (table != null && !table.isBlank()) ? table : key;
-        nodes.put(eventId, new MetadataNode(eventId, NodeKind.EVENT_TABLE, label,
+        nodes.put(eventId, new MetadataNode(eventId, NodeKind.TABLE, label,
                 Description.EMPTY, evAttrs));
         edges.add(new MetadataEdge(sourceId, eventId, EdgeKind.EMITS));
         edges.add(new MetadataEdge(schemaId, eventId, EdgeKind.MATERIALIZES));
@@ -253,7 +253,7 @@ final class MetadataGraphBuilder {
                                             Map<String, MetadataNode> nodes, List<MetadataEdge> edges) {
         boolean any = false;
         for (MetadataNode n : nodes.values()) {
-            if (n.kind() == NodeKind.EVENT_TABLE && pipeline.equals(n.attrs().get("source"))) {
+            if (n.kind() == NodeKind.TABLE && pipeline.equals(n.attrs().get("source"))) {
                 edges.add(new MetadataEdge(n.id(), xid, EdgeKind.FEEDS));
                 any = true;
             }

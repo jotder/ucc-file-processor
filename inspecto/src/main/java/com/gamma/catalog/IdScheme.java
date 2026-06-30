@@ -59,15 +59,15 @@ public final class IdScheme {
         return "report:" + name;
     }
 
-    /** The id token for a kind, e.g. {@code EVENT_TABLE} → {@code "event"}. */
+    /** The id token for a kind, e.g. {@code TABLE} → {@code "event"}. */
     public static String token(NodeKind kind) {
         return switch (kind) {
             case SOURCE -> "source";
             case RAW_SCHEMA -> "schema";
             case COLUMN -> "col";
-            case EVENT_TABLE -> "event";
-            case TRANSFORMED_TABLE -> "xform";
-            case REFERENCE_TABLE -> "ref";
+            case TABLE -> "event";
+            case DERIVED_TABLE -> "xform";
+            case REFERENCE_DATASET -> "ref";
             case KPI -> "kpi";
             case REPORT -> "report";
         };
