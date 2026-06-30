@@ -71,24 +71,24 @@ class ControlApiMultiSpaceTest {
     void seamRoutesToTheRightSpaceAndIsolatesAuditAndMetrics(@TempDir Path root) throws Exception {
         try (Ctx c = open(root)) {
             // ── the seam routes each space's reads to its own service ──
-            JsonNode alpha = json(send(c.port, "GET", "/spaces/alpha/pipelines", null));
-            JsonNode beta  = json(send(c.port, "GET", "/spaces/beta/pipelines", null));
+            JsonNode alpha = json(send(c.port, "GET", "/spaces/alpha/runs", null));
+            JsonNode beta  = json(send(c.port, "GET", "/spaces/beta/runs", null));
             assertTrue(alpha.isArray() && alpha.size() == 1 && "test_etl".equals(alpha.get(0).get("name").asText()));
             assertTrue(beta.isArray()  && beta.size()  == 1 && "test_etl".equals(beta.get(0).get("name").asText()));
 
             // unknown space → 404; un-prefixed server-global routes still serve
-            assertEquals(404, send(c.port, "GET", "/spaces/ghost/pipelines", null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/spaces/ghost/runs", null).statusCode());
             assertEquals(200, send(c.port, "GET", "/health", null).statusCode());
 
             // ── trigger alpha through the seam; only alpha sees the batch ──
             Files.writeString(inbox(root, "alpha").resolve("data.csv"), CSV);
-            HttpResponse<String> run = send(c.port, "POST", "/spaces/alpha/pipelines/test_etl/trigger", null);
+            HttpResponse<String> run = send(c.port, "POST", "/spaces/alpha/runs/test_etl/trigger", null);
             assertEquals(200, run.statusCode(), run.body());
             assertTrue(json(run).get("total").asInt() >= 1, "alpha processed its file");
 
-            assertFalse(json(send(c.port, "GET", "/spaces/alpha/pipelines/test_etl/commits", null)).isEmpty(),
+            assertFalse(json(send(c.port, "GET", "/spaces/alpha/runs/test_etl/commits", null)).isEmpty(),
                     "alpha committed a batch");
-            assertTrue(json(send(c.port, "GET", "/spaces/beta/pipelines/test_etl/commits", null)).isEmpty(),
+            assertTrue(json(send(c.port, "GET", "/spaces/beta/runs/test_etl/commits", null)).isEmpty(),
                     "beta's audit store saw none of alpha's commits");
 
             // metrics: alpha's batch counter carries space="alpha"; no beta-labelled batch counter exists yet
@@ -98,8 +98,8 @@ class ControlApiMultiSpaceTest {
 
             // ── trigger beta too; now both labels exist, still partitioned ──
             Files.writeString(inbox(root, "beta").resolve("data.csv"), CSV);
-            assertEquals(200, send(c.port, "POST", "/spaces/beta/pipelines/test_etl/trigger", null).statusCode());
-            assertFalse(json(send(c.port, "GET", "/spaces/beta/pipelines/test_etl/commits", null)).isEmpty(),
+            assertEquals(200, send(c.port, "POST", "/spaces/beta/runs/test_etl/trigger", null).statusCode());
+            assertFalse(json(send(c.port, "GET", "/spaces/beta/runs/test_etl/commits", null)).isEmpty(),
                     "beta now has its own committed batch");
             String both = awaitMetric(c.port, "inspecto_batches_total{pipeline=\"test_etl\",space=\"beta\"");
             assertTrue(both.contains("inspecto_batches_total{pipeline=\"test_etl\",space=\"alpha\""),

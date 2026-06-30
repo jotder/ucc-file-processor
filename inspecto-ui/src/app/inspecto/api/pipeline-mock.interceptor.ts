@@ -143,15 +143,15 @@ const ASN1_MODULES: Record<string, string> = {
 
 const LATENCY_MS = 200;
 
-const FLOWS = /\/flows$/;
-const NODE_TYPES_RE = /\/flows\/node-types$/;
-const COMBINED = /\/flows\/combined$/;
-const AUTHORED = /\/flows\/authored$/;
-const AUTHORED_RAW = /\/flows\/authored\/([^/]+)\/raw$/;
-const DRY_RUN = /\/flows\/authored\/([^/]+)\/dry-run$/;
-const RUN_TO = /\/flows\/authored\/([^/]+)\/run$/;
-const AUTHORED_ID = /\/flows\/authored\/([^/]+)$/;
-const FLOW_GRAPH = /\/flows\/([^/]+)\/graph$/;
+const FLOWS = /\/pipelines$/;
+const NODE_TYPES_RE = /\/pipelines\/node-types$/;
+const COMBINED = /\/pipelines\/combined$/;
+const AUTHORED = /\/pipelines\/authored$/;
+const AUTHORED_RAW = /\/pipelines\/authored\/([^/]+)\/raw$/;
+const DRY_RUN = /\/pipelines\/authored\/([^/]+)\/dry-run$/;
+const RUN_TO = /\/pipelines\/authored\/([^/]+)\/run$/;
+const AUTHORED_ID = /\/pipelines\/authored\/([^/]+)$/;
+const FLOW_GRAPH = /\/pipelines\/([^/]+)\/graph$/;
 const PROV_BATCHES = /\/provenance\/batches$/;
 const PROV = /\/provenance$/;
 const COMPONENT_TEST = /\/components\/([^/]+)\/([^/]+)\/test$/;

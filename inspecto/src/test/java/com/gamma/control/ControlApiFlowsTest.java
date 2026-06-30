@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration tests over real HTTP for the read-only flow-graph projection (doc §6, T31): the
- * {@code GET /flows} list, the {@code GET /flows/node-types} editor palette, and
- * {@code GET /flows/{id}/graph} (a registered pipeline lifted to a {@code FlowGraph} and projected).
+ * {@code GET /pipelines} list, the {@code GET /pipelines/node-types} editor palette, and
+ * {@code GET /pipelines/{id}/graph} (a registered pipeline lifted to a {@code PipelineGraph} and projected).
  */
 class ControlApiFlowsTest {
 
@@ -86,7 +86,7 @@ class ControlApiFlowsTest {
     @Test
     void flowsListProjectsRegisteredPipelines(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            HttpResponse<String> r = get(c.port, "/flows");
+            HttpResponse<String> r = get(c.port, "/pipelines");
             assertEquals(200, r.statusCode(), r.body());
             JsonNode arr = JSON.readTree(r.body());
             assertTrue(arr.isArray() && arr.size() >= 1, "one entry per registered pipeline");
@@ -100,7 +100,7 @@ class ControlApiFlowsTest {
     @Test
     void nodeTypesCatalogIsServed(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            JsonNode arr = JSON.readTree(get(c.port, "/flows/node-types").body());
+            JsonNode arr = JSON.readTree(get(c.port, "/pipelines/node-types").body());
             assertTrue(arr.isArray());
             boolean hasView = false, hasAcq = false;
             for (JsonNode t : arr) {
@@ -120,7 +120,7 @@ class ControlApiFlowsTest {
     @Test
     void flowGraphProjectionRendersNodesAndEdges(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            HttpResponse<String> r = get(c.port, "/flows/flow_etl/graph");
+            HttpResponse<String> r = get(c.port, "/pipelines/flow_etl/graph");
             assertEquals(200, r.statusCode(), r.body());
             JsonNode g = JSON.readTree(r.body());
             assertEquals("flow_etl", g.get("name").asText());
@@ -142,14 +142,14 @@ class ControlApiFlowsTest {
     @Test
     void unknownFlowIs404(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            assertEquals(404, get(c.port, "/flows/nope/graph").statusCode());
+            assertEquals(404, get(c.port, "/pipelines/nope/graph").statusCode());
         }
     }
 
     @Test
     void combinedTopologyProjectsFlowsNodesEdgesAndLinks(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            HttpResponse<String> r = get(c.port, "/flows/combined");
+            HttpResponse<String> r = get(c.port, "/pipelines/combined");
             assertEquals(200, r.statusCode(), r.body());
             JsonNode g = JSON.readTree(r.body());
             assertTrue(g.get("flows").isArray() && g.get("flows").size() >= 1);

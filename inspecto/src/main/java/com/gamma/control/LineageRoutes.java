@@ -1,8 +1,8 @@
 package com.gamma.control;
 
-import com.gamma.flow.FlowGraph;
-import com.gamma.flow.FlowStore;
-import com.gamma.flow.FlowStores;
+import com.gamma.pipeline.PipelineGraph;
+import com.gamma.pipeline.PipelineStore;
+import com.gamma.pipeline.PipelineStores;
 import com.gamma.util.Csv;
 
 import java.nio.file.Files;
@@ -20,7 +20,7 @@ import java.util.Map;
  *       — the per-{@code (inputFile, partition)} count matrix ({@link com.gamma.etl.LineageRow}, written to the
  *       {@code lineage}/{@code batches} audit CSVs, joined by {@code batch_id});</li>
  *   <li>an <b>authored flow</b> declares the {@code source_store}(s) it reads (and emits per-{@code (node, rel)}
- *       counts to {@link com.gamma.flow.exec.DbProvenanceStore}, painted as the {@code /provenance} Sankey).</li>
+ *       counts to {@link com.gamma.pipeline.exec.DbProvenanceStore}, painted as the {@code /provenance} Sankey).</li>
  * </ul>
  * Neither half carries the other's dimension (the flow has no file; the ingest matrix has no node), and they do
  * <b>not</b> share a {@code batch_id} — they are distinct execution engines. The bridge between them is the
@@ -105,11 +105,11 @@ final class LineageRoutes implements RouteModule {
         List<Map<String, Object>> flows = new ArrayList<>();
         Path writeRoot = api.writeRoot();
         if (writeRoot == null) return flows;
-        for (FlowGraph g : new FlowStore(writeRoot.resolve("flows")).list()) {
-            if (!FlowStores.consumed(g).contains(store)) continue;
+        for (PipelineGraph g : new PipelineStore(writeRoot.resolve("flows")).list()) {
+            if (!PipelineStores.consumed(g).contains(store)) continue;
             Map<String, Object> f = new LinkedHashMap<>();
             f.put("flow", g.name());
-            f.put("sinks", new ArrayList<>(FlowStores.produced(g)));
+            f.put("sinks", new ArrayList<>(PipelineStores.produced(g)));
             flows.add(f);
         }
         return flows;

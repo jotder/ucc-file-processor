@@ -2,9 +2,9 @@ package com.gamma.job;
 
 import com.gamma.api.PublicApi;
 import com.gamma.etl.BatchEvent;
-import com.gamma.flow.DeletionFence;
-import com.gamma.flow.FlowStore;
-import com.gamma.flow.exec.FlowJobRunner;
+import com.gamma.pipeline.DeletionFence;
+import com.gamma.pipeline.PipelineStore;
+import com.gamma.pipeline.exec.PipelineJobRunner;
 import com.gamma.event.EventLog;
 import com.gamma.metrics.MetricRegistry;
 import com.gamma.report.ReportService;
@@ -72,10 +72,10 @@ public final class JobService implements AutoCloseable {
     private final JobRunLedger ledger;
     /** The audit dir — also where a {@code flow} job's branch-commit log lives (T32). */
     private final String auditDir;
-    /** Optional DuckDB data-plane provenance store for FLOW jobs (T21); {@code null} when no backend is configured. */
-    private final com.gamma.flow.exec.DbProvenanceStore provenanceStore;
-    /** Authored-flow store for {@link JobType#FLOW} jobs (T32); {@code null} when no write root is configured. */
-    private final FlowStore flowStore;
+    /** Optional DuckDB data-plane provenance store for PIPELINE jobs (T21); {@code null} when no backend is configured. */
+    private final com.gamma.pipeline.exec.DbProvenanceStore provenanceStore;
+    /** Authored-flow store for {@link JobType#PIPELINE} jobs (T32); {@code null} when no write root is configured. */
+    private final PipelineStore flowStore;
     /** Data root under which each store is a sub-directory — a flow job reads/writes {@code <dataDir>/<store>} (T32). */
     private final String dataDir;
     /** Optional deletion fence (T25): consulted before a {@code maintenance} job that declares a {@code store:}
@@ -90,7 +90,7 @@ public final class JobService implements AutoCloseable {
     private final Map<String, CronExpression> crons = new ConcurrentHashMap<>();
     private final LockingRunner runner = new LockingRunner();
     private final AtomicLong seq = new AtomicLong();
-    /** Flow ids (authored-flow graph names) of {@link JobType#FLOW} jobs currently in flight — fed to the
+    /** Flow ids (authored-flow graph names) of {@link JobType#PIPELINE} jobs currently in flight — fed to the
      *  deletion fence (T32) so a delete that races an active flow-job reader/writer surfaces a conflict. */
     private final Set<String> runningFlows = ConcurrentHashMap.newKeySet();
 
@@ -112,20 +112,20 @@ public final class JobService implements AutoCloseable {
     /** As the full constructor, with no data-plane provenance store (T21). */
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
                       ReportService reports, String auditDir, DbJobRunStore jobRunStore,
-                      FlowStore flowStore, String dataDir) {
+                      PipelineStore flowStore, String dataDir) {
         this(configs, bus, scheduler, reports, auditDir, jobRunStore, flowStore, dataDir, null);
     }
 
     /**
-     * Full constructor. Adds the authored-flow store and data root that {@link JobType#FLOW} jobs need (T32):
+     * Full constructor. Adds the authored-flow store and data root that {@link JobType#PIPELINE} jobs need (T32):
      * a flow job loads its flow from {@code flowStore} and reads/writes stores under {@code dataDir}; plus an
      * optional {@code provenanceStore} (T21) it records per-edge record counts to. All may be left at
      * {@code null}/default when no flow jobs / no provenance backend are configured.
      */
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
                       ReportService reports, String auditDir, DbJobRunStore jobRunStore,
-                      FlowStore flowStore, String dataDir,
-                      com.gamma.flow.exec.DbProvenanceStore provenanceStore) {
+                      PipelineStore flowStore, String dataDir,
+                      com.gamma.pipeline.exec.DbProvenanceStore provenanceStore) {
         this.configs   = List.copyOf(configs);
         this.bus       = bus;
         this.scheduler = scheduler;
@@ -191,16 +191,16 @@ public final class JobService implements AutoCloseable {
             case ENRICH      -> new EnrichJob(c, bus);
             case REPORT      -> new ReportJob(c, reports);
             case MAINTENANCE -> new MaintenanceJob(c);
-            case FLOW        -> buildFlowJob(c);
+            case PIPELINE        -> buildFlowJob(c);
         };
     }
 
-    /** A {@link JobType#FLOW} job (T32) — requires an authored-flow store (set {@code -Dassist.write.root}). */
+    /** A {@link JobType#PIPELINE} job (T32) — requires an authored-flow store (set {@code -Dassist.write.root}). */
     private Job buildFlowJob(JobConfig c) {
         if (flowStore == null)
             throw new IllegalStateException("flow job '" + c.name()
                     + "' needs an authored-flow store; set -Dassist.write.root so authored flows can be loaded");
-        return new FlowJobRunner(c, bus, flowStore, dataDir, auditDir, provenanceStore);
+        return new PipelineJobRunner(c, bus, flowStore, dataDir, auditDir, provenanceStore);
     }
 
     private void onBatchEvent(BatchEvent event) {
@@ -282,7 +282,7 @@ public final class JobService implements AutoCloseable {
     }
 
     /** The DuckDB data-plane provenance store (T21), or empty when no backend is configured. */
-    public Optional<com.gamma.flow.exec.DbProvenanceStore> provenanceStore() {
+    public Optional<com.gamma.pipeline.exec.DbProvenanceStore> provenanceStore() {
         return Optional.ofNullable(provenanceStore);
     }
 
@@ -310,13 +310,13 @@ public final class JobService implements AutoCloseable {
     }
 
     /**
-     * Mark a {@link JobType#FLOW} job's flow as running for the deletion fence (T32) and return its flow id;
+     * Mark a {@link JobType#PIPELINE} job's flow as running for the deletion fence (T32) and return its flow id;
      * {@code null} for a non-flow job. The id is the authored-flow graph name (the job's {@code flow} param),
      * so it matches the flow names {@link DeletionFence#check} derives from the authored flows the live
      * {@code SourceService} feeds it — a delete racing this flow's store then surfaces as a conflict.
      */
     private String trackFlowStart(Job job, String name) {
-        if (job.type() != JobType.FLOW) return null;
+        if (job.type() != JobType.PIPELINE) return null;
         String flowId = configFor(name).map(c -> c.opt("flow", name)).orElse(name);
         runningFlows.add(flowId);
         return flowId;
@@ -328,7 +328,7 @@ public final class JobService implements AutoCloseable {
     }
 
     /**
-     * Flow ids of {@link JobType#FLOW} jobs currently in flight. The live {@code SourceService} unions this
+     * Flow ids of {@link JobType#PIPELINE} jobs currently in flight. The live {@code SourceService} unions this
      * into the deletion fence's running-set (T32) so deleting a store an active flow job reads/writes is
      * flagged as a {@code STORE_DELETE_CONFLICT}, just as for a running pipeline.
      */

@@ -63,13 +63,19 @@ describe('AuditLogsComponent', () => {
         expect(row.target).toBe('pipeline:orders');
     });
 
-    it('renders with no accessibility violations', async () => {
-        const fixture = TestBed.createComponent(AuditLogsComponent);
-        fixture.detectChanges();
-        flush([AUDIT_EVENT]); // rows present so the grid renders its required children
-        fixture.detectChanges();
-        await fixture.whenStable();
+    // audit-logs uses the data-table pro tier (CodeMirror @defer + ag-Grid); axe over it is heavy and
+    // can cross vitest's 5s default under multi-worker contention. Give it headroom (see dataset-editor).
+    it(
+        'renders with no accessibility violations',
+        async () => {
+            const fixture = TestBed.createComponent(AuditLogsComponent);
+            fixture.detectChanges();
+            flush([AUDIT_EVENT]); // rows present so the grid renders its required children
+            fixture.detectChanges();
+            await fixture.whenStable();
 
-        await expectNoA11yViolations(fixture.nativeElement);
-    });
+            await expectNoA11yViolations(fixture.nativeElement);
+        },
+        15_000,
+    );
 });

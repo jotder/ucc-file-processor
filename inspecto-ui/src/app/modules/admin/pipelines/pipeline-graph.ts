@@ -13,7 +13,7 @@ import {
 import { GLYPH_LIBRARY, G6GraphData, iconDataUri, nodeColor, nodeIcon } from 'app/modules/admin/catalog/catalog-graph';
 
 /**
- * Pure mappers that turn the flow-graph projection (GET /flows/{id}/graph) into AntV G6 data for the
+ * Pure mappers that turn the flow-graph projection (GET /pipelines/{id}/graph) into AntV G6 data for the
  * shared {@link GraphViewComponent}, plus palette grouping. Kept free of Angular/G6 imports so they
  * unit-test without TestBed.
  *
@@ -226,7 +226,7 @@ export function provenanceCounts(rows: ProvenanceCount[]): Map<string, number> {
 }
 
 /**
- * Map the combined pipeline+job topology (GET /flows/combined) to G6 data: flow nodes (namespaced ids)
+ * Map the combined pipeline+job topology (GET /pipelines/combined) to G6 data: flow nodes (namespaced ids)
  * plus the synthetic `STORE` join nodes, with the store-join edges ({@code produces}/{@code consumes})
  * drawn alongside the intra-flow edges. Node ids are already unique (flow nodes `<flow>/<node>`, store
  * nodes `store:<name>`), so they're used verbatim.

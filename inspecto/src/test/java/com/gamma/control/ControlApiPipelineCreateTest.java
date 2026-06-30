@@ -20,11 +20,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for {@code POST /pipelines} (v4.1.0, scope {@code control}): register a new
+ * Integration tests for {@code POST /runs} (v4.1.0, scope {@code control}): register a new
  * pipeline at runtime from a {@code .toon} on disk under {@code -Dassist.write.root}, so the running
  * service processes it on the next poll cycle without a restart (pairs with {@code POST /config/write}).
  * Covers the fail-closed gate (registration disabled → bad body → path jail → missing file → invalid
- * config → id collision) and that a registered pipeline appears in the live {@code GET /pipelines}.
+ * config → id collision) and that a registered pipeline appears in the live {@code GET /runs}.
  */
 class ControlApiPipelineCreateTest {
 
@@ -86,7 +86,7 @@ class ControlApiPipelineCreateTest {
     @Test
     void disabledWhenNoWriteRootConfigured(@TempDir Path cfg) throws Exception {
         try (Ctx c = open(cfg, null)) {
-            assertEquals(503, post(c.port, "/pipelines", body("x.toon")).statusCode(),
+            assertEquals(503, post(c.port, "/runs", body("x.toon")).statusCode(),
                     "no -Dassist.write.root ⇒ registration disabled");
         }
     }
@@ -97,7 +97,7 @@ class ControlApiPipelineCreateTest {
             assertEquals(1, c.svc.pipelines().size(), "only the startup pipeline at first");
             authorPipeline(root, "orders.toon", "ORDERS");
 
-            HttpResponse<String> r = post(c.port, "/pipelines", body("orders.toon"));
+            HttpResponse<String> r = post(c.port, "/runs", body("orders.toon"));
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
             assertTrue(out.get("registered").asBoolean());
@@ -105,12 +105,12 @@ class ControlApiPipelineCreateTest {
             assertEquals("orders.toon", out.get("path").asText());
             assertEquals("orders", out.get("pipeline").get("name").asText());
 
-            // Live: the service now lists it and GET /pipelines reflects it — no restart.
+            // Live: the service now lists it and GET /runs reflects it — no restart.
             assertEquals(2, c.svc.pipelines().size());
-            JsonNode list = JSON.readTree(get(c.port, "/pipelines").body());
+            JsonNode list = JSON.readTree(get(c.port, "/runs").body());
             boolean found = false;
             for (JsonNode p : list) if ("orders".equals(p.get("name").asText())) found = true;
-            assertTrue(found, "registered pipeline appears in GET /pipelines: " + list);
+            assertTrue(found, "registered pipeline appears in GET /runs: " + list);
         }
     }
 
@@ -118,8 +118,8 @@ class ControlApiPipelineCreateTest {
     void registrationIsIdempotentOnTheSamePath(@TempDir Path cfg, @TempDir Path root) throws Exception {
         try (Ctx c = open(cfg, root)) {
             authorPipeline(root, "orders.toon", "ORDERS");
-            assertEquals(200, post(c.port, "/pipelines", body("orders.toon")).statusCode());
-            assertEquals(200, post(c.port, "/pipelines", body("orders.toon")).statusCode(),
+            assertEquals(200, post(c.port, "/runs", body("orders.toon")).statusCode());
+            assertEquals(200, post(c.port, "/runs", body("orders.toon")).statusCode(),
                     "re-registering the same file is a no-op success");
             assertEquals(2, c.svc.pipelines().size(), "not double-counted");
         }
@@ -130,7 +130,7 @@ class ControlApiPipelineCreateTest {
         try (Ctx c = open(cfg, root)) {
             // A different file whose in-file name collides with the startup MINI_ETL.
             authorPipeline(root, "shadow.toon", "MINI_ETL");
-            assertEquals(409, post(c.port, "/pipelines", body("shadow.toon")).statusCode(),
+            assertEquals(409, post(c.port, "/runs", body("shadow.toon")).statusCode(),
                     "must not silently shadow a registered pipeline");
         }
     }
@@ -138,10 +138,10 @@ class ControlApiPipelineCreateTest {
     @Test
     void missingPathIs400AndEscapingPathIs403AndAbsentFileIs404(@TempDir Path cfg, @TempDir Path root) throws Exception {
         try (Ctx c = open(cfg, root)) {
-            assertEquals(400, post(c.port, "/pipelines", "{}").statusCode(), "no configPath");
-            assertEquals(403, post(c.port, "/pipelines", body("../escape.toon")).statusCode(),
+            assertEquals(400, post(c.port, "/runs", "{}").statusCode(), "no configPath");
+            assertEquals(403, post(c.port, "/runs", body("../escape.toon")).statusCode(),
                     "path escaping the write root is blocked");
-            assertEquals(404, post(c.port, "/pipelines", body("ghost.toon")).statusCode(),
+            assertEquals(404, post(c.port, "/runs", body("ghost.toon")).statusCode(),
                     "no file at the resolved path");
         }
     }
@@ -161,7 +161,7 @@ class ControlApiPipelineCreateTest {
                       threads: 1
                     """.formatted(r, r);
             Files.writeString(root.resolve("broken.toon"), bad);
-            assertEquals(422, post(c.port, "/pipelines", body("broken.toon")).statusCode());
+            assertEquals(422, post(c.port, "/runs", body("broken.toon")).statusCode());
             assertEquals(1, c.svc.pipelines().size(), "nothing registered on an invalid config");
         }
     }
@@ -178,7 +178,7 @@ class ControlApiPipelineCreateTest {
                     .replaceAll("schema_file: \"[^\"]*\"", "schema_file: \"" + ghost + "\"");
             Files.writeString(root.resolve("ghosted.toon"), toon);
 
-            HttpResponse<String> r = post(c.port, "/pipelines", body("ghosted.toon"));
+            HttpResponse<String> r = post(c.port, "/runs", body("ghosted.toon"));
             assertEquals(422, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
             assertFalse(out.get("registered").asBoolean());

@@ -6,7 +6,7 @@ import { apiUrl } from './api-base';
 /** A node-type family (palette grouping + role checks); mirrors the backend `NodeCategory`. */
 export type PipelineNodeCategory = 'SOURCE' | 'PARSE' | 'TRANSFORM' | 'SINK' | 'CONTROL' | string;
 
-/** A compact pipeline entry (GET /flows) — one per registered pipeline, lifted to a pipeline graph. */
+/** A compact pipeline entry (GET /pipelines) — one per registered pipeline, lifted to a pipeline graph. */
 export interface PipelineSummary {
     name: string;
     active: boolean;
@@ -40,7 +40,7 @@ export interface PipelineEdge {
     routeKey?: string;
 }
 
-/** A pipeline graph projection (GET /flows/{id}/graph) for the G6 renderer. */
+/** A pipeline graph projection (GET /pipelines/{id}/graph) for the G6 renderer. */
 export interface PipelineGraph {
     name: string;
     active: boolean;
@@ -50,7 +50,7 @@ export interface PipelineGraph {
     consumes: string[];
 }
 
-/** A node-type descriptor for the editor palette (GET /flows/node-types). */
+/** A node-type descriptor for the editor palette (GET /pipelines/node-types). */
 export interface PipelineNodeType {
     type: string;
     category: PipelineNodeCategory;
@@ -77,7 +77,7 @@ export interface CombinedEdge {
     flow?: string;
 }
 
-/** The combined pipeline+job topology (GET /flows/combined): flows joined at shared store nodes (T24). */
+/** The combined pipeline+job topology (GET /pipelines/combined): flows joined at shared store nodes (T24). */
 export interface PipelineCombined {
     flows: { name: string; active: boolean }[];
     nodes: CombinedNode[];
@@ -87,7 +87,7 @@ export interface PipelineCombined {
 
 // ── Authored pipelines (editor build-side) — the lossless shape that round-trips through the backend ──
 
-/** A node in an authored pipeline (config-bearing — what GET /flows/authored/{id}/raw and PUT exchange). */
+/** A node in an authored pipeline (config-bearing — what GET /pipelines/authored/{id}/raw and PUT exchange). */
 export interface AuthoredNode {
     id: string;
     type: string;
@@ -134,7 +134,7 @@ export interface DryRunSink {
     rows: Record<string, unknown>[];
 }
 
-/** The dry-run result (POST /flows/authored/{id}/dry-run): seed + per-node + per-sink counts. */
+/** The dry-run result (POST /pipelines/authored/{id}/dry-run): seed + per-node + per-sink counts. */
 export interface PipelineDryRunResult {
     seedNode: string;
     nodes: DryRunNode[];
@@ -171,7 +171,7 @@ export interface PipelineRunOutput {
 
 /**
  * Result of running an authored pipeline up to a node over picked inbox files
- * (POST /flows/authored/{id}/run?to={nodeId}). Per-relation counts + a bounded sample, plus the scratch
+ * (POST /pipelines/authored/{id}/run?to={nodeId}). Per-relation counts + a bounded sample, plus the scratch
  * Parquet the run landed — the editor's incremental "build a little, test a little" feedback.
  */
 export interface PipelineRunResult {
@@ -206,55 +206,55 @@ export class PipelinesService {
 
     /** Every registered pipeline, lifted to a pipeline-graph summary. */
     list(): Observable<PipelineSummary[]> {
-        return this.http.get<PipelineSummary[]>(apiUrl('/flows'));
+        return this.http.get<PipelineSummary[]>(apiUrl('/pipelines'));
     }
 
     /** The full graph projection for one pipeline, by its (normalised) name. */
     graph(name: string): Observable<PipelineGraph> {
-        return this.http.get<PipelineGraph>(apiUrl(`/flows/${encodeURIComponent(name)}/graph`));
+        return this.http.get<PipelineGraph>(apiUrl(`/pipelines/${encodeURIComponent(name)}/graph`));
     }
 
     /** The node-type catalog for the palette. */
     nodeTypes(): Observable<PipelineNodeType[]> {
-        return this.http.get<PipelineNodeType[]>(apiUrl('/flows/node-types'));
+        return this.http.get<PipelineNodeType[]>(apiUrl('/pipelines/node-types'));
     }
 
     /** The combined pipeline+job topology — every pipeline joined at the shared store nodes (T24). */
     combined(): Observable<PipelineCombined> {
-        return this.http.get<PipelineCombined>(apiUrl('/flows/combined'));
+        return this.http.get<PipelineCombined>(apiUrl('/pipelines/combined'));
     }
 
     // ── authored-pipeline CRUD + dry-run (editor; all writes 503 without -Dassist.write.root) ──
 
     /** Summaries of every authored pipeline (empty list when no write root). */
     authoredList(): Observable<PipelineSummary[]> {
-        return this.http.get<PipelineSummary[]>(apiUrl('/flows/authored'));
+        return this.http.get<PipelineSummary[]>(apiUrl('/pipelines/authored'));
     }
 
     /** The lossless authored definition (nodes with config) for editing — round-trips through PUT. */
     authoredRaw(id: string): Observable<AuthoredPipeline> {
-        return this.http.get<AuthoredPipeline>(apiUrl(`/flows/authored/${encodeURIComponent(id)}/raw`));
+        return this.http.get<AuthoredPipeline>(apiUrl(`/pipelines/authored/${encodeURIComponent(id)}/raw`));
     }
 
     /** Create a new authored pipeline (409 if the name exists). */
     createAuthored(pipeline: AuthoredPipeline): Observable<unknown> {
-        return this.http.post(apiUrl('/flows/authored'), pipeline);
+        return this.http.post(apiUrl('/pipelines/authored'), pipeline);
     }
 
     /** Replace an authored pipeline wholesale (URL id authoritative; 422 on validation errors). */
     replaceAuthored(id: string, pipeline: AuthoredPipeline): Observable<unknown> {
-        return this.http.put(apiUrl(`/flows/authored/${encodeURIComponent(id)}`), pipeline);
+        return this.http.put(apiUrl(`/pipelines/authored/${encodeURIComponent(id)}`), pipeline);
     }
 
     /** Delete an authored pipeline. */
     deleteAuthored(id: string): Observable<unknown> {
-        return this.http.delete(apiUrl(`/flows/authored/${encodeURIComponent(id)}`));
+        return this.http.delete(apiUrl(`/pipelines/authored/${encodeURIComponent(id)}`));
     }
 
     /** Dry-run a bounded sample through an authored pipeline (per-node + per-sink counts; no production write). */
     dryRunAuthored(id: string, sampleRows: Record<string, unknown>[]): Observable<PipelineDryRunResult> {
         return this.http.post<PipelineDryRunResult>(
-            apiUrl(`/flows/authored/${encodeURIComponent(id)}/dry-run`), { sampleRows });
+            apiUrl(`/pipelines/authored/${encodeURIComponent(id)}/dry-run`), { sampleRows });
     }
 
     /** Test a single processor node over a bounded sample (no production write) — the per-processor test. */
@@ -269,7 +269,7 @@ export class PipelinesService {
      */
     runToNode(id: string, nodeId: string, files: string[]): Observable<PipelineRunResult> {
         return this.http.post<PipelineRunResult>(
-            apiUrl(`/flows/authored/${encodeURIComponent(id)}/run`),
+            apiUrl(`/pipelines/authored/${encodeURIComponent(id)}/run`),
             { files },
             { params: { to: nodeId } });
     }

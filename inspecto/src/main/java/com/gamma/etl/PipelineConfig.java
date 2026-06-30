@@ -443,7 +443,7 @@ public final class PipelineConfig {
     /**
      * Whether this pipeline is activated for execution ({@code active:} top-level key, v4.7.0). Only
      * activated pipelines are run by the poll cycle / multi-source orchestrator; an inactive pipeline
-     * is still parsed, indexed and queryable (it shows in {@code /pipelines}) but never executed.
+     * is still parsed, indexed and queryable (it shows in {@code /runs}) but never executed.
      *
      * <p><b>Default is {@code false}</b> — a pipeline must opt in with {@code active: true}. This is a
      * deliberate fail-safe so a freshly-dropped or half-edited config never runs until explicitly armed.
@@ -453,7 +453,7 @@ public final class PipelineConfig {
     /**
      * The optional entry-node {@code trigger:} block (T13 / §3.6) verbatim, or {@code null} when absent.
      * Absent ⇒ the pipeline rides the default poll cycle exactly as before; present ⇒ the live loop
-     * ({@link com.gamma.service.SourceService}) classifies it via {@code com.gamma.flow.FlowTrigger}
+     * ({@link com.gamma.service.SourceService}) classifies it via {@code com.gamma.pipeline.PipelineTrigger}
      * into {@code schedule}(every/cron) / {@code event} / {@code manual}. Carried onto the lifted
      * acquisition node so the flow projection and the live driver agree on the schedule.
      */

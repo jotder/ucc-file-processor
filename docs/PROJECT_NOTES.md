@@ -41,7 +41,7 @@ Consumes `agent-kernel` 1.0.0 (1.1.0 available; bump optional, Abstain-only ⇒ 
 |---|---|
 | Production investigation (process/events/metrics/state/`-D` flags/Control API/troubleshooting) | [`ADVANCED_GUIDE.md`](ADVANCED_GUIDE.md) — **living doc** |
 | Flow-graph design (IR, lift, validator, executor, registry, T-checklist §14) | [`flow-graph-design.md`](flow-graph-design.md) |
-| Live execution of authored flows (`JobType.FLOW`, T32) | [`flow-live-execution-plan.md`](flow-live-execution-plan.md) |
+| Live execution of authored flows (`JobType.PIPELINE`, T32) | [`flow-live-execution-plan.md`](flow-live-execution-plan.md) |
 | Data acquisition framework (Phases A–F, connectors, dedup, watermarks) | [`data_acquisition_framework.md`](data_acquisition_framework.md) |
 | All TOON config keys | [`configuration.md`](configuration.md) |
 | Editions (Personal/Standard/Enterprise = build flavors) | [`EDITIONS.md`](EDITIONS.md) |

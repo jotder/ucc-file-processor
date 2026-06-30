@@ -13,7 +13,7 @@ export interface RunView {
   committedBatches: number;
 }
 
-/** Result of POST /pipelines/{n}/trigger and /trigger (MultiSourceProcessor.RunResult). */
+/** Result of POST /runs/{n}/trigger and /trigger (MultiSourceProcessor.RunResult). */
 export interface RunResult {
   total: number;
   failed: number;
@@ -29,7 +29,7 @@ export interface IngestSnapshot {
   startedAt: string;
 }
 
-/** Inbox/processing status (GET /pipelines/{n}/pending). */
+/** Inbox/processing status (GET /runs/{n}/pending). */
 export interface InboxStatus {
   pipeline: string;
   inbox: string;

@@ -31,8 +31,8 @@ describe.skipIf(!BASE)('backend smoke (e2e)', () => {
     expect(body.status).toBeTruthy();
   });
 
-  it('GET /pipelines is locked without a token (401)', async () => {
-    const res = await fetch(url('/pipelines'));
+  it('GET /runs is locked without a token (401)', async () => {
+    const res = await fetch(url('/runs'));
     expect(res.status).toBe(401);
   });
 
@@ -47,8 +47,8 @@ describe.skipIf(!BASE)('backend smoke (e2e)', () => {
     expect((res.headers.get('content-type') ?? '')).toContain('text/html');
   });
 
-  it.skipIf(!TOKEN)('GET /pipelines returns a list with a valid token', async () => {
-    const res = await fetch(url('/pipelines'), { headers: auth(TOKEN) });
+  it.skipIf(!TOKEN)('GET /runs returns a list with a valid token', async () => {
+    const res = await fetch(url('/runs'), { headers: auth(TOKEN) });
     expect(res.status).toBe(200);
     expect(Array.isArray(await res.json())).toBe(true);
   });

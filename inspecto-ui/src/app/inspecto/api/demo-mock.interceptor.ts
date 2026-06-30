@@ -226,7 +226,7 @@ const NOTIFICATIONS = Array.from({ length: 8 }, (_, i) => {
         'Batch cdr_ingest-b1008 failed: 1 file rejected (parse_error). 0 of 1200 rows committed.',
         'Job subscriber_rollup finished in 4.2s. 18,400 rows processed.',
         'Error rate on fraud_events exceeded 5% threshold (currently 7.3%) over the last 15 minutes.',
-        'POST /pipelines/unknown/trigger returned 404. Actor: appUser, IP: 192.168.1.42.',
+        'POST /runs/unknown/trigger returned 404. Actor: appUser, IP: 192.168.1.42.',
         'File voucher_bad_0.csv quarantined in voucher_etl: schema_mismatch.',
         'Job billing_report completed successfully. 3 output files, 24,000 rows.',
         'Pipeline subscriber_load has not committed a batch in over 2 hours (SLA: 1h).',
@@ -327,17 +327,17 @@ const REPORT = /\/report$/;
 const METRICS = /\/metrics$/;
 const METRICS_ACQ = /\/metrics\/acquisition$/;
 const SOURCES_RE = /\/sources$/;
-const PIPELINES_LIST = /\/pipelines$/;
-const PIPELINE_BATCHES = /\/pipelines\/([^/]+)\/batches$/;
-const PIPELINE_FILES = /\/pipelines\/([^/]+)\/files$/;
-const PIPELINE_LINEAGE = /\/pipelines\/([^/]+)\/lineage$/;
-const PIPELINE_QUARANTINE = /\/pipelines\/([^/]+)\/quarantine$/;
-const PIPELINE_PENDING = /\/pipelines\/([^/]+)\/pending$/;
-const PIPELINE_REPORT = /\/pipelines\/([^/]+)\/report$/;
-const PIPELINE_COMMITS = /\/pipelines\/([^/]+)\/commits$/;
-const PIPELINE_TRIGGER = /\/pipelines\/([^/]+)\/trigger$/;
-const PIPELINE_PAUSE = /\/pipelines\/([^/]+)\/pause$/;
-const PIPELINE_RESUME = /\/pipelines\/([^/]+)\/resume$/;
+const PIPELINES_LIST = /\/runs$/;
+const PIPELINE_BATCHES = /\/runs\/([^/]+)\/batches$/;
+const PIPELINE_FILES = /\/runs\/([^/]+)\/files$/;
+const PIPELINE_LINEAGE = /\/runs\/([^/]+)\/lineage$/;
+const PIPELINE_QUARANTINE = /\/runs\/([^/]+)\/quarantine$/;
+const PIPELINE_PENDING = /\/runs\/([^/]+)\/pending$/;
+const PIPELINE_REPORT = /\/runs\/([^/]+)\/report$/;
+const PIPELINE_COMMITS = /\/runs\/([^/]+)\/commits$/;
+const PIPELINE_TRIGGER = /\/runs\/([^/]+)\/trigger$/;
+const PIPELINE_PAUSE = /\/runs\/([^/]+)\/pause$/;
+const PIPELINE_RESUME = /\/runs\/([^/]+)\/resume$/;
 const NOTIF_LIST = /\/notifications$/;
 const NOTIF_UNREAD = /\/notifications\/unread-count$/;
 const NOTIF_STREAM = /\/notifications\/stream$/;
