@@ -1,6 +1,6 @@
 # Backend rename pass — Flow → Pipeline (the deferred "backend half")
 
-**Status:** PLANNED (not started). Companion to the UI-only rename
+**Status:** ✅ DONE (2026-06-30, branch `refactor/rename-flow-pipeline-backend`) — verified green: backend `mvn -o clean test` **1080/0/3**, FE `lint:tokens`/`build`/`test:ci` **335/0/5**. Companion to the UI-only rename
 [`flow-pipeline-runs-rename.md`](flow-pipeline-runs-rename.md). Closes the backend touchpoints the
 UI-only directive (2026-06-30) deferred. Scope verified against the code 2026-06-30.
 
