@@ -14,8 +14,8 @@ const DS: Dataset = {
     name: 'cdr_sample',
     kind: 'virtual',
     sourceName: 'cdr',
-    columns: [{ name: 'duration_s', type: 'number', role: 'metric' }],
-    metrics: [],
+    columns: [{ name: 'duration_s', type: 'number', role: 'measure' }],
+    measures: [],
 };
 const CHART: Chart = { id: 'total_dur', name: 'Total duration', datasetId: 'cdr_sample', vizType: 'kpi', controls: { value: [{ field: 'duration_s', agg: 'sum' }] } };
 

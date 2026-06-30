@@ -6,7 +6,7 @@ function fakePlugin(type: string): VizPlugin {
     return {
         meta: { type, label: type, icon: 'x', fit: {} },
         controls: [],
-        buildQuery: (_v, ctx) => ({ datasetId: ctx.datasetId, sourceName: ctx.sourceName, groupBy: [], metrics: [] }),
+        buildQuery: (_v, ctx) => ({ datasetId: ctx.datasetId, sourceName: ctx.sourceName, groupBy: [], measures: [] }),
         transformProps: () => ({ labels: [], series: [] }),
         render: { kind: 'aggrid' },
     };

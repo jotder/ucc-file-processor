@@ -8,31 +8,31 @@ import { ChannelValue, ControlValues, FieldRole, VizField, VizFit, VizPlugin } f
 
 interface FieldCounts {
     dim: number;
-    metric: number;
+    measure: number;
     temporal: number;
 }
 
 function counts(fields: VizField[]): FieldCounts {
     return {
         dim: fields.filter((f) => f.role === 'dimension').length,
-        metric: fields.filter((f) => f.role === 'metric').length,
+        measure: fields.filter((f) => f.role === 'measure').length,
         temporal: fields.filter((f) => f.role === 'temporal').length,
     };
 }
 
 /** Suitability score, or `-1` to disqualify (a hard `fit` constraint is violated). Higher = better fit. */
 function fitScore(fit: VizFit, c: FieldCounts): number {
-    if (fit.minMetric != null && c.metric < fit.minMetric) return -1;
+    if (fit.minMeasure != null && c.measure < fit.minMeasure) return -1;
     if (fit.minDim != null && c.dim < fit.minDim) return -1;
     if (fit.temporal === true && c.temporal === 0) return -1;
 
     let score = 0;
     if (fit.temporal === true && c.temporal > 0) score += 3;
     if (fit.temporal === false && c.temporal === 0) score += 1;
-    if (fit.maxMetric != null && c.metric > fit.maxMetric) score -= 1; // tolerated, penalised
+    if (fit.maxMeasure != null && c.measure > fit.maxMeasure) score -= 1; // tolerated, penalised
     if (fit.maxDim != null && c.dim > fit.maxDim) score -= 1;
-    // Reward plugins whose metric appetite matches what's available.
-    if (fit.minMetric != null) score += Math.min(c.metric, fit.maxMetric ?? c.metric);
+    // Reward plugins whose measure appetite matches what's available.
+    if (fit.minMeasure != null) score += Math.min(c.measure, fit.maxMeasure ?? c.measure);
     return score;
 }
 
@@ -49,12 +49,12 @@ export function recommend(fields: VizField[]): VizPlugin[] {
 /**
  * Greedily map fields onto a plugin's channels: each control takes the next unused field whose role it accepts
  * (acceptRoles are tried in declared order, so an `x` that accepts `['temporal','dimension']` prefers time).
- * Metric channels default to `sum`.
+ * Measure channels default to `sum`.
  */
 export function autoAssignChannels(plugin: VizPlugin, fields: VizField[]): ControlValues {
     const pools: Record<FieldRole, VizField[]> = {
         temporal: fields.filter((f) => f.role === 'temporal'),
-        metric: fields.filter((f) => f.role === 'metric'),
+        measure: fields.filter((f) => f.role === 'measure'),
         dimension: fields.filter((f) => f.role === 'dimension'),
     };
     const used = new Set<string>();
@@ -63,7 +63,7 @@ export function autoAssignChannels(plugin: VizPlugin, fields: VizField[]): Contr
     for (const control of plugin.controls) {
         const pick = takeNext(control.acceptRoles, pools, used);
         if (!pick) continue;
-        const cv: ChannelValue = control.isMetric ? { field: pick.name, agg: 'sum' } : { field: pick.name };
+        const cv: ChannelValue = control.isMeasure ? { field: pick.name, agg: 'sum' } : { field: pick.name };
         values[control.channel] = [cv];
     }
     return values;

@@ -7,29 +7,29 @@ function plugin(type: string, fit: VizPlugin['meta']['fit'], controls: ControlSp
     return {
         meta: { type, label: type, icon: 'x', fit },
         controls,
-        buildQuery: (_v, ctx) => ({ datasetId: ctx.datasetId, sourceName: ctx.sourceName, groupBy: [], metrics: [] }),
+        buildQuery: (_v, ctx) => ({ datasetId: ctx.datasetId, sourceName: ctx.sourceName, groupBy: [], measures: [] }),
         transformProps: () => ({ labels: [], series: [] }),
         render: { kind: 'chartjs', chartType: type },
     };
 }
 
-const LINE = plugin('line', { minMetric: 1, temporal: true }, [
+const LINE = plugin('line', { minMeasure: 1, temporal: true }, [
     { channel: 'x', label: 'Time', acceptRoles: ['temporal', 'dimension'] },
-    { channel: 'y', label: 'Measure', acceptRoles: ['metric'], isMetric: true },
+    { channel: 'y', label: 'Measure', acceptRoles: ['measure'], isMeasure: true },
 ]);
-const BAR = plugin('bar', { minMetric: 1, minDim: 1 }, [
+const BAR = plugin('bar', { minMeasure: 1, minDim: 1 }, [
     { channel: 'x', label: 'Category', acceptRoles: ['dimension'] },
-    { channel: 'y', label: 'Measure', acceptRoles: ['metric'], isMetric: true },
+    { channel: 'y', label: 'Measure', acceptRoles: ['measure'], isMeasure: true },
 ]);
 const TABLE = plugin('table', {}, []);
 
 const TEMPORAL_FIELDS: VizField[] = [
     { name: 'event_time', type: 'date', role: 'temporal' },
-    { name: 'duration_s', type: 'number', role: 'metric' },
+    { name: 'duration_s', type: 'number', role: 'measure' },
 ];
 const CATEGORICAL_FIELDS: VizField[] = [
     { name: 'tariff', type: 'string', role: 'dimension' },
-    { name: 'duration_s', type: 'number', role: 'metric' },
+    { name: 'duration_s', type: 'number', role: 'measure' },
 ];
 
 describe('recommend', () => {
@@ -57,7 +57,7 @@ describe('recommend', () => {
 describe('autoAssignChannels', () => {
     afterEach(() => clearViz());
 
-    it('maps temporal→x and metric→y (with a default agg)', () => {
+    it('maps temporal→x and measure→y (with a default agg)', () => {
         const values = autoAssignChannels(LINE, TEMPORAL_FIELDS);
         expect(values.x?.[0].field).toBe('event_time');
         expect(values.y?.[0]).toEqual({ field: 'duration_s', agg: 'sum' });

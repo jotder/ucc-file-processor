@@ -1,4 +1,4 @@
-import { buildMetric } from '../query-spec';
+import { buildMeasure } from '../query-spec';
 import { ControlValues, QuerySpec, VizPlugin, VizProps } from '../viz-types';
 import { QueryCtx } from './plugin-helpers';
 
@@ -8,8 +8,8 @@ import { QueryCtx } from './plugin-helpers';
  */
 function buildTableQuery(values: ControlValues, ctx: QueryCtx): QuerySpec {
     const groupBy = (values.x ?? []).map((cv) => cv.field);
-    const metrics = (values.y ?? []).map((cv) => buildMetric(cv.agg ?? 'sum', cv.field));
-    return { datasetId: ctx.datasetId, sourceName: ctx.sourceName, groupBy, metrics, filters: ctx.filters ?? null };
+    const measures = (values.y ?? []).map((cv) => buildMeasure(cv.agg ?? 'sum', cv.field));
+    return { datasetId: ctx.datasetId, sourceName: ctx.sourceName, groupBy, measures, filters: ctx.filters ?? null };
 }
 
 function transformTable(rows: Record<string, unknown>[]): VizProps {
@@ -20,7 +20,7 @@ export const TABLE_PLUGIN: VizPlugin = {
     meta: { type: 'table', label: 'Table', icon: 'heroicons_outline:table-cells', fit: {} },
     controls: [
         { channel: 'x', label: 'Dimensions', acceptRoles: ['dimension', 'temporal'], multiple: true },
-        { channel: 'y', label: 'Measures', acceptRoles: ['metric'], isMetric: true, multiple: true },
+        { channel: 'y', label: 'Measures', acceptRoles: ['measure'], isMeasure: true, multiple: true },
     ],
     buildQuery: buildTableQuery,
     transformProps: transformTable,

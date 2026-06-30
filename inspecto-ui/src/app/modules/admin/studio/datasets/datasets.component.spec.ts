@@ -15,8 +15,8 @@ const D1: Dataset = {
     name: 'cdr_view',
     kind: 'virtual',
     sourceName: 'cdr',
-    columns: [{ name: 'duration_s', type: 'number', role: 'metric' }],
-    metrics: [],
+    columns: [{ name: 'duration_s', type: 'number', role: 'measure' }],
+    measures: [],
 };
 
 function create(datasets: Dataset[] = [D1]) {

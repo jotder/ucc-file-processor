@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 type KpiMode = 'mini' | 'standard' | 'max';
 
 /**
- * KPI tile — the `kpi` plugin's component escape hatch. One headline metric value with **3 in-place render
+ * KPI tile — the `kpi` plugin's component escape hatch. One headline measure value with **3 in-place render
  * modes** (mini → standard → max) toggled by a single button, per the Studio design (chosen over a separate
  * KPI builder). Mounted by `viz-render` via `NgComponentOutlet`. No hardcoded colours (text tone only).
  */

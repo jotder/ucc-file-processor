@@ -7,8 +7,8 @@ import { buildValueQuery, transformValue } from './plugin-helpers';
  * (mini value → standard trend → max). Aligns with the server's declarative `NodeKind.KPI`.
  */
 export const KPI_PLUGIN: VizPlugin = {
-    meta: { type: 'kpi', label: 'KPI', icon: 'heroicons_outline:variable', fit: { minMetric: 1, maxDim: 0 } },
-    controls: [{ channel: 'value', label: 'Value', acceptRoles: ['metric'], isMetric: true, required: true }],
+    meta: { type: 'kpi', label: 'KPI', icon: 'heroicons_outline:variable', fit: { minMeasure: 1, maxDim: 0 } },
+    controls: [{ channel: 'value', label: 'Value', acceptRoles: ['measure'], isMeasure: true, required: true }],
     buildQuery: buildValueQuery,
     transformProps: transformValue,
     render: { kind: 'component', componentKey: 'kpi' },

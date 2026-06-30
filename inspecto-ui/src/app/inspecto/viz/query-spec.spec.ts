@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ColumnMeta, emptyGroup } from 'app/inspecto/query';
-import { aggExpression, buildMetric, compileSpec, metricId } from './query-spec';
+import { aggExpression, buildMeasure, compileSpec, measureId } from './query-spec';
 import { QuerySpec } from './viz-types';
 
 const COLS: ColumnMeta[] = [
@@ -8,7 +8,7 @@ const COLS: ColumnMeta[] = [
     { name: 'duration_s', type: 'number' },
 ];
 
-describe('aggExpression / metricId / buildMetric', () => {
+describe('aggExpression / measureId / buildMeasure', () => {
     it('compiles aggregations with quoted identifiers', () => {
         expect(aggExpression('sum', 'duration_s')).toBe('SUM("duration_s")');
         expect(aggExpression('avg', 'duration_s')).toBe('AVG("duration_s")');
@@ -16,24 +16,24 @@ describe('aggExpression / metricId / buildMetric', () => {
         expect(aggExpression('countDistinct', 'tariff')).toBe('COUNT(DISTINCT "tariff")');
     });
 
-    it('produces identifier-safe metric ids', () => {
-        expect(metricId('sum', 'duration_s')).toBe('sum_duration_s');
-        expect(metricId('count', 'x')).toBe('count');
+    it('produces identifier-safe measure ids', () => {
+        expect(measureId('sum', 'duration_s')).toBe('sum_duration_s');
+        expect(measureId('count', 'x')).toBe('count');
     });
 
-    it('builds a metric with id/expression/label', () => {
-        const m = buildMetric('sum', 'duration_s');
+    it('builds a measure with id/expression/label', () => {
+        const m = buildMeasure('sum', 'duration_s');
         expect(m).toEqual({ id: 'sum_duration_s', expression: 'SUM("duration_s")', label: 'sum(duration_s)' });
     });
 });
 
 describe('compileSpec', () => {
-    it('aggregates with GROUP BY when metrics + groupBy are present', () => {
+    it('aggregates with GROUP BY when measures + groupBy are present', () => {
         const spec: QuerySpec = {
             datasetId: 'cdr',
             sourceName: 'cdr',
             groupBy: ['tariff'],
-            metrics: [buildMetric('sum', 'duration_s')],
+            measures: [buildMeasure('sum', 'duration_s')],
         };
         const sql = compileSpec(spec, COLS);
         expect(sql).toContain('SELECT "tariff", SUM("duration_s") AS "sum_duration_s"');
@@ -41,8 +41,8 @@ describe('compileSpec', () => {
         expect(sql).toContain('GROUP BY "tariff"');
     });
 
-    it('projects raw group-by columns when there are no metrics (no GROUP BY)', () => {
-        const spec: QuerySpec = { datasetId: 'cdr', sourceName: 'cdr', groupBy: ['tariff'], metrics: [] };
+    it('projects raw group-by columns when there are no measures (no GROUP BY)', () => {
+        const spec: QuerySpec = { datasetId: 'cdr', sourceName: 'cdr', groupBy: ['tariff'], measures: [] };
         const sql = compileSpec(spec);
         expect(sql).toContain('SELECT "tariff"');
         expect(sql).not.toContain('GROUP BY');
@@ -55,7 +55,7 @@ describe('compileSpec', () => {
             datasetId: 'cdr',
             sourceName: 'cdr',
             groupBy: ['tariff'],
-            metrics: [buildMetric('sum', 'duration_s')],
+            measures: [buildMeasure('sum', 'duration_s')],
             filters: where,
             orderBy: [{ field: 'sum_duration_s', dir: 'desc' }],
             limit: 10,

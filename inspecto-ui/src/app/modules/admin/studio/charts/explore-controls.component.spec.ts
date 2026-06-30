@@ -8,7 +8,7 @@ import { ExploreControlsComponent } from './explore-controls.component';
 
 const FIELDS: VizField[] = [
     { name: 'tariff', type: 'string', role: 'dimension' },
-    { name: 'duration_s', type: 'number', role: 'metric' },
+    { name: 'duration_s', type: 'number', role: 'measure' },
 ];
 
 function create(values: ControlValues = {}) {
@@ -24,7 +24,7 @@ function create(values: ControlValues = {}) {
 describe('ExploreControlsComponent', () => {
     it('only offers fields whose role the channel accepts', () => {
         const c = create().componentInstance;
-        // x accepts temporal|dimension → tariff only; y accepts metric → duration_s only
+        // x accepts temporal|dimension → tariff only; y accepts measure → duration_s only
         expect(c.fieldsFor(BAR_PLUGIN.controls[0]).map((f) => f.name)).toEqual(['tariff']);
         expect(c.fieldsFor(BAR_PLUGIN.controls[1]).map((f) => f.name)).toEqual(['duration_s']);
     });
@@ -38,7 +38,7 @@ describe('ExploreControlsComponent', () => {
         expect(emitted?.x).toEqual([{ field: 'tariff', agg: undefined }]);
     });
 
-    it('emits an aggregation change on a metric channel', () => {
+    it('emits an aggregation change on a measure channel', () => {
         const fixture = create({ y: [{ field: 'duration_s', agg: 'sum' }] });
         const c = fixture.componentInstance;
         let emitted: ControlValues | undefined;

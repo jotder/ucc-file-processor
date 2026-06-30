@@ -9,7 +9,7 @@ import { buildXyQuery, transformXy } from './plugin-helpers';
 
 const XY_CONTROLS: ControlSpec[] = [
     { channel: 'x', label: 'X axis', acceptRoles: ['temporal', 'dimension'], required: true },
-    { channel: 'y', label: 'Measure', acceptRoles: ['metric'], isMetric: true, required: true },
+    { channel: 'y', label: 'Measure', acceptRoles: ['measure'], isMeasure: true, required: true },
     { channel: 'series', label: 'Break down by', acceptRoles: ['dimension'] },
 ];
 
@@ -28,17 +28,17 @@ function xyPlugin(type: string, chartType: string, label: string, icon: string, 
 }
 
 export const LINE_PLUGIN = xyPlugin('line', 'line', 'Line', 'heroicons_outline:presentation-chart-line', {
-    minMetric: 1,
+    minMeasure: 1,
     temporal: true,
 });
-export const BAR_PLUGIN = xyPlugin('bar', 'bar', 'Bar', 'heroicons_outline:chart-bar', { minMetric: 1, minDim: 1 });
-export const AREA_PLUGIN = xyPlugin('area', 'line', 'Area', 'heroicons_outline:chart-bar', { minMetric: 1, temporal: true }, true);
+export const BAR_PLUGIN = xyPlugin('bar', 'bar', 'Bar', 'heroicons_outline:chart-bar', { minMeasure: 1, minDim: 1 });
+export const AREA_PLUGIN = xyPlugin('area', 'line', 'Area', 'heroicons_outline:chart-bar', { minMeasure: 1, temporal: true }, true);
 
 export const PIE_PLUGIN: VizPlugin = {
-    meta: { type: 'pie', label: 'Pie', icon: 'heroicons_outline:chart-pie', fit: { minMetric: 1, minDim: 1, maxDim: 1, temporal: false } },
+    meta: { type: 'pie', label: 'Pie', icon: 'heroicons_outline:chart-pie', fit: { minMeasure: 1, minDim: 1, maxDim: 1, temporal: false } },
     controls: [
         { channel: 'x', label: 'Slice by', acceptRoles: ['dimension'], required: true },
-        { channel: 'y', label: 'Measure', acceptRoles: ['metric'], isMetric: true, required: true },
+        { channel: 'y', label: 'Measure', acceptRoles: ['measure'], isMeasure: true, required: true },
     ],
     buildQuery: buildXyQuery,
     transformProps: transformXy,
