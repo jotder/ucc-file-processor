@@ -6,6 +6,7 @@ import { ColDef } from 'ag-grid-community';
 import { CatalogService, MetadataNode, NodeDetail } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.component';
+import { StoreLineageComponent } from './store-lineage.component';
 
 /**
  * Catalog node inspector: node facts + attrs, neighbour grid (click to walk the graph
@@ -13,7 +14,7 @@ import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.compo
  */
 @Component({
     standalone: true,
-    imports: [MatDialogModule, MatButtonModule, MatProgressSpinnerModule, DataTableComponent, AssistPanelComponent],
+    imports: [MatDialogModule, MatButtonModule, MatProgressSpinnerModule, DataTableComponent, AssistPanelComponent, StoreLineageComponent],
     template: `
         <h2 mat-dialog-title>{{ detail?.node?.label || 'Node' }}</h2>
         <mat-dialog-content>
@@ -52,6 +53,10 @@ import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.compo
                     (rowClick)="onNeighbourClicked($any($event))"
                 />
 
+                @if (isStore(detail.node.kind)) {
+                    <div class="mt-4 font-semibold">Lineage</div>
+                    <app-store-lineage [store]="detail.node.label" />
+                }
 
                 <div class="mt-4 font-semibold">Explain this entity</div>
                 <!-- re-keyed on node id so the panel resets while walking neighbours -->
@@ -102,5 +107,10 @@ export class NodeDetailDialog {
 
     pretty(v: unknown): string {
         try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+    }
+
+    /** Table-kind nodes (a store) carry cross-engine lineage; SOURCE/SCHEMA/COLUMN/KPI/REPORT do not. */
+    isStore(kind: string): boolean {
+        return kind === 'EVENT_TABLE' || kind === 'TRANSFORMED_TABLE' || kind === 'REFERENCE_TABLE';
     }
 }

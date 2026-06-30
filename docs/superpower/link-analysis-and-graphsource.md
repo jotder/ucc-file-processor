@@ -70,11 +70,20 @@ interface GraphSource {
 |---|---|---|
 | `lineage` | `CatalogService.graph()` → `toG6Data()` | adapt (it already *is* this shape) |
 | `component-registry` | `ComponentsDataProvider.list()` → `deriveComponentGraph()` | adapt |
-| `provenance` | flow topology + joined provenance counts → `toFlowG6Data(g, counts)` | **Phase 4** wires the join |
+| `provenance` | flow per-step counts (`DbProvenanceStore`) → `toFlowG6Data(g, counts)` Sankey | exists (flow steps) |
 | `entity-projection` | a Dataset projected via column→Entity/Link mapping | **reserved — not built (P3)** |
 
 Each becomes a thin class implementing `GraphSource`; the **pure mapper functions stay unchanged** and are
 called inside `query()`. No mapper logic moves.
+
+**Cross-engine provenance is bridged at the STORE, not by `batch_id` (corrected 2026-06-30).** Grounding showed
+the original "join `DbProvenanceStore` ⨝ ingest `LineageRow` on `batch_id`" was unsound: a **flow** reads a
+`source_store` (data at rest) and has *no file dimension*; the **ingest** pipeline has the file→partition matrix
+(`LineageRow`) but *no node dimension*; they are disjoint engines that don't share a `batch_id`. The bridge is
+the **store name** (ingest *writes* `batches.output_table`; a flow *reads* it as `source_store`). Phase 4
+shipped this as `GET /lineage?store=` (`control/LineageRoutes`): `upstream` = ingest file→partition counts into
+the store, `downstream` = flows consuming it — stitching *file → store → flow-step → sink*. Per-record tracing
+remains out of scope.
 
 ## 5. Link Analysis Studio (the consumer)
 
@@ -93,7 +102,8 @@ a **Widget** when its source is `entity-projection` (a Graph Visualization Type 
 2. Wrap the **three existing** mappers as `LineageGraphSource`, `ComponentRegistryGraphSource`,
    `FlowGraphSource` — each calls its current mapper verbatim inside `query()`.
 3. Point the three existing screens at their source (optional; can stay on the direct mapper until opted in).
-4. `provenance` source lands with **Phase 4** (the file↔step join).
+4. `provenance` source = the existing flow per-step Sankey; **Phase 4** additionally shipped the store-keyed
+   cross-engine stitch (`GET /lineage?store=`, `control/LineageRoutes`) — see §4.
 5. `entity-projection` is a documented seam only.
 
 **Verification (no UI change):** unit-test each `GraphSource.query()` returns **byte-identical** `G6GraphData`
@@ -116,5 +126,5 @@ that projection + the schema-relationship model is the open work, intentionally 
 ## 8. Non-goals
 - No new renderer (the G6 host stays).
 - No new graph store (sources derive or query existing stores; the metadata lineage + provenance stores remain).
-- No per-record provenance (Phase 4 is per-batch counts; see [`../GLOSSARY.md`](../GLOSSARY.md) §11).
+- No per-record provenance (Phase 4 is per-batch step counts, stitched at the store; see [`../GLOSSARY.md`](../GLOSSARY.md) §11).
 - No generic graph-query language — `GraphQuery` stays a small typed record; extend it only when a source needs it.

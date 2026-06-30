@@ -253,6 +253,12 @@ plane's words for another.
 structural. **Provenance** = the *recorded fact* of where data actually came from (which file's records flowed
 through which Step, with counts); run-time, observed.
 
+**The store is the bridge.** Provenance has two disjoint halves that never share a `batch_id`: the **ingest**
+pipeline records *file → store/partition* counts; an **authored flow** records *step → step* counts and reads a
+`source_store`. They stitch on the **store name** (ingest writes it; a flow reads it), exposed by
+`GET /lineage?store=` (`control/LineageRoutes`): `upstream` = files into the store, `downstream` = flows
+consuming it — i.e. *file → store → flow-step → sink*. ⛔ do not "join on batch_id" — flows process stores, not files.
+
 **Entity / Link** *(business graphs only)* — An **Entity** is a business node (a caller, an account); a **Link**
 is a business edge between Entities (a call, a transaction) carrying typed attributes (call-type, duration). ⛔
 Never use Entity/Link for artifacts (Component/Part) or assets (Asset/Lineage).
