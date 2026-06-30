@@ -1,177 +1,158 @@
-import { Component, DestroyRef, inject, OnInit, ViewEncapsulation } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormsModule } from '@angular/forms';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    OnInit,
+    ViewEncapsulation,
+    computed,
+    inject,
+    signal,
+} from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
-import { MatDialog } from '@angular/material/dialog';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Router } from '@angular/router';
-import { ColDef } from 'ag-grid-community';
-import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, DEFAULT_REFRESH_MS, optimisticMutate, PipelinesService, PipelineView, visibleInterval } from 'app/inspecto/api';
-import { InspectoConfirmService } from 'app/inspecto/confirm.service';
-import { DataTableComponent } from 'app/inspecto/data-table';
-import { InspectoRowAction } from 'app/inspecto/grid';
-import { ReprocessDialog } from './reprocess.dialog';
+import { PipelineCombined, PipelineNode, PipelinesService, IconMap, IconMapService } from 'app/inspecto/api';
+import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
+import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
+import { PipelineEditorComponent } from './pipeline-editor.component';
+import {
+    CATEGORY_ORDER,
+    NodeTypeGroup,
+    categoryColor,
+    groupByCategory,
+    nodeDisplayLabel,
+    toCombinedG6Data,
+} from './pipeline-graph';
+
+/** Which lens the Pipelines pane shows: the (multi-pipeline) topology View, or the authoring Editor. */
+export type PipelinesViewMode = 'combined' | 'editor';
 
 /**
- * Pipelines — every configured pipeline with lifecycle actions (trigger / pause / resume /
- * reprocess) and a "Run all" toolbar (ported from inspector-ui onto the gamma shell).
+ * Pipelines — the topology **View** (one or many pipelines, joined at their shared stores, rendered in the
+ * shared G6 host with a node-type palette + a node inspector on click) and the authoring **Editor**. The
+ * View is read-only; selecting a single pipeline in the multiselect just narrows the same topology.
  */
 @Component({
     selector: 'app-pipelines',
     standalone: true,
     imports: [
-        FormsModule,
+        NgTemplateOutlet,
         MatButtonModule,
+        MatButtonToggleModule,
+        MatFormFieldModule,
         MatIconModule,
-        MatSlideToggleModule,
+        MatMenuModule,
+        MatSelectModule,
         MatTooltipModule,
-        DataTableComponent,
+        GraphViewComponent,
+        InspectoEmptyStateComponent,
+        PipelineEditorComponent,
     ],
     templateUrl: './pipelines.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
 })
 export class PipelinesComponent implements OnInit {
     private api = inject(PipelinesService);
-    private router = inject(Router);
-    private dialog = inject(MatDialog);
-    private confirm = inject(InspectoConfirmService);
-    private toastr = inject(ToastrService);
-    private destroyRef = inject(DestroyRef);
+    private iconMapApi = inject(IconMapService);
 
-    pipelines: PipelineView[] = [];
-    loading = false;
-    autoRefresh = true;
-    private dialogOpen = false;
+    /** Configurable processor icons/colours (empty until loaded → mappers fall back to the per-kind glyph). */
+    readonly iconMap = signal<IconMap>({});
+    readonly nodeTypeGroups = signal<NodeTypeGroup[]>([]);
+    readonly selectedNode = signal<PipelineNode | null>(null);
 
-    readonly columnDefs: ColDef<PipelineView>[] = [
-        { field: 'name', headerName: 'Pipeline', flex: 1 },
-        { field: 'configPath', headerName: 'Config', flex: 2 },
-        { field: 'paused', headerName: 'Paused', width: 100 },
-        { field: 'committedBatches', headerName: 'Committed', width: 120 },
-    ];
+    /** Which lens is shown: the topology View (combined) or the authoring Editor. */
+    readonly mode = signal<PipelinesViewMode>('combined');
 
-    readonly rowActions: InspectoRowAction<PipelineView>[] = [
-        {
-            icon: 'heroicons_outline:play',
-            hint: 'Trigger',
-            onClick: (p) => this.trigger(p.name),
-        },
-        {
-            icon: (p) => (p.paused ? 'heroicons_outline:play-circle' : 'heroicons_outline:pause-circle'),
-            hint: (p) => (p.paused ? 'Resume' : 'Pause'),
-            onClick: (p) => this.togglePause(p),
-        },
-        {
-            icon: 'heroicons_outline:arrow-path',
-            hint: 'Reprocess batch',
-            onClick: (p) => this.openReprocess(p.name),
-        },
-        {
-            icon: 'heroicons_outline:chevron-right',
-            hint: 'Open detail',
-            onClick: (p) => this.openDetail(p.name),
-        },
-    ];
+    // ── topology View (T24): one or many pipelines joined at their shared stores ──
+    readonly combined = signal<PipelineCombined | null>(null);
+    readonly combinedLoading = signal(false);
+    readonly combinedUnavailable = signal(false);
+    /** Which pipelines are shown (empty ⇒ all) + the multiselect's search box. */
+    readonly combinedSelected = signal<string[]>([]);
+    readonly combinedSearch = signal('');
+
+    /** The topology mapped to G6 data, filtered to the chosen pipelines (empty selection ⇒ all). */
+    readonly combinedG6 = computed<G6GraphData | null>(() => {
+        const c = this.combined();
+        if (!c) return null;
+        const sel = this.combinedSelected();
+        const active = sel.length ? new Set(sel) : new Set(c.flows.map((f) => f.name));
+        const nodes = c.nodes.filter((n) => !n.flow || active.has(n.flow));
+        const ids = new Set(nodes.map((n) => n.id));
+        const edges = c.edges.filter((e) => ids.has(e.from) && ids.has(e.to));
+        return toCombinedG6Data({ ...c, nodes, edges }, this.iconMap());
+    });
+
+    /** Pipeline names offered in the multiselect, filtered by its search box. */
+    readonly combinedFlowOptions = computed<string[]>(() => {
+        const q = this.combinedSearch().trim().toLowerCase();
+        const names = (this.combined()?.flows ?? []).map((f) => f.name);
+        return q ? names.filter((n) => n.toLowerCase().includes(q)) : names;
+    });
+
+    readonly nodeDisplayLabel = nodeDisplayLabel;
+    readonly categoryColor = categoryColor;
+    /** Category accent dots for the legend / palette (runtime colour from the token palette). */
+    readonly legendCategories = CATEGORY_ORDER;
 
     ngOnInit(): void {
         this.load();
-        visibleInterval(DEFAULT_REFRESH_MS)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(() => {
-                if (this.autoRefresh && !this.dialogOpen) this.load();
-            });
     }
 
+    /** Load the palette, the icon map, and the combined topology (the View tab's data). */
     load(): void {
-        this.loading = true;
-        this.api.list().subscribe({
-            next: (p) => {
-                this.pipelines = p;
-                this.loading = false;
+        // The palette degrades independently — a failed catalog fetch must not blank the page.
+        this.api.nodeTypes().subscribe({
+            next: (ts) => this.nodeTypeGroups.set(groupByCategory(ts)),
+            error: () => this.nodeTypeGroups.set([]),
+        });
+        // Configurable icons degrade independently — failure just keeps the built-in per-kind glyphs.
+        this.iconMapApi.get().subscribe({
+            next: (m) => this.iconMap.set(m),
+            error: () => this.iconMap.set({}),
+        });
+        this.loadCombined();
+    }
+
+    loadCombined(): void {
+        this.combinedLoading.set(true);
+        this.combinedUnavailable.set(false);
+        this.api.combined().subscribe({
+            next: (c) => {
+                this.combined.set(c);
+                if (!this.combinedSelected().length) this.combinedSelected.set(c.flows.map((f) => f.name));
+                this.combinedLoading.set(false);
             },
-            error: (e) => {
-                this.loading = false;
-                this.toastr.error(apiErrorMessage(e, 'Failed to load pipelines'));
+            error: () => {
+                this.combined.set(null);
+                this.combinedLoading.set(false);
+                this.combinedUnavailable.set(true);
             },
         });
     }
 
-    async trigger(name: string): Promise<void> {
-        if (!(await this.confirm.confirm(`Trigger pipeline "${name}" now?`, 'Trigger pipeline'))) return;
-        this.api.trigger(name).subscribe({
-            next: (r) => {
-                const msg = `${name}: ${r.total} processed, ${r.failed} failed`;
-                r.failed ? this.toastr.warning(msg) : this.toastr.success(msg);
-                this.load();
-            },
-            error: (e) => this.toastr.error(apiErrorMessage(e, `Trigger failed for ${name}`)),
-        });
+    /** Switch lens (topology View ↔ Editor). */
+    setMode(m: PipelinesViewMode): void {
+        if (this.mode() === m) return;
+        this.mode.set(m);
+        this.selectedNode.set(null);
     }
 
-    async runAll(): Promise<void> {
-        if (!(await this.confirm.confirm('Trigger all pipelines now?', 'Run all'))) return;
-        this.loading = true;
-        this.api.runAll().subscribe({
-            next: (res) => {
-                const total = Object.values(res).reduce((s, r) => s + (r.total || 0), 0);
-                const failed = Object.values(res).reduce((s, r) => s + (r.failed || 0), 0);
-                const msg = `Run all: ${total} processed across ${Object.keys(res).length} pipelines, ${failed} failed`;
-                failed ? this.toastr.warning(msg) : this.toastr.success(msg);
-                this.load();
-            },
-            error: (e) => {
-                this.loading = false;
-                this.toastr.error(apiErrorMessage(e, 'Run all failed'));
-            },
-        });
+    onNodeClick(id: string): void {
+        this.selectedNode.set(this.combined()?.nodes.find((n) => n.id === id) ?? null);
     }
 
-    async togglePause(p: PipelineView): Promise<void> {
-        const wasPaused = p.paused;
-        const verb = wasPaused ? 'Resume' : 'Pause';
-        if (!(await this.confirm.confirm(`${verb} pipeline "${p.name}"?`, `${verb} pipeline`))) return;
-        // Optimistic: flip the local paused state now (snappy toggle, no refetch); the call selection
-        // is based on the pre-flip value, and we roll back + toast only on failure.
-        const call = wasPaused ? this.api.resume(p.name) : this.api.pause(p.name);
-        const render = () => (this.pipelines = [...this.pipelines]); // new ref so the grid re-renders
-        optimisticMutate({
-            apply: () => {
-                p.paused = !wasPaused;
-                render();
-            },
-            commit: call,
-            reconcile: (r) => {
-                p.paused = r.paused;
-                render();
-            },
-            rollback: () => {
-                p.paused = wasPaused;
-                render();
-            },
-            onError: (e) => this.toastr.error(apiErrorMessage(e, `${verb} failed for ${p.name}`)),
-        });
+    onCombinedSearch(e: Event): void {
+        this.combinedSearch.set((e.target as HTMLInputElement).value);
     }
 
-    openReprocess(name: string): void {
-        this.dialogOpen = true;
-        const ref = this.dialog.open(ReprocessDialog, { data: { pipeline: name }, width: '420px' });
-        ref.afterClosed().subscribe((batchId: string | undefined) => {
-            this.dialogOpen = false;
-            if (!batchId?.trim()) return;
-            this.api.reprocess(name, batchId.trim()).subscribe({
-                next: () => {
-                    this.toastr.success(`Reprocess requested for ${name} / ${batchId.trim()}`);
-                    this.load();
-                },
-                error: (e) => this.toastr.error(apiErrorMessage(e, `Reprocess failed for ${name}`)),
-            });
-        });
-    }
-
-    openDetail(name: string): void {
-        this.router.navigate(['/pipelines', name]);
+    setCombinedSelected(names: string[]): void {
+        this.combinedSelected.set(names);
     }
 }

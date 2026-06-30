@@ -3,33 +3,33 @@ import { Observable, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
-    AuthoredFlow,
     AuthoredNode,
-    FlowDryRunResult,
-    FlowGraph,
-    FlowNode,
-    FlowNodeType,
-    FlowRunRelation,
-    FlowRunResult,
-    FlowSummary,
-} from './flows.service';
+    AuthoredPipeline,
+    PipelineDryRunResult,
+    PipelineGraph,
+    PipelineNode,
+    PipelineNodeType,
+    PipelineRunRelation,
+    PipelineRunResult,
+    PipelineSummary,
+} from './pipelines.service';
 import { ComponentDef, ParserPreview, ParserTreeNode } from './components.service';
 import { IconMap } from './icon-map.service';
 import { NODE_KIND_COLORS } from '../theme/chart-tokens';
 
 /**
- * PROTOTYPE-ONLY mock for the Pipelines graph editor (the `flows` feature). Serves the node-type palette,
- * authored-flow CRUD, the read-only graph projection, dry-run, and per-processor test entirely from an
+ * PROTOTYPE-ONLY mock for the Pipelines graph editor. Serves the node-type palette,
+ * authored-pipeline CRUD, the read-only graph projection, dry-run, and per-processor test entirely from an
  * in-memory store so the editor is built and iterated UI-first with ZERO backend. Gated on
  * {@code environment.mockFlows}; registered before the space/error interceptors so it short-circuits. Remove
- * (or flip the flag) once the real flow backend is wired — the contract (FlowsService types) is unchanged.
+ * (or flip the flag) once the real backend is wired — the contract (PipelinesService types) is unchanged.
  *
  * <p>The palette is the agreed processor taxonomy: Collector (file/db/stream), Parser (DSV/ASN.1/Text/Other),
  * Transformer (record/route/filter/aggregation/alert), plus a Writer sink (pipelines need an output).
  */
 
 /** The processor palette — grouped by category (Collector=SOURCE, Parser=PARSE, Transformer=TRANSFORM, Writer=SINK). */
-const NODE_TYPES: FlowNodeType[] = [
+const NODE_TYPES: PipelineNodeType[] = [
     // Collector (SOURCE)
     { type: 'collector.file', category: 'SOURCE', label: 'File', description: 'Collect files from a directory or remote connection.', accepts: [], emits: ['success', 'failure'], emitsNamedRoutes: false },
     { type: 'collector.database', category: 'SOURCE', label: 'Database extract', description: 'Extract rows from a table/query (incremental watermark).', accepts: [], emits: ['success', 'failure'], emitsNamedRoutes: false },
@@ -52,8 +52,8 @@ const NODE_TYPES: FlowNodeType[] = [
 
 const CATEGORY_OF = new Map(NODE_TYPES.map((t) => [t.type, t.category]));
 
-/** In-memory authored-flow store, seeded with two sample pipelines so open/edit works immediately. */
-const STORE = new Map<string, AuthoredFlow>();
+/** In-memory authored-pipeline store, seeded with two sample pipelines so open/edit works immediately. */
+const STORE = new Map<string, AuthoredPipeline>();
 STORE.set('cdr_ingest', {
     name: 'cdr_ingest',
     active: true,
@@ -162,7 +162,7 @@ const ICON_MAP_RE = /\/config\/icon-map$/;
 const ASN1_MODULES_RE = /\/asn1\/modules$/;
 const ASN1_MODULE_ONE = /\/asn1\/modules\/([^/]+)$/;
 
-export const flowMockInterceptor: HttpInterceptorFn = (req, next) => {
+export const pipelineMockInterceptor: HttpInterceptorFn = (req, next) => {
     if (!(environment as { mockFlows?: boolean }).mockFlows) return next(req);
     const url = req.url;
     let m: RegExpMatchArray | null;
@@ -180,13 +180,13 @@ export const flowMockInterceptor: HttpInterceptorFn = (req, next) => {
     if (req.method === 'GET' && (m = url.match(FLOW_GRAPH))) return reply(graphOf(id(m)));
 
     if (req.method === 'POST' && AUTHORED.test(url)) {
-        const f = req.body as AuthoredFlow;
+        const f = req.body as AuthoredPipeline;
         STORE.set(f.name, f);
         return reply(f);
     }
     if (req.method === 'PUT' && (m = url.match(AUTHORED_ID))) {
         const key = id(m);
-        STORE.set(key, { ...(req.body as AuthoredFlow), name: key });
+        STORE.set(key, { ...(req.body as AuthoredPipeline), name: key });
         return reply(STORE.get(key));
     }
     if (req.method === 'DELETE' && (m = url.match(AUTHORED_ID))) {
@@ -241,7 +241,7 @@ function id(m: RegExpMatchArray): string {
     return decodeURIComponent(m[1]);
 }
 
-function summaries(): FlowSummary[] {
+function summaries(): PipelineSummary[] {
     return [...STORE.values()].map((f) => ({
         name: f.name,
         active: f.active,
@@ -259,10 +259,10 @@ function edgeKind(rel: string): 'data' | 'control' | 'route' {
     return 'data';
 }
 
-function graphOf(name: string): FlowGraph | null {
+function graphOf(name: string): PipelineGraph | null {
     const f = STORE.get(name);
     if (!f) return null;
-    const nodes: FlowNode[] = f.nodes.map((n) => ({
+    const nodes: PipelineNode[] = f.nodes.map((n) => ({
         id: n.id,
         type: n.type,
         category: CATEGORY_OF.get(n.type) ?? 'TRANSFORM',
@@ -307,7 +307,7 @@ function combined() {
     return { flows: flows.map((f) => ({ name: f.name, active: f.active })), nodes, edges, links: [] };
 }
 
-function dryRun(name: string): FlowDryRunResult {
+function dryRun(name: string): PipelineDryRunResult {
     const f = STORE.get(name);
     const rows = [
         { id: 1001, msisdn: '8801700000001', start_time: '2026-06-24 09:00:00', duration_s: 42 },
@@ -324,7 +324,7 @@ function dryRun(name: string): FlowDryRunResult {
 }
 
 /** The nodes from the seed source down to (and including) `toNode`, in declaration order — the run subgraph. */
-function subgraphTo(f: AuthoredFlow | undefined, toNode: string): AuthoredNode[] {
+function subgraphTo(f: AuthoredPipeline | undefined, toNode: string): AuthoredNode[] {
     if (!f) return [];
     const incoming = new Map<string, string[]>();
     for (const e of f.edges) {
@@ -348,7 +348,7 @@ function subgraphTo(f: AuthoredFlow | undefined, toNode: string): AuthoredNode[]
  * the run "landed". A parser splits success/unmatched; a transform splits kept/dropped — the matched/rejected
  * feedback the grammar/rules loop needs. Pure mock data; no real parse.
  */
-function runToNode(name: string, toNode: string, files: string[]): FlowRunResult {
+function runToNode(name: string, toNode: string, files: string[]): PipelineRunResult {
     const f = STORE.get(name);
     const matched = [
         { id: 1001, msisdn: '8801700000001', start_time: '2026-06-24 09:00:00', duration_s: 42 },
@@ -356,7 +356,7 @@ function runToNode(name: string, toNode: string, files: string[]): FlowRunResult
         { id: 1003, msisdn: '8801700000003', start_time: '2026-06-24 09:03:11', duration_s: 8 },
     ];
     const path = subgraphTo(f, toNode);
-    const relations: FlowRunRelation[] = [];
+    const relations: PipelineRunRelation[] = [];
     for (const n of path) {
         const cat = CATEGORY_OF.get(n.type);
         if (cat === 'SOURCE') {

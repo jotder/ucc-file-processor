@@ -3,7 +3,7 @@ import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dial
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { describe, expect, it } from 'vitest';
-import { ComponentDef, ComponentsService, FlowsService } from 'app/inspecto/api';
+import { ComponentDef, ComponentsService, PipelinesService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { NodeConfigData, NodeConfigDialog } from './node-config.dialog';
 
@@ -29,7 +29,7 @@ function create(data: Partial<NodeConfigData> = {}) {
                     ...data,
                 },
             },
-            { provide: FlowsService, useValue: { testNode: () => of({}) } },
+            { provide: PipelinesService, useValue: { testNode: () => of({}) } },
             { provide: ComponentsService, useValue: { list: () => of(GRAMMARS) } },
         ],
     });

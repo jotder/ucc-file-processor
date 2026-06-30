@@ -7,9 +7,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import {
     AuthoredNode,
     ConnectionProbeService,
-    FlowRunRelation,
-    FlowRunResult,
-    FlowsService,
+    PipelineRunRelation,
+    PipelineRunResult,
+    PipelinesService,
     ResourceNode,
     apiErrorMessage,
 } from 'app/inspecto/api';
@@ -182,7 +182,7 @@ export interface RunToHereData {
     `,
 })
 export class RunToHereDialog implements OnInit {
-    private api = inject(FlowsService);
+    private api = inject(PipelinesService);
     private probe = inject(ConnectionProbeService);
     private ref = inject(MatDialogRef<RunToHereDialog>);
     readonly data = inject<RunToHereData>(MAT_DIALOG_DATA);
@@ -195,7 +195,7 @@ export class RunToHereDialog implements OnInit {
     readonly selectedFiles = signal<string[]>([]);
 
     readonly running = signal(false);
-    readonly result = signal<FlowRunResult | null>(null);
+    readonly result = signal<PipelineRunResult | null>(null);
     readonly error = signal<string | null>(null);
 
     ngOnInit(): void {

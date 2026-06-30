@@ -1,12 +1,12 @@
 import { NodeKind } from 'app/inspecto/api';
 import {
-    AuthoredFlow,
+    AuthoredPipeline,
     AuthoredNode,
     ComponentType,
-    FlowCombined,
-    FlowGraph,
-    FlowNode,
-    FlowNodeType,
+    PipelineCombined,
+    PipelineGraph,
+    PipelineNode,
+    PipelineNodeType,
     IconMap,
     ProvenanceCount,
 } from 'app/inspecto/api';
@@ -18,7 +18,7 @@ import { GLYPH_LIBRARY, G6GraphData, iconDataUri, nodeColor, nodeIcon } from 'ap
  * unit-test without TestBed.
  *
  * <p>The G6 host keys shape + outline colour off a catalog {@link NodeKind}; a flow node's
- * {@link FlowNode.category} is mapped onto a NodeKind purely for that visual reuse (so colours come
+ * {@link PipelineNode.category} is mapped onto a NodeKind purely for that visual reuse (so colours come
  * from the existing token palette, never a hardcoded value here).
  */
 
@@ -86,7 +86,7 @@ export function computeNodeStatus(
 }
 
 /** One validation finding for the editor's Validate panel; `error` blocks activation. */
-export interface FlowFinding {
+export interface PipelineFinding {
     severity: 'error' | 'warning' | 'info';
     nodeId?: string;
     message: string;
@@ -96,13 +96,13 @@ export interface FlowFinding {
  * Validate an authored flow for activation: every node configured + its refs resolvable, a source feeding it,
  * a sink draining it, and no orphan (non-source node with no input). `error`-severity findings block Activate.
  */
-export function validateFlow(
-    flow: AuthoredFlow,
+export function validatePipeline(
+    flow: AuthoredPipeline,
     typeCat: ReadonlyMap<string, string>,
     validRefs: ReadonlySet<string>,
     tested: ReadonlyMap<string, TestOutcome>,
-): FlowFinding[] {
-    const findings: FlowFinding[] = [];
+): PipelineFinding[] {
+    const findings: PipelineFinding[] = [];
     if (!flow.nodes.length) {
         return [{ severity: 'error', message: 'The pipeline has no nodes.' }];
     }
@@ -183,7 +183,7 @@ export function categoryLabel(category: string): string {
 }
 
 /** A flow node's display label: the user-given name if set, else the type label. */
-export function nodeDisplayLabel(n: FlowNode): string {
+export function nodeDisplayLabel(n: PipelineNode): string {
     return n.name && n.name.trim() ? n.name : n.label;
 }
 
@@ -193,7 +193,7 @@ export function nodeDisplayLabel(n: FlowNode): string {
  * that relationship and a {@code weight} drives the line width — the structure plane painted with quantities
  * (§11). Edges with no recorded count are left at their default style.
  */
-export function toFlowG6Data(g: FlowGraph, counts?: Map<string, number>, iconMap?: IconMap): G6GraphData {
+export function toPipelineG6Data(g: PipelineGraph, counts?: Map<string, number>, iconMap?: IconMap): G6GraphData {
     return {
         nodes: g.nodes.map((n) => ({
             id: n.id,
@@ -231,7 +231,7 @@ export function provenanceCounts(rows: ProvenanceCount[]): Map<string, number> {
  * drawn alongside the intra-flow edges. Node ids are already unique (flow nodes `<flow>/<node>`, store
  * nodes `store:<name>`), so they're used verbatim.
  */
-export function toCombinedG6Data(c: FlowCombined, iconMap?: IconMap): G6GraphData {
+export function toCombinedG6Data(c: PipelineCombined, iconMap?: IconMap): G6GraphData {
     return {
         nodes: c.nodes.map((n) => ({
             id: n.id,
@@ -251,7 +251,7 @@ export function toCombinedG6Data(c: FlowCombined, iconMap?: IconMap): G6GraphDat
 }
 
 /** A node-type → category lookup built from the palette catalog (authored nodes carry only their type). */
-export function typeCategoryMap(types: FlowNodeType[]): Map<string, string> {
+export function typeCategoryMap(types: PipelineNodeType[]): Map<string, string> {
     return new Map(types.map((t) => [t.type, t.category]));
 }
 
@@ -261,7 +261,7 @@ export function typeCategoryMap(types: FlowNodeType[]): Map<string, string> {
  * type falls back to TRANSFORM so a plugin/unknown node still renders.
  */
 export function authoredToG6(
-    flow: AuthoredFlow,
+    flow: AuthoredPipeline,
     typeCat: Map<string, string>,
     statusOf?: (node: AuthoredNode) => NodeStatus,
     iconMap?: IconMap,
@@ -296,12 +296,12 @@ export const COMBINED_CATEGORY_ORDER: readonly string[] = [...CATEGORY_ORDER, 'S
 
 export interface NodeTypeGroup {
     category: string;
-    types: FlowNodeType[];
+    types: PipelineNodeType[];
 }
 
 /** Group node types by category for the palette, in {@link CATEGORY_ORDER} (unknown categories last). */
-export function groupByCategory(types: FlowNodeType[]): NodeTypeGroup[] {
-    const byCat = new Map<string, FlowNodeType[]>();
+export function groupByCategory(types: PipelineNodeType[]): NodeTypeGroup[] {
+    const byCat = new Map<string, PipelineNodeType[]>();
     for (const t of types) {
         const arr = byCat.get(t.category) ?? [];
         arr.push(t);

@@ -3,7 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { forkJoin } from 'rxjs';
-import { AuditRow, PipelinesService } from 'app/inspecto/api';
+import { AuditRow, RunsService } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
 
 /** Batch detail — summary + member files + input→output lineage for one batch. */
@@ -59,7 +59,7 @@ import { DataTableComponent } from 'app/inspecto/data-table';
 })
 export class BatchDetailDialog implements OnInit {
     readonly data = inject<{ pipeline: string; batchId: string }>(MAT_DIALOG_DATA);
-    private api = inject(PipelinesService);
+    private api = inject(RunsService);
 
     loading = true;
     batchRow: AuditRow | null = null;

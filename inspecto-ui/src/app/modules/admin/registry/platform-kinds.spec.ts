@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { AuthoredFlow } from 'app/inspecto/api';
+import { AuthoredPipeline } from 'app/inspecto/api';
 import { allKinds, clearKinds, getKind } from 'app/inspecto/component-model';
 import { PIPELINE_KIND, PLATFORM_KIND_IDS, registerPlatformKinds } from './platform-kinds';
 
@@ -24,7 +24,7 @@ describe('platform kinds (P2 adapters)', () => {
     it('pipeline is a composite graph kind whose wiring derives from the authored flow DAG', () => {
         expect(PIPELINE_KIND.wiring).toBe('graph');
         expect(PIPELINE_KIND.allowedPartKinds).toContain('grammar');
-        const flow: AuthoredFlow = {
+        const flow: AuthoredPipeline = {
             name: 'p1',
             active: false,
             nodes: [{ id: 'src', type: 'collector' }, { id: 'parse', type: 'dsv' }],

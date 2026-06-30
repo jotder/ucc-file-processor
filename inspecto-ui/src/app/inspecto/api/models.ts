@@ -5,8 +5,8 @@
 /** A generic header→value audit row (batches/files/lineage/quarantine/commits, enrichment runs…). */
 export type AuditRow = Record<string, string>;
 
-// ── pipelines ────────────────────────────────────────────────────────────────
-export interface PipelineView {
+// ── runs ─────────────────────────────────────────────────────────────────────
+export interface RunView {
   name: string;
   configPath: string;
   paused: boolean;
@@ -14,7 +14,7 @@ export interface PipelineView {
 }
 
 /** Result of POST /pipelines/{n}/trigger and /trigger (MultiSourceProcessor.RunResult). */
-export interface PipelineRunResult {
+export interface RunResult {
   total: number;
   failed: number;
   [k: string]: unknown;
@@ -39,7 +39,7 @@ export interface InboxStatus {
 }
 
 // ── status + reports ───────────────────────────────────────────────────────────
-export interface PipelineStatus {
+export interface RunStatus {
   pipeline: string;
   paused: boolean;
   committedBatches: number;
@@ -55,7 +55,7 @@ export interface StatusReport {
   pausedCount: number;
   totalCommittedBatches: number;
   totalQuarantineFiles: number;
-  pipelines: PipelineStatus[];
+  pipelines: RunStatus[];
 }
 
 export interface BatchAuditReport {

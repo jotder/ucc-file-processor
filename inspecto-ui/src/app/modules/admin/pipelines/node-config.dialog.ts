@@ -14,7 +14,7 @@ import {
     ComponentsService,
     ComponentTestResult,
     ComponentType,
-    FlowsService,
+    PipelinesService,
 } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { ComponentFormDialog, ComponentFormResult } from 'app/modules/admin/components/component-form.dialog';
@@ -161,7 +161,7 @@ export interface NodeConfigResult {
 })
 export class NodeConfigDialog {
     private fb = inject(FormBuilder);
-    private api = inject(FlowsService);
+    private api = inject(PipelinesService);
     private components = inject(ComponentsService);
     private dialog = inject(MatDialog);
     private ref = inject(MatDialogRef<NodeConfigDialog, NodeConfigResult>);

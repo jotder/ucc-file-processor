@@ -9,7 +9,7 @@ import {
     AcquisitionMetrics,
     AcquisitionMetricsService,
     apiErrorMessage,
-    PipelinesService,
+    RunsService,
     SourceView,
     SourcesService,
 } from 'app/inspecto/api';
@@ -51,7 +51,7 @@ interface MetricCard {
 export class SourcesComponent implements OnInit {
     private api = inject(SourcesService);
     private metricsApi = inject(AcquisitionMetricsService);
-    private pipelines = inject(PipelinesService);
+    private runs = inject(RunsService);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
@@ -160,7 +160,7 @@ export class SourcesComponent implements OnInit {
 
     async trigger(source: SourceView): Promise<void> {
         if (!(await this.confirm.confirm(`Run pipeline "${source.pipeline}" now?`, 'Run now'))) return;
-        this.pipelines.trigger(source.pipeline).subscribe({
+        this.runs.trigger(source.pipeline).subscribe({
             next: (r) => {
                 this.toastr.success(`${source.pipeline}: ${r.status}`);
                 this.load();

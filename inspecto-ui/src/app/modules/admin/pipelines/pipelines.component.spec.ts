@@ -2,17 +2,17 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, of, throwError } from 'rxjs';
 import { describe, expect, it } from 'vitest';
-import { FlowCombined, FlowNodeType, FlowsService } from 'app/inspecto/api';
+import { PipelineCombined, PipelineNodeType, PipelinesService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
-import { FlowsComponent } from './flows.component';
+import { PipelinesComponent } from './pipelines.component';
 
-const COMBINED: FlowCombined = {
+const COMBINED: PipelineCombined = {
     flows: [{ name: 'cdr_etl', active: true }],
     nodes: [{ id: 'cdr_etl/acq', type: 'acquisition', category: 'SOURCE', label: 'Acquisition', flow: 'cdr_etl' }],
     edges: [],
     links: [],
 };
-const TYPES: FlowNodeType[] = [
+const TYPES: PipelineNodeType[] = [
     { type: 'acquisition', category: 'SOURCE', label: 'Acquisition', description: 'collect', accepts: [], emits: [], emitsNamedRoutes: false },
     { type: 'sink.view', category: 'SINK', label: 'Sink (view)', description: 'logical', accepts: [], emits: [], emitsNamedRoutes: false },
 ];
@@ -22,19 +22,19 @@ const TYPES: FlowNodeType[] = [
  * directly (no `detectChanges` ⇒ the `<inspecto-graph-view>` canvas never mounts); the a11y test renders
  * the unavailable path (empty state, no canvas).
  */
-function build(combined$: Observable<FlowCombined> = of(COMBINED)) {
+function build(combined$: Observable<PipelineCombined> = of(COMBINED)) {
     const stub = {
         nodeTypes: () => of(TYPES),
         combined: () => combined$,
-    } as unknown as FlowsService;
+    } as unknown as PipelinesService;
     TestBed.configureTestingModule({
-        imports: [FlowsComponent],
-        providers: [provideNoopAnimations(), { provide: FlowsService, useValue: stub }],
+        imports: [PipelinesComponent],
+        providers: [provideNoopAnimations(), { provide: PipelinesService, useValue: stub }],
     });
-    return TestBed.createComponent(FlowsComponent);
+    return TestBed.createComponent(PipelinesComponent);
 }
 
-describe('FlowsComponent', () => {
+describe('PipelinesComponent', () => {
     it('defaults to the View tab and loads the palette + combined topology (all pipelines shown)', () => {
         const c = build().componentInstance;
         c.load();

@@ -3,11 +3,11 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { describe, expect, it } from 'vitest';
-import { ConnectionProbeService, FlowRunResult, FlowsService, ResourceNode } from 'app/inspecto/api';
+import { ConnectionProbeService, PipelineRunResult, PipelinesService, ResourceNode } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { RunToHereData, RunToHereDialog } from './run-to-here.dialog';
 
-const RUN_RESULT: FlowRunResult = {
+const RUN_RESULT: PipelineRunResult = {
     seedNode: 'collect',
     toNode: 'parse',
     files: ['inbox/feed_001.csv.gz'],
@@ -26,7 +26,7 @@ function create(data: Partial<RunToHereData> = {}) {
             provideNoopAnimations(),
             { provide: MatDialogRef, useValue: { close: () => {} } },
             { provide: MAT_DIALOG_DATA, useValue: { flowId: 'cdr_ingest', node: { id: 'parse', type: 'parser.dsv' }, connectionId: null, ...data } },
-            { provide: FlowsService, useValue: { runToNode: () => of(RUN_RESULT) } },
+            { provide: PipelinesService, useValue: { runToNode: () => of(RUN_RESULT) } },
             { provide: ConnectionProbeService, useValue: { explore: () => of([]) } },
         ],
     });
