@@ -45,7 +45,7 @@ design. We adopt the **contracts**, not the queued runtime (see §10 for the one
 - **Relationships** = named outputs (`success`/`failure`/`unmatched`/`gap`) — already Inspecto flow edges.
 - **`@InputRequirement`**: `INPUT_FORBIDDEN` = a source (`acquisition.list`); `INPUT_REQUIRED` = consumes
   upstream (`acquisition.fetch`). This is how the engine knows List is schedulable and Fetch is data-driven.
-- Independent **scheduling** (timer/cron/event = `FlowTrigger`) and **validate / start / stop / test**.
+- Independent **scheduling** (timer/cron/event = `PipelineTrigger`) and **validate / start / stop / test**.
 - **State**: a List processor is *stateful* (remembers what it already listed) — see §4.
 
 ## 2. Controller Service = Connection (lifecycle)
@@ -165,7 +165,7 @@ configurable and testable (NiFi `ListSFTP → FetchSFTP`):
 
 Requirement: *"each data source collected with a different frequency."* This needs **no new scheduler**: in
 the flow model each data source is its **own flow** whose entry `acquisition.list` node carries a
-[`FlowTrigger`](../inspecto/src/main/java/com/gamma/flow/FlowTrigger.java) (`schedule.every` / `schedule.cron`
+[`PipelineTrigger`](../inspecto/src/main/java/com/gamma/pipeline/PipelineTrigger.java) (`schedule.every` / `schedule.cron`
 / `event` / `manual`; absent ⇒ `DEFAULT_POLL`). Different flows ⇒ different triggers ⇒ different
 frequencies, driven by the existing two-scheduler split (flow-graph-design.md §3.8). What's left is the
 flow-graph executor work already scheduled as that doc's **Phase 3** — this design adds no scheduler of its
@@ -290,6 +290,6 @@ data-plane overlay (flow-graph-design.md §11), not per-flowfile lineage events.
 ## 11. Reconciliation — no conflicts
 Everything here is additive and lands inside the locked flow-graph model: Connection = referenced component
 (controller service) + a richer probe; security/credentials = their own referenced services (§2.1); Data
-Source = `acquisition` node, optionally split List/Fetch; scheduling = per-flow `FlowTrigger`; testing =
+Source = `acquisition` node, optionally split List/Fetch; scheduling = per-flow `PipelineTrigger`; testing =
 §7.2 dry-run. The lean-core, editions-as-build-flavors, no-`#`-comments, `ConfigSafetyValidator`, and
 single-SemVer rules are unchanged.

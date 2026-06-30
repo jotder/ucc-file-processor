@@ -74,7 +74,7 @@ One cycle, under a single **`ingestLock` (`ReentrantLock`)** held for the whole 
 1. **Config rebuild** — `ConfigRegistry.rebuild(registry)`: mtime-cached re-index of `*_pipeline.toon`. Re-parses
    only changed files (+ their referenced schema/grammar/segment files). Steady-state cycles do no parse I/O.
 2. **Filter to runnable set** — skip pipelines that are *paused*, `active: false` (default false = opt-in), or
-   not due this tick (`dueThisTick` evaluates the `FlowTrigger`: interval/cron/event/manual). Each survivor gets
+   not due this tick (`dueThisTick` evaluates the `PipelineTrigger`: interval/cron/event/manual). Each survivor gets
    `cfg.forNewRun()` (cheap timestamp re-stamp, no re-parse).
 3. **Mark running** — add names to the `running` set (`ConcurrentHashMap.newKeySet()`), backing the "under
    processing" signal of `/pipelines/{name}/pending`.
@@ -181,19 +181,19 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   once instead of being rediscovered and reprocessed every poll cycle (an EMPTY batch never backs up/marks);
   `year=NULL` partitions (see [`troubleshooting.md`](troubleshooting.md)); a `BATCH_FAILED` with `offendingFile`.
 
-### 5.3 Flow engine (`com.gamma.flow`, `com.gamma.flow.exec`)
+### 5.3 Flow engine (`com.gamma.pipeline`, `com.gamma.pipeline.exec`)
 - **Responsibility:** NiFi-style pipeline-as-graph. Two faces: (a) **read-only projection** of lifted pipelines
   for visualisation; (b) **authored flows** (`*_flow.toon`) that are CRUD-able, dry-runnable, and (T32) executable.
-- **Process:** `PipelineLift` lifts a legacy `PipelineConfig` → `FlowGraph` (lossless). `FlowValidator` rejects
-  broken graphs (cycles, dangling, illegal emit/accept, same-graph `on_commit`). `FlowExecutor` does a Kahn topo
+- **Process:** `PipelineLift` lifts a legacy `PipelineConfig` → `PipelineGraph` (lossless). `PipelineValidator` rejects
+  broken graphs (cycles, dangling, illegal emit/accept, same-graph `on_commit`). `PipelineExecutor` does a Kahn topo
   walk: each `transform.*` runs through `RowShaper` (filter/validate/route/dedup/split/map/select/derive/merge →
   multiple named relations) and each sink is a **branch** committed via `BranchCommitCoordinator` +
-  `BranchCommitLog` (idempotent multi-branch commit; replay skips committed branches). `FlowDryRun` runs a bounded
+  `BranchCommitLog` (idempotent multi-branch commit; replay skips committed branches). `PipelineDryRun` runs a bounded
   sample on a throwaway DuckDB (no commit). Component registry (`ComponentStore`/`ComponentRegistry`) holds
   reusable `grammar`/`schema`/`transform`/`sink` components referenced via `use:`.
 - **Live execution (T32 — flows as jobs):** an authored flow is **job-style** (reads one or more `source_store`s,
-  writes a sink `store`). `FlowJobRunner` (a `JobType.FLOW` job) seeds **each** `source_store` as its own view
-  (`SourceStoreReader`) — a `transform.merge` joins/unions them (multi-source, Phase C) — drives `FlowExecutor`, and
+  writes a sink `store`). `PipelineJobRunner` (a `JobType.PIPELINE` job) seeds **each** `source_store` as its own view
+  (`SourceStoreReader`) — a `transform.merge` joins/unions them (multi-source, Phase C) — drives `PipelineExecutor`, and
   writes sinks via `PartitionSinkWriter` (unpartitioned single-file COPY when a sink declares no `partitions`;
   `sink.view` writes no bytes — instead the job registers a durable `ViewDefinition` under `<write-root>/views/`
   (store + flow + source_store lineage, plus the single-statement `derived_sql` when expressible). **Consume it via
@@ -207,14 +207,14 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
 - **Events:** `FLOW_CONSERVATION_IMBALANCE` (T22, §11.4) when the data plane finds a non-amplifying node where
   `recordsIn != recordsOut` — records lost (`LOSS`) or unexpectedly amplified (`AMPLIFICATION`); `EventObjectBridge`
   promotes it to a managed ALERT (de-duped per flow+node). Flow runs also publish a `BatchEvent` like any job.
-- **Data plane / provenance (T20–T22, §11):** when `-Dprovenance.backend=duckdb` is set, `FlowExecutor` reports
-  per-`(node, relationship)` record counts (a `ProvenanceCollector`) which `FlowJobRunner` persists to
+- **Data plane / provenance (T20–T22, §11):** when `-Dprovenance.backend=duckdb` is set, `PipelineExecutor` reports
+  per-`(node, relationship)` record counts (a `ProvenanceCollector`) which `PipelineJobRunner` persists to
   `DbProvenanceStore` keyed by `(flow, batchId)`. Query a past run via **`GET /provenance?flow=&batch=`** (per-node-rel
-  counts to paint onto the `FlowGraph` edges as a Sankey) and **`GET /provenance/batches?flow=&limit=`** (recent runs).
+  counts to paint onto the `PipelineGraph` edges as a Sankey) and **`GET /provenance/batches?flow=&limit=`** (recent runs).
   Default-off ⇒ no counting overhead, no events, `/provenance` 404s.
 - **State:** `<write-root>/flows/<id>.toon`, `<write-root>/registry/<typeDir>/<id>.toon`; per-run branch-commit log
   under the jobs audit dir; the provenance DB (`-Dprovenance.db.url`, default `jdbc:duckdb:provenance.duckdb`) when enabled.
-- **Config:** authored flows + a `type: flow` `*_job.toon` (`flow:` id, optional `data_dir`/`batch_id`). `-D` flags:
+- **Config:** authored flows + a `type: pipeline` `*_job.toon` (`flow:` id, optional `data_dir`/`batch_id`). `-D` flags:
   `-Dprovenance.backend=duckdb` + `-Dprovenance.db.url` (data-plane provenance, default off).
 - **Failure modes:** flow job writes nothing on idempotent replay (same `batch_id` → "0 file(s)"); no
   `source_store` declared (rejected; ≥1 required, multiple supported since Phase C); fail-closed if no `-Dassist.write.root`.
@@ -226,7 +226,7 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
   non-overlap via `LockingRunner` (a concurrent fire while in-flight records `SKIPPED`). **Catch-up (T26):** on
   startup an enabled `catch_up: true` cron job whose last audited run missed a fire runs once.
 - **FLOW chaining (T32 Phase B):** a `FLOW` job is a first-class participant — cron / `on_pipeline` / manual fire it
-  like any job, and on success `FlowJobRunner` publishes a `BatchEvent(jobName)` so downstream `on_pipeline` jobs
+  like any job, and on success `PipelineJobRunner` publishes a `BatchEvent(jobName)` so downstream `on_pipeline` jobs
   chain off it. **Guidance:** when a flow reads a store a pipeline writes, trigger it with `on_pipeline: <producer>`
   rather than a time cron, so it runs only after the producer's commit is durable (avoids a half-written read).
 - **Deletion fence (T25 × T32):** before a `MAINTENANCE` job that declares `store:` deletes, `fenceDelete`
@@ -263,7 +263,7 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
 ### 5.6 Control API + UI (`com.gamma.control.ControlApi`)
 - **Responsibility:** ~80 JDK-`HttpServer` routes (auth-free in the common core), vthread executor, CORS locked to
   `-Dcontrol.cors`, optional static UI from `-Dui.dir`. Write endpoints are **fail-closed**: 503 unless
-  `-Dassist.write.root` is set (the path-jail root for connections/flows/registry/config writes).
+  `-Dassist.write.root` is set (the path-jail root for connections/pipelines/registry/config writes).
 - **Reference:** §10. Health: `/health`, `/ready`. Scrape: `/metrics`.
 
 ### 5.7 SQL sandbox + assist agent
@@ -390,7 +390,7 @@ per-route latency/count). Add metrics here when you instrument these — and upd
 ### Write-root artifacts (jailed under `-Dassist.write.root`, 503 if unset)
 - `<wr>/flows/<id>.toon` (authored flows) · `<wr>/registry/{grammars,schemas,transforms,sinks}/<id>.toon`
   (components) · `<wr>/<id>_connection.toon` (connection profiles, flat) · `<wr>/views/<store>_view.toon`
-  (`sink.view` logical-store definitions: store + flow + source_store lineage) · branch-commit logs under the jobs audit dir.
+  (`sink.view` logical-store definitions: store + pipeline + source_store lineage) · branch-commit logs under the jobs audit dir.
 
 ---
 
@@ -447,10 +447,10 @@ Auth-free in the common core. **503 = write-root gated** (set `-Dassist.write.ro
 - **Alerts:** `GET /alerts`, `/alerts/rules`, `POST /alerts/evaluate` (503 if no rules).
 - **Objects:** `GET/POST /objects`, `GET /objects/{id}`, `POST /objects/{id}/ack|resolve|transition|links|comments|attachments|rca`,
   `GET /objects/{id}/links|graph|comments|attachments`, `GET /rca/templates`.
-- **Flows:** `GET /flows`, `/flows/node-types`, `/flows/combined`, `/flows/{n}/graph`; `GET /flows/authored`,
-  `POST /flows/authored` *(503)*, `GET /flows/authored/{n}` (structural projection), `GET /flows/authored/{n}/raw`
-  (lossless authored map incl. node config — for the editor), `PUT/DELETE /flows/authored/{n}` *(503)*,
-  `POST /flows/authored/{n}/nodes|edges|dry-run` *(503)*.
+- **Pipelines:** `GET /pipelines`, `/pipelines/node-types`, `/pipelines/combined`, `/pipelines/{n}/graph`; `GET /pipelines/authored`,
+  `POST /pipelines/authored` *(503)*, `GET /pipelines/authored/{n}` (structural projection), `GET /pipelines/authored/{n}/raw`
+  (lossless authored map incl. node config — for the editor), `PUT/DELETE /pipelines/authored/{n}` *(503)*,
+  `POST /pipelines/authored/{n}/nodes|edges|dry-run` *(503)*.
 - **Components:** `GET /components/{type}[/{id}]`, `POST/PUT/DELETE` *(503; DELETE 409 if referenced)*,
   `POST /components/{transform|grammar|schema|sink}/{id}/test` *(503)*.
 - **Catalog:** `GET /catalog`, `/catalog/kpis`, `/catalog/graph`, `/catalog/tables/{id}`.

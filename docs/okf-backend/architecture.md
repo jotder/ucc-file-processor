@@ -22,7 +22,7 @@ Inspecto is deliberately **framework-free**: no Spring, no web framework, no IoC
   `static global()` singletons. No annotations, no container.
 * **`ServiceLoader` SPIs** — extension points are plain `META-INF/services` SPIs: the ingestion SPI
   ([`StreamingFileIngester`](./engine/ingestion.md)), source [connectors](./acquisition/connectors.md)
-  (`SourceConnectorFactory`), flow [node types](./flow-graph/design.md) (`FlowNodeType`), the
+  (`SourceConnectorFactory`), flow [node types](./flow-graph/design.md) (`PipelineNodeType`), the
   [assist agent](./agent/assist-agent.md) (`AssistAgent`), and the future `Authenticator`
   ([auth](./editions/auth-security.md)). An absent module simply isn't discovered — the no-op path wins. This
   is what makes [editions build flavors](./editions/editions-model.md).

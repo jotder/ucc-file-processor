@@ -16,7 +16,7 @@ timestamp: 2026-06-28T00:00:00Z
   table to Hive-partitioned output via DuckDB `COPY … PARTITION_BY`. **Requires non-empty partition columns**
   (default `["year","month","day"]`), excludes the internal `__src_id` column, uses a two-step atomic rename,
   and parallelises rename fan-out above 16 partitions.
-* **`PartitionSinkWriter`** (`inspecto/src/main/java/com/gamma/flow/exec/PartitionSinkWriter.java`) — the
+* **`PartitionSinkWriter`** (`inspecto/src/main/java/com/gamma/pipeline/exec/PartitionSinkWriter.java`) — the
   [flow-engine](../flow-graph/live-execution.md) sink writer: delegates to `PartitionWriter` when partitions are
   declared, else writes a **single unpartitioned file**. (`sink.view` subtypes write no bytes — they register
   a view definition instead.)

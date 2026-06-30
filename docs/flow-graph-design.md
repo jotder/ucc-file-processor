@@ -48,7 +48,7 @@ Inspecto already has **one** graph and is gaining a **second**:
 
 | | Lineage graph (exists) | Flow graph (this design) |
 |---|---|---|
-| Owner | [`MetadataGraphService`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java) | new `com.gamma.flow` |
+| Owner | [`MetadataGraphService`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java) | new `com.gamma.pipeline` |
 | Nature | **derived** projection of configs | **authored** topology |
 | Answers | "where did this column come from" | "what runs, in what order, where do failures/events go" |
 | Node kinds | `SOURCE`, `RAW_SCHEMA`, `EVENT_TABLE`, `TRANSFORMED_TABLE`, `COLUMN`, `KPI`, `REPORT` | `acquisition`, `adapter`, `parser`, `transform.*`, `merge`, `enrichment`, `sink`, `alert`/`gap`/`event` |
@@ -85,14 +85,14 @@ current engine, not new engine code:
 | `gap` | `CONTROL` | reporting task | `GapDetector` → `SEQUENCE_GAP` event |
 | `event` | `CONTROL` | notification | `EventLog` / `EventStore` |
 
-New node types are added by registering a `FlowNodeType` provider (ServiceLoader), mirroring how
+New node types are added by registering a `PipelineNodeType` provider (ServiceLoader), mirroring how
 `SourceConnector` and `DescriptionProvider` are discovered — so editions/plugins can contribute nodes.
 
 **Sink is a family, not one node (decided 2026-06-17).** A sink's *materialisation behaviour* is a
 **node-level** concern (orthogonal to the pipeline, which stays pure topology): `sink.persistent` rests
 the batch as a Parquet file / DuckDB table; `sink.materialized` keeps a managed/temp table it upserts
 each batch (a running rollup/summary); `sink.view` persists nothing — it is a logical store a downstream
-consumer binds to. All three are category `SINK`, so [`FlowStores`](../inspecto/src/main/java/com/gamma/flow/FlowStores.java)
+consumer binds to. All three are category `SINK`, so [`PipelineStores`](../inspecto/src/main/java/com/gamma/pipeline/PipelineStores.java)
 superimposes them over a shared store **uniformly by store name**, regardless of whether bytes rest
 (`producedStores(...).restsOnDisk()` is the persistence flag the deletion fence and the visualiser read).
 A legacy `*_pipeline.toon` only ever writes a resting store, so the lift always emits `sink.persistent`;
@@ -102,14 +102,14 @@ A legacy `*_pipeline.toon` only ever writes a resting store, so the lift always 
 exposes, but the user expresses it declaratively — *"expose business object X, drawn from store Z"* (its
 `store` as producer + a `source_store`/selection as consumer) — **never raw SQL**. The engine concretises
 it later (a DuckDB view / on-demand compute). Because a view declares both a produced `store` and a
-consumed `source_store`, it is simultaneously a producer and a consumer in `FlowStores`, with no new
+consumed `source_store`, it is simultaneously a producer and a consumer in `PipelineStores`, with no new
 machinery — and a view named after a **business object/concept** is the natural bridge to the lineage
 graph's `KPI`/`REPORT`/`EVENT_TABLE` nodes (§2).
 
-**Node `category`, `name` and `description`.** Every `FlowNodeType` declares a `category`
+**Node `category`, `name` and `description`.** Every `PipelineNodeType` declares a `category`
 (`SOURCE`/`PARSE`/`TRANSFORM`/`SINK`/`CONTROL`) plus a UI `label`/`description` — the **built-in
-processor definitions are not deferred**: [`FlowNodeTypes.catalog()`](../inspecto/src/main/java/com/gamma/flow/FlowNodeTypes.java)
-feeds the editor palette so the UI can visualise a flow now (§6). Every `FlowNode` additionally carries a
+processor definitions are not deferred**: [`PipelineNodeTypes.catalog()`](../inspecto/src/main/java/com/gamma/pipeline/PipelineNodeTypes.java)
+feeds the editor palette so the UI can visualise a flow now (§6). Every `PipelineNode` additionally carries a
 **user-given `name` and `description`** (authored flows set them; they may name a business object or
 concept — e.g. the `sink.view` above). Lifted legacy nodes get derived defaults (a lifted sink is named
 after the store it produces).
@@ -126,7 +126,7 @@ An edge is `{ from: <nodeId>, rel: <relationship>, to: <nodeId> }`. `rel` defaul
   - `on_commit` — batch committed (→ `enrichment` / downstream flow trigger). **Cross-flow only:** an `on_commit`
     edge targets a *different* flow's entry (a trigger), never an ancestor in the same graph — otherwise it would
     form an execution cycle the data-edge-only DAG check (D10) cannot see. The validator must reject an `on_commit`
-    edge whose target is reachable within the same `FlowGraph` ([§13 R5](#13-open-risks--corrections-2026-06-16-review)).
+    edge whose target is reachable within the same `PipelineGraph` ([§13 R5](#13-open-risks--corrections-2026-06-16-review)).
 - **named data relationships (content-based routing)** — a `transform.route` node emits **operator-defined**
   relationships (e.g. `emea` / `apac` / `other`), each an outgoing `data` edge. This is how records *split* by
   content (NiFi's RouteOnAttribute/RouteOnContent). Routing has two modes (§3.4): **`case`** (default, exclusive —
@@ -297,7 +297,7 @@ Trigger types — each already present in the engine in some form, unified here:
   - external (**phased**): file-arrival push / watch (connector notification / `WatchService`), webhook / API push,
     message queue (Kafka — future, per the acquisition backlog). **These are realised by an `adapter` node, not a
     streaming runtime** (see below).
-- **`manual`** — `POST /flows/{id}/trigger` (the existing pipeline-trigger endpoint).
+- **`manual`** — `POST /pipelines/{id}/trigger` (the existing pipeline-trigger endpoint).
 
 **The `adapter` node — streaming/push → batch landing.** Rather than build a streaming runtime, a non-file or event
 source is consumed by an `adapter` entry node that **windows** incoming records (`max_records` / `max_bytes` /
@@ -385,7 +385,7 @@ and are run by **different schedulers**. Conflating them is the confusion this s
    window, or ordered strictly after the producer's commit. `maintenance` jobs (the deleters) **stay standalone**
    (§3.1, decided 2026-06-17) and own this fence; they have no dataflow shape.
    - *The fence is keyed by sink kind (§3.1).* Only a store that **rests on disk** can be a deletion hazard, so the
-     fence reads `FlowStores.producedStores(...).restsOnDisk()`: a `sink.persistent` or `sink.materialized` store is
+     fence reads `PipelineStores.producedStores(...).restsOnDisk()`: a `sink.persistent` or `sink.materialized` store is
      fenced; a `sink.view` persists nothing, so it has **no storage to delete** and never participates in the hazard
      (a consumer of a view re-derives on demand). A `materialized` store adds a wrinkle — its per-batch upsert is the
      producer rewriting *its own* slice, so a reader must tolerate the rollup advancing, but cross-driver deletion
@@ -403,7 +403,7 @@ responsibility** (loop scheduler); jobs are strictly downstream custom functions
 is the resolution of [§13 R6](#13-open-risks--corrections-2026-06-16-review) / [T23](#14-things-to-do-implementation-checklist) —
 **done 2026-06-17: `JobType.INGEST` + `IngestJob` deleted** (an `ingest` job is now a config error). In the flow-graph
 model (§3.6) the two schedulers are simply which trigger an entry node carries: `schedule:{every|cron}` → loop
-scheduler (the pipeline's own cadence, gated in `SourceService.runAllOnce` by [`FlowTrigger`](../inspecto/src/main/java/com/gamma/flow/FlowTrigger.java));
+scheduler (the pipeline's own cadence, gated in `SourceService.runAllOnce` by [`PipelineTrigger`](../inspecto/src/main/java/com/gamma/pipeline/PipelineTrigger.java));
 `event` → upstream-commit-driven (coalesced); `manual` → the trigger endpoint.
 
 **Scheduler implementation = the existing `Scheduler` + `JobService`, not Quartz (decided 2026-06-17).** Both
@@ -425,7 +425,7 @@ flow graph compiles down into `PRODUCES`/`FEEDS`), so the combined view renders 
 node → job-flow(s)**, with the `on_commit` edge drawn as the producer→consumer trigger. This is the realisation of
 "it should be combined and visualised." **The join is derived, not hand-wired (decided 2026-06-17, T4):** each
 `sink` declares the store it produces and each job/enrichment declares the store it consumes, and
-[`com.gamma.flow.FlowStores`](../inspecto/src/main/java/com/gamma/flow/FlowStores.java)`.superimpose(...)` matches
+[`com.gamma.pipeline.PipelineStores`](../inspecto/src/main/java/com/gamma/pipeline/PipelineStores.java)`.superimpose(...)` matches
 them by name — so analysing the configs/metadata alone reconstructs how a job is superimposed over a pipeline's
 output, with no `on_pipeline` name-coupling.
 
@@ -517,10 +517,10 @@ Properties this buys:
 
 A large installed base of `*_pipeline.toon` (and ~80 test fixtures) must keep running unchanged. The mechanism:
 
-- **`FlowGraph` IR** — an internal `record FlowGraph(String name, boolean active, List<FlowNode> nodes,
-  List<FlowEdge> edges)`; `FlowNode(id, type, Map<String,Object> config, String use)`,
-  `FlowEdge(from, rel, to)`. This is the single object the executor, the validator, and the visualiser consume.
-- **Legacy lift** — at load time a `*_pipeline.toon` is *auto-lifted* into a `FlowGraph`, plus the control edges its
+- **`PipelineGraph` IR** — an internal `record PipelineGraph(String name, boolean active, List<PipelineNode> nodes,
+  List<PipelineEdge> edges)`; `PipelineNode(id, type, Map<String,Object> config, String use)`,
+  `PipelineEdge(from, rel, to)`. This is the single object the executor, the validator, and the visualiser consume.
+- **Legacy lift** — at load time a `*_pipeline.toon` is *auto-lifted* into a `PipelineGraph`, plus the control edges its
   existing flags imply (post-action → **success-side finalizer on `acquisition`** with `on_unsupported` → `failure`
   (§15 G8), gap-detection → `gap` edge, enrichment trigger → `on_commit` edge). **No file rewrite** — the lift is internal. **The lift is not always 4-node-linear (review 2026-06-16):**
   a single pipeline already fans into **N schemas** via `segments`/`selector`
@@ -532,9 +532,9 @@ A large installed base of `*_pipeline.toon` (and ~80 test fixtures) must keep ru
   ([`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java)), discovered and triggered
   independently (`on_commit`/schedule/event). So an authored flow that contains an `enrichment` node + `on_commit`
   edge spans **two of today's files**; lifting a `*_pipeline.toon` alone will **not** pull its enrichment in. The
-  lift must either (a) join pipeline + enrichment configs that reference each other into one `FlowGraph`, or (b)
+  lift must either (a) join pipeline + enrichment configs that reference each other into one `PipelineGraph`, or (b)
   represent them as two flows linked by an `on_commit` edge — decide this in Phase 1 ([§13 R4](#13-open-risks--corrections-2026-06-16-review)).
-- **Compile-back** — the executor compiles a `FlowGraph` (lifted or authored) back to the *exact* primitives
+- **Compile-back** — the executor compiles a `PipelineGraph` (lifted or authored) back to the *exact* primitives
   `SourceProcessor` runs today, so old configs are byte-for-byte equivalent in behaviour. Parity is proven by
   running the existing suite against the lifted path.
 - **Coexistence** — [`ConfigRegistry`](../inspecto/src/main/java/com/gamma/service/ConfigRegistry.java) (now
@@ -549,10 +549,10 @@ object-detail). **Decided 2026-06-17: visualisation is pulled forward** — the 
 the pipeline topology must be visualisable *now*, not deferred to a late phase, so the read-only projection lands
 right after the Phase-1 IR (the authoring/CRUD + dry-run in §7 stay later). Two inputs make it possible:
 
-- **The node-type catalog** — [`FlowNodeTypes.catalog()`](../inspecto/src/main/java/com/gamma/flow/FlowNodeTypes.java)
+- **The node-type catalog** — [`PipelineNodeTypes.catalog()`](../inspecto/src/main/java/com/gamma/pipeline/PipelineNodeTypes.java)
   exposes every type's `category` / `label` / `description` / ports (`accepts`+`emits`+named routes) → the **editor
   palette** (grouped by `NodeCategory`). This is the "in-built processor definition" the UI needs.
-- **The flow projection** — `GET /flows/{id}/graph` → `{ nodes: [{id,type,category,name,description,status}], edges:
+- **The flow projection** — `GET /pipelines/{id}/graph` → `{ nodes: [{id,type,category,name,description,status}], edges:
   [{from,to,rel}] }` → the **same** G6 renderer, new data source. Edge style = relationship (solid `data`, dashed
   control), matching the design diagram; sink kind (`persistent`/`materialized`/`view`) styles the node (a `view`
   rendered as a dashed/logical store, no disk glyph).
@@ -573,7 +573,7 @@ builds on the existing `POST /connections/{id}/test` template.
 
 - `GET|POST|PUT|DELETE /components/{type}/{id}` — `type ∈ connection|grammar|schema|transform|sink|alert`.
   (Connections CRUD exists; generalise the write-root-gated, atomic, secret-masking pattern.)
-- `GET|POST|PUT|DELETE /flows/{id}` and `POST /flows/{id}/nodes`, `POST /flows/{id}/edges` — topology edits.
+- `GET|POST|PUT|DELETE /pipelines/{id}` and `POST /pipelines/{id}/nodes`, `POST /pipelines/{id}/edges` — topology edits.
 
 ### 7.2 Dry-run / preview (validate + bounded sample — never touches prod)
 
@@ -585,13 +585,13 @@ node logic** (no divergent test path). In-memory or scratch output only.
 - `POST /components/schema/{id}/test` `{sampleRows}` → cast results + rejects (which rows/cols failed).
 - `POST /components/transform/{id}/test` `{sampleRows}` → transformed + partitioned preview.
 - `POST /components/sink/{id}/validate` → writable / credentials / schema-compat (scratch write, then discard).
-- `POST /flows/{id}/dry-run` `{sampleFile, fromNode?, toNode?}` → runs a **bounded sample** through a sub-path of
+- `POST /pipelines/{id}/dry-run` `{sampleFile, fromNode?, toNode?}` → runs a **bounded sample** through a sub-path of
   the graph and returns per-node output + per-edge record counts. This is "test the pipeline incrementally": pick
   any sub-chain and watch records flow.
 
 ## 8. Phased roadmap (each shippable, risk-ordered)
 
-1. **Flow IR + legacy lift (backend, invisible).** Define `FlowGraph`/`FlowNode`/`FlowEdge`; lift
+1. **Flow IR + legacy lift (backend, invisible).** Define `PipelineGraph`/`PipelineNode`/`PipelineEdge`; lift
    `*_pipeline.toon` into it; compile back to today's execution. *No behaviour change.* (Phase-1 gate = capability
    coverage (T1) + the **lossless round-trip** (T5a); literal execution-through-lift parity is T5b, gated on the
    Phase-3 executor — see §14.) **Acceptance bar
@@ -639,16 +639,16 @@ these answers; what we *won't* do in v1 is collected separately in §12 (boundar
 
 ## 10. Naming
 
-- Package: `com.gamma.flow` (IR, executor, lift, node-type SPI).
+- Package: `com.gamma.pipeline` (IR, executor, lift, node-type SPI).
 - Files: `*_flow.toon` (topology), `registry/<type>/<name>.toon` (components).
-- API base: `/flows`, `/components/{type}`.
+- API base: `/pipelines`, `/components/{type}`.
 - This sits beside, and feeds, the existing `com.gamma.catalog` lineage graph.
 
 ## 11. The data plane — provenance overlay (the second parallel system)
 
 There are **two parallel systems**, and conflating them is the trap:
 
-- **The pipe (control / structure plane)** — the `FlowGraph`: nodes + edges, design-time, slowly-changing.
+- **The pipe (control / structure plane)** — the `PipelineGraph`: nodes + edges, design-time, slowly-changing.
   *"What can run and how is it wired."* (§3–6.)
 - **The data (provenance plane)** — for a concrete unit of data, a run-time trace of how many records entered and
   left each node and which edge (relationship) they took. *"What actually happened to this file."*
@@ -683,8 +683,8 @@ exactly what the edge-weighted Sankey paints.
    (the unmatched, the rejected) are not first-class quantities.
 2. **A unified provenance key** joining acquisition events + lineage matrix + enrichment for one file across the
    whole graph (a `provenance` table / reuse the event store, keyed by correlation id + runId).
-3. **A graph-shaped query + overlay** — `GET /provenance?file=<id>` (or `/flows/{id}/runs/{runId}/trace`) returns
-   counts mapped onto `FlowGraph` edges; the UI paints them on the G6 canvas as edge weights/labels.
+3. **A graph-shaped query + overlay** — `GET /provenance?file=<id>` (or `/pipelines/{id}/runs/{runId}/trace`) returns
+   counts mapped onto `PipelineGraph` edges; the UI paints them on the G6 canvas as edge weights/labels.
 
 ### 11.4 Conservation invariant (free observability win)
 
@@ -720,7 +720,7 @@ These are **deliberate non-goals for v1**, stated plainly so users and implement
 | B9 | **No cross-branch (multi-sink) transactional commit.** | `(batch, branch)` commit isolates destinations (D8). | A clone may briefly have some branches committed, others retrying. All-or-nothing is a future opt-in. |
 | B10 | **Full data-plane provenance ("select file → counts per path") is phase 4.5/6, not day-one.** | Needs the IR's node/edge ids + new per-edge counters (§11.3). | The `LineageRow` transform→write matrix is available immediately; routing-split counts come later. |
 | B11 | **UI is read-first.** Visualisation lands in phase 4; create/test/CRUD-from-UI in phase 5. | Risk-ordered roadmap (§8). | Author flows/components as files until the editor ships. |
-| B12 | **Multi-tenant scoping / RBAC of flows is out of scope here.** | The core is auth-free; security is an *edition* concern (future `inspecto-security`). | Editions layer authz over the `/flows` + `/components` API later; this design leaves the seam. |
+| B12 | **Multi-tenant scoping / RBAC of flows is out of scope here.** | The core is auth-free; security is an *edition* concern (future `inspecto-security`). | Editions layer authz over the `/pipelines` + `/components` API later; this design leaves the seam. |
 
 **Key assumption that gates phase 1:** the legacy lift (D12) must represent *every* shipped `*_pipeline.toon`
 capability in the IR. If a real config uses something the IR cannot express, that gap must be closed (or explicitly
@@ -738,7 +738,7 @@ above.
 | R1 | High | A new `transform.*` operator is "a registry addition, not engine surgery" (§3.4). | [`TransformCompiler`](../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) is **column-scalar only** (`DIRECT`/`EXPR`/`CONCAT_DT`/`FILENAME_DATE`); [`DataTransformer`](../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) emits one fixed `SELECT … FROM <one source>` and returns **one** table. No `WHERE`/`CASE`-route/`QUALIFY`/`UNNEST`/multi-input exist. | Only `derive`/`select` are registry additions. `filter`/`route`/`validate`/`dedup`/`split`/`merge` need new SQL-assembly + a **multi-named-relation node-output contract** + chain-fusion. Re-scoped in §3.4 + §8 Phase 3. |
 | R2 | High | `(batch, branch)` commit is "today's commit-log / ledger key extended" (§3.7). | [`CommitLog`](../inspecto/src/main/java/com/gamma/etl/CommitLog.java) keyed on `batch_id` only; ledger on `(sourceId, relPath)`; [`BatchProcessor.commit`](../inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java) writes one output set and finalises the file in one crash-ordered sequence ("markers LAST"). No branch dimension, no partial-commit state. | New branch dimension across commit-log/ledger/markers/manifest **+** a partial-commit state **+** a `commit()` split (per-branch vs source-finalisation) preserving the ordering invariant. Re-scoped in §3.7 + §8 Phase 3. |
 | R3 | Med | The topological walk "reuses `MultiSourceProcessor`'s virtual-thread fan-out for independent branches" (§3.3). | [`runConfigs`](../inspecto/src/main/java/com/gamma/inspector/MultiSourceProcessor.java) fans out **per `PipelineConfig`** (one isolated vthread per source). No intra-pipeline branch concept. | Branch scheduling is new; only the pool/permit pattern is reused. Corrected in §3.3. |
-| R4 | Med-High | A `*_pipeline.toon` "auto-lifts into a 4-node linear `FlowGraph`" (§5). | A pipeline already fans into N schemas via `segments`/`selector` ([`rebuildStructural`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java)); plugin ingesters emit multiple segment tables; **enrichment is a separate config file** ([`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java)). | Lift is a fan-out for multi-schema configs; decide pipeline↔enrichment join vs two-flows-linked-by-`on_commit`. Corrected in §5; gates Phase 1 (§8). |
+| R4 | Med-High | A `*_pipeline.toon` "auto-lifts into a 4-node linear `PipelineGraph`" (§5). | A pipeline already fans into N schemas via `segments`/`selector` ([`rebuildStructural`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java)); plugin ingesters emit multiple segment tables; **enrichment is a separate config file** ([`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java)). | Lift is a fan-out for multi-schema configs; decide pipeline↔enrichment join vs two-flows-linked-by-`on_commit`. Corrected in §5; gates Phase 1 (§8). |
 | R5 | Low | "DAG over `data` edges; control edges excluded from the cycle walk" (D10) vs. `on_commit` feeding a downstream flow (§3.6). | An `on_commit` edge re-entering the same graph is a cycle the data-edge-only check won't catch. | `on_commit` is **cross-flow only**; validator rejects same-graph targets. Clarified in §3.2. |
 | R6 | Med | The `ingest` job type is "what runs when" over a pipeline (§3.6) — implying a job can drive a pipeline. | `IngestJob.run` (since deleted) called `MultiSourceProcessor.runAll(List.of(config),…)` — a **full pipeline re-run incl. acquisition**, over the *same inbox* the poll loop works, on a separate scheduler with no shared lock. This violates the §3.8 clean model (the pipeline *is* the ETL and owns ingest, poll-driven only). | **Decided 2026-06-17: remove the `ingest` job type.** Ingest/acquisition is pipeline-exclusive (loop scheduler); jobs are custom functions over stored data (custom-function scheduler), never a re-acquisition. Delete `IngestJob` + `JobType.INGEST`; migrate any `ingest` job to an `active:true` pipeline. See T23. |
 
@@ -757,25 +757,25 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 - [x] **T1 (the gate, done 2026-06-17).** Capability-coverage checklist enumerating every `*_pipeline.toon` feature
   (single/`selector`/`segments` schemas, plugin ingester, CSV row-filters, partitions, post-action, gap, watermark,
   dedup modes, enrichment trigger) mapped to its IR representation — **the gate passed**; result is §15 (G1–G9, F1).
-- [x] **T2 (done 2026-06-17).** `FlowGraph`/`FlowNode`/`FlowEdge` records + `FlowRel` + the `FlowNodeType`
-  ServiceLoader SPI + `BuiltinNodeType`/`FlowNodeTypes` registry (`com.gamma.flow`). *(Revised 2026-06-17 — see T28.)*
+- [x] **T2 (done 2026-06-17).** `PipelineGraph`/`PipelineNode`/`PipelineEdge` records + `PipelineRel` + the `PipelineNodeType`
+  ServiceLoader SPI + `BuiltinNodeType`/`PipelineNodeTypes` registry (`com.gamma.pipeline`). *(Revised 2026-06-17 — see T28.)*
 - [x] **T3 (done 2026-06-17).** `PipelineLift`: single-schema → linear; **multi-schema/`segments`/`selector` →
   fan-out** (R4); edges implied from existing flags (post-action→success-side finalizer (§15 G8), gap→`gap`); adds
   `transform.filter` (G1) + distinct dedup nodes (G2); route metadata (G3); carries typed sub-records verbatim.
 - [x] **T4 (decided 2026-06-17).** Pipeline↔enrichment/job boundary = **two separate flows, linked by declared
   data-store name** (not `on_pipeline` name-coupling): each `sink` declares the store it produces
-  (`FlowStores.CONFIG_STORE`), each job/enrichment declares the store it consumes (`CONFIG_SOURCE_STORE`), and the
-  producer→consumer topology is **derived** by matching store names (`FlowStores.superimpose`). So querying the
+  (`PipelineStores.CONFIG_STORE`), each job/enrichment declares the store it consumes (`CONFIG_SOURCE_STORE`), and the
+  producer→consumer topology is **derived** by matching store names (`PipelineStores.superimpose`). So querying the
   configs/metadata alone reveals how a job is superimposed over a pipeline's output (the shared store is the join —
-  §3.8). Done: `FlowStores` + lift now stamps every `sink` with its `store`; tests green. The job/enrichment **lift**
-  itself (its own `FlowGraph` with a `source_store` entry) lands with the job-model work (T23/T27).
-- [x] **T5a — lossless round-trip gate (done 2026-06-17).** `FlowCompiler.compile(FlowGraph)` recovers every
+  §3.8). Done: `PipelineStores` + lift now stamps every `sink` with its `store`; tests green. The job/enrichment **lift**
+  itself (its own `PipelineGraph` with a `source_store` entry) lands with the job-model work (T23/T27).
+- [x] **T5a — lossless round-trip gate (done 2026-06-17).** `PipelineCompiler.compile(PipelineGraph)` recovers every
   engine input by grouping the lifted nodes by role; a `lift → compile` round-trip returns the **identical** typed
   objects (`assertSame`), proving the IR loses nothing. Full inspecto suite green (672 run, 0 failures) — Phase 1 is
-  purely additive (only new `com.gamma.flow` + docs).
+  purely additive (only new `com.gamma.pipeline` + docs).
 - [x] **T5b — execution-through-lift parity (done 2026-06-17; all four shapes green).** Approach: **compile-back-to-config**
-  — `FlowCompiler.toConfigMap(FlowGraph, schemaDir)` reverses the lift to a `PipelineConfig.fromMap`-shaped raw map;
-  `FlowExecutionParityTest` asserts byte-identical `database/` output across `lift → toConfigMap → fromMap → run`.
+  — `PipelineCompiler.toConfigMap(PipelineGraph, schemaDir)` reverses the lift to a `PipelineConfig.fromMap`-shaped raw map;
+  `PipelineExecutionParityTest` asserts byte-identical `database/` output across `lift → toConfigMap → fromMap → run`.
   **All four shapes implemented and proven (735/0/1):**
   - *Single-schema*: writes schema map to `<name>_schema.toon`; `schema_file` in processing. Full parity test.
   - *Selector multi-schema*: `SchemaSelector.descriptors()` → `processing.schemas[]` (column-count dispatch). Full parity test.
@@ -789,82 +789,82 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
     `fixedwidth:{record,trim,min_record_length,fields[]}` augmented onto the existing csv\_settings map. Structural test
     (slice layout + frontend key verified; full execution parity is a follow-on with a real fixed-width dataset).
   (Glob fast-path selector string is not retained by `SchemaSelector`; binary fixed-width is a follow-on.)
-  (Why compile-back not executor-driven: the Phase-3 `FlowExecutor` is an additive *authored-operator* engine on a seed
+  (Why compile-back not executor-driven: the Phase-3 `PipelineExecutor` is an additive *authored-operator* engine on a seed
   relation; driving the legacy suite through it would mean rebuilding the engine as a graph executor — out of scope.)
 
 #### Phase-1 model refinement (2026-06-17 — sink family, categories, node identity; UI-ready)
 - [x] **T28 (done 2026-06-17).** **Sink is a family + node taxonomy carries categories.** Added `NodeCategory`
-  (`SOURCE`/`PARSE`/`TRANSFORM`/`SINK`/`CONTROL`) + `label`/`description` on `FlowNodeType`; split `sink` into
-  **`sink.persistent`/`sink.materialized`/`sink.view`** (all category `SINK`); `FlowStores`/`FlowCompiler` now detect
-  sinks **by category** (not the literal string) so subtypes + plugin sinks are uniform; `FlowStores.producedStores()`
+  (`SOURCE`/`PARSE`/`TRANSFORM`/`SINK`/`CONTROL`) + `label`/`description` on `PipelineNodeType`; split `sink` into
+  **`sink.persistent`/`sink.materialized`/`sink.view`** (all category `SINK`); `PipelineStores`/`PipelineCompiler` now detect
+  sinks **by category** (not the literal string) so subtypes + plugin sinks are uniform; `PipelineStores.producedStores()`
   exposes `restsOnDisk()` (false for `sink.view`) for the deletion fence (§3.8) and viz. `PipelineLift` emits
   `sink.persistent`. (§3.1)
-- [x] **T29 (done 2026-06-17).** **User node identity.** `FlowNode` carries a user-given `name` + `description`
+- [x] **T29 (done 2026-06-17).** **User node identity.** `PipelineNode` carries a user-given `name` + `description`
   (may name a business object/concept); lifted nodes get derived defaults (sink name = its store). (§3.1)
-- [x] **T30 (done 2026-06-17).** **Built-in processor definitions not deferred** — `FlowNodeTypes.catalog()` exposes
+- [x] **T30 (done 2026-06-17).** **Built-in processor definitions not deferred** — `PipelineNodeTypes.catalog()` exposes
   every type's category/label/description/ports for the UI palette, so the read-first flow visualisation can land now.
 - [x] **T31 (done 2026-06-17).** **Read-only flow visualisation** (pulled T16/T17 forward, §6). Backend:
-  `com.gamma.flow.FlowProjection` (catalog / graph / summary — structural only) + read-only `GET /flows`,
-  `GET /flows/node-types`, `GET /flows/([^/]+)/graph` in `ControlApi` (lift on demand). Frontend (`inspecto-ui`):
+  `com.gamma.pipeline.PipelineProjection` (catalog / graph / summary — structural only) + read-only `GET /pipelines`,
+  `GET /pipelines/node-types`, `GET /pipelines/([^/]+)/graph` in `ControlApi` (lift on demand). Frontend (`inspecto-ui`):
   `FlowsService` + a `flows/` pane (signals/OnPush) rendering lifted flows in the shared G6 `graph-view` component
   (category palette + node inspector), lazy route + nav item. Verified live against the shipped `voucher_unknown_etl`
   + `subscriber_etl` configs. Authoring/CRUD + per-node dry-run stay in Phase 5 (T18/T19).
 
 ### Phase 2 — Component registry + `use:` references (dedup lands here)
-- [x] **T6 (done 2026-06-17).** `com.gamma.flow.ComponentRegistry.scan(registryRoot)` indexes
+- [x] **T6 (done 2026-06-17).** `com.gamma.pipeline.ComponentRegistry.scan(registryRoot)` indexes
   `registry/<typeDir>/<name>.toon` by in-file identity `<type>/<name>` (type from dir; name from in-file
   `name:`/`id:`, else filename stem — reusing `ConfigRegistry`'s identity-vs-filename reconciliation, divergence
   logged). `resolve(use)` + `effectiveConfig(node)` = component content overlaid by the node's local overrides
   (the dedup). Types: connection/grammar/schema/**transform**/**sink** (latter two new). **Additive flow-layer only**
   — the legacy `*_pipeline.toon` loader is untouched (decided). 3 tests.
-- [x] **T7 (primitive done; reload-loop → Phase 3).** `ComponentRegistry.referencedPaths(FlowGraph)` returns the
+- [x] **T7 (primitive done; reload-loop → Phase 3).** `ComponentRegistry.referencedPaths(PipelineGraph)` returns the
   component files a graph's `use:` refs resolve to — the set a flow cache folds into its mtime fingerprint (the
   `referencedFiles()` pattern). The edit-once **reload loop** wires in with flow-from-disk loading (Phase 3); no flow
   cache exists to drive it yet.
-- [x] **T8 (scan/guard done; HTTP endpoint → Phase 5).** `com.gamma.flow.FlowReferences.referencedBy(ref, graphs)` /
+- [x] **T8 (scan/guard done; HTTP endpoint → Phase 5).** `com.gamma.pipeline.PipelineReferences.referencedBy(ref, graphs)` /
   `isReferenced(...)` answer "what references this component?" by scanning `use:` — the safe-delete guard
   generalising `connectionInUse`. The `DELETE /components/{type}/{id}` 409-on-in-use endpoint lands with component
   CRUD (Phase 5, T19). 2 tests.
 
 ### Phase 3 — `*_flow.toon` authoring + topological executor (the heavy phase — sequence R1→R2→R3)
 - [x] **T9 (R1a) — declarative contract enforced; runtime multi-output → T10/T12.** The *descriptor* of the
-  node-output contract already shipped with T28–T30 (`FlowNodeType.emits()`/`accepts()`/`emitsNamedRoutes()`,
+  node-output contract already shipped with T28–T30 (`PipelineNodeType.emits()`/`accepts()`/`emitsNamedRoutes()`,
   populated on every `BuiltinNodeType` — e.g. `validate`→emits `{data,invalid}`, `parser`→`{data,unmatched}`+routes,
-  `filter`→`{data,dropped}`), but it was **advisory**. T9 makes it **enforceable**: `FlowValidator` now checks
+  `filter`→`{data,dropped}`), but it was **advisory**. T9 makes it **enforceable**: `PipelineValidator` now checks
   **emit-side** (ERROR `ILLEGAL_EMIT` — an outbound rel must be in the source's `emits()`, or a `route:*` when it
   `emitsNamedRoutes()`) and **accept-side** (ERROR `ILLEGAL_ACCEPT` — a `data` edge's target must `accept` `data`;
   control/split outcomes routed to a handler are governed by the emitter, so handlers needn't list every inbound
   outcome — this is what lets the lift's `parser --unmatched--> quarantine sink` stay legal), plus a `UNKNOWN_TYPE`
   warning for unregistered types. Proven by `aRealLiftedPipelineValidatesClean` (every lifted edge honours the
   contract). The *runtime* production of multiple named relations (a node actually emitting `data`+`invalid` row-sets)
-  is the SQL-assembly/executor work — **T10/T12**. 5 new tests (FlowValidatorTest now 13); suite 700 green.
-- [x] **T10 (R1b, done 2026-06-17).** `com.gamma.flow.exec.RowShaper`: compiles a `transform.*` node to SQL over a
+  is the SQL-assembly/executor work — **T10/T12**. 5 new tests (PipelineValidatorTest now 13); suite 700 green.
+- [x] **T10 (R1b, done 2026-06-17).** `com.gamma.pipeline.exec.RowShaper`: compiles a `transform.*` node to SQL over a
   DuckDB input relation, emitting **multiple named relations** — `filter`(`WHERE`→data/dropped), `validate`(→data/
   invalid), `route`(`case` first-match+default / `clone` overlapping → `route:<key>`), `dedup`(`QUALIFY`→data/
   duplicate), `split`(`UNNEST`), `map`/`select`/`derive` projection, `merge`(`UNION ALL BY NAME` / N-way join), plus
   `fuse()` chain-fusion of a linear filter+projection run into one `SELECT`. Reuses the `TransformCompiler` trust
   model. 9 tests vs embedded DuckDB. **Additive** — touches neither commit nor scheduling.
-- [x] **T11 (R2, done 2026-06-17).** `com.gamma.flow.exec.BranchCommitLog` (durable, fsync-per-record, `(batch_id,
+- [x] **T11 (R2, done 2026-06-17).** `com.gamma.pipeline.exec.BranchCommitLog` (durable, fsync-per-record, `(batch_id,
   branch)` + phase `BRANCH`/`SOURCE` = the **partial-commit state**, same contract as `CommitLog`) +
   `BranchCommitCoordinator` (commit per-branch, then source-finalisation — backup → **markers LAST** → ledger/
   watermark — gated on *all branches committed*, run **exactly once**). Idempotent + crash-safe: a replay skips
   committed branches and finalises without re-committing. A single-branch flow = today's sequence (legacy
   `BatchProcessor.commit` untouched; this drives the new executor path — T5b parity stays future). 3 tests.
-- [x] **T12 (R3, done 2026-06-17).** `com.gamma.flow.exec.FlowExecutor`: `validateOrThrow` (T14) → Kahn topological
+- [x] **T12 (R3, done 2026-06-17).** `com.gamma.pipeline.exec.PipelineExecutor`: `validateOrThrow` (T14) → Kahn topological
   walk (cross-flow `on_commit` excluded) → run each transform via `RowShaper` → **pull-model routing** of each
   produced relation along its edge → at sinks drive the `BranchCommitCoordinator` (each sink = a branch). Sequential
   first cut (independent-branch parallelism over the vthread pool = follow-up). Additive; starts from the parse
   stage's seed relation. 2 tests (route fan-out + idempotent replay). **Remaining Phase-3: T13 triggers, T5b parity.**
 - [x] **T13 (done 2026-06-17 — model + mechanism + live-loop wiring; stream-consumer runtime remains the one
-  follow-up).** Entry-node **triggers** (§3.6): `com.gamma.flow.FlowTrigger` parses `schedule`(every/cron) /
+  follow-up).** Entry-node **triggers** (§3.6): `com.gamma.pipeline.PipelineTrigger` parses `schedule`(every/cron) /
   `event`(on/from/coalesce) / `manual` / absent⇒DEFAULT_POLL and classifies the driving scheduler (LOOP/EVENT/MANUAL,
-  §3.8). **Event coalescing**: `com.gamma.flow.exec.TriggerCoalescer` collapses an event storm into one non-overlapping
+  §3.8). **Event coalescing**: `com.gamma.pipeline.exec.TriggerCoalescer` collapses an event storm into one non-overlapping
   run (current run + at most one follow-up; lost-wakeup-free) — the in-process form of the `ingestLock` debounce.
   **`adapter` land-then-ack**: `AdapterWindow` (max_records/max_bytes/max_age flush policy) + `FileLander`
-  (temp→fsync→atomic rename→ack-LAST = at-least-once). **Per-node `enabled:`**: `FlowNode.enabled()` + `FlowExecutor`
+  (temp→fsync→atomic rename→ack-LAST = at-least-once). **Per-node `enabled:`**: `PipelineNode.enabled()` + `PipelineExecutor`
   bypasses a disabled node. **Live wiring (done 2026-06-17, the follow-up):** an optional top-level `trigger:` block on
   `*_pipeline.toon` (`PipelineConfig.triggerConfig()`, carried onto the lifted acquisition node + round-tripped by
-  `FlowCompiler.toConfigMap`) + `FlowTrigger.of(Map)`; `SourceService.runAllOnce` now **gates each pipeline by its
+  `PipelineCompiler.toConfigMap`) + `PipelineTrigger.of(Map)`; `SourceService.runAllOnce` now **gates each pipeline by its
   trigger** — `DEFAULT_POLL` every tick (unchanged for every legacy/lifted config = zero regression),
   `SCHEDULE_INTERVAL` by elapsed `everyMs`, `SCHEDULE_CRON` by `CronExpression.next` since last run; `EVENT`/`MANUAL`
   are excluded from the loop. `EVENT` flows fire from a bus subscriber (`onUpstreamCommit`) that signals a per-flow
@@ -873,7 +873,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   trigger endpoint. 21 tests (16 prior + `SourceServiceTriggerTest` 5: default-poll/interval-gate/manual/cron/event).
   **Only remaining:** the `adapter` stream-consumer runtime (Kafka/webhook/WatchService) — a separate seam, no v1
   streaming.
-- [x] **T14 (R5) — structural checks done; emit/accept-rel wiring → T9.** `com.gamma.flow.FlowValidator.validate(g)`
+- [x] **T14 (R5) — structural checks done; emit/accept-rel wiring → T9.** `com.gamma.pipeline.PipelineValidator.validate(g)`
   returns a typed `Result` (`Issue`{`Severity` ERROR/WARNING, stable `code`, message}) so the executor + future
   authoring API can *reject* a broken graph (vs `ConfigValidator`'s warning-only model). Checks: DAG over `data`
   edges (DFS back-edge → `CYCLE`, names the path; control/split/`route:*` edges excluded, matching the walk),
@@ -884,18 +884,18 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 - [ ] **T15.** Adaptive back-pressure defaults (§3.5) as configurable, not hard-coded.
 
 ### Phase 4 — Flow-graph API + G6 visualisation (read-first)
-- [ ] **T16.** `GET /flows/{id}/graph` projection → reuse the G6 renderer (solid `data` / dashed control edges).
+- [ ] **T16.** `GET /pipelines/{id}/graph` projection → reuse the G6 renderer (solid `data` / dashed control edges).
 - [ ] **T17.** Node inspector panel (effective config resolved through `use:`); live last-run overlay via `OverlaySource`.
 
 ### Phase 5 — Per-component dry-run/test + CRUD-from-UI (build-and-test UX)
 - [x] **T18 (done 2026-06-18 — transform + flow dry-run + grammar/schema/sink previews).** `preview(sample)`
-  reusing production node logic, scratch-only (§7.2). **Transform preview:** `com.gamma.flow.exec.ComponentPreview.transform`
+  reusing production node logic, scratch-only (§7.2). **Transform preview:** `com.gamma.pipeline.exec.ComponentPreview.transform`
   seeds a throwaway DuckDB from the sample rows, runs the node through the <b>production</b> `RowShaper`, reads the
   produced named relations back (capped), deletes the scratch DB. `POST /components/transform/{id}/test {sampleRows}`
-  → `{inputColumns, relations:[{rel,rowCount,rows}]}`. **Flow dry-run:** `FlowExecutor.dryRun` (the same topo-walk +
-  `RowShaper` as a real run, <em>no commit</em>) + `FlowDryRun` (seeds the sample at the parser/entry node on a
+  → `{inputColumns, relations:[{rel,rowCount,rows}]}`. **Flow dry-run:** `PipelineExecutor.dryRun` (the same topo-walk +
+  `RowShaper` as a real run, <em>no commit</em>) + `PipelineDryRun` (seeds the sample at the parser/entry node on a
   scratch DuckDB, reports per-node relation counts + each sink branch's row count/sample). `POST
-  /flows/authored/{id}/dry-run {sampleRows}`. **Grammar preview:** `ComponentPreview.grammar` parses raw
+  /pipelines/authored/{id}/dry-run {sampleRows}`. **Grammar preview:** `ComponentPreview.grammar` parses raw
   `sampleText` with the grammar's CSV dialect through the production `read_csv` (delim/header/skip/quote/escape/
   encoding, `store_rejects`) → `{columns, rowCount, rows, rejectedRows}`; `POST /components/grammar/{id}/test
   {sampleText}`. **Schema preview:** `ComponentPreview.schema` `TRY_CAST`s each declared field to its type
@@ -903,19 +903,19 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   /components/schema/{id}/test {sampleRows}`. **Sink preview:** `ComponentPreview.sink` scratch-validates
   store/format/partition-columns against the sample (row count + bounded sample, no write); `POST
   /components/sink/{id}/test {sampleRows}`. Shared scratch helper `ScratchTables` (seed/count/read/columnNames).
-  Tests: `ComponentPreviewTest`(8) · `FlowDryRunTest`(2) · `ControlApiComponentsTest`(7)/`ControlApiFlowCrudTest`.
+  Tests: `ComponentPreviewTest`(8) · `PipelineDryRunTest`(2) · `ControlApiComponentsTest`(7)/`ControlApiFlowCrudTest`.
 - [~] **T19 (CRUD backend done 2026-06-18; authoring UI pending).** Component + flow CRUD, generalising the
   connection write pattern (write-root gated, id-sanitised, path-jailed, atomic temp+move). **Component CRUD:**
-  `com.gamma.flow.ComponentStore` (create/replace/delete/list/get over `<write-root>/registry/<typeDir>/<id>.toon` for
+  `com.gamma.pipeline.ComponentStore` (create/replace/delete/list/get over `<write-root>/registry/<typeDir>/<id>.toon` for
   `grammar`/`schema`/`transform`/`sink` — connection keeps its own secret-masking CRUD; id stamped as the in-file
   `name`) + `ComponentRegistry.dirForType`/`isComponentType`; `ControlApi GET|POST|PUT|DELETE /components/{type}[/{id}]`
-  (409 dup, safe-delete 409 via `FlowReferences.referencedBy`). **Flow topology CRUD:** `com.gamma.flow.FlowCodec`
-  (lossless `FlowGraph`↔map) + `com.gamma.flow.FlowStore` (persist/read/delete/list authored `*_flow.toon` under
-  `<write-root>/flows`); `ControlApi /flows/authored` `GET`(list)/`POST`(create) + `/{id}` `GET`(graph)/`PUT`/`DELETE`
-  + `/{id}/nodes`,`/{id}/edges` (incremental edits) — every write gated by `FlowValidator` (422 on errors); a distinct
+  (409 dup, safe-delete 409 via `PipelineReferences.referencedBy`). **Flow topology CRUD:** `com.gamma.pipeline.PipelineCodec`
+  (lossless `PipelineGraph`↔map) + `com.gamma.pipeline.PipelineStore` (persist/read/delete/list authored `*_flow.toon` under
+  `<write-root>/flows`); `ControlApi /pipelines/authored` `GET`(list)/`POST`(create) + `/{id}` `GET`(graph)/`PUT`/`DELETE`
+  + `/{id}/nodes`,`/{id}/edges` (incremental edits) — every write gated by `PipelineValidator` (422 on errors); a distinct
   namespace from the read-only lifted-pipeline projection. Tests: `ComponentStoreTest`(5, incl. a schema tabular
-  round-trip confirming `ConfigCodec.toToon` handles schemas) · `ControlApiComponentsTest`(3) · `FlowCodecTest`(3) ·
-  `FlowStoreTest`(3) · `ControlApiFlowCrudTest`(3). **Component authoring UI done 2026-06-18 (T19a):**
+  round-trip confirming `ConfigCodec.toToon` handles schemas) · `ControlApiComponentsTest`(3) · `PipelineCodecTest`(3) ·
+  `PipelineStoreTest`(3) · `ControlApiFlowCrudTest`(3). **Component authoring UI done 2026-06-18 (T19a):**
   `inspecto-ui` `modules/admin/components` — a `/components` pane listing grammar/schema/transform/sink with
   create/edit/delete (mirrors the connections-CRUD pane), a per-kind `ComponentFormDialog` (structured fields;
   transform operator+JSON config) with an inline **Test** panel driving the T18 dry-run endpoints
@@ -924,23 +924,23 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   authored flows into the live executor (T32).
 - [~] **T32 (Phase A done 2026-06-18 — live execution of authored job-flows).** Run authored `*_flow.toon`
   flows for real. Authored flows are **job-style** (`source_store` → `transform` → sink `store`), so they run
-  as a new `JobType.FLOW` hosted by the existing `JobService` (cron/event/manual + audit + deletion fence +
-  `DbJobRunStore`), driving `FlowExecutor` directly — **not** via `FlowCompiler.toConfigMap` (which only
+  as a new `JobType.PIPELINE` hosted by the existing `JobService` (cron/event/manual + audit + deletion fence +
+  `DbJobRunStore`), driving `PipelineExecutor` directly — **not** via `PipelineCompiler.toConfigMap` (which only
   round-trips *lifted* graphs, not plain-map authored ones).
-  **Phase A shipped:** `FlowJobRunner implements Job` (seed source_store view → `FlowExecutor.execute` →
+  **Phase A shipped:** `PipelineJobRunner implements Job` (seed source_store view → `PipelineExecutor.execute` →
   publish chain `BatchEvent` → `JobResult`; source-finalise is a no-op for a job), `PartitionSinkWriter`
-  (a `FlowExecutor.SinkWriter` over `PartitionWriter`; unpartitioned single-file `COPY` when a sink declares no
+  (a `PipelineExecutor.SinkWriter` over `PartitionWriter`; unpartitioned single-file `COPY` when a sink declares no
   `partitions`, since the legacy writer always partitions; `sink.view` writes no bytes — Phase C), `SourceStoreReader`
-  (`SqlViews.reader` over `<dataDir>/<store>/**`), `JobType.FLOW` + `JobService.build()` case (fail-closed without an
+  (`SqlViews.reader` over `<dataDir>/<store>/**`), `JobType.PIPELINE` + `JobService.build()` case (fail-closed without an
   authored-flow store), `SourceService` wiring (`openFlowStore()` = `<assist.write.root>/flows`; data root from
   `-Ddata.dir`, default `database`; per-job `data_dir`/`batch_id` overrides). Reuses
-  `FlowExecutor`/`BranchCommitCoordinator`/`BranchCommitLog`/`EnrichmentEngine` read pattern. Tests:
-  `FlowJobRunnerTest`(4: filter→sink, idempotent same-`batch_id` skip, route→2 stores, no-source_store reject)
+  `PipelineExecutor`/`BranchCommitCoordinator`/`BranchCommitLog`/`EnrichmentEngine` read pattern. Tests:
+  `PipelineJobRunnerTest`(4: filter→sink, idempotent same-`batch_id` skip, route→2 stores, no-source_store reject)
   + `JobServiceTest`(+2: build-with-flow-store, fail-closed). inspecto **793/0/1**.
   **Resolved open Qs:** data root = `-Ddata.dir`/`data_dir` param (default `database`); audit/branch-commit log under
   the jobs audit dir; idempotency via a fixed `batch_id` param (default per-run timestamp); single `source_store` only.
   **Deletion fence wired (T25×T32, 2026-06-18):** `SourceService.checkDeletion` now folds authored flows
-  (`flowStore.list()`) into the producer/consumer topology and unions in-flight `FLOW` runs
+  (`PipelineStore.list()`) into the producer/consumer topology and unions in-flight `FLOW` runs
   (`JobService.runningFlows()`) into the active set, so deleting a store an active flow job reads/writes raises a
   `STORE_DELETE_CONFLICT` (idle authored flows never conflict). The fence is made *aware of* flow jobs — a flow job
   does NOT call `guard.check` (that would false-positive on normal concurrent read/append). Test:
@@ -948,27 +948,27 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   **Phase B done (2026-06-18):** a FLOW job is a first-class scheduled/chained job — cron, `on_pipeline` (a pipeline
   commit triggers it), downstream chaining (its success `BatchEvent(jobName)` fires `on_pipeline` jobs), and
   `DbJobRunStore` reporting (typed `FLOW`). No production change needed (JobService arms cron/dispatches events
-  type-agnostically; `FlowJobRunner` already publishes the chain event); proven by 4 `JobServiceTest` cases
+  type-agnostically; `PipelineJobRunner` already publishes the chain event); proven by 4 `JobServiceTest` cases
   (`cronFiresAFlowJob`, `onPipelineEventFiresAFlowJob`, `aFlowJobSuccessChainsADownstreamJob`,
   `flowRunsAreProjectedIntoTheReportingStoreAsTypeFlow`). Guidance: prefer `on_pipeline: <producer>` over a time
   cron whenever a flow reads a store a pipeline writes. inspecto **798/0/1**.
-  **Phase C done (2026-06-18/19):** multi-`source_store` (`FlowExecutor` multi-seed + `transform.merge`); `sink.view`
+  **Phase C done (2026-06-18/19):** multi-`source_store` (`PipelineExecutor` multi-seed + `transform.merge`); `sink.view`
   → durable `ViewDefinition`/`ViewStore` under `<write-root>/views/`; opt-in incremental (`incremental_column` +
-  `FlowWatermarkStore`, watermark-filtered read + append, single-source); actor attribution
+  `PipelineWatermarkStore`, watermark-filtered read + append, single-source); actor attribution
   (`trigger(name, actor)` → `manual:<actor>`). inspecto **802/0/1**.
   **Follow-ups done (2026-06-19):** `sink.view` `derived_sql` capture (single-SELECT views — `RowShaper.toSelect` +
-  `FlowJobRunner.deriveViewSql`); multi-source incremental (per-source watermarks); and the **`sink.view` consumer**
+  `PipelineJobRunner.deriveViewSql`); multi-source incremental (per-source watermarks); and the **`sink.view` consumer**
   — `GET /views`, `GET /views/{name}`, `GET /views/{name}/data?limit=N` run a view's `derived_sql` via `ViewQuery`
   (resource-capped un-sealed `SqlSandbox`) for bounded rows (409 when a view has no single-statement `derived_sql`).
-  **Still deferred:** a dedicated `POST /flows/authored/{id}/run` endpoint (today: a `type: flow` `*_job.toon` +
+  **Still deferred:** a dedicated `POST /pipelines/authored/{id}/run` endpoint (today: a `type: pipeline` `*_job.toon` +
   `POST /jobs/{name}/trigger`); a UI consumer for views. Full design: [`flow-live-execution-plan.md`](flow-live-execution-plan.md).
 
 ### Phase 4.5 / 6 — Data plane (provenance overlay; not required for 1–3)
-- [x] **T20 (done 2026-06-19).** Per-(node, relationship) record counters in `FlowExecutor` via a
+- [x] **T20 (done 2026-06-19).** Per-(node, relationship) record counters in `PipelineExecutor` via a
   `ProvenanceCollector` (counts taken inline while the scratch relations are live); existing callers delegate with
   `NONE`. §11.3.
 - [x] **T21 (done 2026-06-19).** Durable, queryable counts: `ProvenanceRow` + `DbProvenanceStore` (DuckDB), keyed by
-  `(flow, batchId)` — `batchId` is the run's `BatchEvent` correlation id. `FlowJobRunner` persists them when
+  `(flow, batchId)` — `batchId` is the run's `BatchEvent` correlation id. `PipelineJobRunner` persists them when
   `-Dprovenance.backend=duckdb` is set; default-off (no counting overhead, no prod change).
 - [x] **T22 backend (done 2026-06-19).** `GET /provenance?flow=&batch=` (per-node-rel counts for the Sankey) +
   `/provenance/batches?flow=`; conservation invariant (§11.4) via pure `ConservationCheck` → `FLOW_CONSERVATION_IMBALANCE`
@@ -989,11 +989,11 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   `enrich`/`report`/`maintenance` jobs over data at rest, never re-acquiring. No shipped `*_job.toon` used `ingest`;
   3 test fixtures migrated to `enrich`.
 - [x] **T24 (done 2026-06-18).** **Combined pipeline+job visualisation** (§3.8):
-  `FlowProjection.combined(flows)` projects several flows into one graph — each flow's nodes namespaced by flow
+  `PipelineProjection.combined(flows)` projects several flows into one graph — each flow's nodes namespaced by flow
   (`<flow>/<node>`) + a synthetic **store node** (`store:<name>`, category `STORE`) per produced/consumed store,
   wired `producer-sink → store → consumer`, drawing the cross-flow `on_commit` through the table. The derived
-  `FlowStores.superimpose` links are exposed for reference. `GET /flows/combined` endpoint. The join is config-derived
-  (sink `store` ↔ consumer `source_store`), no `on_pipeline` coupling. `FlowProjectionTest`/`ControlApiFlowsTest`.
+  `PipelineStores.superimpose` links are exposed for reference. `GET /pipelines/combined` endpoint. The join is config-derived
+  (sink `store` ↔ consumer `source_store`), no `on_pipeline` coupling. `PipelineProjectionTest`/`ControlApiFlowsTest`.
   **UI (Pass B):** a "Combined" toggle in the **Flows** pane reuses the shared G6 `graph-view`, styling the synthetic
   store as a `TABLE`-kind join node (`toCombinedG6Data`); verified live (2 flows, store legend, no console errors).
 - [x] **T25 (backend done 2026-06-17).** **Deletion fence on the shared store** (§3.8 rule 4): `DeletionFence.check`
@@ -1021,7 +1021,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 
 The T1 capability sweep (full read of [`PipelineConfig`](../inspecto/src/main/java/com/gamma/etl/PipelineConfig.java)
 + `SchemaSelector`/`PartitionDef`/`TransformCompiler`/`ConfigValidator`/`config/spec` + the 5 shipped configs and
-their referenced schema/grammar files) **passes the gate**: the `FlowGraph`/`FlowNode`/`FlowEdge` IR **can represent
+their referenced schema/grammar files) **passes the gate**: the `PipelineGraph`/`PipelineNode`/`PipelineEdge` IR **can represent
 every capability** a `*_pipeline.toon` expresses — **provided** the encodings below are adopted. It is **not** a
 "4-node linear / thin reuse" lift (confirms §13).
 
@@ -1042,11 +1042,11 @@ file(s) to populate the `parser`/`transform`/`sink` nodes.
 | G6 | `guarantee` is declarative with a runtime fallback (degrades to best-effort if no ledger) | `acquisition.config.guarantee` + carry the `requiresLedger()` warn; advisory, not a hard property. |
 | G7 | Gap detection → `SEQUENCE_GAP` events | `acquisition` emits `gap` edge → a `gap` reporting node (no `data` out); sequence template → `gap.config.sequence`. Matches §3 as written. |
 | **G8** | `post_action` RETAIN/DELETE/MOVE/RENAME/TAG (+ templated `archive_path`, `on_unsupported`) | a **success-side finalizer** on the `acquisition` node, **not** the `failure` edge — **§5/§8 wording corrected**. `on_unsupported` governs the failure branch; date-template resolves at run time; capability-checked vs the connector SPI (not fully lift-time validatable). |
-| G9 | **Pipeline↔enrichment/alert/job file boundary** (they point *back* via `triggers.on_pipeline` = a name string) — risk | **DECIDED (T4, 2026-06-17): two separate flows linked by declared data-store name**, not `on_pipeline`. Each `sink` declares the store it produces, each consumer declares the store it reads; the topology is **derived by matching store names** (`com.gamma.flow.FlowStores.superimpose`) — config/metadata reveals the superimposition. Lifting a pipeline alone is correct; the consumer is a separate flow joined at the store. |
+| G9 | **Pipeline↔enrichment/alert/job file boundary** (they point *back* via `triggers.on_pipeline` = a name string) — risk | **DECIDED (T4, 2026-06-17): two separate flows linked by declared data-store name**, not `on_pipeline`. Each `sink` declares the store it produces, each consumer declares the store it reads; the topology is **derived by matching store names** (`com.gamma.pipeline.PipelineStores.superimpose`) — config/metadata reveals the superimposition. Lifting a pipeline alone is correct; the consumer is a separate flow joined at the store. |
 | F1 | **Dead top-level keys** `version:` / `search:` / `copy_tars:` / `backup:` (present in `adjustment_pipeline.toon`, **never parsed** by `fromMap`) | the lift **drops** them — do not faithfully reproduce keys that do nothing today. |
 
 **Lift recipe (condensed; exact accessors in the T1 inventory):** load via `PipelineConfig.load` (resolves+validates
-schemas); set `FlowGraph.name`←`identity().pipelineName()`, `active`←`active()`; build the `acquisition` node from
+schemas); set `PipelineGraph.name`←`identity().pipelineName()`, `active`←`active()`; build the `acquisition` node from
 `source()` (+ `stability/duplicate/incremental/guarantee/fetch/retry/circuitBreaker/postAction`, `use: connection/…`
 when `hasConnection()`); add `gap` node + edge if `gapDetection().active()`; parser base from `csv()` (+ `use:
 grammar/…` when external, + `fixedwidth`); insert `transform.filter` when `csv().hasRowFilters()`; add the dedup
@@ -1070,5 +1070,5 @@ path — these are where "lift = thin shim" breaks.
 (R6 / T23–T25).** **Phase 1 (Flow IR + legacy lift) is BUILT and green** (T1/T2/T3/T4/T5a done; full inspecto suite
 675/0/1). **Refined 2026-06-17 (T28–T30, §3.1): sink is a family (`persistent`/`materialized`/`view`), node types
 carry a `category`, nodes carry user `name`/`description`, built-in processor definitions exposed for the UI.** **T31 (read-only flow
-visualisation — `FlowProjection` + `/flows` API + the `inspecto-ui` Flows pane) DONE 2026-06-17.**
+visualisation — `PipelineProjection` + `/pipelines` API + the `inspecto-ui` Flows pane) DONE 2026-06-17.**
 Next: Phase 2 (component registry + `use:` refs, T6–T8).

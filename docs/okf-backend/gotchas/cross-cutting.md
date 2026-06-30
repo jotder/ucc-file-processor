@@ -34,6 +34,6 @@ timestamp: 2026-06-28T00:00:00Z
   must use repo/bundle-root-relative paths, and `SpaceMigrator` cannot auto-fix absolute/author-relative ones.
 * **`PartitionWriter` requires non-empty partition columns** (it emits `PARTITION_BY (...)`). The unpartitioned
   single-file `COPY` path is `PartitionSinkWriter.writeUnpartitioned()`. See [output & sinks](../engine/output-sinks.md).
-* **Flow seed must be ≥ 1 `source_store`** — `FlowJobRunner.seedsOf` throws on zero; multi-source merge is the
+* **Flow seed must be ≥ 1 `source_store`** — `PipelineJobRunner.seedsOf` throws on zero; multi-source merge is the
   `transform.merge` path (the Phase-A "exactly one" rule was relaxed in Phase C). See
   [flow live execution](../flow-graph/live-execution.md).

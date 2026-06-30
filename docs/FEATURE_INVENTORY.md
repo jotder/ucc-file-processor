@@ -94,16 +94,16 @@ Types: `enrich`, `report`, `maintenance`, `flow` (`JobConfig.load()`).
 | Maintenance (cleanup, cron+event) | `job: { name: …, type: maintenance, cron: …, task: cleanup, retention_days: 30 }` | `JobConfigTest` |
 | Report job (`enabled: false`) | `job: { name: …, type: report, enabled: false, scope: status }` | `JobConfigTest` |
 | `catch_up: true` (missed-fire recovery) | `job: { …, cron: "0 * * * *", catch_up: true }` | `JobServiceTest` |
-| Flow job (`type: flow`) | `job: { name: …, type: flow, flow: cdr_flow, on_pipeline: events }` | `ADVANCED_GUIDE §5.3` |
+| Flow job (`type: pipeline`) | `job: { name: …, type: pipeline, flow: cdr_flow, on_pipeline: events }` | `ADVANCED_GUIDE §5.3` |
 | Manual trigger only | `job: { name: …, type: report, enabled: true }` → `POST /jobs/{n}/trigger` | `ADVANCED_GUIDE §5.4` |
 
 > **Gotcha:** `on_pipeline:` matches the **lowercased** pipeline name (`BatchEvent.pipeline()`).
 
 ### G — Authored flows (`*_flow.toon`)
 
-Node types from `FlowNodeTypes.catalog()`. (No `*_flow.toon` file exists in the repo yet — the
+Node types from `PipelineNodeTypes.catalog()`. (No `*_flow.toon` file exists in the repo yet — the
 authored-flow TOON shape lives only in test Java strings: `ControlApiFlowCrudTest`,
-`FlowJobRunnerTest`. `FlowCodec` round-trips `nodes[id,type,name?,description?,use?,config?]` +
+`PipelineJobRunnerTest`. `PipelineCodec` round-trips `nodes[id,type,name?,description?,use?,config?]` +
 `edges[from,rel,to]` + `name` + `active`.)
 
 | Node | Fragment | Doc |
@@ -220,7 +220,7 @@ pwsh examples/run-example.ps1 01-ingest/hello-csv                   |  bash exam
 ```
 
 The launchers bake in `--enable-native-access=ALL-UNNAMED` (mandatory; DuckDB JNI). `-Dassist.write.root`
-is **not** set by default → write APIs (connections/flows/registry) return 503 until the user adds it.
+is **not** set by default → write APIs (connections/pipelines/registry) return 503 until the user adds it.
 
 ---
 
@@ -261,7 +261,7 @@ the rest are planned in subsequent phases. Features that can't run offline (remo
 ## 6. Known gaps
 
 - No `*_flow.toon` or `*_rca.toon` example exists in the repo — the shapes live only in tests
-  (`ControlApiFlowCrudTest`, `FlowJobRunnerTest`) or are consumed by APIs without a file fixture.
+  (`ControlApiFlowCrudTest`, `PipelineJobRunnerTest`) or are consumed by APIs without a file fixture.
 - `json` / `text_regex` frontends are `[PROPOSED]` — example configs can be drafted but won't run yet.
 - No subscriber `.dat` / plugin-binary sample data in the repo — synthesize for those examples.
 - `package.ps1` pre-creates inbox/database dirs only for `adjustment` + `voucher`; the example suite
