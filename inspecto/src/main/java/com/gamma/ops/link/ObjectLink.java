@@ -10,7 +10,7 @@ import java.util.Map;
  * One directed correlation edge between two operational objects — the first-class {@code OBJECT_LINK}
  * of the Operational Intelligence Platform (Phase 4). Where Phases 2–3 correlated lightly via
  * {@link com.gamma.ops.OperationalObject#correlationId()}, a {@link ObjectType#CASE} makes
- * relationships explicit and traversable: {@code Case CONTAINS Issue}, {@code Issue ESCALATED_FROM
+ * relationships explicit and traversable: {@code Case CONTAINS Incident}, {@code Incident ESCALATED_FROM
  * Alert}, {@code Alert CAUSED_BY Event}. The shape mirrors the requirement's link model
  * {@code {from, from_type, to, to_type, relationship}}.
  *

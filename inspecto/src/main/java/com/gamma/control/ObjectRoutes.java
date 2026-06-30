@@ -76,9 +76,9 @@ final class ObjectRoutes implements RouteModule {
 
     /**
      * {@code POST /objects} (Phase 3) — create a managed object. The complement of alert auto-promotion:
-     * ALERTs are opened by the {@code AlertService}, whereas ISSUEs are operator-created here. Body
+     * ALERTs are opened by the {@code AlertService}, whereas INCIDENTs are operator-created here. Body
      * {@code {type?,title,description?,severity?,priority?,owner?,assignee?,correlationId?,attributes?,
-     * dueAt?|dueInMinutes?}} — {@code type} defaults to {@code ISSUE}, {@code title} is required, and
+     * dueAt?|dueInMinutes?}} — {@code type} defaults to {@code INCIDENT}, {@code title} is required, and
      * {@code dueAt} (epoch millis) or {@code dueInMinutes} sets the SLA deadline the sweep tracks. The
      * object opens in its workflow's initial state; lifecycle moves go through {@code /objects/{id}/transition}.
      */
@@ -91,7 +91,7 @@ final class ObjectRoutes implements RouteModule {
         } catch (IllegalArgumentException ex) {
             throw new ApiException(400, ex.getMessage());
         }
-        if (type == null) type = ObjectType.ISSUE;   // the create path exists for operator-created issues
+        if (type == null) type = ObjectType.INCIDENT;   // the create path exists for operator-created incidents
 
         Map<String, String> attrs = new LinkedHashMap<>();
         if (body.get("attributes") instanceof Map<?, ?> bag)
@@ -130,7 +130,7 @@ final class ObjectRoutes implements RouteModule {
 
     /**
      * {@code POST /objects/{id}/links} (Phase 4) — correlate this object with another: body
-     * {@code {to, relationship?, actor?}} (e.g. a CASE {@code CONTAINS} an ISSUE). A missing {@code to}
+     * {@code {to, relationship?, actor?}} (e.g. a CASE {@code CONTAINS} an INCIDENT). A missing {@code to}
      * → 400; an unknown {@code id} or {@code to} → 404. Idempotent (a duplicate edge returns the existing one).
      */
     private Object createLink(ApiContext api, String fromId, Map<String, Object> body) {

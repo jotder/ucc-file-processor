@@ -306,7 +306,7 @@ public final class SourceService implements AutoCloseable {
         };
         this.configSource = configSource;
         // Object Engine (Phase 2, v4.3.0): the mutable Layer-2 store for managed objects (alerts now;
-        // issues/cases later). Built from -Dobjects.backend (memory|db); always present so /objects
+        // incidents/cases later). Built from -Dobjects.backend (memory|db); always present so /objects
         // works even with no alert rules. Fired alerts are promoted into it by the AlertService below.
         this.objectStore = ServiceStores.openObjectStore(root);
         this.linkStore = ServiceStores.openLinkStore(root);
@@ -564,13 +564,13 @@ public final class SourceService implements AutoCloseable {
         // poll cycle so no commit is missed; flows with no event trigger ignore every event.
         bus.subscribe(this::onUpstreamCommit);
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
-        // SLA sweep (Phase 3, v4.4.0): periodically breach overdue, unresolved ISSUEs — each new breach
-        // emits an OBJECT_SLA_BREACH event. Always scheduled (a cheap no-op when there are no issues);
+        // SLA sweep (Phase 3, v4.4.0): periodically breach overdue, unresolved INCIDENTs — each new breach
+        // emits an OBJECT_SLA_BREACH event. Always scheduled (a cheap no-op when there are no incidents);
         // -Dobjects.sla.sweep.seconds sets the cadence (default 60), <=0 disables it.
         long slaSweepSeconds = Long.getLong("objects.sla.sweep.seconds", 60L);
         if (slaSweepSeconds > 0)
             scheduler.everySeconds("sla-sweep", slaSweepSeconds, slaSweepSeconds,
-                    () -> underSpace(() -> objects.sweepIssueSla(System.currentTimeMillis())));
+                    () -> underSpace(() -> objects.sweepIncidentSla(System.currentTimeMillis())));
         log.info("SourceService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
                 registry.size(), pollSeconds, maxConcurrentRuns);
         this.eventLog.emit(Event.builder(EventType.SERVICE_STARTED)

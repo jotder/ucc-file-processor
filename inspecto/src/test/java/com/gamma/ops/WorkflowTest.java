@@ -28,16 +28,16 @@ class WorkflowTest {
     }
 
     @Test
-    void defaultIssueLifecycle() {
-        Workflow wf = Workflow.defaultFor(ObjectType.ISSUE);
+    void defaultIncidentLifecycle() {
+        Workflow wf = Workflow.defaultFor(ObjectType.INCIDENT);
         assertEquals("OPEN", wf.initialState());
         assertEquals("ASSIGNED", wf.apply("OPEN", "assign").orElseThrow());
         assertEquals("IN_PROGRESS", wf.apply("ASSIGNED", "start").orElseThrow());
         assertEquals("RESOLVED", wf.apply("IN_PROGRESS", "resolve").orElseThrow());
         assertEquals("CLOSED", wf.apply("RESOLVED", "close").orElseThrow());
         assertTrue(wf.isTerminal("CLOSED"));
-        assertFalse(wf.isTerminal("RESOLVED"), "RESOLVED is not terminal — an issue can still be closed");
-        assertTrue(wf.apply("OPEN", "resolve").isEmpty(), "cannot resolve an unstarted issue");
+        assertFalse(wf.isTerminal("RESOLVED"), "RESOLVED is not terminal — an incident can still be closed");
+        assertTrue(wf.apply("OPEN", "resolve").isEmpty(), "cannot resolve an unstarted incident");
         assertTrue(wf.apply("CLOSED", "close").isEmpty(), "terminal state has no outgoing transitions");
     }
 
@@ -66,13 +66,13 @@ class WorkflowTest {
     @Test
     void fromMapParsesAndValidates() {
         Workflow wf = Workflow.fromMap(Map.of(
-                "object_type", "ISSUE",
+                "object_type", "INCIDENT",
                 "initial", "OPEN",
                 "terminal", List.of("CLOSED"),
                 "transitions", List.of(
                         Map.of("from", "OPEN", "to", "ASSIGNED", "action", "assign"),
                         Map.of("from", "ASSIGNED", "to", "CLOSED", "action", "close"))));
-        assertEquals(ObjectType.ISSUE, wf.objectType());
+        assertEquals(ObjectType.INCIDENT, wf.objectType());
         assertEquals("ASSIGNED", wf.apply("OPEN", "assign").orElseThrow());
         assertTrue(wf.isTerminal("CLOSED"));
         assertThrows(IllegalArgumentException.class, () -> Workflow.fromMap(Map.of("initial", "OPEN")),
@@ -81,10 +81,10 @@ class WorkflowTest {
 
     @Test
     void loadFromToonFile(@TempDir Path dir) throws Exception {
-        Path p = dir.resolve("issue_workflow.toon");
+        Path p = dir.resolve("incident_workflow.toon");
         Files.writeString(p, """
                 workflow:
-                  object_type: ISSUE
+                  object_type: INCIDENT
                   initial: OPEN
                   terminal[1]: "CLOSED"
                   transitions[2]{from,to,action}:
@@ -92,7 +92,7 @@ class WorkflowTest {
                     ASSIGNED,CLOSED,close
                 """);
         Workflow wf = Workflow.load(p);
-        assertEquals(ObjectType.ISSUE, wf.objectType());
+        assertEquals(ObjectType.INCIDENT, wf.objectType());
         assertEquals("OPEN", wf.initialState());
         assertEquals("ASSIGNED", wf.apply("OPEN", "assign").orElseThrow());
         assertEquals("CLOSED", wf.apply("ASSIGNED", "close").orElseThrow());

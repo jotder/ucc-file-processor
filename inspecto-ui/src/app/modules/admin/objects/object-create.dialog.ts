@@ -8,7 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, CreateObject, ObjectsService } from 'app/inspecto/api';
 
-/** Create dialog for an operator-created object (an ISSUE or a CASE) — POST /objects. */
+/** Create dialog for an operator-created object (an INCIDENT or a CASE) — POST /objects. */
 @Component({
     selector: 'app-object-create-dialog',
     standalone: true,

@@ -43,7 +43,7 @@ class ObjectCoreTest {
 
     @Test
     void withAttributesMergesUpdatesWinAndStaysImmutable() {
-        OperationalObject o = OperationalObject.builder(ObjectType.ISSUE).status("OPEN")
+        OperationalObject o = OperationalObject.builder(ObjectType.INCIDENT).status("OPEN")
                 .attr("dueAt", "100").attr("rule", "r").build();
         long t = o.createdAt() + 9;
         OperationalObject merged = o.withAttributes(Map.of("dueAt", "200", "slaBreachedAt", "250"), t);
@@ -82,7 +82,7 @@ class ObjectCoreTest {
         assertTrue(ObjectQuery.builder().objectType(ObjectType.ALERT).status("open").build().matches(o));
         assertTrue(ObjectQuery.builder().severity("warning").assignee("ALICE").build().matches(o));
         assertTrue(ObjectQuery.builder().textContains("DISK").build().matches(o));
-        assertFalse(ObjectQuery.builder().objectType(ObjectType.ISSUE).build().matches(o));
+        assertFalse(ObjectQuery.builder().objectType(ObjectType.INCIDENT).build().matches(o));
         assertFalse(ObjectQuery.builder().status("RESOLVED").build().matches(o));
         assertFalse(ObjectQuery.builder().correlationId("other").build().matches(o));
     }

@@ -7,8 +7,8 @@ export default [
         path: '',
         component: ObjectsComponent,
         data: {
-            type: 'ISSUE',
-            title: 'Issues',
+            type: 'INCIDENT',
+            title: 'Incidents',
             subtitle: 'Operator-managed problems — lifecycle, ownership and SLA tracking',
         },
     },

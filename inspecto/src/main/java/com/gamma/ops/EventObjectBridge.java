@@ -16,7 +16,7 @@ import java.util.Map;
  * deliberately <b>not</b> in the lean engine core that emits the event: the core records the fact, this decides
  * whether the fact becomes a tracked, assignable object. Today it promotes
  * {@link EventType#SEQUENCE_GAP} (a missing file in a configured sequence) to an
- * {@link ObjectType#ALERT} object — so a gap shows up in the existing Cases/Issues UI with no new UI work.
+ * {@link ObjectType#ALERT} object — so a gap shows up in the existing Cases/Incidents UI with no new UI work.
  *
  * <h3>Why a bridge and not {@code AlertService}</h3>
  * {@code AlertService} evaluates operator rules over the <em>batches ledger</em> (a fired rule → ALERT object).

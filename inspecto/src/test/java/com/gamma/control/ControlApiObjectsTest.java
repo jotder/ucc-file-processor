@@ -93,13 +93,13 @@ class ControlApiObjectsTest {
     }
 
     @Test
-    void createIssueAndWalkLifecycle(@TempDir Path dir) throws Exception {
+    void createIncidentAndWalkLifecycle(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            // create an ISSUE via POST /objects (type defaults to ISSUE); dueInMinutes seeds the SLA deadline
+            // create an INCIDENT via POST /objects (type defaults to INCIDENT); dueInMinutes seeds the SLA deadline
             JsonNode created = json(send(c.port, "POST", "/objects",
                     "{\"title\":\"bad rows\",\"severity\":\"HIGH\",\"assignee\":\"alice\",\"dueInMinutes\":30}"));
             String id = created.get("id").asText();
-            assertEquals("ISSUE", created.get("objectType").asText());
+            assertEquals("INCIDENT", created.get("objectType").asText());
             assertEquals("OPEN", created.get("status").asText());
             assertEquals("alice", created.get("assignee").asText());
             assertTrue(created.get("attributes").has("dueAt"), "dueInMinutes sets a dueAt attribute");
@@ -114,8 +114,8 @@ class ControlApiObjectsTest {
             assertTrue(closed.get("closedAt").asLong() > 0, "CLOSED is terminal → closedAt set");
 
             // it lists under a type filter; an illegal next move → 422
-            JsonNode issues = json(send(c.port, "GET", "/objects?type=ISSUE", null));
-            assertTrue(issues.isArray() && issues.size() == 1 && id.equals(issues.get(0).get("id").asText()));
+            JsonNode incidents = json(send(c.port, "GET", "/objects?type=INCIDENT", null));
+            assertTrue(incidents.isArray() && incidents.size() == 1 && id.equals(incidents.get(0).get("id").asText()));
             assertEquals(422, send(c.port, "POST", "/objects/" + id + "/transition",
                     "{\"action\":\"start\"}").statusCode());
 
@@ -196,15 +196,15 @@ class ControlApiObjectsTest {
         try (Ctx c = open(dir)) {
             OperationalObject caseObj = c.svc.objects().open(ObjectType.CASE, "investigation", "d",
                     "HIGH", "corr", Map.of());
-            OperationalObject issue = c.svc.objects().open(ObjectType.ISSUE, "bad rows", "d",
+            OperationalObject incident = c.svc.objects().open(ObjectType.INCIDENT, "bad rows", "d",
                     "HIGH", "corr", Map.of());
 
-            // CASE CONTAINS ISSUE
+            // CASE CONTAINS INCIDENT
             JsonNode link = json(send(c.port, "POST", "/objects/" + caseObj.id() + "/links",
-                    "{\"to\":\"" + issue.id() + "\",\"relationship\":\"contains\",\"actor\":\"alice\"}"));
+                    "{\"to\":\"" + incident.id() + "\",\"relationship\":\"contains\",\"actor\":\"alice\"}"));
             assertEquals("CONTAINS", link.get("relationship").asText());
             assertEquals(caseObj.id(), link.get("from").asText());
-            assertEquals("ISSUE", link.get("toType").asText());
+            assertEquals("INCIDENT", link.get("toType").asText());
 
             // links incident to the case
             JsonNode links = json(send(c.port, "GET", "/objects/" + caseObj.id() + "/links", null));

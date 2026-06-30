@@ -7,7 +7,7 @@ package com.gamma.ops.link;
  * relationship without touching this class. Values are normalised to upper-case by {@link ObjectLink}.
  *
  * <p>The vocabulary mirrors the requirement's examples: a {@code CASE} {@link #CONTAINS} the
- * {@code ISSUE}s it groups; an {@code ISSUE} is {@link #ESCALATED_FROM} the {@code ALERT} that raised
+ * {@code INCIDENT}s it groups; an {@code INCIDENT} is {@link #ESCALATED_FROM} the {@code ALERT} that raised
  * it; an {@code ALERT} is {@link #CAUSED_BY} the originating event (lightweight today via
  * {@code correlationId}). {@link #RELATED_TO} is the generic fallback.
  *
@@ -18,9 +18,9 @@ public final class LinkRelationship {
 
     private LinkRelationship() {}
 
-    /** A container/parent relationship — e.g. {@code Case CONTAINS Issue}. */
+    /** A container/parent relationship — e.g. {@code Case CONTAINS Incident}. */
     public static final String CONTAINS = "CONTAINS";
-    /** A promotion relationship — e.g. {@code Issue ESCALATED_FROM Alert}. */
+    /** A promotion relationship — e.g. {@code Incident ESCALATED_FROM Alert}. */
     public static final String ESCALATED_FROM = "ESCALATED_FROM";
     /** A causation relationship — e.g. {@code Alert CAUSED_BY Event}. */
     public static final String CAUSED_BY = "CAUSED_BY";

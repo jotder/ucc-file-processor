@@ -68,7 +68,7 @@ const ALERT_RULES: AlertRule[] = [
 ];
 
 const OBJECTS_DATA: OperationalObject[] = Array.from({ length: 15 }, (_, i) => {
-    const objectType = ['ALERT', 'ISSUE', 'CASE'][i % 3];
+    const objectType = ['ALERT', 'INCIDENT', 'CASE'][i % 3];
     const status = ['OPEN', 'ACK', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'][i % 5];
     const ts = NOW - i * 3_600_000;
     return {

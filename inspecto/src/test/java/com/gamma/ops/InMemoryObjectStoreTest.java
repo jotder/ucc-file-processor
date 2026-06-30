@@ -40,7 +40,7 @@ class InMemoryObjectStoreTest {
         InMemoryObjectStore store = new InMemoryObjectStore();
         store.create(obj(ObjectType.ALERT, "OPEN", 100));
         store.create(obj(ObjectType.ALERT, "RESOLVED", 200));
-        store.create(obj(ObjectType.ISSUE, "OPEN", 300));
+        store.create(obj(ObjectType.INCIDENT, "OPEN", 300));
 
         List<OperationalObject> alerts = store.query(ObjectQuery.builder().objectType(ObjectType.ALERT).build());
         assertEquals(2, alerts.size());
