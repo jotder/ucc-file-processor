@@ -13,12 +13,12 @@ describe('buildXyQuery', () => {
         };
         const spec = buildXyQuery(values, CTX);
         expect(spec.groupBy).toEqual(['tariff', 'cell_id']);
-        expect(spec.metrics[0]).toEqual({ id: 'sum_duration_s', expression: 'SUM("duration_s")', label: 'sum(duration_s)' });
+        expect(spec.measures[0]).toEqual({ id: 'sum_duration_s', expression: 'SUM("duration_s")', label: 'sum(duration_s)' });
     });
 });
 
 describe('transformXy', () => {
-    it('pivots a single metric series keyed by x', () => {
+    it('pivots a single measure series keyed by x', () => {
         const rows = [
             { tariff: 'premium', sum_duration_s: 30 },
             { tariff: 'standard', sum_duration_s: 12 },
@@ -50,11 +50,11 @@ describe('transformXy', () => {
 });
 
 describe('value (KPI) helpers', () => {
-    it('builds an ungrouped single-metric query', () => {
+    it('builds an ungrouped single-measure query', () => {
         const values: ControlValues = { value: [{ field: 'duration_s', agg: 'sum' }] };
         const spec = buildValueQuery(values, CTX);
         expect(spec.groupBy).toEqual([]);
-        expect(spec.metrics).toHaveLength(1);
+        expect(spec.measures).toHaveLength(1);
     });
 
     it('reads the headline value from the first result row', () => {

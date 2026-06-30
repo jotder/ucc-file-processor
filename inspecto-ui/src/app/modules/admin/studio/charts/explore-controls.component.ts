@@ -9,7 +9,7 @@ const AGGS: Aggregation[] = ['sum', 'avg', 'min', 'max', 'count', 'countDistinct
 /**
  * Field mapper — the explore workbench's presentational control panel (a **controlled** component: renders
  * from `values`, emits `valuesChange`; the host owns the state). One row per plugin {@link ControlSpec}: a
- * field picker (filtered to the channel's accepted roles) plus, for single metric channels, an aggregation
+ * field picker (filtered to the channel's accepted roles) plus, for single measure channels, an aggregation
  * picker. No services. Mirrors the parser/dataset taggers.
  */
 @Component({
@@ -48,7 +48,7 @@ const AGGS: Aggregation[] = ['sum', 'avg', 'min', 'max', 'count', 'countDistinct
                         }
                     </mat-form-field>
 
-                    @if (control.isMetric && !control.multiple) {
+                    @if (control.isMeasure && !control.multiple) {
                         <mat-form-field class="w-32" subscriptSizing="dynamic">
                             <mat-label>Aggregation</mat-label>
                             <mat-select
@@ -89,12 +89,12 @@ export class ExploreControlsComponent {
 
     onField(control: ControlSpec, field: string | null): void {
         const cv: ChannelValue[] = field
-            ? [{ field, agg: control.isMetric ? this.aggFor(control.channel) : undefined }]
+            ? [{ field, agg: control.isMeasure ? this.aggFor(control.channel) : undefined }]
             : [];
         this.patch(control.channel, cv);
     }
     onFields(control: ControlSpec, fields: string[]): void {
-        const cv: ChannelValue[] = fields.map((field) => ({ field, agg: control.isMetric ? 'sum' : undefined }));
+        const cv: ChannelValue[] = fields.map((field) => ({ field, agg: control.isMeasure ? 'sum' : undefined }));
         this.patch(control.channel, cv);
     }
     onAgg(channel: ControlSpec['channel'], agg: Aggregation): void {

@@ -19,9 +19,9 @@ const DS: Dataset = {
     sourceName: 'cdr',
     columns: [
         { name: 'tariff', type: 'string', role: 'dimension' },
-        { name: 'duration_s', type: 'number', role: 'metric' },
+        { name: 'duration_s', type: 'number', role: 'measure' },
     ],
-    metrics: [],
+    measures: [],
 };
 
 function create() {
@@ -52,7 +52,7 @@ describe('ExploreComponent', () => {
         c.onSelectDataset('cdr_sample');
         expect(c.dataset()?.id).toBe('cdr_sample');
         expect(c.vizType()).toBeTruthy();
-        // a metric field got mapped onto some channel
+        // a measure field got mapped onto some channel
         const mapped = Object.values(c.controls()).some((vals) => vals?.some((v) => v.field === 'duration_s'));
         expect(mapped).toBe(true);
     });

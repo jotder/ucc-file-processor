@@ -9,7 +9,7 @@ import { ColumnType, ConditionGroup } from 'app/inspecto/query';
  */
 
 /** A column's analytic role — the vocabulary the field-mapper + Show-Me recommender work in. */
-export type FieldRole = 'dimension' | 'metric' | 'temporal';
+export type FieldRole = 'dimension' | 'measure' | 'temporal';
 
 /** A dataset column as the viz layer sees it (structurally compatible with a Studio `DatasetColumn`). */
 export interface VizField {
@@ -19,11 +19,11 @@ export interface VizField {
     label?: string;
 }
 
-/** Aggregation a metric channel applies to its column (offline: compiled to AlaSQL aggregate fns). */
+/** Aggregation a measure channel applies to its column (offline: compiled to AlaSQL aggregate fns). */
 export type Aggregation = 'sum' | 'avg' | 'min' | 'max' | 'count' | 'countDistinct';
 
-/** One metric in a {@link QuerySpec} — a stable id, a compiled SQL expression, and a display label. */
-export interface QueryMetric {
+/** One measure in a {@link QuerySpec} — a stable id, a compiled SQL expression, and a display label. */
+export interface QueryMeasure {
     id: string;
     expression: string;
     label: string;
@@ -33,13 +33,13 @@ export type SortDir = 'asc' | 'desc';
 
 /**
  * The structured query a chart emits — compiled to AlaSQL now (offline) and DuckDB later via the same shape.
- * Distinct from the Query Core `QueryModel` (projection + filter only); this adds group-by + aggregate metrics.
+ * Distinct from the Query Core `QueryModel` (projection + filter only); this adds group-by + aggregate measures.
  */
 export interface QuerySpec {
     datasetId: string;
     sourceName: string;
     groupBy: string[];
-    metrics: QueryMetric[];
+    measures: QueryMeasure[];
     filters?: ConditionGroup | null;
     orderBy?: { field: string; dir: SortDir }[];
     limit?: number | null;
@@ -53,13 +53,13 @@ export interface ControlSpec {
     channel: ChannelId;
     label: string;
     acceptRoles: FieldRole[];
-    /** A metric channel needs an aggregation picker; a dimension/temporal channel does not. */
-    isMetric?: boolean;
+    /** A measure channel needs an aggregation picker; a dimension/temporal channel does not. */
+    isMeasure?: boolean;
     multiple?: boolean;
     required?: boolean;
 }
 
-/** One channel's assignment: the field name + (for metric channels) the aggregation. */
+/** One channel's assignment: the field name + (for measure channels) the aggregation. */
 export interface ChannelValue {
     field: string;
     agg?: Aggregation;
@@ -79,8 +79,8 @@ export type VizRender =
 export interface VizFit {
     minDim?: number;
     maxDim?: number;
-    minMetric?: number;
-    maxMetric?: number;
+    minMeasure?: number;
+    maxMeasure?: number;
     /** Requires (true) or forbids (false) a temporal field; omit if indifferent. */
     temporal?: boolean;
 }

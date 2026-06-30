@@ -38,11 +38,11 @@ const STORE: Record<string, ComponentDef[]> = {
                 columns: [
                     { name: 'id', type: 'number', role: 'dimension' },
                     { name: 'msisdn', type: 'string', role: 'dimension' },
-                    { name: 'duration_s', type: 'number', role: 'metric' },
+                    { name: 'duration_s', type: 'number', role: 'measure' },
                     { name: 'tariff', type: 'string', role: 'dimension' },
                     { name: 'event_time', type: 'date', role: 'temporal' },
                 ],
-                metrics: [{ id: 'total_duration', label: 'Total duration', expression: 'sum(duration_s)' }],
+                measures: [{ id: 'total_duration', label: 'Total duration', expression: 'sum(duration_s)' }],
                 viz: null,
             },
         },

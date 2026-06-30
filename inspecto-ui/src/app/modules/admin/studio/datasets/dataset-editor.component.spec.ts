@@ -32,8 +32,8 @@ describe('DatasetEditorComponent', () => {
         expect(c.editing()).toBe(false);
         expect(c.isVirtual()).toBe(true);
         expect(c.columns().length).toBeGreaterThan(0);
-        // duration_s is numeric & non-id → metric
-        expect(c.columns().find((x) => x.name === 'duration_s')?.role).toBe('metric');
+        // duration_s is numeric & non-id → measure
+        expect(c.columns().find((x) => x.name === 'duration_s')?.role).toBe('measure');
     });
 
     it('switching kind to physical hides the query panel', () => {

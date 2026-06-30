@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ComponentsService } from 'app/inspecto/api';
-import { Dataset, DatasetColumn, DatasetConfig, DatasetKind, NamedMetric } from './dataset-types';
+import { Dataset, DatasetColumn, DatasetConfig, DatasetKind, NamedMeasure } from './dataset-types';
 
 /**
  * Dataset store — persists {@link Dataset}s through the component registry as the `dataset` component type
@@ -39,7 +39,7 @@ function toContent(d: Dataset): Record<string, unknown> {
         query: d.query ?? null,
         physicalRef: d.physicalRef ?? null,
         columns: d.columns,
-        metrics: d.metrics,
+        measures: d.measures,
         viz: d.viz ?? null,
     };
     return { name: d.name, ...config } as Record<string, unknown>;
@@ -54,7 +54,7 @@ function fromContent(name: string, content: Record<string, unknown>): Dataset {
         query: (content['query'] as Dataset['query']) ?? null,
         physicalRef: (content['physicalRef'] as string | null) ?? null,
         columns: (content['columns'] as DatasetColumn[]) ?? [],
-        metrics: (content['metrics'] as NamedMetric[]) ?? [],
+        measures: (content['measures'] as NamedMeasure[]) ?? [],
         viz: (content['viz'] as Dataset['viz']) ?? null,
     };
 }

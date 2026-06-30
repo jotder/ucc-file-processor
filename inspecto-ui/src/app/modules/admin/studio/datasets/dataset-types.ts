@@ -13,7 +13,7 @@ import { ColumnMeta, ColumnType, QueryModel } from 'app/inspecto/query';
 export type DatasetKind = 'physical' | 'virtual' | 'materialized';
 
 /** A column's analytic role — what a chart may bind it to (Tableau-style measure/dimension/time split). */
-export type DatasetRole = 'dimension' | 'metric' | 'temporal';
+export type DatasetRole = 'dimension' | 'measure' | 'temporal';
 
 /** One typed, role-tagged column with an optional display label + format. */
 export interface DatasetColumn {
@@ -26,8 +26,8 @@ export interface DatasetColumn {
     hidden?: boolean;
 }
 
-/** A named, reusable aggregate expression (e.g. `sum(duration_s)`) a chart can pick as a metric. */
-export interface NamedMetric {
+/** A named, reusable aggregate expression (e.g. `sum(duration_s)`) a chart can pick as a measure. */
+export interface NamedMeasure {
     id: string;
     label: string;
     expression: string;
@@ -50,7 +50,7 @@ export interface DatasetConfig {
     /** Physical/materialized datasets point at a catalog table / parquet path / cache id. */
     physicalRef?: string | null;
     columns: DatasetColumn[];
-    metrics: NamedMetric[];
+    measures: NamedMeasure[];
     viz?: DatasetViz | null;
 }
 
@@ -60,13 +60,13 @@ export interface Dataset extends DatasetConfig {
     name: string;
 }
 
-/** True for identifier-ish columns (`id`, `*_id`) — excluded from metric inference (you don't sum an id). */
+/** True for identifier-ish columns (`id`, `*_id`) — excluded from measure inference (you don't sum an id). */
 function isIdColumn(name: string): boolean {
     return /(^|_)id$/i.test(name);
 }
 
 /**
- * Seed each column's analytic role from its inferred type: temporal for dates, metric for non-id numerics,
+ * Seed each column's analytic role from its inferred type: temporal for dates, measure for non-id numerics,
  * dimension otherwise. The Studio columns tagger lets the user override these.
  */
 export function inferRoles(columns: ColumnMeta[]): DatasetColumn[] {
@@ -79,7 +79,7 @@ export function inferRoles(columns: ColumnMeta[]): DatasetColumn[] {
 
 function roleFor(c: ColumnMeta): DatasetRole {
     if (c.type === 'date') return 'temporal';
-    if (c.type === 'number' && !isIdColumn(c.name)) return 'metric';
+    if (c.type === 'number' && !isIdColumn(c.name)) return 'measure';
     return 'dimension';
 }
 
@@ -98,7 +98,7 @@ export function buildDataset(
         query: body?.query ?? null,
         physicalRef: body?.physicalRef ?? null,
         columns: body?.columns ?? [],
-        metrics: body?.metrics ?? [],
+        measures: body?.measures ?? [],
         viz: body?.viz ?? null,
     };
 }

@@ -6,7 +6,7 @@ import { DatasetColumn } from './dataset-types';
 import { DatasetColumnsComponent } from './dataset-columns.component';
 
 const COLS: DatasetColumn[] = [
-    { name: 'duration_s', type: 'number', role: 'metric' },
+    { name: 'duration_s', type: 'number', role: 'measure' },
     { name: 'tariff', type: 'string', role: 'dimension' },
 ];
 
@@ -30,7 +30,7 @@ describe('DatasetColumnsComponent', () => {
         c.patch('tariff', { role: 'temporal' });
         expect(emitted?.find((x) => x.name === 'tariff')?.role).toBe('temporal');
         // other columns untouched
-        expect(emitted?.find((x) => x.name === 'duration_s')?.role).toBe('metric');
+        expect(emitted?.find((x) => x.name === 'duration_s')?.role).toBe('measure');
     });
 
     it('renders with no a11y violations', async () => {

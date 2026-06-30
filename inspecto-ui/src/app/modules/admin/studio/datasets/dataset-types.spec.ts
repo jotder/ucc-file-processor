@@ -11,14 +11,14 @@ const COLS: ColumnMeta[] = [
 ];
 
 describe('inferRoles', () => {
-    it('assigns temporal to dates, metric to non-id numerics, dimension otherwise', () => {
+    it('assigns temporal to dates, measure to non-id numerics, dimension otherwise', () => {
         const roles = Object.fromEntries(inferRoles(COLS).map((c) => [c.name, c.role]));
         expect(roles['event_time']).toBe('temporal');
-        expect(roles['duration_s']).toBe('metric');
+        expect(roles['duration_s']).toBe('measure');
         expect(roles['tariff']).toBe('dimension');
     });
 
-    it('treats id and *_id numeric columns as dimensions, not metrics', () => {
+    it('treats id and *_id numeric columns as dimensions, not measures', () => {
         const roles = Object.fromEntries(inferRoles(COLS).map((c) => [c.name, c.role]));
         expect(roles['id']).toBe('dimension');
         expect(roles['cell_id']).toBe('dimension');
@@ -32,7 +32,7 @@ describe('buildDataset', () => {
         expect(d.kind).toBe('virtual');
         expect(d.sourceName).toBe('cdr');
         expect(d.columns).toEqual([]);
-        expect(d.metrics).toEqual([]);
+        expect(d.measures).toEqual([]);
         expect(d.query).toBeNull();
     });
 

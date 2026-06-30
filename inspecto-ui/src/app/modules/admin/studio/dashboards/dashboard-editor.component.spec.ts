@@ -16,8 +16,8 @@ import { DashboardEditorComponent } from './dashboard-editor.component';
 
 const DS: Dataset = {
     id: 'cdr_sample', name: 'cdr_sample', kind: 'virtual', sourceName: 'cdr',
-    columns: [{ name: 'tariff', type: 'string', role: 'dimension' }, { name: 'duration_s', type: 'number', role: 'metric' }],
-    metrics: [],
+    columns: [{ name: 'tariff', type: 'string', role: 'dimension' }, { name: 'duration_s', type: 'number', role: 'measure' }],
+    measures: [],
 };
 const CHART: Chart = { id: 'bar1', name: 'Bar 1', datasetId: 'cdr_sample', vizType: 'bar', controls: { x: [{ field: 'tariff' }], y: [{ field: 'duration_s', agg: 'sum' }] } };
 

@@ -15,7 +15,7 @@ function setup() {
                 type: 'dataset',
                 name: 'd1',
                 ref: 'dataset/d1',
-                content: { name: 'd1', kind: 'virtual', sourceName: 'cdr', columns: [], metrics: [] },
+                content: { name: 'd1', kind: 'virtual', sourceName: 'cdr', columns: [], measures: [] },
             },
         ]),
     );
