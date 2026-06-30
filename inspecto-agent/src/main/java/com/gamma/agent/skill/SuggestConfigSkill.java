@@ -245,7 +245,7 @@ public final class SuggestConfigSkill implements Capability {
 
     private static Map<String, String> knownTables(MetadataGraphService catalog) {
         Map<String, String> byName = new LinkedHashMap<>();
-        for (NodeKind kind : new NodeKind[]{NodeKind.SOURCE, NodeKind.EVENT_TABLE}) {
+        for (NodeKind kind : new NodeKind[]{NodeKind.SOURCE, NodeKind.TABLE}) {
             for (MetadataNode n : catalog.nodesOfKind(kind)) {
                 byName.putIfAbsent(n.label(), n.id());
             }

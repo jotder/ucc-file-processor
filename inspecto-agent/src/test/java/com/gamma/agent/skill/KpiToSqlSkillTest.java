@@ -67,7 +67,7 @@ class KpiToSqlSkillTest {
             public List<com.gamma.catalog.SemanticModel> semantics() { return List.of(sem); }
         };
         MetadataGraphService svc = new MetadataGraphService(cs, null, List.of());
-        String refId = svc.nodesOfKind(NodeKind.REFERENCE_TABLE).get(0).id();
+        String refId = svc.nodesOfKind(NodeKind.REFERENCE_DATASET).get(0).id();
         String kpiId = svc.nodesOfKind(NodeKind.KPI).get(0).id();
         return new Cat(svc, refId, kpiId);
     }

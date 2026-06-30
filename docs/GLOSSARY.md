@@ -301,8 +301,8 @@ touchpoint before renaming; the backend hits below are *known examples*, not an 
 | Rule *(bare)* | **Expectation** / **Alert Rule** / **Decision Rule** | rule builder UI; `AlertRule`, rule services — split by purpose |
 | Metric *(BI sense)* | **Measure** | Studio chart/KPI config field names; keep ops `MetricRegistry`/`MetricsService` as **Metric** |
 | Collector *(noun)* | **Source** | any "Collector" labels → "Source"; keep `collect()` verbs |
-| `USES` *(lineage edge)* | **`CONSUMES`** | `MetadataGraphService` EdgeKind, `catalog-graph.ts`, `/catalog/graph` response — ⚠️ external enum value (version/alias) |
-| `EVENT_TABLE` / `TRANSFORMED_TABLE` / `REFERENCE_TABLE` | **Table** / **Derived Table** / **Reference Dataset** | `MetadataGraphService` NodeKind + `catalog-graph.ts` — ⚠️ external enum values |
+| `USES` *(lineage edge)* | **`CONSUMES`** | ✅ **DONE** (breaking → 5.0): `EdgeKind.CONSUMES`, `MetadataGraphBuilder` report→kpi edge; FE `models.ts` `EdgeKind` already `CONSUMES`. ⚠️ `/catalog/graph` emits the new value (no alias). |
+| `EVENT_TABLE` / `TRANSFORMED_TABLE` / `REFERENCE_TABLE` | **`TABLE`** / **`DERIVED_TABLE`** / **`REFERENCE_DATASET`** | ✅ **DONE** (breaking → 5.0): `NodeKind` enum + all usages (`IdScheme`, `CatalogOverlay`, `MetadataGraphService`, `KpiToSqlSkill`, `SuggestConfigSkill`) + 5 test files; FE `models.ts` union + `node-detail.dialog.ts` `isStore()` + `catalog-graph.ts` shape/glyph. Id tokens (`event`/`xform`/`ref`) unchanged. ⚠️ `/catalog/graph` emits the new enum values (no alias). |
 | `LineageRow` *(file→partition rows)* | **Provenance** *(concept)* | `inspecto/etl/LineageRow.java`, `BatchAuditWriter`; the asset graph keeps the name *Lineage* |
 
 **Migration underway** (the *2b* coordinated breaking change, toward **5.0** — one term per verified PR). ✅ = the

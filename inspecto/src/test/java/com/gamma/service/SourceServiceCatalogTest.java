@@ -36,7 +36,7 @@ class SourceServiceCatalogTest {
             assertNotNull(catalog.node("source:mini_etl"));
             assertNotNull(catalog.node("event:mini_etl/mini"));
             assertNotNull(catalog.node("kpi:daily"));
-            assertEquals(1, catalog.nodesOfKind(NodeKind.EVENT_TABLE).size());
+            assertEquals(1, catalog.nodesOfKind(NodeKind.TABLE).size());
 
             // KPI bare-ref resolved down to the event table
             assertTrue(catalog.traverse("kpi:daily", 5, MetadataGraphService.Direction.BOTH, null, null, false)

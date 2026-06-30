@@ -86,7 +86,7 @@ class CatalogModelTest {
 
     @Test
     void nodeCopyHelpersPreserveOtherFields() {
-        MetadataNode n = new MetadataNode("event:e/CALL", NodeKind.EVENT_TABLE, "CALL",
+        MetadataNode n = new MetadataNode("event:e/CALL", NodeKind.TABLE, "CALL",
                 Description.EMPTY, Map.of("stage", 1));
         assertNull(n.overlay());
 
@@ -97,7 +97,7 @@ class CatalogModelTest {
 
         MetadataNode described = n.withDescription(Description.manual("a call detail record"));
         assertTrue(described.description().isPresent());
-        assertEquals(NodeKind.EVENT_TABLE, described.kind());
+        assertEquals(NodeKind.TABLE, described.kind());
     }
 
     @Test

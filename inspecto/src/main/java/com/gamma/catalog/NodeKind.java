@@ -16,11 +16,11 @@ public enum NodeKind {
     /** A single described column ({@code col:<pipeline>/<KEY>/<COL>}). */
     COLUMN,
     /** A Stage-1 emitted, partitioned event table ({@code event:<pipeline>/<KEY|table>}). */
-    EVENT_TABLE,
+    TABLE,
     /** A Stage-2 enrichment output table ({@code xform:<enrichName>}). */
-    TRANSFORMED_TABLE,
+    DERIVED_TABLE,
     /** A reference/dimension table joined into a transform ({@code ref:<enrichName>/<refName>}). */
-    REFERENCE_TABLE,
+    REFERENCE_DATASET,
     /** A named KPI from a {@code *_meta.toon} ({@code kpi:<name>}). */
     KPI,
     /** A named report from a {@code *_meta.toon} ({@code report:<name>}). */

@@ -85,7 +85,7 @@ class MetadataGraphServiceTest {
         assertTrue(ids.contains("kpi:daily_count"));
         assertTrue(ids.contains("report:r1"));
 
-        assertEquals(NodeKind.EVENT_TABLE, svc.node("event:mini_etl/mini").kind());
+        assertEquals(NodeKind.TABLE, svc.node("event:mini_etl/mini").kind());
         assertEquals(2, svc.tables().size(), "1 event table + 1 transformed table");
     }
 
@@ -102,7 +102,7 @@ class MetadataGraphServiceTest {
         // bare refs resolved: kpi inputs -> event table + transformed table
         assertTrue(hasEdge(g, "kpi:daily_count", "event:mini_etl/mini", EdgeKind.COMPUTED_FROM));
         assertTrue(hasEdge(g, "kpi:daily_count", "xform:MINI_DAILY", EdgeKind.COMPUTED_FROM));
-        assertTrue(hasEdge(g, "report:r1", "kpi:daily_count", EdgeKind.USES));
+        assertTrue(hasEdge(g, "report:r1", "kpi:daily_count", EdgeKind.CONSUMES));
     }
 
     @Test
