@@ -1,8 +1,8 @@
 package com.gamma.control;
 
-import com.gamma.flow.ViewDefinition;
-import com.gamma.flow.ViewStore;
-import com.gamma.flow.exec.ViewQuery;
+import com.gamma.pipeline.ViewDefinition;
+import com.gamma.pipeline.ViewStore;
+import com.gamma.pipeline.exec.ViewQuery;
 
 import java.io.IOException;
 import java.nio.file.Path;

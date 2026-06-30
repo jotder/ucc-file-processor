@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration tests over real HTTP for the read-only flow-graph projection (doc §6, T31): the
  * {@code GET /flows} list, the {@code GET /flows/node-types} editor palette, and
- * {@code GET /flows/{id}/graph} (a registered pipeline lifted to a {@code FlowGraph} and projected).
+ * {@code GET /flows/{id}/graph} (a registered pipeline lifted to a {@code PipelineGraph} and projected).
  */
 class ControlApiFlowsTest {
 

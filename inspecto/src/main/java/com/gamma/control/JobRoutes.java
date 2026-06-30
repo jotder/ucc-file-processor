@@ -1,6 +1,6 @@
 package com.gamma.control;
 
-import com.gamma.flow.exec.DbProvenanceStore;
+import com.gamma.pipeline.exec.DbProvenanceStore;
 import com.gamma.job.DbJobRunStore;
 import com.gamma.job.JobService;
 
@@ -31,14 +31,14 @@ final class JobRoutes implements RouteModule {
         });
 
         // ── data-plane provenance (T22, §11): per-(node, relationship) record counts of a past flow run,
-        // for painting quantities onto the FlowGraph edges (Sankey). 404 unless -Dprovenance.backend is set. ──
+        // for painting quantities onto the PipelineGraph edges (Sankey). 404 unless -Dprovenance.backend is set. ──
         api.get("/provenance", (e, m) -> provenanceData(api, ApiContext.query(e, "flow"), ApiContext.query(e, "batch")));
         api.get("/provenance/batches", (e, m) -> provenanceBatches(api, ApiContext.query(e, "flow"), ApiContext.query(e, "limit")));
     }
 
     /**
      * {@code GET /provenance?flow=&batch=} — the per-(node, relationship) record counts of one flow run (T22).
-     * A consumer paints each {@code (nodeId, rel)} onto its outgoing {@code FlowGraph} edge as the Sankey weight.
+     * A consumer paints each {@code (nodeId, rel)} onto its outgoing {@code PipelineGraph} edge as the Sankey weight.
      * 400 if either param is missing, 404 when no provenance backend is configured.
      */
     private Object provenanceData(ApiContext api, String flow, String batch) {

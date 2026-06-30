@@ -62,7 +62,7 @@ final class PipelineConfigParser {
         b.active = Boolean.parseBoolean(String.valueOf(raw.getOrDefault("active", "false")));
 
         // ── entry-node trigger (T13 / §3.6; absent ⇒ default poll = today's behaviour) ──
-        // Carried verbatim; the live loop (SourceService) classifies it via FlowTrigger into
+        // Carried verbatim; the live loop (SourceService) classifies it via PipelineTrigger into
         // schedule(every/cron) / event / manual. Absent leaves the pipeline on the global poll cycle.
         if (raw.get("trigger") instanceof Map<?, ?> trig) b.trigger = (Map<String, Object>) trig;
 

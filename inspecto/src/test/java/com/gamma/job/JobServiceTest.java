@@ -1,10 +1,10 @@
 package com.gamma.job;
 
 import com.gamma.etl.BatchEvent;
-import com.gamma.flow.FlowEdge;
-import com.gamma.flow.FlowGraph;
-import com.gamma.flow.FlowNode;
-import com.gamma.flow.FlowStore;
+import com.gamma.pipeline.PipelineEdge;
+import com.gamma.pipeline.PipelineGraph;
+import com.gamma.pipeline.PipelineNode;
+import com.gamma.pipeline.PipelineStore;
 import com.gamma.service.BatchEventBus;
 import com.gamma.service.Scheduler;
 import com.gamma.util.DuckDbUtil;
@@ -243,7 +243,7 @@ class JobServiceTest {
     @Test
     void flowJobIsBuiltWhenAFlowStoreIsConfigured(@TempDir Path dir) throws Exception {
         JobConfig fj = new JobConfig("fj", JobType.FLOW, null, null, true, false, Map.of("flow", "some_flow"));
-        com.gamma.flow.FlowStore store = new com.gamma.flow.FlowStore(dir.resolve("flows"));
+        com.gamma.pipeline.PipelineStore store = new com.gamma.pipeline.PipelineStore(dir.resolve("flows"));
         try (Scheduler s = new Scheduler();
              JobService js = new JobService(List.of(fj), new BatchEventBus(), s, null,
                      dir.resolve("audit").toString(), null, store, dir.resolve("data").toString())) {
@@ -268,7 +268,7 @@ class JobServiceTest {
         // a tiny at-rest source store + an authored flow that filters it into a sink store
         String dataDir = dir.resolve("data").toString();
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
-        FlowStore store = new FlowStore(dir.resolve("flows"));
+        PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
 
         JobConfig fj = new JobConfig("nightly", JobType.FLOW, null, null, true, false,
@@ -300,7 +300,7 @@ class JobServiceTest {
         // cron arming is type-agnostic in JobService.start(); prove it actually fires a FLOW job.
         String dataDir = dir.resolve("data").toString();
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
-        FlowStore store = new FlowStore(dir.resolve("flows"));
+        PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
         JobConfig fj = new JobConfig("ticker", JobType.FLOW, "* * * * * *", null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
@@ -322,7 +322,7 @@ class JobServiceTest {
         // pattern over cron when the flow reads a store the pipeline writes — avoids a half-written read).
         String dataDir = dir.resolve("data").toString();
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
-        FlowStore store = new FlowStore(dir.resolve("flows"));
+        PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
         JobConfig fj = new JobConfig("rollup_job", JobType.FLOW, null, "events_etl", true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
@@ -342,11 +342,11 @@ class JobServiceTest {
 
     @Test
     void aFlowJobSuccessChainsADownstreamJob(@TempDir Path dir) throws Exception {
-        // chaining OUT of a flow: FlowJobRunner publishes a BatchEvent(jobName) on success, so a
+        // chaining OUT of a flow: PipelineJobRunner publishes a BatchEvent(jobName) on success, so a
         // downstream on_pipeline job fires — the flow job is a first-class upstream in the event graph.
         String dataDir = dir.resolve("data").toString();
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
-        FlowStore store = new FlowStore(dir.resolve("flows"));
+        PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
         JobConfig flowJob = new JobConfig("rollup_job", JobType.FLOW, null, null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
@@ -368,7 +368,7 @@ class JobServiceTest {
         // T27 reporting: a FLOW run reaches the DuckDB job-run store, typed FLOW (jobs-pane reporting).
         String dataDir = dir.resolve("data").toString();
         seedParquet(dataDir, "events", "(1,150),(2,50),(3,200)");
-        FlowStore store = new FlowStore(dir.resolve("flows"));
+        PipelineStore store = new PipelineStore(dir.resolve("flows"));
         writeRollupFlow(store, "evt_rollup");
         JobConfig fj = new JobConfig("nightly_rollup", JobType.FLOW, null, null, true, false,
                 Map.of("flow", "evt_rollup", "data_dir", dataDir));
@@ -388,12 +388,12 @@ class JobServiceTest {
     }
 
     /** Author the canonical {@code events → filter(amt>=100) → sink rollup} flow used by the T32 tests. */
-    private static void writeRollupFlow(FlowStore store, String id) throws Exception {
-        store.write(id, new FlowGraph(id, true,
-                List.of(FlowNode.of("src", "acquisition", Map.of("source_store", "events")),
-                        FlowNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
-                        new FlowNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
-                List.of(FlowEdge.data("src", "flt"), FlowEdge.data("flt", "out"))));
+    private static void writeRollupFlow(PipelineStore store, String id) throws Exception {
+        store.write(id, new PipelineGraph(id, true,
+                List.of(PipelineNode.of("src", "acquisition", Map.of("source_store", "events")),
+                        PipelineNode.of("flt", "transform.filter", Map.of("where", "amt >= 100")),
+                        new PipelineNode("out", "sink.persistent", "Rollup", null, Map.of("store", "rollup"), null)),
+                List.of(PipelineEdge.data("src", "flt"), PipelineEdge.data("flt", "out"))));
     }
 
     /** Write {@code (id,amt)} VALUES as a Parquet file under {@code <dataDir>/<store>/} (an at-rest source store). */

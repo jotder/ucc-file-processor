@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Authored-flow topology CRUD (T19, §7.1) over real HTTP: create / list / get / update / delete + incremental
- * node/edge edits under {@code <write-root>/flows}, with {@code FlowValidator} gating (422) and the write-root
+ * node/edge edits under {@code <write-root>/flows}, with {@code PipelineValidator} gating (422) and the write-root
  * 503 gate. Distinct from the read-only lifted-pipeline projection ({@code /flows}, {@code /flows/{id}/graph}).
  */
 class ControlApiFlowCrudTest {
@@ -118,7 +118,7 @@ class ControlApiFlowCrudTest {
 
             assertEquals(404, send(c.port, "GET", "/flows/authored/ghost/raw", null).statusCode());
 
-            // an unsafe id (rejected by FlowStore's SAFE_ID, e.g. a leading underscore) is "not present" → 404,
+            // an unsafe id (rejected by PipelineStore's SAFE_ID, e.g. a leading underscore) is "not present" → 404,
             // not a 500 from the id-resolution throwing through the read handler.
             assertEquals(404, send(c.port, "GET", "/flows/authored/__nope__/raw", null).statusCode());
             assertEquals(404, send(c.port, "GET", "/flows/authored/__nope__", null).statusCode());
@@ -157,7 +157,7 @@ class ControlApiFlowCrudTest {
     @Test
     void invalidFlowIsRejected(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, dir.resolve("wr"))) {
-            // dangling edge → FlowValidator error → 422
+            // dangling edge → PipelineValidator error → 422
             String dangling = "{\"name\":\"bad\",\"nodes\":[{\"id\":\"acq\",\"type\":\"acquisition\"}],"
                     + "\"edges\":[{\"from\":\"acq\",\"rel\":\"data\",\"to\":\"ghost\"}]}";
             assertEquals(422, send(c.port, "POST", "/flows/authored", dangling).statusCode());

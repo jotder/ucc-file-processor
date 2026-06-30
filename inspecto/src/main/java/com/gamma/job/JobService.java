@@ -2,9 +2,9 @@ package com.gamma.job;
 
 import com.gamma.api.PublicApi;
 import com.gamma.etl.BatchEvent;
-import com.gamma.flow.DeletionFence;
-import com.gamma.flow.FlowStore;
-import com.gamma.flow.exec.FlowJobRunner;
+import com.gamma.pipeline.DeletionFence;
+import com.gamma.pipeline.PipelineStore;
+import com.gamma.pipeline.exec.PipelineJobRunner;
 import com.gamma.event.EventLog;
 import com.gamma.metrics.MetricRegistry;
 import com.gamma.report.ReportService;
@@ -73,9 +73,9 @@ public final class JobService implements AutoCloseable {
     /** The audit dir — also where a {@code flow} job's branch-commit log lives (T32). */
     private final String auditDir;
     /** Optional DuckDB data-plane provenance store for FLOW jobs (T21); {@code null} when no backend is configured. */
-    private final com.gamma.flow.exec.DbProvenanceStore provenanceStore;
+    private final com.gamma.pipeline.exec.DbProvenanceStore provenanceStore;
     /** Authored-flow store for {@link JobType#FLOW} jobs (T32); {@code null} when no write root is configured. */
-    private final FlowStore flowStore;
+    private final PipelineStore flowStore;
     /** Data root under which each store is a sub-directory — a flow job reads/writes {@code <dataDir>/<store>} (T32). */
     private final String dataDir;
     /** Optional deletion fence (T25): consulted before a {@code maintenance} job that declares a {@code store:}
@@ -112,7 +112,7 @@ public final class JobService implements AutoCloseable {
     /** As the full constructor, with no data-plane provenance store (T21). */
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
                       ReportService reports, String auditDir, DbJobRunStore jobRunStore,
-                      FlowStore flowStore, String dataDir) {
+                      PipelineStore flowStore, String dataDir) {
         this(configs, bus, scheduler, reports, auditDir, jobRunStore, flowStore, dataDir, null);
     }
 
@@ -124,8 +124,8 @@ public final class JobService implements AutoCloseable {
      */
     public JobService(List<JobConfig> configs, BatchEventBus bus, Scheduler scheduler,
                       ReportService reports, String auditDir, DbJobRunStore jobRunStore,
-                      FlowStore flowStore, String dataDir,
-                      com.gamma.flow.exec.DbProvenanceStore provenanceStore) {
+                      PipelineStore flowStore, String dataDir,
+                      com.gamma.pipeline.exec.DbProvenanceStore provenanceStore) {
         this.configs   = List.copyOf(configs);
         this.bus       = bus;
         this.scheduler = scheduler;
@@ -200,7 +200,7 @@ public final class JobService implements AutoCloseable {
         if (flowStore == null)
             throw new IllegalStateException("flow job '" + c.name()
                     + "' needs an authored-flow store; set -Dassist.write.root so authored flows can be loaded");
-        return new FlowJobRunner(c, bus, flowStore, dataDir, auditDir, provenanceStore);
+        return new PipelineJobRunner(c, bus, flowStore, dataDir, auditDir, provenanceStore);
     }
 
     private void onBatchEvent(BatchEvent event) {
@@ -282,7 +282,7 @@ public final class JobService implements AutoCloseable {
     }
 
     /** The DuckDB data-plane provenance store (T21), or empty when no backend is configured. */
-    public Optional<com.gamma.flow.exec.DbProvenanceStore> provenanceStore() {
+    public Optional<com.gamma.pipeline.exec.DbProvenanceStore> provenanceStore() {
         return Optional.ofNullable(provenanceStore);
     }
 

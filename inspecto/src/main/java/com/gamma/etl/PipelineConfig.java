@@ -453,7 +453,7 @@ public final class PipelineConfig {
     /**
      * The optional entry-node {@code trigger:} block (T13 / §3.6) verbatim, or {@code null} when absent.
      * Absent ⇒ the pipeline rides the default poll cycle exactly as before; present ⇒ the live loop
-     * ({@link com.gamma.service.SourceService}) classifies it via {@code com.gamma.flow.FlowTrigger}
+     * ({@link com.gamma.service.SourceService}) classifies it via {@code com.gamma.pipeline.PipelineTrigger}
      * into {@code schedule}(every/cron) / {@code event} / {@code manual}. Carried onto the lifted
      * acquisition node so the flow projection and the live driver agree on the schedule.
      */

@@ -10,12 +10,12 @@ import com.gamma.enrich.EnrichmentConfig;
 import com.gamma.etl.BatchEvent;
 import com.gamma.etl.IngestProgress;
 import com.gamma.etl.PipelineConfig;
-import com.gamma.flow.DeletionFence;
-import com.gamma.flow.FlowGraph;
-import com.gamma.flow.FlowStore;
-import com.gamma.flow.FlowTrigger;
-import com.gamma.flow.PipelineLift;
-import com.gamma.flow.exec.TriggerCoalescer;
+import com.gamma.pipeline.DeletionFence;
+import com.gamma.pipeline.PipelineGraph;
+import com.gamma.pipeline.PipelineStore;
+import com.gamma.pipeline.PipelineTrigger;
+import com.gamma.pipeline.PipelineLift;
+import com.gamma.pipeline.exec.TriggerCoalescer;
 import com.gamma.event.Event;
 import com.gamma.event.EventLevel;
 import com.gamma.event.EventLog;
@@ -150,7 +150,7 @@ public final class SourceService implements AutoCloseable {
     private final EventLog eventLog;
     /** Authored-flow store ({@link SpaceRoot#flowsDir()}); lets the deletion fence (T32) see flow jobs as
      *  store producers/consumers. {@code null} when no write root is configured. */
-    private final FlowStore flowStore;
+    private final PipelineStore flowStore;
     /** Serializes ingest cycles so an operator-triggered run (Control API {@code /trigger},
      *  {@code /pipelines/{name}/trigger}) can never overlap the scheduled poll cycle or another
      *  trigger. The scheduler is already non-overlapping (fixed-delay); this guards the
@@ -653,7 +653,7 @@ public final class SourceService implements AutoCloseable {
      * </ul>
      */
     private boolean dueThisTick(PipelineConfig cfg, String id, long nowMs) {
-        FlowTrigger t = FlowTrigger.of(cfg.triggerConfig());
+        PipelineTrigger t = PipelineTrigger.of(cfg.triggerConfig());
         return switch (t.scheduler()) {
             case EVENT, MANUAL -> false;                       // driven off the poll loop
             case LOOP -> switch (t.kind()) {
@@ -695,8 +695,8 @@ public final class SourceService implements AutoCloseable {
             String id = cfg.identity().pipelineName();
             if (paused.contains(id) || !cfg.active()) continue;
             if (id.equals(event.pipeline())) continue;                       // self-loop guard
-            FlowTrigger t = FlowTrigger.of(cfg.triggerConfig());
-            if (t.scheduler() != FlowTrigger.Scheduler.EVENT) continue;
+            PipelineTrigger t = PipelineTrigger.of(cfg.triggerConfig());
+            if (t.scheduler() != PipelineTrigger.Scheduler.EVENT) continue;
             if (!triggerMatches(t.from(), event.pipeline())) continue;
             TriggerCoalescer coalescer = eventCoalescers.computeIfAbsent(id, k -> new TriggerCoalescer());
             triggerWorkers.submit(() -> coalescer.signal(() -> runPipeline(id)));
@@ -725,7 +725,7 @@ public final class SourceService implements AutoCloseable {
      */
     public List<DeletionFence.Conflict> checkDeletion(java.util.Collection<String> targetStores) {
         if (targetStores == null || targetStores.isEmpty()) return List.of();
-        List<FlowGraph> flows = new ArrayList<>();
+        List<PipelineGraph> flows = new ArrayList<>();
         for (Path p : registry) configRegistry.configForPath(p).ifPresent(c -> flows.add(PipelineLift.lift(c)));
         // T32: authored flow jobs also produce/consume stores. Include them in the topology and union their
         // in-flight runs into the active set, so a delete that races an active flow-job reader/writer is

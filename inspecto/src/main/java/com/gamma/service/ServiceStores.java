@@ -3,7 +3,7 @@ package com.gamma.service;
 import com.gamma.event.EventStore;
 import com.gamma.event.InMemoryEventStore;
 import com.gamma.event.ParquetEventStore;
-import com.gamma.flow.FlowStore;
+import com.gamma.pipeline.PipelineStore;
 import com.gamma.job.DbJobRunStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,9 +37,9 @@ final class ServiceStores {
      * configured. Lets the deletion fence (T32) see flow jobs as store producers/consumers; without a
      * write root a configured flow job fails closed at build time with a clear message.
      */
-    static FlowStore openFlowStore(SpaceRoot root) {
+    static PipelineStore openFlowStore(SpaceRoot root) {
         Path flows = root.flowsDir();
-        return flows == null ? null : new FlowStore(flows);
+        return flows == null ? null : new PipelineStore(flows);
     }
 
     static DbJobRunStore openJobRunStore(SpaceRoot root) {
@@ -61,14 +61,14 @@ final class ServiceStores {
      * {@code jdbc:} URL); default off ⇒ {@code null} ⇒ flow runs record no per-edge counts and {@code /provenance}
      * 404s. Mirrors {@link #openJobRunStore(SpaceRoot)}.
      */
-    static com.gamma.flow.exec.DbProvenanceStore openProvenanceStore(SpaceRoot root) {
+    static com.gamma.pipeline.exec.DbProvenanceStore openProvenanceStore(SpaceRoot root) {
         String backend = System.getProperty("provenance.backend", "none").trim().toLowerCase();
         if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
         String url = backend.startsWith("jdbc:")
                 ? backend
                 : System.getProperty("provenance.db.url", root.provenanceDbUrl());
         try {
-            return com.gamma.flow.exec.DbProvenanceStore.open(url);
+            return com.gamma.pipeline.exec.DbProvenanceStore.open(url);
         } catch (Exception e) {
             log.warn("Could not open provenance DB ({}) — data-plane provenance disabled: {}", url, e.getMessage());
             return null;

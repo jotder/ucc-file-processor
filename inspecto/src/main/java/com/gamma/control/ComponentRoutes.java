@@ -1,10 +1,10 @@
 package com.gamma.control;
 
-import com.gamma.flow.ComponentRegistry;
-import com.gamma.flow.ComponentStore;
-import com.gamma.flow.FlowNode;
-import com.gamma.flow.FlowReferences;
-import com.gamma.flow.exec.ComponentPreview;
+import com.gamma.pipeline.ComponentRegistry;
+import com.gamma.pipeline.ComponentStore;
+import com.gamma.pipeline.PipelineNode;
+import com.gamma.pipeline.PipelineReferences;
+import com.gamma.pipeline.exec.ComponentPreview;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -110,7 +110,7 @@ final class ComponentRoutes implements RouteModule {
     private Object deleteComponent(ApiContext api, String type, String id) throws IOException {
         ComponentStore store = componentStore(api);
         if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        List<String> refs = FlowReferences.referencedBy(type + "/" + id, FlowRoutes.liftedFlows(api.service()));
+        List<String> refs = PipelineReferences.referencedBy(type + "/" + id, FlowRoutes.liftedFlows(api.service()));
         if (!refs.isEmpty())
             throw new ApiException(409, type + " component '" + id + "' is referenced by flow(s): "
                     + String.join(", ", refs));
@@ -125,7 +125,7 @@ final class ComponentRoutes implements RouteModule {
 
     /**
      * {@code POST /components/transform/{id}/test} — dry-run a transform component over {@code sampleRows}
-     * through the production {@link com.gamma.flow.exec.RowShaper} on a throwaway DuckDB (T18, §7.2). 404 if
+     * through the production {@link com.gamma.pipeline.exec.RowShaper} on a throwaway DuckDB (T18, §7.2). 404 if
      * the component is absent, 422 if it is not a {@code transform.*} type, 400 on a bad sample / unsupported
      * operator. Never touches production output.
      */
@@ -143,7 +143,7 @@ final class ComponentRoutes implements RouteModule {
         if (type == null || !type.startsWith("transform."))
             throw new ApiException(422, "component '" + id + "' is not a transform ('type: transform.*' required)");
 
-        FlowNode node = new FlowNode(id, type, c.content(), null);
+        PipelineNode node = new PipelineNode(id, type, c.content(), null);
         try {
             return ComponentPreview.transform(node, ApiContext.sampleRows(body));
         } catch (IllegalArgumentException e) {

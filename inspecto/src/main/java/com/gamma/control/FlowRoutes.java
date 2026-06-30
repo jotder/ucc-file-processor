@@ -1,15 +1,15 @@
 package com.gamma.control;
 
 import com.gamma.etl.PipelineConfig;
-import com.gamma.flow.FlowCodec;
-import com.gamma.flow.FlowEdge;
-import com.gamma.flow.FlowGraph;
-import com.gamma.flow.FlowNode;
-import com.gamma.flow.FlowProjection;
-import com.gamma.flow.FlowStore;
-import com.gamma.flow.FlowValidator;
-import com.gamma.flow.PipelineLift;
-import com.gamma.flow.exec.FlowDryRun;
+import com.gamma.pipeline.PipelineCodec;
+import com.gamma.pipeline.PipelineEdge;
+import com.gamma.pipeline.PipelineGraph;
+import com.gamma.pipeline.PipelineNode;
+import com.gamma.pipeline.PipelineProjection;
+import com.gamma.pipeline.PipelineStore;
+import com.gamma.pipeline.PipelineValidator;
+import com.gamma.pipeline.PipelineLift;
+import com.gamma.pipeline.exec.PipelineDryRun;
 import com.gamma.service.SourceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +33,7 @@ final class FlowRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/flows", (e, m) -> flowSummaries(api));
-        api.get("/flows/node-types", (e, m) -> FlowProjection.catalog());
+        api.get("/flows/node-types", (e, m) -> PipelineProjection.catalog());
         api.get("/flows/combined", (e, m) -> combinedFlows(api));
         api.get("/flows/authored", (e, m) -> authoredFlowList(api));
         api.post("/flows/authored", (e, m) -> createFlow(api, api.body(e)));
@@ -47,24 +47,24 @@ final class FlowRoutes implements RouteModule {
         api.get("/flows/([^/]+)/graph", (e, m) -> graphForPipeline(api, ApiContext.name(m)));
     }
 
-    /** Lift every registered pipeline to a {@link FlowGraph} and project a compact summary (GET /flows). */
+    /** Lift every registered pipeline to a {@link PipelineGraph} and project a compact summary (GET /flows). */
     private Object flowSummaries(ApiContext api) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (SourceService.PipelineView pv : api.service().pipelines()) {
             api.service().configFor(pv.name())
-                    .ifPresent(c -> out.add(FlowProjection.summary(PipelineLift.lift(c))));
+                    .ifPresent(c -> out.add(PipelineProjection.summary(PipelineLift.lift(c))));
         }
         return out;
     }
 
     /** Lift every registered pipeline and project the combined pipeline+job topology (GET /flows/combined, T24). */
     private Object combinedFlows(ApiContext api) {
-        return FlowProjection.combined(liftedFlows(api.service()));
+        return PipelineProjection.combined(liftedFlows(api.service()));
     }
 
-    /** Every registered pipeline lifted to a {@link FlowGraph} (shared with the component safe-delete check). */
-    static List<FlowGraph> liftedFlows(SourceService service) {
-        List<FlowGraph> graphs = new ArrayList<>();
+    /** Every registered pipeline lifted to a {@link PipelineGraph} (shared with the component safe-delete check). */
+    static List<PipelineGraph> liftedFlows(SourceService service) {
+        List<PipelineGraph> graphs = new ArrayList<>();
         for (SourceService.PipelineView pv : service.pipelines()) {
             service.configFor(pv.name()).ifPresent(c -> graphs.add(PipelineLift.lift(c)));
         }
@@ -75,16 +75,16 @@ final class FlowRoutes implements RouteModule {
     private Object graphForPipeline(ApiContext api, String name) {
         PipelineConfig c = api.service().configFor(name)
                 .orElseThrow(() -> new ApiException(404, "no pipeline named '" + name + "'"));
-        return FlowProjection.graph(PipelineLift.lift(c));
+        return PipelineProjection.graph(PipelineLift.lift(c));
     }
 
     private Path flowsRootOrNull(ApiContext api) {
         return api.writeRoot() == null ? null : api.writeRoot().resolve("flows");
     }
 
-    private FlowStore flowStore(ApiContext api) {
+    private PipelineStore flowStore(ApiContext api) {
         requireWriteRoot(api);
-        return new FlowStore(api.writeRoot().resolve("flows"));
+        return new PipelineStore(api.writeRoot().resolve("flows"));
     }
 
     private void requireWriteRoot(ApiContext api) {
@@ -96,33 +96,33 @@ final class FlowRoutes implements RouteModule {
     private Object authoredFlowList(ApiContext api) {
         Path root = flowsRootOrNull(api);
         if (root == null) return List.of();
-        return new FlowStore(root).list().stream().map(FlowProjection::summary).toList();
+        return new PipelineStore(root).list().stream().map(PipelineProjection::summary).toList();
     }
 
     /** {@code GET /flows/authored/{id}} — one authored flow's graph projection; 404 if absent. */
     private Object authoredFlow(ApiContext api, String id) {
         Path root = flowsRootOrNull(api);
-        FlowGraph g = root == null ? null : new FlowStore(root).get(id).orElse(null);
+        PipelineGraph g = root == null ? null : new PipelineStore(root).get(id).orElse(null);
         if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
-        return FlowProjection.graph(g);
+        return PipelineProjection.graph(g);
     }
 
     /**
-     * {@code GET /flows/authored/{id}/raw} — the <b>lossless</b> authored definition ({@link FlowCodec#toMap},
+     * {@code GET /flows/authored/{id}/raw} — the <b>lossless</b> authored definition ({@link PipelineCodec#toMap},
      * nodes with their config) so the editor can round-trip a flow without dropping node config; the
      * {@link #authoredFlow} projection is structural-only. 404 if absent.
      */
     private Object authoredFlowRaw(ApiContext api, String id) {
         Path root = flowsRootOrNull(api);
-        FlowGraph g = root == null ? null : new FlowStore(root).get(id).orElse(null);
+        PipelineGraph g = root == null ? null : new PipelineStore(root).get(id).orElse(null);
         if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
-        return FlowCodec.toMap(g);
+        return PipelineCodec.toMap(g);
     }
 
     /** {@code POST /flows/authored} — create an authored flow from a posted flow definition; 409 if it exists. */
     private Object createFlow(ApiContext api, Map<String, Object> body) throws IOException {
-        FlowStore store = flowStore(api);
-        FlowGraph g = parseAndValidateFlow(body);
+        PipelineStore store = flowStore(api);
+        PipelineGraph g = parseAndValidateFlow(body);
         String id = g.name();
         if (flowExists(store, id))
             throw new ApiException(409, "authored flow '" + id + "' already exists (use PUT to update)");
@@ -131,7 +131,7 @@ final class FlowRoutes implements RouteModule {
 
     /** {@code PUT /flows/authored/{id}} — create or replace an authored flow (URL id is authoritative). */
     private Object updateFlow(ApiContext api, String id, Map<String, Object> body) throws IOException {
-        FlowStore store = flowStore(api);
+        PipelineStore store = flowStore(api);
         Map<String, Object> withId = new LinkedHashMap<>(body);
         withId.put("name", id);   // the URL id wins over any name in the body
         return writeFlow(store, id, parseAndValidateFlow(withId));
@@ -139,7 +139,7 @@ final class FlowRoutes implements RouteModule {
 
     /** {@code DELETE /flows/authored/{id}} — remove an authored flow; 404 if absent. */
     private Object deleteFlow(ApiContext api, String id) throws IOException {
-        FlowStore store = flowStore(api);
+        PipelineStore store = flowStore(api);
         if (!flowExists(store, id)) throw new ApiException(404, "no authored flow '" + id + "'");
         boolean removed;
         try {
@@ -152,40 +152,40 @@ final class FlowRoutes implements RouteModule {
 
     /** {@code POST /flows/authored/{id}/nodes} — add (or replace by id) a node, re-validate, persist. */
     private Object addFlowNode(ApiContext api, String id, Map<String, Object> body) throws IOException {
-        FlowStore store = flowStore(api);
-        FlowGraph g = requireAuthoredFlow(store, id);
-        FlowNode node;
+        PipelineStore store = flowStore(api);
+        PipelineGraph g = requireAuthoredFlow(store, id);
+        PipelineNode node;
         try {
-            node = FlowCodec.nodeFromMap(body);
+            node = PipelineCodec.nodeFromMap(body);
         } catch (IllegalArgumentException e) {
             throw new ApiException(422, e.getMessage());
         }
-        List<FlowNode> nodes = new ArrayList<>(g.nodes());
+        List<PipelineNode> nodes = new ArrayList<>(g.nodes());
         nodes.removeIf(n -> n.id().equals(node.id()));   // upsert by node id
         nodes.add(node);
-        FlowGraph updated = new FlowGraph(g.name(), g.active(), nodes, g.edges());
+        PipelineGraph updated = new PipelineGraph(g.name(), g.active(), nodes, g.edges());
         validateFlow(updated);
         return writeFlow(store, id, updated);
     }
 
     /** {@code POST /flows/authored/{id}/edges} — add an edge, re-validate, persist. */
     private Object addFlowEdge(ApiContext api, String id, Map<String, Object> body) throws IOException {
-        FlowStore store = flowStore(api);
-        FlowGraph g = requireAuthoredFlow(store, id);
-        FlowEdge edge;
+        PipelineStore store = flowStore(api);
+        PipelineGraph g = requireAuthoredFlow(store, id);
+        PipelineEdge edge;
         try {
-            edge = FlowCodec.edgeFromMap(body);
+            edge = PipelineCodec.edgeFromMap(body);
         } catch (IllegalArgumentException e) {
             throw new ApiException(422, e.getMessage());
         }
-        List<FlowEdge> edges = new ArrayList<>(g.edges());
+        List<PipelineEdge> edges = new ArrayList<>(g.edges());
         edges.add(edge);
-        FlowGraph updated = new FlowGraph(g.name(), g.active(), g.nodes(), edges);
+        PipelineGraph updated = new PipelineGraph(g.name(), g.active(), g.nodes(), edges);
         validateFlow(updated);
         return writeFlow(store, id, updated);
     }
 
-    private FlowGraph requireAuthoredFlow(FlowStore store, String id) {
+    private PipelineGraph requireAuthoredFlow(PipelineStore store, String id) {
         try {
             return store.get(id).orElseThrow(() -> new ApiException(404, "no authored flow '" + id + "'"));
         } catch (IllegalArgumentException e) {
@@ -194,10 +194,10 @@ final class FlowRoutes implements RouteModule {
     }
 
     /** Parse a flow definition (400 on a malformed shape) and validate it (422 on validation errors). */
-    private FlowGraph parseAndValidateFlow(Map<String, Object> body) {
-        FlowGraph g;
+    private PipelineGraph parseAndValidateFlow(Map<String, Object> body) {
+        PipelineGraph g;
         try {
-            g = FlowCodec.fromMap(body);
+            g = PipelineCodec.fromMap(body);
         } catch (IllegalArgumentException e) {
             throw new ApiException(400, e.getMessage());
         }
@@ -205,14 +205,14 @@ final class FlowRoutes implements RouteModule {
         return g;
     }
 
-    private void validateFlow(FlowGraph g) {
-        FlowValidator.Result r = FlowValidator.validate(g);
+    private void validateFlow(PipelineGraph g) {
+        PipelineValidator.Result r = PipelineValidator.validate(g);
         if (!r.ok())
             throw new ApiException(422, "flow validation failed: " + r.errors().stream()
                     .map(i -> i.code() + " — " + i.message()).toList());
     }
 
-    private static boolean flowExists(FlowStore store, String id) {
+    private static boolean flowExists(PipelineStore store, String id) {
         try {
             return store.exists(id);
         } catch (IllegalArgumentException e) {
@@ -220,14 +220,14 @@ final class FlowRoutes implements RouteModule {
         }
     }
 
-    private Object writeFlow(FlowStore store, String id, FlowGraph g) throws IOException {
+    private Object writeFlow(PipelineStore store, String id, PipelineGraph g) throws IOException {
         try {
             store.write(id, g);
         } catch (IllegalArgumentException e) {
             throw new ApiException(422, e.getMessage());
         }
         log.info("[FLOW-WRITE] wrote authored flow {}", id);
-        return FlowProjection.graph(g);
+        return PipelineProjection.graph(g);
     }
 
     /**
@@ -237,15 +237,15 @@ final class FlowRoutes implements RouteModule {
      */
     private Object dryRunFlow(ApiContext api, String id, Map<String, Object> body) {
         Path root = flowsRootOrNull(api);
-        FlowGraph g;
+        PipelineGraph g;
         try {
-            g = root == null ? null : new FlowStore(root).get(id).orElse(null);
+            g = root == null ? null : new PipelineStore(root).get(id).orElse(null);
         } catch (IllegalArgumentException e) {
             throw new ApiException(400, e.getMessage());
         }
         if (g == null) throw new ApiException(404, "no authored flow '" + id + "'");
         try {
-            return FlowDryRun.run(g, ApiContext.sampleRows(body));
+            return PipelineDryRun.run(g, ApiContext.sampleRows(body));
         } catch (IllegalArgumentException e) {
             throw new ApiException(400, e.getMessage());
         } catch (Exception e) {
