@@ -5,12 +5,12 @@ import { of } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
-import { AuthoredFlow, FlowSummary, FlowsService } from 'app/inspecto/api';
+import { AuthoredPipeline, PipelineSummary, PipelinesService } from 'app/inspecto/api';
 import { Component as ModelComponent } from 'app/inspecto/component-model';
 import { ComponentsDataProvider } from './components-data-provider';
 import { RegistryComponent } from './registry.component';
 
-function configure(byKind: Record<string, ModelComponent[]>, flows: { summaries?: FlowSummary[]; raw?: Record<string, AuthoredFlow> } = {}) {
+function configure(byKind: Record<string, ModelComponent[]>, flows: { summaries?: PipelineSummary[]; raw?: Record<string, AuthoredPipeline> } = {}) {
     const summaries = flows.summaries ?? [];
     const raw = flows.raw ?? {};
     TestBed.configureTestingModule({
@@ -19,7 +19,7 @@ function configure(byKind: Record<string, ModelComponent[]>, flows: { summaries?
             provideNoopAnimations(),
             provideRouter([]),
             { provide: ComponentsDataProvider, useValue: { list: (k: string) => Promise.resolve(byKind[k] ?? []) } },
-            { provide: FlowsService, useValue: { authoredList: () => of(summaries), authoredRaw: (id: string) => of(raw[id]) } },
+            { provide: PipelinesService, useValue: { authoredList: () => of(summaries), authoredRaw: (id: string) => of(raw[id]) } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
         ],
     });
@@ -42,7 +42,7 @@ describe('RegistryComponent', () => {
     });
 
     it('loads pipelines and derives node→component reference edges from use=<kind>/<id>', async () => {
-        const flow: AuthoredFlow = {
+        const flow: AuthoredPipeline = {
             name: 'cdr_pipeline',
             active: true,
             nodes: [

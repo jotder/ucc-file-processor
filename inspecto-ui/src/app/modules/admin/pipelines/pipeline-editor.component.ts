@@ -21,13 +21,13 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
 import {
     AuthoredEdge,
-    AuthoredFlow,
+    AuthoredPipeline,
     AuthoredNode,
     ComponentsService,
-    FlowDryRunResult,
-    FlowRunResult,
-    FlowsService,
-    FlowSummary,
+    PipelineDryRunResult,
+    PipelineRunResult,
+    PipelinesService,
+    PipelineSummary,
     IconMap,
     IconMapService,
     apiErrorMessage,
@@ -35,12 +35,12 @@ import {
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
-import { FlowEditorGraphComponent } from './flow-editor-graph.component';
+import { PipelineEditorGraphComponent } from './pipeline-editor-graph.component';
 import { NodeConfigDialog, NodeConfigResult } from './node-config.dialog';
 import { ParserConfigDialog } from './parser-config.dialog';
 import { RunToHereDialog } from './run-to-here.dialog';
 import {
-    FlowFinding,
+    PipelineFinding,
     NodeStatus,
     NodeTypeGroup,
     TestOutcome,
@@ -53,17 +53,17 @@ import {
     groupByCategory,
     statusLabel,
     typeCategoryMap,
-    validateFlow,
-} from './flow-graph';
+    validatePipeline,
+} from './pipeline-graph';
 
 /**
- * Flow editor (T32, build-side NiFi UX) — author/edit a `*_flow.toon` flow on an interactive G6 canvas:
+ * Pipeline editor (T32, build-side NiFi UX) — author/edit a `*_flow.toon` pipeline on an interactive G6 canvas:
  * drag node types from the palette, click two nodes to connect, edit node config in the inspector, dry-run a
- * sample, and Save (PUT). The {@link AuthoredFlow} signal is the logical truth; the canvas owns layout. Loaded
- * losslessly via {@code GET …/raw} so node config round-trips. Reached via the Flows pane's `editor` mode.
+ * sample, and Save (PUT). The {@link AuthoredPipeline} signal is the logical truth; the canvas owns layout. Loaded
+ * losslessly via {@code GET …/raw} so node config round-trips. Reached via the Pipelines pane's `editor` mode.
  */
 @Component({
-    selector: 'app-flow-editor',
+    selector: 'app-pipeline-editor',
     standalone: true,
     imports: [
         ReactiveFormsModule,
@@ -75,15 +75,15 @@ import {
         MatSelectModule,
         MatSidenavModule,
         MatTooltipModule,
-        FlowEditorGraphComponent,
+        PipelineEditorGraphComponent,
         InspectoEmptyStateComponent,
     ],
-    templateUrl: './flow-editor.component.html',
+    templateUrl: './pipeline-editor.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
     encapsulation: ViewEncapsulation.None,
 })
-export class FlowEditorComponent implements OnInit {
-    private api = inject(FlowsService);
+export class PipelineEditorComponent implements OnInit {
+    private api = inject(PipelinesService);
     private components = inject(ComponentsService);
     private iconMapApi = inject(IconMapService);
     private fb = inject(FormBuilder);
@@ -91,13 +91,13 @@ export class FlowEditorComponent implements OnInit {
     private confirm = inject(InspectoConfirmService);
     private dialog = inject(MatDialog);
 
-    @ViewChild(FlowEditorGraphComponent) private canvas?: FlowEditorGraphComponent;
+    @ViewChild(PipelineEditorGraphComponent) private canvas?: PipelineEditorGraphComponent;
 
-    readonly flows = signal<FlowSummary[]>([]);
+    readonly flows = signal<PipelineSummary[]>([]);
     /** Configurable processor icons/colours (empty until loaded → fall back to the per-kind glyph). */
     readonly iconMap = signal<IconMap>({});
     readonly selectedId = signal<string | null>(null);
-    readonly model = signal<AuthoredFlow | null>(null);
+    readonly model = signal<AuthoredPipeline | null>(null);
     readonly paletteGroups = signal<NodeTypeGroup[]>([]);
     private readonly typeCat = signal<Map<string, string>>(new Map());
 
@@ -114,7 +114,7 @@ export class FlowEditorComponent implements OnInit {
 
     readonly paletteOpen = signal(false);
     readonly dryRunOpen = signal(false);
-    readonly dryRunResult = signal<FlowDryRunResult | null>(null);
+    readonly dryRunResult = signal<PipelineDryRunResult | null>(null);
     readonly dryRunError = signal<string | null>(null);
 
     // ── canvas status (Stage 2) + validation/activation (Stage 4) ──
@@ -126,7 +126,7 @@ export class FlowEditorComponent implements OnInit {
     /** node-type → emitted relationships, for the edge relationship picker. */
     private readonly typeEmits = signal<Map<string, string[]>>(new Map());
     readonly validateOpen = signal(false);
-    readonly findings = signal<FlowFinding[]>([]);
+    readonly findings = signal<PipelineFinding[]>([]);
     readonly activating = signal(false);
     readonly statusLabel = statusLabel;
 
@@ -187,7 +187,7 @@ export class FlowEditorComponent implements OnInit {
         }
     }
 
-    findingIcon(sev: FlowFinding['severity']): string {
+    findingIcon(sev: PipelineFinding['severity']): string {
         switch (sev) {
             case 'error':   return 'heroicons_outline:x-circle';
             case 'warning': return 'heroicons_outline:exclamation-triangle';
@@ -195,7 +195,7 @@ export class FlowEditorComponent implements OnInit {
         }
     }
 
-    findingTint(sev: FlowFinding['severity']): string {
+    findingTint(sev: PipelineFinding['severity']): string {
         return sev === 'info' ? '' : 'var(--gamma-warn)';
     }
 
@@ -290,7 +290,7 @@ export class FlowEditorComponent implements OnInit {
                 this.selectedId.set(id); // drives the host rebuild (graphKey)
                 this.dirty.set(false);
             },
-            error: (err) => this.toast.error(apiErrorMessage(err, 'Could not load the flow')),
+            error: (err) => this.toast.error(apiErrorMessage(err, 'Could not load the pipeline')),
         });
     }
 
@@ -307,14 +307,14 @@ export class FlowEditorComponent implements OnInit {
             return;
         }
         const name = this.newName.value.trim();
-        const flow: AuthoredFlow = { name, active: false, nodes: [], edges: [] };
+        const flow: AuthoredPipeline = { name, active: false, nodes: [], edges: [] };
         this.api.createAuthored(flow).subscribe({
             next: () => {
                 this.creating.set(false);
                 this.flows.update((fs) => [...fs, { name, active: false, nodeCount: 0, edgeCount: 0, produces: [], consumes: [] }]);
                 this.select(name);
             },
-            error: (err) => this.onWriteError(err, 'Could not create the flow'),
+            error: (err) => this.onWriteError(err, 'Could not create the pipeline'),
         });
     }
 
@@ -327,7 +327,7 @@ export class FlowEditorComponent implements OnInit {
             next: () => {
                 this.saving.set(false);
                 this.dirty.set(false);
-                this.toast.success(`Saved flow '${id}'`);
+                this.toast.success(`Saved pipeline '${id}'`);
             },
             error: (err) => {
                 this.saving.set(false);
@@ -340,8 +340,8 @@ export class FlowEditorComponent implements OnInit {
         const id = this.selectedId();
         if (!id) return;
         const ok = await this.confirm.confirmDestructive(
-            `Permanently delete the authored flow '${id}'?`,
-            { title: 'Delete flow', confirmText: 'Delete' },
+            `Permanently delete the authored pipeline '${id}'?`,
+            { title: 'Delete pipeline', confirmText: 'Delete' },
         );
         if (!ok) return;
         this.api.deleteAuthored(id).subscribe({
@@ -417,13 +417,13 @@ export class FlowEditorComponent implements OnInit {
             autoFocus: false,
             data: { flowId, node, connectionId },
         });
-        ref.afterClosed().subscribe((r?: FlowRunResult) => {
+        ref.afterClosed().subscribe((r?: PipelineRunResult) => {
             if (r) this.applyRunOutcomes(r);
         });
     }
 
     /** Mark the run's nodes tested (canvas ✓), or `rejects` (✕) for any with unmatched rows. */
-    private applyRunOutcomes(r: FlowRunResult): void {
+    private applyRunOutcomes(r: PipelineRunResult): void {
         const inRun = new Set(r.relations.map((rel) => rel.node));
         const rejected = new Set(
             r.relations.filter((rel) => rel.rel === 'unmatched' && rel.rowCount > 0).map((rel) => rel.node),
@@ -640,9 +640,9 @@ export class FlowEditorComponent implements OnInit {
     }
 
     /** Walk the flow for activation-blocking issues; opens the findings panel. */
-    validate(): FlowFinding[] {
+    validate(): PipelineFinding[] {
         const m = this.model();
-        const f = m ? validateFlow(m, this.typeCat(), this.validRefs(), this.testedStatus()) : [];
+        const f = m ? validatePipeline(m, this.typeCat(), this.validRefs(), this.testedStatus()) : [];
         this.findings.set(f);
         this.validateOpen.set(true);
         return f;
@@ -671,7 +671,7 @@ export class FlowEditorComponent implements OnInit {
         this.setActive(id, { ...m, active: false }, `Deactivated '${id}'`);
     }
 
-    private setActive(id: string, updated: AuthoredFlow, ok: string): void {
+    private setActive(id: string, updated: AuthoredPipeline, ok: string): void {
         this.activating.set(true);
         this.api.replaceAuthored(id, updated).subscribe({
             next: () => {

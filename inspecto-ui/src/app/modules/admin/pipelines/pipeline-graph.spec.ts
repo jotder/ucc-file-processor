@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuthoredFlow, FlowCombined, FlowGraph, FlowNode, FlowNodeType } from 'app/inspecto/api';
+import { AuthoredPipeline, PipelineCombined, PipelineGraph, PipelineNode, PipelineNodeType } from 'app/inspecto/api';
 import { NODE_KIND_COLORS } from 'app/inspecto/theme/chart-tokens';
 import {
     TestOutcome,
@@ -11,11 +11,11 @@ import {
     provenanceCounts,
     resolveNodeIcon,
     toCombinedG6Data,
-    toFlowG6Data,
-    validateFlow,
-} from './flow-graph';
+    toPipelineG6Data,
+    validatePipeline,
+} from './pipeline-graph';
 
-const node = (over: Partial<FlowNode>): FlowNode =>
+const node = (over: Partial<PipelineNode>): PipelineNode =>
     ({ id: 'n', type: 'transform.map', category: 'TRANSFORM', label: 'Map', ...over });
 
 describe('categoryVisualKind', () => {
@@ -41,8 +41,8 @@ describe('nodeDisplayLabel', () => {
     });
 });
 
-describe('toFlowG6Data', () => {
-    const graph: FlowGraph = {
+describe('toPipelineG6Data', () => {
+    const graph: PipelineGraph = {
         name: 'F', active: true, produces: ['orders'], consumes: [],
         nodes: [
             node({ id: 'acq', type: 'acquisition', category: 'SOURCE', label: 'Acquisition' }),
@@ -55,13 +55,13 @@ describe('toFlowG6Data', () => {
     };
 
     it('maps nodes with the display label + visual kind', () => {
-        const { nodes } = toFlowG6Data(graph);
+        const { nodes } = toPipelineG6Data(graph);
         expect(nodes[0]).toEqual({ id: 'acq', data: { label: 'Acquisition', kind: 'SOURCE' } });
         expect(nodes[1].data).toEqual({ label: 'orders', kind: 'TABLE' });   // user name + SINK→TABLE
     });
 
     it('keeps parallel edges unique and carries the relationship as the edge-kind label', () => {
-        const { edges } = toFlowG6Data(graph);
+        const { edges } = toPipelineG6Data(graph);
         expect(new Set(edges.map((e) => e.id)).size).toBe(2);
         expect(edges[0].data.kind).toBe('data');
         expect(edges[1].data.kind).toBe('route:emea');
@@ -69,14 +69,14 @@ describe('toFlowG6Data', () => {
 
     it('overlays provenance counts onto matching edges (label + weight) and leaves others plain', () => {
         const counts = provenanceCounts([{ nodeId: 'acq', rel: 'data', rowCount: 1234 }]);
-        const { edges } = toFlowG6Data(graph, counts);
+        const { edges } = toPipelineG6Data(graph, counts);
         expect(edges[0].data).toEqual({ kind: 'data · 1,234', weight: 1234 });   // matched
         expect(edges[1].data).toEqual({ kind: 'route:emea' });                   // no count for this rel
     });
 });
 
 describe('toCombinedG6Data', () => {
-    const combined: FlowCombined = {
+    const combined: PipelineCombined = {
         flows: [{ name: 'orders_etl', active: true }, { name: 'orders_rollup', active: true }],
         nodes: [
             { id: 'orders_etl/acq', type: 'acquisition', category: 'SOURCE', label: 'Acquisition', flow: 'orders_etl' },
@@ -125,14 +125,14 @@ describe('resolveNodeIcon', () => {
         expect(resolveNodeIcon('sink.file', 'SINK', map).iconSrc.startsWith('data:image/svg+xml')).toBe(true);
     });
 
-    it('embeds iconSrc+color into toFlowG6Data only when a map is supplied', () => {
+    it('embeds iconSrc+color into toPipelineG6Data only when a map is supplied', () => {
         const g = {
             name: 'F', active: true, produces: [], consumes: [],
             nodes: [node({ id: 'p', type: 'parser.dsv', category: 'PARSE' })],
             edges: [],
         };
-        expect(toFlowG6Data(g, undefined, map).nodes[0].data.iconSrc).toBeTruthy();
-        expect(toFlowG6Data(g).nodes[0].data.iconSrc).toBeUndefined();
+        expect(toPipelineG6Data(g, undefined, map).nodes[0].data.iconSrc).toBeTruthy();
+        expect(toPipelineG6Data(g).nodes[0].data.iconSrc).toBeUndefined();
     });
 });
 
@@ -173,12 +173,12 @@ describe('computeNodeStatus', () => {
     });
 });
 
-describe('validateFlow', () => {
+describe('validatePipeline', () => {
     const typeCat = new Map([['collector.file', 'SOURCE'], ['parser.dsv', 'PARSE'], ['sink.file', 'SINK']]);
     const refs = new Set(['grammar/cdr_csv']);
 
     it('reports an error for an unconfigured node and blocks activation', () => {
-        const flow: AuthoredFlow = {
+        const flow: AuthoredPipeline = {
             name: 'f', active: false,
             nodes: [
                 { id: 'src', type: 'collector.file', use: 'connections/cdr' },
@@ -187,17 +187,17 @@ describe('validateFlow', () => {
             ],
             edges: [{ from: 'src', rel: 'success', to: 'parse' }, { from: 'parse', rel: 'success', to: 'write' }],
         };
-        const findings = validateFlow(flow, typeCat, refs, new Map());
+        const findings = validatePipeline(flow, typeCat, refs, new Map());
         expect(findings.some((f) => f.severity === 'error' && f.nodeId === 'parse')).toBe(true);
     });
 
     it('warns when there is no source or no sink', () => {
-        const flow: AuthoredFlow = {
+        const flow: AuthoredPipeline = {
             name: 'f', active: false,
             nodes: [{ id: 'parse', type: 'parser.dsv', use: 'grammar/cdr_csv' }],
             edges: [],
         };
-        const findings = validateFlow(flow, typeCat, refs, new Map());
+        const findings = validatePipeline(flow, typeCat, refs, new Map());
         expect(findings.some((f) => /no source/i.test(f.message))).toBe(true);
         expect(findings.some((f) => /no writer/i.test(f.message))).toBe(true);
     });
@@ -205,7 +205,7 @@ describe('validateFlow', () => {
 
 describe('groupByCategory', () => {
     it('orders groups by the canonical category order, unknown categories last', () => {
-        const t = (type: string, category: string): FlowNodeType =>
+        const t = (type: string, category: string): PipelineNodeType =>
             ({ type, category, label: type, description: '', accepts: [], emits: [], emitsNamedRoutes: false });
         const groups = groupByCategory([
             t('gap', 'CONTROL'), t('acquisition', 'SOURCE'), t('x', 'WEIRD'), t('sink.view', 'SINK'),

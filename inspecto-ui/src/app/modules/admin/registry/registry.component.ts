@@ -6,7 +6,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import type { ColDef } from 'ag-grid-community';
-import { AuthoredFlow, FlowsService } from 'app/inspecto/api';
+import { AuthoredPipeline, PipelinesService } from 'app/inspecto/api';
 import { Component as ModelComponent, Part, deriveComponentGraph } from 'app/inspecto/component-model';
 import { G6GraphData } from 'app/inspecto/graph';
 import { DataTableComponent } from 'app/inspecto/data-table';
@@ -16,7 +16,7 @@ import { ComponentsDataProvider } from './components-data-provider';
 import { registerPlatformKinds } from './platform-kinds';
 
 /** The component-registry kinds the reuse-graph loads (the backend `ComponentType`s). Pipelines are loaded
- *  separately (authored flows via {@link FlowsService}) since they live in their own store, not `/components`. */
+ *  separately (authored flows via {@link PipelinesService}) since they live in their own store, not `/components`. */
 const REGISTRY_KINDS = ['dataset', 'chart', 'dashboard', 'grammar', 'schema', 'transform', 'sink', 'rule'];
 
 /** The kinds a pipeline node may bind (mirrors `PIPELINE_KIND.allowedPartKinds`); a node's `use=<kind>/<id>`
@@ -57,7 +57,7 @@ const EDITOR_PATH: Record<string, string> = {
 })
 export class RegistryComponent implements OnInit {
     private provider = inject(ComponentsDataProvider);
-    private flows = inject(FlowsService);
+    private flows = inject(PipelinesService);
 
     readonly components = signal<ModelComponent[]>([]);
     readonly loading = signal(false);
@@ -138,7 +138,7 @@ export class RegistryComponent implements OnInit {
 
     /** The in-app editor route for a component, or null when its kind has no editor yet. */
     editorLink(c: ModelComponent): string[] | null {
-        if (c.kind === 'pipeline') return ['/flows']; // the Pipelines editor page
+        if (c.kind === 'pipeline') return ['/pipelines']; // the Pipelines editor page
         const path = EDITOR_PATH[c.kind];
         return path ? [path, c.id] : null;
     }
@@ -146,7 +146,7 @@ export class RegistryComponent implements OnInit {
 
 /** Derive a pipeline's reference parts from its authored flow — each node that binds a registry component
  *  (`use=<kind>/<id>`) becomes a part, so the reuse-graph draws pipeline → grammar/transform/sink edges. */
-function pipelineParts(flow: AuthoredFlow): Part[] {
+function pipelineParts(flow: AuthoredPipeline): Part[] {
     const parts: Part[] = [];
     for (const n of flow.nodes) {
         const use = n.use?.trim();

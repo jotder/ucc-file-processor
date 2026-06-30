@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { InboxStatus, PipelinesService, SourceView } from 'app/inspecto/api';
+import { InboxStatus, RunsService, SourceView } from 'app/inspecto/api';
 
 /**
  * Source detail dialog — the full `/sources` config for one source, a link to its bound connection
@@ -106,14 +106,14 @@ import { InboxStatus, PipelinesService, SourceView } from 'app/inspecto/api';
 })
 export class SourceDetailDialog implements OnInit {
     readonly data = inject<SourceView>(MAT_DIALOG_DATA);
-    private pipelines = inject(PipelinesService);
+    private runs = inject(RunsService);
     private ref = inject(MatDialogRef<SourceDetailDialog>);
 
     status: InboxStatus | null = null;
     statusLoading = true;
 
     ngOnInit(): void {
-        this.pipelines.pending(this.data.pipeline).subscribe({
+        this.runs.pending(this.data.pipeline).subscribe({
             next: (s) => {
                 this.status = s;
                 this.statusLoading = false;

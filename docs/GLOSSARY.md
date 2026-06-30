@@ -295,7 +295,7 @@ touchpoint before renaming; the backend hits below are *known examples*, not an 
 
 | ⛔ Old | ✅ Canonical | Known touchpoints to audit |
 |---|---|---|
-| Flow | **Pipeline** | UI `/flows` route, "Pipelines/Flow" nav; backend `FlowGraph`, `FlowTrigger`, `AuthoredFlow`, `JobType.FLOW`, `flow/` package, `/flows` API |
+| Flow | **Pipeline** | ✅ **UI DONE** (`feat/rename-flow-pipeline-runs`): authored-DAG editor FE renamed `Flow*`→`Pipeline*`, `modules/admin/flows/`→`pipelines/`, route `/flows`→`/pipelines`, `FlowsService`→`PipelinesService` + `Flow*` types, `flow-mock`→`pipeline-mock`. **Collision resolved** (full restructure): the *ingest ops* page took `/pipelines`, so it moved to **Runs** (`modules/admin/{pipelines→runs, pipeline-detail→run-detail}`, `Pipeline*`→`Run*` (`RunView`/`RunResult`/`RunStatus`), route `/pipelines`→`/runs`) — matches glossary §5 (Run = one execution). **Backend deferred** (UI-only-with-mock directive): backend `com.gamma.flow`, `JobType.FLOW`, `/flows`+`/pipelines` **API endpoints unchanged** (FE talks to same mock). Plan: `docs/superpower/flow-pipeline-runs-rename.md`. |
 | Data Store | **Dataset** | Studio datasets UI; `dataset-types.ts` (already "Dataset" — verify no "store" labels); backend `ComponentStore` stays = *physical store*, not a Dataset |
 | Issue | **Incident** | ✅ **DONE** (`2878b31`, breaking → 5.0): `ObjectType.INCIDENT`, `/objects?type=INCIDENT` + `objectType` value, UI `/issues`→`/incidents` (route file renamed), ops-mock seeds INCIDENT. No DB migration (in-memory `ObjectStore`). |
 | Rule *(bare)* | **Expectation** / **Alert Rule** / **Decision Rule** | rule builder UI; `AlertRule`, rule services — split by purpose |

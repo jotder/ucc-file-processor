@@ -41,13 +41,13 @@ export const defaultNavigation: GammaNavigationItem[] = [
         icon    : 'heroicons_outline:wrench',
         children: [
             {
-                id      : 'pipelines-group',
-                title   : 'Pipelines',
+                id      : 'runs-group',
+                title   : 'Runs',
                 type    : 'collapsable',
                 icon    : 'heroicons_outline:arrows-right-left',
                 children: [
-                    { id: 'flows',       title: 'Pipelines',   type: 'basic', icon: 'heroicons_outline:share',        link: '/flows' },
-                    { id: 'pipelines',   title: 'Runs',        type: 'basic', icon: 'heroicons_outline:queue-list',   link: '/pipelines' },
+                    { id: 'pipelines',   title: 'Pipelines',   type: 'basic', icon: 'heroicons_outline:share',        link: '/pipelines' },
+                    { id: 'runs',        title: 'Runs',        type: 'basic', icon: 'heroicons_outline:queue-list',   link: '/runs' },
                     { id: 'components',  title: 'Components',  type: 'basic', icon: 'heroicons_outline:puzzle-piece', link: '/components' },
                     { id: 'enrichment',  title: 'Enrichment',  type: 'basic', icon: 'heroicons_outline:funnel',       link: '/enrichment' },
                     { id: 'catalog',     title: 'Catalog',     type: 'basic', icon: 'heroicons_outline:share',        link: '/catalog' },

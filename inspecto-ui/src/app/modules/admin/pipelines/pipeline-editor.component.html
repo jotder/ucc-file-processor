@@ -4,7 +4,7 @@
         @if (creating()) {
             <div class="flex items-center gap-2">
                 <mat-form-field subscriptSizing="dynamic" class="w-56">
-                    <mat-label>New flow name</mat-label>
+                    <mat-label>New pipeline name</mat-label>
                     <input matInput [formControl]="newName" placeholder="orders_rollup"
                            (keyup.enter)="createFlow()" />
                     @if (newName.touched && newName.invalid) {
@@ -16,28 +16,28 @@
             </div>
         } @else {
             <mat-form-field subscriptSizing="dynamic" class="w-56">
-                <mat-label>Flow</mat-label>
+                <mat-label>Pipeline</mat-label>
                 <mat-select [value]="selectedId()" (selectionChange)="select($event.value)">
                     @for (f of flows(); track f.name) {
                         <mat-option [value]="f.name">{{ f.name }}</mat-option>
                     }
                 </mat-select>
             </mat-form-field>
-            <button mat-icon-button (click)="startNew()" matTooltip="New flow" aria-label="New flow">
+            <button mat-icon-button (click)="startNew()" matTooltip="New pipeline" aria-label="New pipeline">
                 <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
             </button>
             <button mat-icon-button color="primary" [disabled]="!dirty() || saving()" (click)="save()"
-                    matTooltip="Save" aria-label="Save flow">
+                    matTooltip="Save" aria-label="Save pipeline">
                 <mat-icon svgIcon="heroicons_outline:check"></mat-icon>
             </button>
             <button mat-icon-button [matMenuTriggerFor]="flowMenu" [disabled]="!selectedId()"
-                    matTooltip="More flow actions" aria-label="More flow actions">
+                    matTooltip="More pipeline actions" aria-label="More pipeline actions">
                 <mat-icon svgIcon="heroicons_outline:ellipsis-vertical"></mat-icon>
             </button>
             <mat-menu #flowMenu="matMenu">
                 <button mat-menu-item (click)="deleteFlow()">
                     <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
-                    <span>Delete flow</span>
+                    <span>Delete pipeline</span>
                 </button>
             </mat-menu>
             <button mat-icon-button [disabled]="!selectedId()" (click)="toggleDryRun()"
@@ -92,8 +92,8 @@
     }
 
     @if (!flows().length && !creating() && !loading()) {
-        <inspecto-empty-state icon="heroicons_outline:arrows-right-left" title="No authored flows"
-            message="Create a flow to start composing a topology.">
+        <inspecto-empty-state icon="heroicons_outline:arrows-right-left" title="No authored pipelines"
+            message="Create a pipeline to start composing a topology.">
         </inspecto-empty-state>
     } @else {
         <!-- editor body: canvas + floating palette + right-side property drawer -->
@@ -227,7 +227,7 @@
             </mat-drawer>
 
             <mat-drawer-content class="min-w-0">
-                <app-flow-editor-graph
+                <app-pipeline-editor-graph
                     [data]="g6Data()"
                     [graphKey]="selectedId()"
                     (nodeSelected)="onNodeSelected($event)"
@@ -238,7 +238,7 @@
                     (edgeCreated)="onEdgeCreated($event)"
                     (nodeHover)="onNodeHover($event)"
                     (nodeOpen)="onNodeOpen($event)">
-                </app-flow-editor-graph>
+                </app-pipeline-editor-graph>
             </mat-drawer-content>
         </mat-drawer-container>
         </div><!-- end relative canvas wrapper -->

@@ -5,9 +5,9 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { ToastrService } from 'ngx-toastr';
-import { FlowNodeType, FlowsService, IconMap, IconMapService, apiErrorMessage } from 'app/inspecto/api';
+import { PipelineNodeType, PipelinesService, IconMap, IconMapService, apiErrorMessage } from 'app/inspecto/api';
 import { GLYPH_LIBRARY, ICON_COLOR_SWATCHES, iconDataUri } from 'app/modules/admin/catalog/catalog-graph';
-import { NodeTypeGroup, categoryLabel, groupByCategory, resolveNodeIcon } from 'app/modules/admin/flows/flow-graph';
+import { NodeTypeGroup, categoryLabel, groupByCategory, resolveNodeIcon } from 'app/modules/admin/pipelines/pipeline-graph';
 
 /**
  * Processor-icon settings — map each processor **type** (and per-**sub-type**) to a glyph + colour. A
@@ -23,7 +23,7 @@ import { NodeTypeGroup, categoryLabel, groupByCategory, resolveNodeIcon } from '
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class IconSettingsComponent implements OnInit {
-    private api = inject(FlowsService);
+    private api = inject(PipelinesService);
     private iconMapApi = inject(IconMapService);
     private toast = inject(ToastrService);
 
@@ -31,7 +31,7 @@ export class IconSettingsComponent implements OnInit {
     readonly swatches = ICON_COLOR_SWATCHES;
     readonly categoryLabel = categoryLabel;
 
-    readonly types = signal<FlowNodeType[]>([]);
+    readonly types = signal<PipelineNodeType[]>([]);
     readonly draft = signal<IconMap>({});
     readonly loading = signal(true);
     readonly saving = signal(false);

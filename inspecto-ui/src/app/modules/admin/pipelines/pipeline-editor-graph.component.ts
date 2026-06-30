@@ -19,10 +19,10 @@ import { CanvasEvent, Graph, GraphData, NodeData, NodeEvent } from '@antv/g6';
 import { G6GraphData, nodeColor, nodeIcon } from 'app/modules/admin/catalog/catalog-graph';
 import { NodeKind } from 'app/inspecto/api';
 import { canvasTheme, nodeStatusStroke } from 'app/inspecto/theme/chart-tokens';
-import { NodeStatus, statusGlyph } from './flow-graph';
+import { NodeStatus, statusGlyph } from './pipeline-graph';
 
 /**
- * Interactive AntV G6 host for the flow editor. Unlike the read-only {@link GraphViewComponent} (which
+ * Interactive AntV G6 host for the pipeline editor. Unlike the read-only {@link GraphViewComponent} (which
  * `destroy()`s + rebuilds on every data change), this host keeps a **persistent** graph and mutates it in
  * place ({@link addNode}/{@link addEdge}/{@link removeElement}/{@link updateNodeLabel}) so user-arranged
  * positions survive edits. It only rebuilds when {@link graphKey} (the selected flow id) changes or the
@@ -35,14 +35,14 @@ import { NodeStatus, statusGlyph } from './flow-graph';
  * drag-drop from the palette ({@link dropAdd}); Delete/Backspace removes the selection ({@link deleteKey}).
  */
 @Component({
-    selector: 'app-flow-editor-graph',
+    selector: 'app-pipeline-editor-graph',
     standalone: true,
     template: `<div
         #host
         class="h-full w-full focus:outline-none"
         tabindex="0"
         role="application"
-        aria-label="Flow editor canvas — drag a node type from the palette, drag node-to-node to connect, double-click a node to configure, Delete to remove"
+        aria-label="Pipeline editor canvas — drag a node type from the palette, drag node-to-node to connect, double-click a node to configure, Delete to remove"
         (dragover)="onDragOver($event)"
         (drop)="onDrop($event)"
         (keydown)="onKeydown($event)"
@@ -50,7 +50,7 @@ import { NodeStatus, statusGlyph } from './flow-graph';
     host: { class: 'block h-full w-full' },
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FlowEditorGraphComponent implements AfterViewInit, OnChanges, OnDestroy {
+export class PipelineEditorGraphComponent implements AfterViewInit, OnChanges, OnDestroy {
     /** Initial graph data; consumed on (re)build only — in-place edits go through the mutation methods. */
     @Input() data: G6GraphData | null = null;
     /** Rebuild the canvas only when this changes (the selected flow id). Never rebuild on in-place edits. */

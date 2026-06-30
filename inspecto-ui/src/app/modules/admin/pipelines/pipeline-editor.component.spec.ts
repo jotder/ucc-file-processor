@@ -2,8 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { FlowEditorComponent } from './flow-editor.component';
-import { AuthoredFlow, ComponentsService, FlowDryRunResult, FlowsService } from 'app/inspecto/api';
+import { PipelineEditorComponent } from './pipeline-editor.component';
+import { AuthoredPipeline, ComponentsService, PipelineDryRunResult, PipelinesService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ToastrService } from 'ngx-toastr';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -20,7 +20,7 @@ function canvasMock() {
     };
 }
 
-const FLOW: AuthoredFlow = {
+const FLOW: AuthoredPipeline = {
     name: 'demo',
     active: false,
     nodes: [
@@ -30,7 +30,7 @@ const FLOW: AuthoredFlow = {
     edges: [{ from: 'src', rel: 'data', to: 'flt' }],
 };
 
-describe('FlowEditorComponent', () => {
+describe('PipelineEditorComponent', () => {
     let api: {
         authoredList: ReturnType<typeof vi.fn>;
         nodeTypes: ReturnType<typeof vi.fn>;
@@ -51,13 +51,13 @@ describe('FlowEditorComponent', () => {
             createAuthored: vi.fn().mockReturnValue(of({})),
             replaceAuthored: vi.fn().mockReturnValue(of({})),
             deleteAuthored: vi.fn().mockReturnValue(of({})),
-            dryRunAuthored: vi.fn().mockReturnValue(of({ seedNode: 'src', nodes: [], sinks: [] } as FlowDryRunResult)),
+            dryRunAuthored: vi.fn().mockReturnValue(of({ seedNode: 'src', nodes: [], sinks: [] } as PipelineDryRunResult)),
         };
         TestBed.configureTestingModule({
-            imports: [FlowEditorComponent],
+            imports: [PipelineEditorComponent],
             providers: [
                 provideNoopAnimations(),
-                { provide: FlowsService, useValue: api },
+                { provide: PipelinesService, useValue: api },
                 { provide: ComponentsService, useValue: { list: vi.fn().mockReturnValue(of([])) } },
                 { provide: ToastrService, useValue: { success: vi.fn(), error: vi.fn() } },
                 { provide: InspectoConfirmService, useValue: { confirmDestructive: vi.fn().mockResolvedValue(true) } },
@@ -66,13 +66,13 @@ describe('FlowEditorComponent', () => {
     });
 
     /** Build the component, run ngOnInit, and inject a canvas double (no live G6). */
-    function make(): FlowEditorComponent {
-        const c = TestBed.createComponent(FlowEditorComponent).componentInstance;
+    function make(): PipelineEditorComponent {
+        const c = TestBed.createComponent(PipelineEditorComponent).componentInstance;
         c.ngOnInit();
         (c as unknown as { canvas: unknown }).canvas = canvasMock();
         return c;
     }
-    function canvasOf(c: FlowEditorComponent) {
+    function canvasOf(c: PipelineEditorComponent) {
         return (c as unknown as { canvas: ReturnType<typeof canvasMock> }).canvas;
     }
 
@@ -158,7 +158,7 @@ describe('FlowEditorComponent', () => {
     });
 
     it('the empty path has no accessibility violations', async () => {
-        const fixture = TestBed.createComponent(FlowEditorComponent);
+        const fixture = TestBed.createComponent(PipelineEditorComponent);
         fixture.detectChanges(); // no flows → empty-state, the G6 canvas is not mounted
         await expectNoA11yViolations(fixture.nativeElement);
     });

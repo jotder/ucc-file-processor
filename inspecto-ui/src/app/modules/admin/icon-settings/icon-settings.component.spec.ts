@@ -3,7 +3,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { describe, expect, it, vi } from 'vitest';
-import { FlowsService, IconMapService } from 'app/inspecto/api';
+import { PipelinesService, IconMapService } from 'app/inspecto/api';
 import { NODE_KIND_COLORS } from 'app/inspecto/theme/chart-tokens';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { IconSettingsComponent } from './icon-settings.component';
@@ -17,7 +17,7 @@ function make() {
         imports: [IconSettingsComponent],
         providers: [
             provideNoopAnimations(),
-            { provide: FlowsService, useValue: { nodeTypes: () => of(TYPES) } },
+            { provide: PipelinesService, useValue: { nodeTypes: () => of(TYPES) } },
             { provide: IconMapService, useValue: { get: () => of({ PARSE: { glyph: 'lines', color: NODE_KIND_COLORS.SCHEMA } }), save: (m: unknown) => of(m) } },
             { provide: ToastrService, useValue: { success: vi.fn(), error: vi.fn() } },
         ],

@@ -2,21 +2,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { PipelinesService } from './pipelines.service';
+import { RunsService } from './runs.service';
 import { InboxStatus } from './models';
 import { environment } from '../../../environments/environment';
 
 const base = environment.apiBaseUrl; // '' in prod, '/api' behind the dev proxy
 
-describe('PipelinesService', () => {
-  let svc: PipelinesService;
+describe('RunsService', () => {
+  let svc: RunsService;
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [PipelinesService, provideHttpClient(), provideHttpClientTesting()],
+      providers: [RunsService, provideHttpClient(), provideHttpClientTesting()],
     });
-    svc = TestBed.inject(PipelinesService);
+    svc = TestBed.inject(RunsService);
     httpMock = TestBed.inject(HttpTestingController);
   });
 

@@ -13,7 +13,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin, Observable } from 'rxjs';
-import { apiErrorMessage, AuditRow, BatchAuditReport, InboxStatus, PipelinesService } from 'app/inspecto/api';
+import { apiErrorMessage, AuditRow, BatchAuditReport, InboxStatus, RunsService } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { FmtPercentPipe } from 'app/inspecto/format';
 import { InspectoRowAction } from 'app/inspecto/grid';
@@ -23,13 +23,13 @@ type TabKey = 'batches' | 'files' | 'lineage' | 'quarantine' | 'commits' | 'repo
 type FileFilter = 'ALL' | 'SUCCESS' | 'REJECTED' | 'ERRORED';
 
 /**
- * Pipeline detail — tabbed view over the audit endpoints for a single pipeline (ported from
+ * Run detail — tabbed view over the audit endpoints for a single run (ported from
  * inspector-ui onto the gamma shell): batches / files / lineage (filterable by batchId) /
  * quarantine / commits, plus a Report tab with a date-range producing percentile + throughput
  * stats. Audit rows are loose string maps, so grid columns are derived from the row keys.
  */
 @Component({
-    selector: 'app-pipeline-detail',
+    selector: 'app-run-detail',
     standalone: true,
     imports: [
         FormsModule,
@@ -46,11 +46,11 @@ type FileFilter = 'ALL' | 'SUCCESS' | 'REJECTED' | 'ERRORED';
         FmtPercentPipe,
         RouterLink,
     ],
-    templateUrl: './pipeline-detail.component.html',
+    templateUrl: './run-detail.component.html',
     encapsulation: ViewEncapsulation.None,
 })
-export class PipelineDetailComponent implements OnInit {
-    private api = inject(PipelinesService);
+export class RunDetailComponent implements OnInit {
+    private api = inject(RunsService);
     private route = inject(ActivatedRoute);
     private router = inject(Router);
     private dialog = inject(MatDialog);
@@ -247,6 +247,6 @@ export class PipelineDetailComponent implements OnInit {
     }
 
     back(): void {
-        this.router.navigate(['/pipelines']);
+        this.router.navigate(['/runs']);
     }
 }

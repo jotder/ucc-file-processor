@@ -9,9 +9,9 @@ import { ComponentDef } from './components.service';
  * `ComponentStore.WRITABLE_TYPES` enum is still closed (grammar/schema/transform/sink → unknown kinds 400),
  * so Studio's new kinds are served from an in-memory store here, the same pattern as the flow / rule mocks.
  *
- * Gated on {@code environment.mockStudio}. **Registered before `flowMockInterceptor`** so it claims the
- * Studio kinds' `/components/{dataset|chart|dashboard}` routes (flow-mock's generic `/components/*` CRUD would
- * otherwise swallow them, but unseeded); grammar/schema/transform/sink fall through to flow-mock unchanged.
+ * Gated on {@code environment.mockStudio}. **Registered before `pipelineMockInterceptor`** so it claims the
+ * Studio kinds' `/components/{dataset|chart|dashboard}` routes (pipeline-mock's generic `/components/*` CRUD would
+ * otherwise swallow them, but unseeded); grammar/schema/transform/sink fall through to pipeline-mock unchanged.
  * Flip the flag / remove the interceptor once the backend storage enum is widened.
  */
 

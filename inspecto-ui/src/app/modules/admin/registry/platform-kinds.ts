@@ -1,4 +1,4 @@
-import { AuthoredFlow } from 'app/inspecto/api';
+import { AuthoredPipeline } from 'app/inspecto/api';
 import { ComponentKind, Part, Wiring, getKind, registerKind } from 'app/inspecto/component-model';
 
 /**
@@ -29,18 +29,18 @@ const ATOMIC_KINDS: ComponentKind[] = [GRAMMAR_KIND, SCHEMA_KIND, TRANSFORM_KIND
 
 /**
  * The `pipeline` composite kind. Its parts are the registry components its nodes bind (parser / transform /
- * sink …); its `graph` wiring is the authored flow's DAG — `deriveWiring` maps the {@link AuthoredFlow} edges
+ * sink …); its `graph` wiring is the authored flow's DAG — `deriveWiring` maps the {@link AuthoredPipeline} edges
  * onto {@link Wiring} edges (the parts supply the nodes). Authoring stays the existing flow editor; exec is the
  * backend pipeline runner. (Deriving the *parts* from a flow needs the palette's type→kind map and lands with
  * the P3 reuse-graph, where that catalog is in hand.)
  */
-export const PIPELINE_KIND: ComponentKind<AuthoredFlow> = {
+export const PIPELINE_KIND: ComponentKind<AuthoredPipeline> = {
     id: 'pipeline',
     label: 'Pipeline',
     allowedPartKinds: ['grammar', 'schema', 'transform', 'sink'],
     wiring: 'graph',
     config: { validate: () => [] },
-    deriveWiring: (parts: Part[], flow: AuthoredFlow): Wiring => ({
+    deriveWiring: (parts: Part[], flow: AuthoredPipeline): Wiring => ({
         strategy: 'graph',
         nodes: parts.map((p) => ({ partId: p.partId })),
         edges: (flow?.edges ?? []).map((e) => ({ from: e.from, to: e.to, rel: e.rel })),
@@ -59,5 +59,5 @@ export const PLATFORM_KIND_IDS: string[] = [...ATOMIC_KINDS.map((k) => k.id), PI
  */
 export function registerPlatformKinds(): void {
     for (const k of ATOMIC_KINDS) if (!getKind(k.id)) registerKind(k);
-    if (!getKind(PIPELINE_KIND.id)) registerKind<AuthoredFlow>(PIPELINE_KIND);
+    if (!getKind(PIPELINE_KIND.id)) registerKind<AuthoredPipeline>(PIPELINE_KIND);
 }
