@@ -18,7 +18,7 @@ import java.util.Map;
  *   <li>{@code {type: event, on: commit, from: flows/<id>}} / {@code {on: <EVENT_TYPE>}}, optional
  *       {@code coalesce: 30s} ⇒ {@link Scheduler#EVENT} (admitted under the non-overlapping lock, storms
  *       coalesced — see {@code TriggerCoalescer}).</li>
- *   <li>{@code {type: manual}} ⇒ {@link Scheduler#MANUAL} ({@code POST /flows/{id}/trigger}).</li>
+ *   <li>{@code {type: manual}} ⇒ {@link Scheduler#MANUAL} ({@code POST /pipelines/{id}/trigger}).</li>
  *   <li><b>absent</b> ⇒ {@link Kind#DEFAULT_POLL} — the service poll interval, so a lifted legacy
  *       pipeline behaves exactly as today.</li>
  * </ul>

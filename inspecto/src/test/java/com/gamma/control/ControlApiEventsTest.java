@@ -49,7 +49,7 @@ class ControlApiEventsTest {
     @Test
     void eventsFeedSearchDetailAndExport(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            assertEquals(200, send(c.port, "POST", "/pipelines/" + c.name + "/trigger", null).statusCode());
+            assertEquals(200, send(c.port, "POST", "/runs/" + c.name + "/trigger", null).statusCode());
 
             // live-tail feed: non-empty, carries a BATCH_COMMITTED domain event
             JsonNode recent = json(send(c.port, "GET", "/events?limit=200", null));

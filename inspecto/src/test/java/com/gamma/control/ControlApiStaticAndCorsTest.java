@@ -75,7 +75,7 @@ class ControlApiStaticAndCorsTest {
     @Test
     void corsPreflightAnsweredWhenEnabled(@TempDir Path dir) throws Exception {
         try (Ctx c = open(null, "http://localhost:4200")) {
-            HttpResponse<String> pre = send(c.port, "OPTIONS", "/pipelines");
+            HttpResponse<String> pre = send(c.port, "OPTIONS", "/runs");
             assertEquals(204, pre.statusCode(), "preflight short-circuits with 204");
             assertEquals("http://localhost:4200", acao(pre), "echoes the configured origin");
             // a real GET also carries the CORS header
@@ -127,7 +127,7 @@ class ControlApiStaticAndCorsTest {
     @Test
     void extensionlessDeepLinkFallsBackToIndex(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
-            HttpResponse<String> deep = send(c.port, "GET", "/dashboard/pipelines");
+            HttpResponse<String> deep = send(c.port, "GET", "/dashboard/runs");
             assertEquals(200, deep.statusCode(), "SPA deep link resolves to index.html");
             assertTrue(ctype(deep).startsWith("text/html"));
             assertTrue(deep.body().contains("Inspecto UI"));
@@ -137,8 +137,8 @@ class ControlApiStaticAndCorsTest {
     @Test
     void unknownApiPathStaysJson404NotIndex(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
-            // matches the /pipelines/{n}/commits route → handler 404 (no such pipeline), as JSON
-            HttpResponse<String> r = send(c.port, "GET", "/pipelines/nope/commits");
+            // matches the /runs/{n}/commits route → handler 404 (no such pipeline), as JSON
+            HttpResponse<String> r = send(c.port, "GET", "/runs/nope/commits");
             assertEquals(404, r.statusCode());
             assertTrue(ctype(r).startsWith("application/json"), "API 404 is JSON, not the SPA shell");
             assertFalse(r.body().contains("<html"), "must not serve index.html for an API path");
@@ -150,7 +150,7 @@ class ControlApiStaticAndCorsTest {
         // The SPA addresses routes as "/api/..."; served same-origin (no proxy) the backend must
         // strip the prefix and hit the real route, returning JSON — not the index.html SPA shell.
         try (Ctx c = open(spaDir(dir).toString(), null)) {
-            HttpResponse<String> r = send(c.port, "GET", "/api/pipelines");
+            HttpResponse<String> r = send(c.port, "GET", "/api/runs");
             assertEquals(200, r.statusCode());
             assertTrue(ctype(r).startsWith("application/json"), "/api/* resolves to the JSON route, not index.html");
             assertFalse(r.body().contains("<html"), "must not serve the SPA shell for an /api path");
@@ -161,7 +161,7 @@ class ControlApiStaticAndCorsTest {
     void staticIsPublicAndApiIsReachable(@TempDir Path dir) throws Exception {
         try (Ctx c = open(spaDir(dir).toString(), null)) {
             assertEquals(200, send(c.port, "GET", "/").statusCode(), "SPA shell loads");
-            assertEquals(200, send(c.port, "GET", "/pipelines").statusCode(),
+            assertEquals(200, send(c.port, "GET", "/runs").statusCode(),
                     "CONTROL route is reachable");
         }
     }

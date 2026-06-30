@@ -152,7 +152,7 @@ public final class SourceService implements AutoCloseable {
      *  store producers/consumers. {@code null} when no write root is configured. */
     private final PipelineStore flowStore;
     /** Serializes ingest cycles so an operator-triggered run (Control API {@code /trigger},
-     *  {@code /pipelines/{name}/trigger}) can never overlap the scheduled poll cycle or another
+     *  {@code /runs/{name}/trigger}) can never overlap the scheduled poll cycle or another
      *  trigger. The scheduler is already non-overlapping (fixed-delay); this guards the
      *  cross-entrypoint case. A waiting caller re-evaluates the inbox after acquiring the lock,
      *  by which time the prior cycle has written its {@code .processed} markers — so

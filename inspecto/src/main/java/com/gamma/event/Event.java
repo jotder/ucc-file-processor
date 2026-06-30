@@ -120,7 +120,7 @@ public record Event(String eventId, long ts, EventLevel level, String type, Stri
         public Builder actor(String actor) { return attr(AuditAttrs.ACTOR, actor); }
         /** Actor kind ({@code user}/{@code system}/{@code api_key}/…). */
         public Builder actorType(String actorType) { return attr(AuditAttrs.ACTOR_TYPE, actorType); }
-        /** What happened, as a dotted action name (e.g. {@code pipeline.deleted}). */
+        /** What happened, as a dotted action name (e.g. {@code run.deleted}). */
         public Builder action(String action) { return attr(AuditAttrs.ACTION, action); }
         /** Coarse action class ({@code data_mutation}/{@code destructive}/{@code export}/…). */
         public Builder actionCategory(String category) { return attr(AuditAttrs.ACTION_CATEGORY, category); }

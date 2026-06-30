@@ -43,7 +43,7 @@ import java.util.regex.Pattern;
  *
  * <h3>Per-space routing</h3>
  * One process hosts many isolated spaces (see {@link SpaceManager}). Every route below may be addressed under a
- * {@code /spaces/{id}} prefix ({@code GET /spaces/acme/pipelines}); {@link #dispatch} strips the prefix, binds the
+ * {@code /spaces/{id}} prefix ({@code GET /spaces/acme/runs}); {@link #dispatch} strips the prefix, binds the
  * request to that space, and matches the <em>unchanged</em> patterns against the remainder, so each space's
  * service/stores/events/metric-label resolve in isolation. An unknown id is a {@code 404}. {@code /health},
  * {@code /ready}, {@code /metrics} (and the future {@code /spaces} CRUD group) stay un-prefixed and server-global;
@@ -56,22 +56,22 @@ import java.util.regex.Pattern;
  *   GET  /spaces                              list hosted spaces (manifests)               [v4.7.0]
  *   POST /spaces                              body {id,display_name?,description?} — create + boot a space [v4.7.0]
  *   DELETE /spaces/{id}[?purge=true]          deregister + drain a space; purge also deletes its files [v4.7.0]
- *   GET  /pipelines                           list pipelines + state
- *   POST /pipelines                           body {"configPath":"…"} — register a new pipeline   [v4.1.0]
- *   POST /pipelines/{name}/trigger            run one pipeline once
- *   POST /pipelines/{name}/pause              pause (poll cycle skips it)
- *   POST /pipelines/{name}/resume             resume
- *   GET  /pipelines/{name}/commits            committed batch ids
- *   GET  /pipelines/{name}/batches            batch audit rows
- *   GET  /pipelines/{name}/files              per-file audit rows
- *   GET  /pipelines/{name}/lineage[?batchId=] input→output lineage rows
- *   GET  /pipelines/{name}/quarantine         quarantined inputs + reason
- *   POST /pipelines/{name}/reprocess          body {"batchId":"…"} — replay a batch
+ *   GET  /runs                           list pipelines + state
+ *   POST /runs                           body {"configPath":"…"} — register a new pipeline   [v4.1.0]
+ *   POST /runs/{name}/trigger            run one pipeline once
+ *   POST /runs/{name}/pause              pause (poll cycle skips it)
+ *   POST /runs/{name}/resume             resume
+ *   GET  /runs/{name}/commits            committed batch ids
+ *   GET  /runs/{name}/batches            batch audit rows
+ *   GET  /runs/{name}/files              per-file audit rows
+ *   GET  /runs/{name}/lineage[?batchId=] input→output lineage rows
+ *   GET  /runs/{name}/quarantine         quarantined inputs + reason
+ *   POST /runs/{name}/reprocess          body {"batchId":"…"} — replay a batch
  *   POST /trigger                             run all pipelines once
  *   POST /validate                            body {"configPath":"…"} or {"type":…,"config":{…}} — findings
  *   GET  /status                              live status snapshot (all pipelines)        [v2.8.0]
  *   GET  /report[?from=&to=]                  service-wide batch-audit report             [v2.8.0]
- *   GET  /pipelines/{name}/report[?from=&to=] batch-audit report for one pipeline         [v2.8.0]
+ *   GET  /runs/{name}/report[?from=&to=] batch-audit report for one pipeline         [v2.8.0]
  *   GET  /jobs                                list config-driven jobs + last/next run      [v2.8.0]
  *   GET  /jobs/{name}/runs                    recent run history for a job                 [v2.8.0]
  *   POST /jobs/{name}/trigger                 run a job once now                           [v2.8.0]
@@ -267,8 +267,8 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
                 new SpaceRoutes(), new DataSourceRoutes(),
-                new PipelineRoutes(),
-                new ConnectionRoutes(), new ViewRoutes(), new FlowRoutes(), new ComponentRoutes(),
+                new RunRoutes(),
+                new ConnectionRoutes(), new ViewRoutes(), new PipelineRoutes(), new ComponentRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
                 new JobRoutes(), new LineageRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
                 new NotificationRoutes(),

@@ -443,7 +443,7 @@ public final class PipelineConfig {
     /**
      * Whether this pipeline is activated for execution ({@code active:} top-level key, v4.7.0). Only
      * activated pipelines are run by the poll cycle / multi-source orchestrator; an inactive pipeline
-     * is still parsed, indexed and queryable (it shows in {@code /pipelines}) but never executed.
+     * is still parsed, indexed and queryable (it shows in {@code /runs}) but never executed.
      *
      * <p><b>Default is {@code false}</b> — a pipeline must opt in with {@code active: true}. This is a
      * deliberate fail-safe so a freshly-dropped or half-edited config never runs until explicitly armed.

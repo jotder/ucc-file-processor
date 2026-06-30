@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Authored-flow topology CRUD (T19, §7.1) over real HTTP: create / list / get / update / delete + incremental
  * node/edge edits under {@code <write-root>/flows}, with {@code PipelineValidator} gating (422) and the write-root
- * 503 gate. Distinct from the read-only lifted-pipeline projection ({@code /flows}, {@code /flows/{id}/graph}).
+ * 503 gate. Distinct from the read-only lifted-pipeline projection ({@code /pipelines}, {@code /pipelines/{id}/graph}).
  */
 class ControlApiFlowCrudTest {
 
@@ -62,38 +62,38 @@ class ControlApiFlowCrudTest {
         Path wr = dir.resolve("wr");
         try (Ctx c = open(dir, wr)) {
             // create
-            HttpResponse<String> created = send(c.port, "POST", "/flows/authored", VALID);
+            HttpResponse<String> created = send(c.port, "POST", "/pipelines/authored", VALID);
             assertEquals(200, created.statusCode(), created.body());
             assertEquals("demo_flow", json(created).get("name").asText());
             assertTrue(Files.exists(wr.resolve("flows/demo_flow.toon")));
 
             // duplicate → 409
-            assertEquals(409, send(c.port, "POST", "/flows/authored", VALID).statusCode());
+            assertEquals(409, send(c.port, "POST", "/pipelines/authored", VALID).statusCode());
 
             // list + get
-            assertEquals(1, json(send(c.port, "GET", "/flows/authored", null)).size());
-            JsonNode g = json(send(c.port, "GET", "/flows/authored/demo_flow", null));
+            assertEquals(1, json(send(c.port, "GET", "/pipelines/authored", null)).size());
+            JsonNode g = json(send(c.port, "GET", "/pipelines/authored/demo_flow", null));
             assertEquals(2, g.get("nodes").size());
 
             // add a node (parser) then wire acq --data--> it
-            assertEquals(200, send(c.port, "POST", "/flows/authored/demo_flow/nodes",
+            assertEquals(200, send(c.port, "POST", "/pipelines/authored/demo_flow/nodes",
                     "{\"id\":\"p\",\"type\":\"parser\"}").statusCode());
-            JsonNode afterNode = json(send(c.port, "GET", "/flows/authored/demo_flow", null));
+            JsonNode afterNode = json(send(c.port, "GET", "/pipelines/authored/demo_flow", null));
             assertEquals(3, afterNode.get("nodes").size());
-            assertEquals(200, send(c.port, "POST", "/flows/authored/demo_flow/edges",
+            assertEquals(200, send(c.port, "POST", "/pipelines/authored/demo_flow/edges",
                     "{\"from\":\"acq\",\"rel\":\"data\",\"to\":\"p\"}").statusCode());
 
             // an edge that breaks the node-output contract (sink.persistent does not emit data) → 422
-            assertEquals(422, send(c.port, "POST", "/flows/authored/demo_flow/edges",
+            assertEquals(422, send(c.port, "POST", "/pipelines/authored/demo_flow/edges",
                     "{\"from\":\"sink\",\"rel\":\"data\",\"to\":\"acq\"}").statusCode());
 
             // replace via PUT (URL id authoritative)
-            assertEquals(200, send(c.port, "PUT", "/flows/authored/demo_flow", VALID).statusCode());
-            assertEquals(2, json(send(c.port, "GET", "/flows/authored/demo_flow", null)).get("nodes").size());
+            assertEquals(200, send(c.port, "PUT", "/pipelines/authored/demo_flow", VALID).statusCode());
+            assertEquals(2, json(send(c.port, "GET", "/pipelines/authored/demo_flow", null)).get("nodes").size());
 
             // delete
-            assertEquals(200, send(c.port, "DELETE", "/flows/authored/demo_flow", null).statusCode());
-            assertEquals(404, send(c.port, "GET", "/flows/authored/demo_flow", null).statusCode());
+            assertEquals(200, send(c.port, "DELETE", "/pipelines/authored/demo_flow", null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/pipelines/authored/demo_flow", null).statusCode());
         }
     }
 
@@ -106,22 +106,22 @@ class ControlApiFlowCrudTest {
                           {"id":"flt","type":"transform.filter","config":{"where":"amt >= 100"}},
                           {"id":"sink","type":"sink.persistent","config":{"store":"out"}}],
                  "edges":[{"from":"acq","rel":"data","to":"flt"},{"from":"flt","rel":"data","to":"sink"}]}""";
-            assertEquals(200, send(c.port, "POST", "/flows/authored", flow).statusCode());
+            assertEquals(200, send(c.port, "POST", "/pipelines/authored", flow).statusCode());
 
             // the structural projection omits raw node config…
-            JsonNode projFlt = node(json(send(c.port, "GET", "/flows/authored/cfg_flow", null)).get("nodes"), "flt");
+            JsonNode projFlt = node(json(send(c.port, "GET", "/pipelines/authored/cfg_flow", null)).get("nodes"), "flt");
             assertTrue(projFlt.get("config") == null || projFlt.get("config").isNull(), "projection is structural-only");
 
             // …but /raw round-trips it losslessly, so the editor can edit + PUT without dropping config.
-            JsonNode rawFlt = node(json(send(c.port, "GET", "/flows/authored/cfg_flow/raw", null)).get("nodes"), "flt");
+            JsonNode rawFlt = node(json(send(c.port, "GET", "/pipelines/authored/cfg_flow/raw", null)).get("nodes"), "flt");
             assertEquals("amt >= 100", rawFlt.get("config").get("where").asText());
 
-            assertEquals(404, send(c.port, "GET", "/flows/authored/ghost/raw", null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/pipelines/authored/ghost/raw", null).statusCode());
 
             // an unsafe id (rejected by PipelineStore's SAFE_ID, e.g. a leading underscore) is "not present" → 404,
             // not a 500 from the id-resolution throwing through the read handler.
-            assertEquals(404, send(c.port, "GET", "/flows/authored/__nope__/raw", null).statusCode());
-            assertEquals(404, send(c.port, "GET", "/flows/authored/__nope__", null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/pipelines/authored/__nope__/raw", null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/pipelines/authored/__nope__", null).statusCode());
         }
     }
 
@@ -139,9 +139,9 @@ class ControlApiFlowCrudTest {
                           {"id":"flt","type":"transform.filter","config":{"where":"CAST(amt AS INT) >= 100"}},
                           {"id":"sink","type":"sink.persistent","config":{"store":"big"}}],
                  "edges":[{"from":"acq","rel":"data","to":"flt"},{"from":"flt","rel":"data","to":"sink"}]}""";
-            assertEquals(200, send(c.port, "POST", "/flows/authored", flow).statusCode());
+            assertEquals(200, send(c.port, "POST", "/pipelines/authored", flow).statusCode());
 
-            HttpResponse<String> r = send(c.port, "POST", "/flows/authored/dr_flow/dry-run",
+            HttpResponse<String> r = send(c.port, "POST", "/pipelines/authored/dr_flow/dry-run",
                     "{\"sampleRows\":[{\"id\":\"1\",\"amt\":\"150\"},{\"id\":\"2\",\"amt\":\"50\"},{\"id\":\"3\",\"amt\":\"200\"}]}");
             assertEquals(200, r.statusCode(), r.body());
             JsonNode body = json(r);
@@ -150,7 +150,7 @@ class ControlApiFlowCrudTest {
             assertEquals(2, sinkRows, body.toString());   // amt 150, 200 pass the filter
 
             // dry-run of a missing flow → 404
-            assertEquals(404, send(c.port, "POST", "/flows/authored/ghost/dry-run", "{\"sampleRows\":[{}]}").statusCode());
+            assertEquals(404, send(c.port, "POST", "/pipelines/authored/ghost/dry-run", "{\"sampleRows\":[{}]}").statusCode());
         }
     }
 
@@ -160,17 +160,17 @@ class ControlApiFlowCrudTest {
             // dangling edge → PipelineValidator error → 422
             String dangling = "{\"name\":\"bad\",\"nodes\":[{\"id\":\"acq\",\"type\":\"acquisition\"}],"
                     + "\"edges\":[{\"from\":\"acq\",\"rel\":\"data\",\"to\":\"ghost\"}]}";
-            assertEquals(422, send(c.port, "POST", "/flows/authored", dangling).statusCode());
+            assertEquals(422, send(c.port, "POST", "/pipelines/authored", dangling).statusCode());
             // malformed shape (no name) → 400
-            assertEquals(400, send(c.port, "POST", "/flows/authored", "{\"active\":true}").statusCode());
+            assertEquals(400, send(c.port, "POST", "/pipelines/authored", "{\"active\":true}").statusCode());
         }
     }
 
     @Test
     void writesAreGatedOnTheWriteRoot(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, null)) {
-            assertEquals(503, send(c.port, "POST", "/flows/authored", VALID).statusCode());
-            assertEquals(List.of(), JSON.readValue(send(c.port, "GET", "/flows/authored", null).body(), List.class));
+            assertEquals(503, send(c.port, "POST", "/pipelines/authored", VALID).statusCode());
+            assertEquals(List.of(), JSON.readValue(send(c.port, "GET", "/pipelines/authored", null).body(), List.class));
         }
     }
 

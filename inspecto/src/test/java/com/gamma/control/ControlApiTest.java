@@ -124,7 +124,7 @@ class ControlApiTest {
     @Test
     void pipelinesAreListed(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            HttpResponse<String> ok = send(c.port, "GET", "/pipelines", null);
+            HttpResponse<String> ok = send(c.port, "GET", "/runs", null);
             assertEquals(200, ok.statusCode());
             JsonNode arr = json(ok);
             assertTrue(arr.isArray() && arr.size() == 1);
@@ -136,31 +136,31 @@ class ControlApiTest {
     @Test
     void triggerRunsPipelineThenAuditQueriesReturnData(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            HttpResponse<String> run = send(c.port, "POST", "/pipelines/" + c.name + "/trigger", null);
+            HttpResponse<String> run = send(c.port, "POST", "/runs/" + c.name + "/trigger", null);
             assertEquals(200, run.statusCode());
             assertEquals(1, json(run).get("total").asInt());
             assertEquals(0, json(run).get("failed").asInt());
 
-            assertFalse(json(send(c.port, "GET", "/pipelines/" + c.name + "/commits", null)).isEmpty(),
+            assertFalse(json(send(c.port, "GET", "/runs/" + c.name + "/commits", null)).isEmpty(),
                     "a committed batch should be visible");
-            assertTrue(json(send(c.port, "GET", "/pipelines/" + c.name + "/batches", null)).size() >= 1,
+            assertTrue(json(send(c.port, "GET", "/runs/" + c.name + "/batches", null)).size() >= 1,
                     "batch audit rows present");
-            assertTrue(json(send(c.port, "GET", "/pipelines/" + c.name + "/files", null)).size() >= 1,
+            assertTrue(json(send(c.port, "GET", "/runs/" + c.name + "/files", null)).size() >= 1,
                     "file audit rows present");
             // lineage carries partition rows for the committed batch
-            assertTrue(json(send(c.port, "GET", "/pipelines/" + c.name + "/lineage", null)).size() >= 1);
+            assertTrue(json(send(c.port, "GET", "/runs/" + c.name + "/lineage", null)).size() >= 1);
         }
     }
 
     @Test
     void pauseAndResumeToggleState(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            assertEquals(200, send(c.port, "POST", "/pipelines/" + c.name + "/pause", null).statusCode());
-            JsonNode listed = json(send(c.port, "GET", "/pipelines", null));
+            assertEquals(200, send(c.port, "POST", "/runs/" + c.name + "/pause", null).statusCode());
+            JsonNode listed = json(send(c.port, "GET", "/runs", null));
             assertTrue(listed.get(0).get("paused").asBoolean(), "pipeline reports paused");
 
-            assertEquals(200, send(c.port, "POST", "/pipelines/" + c.name + "/resume", null).statusCode());
-            JsonNode after = json(send(c.port, "GET", "/pipelines", null));
+            assertEquals(200, send(c.port, "POST", "/runs/" + c.name + "/resume", null).statusCode());
+            JsonNode after = json(send(c.port, "GET", "/runs", null));
             assertFalse(after.get(0).get("paused").asBoolean(), "pipeline reports resumed");
         }
     }
@@ -180,7 +180,7 @@ class ControlApiTest {
     @Test
     void unknownPipelineAndPathYield404(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            assertEquals(404, send(c.port, "GET", "/pipelines/nope/commits", null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/runs/nope/commits", null).statusCode());
             assertEquals(404, send(c.port, "GET", "/no/such/route", null).statusCode());
             assertEquals(405, send(c.port, "GET", "/trigger", null).statusCode(), "GET on POST-only route");
         }
@@ -213,7 +213,7 @@ class ControlApiTest {
     @Test
     void statusAndBatchReportEndpoints(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            send(c.port, "POST", "/pipelines/" + c.name + "/trigger", null);
+            send(c.port, "POST", "/runs/" + c.name + "/trigger", null);
 
             JsonNode status = json(send(c.port, "GET", "/status", null));
             assertEquals(1, status.get("pipelineCount").asInt());
@@ -224,12 +224,12 @@ class ControlApiTest {
             assertTrue(report.get("totalBatches").asLong() >= 1);
             assertEquals(report.get("totalBatches").asLong(), report.get("success").asLong());
 
-            JsonNode one = json(send(c.port, "GET", "/pipelines/" + c.name + "/report", null));
+            JsonNode one = json(send(c.port, "GET", "/runs/" + c.name + "/report", null));
             assertEquals(c.name, one.get("pipeline").asText());
             assertTrue(one.get("totalBatches").asLong() >= 1);
 
             // unknown pipeline report → 404; no jobs registered → 404
-            assertEquals(404, send(c.port, "GET", "/pipelines/ghost/report", null).statusCode());
+            assertEquals(404, send(c.port, "GET", "/runs/ghost/report", null).statusCode());
             assertEquals(404, send(c.port, "GET", "/jobs", null).statusCode(), "no jobs registered");
         }
     }
@@ -237,24 +237,24 @@ class ControlApiTest {
     @Test
     void reportDateRangeAndPercentiles(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            send(c.port, "POST", "/pipelines/" + c.name + "/trigger", null);
+            send(c.port, "POST", "/runs/" + c.name + "/trigger", null);
 
             // unbounded report carries the new percentile + window fields
-            JsonNode all = json(send(c.port, "GET", "/pipelines/" + c.name + "/report", null));
+            JsonNode all = json(send(c.port, "GET", "/runs/" + c.name + "/report", null));
             assertTrue(all.get("totalBatches").asLong() >= 1);
             assertTrue(all.has("p50DurationMs") && all.has("p95DurationMs") && all.has("p99DurationMs"));
             assertEquals("", all.get("windowFrom").asText(), "unbounded → blank window echo");
 
             // a far-past window scopes the batch (run is 'today') out → zeroed, window echoed
             JsonNode past = json(send(c.port, "GET",
-                    "/pipelines/" + c.name + "/report?from=2000-01-01&to=2000-12-31", null));
+                    "/runs/" + c.name + "/report?from=2000-01-01&to=2000-12-31", null));
             assertEquals(0, past.get("totalBatches").asLong(), "today's batch is outside a 2000 window");
             assertEquals("2000-01-01", past.get("windowFrom").asText());
             assertEquals("2000-12-31 23:59:59", past.get("windowTo").asText(), "date-only to widened");
 
             // a wide window includes it again
             JsonNode wide = json(send(c.port, "GET",
-                    "/pipelines/" + c.name + "/report?from=2020-01-01&to=2030-12-31", null));
+                    "/runs/" + c.name + "/report?from=2020-01-01&to=2030-12-31", null));
             assertEquals(all.get("totalBatches").asLong(), wide.get("totalBatches").asLong());
 
             // service-wide report honours the range too
@@ -343,13 +343,13 @@ class ControlApiTest {
     @Test
     void reprocessReplaysACommittedBatch(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            send(c.port, "POST", "/pipelines/" + c.name + "/trigger", null);
-            JsonNode commits = json(send(c.port, "GET", "/pipelines/" + c.name + "/commits", null));
+            send(c.port, "POST", "/runs/" + c.name + "/trigger", null);
+            JsonNode commits = json(send(c.port, "GET", "/runs/" + c.name + "/commits", null));
             assertFalse(commits.isEmpty());
             String batchId = commits.get(0).asText();
 
             String body = "{\"batchId\":\"" + batchId + "\"}";
-            HttpResponse<String> r = send(c.port, "POST", "/pipelines/" + c.name + "/reprocess", body);
+            HttpResponse<String> r = send(c.port, "POST", "/runs/" + c.name + "/reprocess", body);
             assertEquals(200, r.statusCode(), "reprocess body: " + r.body());
             assertEquals("reprocessed", json(r).get("status").asText());
             assertEquals(batchId, json(r).get("batchId").asText());

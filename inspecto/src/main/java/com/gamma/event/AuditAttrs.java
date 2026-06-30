@@ -27,7 +27,7 @@ public final class AuditAttrs {
     public static final String ACTOR_TYPE = "actor_type";
 
     // ── action (what) ─────────────────────────────────────────────────────────────
-    /** Dotted action name, e.g. {@code pipeline.deleted}, {@code config.written}, {@code access.denied}. */
+    /** Dotted action name, e.g. {@code run.deleted}, {@code config.written}, {@code access.denied}. */
     public static final String ACTION = "action";
     /** Coarse class: {@code data_mutation}, {@code destructive}, {@code export}, {@code configuration},
      *  {@code authorization}, {@code authentication}. */

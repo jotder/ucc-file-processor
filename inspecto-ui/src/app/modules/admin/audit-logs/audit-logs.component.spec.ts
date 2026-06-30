@@ -15,12 +15,12 @@ const AUDIT_EVENT = {
     source: 'audit',
     pipeline: null,
     correlationId: null,
-    message: 'appUser pipeline.deleted orders',
+    message: 'appUser run.deleted orders',
     attributes: {
         actor: 'appUser',
-        action: 'pipeline.deleted',
+        action: 'run.deleted',
         action_category: 'destructive',
-        target_type: 'pipeline',
+        target_type: 'run',
         target_id: 'orders',
         ip: '127.0.0.1',
     },
@@ -59,17 +59,23 @@ describe('AuditLogsComponent', () => {
         expect(cmp.rows().length).toBe(1);
         const row = cmp.rows()[0];
         expect(row.actor).toBe('appUser');
-        expect(row.action).toBe('pipeline.deleted');
-        expect(row.target).toBe('pipeline:orders');
+        expect(row.action).toBe('run.deleted');
+        expect(row.target).toBe('run:orders');
     });
 
-    it('renders with no accessibility violations', async () => {
-        const fixture = TestBed.createComponent(AuditLogsComponent);
-        fixture.detectChanges();
-        flush([AUDIT_EVENT]); // rows present so the grid renders its required children
-        fixture.detectChanges();
-        await fixture.whenStable();
+    // audit-logs uses the data-table pro tier (CodeMirror @defer + ag-Grid); axe over it is heavy and
+    // can cross vitest's 5s default under multi-worker contention. Give it headroom (see dataset-editor).
+    it(
+        'renders with no accessibility violations',
+        async () => {
+            const fixture = TestBed.createComponent(AuditLogsComponent);
+            fixture.detectChanges();
+            flush([AUDIT_EVENT]); // rows present so the grid renders its required children
+            fixture.detectChanges();
+            await fixture.whenStable();
 
-        await expectNoA11yViolations(fixture.nativeElement);
-    });
+            await expectNoA11yViolations(fixture.nativeElement);
+        },
+        15_000,
+    );
 });

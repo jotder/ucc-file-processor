@@ -121,7 +121,7 @@ final class AuditTrail {
         return new Action(resource(path) + "." + verb, category);
     }
 
-    /** First path segment, singularised: {@code /pipelines/x} → {@code pipeline}; {@code /} → {@code service}. */
+    /** First path segment, singularised: {@code /runs/x} → {@code run}; {@code /} → {@code service}. */
     private static String resource(String path) {
         String[] seg = path.split("/");
         String head = seg.length > 1 && !seg[1].isEmpty() ? seg[1] : "service";

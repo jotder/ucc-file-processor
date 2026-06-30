@@ -62,7 +62,7 @@ class ControlApiSpacesTest {
             // listed, and the per-space seam now resolves it (empty pipeline list, not a 404)
             JsonNode list = json(send(c.port, "GET", "/spaces", null));
             assertTrue(list.isArray() && list.size() == 1 && "acme".equals(list.get(0).get("id").asText()));
-            HttpResponse<String> pipes = send(c.port, "GET", "/spaces/acme/pipelines", null);
+            HttpResponse<String> pipes = send(c.port, "GET", "/spaces/acme/runs", null);
             assertEquals(200, pipes.statusCode());
             assertEquals(0, json(pipes).size(), "fresh space hosts no pipelines yet");
 
@@ -75,7 +75,7 @@ class ControlApiSpacesTest {
             assertEquals(200, del.statusCode(), del.body());
             assertFalse(json(del).get("purged").asBoolean());
             assertEquals(0, json(send(c.port, "GET", "/spaces", null)).size());
-            assertEquals(404, send(c.port, "GET", "/spaces/acme/pipelines", null).statusCode(), "deregistered → seam 404");
+            assertEquals(404, send(c.port, "GET", "/spaces/acme/runs", null).statusCode(), "deregistered → seam 404");
             assertTrue(Files.isDirectory(root.resolve("acme")), "files kept when not purging");
 
             // deleting an unknown space → 404

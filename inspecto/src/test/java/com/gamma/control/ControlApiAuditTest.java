@@ -50,21 +50,21 @@ class ControlApiAuditTest {
     @Test
     void mutatingRequestEmitsAuditEvent(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
-            assertEquals(200, send(c.port, "POST", "/pipelines/" + c.name + "/trigger", null).statusCode());
+            assertEquals(200, send(c.port, "POST", "/runs/" + c.name + "/trigger", null).statusCode());
 
             JsonNode events = json(send(c.port, "GET", "/events?limit=200", null));
             JsonNode audit = null;
             for (JsonNode e : events) {
                 if ("AUDIT".equals(e.get("type").asText())
-                        && "pipeline.triggered".equals(e.get("attributes").get("action").asText())) {
+                        && "run.triggered".equals(e.get("attributes").get("action").asText())) {
                     audit = e;
                 }
             }
-            assertNotNull(audit, "a pipeline.triggered AUDIT event was recorded");
+            assertNotNull(audit, "a run.triggered AUDIT event was recorded");
             JsonNode attrs = audit.get("attributes");
             assertEquals("appUser", attrs.get("actor").asText(), "auth-free default actor");
             assertEquals("data_mutation", attrs.get("action_category").asText());
-            assertEquals("pipeline", attrs.get("target_type").asText());
+            assertEquals("run", attrs.get("target_type").asText());
             assertEquals(c.name, attrs.get("target_id").asText());
             assertFalse(attrs.get("ip").asText().isBlank(), "client ip captured");
         }
@@ -74,7 +74,7 @@ class ControlApiAuditTest {
     void honoursCustomActorHeader(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             HttpRequest req = HttpRequest.newBuilder(
-                            URI.create("http://localhost:" + c.port + "/pipelines/" + c.name + "/pause"))
+                            URI.create("http://localhost:" + c.port + "/runs/" + c.name + "/pause"))
                     .header("X-Actor", "support_agent")
                     .POST(BodyPublishers.noBody()).build();
             assertEquals(200, client.send(req, BodyHandlers.ofString()).statusCode());

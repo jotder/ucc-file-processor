@@ -22,12 +22,12 @@ describe('RunsService', () => {
 
   afterEach(() => httpMock.verify());
 
-  it('GET /pipelines for list()', () => {
+  it('GET /runs for list()', () => {
     svc.list().subscribe();
-    httpMock.expectOne((r) => r.method === 'GET' && r.url === `${base}/pipelines`).flush([]);
+    httpMock.expectOne((r) => r.method === 'GET' && r.url === `${base}/runs`).flush([]);
   });
 
-  it('GET /pipelines/{n}/pending and returns the InboxStatus', () => {
+  it('GET /runs/{n}/pending and returns the InboxStatus', () => {
     const body: InboxStatus = {
       pipeline: 'mini_etl',
       inbox: '/in',
@@ -37,7 +37,7 @@ describe('RunsService', () => {
     };
     let received: InboxStatus | undefined;
     svc.pending('mini_etl').subscribe((s) => (received = s));
-    const req = httpMock.expectOne(`${base}/pipelines/mini_etl/pending`);
+    const req = httpMock.expectOne(`${base}/runs/mini_etl/pending`);
     expect(req.request.method).toBe('GET');
     req.flush(body);
     expect(received).toEqual(body);
@@ -45,19 +45,19 @@ describe('RunsService', () => {
 
   it('URL-encodes the pipeline name in the path', () => {
     svc.trigger('a/b name').subscribe();
-    httpMock.expectOne(`${base}/pipelines/a%2Fb%20name/trigger`).flush({ total: 1, failed: 0 });
+    httpMock.expectOne(`${base}/runs/a%2Fb%20name/trigger`).flush({ total: 1, failed: 0 });
   });
 
   it('omits an undefined batchId from lineage query params', () => {
     svc.lineage('mini_etl').subscribe();
-    const req = httpMock.expectOne((r) => r.url === `${base}/pipelines/mini_etl/lineage`);
+    const req = httpMock.expectOne((r) => r.url === `${base}/runs/mini_etl/lineage`);
     expect(req.request.params.has('batchId')).toBe(false);
     req.flush([]);
   });
 
   it('includes batchId when provided', () => {
     svc.lineage('mini_etl', 'b1').subscribe();
-    const req = httpMock.expectOne((r) => r.url === `${base}/pipelines/mini_etl/lineage`);
+    const req = httpMock.expectOne((r) => r.url === `${base}/runs/mini_etl/lineage`);
     expect(req.request.params.get('batchId')).toBe('b1');
     req.flush([]);
   });

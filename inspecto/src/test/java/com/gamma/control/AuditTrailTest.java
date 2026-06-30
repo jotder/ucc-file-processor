@@ -9,12 +9,12 @@ class AuditTrailTest {
 
     @Test
     void classifiesDestructiveAndMutatingActions() {
-        assertEquals(new AuditTrail.Action("pipeline.deleted", "destructive"),
-                AuditTrail.classify("DELETE", "/pipelines/orders"));
-        assertEquals(new AuditTrail.Action("pipeline.triggered", "data_mutation"),
-                AuditTrail.classify("POST", "/pipelines/orders/trigger"));
-        assertEquals(new AuditTrail.Action("pipeline.created", "data_mutation"),
-                AuditTrail.classify("POST", "/pipelines"));
+        assertEquals(new AuditTrail.Action("run.deleted", "destructive"),
+                AuditTrail.classify("DELETE", "/runs/orders"));
+        assertEquals(new AuditTrail.Action("run.triggered", "data_mutation"),
+                AuditTrail.classify("POST", "/runs/orders/trigger"));
+        assertEquals(new AuditTrail.Action("run.created", "data_mutation"),
+                AuditTrail.classify("POST", "/runs"));
         assertEquals(new AuditTrail.Action("connection.updated", "data_mutation"),
                 AuditTrail.classify("PUT", "/connections/sftp1"));
         assertEquals(new AuditTrail.Action("space.deleted", "destructive"),
@@ -32,9 +32,9 @@ class AuditTrailTest {
     void skipsDiagnosticAndReadOnly() {
         assertNull(AuditTrail.classify("POST", "/connections/sftp1/test"));
         assertNull(AuditTrail.classify("POST", "/components/schema/x/test"));
-        assertNull(AuditTrail.classify("POST", "/flows/authored/f1/dry-run"));
+        assertNull(AuditTrail.classify("POST", "/pipelines/authored/f1/dry-run"));
         assertNull(AuditTrail.classify("POST", "/validate"));
         assertNull(AuditTrail.classify("POST", "/assist/chat"));
-        assertNull(AuditTrail.classify("GET", "/pipelines"), "ordinary reads are not audited");
+        assertNull(AuditTrail.classify("GET", "/runs"), "ordinary reads are not audited");
     }
 }

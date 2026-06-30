@@ -9,7 +9,7 @@ import { InboxStatus, RunsService, SourceView } from 'app/inspecto/api';
 /**
  * Source detail dialog — the full `/sources` config for one source, a link to its bound connection
  * profile, the current DB watermark slice and the live inbox status (pending count + running) from
- * GET /pipelines/{name}/pending.
+ * GET /runs/{name}/pending.
  */
 @Component({
     selector: 'app-source-detail-dialog',
