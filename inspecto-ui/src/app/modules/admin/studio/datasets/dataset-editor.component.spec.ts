@@ -62,9 +62,17 @@ describe('DatasetEditorComponent', () => {
         expect(save).not.toHaveBeenCalled();
     });
 
-    it('renders with no a11y violations', async () => {
-        const fixture = create();
-        fixture.detectChanges();
-        await expectNoA11yViolations(fixture.nativeElement);
-    });
+    // This editor embeds the query panel + an ag-Grid preview, making it the heaviest a11y
+    // fixture in the suite. axe finishes in ~1-2s in isolation, but under full-suite multi-worker
+    // CPU contention it can occasionally cross vitest's 5s default and time out (never a real
+    // violation — those throw immediately). Give it explicit headroom.
+    it(
+        'renders with no a11y violations',
+        async () => {
+            const fixture = create();
+            fixture.detectChanges();
+            await expectNoA11yViolations(fixture.nativeElement);
+        },
+        15_000,
+    );
 });
