@@ -30,3 +30,4 @@ export * from './acquisition-metrics.service';
 export * from './events.service';
 export * from './flows.service';
 export * from './notifications.service';
+export * from './demo-mock.interceptor';

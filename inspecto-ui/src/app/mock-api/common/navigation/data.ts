@@ -3,34 +3,21 @@ import { GammaNavigationItem } from '@gamma/components/navigation';
 
 export const defaultNavigation: GammaNavigationItem[] = [
     {
-        id   : 'dashboard',
-        title: 'Dashboard',
+        id      : 'dashboards-group',
+        title   : 'Dashboards',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:squares-2x2',
+        children: [
+            { id: 'op-dashboard',  title: 'Operation Dashboard',   type: 'basic', icon: 'heroicons_outline:chart-bar',          link: '/dashboard' },
+            { id: 'acq-dashboard', title: 'Acquisition Dashboard', type: 'basic', icon: 'heroicons_outline:inbox-arrow-down',   link: '/sources' },
+        ]
+    },
+    {
+        id   : 'kpi-reports',
+        title: 'KPI & Reports',
         type : 'basic',
-        icon : 'heroicons_outline:chart-bar',
-        link : '/dashboard'
-    },
-    {
-        id      : 'pipelines-group',
-        title   : 'Pipelines',
-        type    : 'collapsable',
-        icon    : 'heroicons_outline:arrows-right-left',
-        children: [
-            { id: 'flows',      title: 'Pipelines',  type: 'basic', icon: 'heroicons_outline:share',                  link: '/flows' },
-            { id: 'pipelines',  title: 'Runs',       type: 'basic', icon: 'heroicons_outline:queue-list',             link: '/pipelines' },
-            { id: 'components', title: 'Components', type: 'basic', icon: 'heroicons_outline:puzzle-piece',          link: '/components' },
-            { id: 'enrichment', title: 'Enrichment', type: 'basic', icon: 'heroicons_outline:funnel',                 link: '/enrichment' },
-            { id: 'catalog',    title: 'Catalog',    type: 'basic', icon: 'heroicons_outline:share',                  link: '/catalog' }
-        ]
-    },
-    {
-        id      : 'acquisition-group',
-        title   : 'Acquisition',
-        type    : 'collapsable',
-        icon    : 'heroicons_outline:inbox-arrow-down',
-        children: [
-            { id: 'sources',     title: 'Sources',     type: 'basic', icon: 'heroicons_outline:inbox-arrow-down', link: '/sources' },
-            { id: 'connections', title: 'Connections', type: 'basic', icon: 'heroicons_outline:server-stack',     link: '/connections' }
-        ]
+        icon : 'heroicons_outline:document-chart-bar',
+        link : '/kpi-reports'
     },
     {
         id      : 'operations-group',
@@ -48,15 +35,37 @@ export const defaultNavigation: GammaNavigationItem[] = [
         ]
     },
     {
-        id      : 'studio-group',
-        title   : 'Studio',
+        id      : 'workbench-group',
+        title   : 'Workbench',
         type    : 'collapsable',
-        icon    : 'heroicons_outline:presentation-chart-line',
+        icon    : 'heroicons_outline:wrench',
         children: [
-            { id: 'studio-datasets',   title: 'Datasets',   type: 'basic', icon: 'heroicons_outline:table-cells',     link: '/studio/datasets' },
-            { id: 'studio-charts',     title: 'Charts',     type: 'basic', icon: 'heroicons_outline:chart-pie',       link: '/studio/charts' },
-            { id: 'studio-dashboards', title: 'Dashboards', type: 'basic', icon: 'heroicons_outline:squares-2x2',     link: '/studio/dashboards' },
-            { id: 'studio-registry',   title: 'Registry',   type: 'basic', icon: 'heroicons_outline:rectangle-group', link: '/registry' }
+            {
+                id      : 'pipelines-group',
+                title   : 'Pipelines',
+                type    : 'collapsable',
+                icon    : 'heroicons_outline:arrows-right-left',
+                children: [
+                    { id: 'flows',       title: 'Pipelines',   type: 'basic', icon: 'heroicons_outline:share',        link: '/flows' },
+                    { id: 'pipelines',   title: 'Runs',        type: 'basic', icon: 'heroicons_outline:queue-list',   link: '/pipelines' },
+                    { id: 'components',  title: 'Components',  type: 'basic', icon: 'heroicons_outline:puzzle-piece', link: '/components' },
+                    { id: 'enrichment',  title: 'Enrichment',  type: 'basic', icon: 'heroicons_outline:funnel',       link: '/enrichment' },
+                    { id: 'catalog',     title: 'Catalog',     type: 'basic', icon: 'heroicons_outline:share',        link: '/catalog' },
+                    { id: 'connections', title: 'Connections',  type: 'basic', icon: 'heroicons_outline:server-stack', link: '/connections' },
+                ]
+            },
+            {
+                id      : 'studio-group',
+                title   : 'Studio',
+                type    : 'collapsable',
+                icon    : 'heroicons_outline:presentation-chart-line',
+                children: [
+                    { id: 'studio-datasets',   title: 'Datasets',   type: 'basic', icon: 'heroicons_outline:table-cells',     link: '/studio/datasets' },
+                    { id: 'studio-charts',     title: 'Charts',     type: 'basic', icon: 'heroicons_outline:chart-pie',       link: '/studio/charts' },
+                    { id: 'studio-dashboards', title: 'Dashboards', type: 'basic', icon: 'heroicons_outline:squares-2x2',     link: '/studio/dashboards' },
+                    { id: 'studio-registry',   title: 'Registry',   type: 'basic', icon: 'heroicons_outline:rectangle-group', link: '/registry' }
+                ]
+            },
         ]
     },
     {

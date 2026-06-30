@@ -56,6 +56,7 @@ export const appRoutes: Route[] = [
             { path: 'flows', loadChildren: () => import('app/modules/admin/flows/flows.routes') },
             { path: 'components', loadChildren: () => import('app/modules/admin/components/components.routes') },
             { path: 'sources', loadChildren: () => import('app/modules/admin/sources/sources.routes') },
+            { path: 'kpi-reports', loadChildren: () => import('app/modules/admin/kpi-reports/kpi-reports.routes') },
             { path: 'connections', loadChildren: () => import('app/modules/admin/connections/connections.routes') },
             { path: 'jobs', loadChildren: () => import('app/modules/admin/jobs/jobs.routes') },
             { path: 'jobs/:name', loadChildren: () => import('app/modules/admin/jobs/job-detail/job-detail.routes') },

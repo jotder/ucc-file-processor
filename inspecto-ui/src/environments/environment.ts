@@ -32,6 +32,9 @@ export const environment = {
     // backend; the mock seeds jobs so the page works offline. Flip false / remove jobsMockInterceptor once the
     // real Java endpoints land (see the plan's follow-on).
     mockJobs: true,
+    // Master demo-mode flag: mocks every remaining endpoint (health, status, pipelines, sources,
+    // notifications, catalog, diagnoses, config) so the full UI works with no backend at all.
+    mockDemo: true,
     apiVersion: '/api/v1',
     basePath: '/',
     authVersion:"/oauth",
