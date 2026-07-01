@@ -2,7 +2,7 @@
     <!-- Header -->
     <div class="bg-card border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
         <h1 class="text-3xl font-extrabold leading-none tracking-tight">Catalog</h1>
-        <div class="text-secondary mt-1.5">Metadata graph — tables, KPIs and lineage traversal</div>
+        <div class="text-secondary mt-1.5">Metadata graph — tables, streams, KPIs and lineage traversal</div>
     </div>
 
     <!-- Main -->
@@ -31,6 +31,21 @@
                 [columns]="nodeColumns"
                 noRowsTitle="No tables found"
                 noRowsHint="No catalog tables match the current filter."
+                (rowClick)="onNodeRowClicked($any($event))"
+            />
+        }
+
+        <!-- Streams -->
+        @if (activeTab === 'streams' && !loading) {
+            <inspecto-data-table
+                class="mt-6"
+                tier="standard"
+                sourceName="streams"
+                exportName="catalog-streams"
+                [rows]="streams"
+                [columns]="streamColumns"
+                noRowsTitle="No streams found"
+                noRowsHint="No data-origin streams are registered in the catalog."
                 (rowClick)="onNodeRowClicked($any($event))"
             />
         }

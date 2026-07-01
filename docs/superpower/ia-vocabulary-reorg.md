@@ -64,6 +64,11 @@ join the nav as their phases land, never as dead links.
 - **Phase B — Catalog data-plane.** Stream-grouped Schema tree + data-asset browse (Tables/Matrices/
   Datasets); relationship graph with **Lineage** + **Usage/Reuse** lenses (reuse `catalog/graph-view.component.ts`
   + `component-model` `deriveComponentGraph()`); re-home Datasets into Catalog. Needs a backend catalog read model.
+  **B.3 done (mock-only):** a 4th Catalog tab, **Streams**, lists each Source (+ Connection) as its
+  Catalog-facing Stream identity; `demo-mock.interceptor.ts` now emits `SOURCE`-kind nodes + `EMITS` edges
+  (Stream → its pipeline's output Table), so the Lineage graph and node-detail dialog also traverse
+  Stream→Table. `CatalogService.streams()` hits a new mock-only `/catalog/streams`. No backend route yet —
+  Schema-tree grouping remains open for a later slice.
 - **Phase C — Matrices (persisted summary Derived Tables).** Backend materialization of a cube/rollup
   Transform's output as a Derived Table, surfaced as a **Matrix** + selectable as a Studio Dataset. **Backend-gated.**
 - **Phase D — Job templates (trigger-condition-action).** Template model atop `com.gamma.job.JobService` +

@@ -24,12 +24,13 @@ import { G6GraphData, legendFor, toG6Data } from './catalog-graph';
 import { GraphViewComponent } from './graph-view.component';
 import { NodeDetailDialog } from './node-detail.dialog';
 
-type CatTab = 'tables' | 'kpis' | 'graph';
+type CatTab = 'tables' | 'streams' | 'kpis' | 'graph';
 
 /**
- * Data catalog — the metadata graph surfaced three ways: a Tables grid (with operational
- * overlay), a KPIs grid, and a **Lineage** traversal tool (AntV G6). Any node opens a detail
- * dialog (node + 2-hop neighbours). All read-only (ASSIST_READ scope).
+ * Data catalog — the metadata graph surfaced four ways: a Tables grid (with operational
+ * overlay), a **Streams** grid (data origins — Source + Connection, browsed by name), a KPIs
+ * grid, and a **Lineage** traversal tool (AntV G6). Any node opens a detail dialog (node + 2-hop
+ * neighbours). All read-only (ASSIST_READ scope).
  */
 @Component({
     standalone: true,
@@ -54,6 +55,7 @@ export class CatalogComponent implements OnInit {
 
     readonly tabs: { id: CatTab; label: string }[] = [
         { id: 'tables', label: 'Tables' },
+        { id: 'streams', label: 'Streams' },
         { id: 'kpis', label: 'KPIs' },
         { id: 'graph', label: 'Lineage' },
     ];
@@ -64,6 +66,7 @@ export class CatalogComponent implements OnInit {
 
     loading = false;
     nodes: MetadataNode[] = [];
+    streams: MetadataNode[] = [];
     kpis: KpiCatalogEntry[] = [];
 
     // graph traversal
@@ -93,6 +96,14 @@ export class CatalogComponent implements OnInit {
         { field: 'overlay.lastSeen', headerName: 'Last seen', width: 180, valueFormatter: (p) => fmtDateTime(p.value) },
     ];
 
+    readonly streamColumns: ColDef[] = [
+        { field: 'label', headerName: 'Stream', flex: 1 },
+        { field: 'attrs.connector', headerName: 'Connector', width: 130 },
+        { field: 'attrs.connection', headerName: 'Connection', flex: 1, valueFormatter: (p) => p.value ?? '—' },
+        { field: 'attrs.pipeline', headerName: 'Pipeline', flex: 1 },
+        { field: 'description.text', headerName: 'Description', flex: 2 },
+    ];
+
     readonly kpiColumns: ColDef[] = [
         { field: 'id', headerName: 'Id', width: 170 },
         { field: 'name', headerName: 'Name', flex: 1 },
@@ -112,6 +123,12 @@ export class CatalogComponent implements OnInit {
             this.api.tables().subscribe({
                 next: (n) => { this.nodes = n; this.loading = false; },
                 error: () => { this.nodes = []; this.loading = false; },
+            });
+        } else if (this.activeTab === 'streams') {
+            this.loading = true;
+            this.api.streams().subscribe({
+                next: (s) => { this.streams = s; this.loading = false; },
+                error: () => { this.streams = []; this.loading = false; },
             });
         } else if (this.activeTab === 'kpis') {
             this.loading = true;

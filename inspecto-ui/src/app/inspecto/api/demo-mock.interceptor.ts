@@ -265,6 +265,27 @@ const CATALOG_TABLES = [
     { id: 'fraud_scores', kind: 'TABLE', label: 'fraud_scores', description: { text: 'Real-time fraud scoring output', source: 'schema' }, overlay: { lastSeen: new Date(NOW - 600_000).toISOString(), rowCount: 95_000, freshness: 'FRESH' } },
 ];
 
+// A Stream is the Catalog's data-origin lens over a Source (+ its Connection) — same identity, catalog view.
+const PIPELINE_OUTPUT_TABLE: Record<string, string> = {
+    cdr_ingest: 'cdr_output',
+    subscriber_load: 'subscriber_master',
+    voucher_etl: 'voucher_transactions',
+    billing_daily: 'billing_events',
+    fraud_events: 'fraud_scores',
+};
+
+const CATALOG_STREAMS = SOURCES.map((s) => ({
+    id: s.id,
+    kind: 'SOURCE',
+    label: s.id,
+    description: { text: `${s.connector} source feeding ${s.pipeline}`, source: 'source' },
+    attrs: { connector: s.connector, connection: s.connection, pipeline: s.pipeline },
+}));
+
+const CATALOG_EDGES = CATALOG_STREAMS
+    .filter((s) => PIPELINE_OUTPUT_TABLE[s.attrs.pipeline])
+    .map((s) => ({ from: s.id, to: PIPELINE_OUTPUT_TABLE[s.attrs.pipeline], kind: 'EMITS' }));
+
 const CATALOG_KPIS = {
     domain: 'telecom',
     kpis: [
@@ -347,6 +368,7 @@ const NOTIF_DELETE = /\/notifications\/([^/]+)$/;
 const NOTIF_PREFS = /\/notifications\/preferences$/;
 const CATALOG_TABLES_RE = /\/catalog$/;
 const CATALOG_KPIS_RE = /\/catalog\/kpis$/;
+const CATALOG_STREAMS_RE = /\/catalog\/streams$/;
 const CATALOG_NODE = /\/catalog\/tables\/([^/]+)$/;
 const CATALOG_GRAPH = /\/catalog\/graph$/;
 const DIAGNOSES_RE = /\/diagnoses$/;
@@ -406,13 +428,19 @@ export const demoMockInterceptor: HttpInterceptorFn = (req, next) => {
 
     // ── catalog ──
     if (req.method === 'GET' && CATALOG_KPIS_RE.test(req.url)) return reply(CATALOG_KPIS);
+    if (req.method === 'GET' && CATALOG_STREAMS_RE.test(req.url)) return reply(CATALOG_STREAMS);
     if (req.method === 'GET' && CATALOG_TABLES_RE.test(req.url)) return reply(CATALOG_TABLES);
     if (req.method === 'GET' && (m = req.url.match(CATALOG_NODE))) {
         const id = decodeURIComponent(m[1]);
-        const node = CATALOG_TABLES.find((t) => t.id === id) ?? CATALOG_TABLES[0];
-        return reply({ node, neighbors: { nodes: [], edges: [] } });
+        const all = [...CATALOG_TABLES, ...CATALOG_STREAMS];
+        const node = all.find((t) => t.id === id) ?? all[0];
+        const edges = CATALOG_EDGES.filter((e) => e.from === id || e.to === id);
+        const neighborIds = new Set(edges.flatMap((e) => [e.from, e.to]));
+        const nodes = all.filter((n) => neighborIds.has(n.id) && n.id !== id);
+        return reply({ node, neighbors: { nodes, edges } });
     }
-    if (req.method === 'GET' && CATALOG_GRAPH.test(req.url)) return reply({ nodes: CATALOG_TABLES, edges: [] });
+    if (req.method === 'GET' && CATALOG_GRAPH.test(req.url))
+        return reply({ nodes: [...CATALOG_TABLES, ...CATALOG_STREAMS], edges: CATALOG_EDGES });
 
     // ── diagnoses ──
     if (req.method === 'GET' && DIAGNOSES_RE.test(req.url)) return reply(DIAGNOSES);
