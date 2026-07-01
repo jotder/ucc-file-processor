@@ -1,0 +1,40 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Processing Status</h1>
+            <div class="text-secondary mt-1.5">Every pipeline's committed/quarantine counts and last-batch outcome, at a glance</div>
+        </div>
+        <div class="mt-4 flex items-center gap-3 sm:mt-0">
+            <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        @if (cards.length) {
+            <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                @for (c of cards; track c.label) {
+                    <div class="bg-card flex flex-col rounded-2xl p-4 shadow">
+                        <div class="text-secondary text-sm">{{ c.label }}</div>
+                        <div class="mt-1 text-2xl font-extrabold tracking-tight">{{ c.value }}</div>
+                    </div>
+                }
+            </div>
+        }
+
+        <inspecto-data-table
+            tier="standard"
+            sourceName="processing-status"
+            exportName="processing-status"
+            [rows]="report?.pipelines ?? []"
+            [columns]="columnDefs"
+            [rowActions]="rowActions"
+            [loading]="loading"
+            noRowsTitle="No pipelines found"
+            noRowsHint="No pipeline status is available yet."
+        />
+    </div>
+</div>

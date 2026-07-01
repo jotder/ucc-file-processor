@@ -52,6 +52,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
         icon    : 'heroicons_outline:bolt',
         children: [
             { id: 'op-overview', title: 'Overview',   type: 'basic', icon: 'heroicons_outline:chart-bar',             link: '/dashboard' },
+            { id: 'processing-status', title: 'Processing Status', type: 'basic', icon: 'heroicons_outline:signal',   link: '/processing-status' },
             { id: 'events',      title: 'Events',     type: 'basic', icon: 'heroicons_outline:queue-list',            link: '/events' },
             { id: 'audit',       title: 'Audit log',  type: 'basic', icon: 'heroicons_outline:shield-check',          link: '/audit' },
             { id: 'diagnoses',   title: 'Diagnoses',  type: 'basic', icon: 'heroicons_outline:wrench-screwdriver',    link: '/diagnoses' },

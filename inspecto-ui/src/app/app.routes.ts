@@ -62,6 +62,7 @@ export const appRoutes: Route[] = [
             { path: 'jobs/:name', loadChildren: () => import('app/modules/admin/jobs/job-detail/job-detail.routes') },
             { path: 'enrichment', loadChildren: () => import('app/modules/admin/enrichment/enrichment.routes') },
             { path: 'catalog', loadChildren: () => import('app/modules/admin/catalog/catalog.routes') },
+            { path: 'processing-status', loadChildren: () => import('app/modules/admin/processing-status/processing-status.routes') },
             { path: 'studio', loadChildren: () => import('app/modules/admin/studio/studio.routes') },
             // Registry folded into Catalog's Usage tab (IA reorg phase B.4).
             { path: 'registry', redirectTo: 'catalog' },

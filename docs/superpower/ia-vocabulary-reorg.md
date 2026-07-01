@@ -78,8 +78,13 @@ join the nav as their phases land, never as dead links.
   Transform's output as a Derived Table, surfaced as a **Matrix** + selectable as a Studio Dataset. **Backend-gated.**
 - **Phase D — Job templates (trigger-condition-action).** Template model atop `com.gamma.job.JobService` +
   `CronExpression`; authoring UI under Workbench > Jobs. **Backend work.**
-- **Phase E — Processing Status / Provenance.** Promote lineage/provenance out of the Enrichment detail
-  panel into a first-class Operations page (files processed, provenance + lineage graph, diagnostics).
+- **Phase E — Processing Status / Provenance. DONE.** New Operations page
+  `modules/admin/processing-status/` (`/processing-status`) — a cross-pipeline rollup (every pipeline's
+  committed/quarantine counts + last-batch outcome, `GET /status` via the existing `ReportsService`) that
+  didn't exist before (today's per-pipeline files/lineage/quarantine drill-down already lives in
+  Runs > `run-detail`, and Enrichment's own Stage-2 "Lineage" tab is a distinct job-scoped concept — this
+  page complements both with a summary view + a row action to jump into a pipeline's Run detail, rather than
+  duplicating either). Mock-only (no new backend route; reuses `/status`).
 
 **Backend-gating:** C & D depend on the same seam as the Widget-Library **M2 backlog** (closed
 `ComponentStore.WRITABLE_TYPES` enum, auth-free core). A / B / E are mock/UI-feasible now.
