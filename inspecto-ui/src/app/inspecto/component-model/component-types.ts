@@ -1,6 +1,6 @@
 /**
  * The unified component metamodel. Every reusable artifact in the platform — grammar, schema, transform,
- * sink, connection, rule, dataset, chart, kpi, dashboard, pipeline, job — is a {@link Component}: a `kind`
+ * sink, connection, rule, dataset, widget, kpi, dashboard, pipeline, job — is a {@link Component}: a `kind`
  * + `config`, optionally composed of `parts` wired in a kind-specific fashion. Atomic = no parts/wiring;
  * composite = parts + a {@link Wiring}. See docs/superpower/component-model.md.
  *

@@ -5,7 +5,7 @@ import { ComponentKind, Part, Wiring, getKind, registerKind } from 'app/inspecto
  * P2 of the component-model adoption plan: register the platform's **existing** kinds on the unified registry
  * as thin, register-only adapters (no UI / behavior change). Atomic kinds (grammar / schema / transform /
  * sink / rule) are leaves; `pipeline` is the one composite — its `graph` wiring **is** the authored flow DAG
- * (the north-star "FlowGraph is literally a pipeline's wiring"). Studio's chart / dataset / dashboard register
+ * (the north-star "FlowGraph is literally a pipeline's wiring"). Studio's widget / dataset / dashboard register
  * separately (their own `*.kind.ts`).
  *
  * Validators are intentionally tiny / no-op (no JSON-schema engine — adoption-plan STOP): they exist so the
@@ -49,7 +49,7 @@ export const PIPELINE_KIND: ComponentKind<AuthoredPipeline> = {
     exec: { runnerKey: 'pipeline' },
 };
 
-/** Every kind id P2 registers (atomic + pipeline) — Studio's chart / dataset / dashboard register separately. */
+/** Every kind id P2 registers (atomic + pipeline) — Studio's widget / dataset / dashboard register separately. */
 export const PLATFORM_KIND_IDS: string[] = [...ATOMIC_KINDS.map((k) => k.id), PIPELINE_KIND.id];
 
 /**

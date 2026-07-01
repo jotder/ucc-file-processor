@@ -42,7 +42,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
         children: [
             {
                 id      : 'runs-group',
-                title   : 'Runs',
+                title   : 'Data Sources',
                 type    : 'collapsable',
                 icon    : 'heroicons_outline:arrows-right-left',
                 children: [
@@ -61,7 +61,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
                 icon    : 'heroicons_outline:presentation-chart-line',
                 children: [
                     { id: 'studio-datasets',   title: 'Datasets',   type: 'basic', icon: 'heroicons_outline:table-cells',     link: '/studio/datasets' },
-                    { id: 'studio-charts',     title: 'Charts',     type: 'basic', icon: 'heroicons_outline:chart-pie',       link: '/studio/charts' },
+                    { id: 'studio-widgets',    title: 'Widgets',    type: 'basic', icon: 'heroicons_outline:chart-pie',       link: '/studio/widgets' },
                     { id: 'studio-dashboards', title: 'Dashboards', type: 'basic', icon: 'heroicons_outline:squares-2x2',     link: '/studio/dashboards' },
                     { id: 'studio-registry',   title: 'Registry',   type: 'basic', icon: 'heroicons_outline:rectangle-group', link: '/registry' }
                 ]

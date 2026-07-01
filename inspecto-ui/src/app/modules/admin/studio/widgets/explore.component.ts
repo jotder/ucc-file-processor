@@ -24,16 +24,17 @@ import { InspectoAlertComponent } from 'app/inspecto/components/alert.component'
 import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
 import { SAMPLE_SOURCES } from '../datasets/dataset-sources';
-import { Chart, buildChart } from './chart-types';
-import { ChartSaveDialog } from './chart-save.dialog';
-import { ChartsService } from './charts.service';
+import { Widget, WidgetOptions, buildWidget } from './widget-types';
+import { WidgetSaveDialog, WidgetSaveResult } from './widget-save.dialog';
+import { WidgetOptionsDialog } from './widget-options.dialog';
+import { WidgetsService } from './widgets.service';
 import { ExploreControlsComponent } from './explore-controls.component';
-import './chart.kind'; // ensure the chart kind + viz plugins are registered
+import './widget.kind'; // ensure the widget kind + viz plugins are registered
 
 /**
- * Explore workbench — the chart builder. Pick a dataset, Show-Me recommends plugins, the field mapper
- * auto-assigns channels, and the chart re-renders live on every change (QuerySpec → offline AlaSQL →
- * transformProps → viz-render). Save persists a `chart` component. Mock-first; everything runs in-browser.
+ * Explore workbench — the widget builder. Pick a dataset, Show-Me recommends plugins, the field mapper
+ * auto-assigns channels, and the widget re-renders live on every change (QuerySpec → offline AlaSQL →
+ * transformProps → viz-render). Save persists a `widget` component. Mock-first; everything runs in-browser.
  */
 @Component({
     selector: 'app-explore',
@@ -54,12 +55,12 @@ import './chart.kind'; // ensure the chart kind + viz plugins are registered
 })
 export class ExploreComponent implements OnInit {
     private datasetsApi = inject(DatasetsService);
-    private chartsApi = inject(ChartsService);
+    private widgetsApi = inject(WidgetsService);
     private dialog = inject(MatDialog);
     private router = inject(Router);
     private toastr = inject(ToastrService);
 
-    /** Route param — the chart id to edit; absent on the `new` route. */
+    /** Route param — the widget id to edit; absent on the `new` route. */
     @Input() id?: string;
 
     readonly datasets = signal<Dataset[]>([]);
@@ -67,14 +68,24 @@ export class ExploreComponent implements OnInit {
     readonly dataset = signal<Dataset | null>(null);
     readonly vizType = signal<string>('');
     readonly controls = signal<ControlValues>({});
+    readonly options = signal<WidgetOptions>({});
+    readonly tags = signal<string[] | undefined>(undefined);
+    readonly description = signal<string | undefined>(undefined);
     readonly props = signal<VizProps>({ labels: [], series: [] });
     readonly running = signal(false);
     readonly editing = signal(false);
     readonly writesDisabled = signal(false);
 
-    readonly fields = computed<VizField[]>(() =>
-        (this.dataset()?.columns ?? []).map((c) => ({ name: c.name, type: c.type, role: c.role, label: c.label })),
-    );
+    readonly fields = computed<VizField[]>(() => {
+        const rows = this.rows();
+        return (this.dataset()?.columns ?? []).map((c) => ({
+            name: c.name,
+            type: c.type,
+            role: c.role,
+            label: c.label,
+            cardinality: c.role === 'dimension' ? distinctCount(rows, c.name) : undefined,
+        }));
+    });
     readonly recommended = computed<VizPlugin[]>(() => (this.dataset() ? recommend(this.fields()) : []));
     readonly plugin = computed<VizPlugin | null>(() => getViz(this.vizType()) ?? null);
     readonly sourceName = computed(() => this.dataset()?.sourceName ?? 'data');
@@ -91,9 +102,9 @@ export class ExploreComponent implements OnInit {
         });
         if (this.id) {
             this.editing.set(true);
-            this.chartsApi.get(this.id).subscribe({
-                next: (c) => this.seedFromChart(c),
-                error: (e) => this.toastr.error(apiErrorMessage(e, `Could not load chart "${this.id}"`)),
+            this.widgetsApi.get(this.id).subscribe({
+                next: (w) => this.seedFromWidget(w),
+                error: (e) => this.toastr.error(apiErrorMessage(e, `Could not load widget "${this.id}"`)),
             });
         }
     }
@@ -123,11 +134,24 @@ export class ExploreComponent implements OnInit {
         this.run();
     }
 
-    private seedFromChart(c: Chart): void {
-        this.selectedId.set(c.datasetId);
-        this.vizType.set(c.vizType);
-        this.controls.set(c.controls);
-        this.datasetsApi.get(c.datasetId).subscribe({
+    /** Open the advanced (cog) options dialog; applies the edited options on close, no-ops on cancel. */
+    openOptions(): void {
+        this.dialog
+            .open(WidgetOptionsDialog, { data: this.options(), width: '480px' })
+            .afterClosed()
+            .subscribe((edited?: WidgetOptions) => {
+                if (edited) this.options.set(edited);
+            });
+    }
+
+    private seedFromWidget(w: Widget): void {
+        this.selectedId.set(w.datasetId);
+        this.vizType.set(w.vizType);
+        this.controls.set(w.controls);
+        this.options.set(w.options ?? {});
+        this.tags.set(w.tags);
+        this.description.set(w.description);
+        this.datasetsApi.get(w.datasetId).subscribe({
             next: (d) => {
                 this.dataset.set(d);
                 this.run();
@@ -158,18 +182,28 @@ export class ExploreComponent implements OnInit {
             return;
         }
         this.dialog
-            .open(ChartSaveDialog, {
-                data: { suggestedId: this.id ?? `${ds.id}_${this.vizType()}`, lockId: this.editing() },
+            .open(WidgetSaveDialog, {
+                data: {
+                    suggestedId: this.id ?? `${ds.id}_${this.vizType()}`,
+                    lockId: this.editing(),
+                    tags: this.tags(),
+                    description: this.description(),
+                },
                 width: '420px',
             })
             .afterClosed()
-            .subscribe((name?: string) => {
-                if (!name) return;
-                const chart = buildChart(name, ds.id, this.vizType(), this.controls());
-                this.chartsApi.save(chart).subscribe({
+            .subscribe((result?: WidgetSaveResult) => {
+                if (!result) return;
+                const { name, tags, description } = result;
+                const widget = buildWidget(name, ds.id, this.vizType(), this.controls(), {
+                    options: this.options(),
+                    tags,
+                    description,
+                });
+                this.widgetsApi.save(widget).subscribe({
                     next: () => {
-                        this.toastr.success(`Chart "${name}" saved`);
-                        this.router.navigate(['/studio/charts']);
+                        this.toastr.success(`Widget "${name}" saved`);
+                        this.router.navigate(['/studio/widgets']);
                     },
                     error: (e) => {
                         if (e?.status === 503) this.writesDisabled.set(true);
@@ -180,4 +214,10 @@ export class ExploreComponent implements OnInit {
                 });
             });
     }
+}
+
+/** Distinct-value count for `field` across `rows` — the cardinality hint Show-Me uses to penalise, e.g., a
+ *  pie chart with too many slices. */
+function distinctCount(rows: Record<string, unknown>[], field: string): number {
+    return new Set(rows.map((r) => r[field])).size;
 }

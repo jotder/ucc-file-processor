@@ -12,7 +12,7 @@ import { ColumnMeta, ColumnType, QueryModel } from 'app/inspecto/query';
  */
 export type DatasetKind = 'physical' | 'virtual' | 'materialized';
 
-/** A column's analytic role — what a chart may bind it to (Tableau-style measure/dimension/time split). */
+/** A column's analytic role — what a widget may bind it to (Tableau-style measure/dimension/time split). */
 export type DatasetRole = 'dimension' | 'measure' | 'temporal';
 
 /** One typed, role-tagged column with an optional display label + format. */
@@ -26,7 +26,7 @@ export interface DatasetColumn {
     hidden?: boolean;
 }
 
-/** A named, reusable aggregate expression (e.g. `sum(duration_s)`) a chart can pick as a measure. */
+/** A named, reusable aggregate expression (e.g. `sum(duration_s)`) a widget can pick as a measure. */
 export interface NamedMeasure {
     id: string;
     label: string;
@@ -34,7 +34,7 @@ export interface NamedMeasure {
     format?: string;
 }
 
-/** Default visualization hints carried by the dataset (the chart builder seeds from these). */
+/** Default visualization hints carried by the dataset (the widget builder seeds from these). */
 export interface DatasetViz {
     defaultType?: string;
     defaultMappings?: Record<string, string>;

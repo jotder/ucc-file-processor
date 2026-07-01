@@ -10,13 +10,17 @@ interface FieldCounts {
     dim: number;
     measure: number;
     temporal: number;
+    /** The highest cardinality among the dimension fields (0 when unknown/no dimensions). */
+    maxDimCardinality: number;
 }
 
 function counts(fields: VizField[]): FieldCounts {
+    const dims = fields.filter((f) => f.role === 'dimension');
     return {
-        dim: fields.filter((f) => f.role === 'dimension').length,
+        dim: dims.length,
         measure: fields.filter((f) => f.role === 'measure').length,
         temporal: fields.filter((f) => f.role === 'temporal').length,
+        maxDimCardinality: Math.max(0, ...dims.map((f) => f.cardinality ?? 0)),
     };
 }
 
@@ -31,6 +35,10 @@ function fitScore(fit: VizFit, c: FieldCounts): number {
     if (fit.temporal === false && c.temporal === 0) score += 1;
     if (fit.maxMeasure != null && c.measure > fit.maxMeasure) score -= 1; // tolerated, penalised
     if (fit.maxDim != null && c.dim > fit.maxDim) score -= 1;
+    // A declared ceiling is a real preference signal either way: reward staying comfortably under it (the
+    // classic "pie shines with a few slices" case) so it's genuinely preferred, not just tied, over a plugin
+    // with no ceiling at all — and only mildly penalise (never enough to disqualify) crossing it.
+    if (fit.maxCardinality != null) score += c.maxDimCardinality > fit.maxCardinality ? -1 : 1;
     // Reward plugins whose measure appetite matches what's available.
     if (fit.minMeasure != null) score += Math.min(c.measure, fit.maxMeasure ?? c.measure);
     return score;

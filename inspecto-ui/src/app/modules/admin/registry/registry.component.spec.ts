@@ -26,18 +26,18 @@ function configure(byKind: Record<string, ModelComponent[]>, flows: { summaries?
 }
 
 describe('RegistryComponent', () => {
-    it('derives reference edges from composites (dashboard → chart → dataset)', async () => {
+    it('derives reference edges from composites (dashboard → widget → dataset)', async () => {
         configure({
             dataset: [{ kind: 'dataset', id: 'cdr', name: 'cdr', config: {} }],
-            chart: [{ kind: 'chart', id: 'ch1', name: 'ch1', config: { datasetId: 'cdr' } }],
-            dashboard: [{ kind: 'dashboard', id: 'db1', name: 'db1', config: { tiles: [{ chartId: 'ch1', span: 1 }] } }],
+            widget: [{ kind: 'widget', id: 'ch1', name: 'ch1', config: { datasetId: 'cdr' } }],
+            dashboard: [{ kind: 'dashboard', id: 'db1', name: 'db1', config: { tiles: [{ widgetId: 'ch1', span: 1 }] } }],
         });
         // Drive state directly (no detectChanges) — the G6 host can't instantiate in jsdom.
         const c = TestBed.createComponent(RegistryComponent).componentInstance;
         await c.load();
         const edges = c.graph().edges.map((e) => `${e.source}->${e.target}`);
-        expect(edges).toContain('chart/ch1->dataset/cdr');
-        expect(edges).toContain('dashboard/db1->chart/ch1');
+        expect(edges).toContain('widget/ch1->dataset/cdr');
+        expect(edges).toContain('dashboard/db1->widget/ch1');
         expect(c.refRows()).toHaveLength(2);
     });
 
@@ -67,7 +67,7 @@ describe('RegistryComponent', () => {
     });
 
     it('flags a dangling reference as a ghost node', async () => {
-        configure({ chart: [{ kind: 'chart', id: 'ch1', name: 'ch1', config: { datasetId: 'missing' } }] });
+        configure({ widget: [{ kind: 'widget', id: 'ch1', name: 'ch1', config: { datasetId: 'missing' } }] });
         const c = TestBed.createComponent(RegistryComponent).componentInstance;
         await c.load();
         expect(c.graph().nodes.find((n) => n.id === 'dataset/missing')?.data.missing).toBe(true);

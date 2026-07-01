@@ -3,9 +3,21 @@ import { VizPlugin } from '../viz-types';
 import { AREA_PLUGIN, BAR_PLUGIN, LINE_PLUGIN, PIE_PLUGIN } from './standard.plugins';
 import { TABLE_PLUGIN } from './table.plugin';
 import { KPI_PLUGIN } from './kpi.plugin';
+import { BUBBLE_PLUGIN } from './bubble.plugin';
+import { GAUGE_PLUGIN } from './gauge.plugin';
 
-/** The P1 plugin set. KPI + table first (always-available), then the Chart.js standards. */
-export const BUILTIN_VIZ_PLUGINS: VizPlugin[] = [KPI_PLUGIN, TABLE_PLUGIN, BAR_PLUGIN, LINE_PLUGIN, AREA_PLUGIN, PIE_PLUGIN];
+/** The plugin set. KPI + table first (always-available), then the Chart.js standards, then the P3 breadth
+ *  additions (bubble, gauge). */
+export const BUILTIN_VIZ_PLUGINS: VizPlugin[] = [
+    KPI_PLUGIN,
+    TABLE_PLUGIN,
+    BAR_PLUGIN,
+    LINE_PLUGIN,
+    AREA_PLUGIN,
+    PIE_PLUGIN,
+    BUBBLE_PLUGIN,
+    GAUGE_PLUGIN,
+];
 
 /**
  * Register the built-in plugins once. Guarded (skips already-registered ids) so a repeated side-effect import
@@ -17,9 +29,11 @@ export function registerBuiltinViz(): void {
     }
 }
 
-// Side-effect: register on import (Studio loads this when the chart kind is pulled in).
+// Side-effect: register on import (Studio loads this when the widget kind is pulled in).
 registerBuiltinViz();
 
 export { AREA_PLUGIN, BAR_PLUGIN, LINE_PLUGIN, PIE_PLUGIN } from './standard.plugins';
 export { TABLE_PLUGIN } from './table.plugin';
 export { KPI_PLUGIN } from './kpi.plugin';
+export { BUBBLE_PLUGIN } from './bubble.plugin';
+export { GAUGE_PLUGIN } from './gauge.plugin';

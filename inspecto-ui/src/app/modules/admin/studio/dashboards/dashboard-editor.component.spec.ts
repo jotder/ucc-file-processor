@@ -6,8 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { ToastrService } from 'ngx-toastr';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
-import { Chart } from '../charts/chart-types';
-import { ChartsService } from '../charts/charts.service';
+import { Widget } from '../widgets/widget-types';
+import { WidgetsService } from '../widgets/widgets.service';
 import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
 import { Dashboard } from './dashboard-types';
@@ -19,7 +19,7 @@ const DS: Dataset = {
     columns: [{ name: 'tariff', type: 'string', role: 'dimension' }, { name: 'duration_s', type: 'number', role: 'measure' }],
     measures: [],
 };
-const CHART: Chart = { id: 'bar1', name: 'Bar 1', datasetId: 'cdr_sample', vizType: 'bar', controls: { x: [{ field: 'tariff' }], y: [{ field: 'duration_s', agg: 'sum' }] } };
+const WIDGET: Widget = { id: 'bar1', name: 'Bar 1', datasetId: 'cdr_sample', vizType: 'bar', controls: { x: [{ field: 'tariff' }], y: [{ field: 'duration_s', agg: 'sum' }] } };
 
 function create(save = vi.fn((d: Dashboard) => of(d))) {
     TestBed.configureTestingModule({
@@ -27,7 +27,7 @@ function create(save = vi.fn((d: Dashboard) => of(d))) {
         providers: [
             provideNoopAnimations(),
             provideRouter([]),
-            { provide: ChartsService, useValue: { list: () => of([CHART]) } },
+            { provide: WidgetsService, useValue: { list: () => of([WIDGET]) } },
             { provide: DatasetsService, useValue: { list: () => of([DS]) } },
             { provide: DashboardsService, useValue: { get: () => of(null), save } },
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
@@ -40,19 +40,19 @@ function create(save = vi.fn((d: Dashboard) => of(d))) {
 describe('DashboardEditorComponent', () => {
     it('adds, spans and removes tiles', () => {
         const c = create().componentInstance;
-        c.addChart('bar1');
-        expect(c.tiles()).toEqual([{ chartId: 'bar1', span: 1 }]);
+        c.addWidget('bar1');
+        expect(c.tiles()).toEqual([{ widgetId: 'bar1', span: 1 }]);
         c.toggleSpan(0);
         expect(c.tiles()[0].span).toBe(2);
         c.removeTile(0);
         expect(c.tiles()).toHaveLength(0);
     });
 
-    it('builds the cross-filter column union from the tiled charts’ datasets', () => {
+    it('builds the cross-filter column union from the tiled widgets’ datasets', () => {
         const fixture = create();
-        fixture.detectChanges(); // load charts + datasets
+        fixture.detectChanges(); // load widgets + datasets
         const c = fixture.componentInstance;
-        c.addChart('bar1');
+        c.addWidget('bar1');
         expect(c.filterColumns().map((col) => col.name)).toEqual(['tariff', 'duration_s']);
     });
 
@@ -62,9 +62,9 @@ describe('DashboardEditorComponent', () => {
         fixture.detectChanges();
         const nav = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
         fixture.componentInstance.form.controls.name.setValue('cdr_overview');
-        fixture.componentInstance.addChart('bar1');
+        fixture.componentInstance.addWidget('bar1');
         fixture.componentInstance.save();
-        expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'cdr_overview', tiles: [{ chartId: 'bar1', span: 1 }] }));
+        expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'cdr_overview', tiles: [{ widgetId: 'bar1', span: 1 }] }));
         expect(nav).toHaveBeenCalledWith(['/studio/dashboards']);
     });
 
@@ -81,5 +81,25 @@ describe('DashboardEditorComponent', () => {
         const fixture = create();
         fixture.detectChanges();
         await expectNoA11yViolations(fixture.nativeElement);
+    });
+
+    it('a drill click adds an equality condition to the cross-filter', () => {
+        const c = create().componentInstance;
+        c.onDrill({ field: 'tariff', value: 'premium' });
+        expect(c.filter().items).toEqual([{ kind: 'condition', field: 'tariff', operator: '=', value: 'premium' }]);
+    });
+
+    it('clicking the same drill value again removes the condition (toggle)', () => {
+        const c = create().componentInstance;
+        c.onDrill({ field: 'tariff', value: 'premium' });
+        c.onDrill({ field: 'tariff', value: 'premium' });
+        expect(c.filter().items).toHaveLength(0);
+    });
+
+    it('drilling a different value keeps the first condition and adds a second', () => {
+        const c = create().componentInstance;
+        c.onDrill({ field: 'tariff', value: 'premium' });
+        c.onDrill({ field: 'tariff', value: 'standard' });
+        expect(c.filter().items).toHaveLength(2);
     });
 });

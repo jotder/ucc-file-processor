@@ -1,0 +1,102 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Widgets</h1>
+            <div class="text-secondary mt-1">Saved visualizations built on your datasets.</div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading()) { <mat-spinner diameter="24"></mat-spinner> }
+            <button mat-icon-button (click)="load()" [disabled]="loading()" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+            <button mat-flat-button color="primary" routerLink="new">
+                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                <span class="ml-2">New widget</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="relative mt-4 max-w-md">
+        <mat-icon class="icon-size-4 text-secondary pointer-events-none absolute left-2 top-1/2 -translate-y-1/2" svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+        <input
+            type="text"
+            class="bg-card w-full rounded border border-gray-300 py-1.5 pl-8 pr-2 text-sm dark:border-gray-600"
+            placeholder="Filter widgets…"
+            aria-label="Filter widgets"
+            (input)="onFilter($event)"
+        />
+    </div>
+
+    @if (allTags().length) {
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+            <span class="text-secondary text-xs font-semibold uppercase tracking-wider">Tags:</span>
+            @for (tag of allTags(); track tag) {
+                <button
+                    type="button"
+                    class="rounded-full border px-2.5 py-0.5 text-xs"
+                    [class.border-primary]="activeTag() === tag"
+                    [class.text-primary]="activeTag() === tag"
+                    [class.border-gray-300]="activeTag() !== tag"
+                    [attr.aria-pressed]="activeTag() === tag"
+                    (click)="toggleTag(tag)"
+                >
+                    {{ tag }}
+                </button>
+            }
+        </div>
+    }
+
+    @if (!loading() && widgets().length === 0) {
+        <inspecto-empty-state
+            class="mt-8 block"
+            icon="heroicons_outline:chart-pie"
+            title="No widgets yet"
+            message="Use “New widget” to pick a dataset and explore a visualization."
+        />
+    }
+
+    <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        @for (w of visibleWidgets(); track w.id) {
+            <div class="bg-card flex flex-col rounded-2xl p-5 shadow">
+                <div class="flex items-start justify-between">
+                    <div class="min-w-0">
+                        <div class="break-all font-mono text-lg font-semibold">{{ w.id }}</div>
+                        <div class="text-secondary mt-0.5 flex flex-wrap items-center gap-2 text-sm">
+                            <inspecto-status-badge [value]="w.vizType" [label]="w.vizType" />
+                            <span>dataset: <span class="font-mono">{{ w.datasetId }}</span></span>
+                        </div>
+                        @if (w.description) { <div class="text-secondary mt-1 text-sm">{{ w.description }}</div> }
+                        @if (w.tags?.length) {
+                            <div class="mt-1 flex flex-wrap gap-1">
+                                @for (tag of w.tags; track tag) {
+                                    <span class="bg-gray-100 rounded-full px-2 py-0.5 text-xs dark:bg-gray-700">{{ tag }}</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button mat-icon-button [routerLink]="[w.id, 'view']" matTooltip="Open standalone" aria-label="Open standalone">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:external-link"></mat-icon>
+                        </button>
+                        <button mat-icon-button [routerLink]="[w.id]" matTooltip="Edit" aria-label="Edit">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                        </button>
+                        <button mat-icon-button (click)="remove(w)" matTooltip="Delete" aria-label="Delete">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                        </button>
+                    </div>
+                </div>
+
+                @if (datasetsById().get(w.datasetId); as ds) {
+                    <div class="mt-3 h-40 overflow-hidden">
+                        <app-widget-host [widget]="w" [dataset]="ds" />
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @if (widgets().length && visibleWidgets().length === 0) {
+        <div class="text-secondary mt-8">No widgets match “{{ filterText() }}”.</div>
+    }
+</div>

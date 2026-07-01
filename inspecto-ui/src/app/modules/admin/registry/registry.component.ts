@@ -17,7 +17,7 @@ import { registerPlatformKinds } from './platform-kinds';
 
 /** The component-registry kinds the reuse-graph loads (the backend `ComponentType`s). Pipelines are loaded
  *  separately (authored flows via {@link PipelinesService}) since they live in their own store, not `/components`. */
-const REGISTRY_KINDS = ['dataset', 'chart', 'dashboard', 'grammar', 'schema', 'transform', 'sink', 'rule'];
+const REGISTRY_KINDS = ['dataset', 'widget', 'dashboard', 'grammar', 'schema', 'transform', 'sink', 'rule'];
 
 /** The kinds a pipeline node may bind (mirrors `PIPELINE_KIND.allowedPartKinds`); a node's `use=<kind>/<id>`
  *  ref is turned into a part only for these, so source→connection refs don't clutter the graph. */
@@ -26,7 +26,7 @@ const PIPELINE_REF_KINDS = new Set(['grammar', 'schema', 'transform', 'sink']);
 /** Editors that exist today, for the node-detail "Open" link; kinds without one (atomic registry kinds) get none. */
 const EDITOR_PATH: Record<string, string> = {
     dataset: '/studio/datasets',
-    chart: '/studio/charts',
+    widget: '/studio/widgets',
     dashboard: '/studio/dashboards',
 };
 
@@ -37,7 +37,7 @@ const EDITOR_PATH: Record<string, string> = {
  * read-only reference table. A node click reveals the component's detail (kind, references, an editor link).
  *
  * The relationship graph is **derived**, not a new store — references come from each composite's config via
- * {@link partsFor} (a chart's dataset, a dashboard's chart tiles). Registers the platform kinds on load.
+ * {@link partsFor} (a widget's dataset, a dashboard's widget tiles). Registers the platform kinds on load.
  */
 @Component({
     selector: 'app-registry',
@@ -168,17 +168,17 @@ function splitRef(nodeId: string): { kind: string; id: string } {
 
 /**
  * Derive a component's reference parts from its (known) config — the references the reuse-graph draws edges
- * for. Reads the stable config shapes of the composite kinds (a chart → its dataset; a dashboard → its chart
+ * for. Reads the stable config shapes of the composite kinds (a widget → its dataset; a dashboard → its widget
  * tiles); atomic kinds have none. A `deriveParts` ComponentKind seam could formalize this later.
  */
 function partsFor(c: ModelComponent): Part[] {
-    if (c.kind === 'chart') {
+    if (c.kind === 'widget') {
         const datasetId = (c.config as { datasetId?: string }).datasetId;
         return datasetId ? [{ partId: 'dataset', ref: { kind: 'dataset', id: datasetId } }] : [];
     }
     if (c.kind === 'dashboard') {
-        const tiles = (c.config as { tiles?: { chartId: string }[] }).tiles ?? [];
-        return tiles.filter((t) => t.chartId).map((t, i) => ({ partId: `tile${i}`, ref: { kind: 'chart', id: t.chartId } }));
+        const tiles = (c.config as { tiles?: { widgetId: string }[] }).tiles ?? [];
+        return tiles.filter((t) => t.widgetId).map((t, i) => ({ partId: `tile${i}`, ref: { kind: 'widget', id: t.widgetId } }));
     }
     return [];
 }

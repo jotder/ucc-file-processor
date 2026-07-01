@@ -2,7 +2,7 @@ import { ColumnType, ConditionGroup } from 'app/inspecto/query';
 
 /**
  * The visualization seam — a framework-agnostic `VizPlugin` registry that is the **first `ComponentKind`
- * slice** of the unified component model (a chart is a `kind:'chart'` component; each plugin is a chart
+ * slice** of the unified component model (a widget is a `kind:'widget'` component; each plugin is a widget
  * sub-type). Pure data + pure functions, no Angular — the Angular `viz-render` host resolves `render` keys to
  * components. Mirrors the `query/` core's split (types + compiler + in-browser run). See
  * docs/superpower/report-builder-design.md.
@@ -17,6 +17,8 @@ export interface VizField {
     type: ColumnType;
     role: FieldRole;
     label?: string;
+    /** Distinct-value count hint, when known — feeds Show-Me's cardinality-aware scoring. */
+    cardinality?: number;
 }
 
 /** Aggregation a measure channel applies to its column (offline: compiled to AlaSQL aggregate fns). */
@@ -68,7 +70,8 @@ export interface ChannelValue {
 /** The current field-mapper state: channel → assignment(s). */
 export type ControlValues = Partial<Record<ChannelId, ChannelValue[]>>;
 
-/** How the render host should draw this plugin's output. */
+/** How the render host should draw this plugin's output. `chartType` also carries the two Chart.js-native
+ *  approximations (`bubble` — true, `gauge` — a doughnut styled as a half-circle by `VizRenderComponent`). */
 export type VizRender =
     | { kind: 'chartjs'; chartType: string }
     | { kind: 'aggrid' }
@@ -83,6 +86,9 @@ export interface VizFit {
     maxMeasure?: number;
     /** Requires (true) or forbids (false) a temporal field; omit if indifferent. */
     temporal?: boolean;
+    /** Soft ceiling on a dimension's cardinality (e.g. pie ≤8 slices) — exceeding it penalises, not
+     *  disqualifies, so a plain `table` (no such ceiling) naturally rises to the top for high-cardinality data. */
+    maxCardinality?: number;
 }
 
 export interface VizMeta {
@@ -99,6 +105,24 @@ export interface VizSeries {
     [k: string]: unknown;
 }
 
+/**
+ * The render-affecting subset of a Studio Widget's advanced options — kept here (not in Studio's
+ * `WidgetOptions`) because {@link VizRenderComponent} is shared/core and must not import a feature type.
+ * `WidgetOptions` extends this with the caption-only `title`/`subtitle` fields.
+ */
+export interface VizRenderOptions {
+    axis?: { xTitle?: string; yTitle?: string };
+    legend?: { show?: boolean; position?: 'top' | 'right' | 'bottom' | 'left' };
+    /** A named palette key resolved by the render host (`app/inspecto/theme/chart-tokens`). */
+    palette?: string;
+    /** Order categories by their value (Chart.js render kinds only). */
+    sort?: SortDir;
+    /** Keep only the first N categories after sorting — a "top N" trim. */
+    limit?: number;
+    /** Stack series (bar/area only). */
+    stacked?: boolean;
+}
+
 /** The render-ready props a plugin produces from result rows (labels + series, or raw rows for the table). */
 export interface VizProps {
     labels: string[];
@@ -113,7 +137,7 @@ export interface VizProps {
 /**
  * A visualization plugin — config-path first (controls → query → props) with an optional component escape
  * hatch (`render.kind:'component'`). The generalization target the adoption plan names: registering these is
- * the `chart` ComponentKind's job.
+ * the `widget` ComponentKind's job.
  */
 export interface VizPlugin {
     meta: VizMeta;

@@ -1,12 +1,12 @@
-import { ChangeDetectionStrategy, Component, Type, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Type, computed, input, output } from '@angular/core';
 import { NgComponentOutlet } from '@angular/common';
 import { ColDef } from 'ag-grid-community';
-import { ChartData, ChartType } from 'chart.js';
+import { ChartData, ChartOptions, ChartType } from 'chart.js';
 import { InspectoChartComponent } from 'app/inspecto/components/chart.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
-import { CHART_CATEGORICAL } from 'app/inspecto/theme/chart-tokens';
+import { CHART_CATEGORICAL, CHART_PALETTES, GAUGE_TRACK } from 'app/inspecto/theme/chart-tokens';
 import { KpiComponent } from './plugins/kpi.component';
-import { VizPlugin, VizProps } from './viz-types';
+import { VizPlugin, VizProps, VizRenderOptions, VizSeries } from './viz-types';
 
 /** componentKey → Angular component, for plugins that render via the escape hatch (`render.kind:'component'`). */
 const COMPONENT_BY_KEY: Record<string, Type<unknown>> = { kpi: KpiComponent };
@@ -15,6 +15,8 @@ const COMPONENT_BY_KEY: Record<string, Type<unknown>> = { kpi: KpiComponent };
  * Render host — dispatches a {@link VizPlugin}'s `render.kind` to the right shared surface: `chartjs` →
  * `<inspecto-chart>`, `aggrid` → `<inspecto-data-table>`, `component` → `NgComponentOutlet` (KPI), `g6` →
  * placeholder for now. The plugins stay framework-free; this thin component is the only Angular glue.
+ * `renderOptions` (a Studio Widget's advanced/cog config, or any caller's) applies uniformly across chartjs
+ * plugins — palette, sort/limit, axis titles, legend, stacked — without each plugin needing to know about it.
  */
 @Component({
     selector: 'inspecto-viz-render',
@@ -25,7 +27,7 @@ const COMPONENT_BY_KEY: Record<string, Type<unknown>> = { kpi: KpiComponent };
         @switch (renderKind()) {
             @case ('chartjs') {
                 @if (chartData(); as data) {
-                    <inspecto-chart [type]="chartType()" [data]="data" />
+                    <inspecto-chart [type]="chartType()" [data]="data" [options]="chartJsOptions()" (elementClick)="onElementClick($event)" />
                 }
             }
             @case ('aggrid') {
@@ -49,6 +51,11 @@ export class VizRenderComponent {
     readonly props = input.required<VizProps>();
     /** Display/source name (table FROM, KPI caption). */
     readonly title = input('data');
+    /** The advanced/cog render options (palette, sort/limit, axis titles, legend, stacked) — all optional. */
+    readonly renderOptions = input<VizRenderOptions | undefined>(undefined);
+    /** Emits the clicked category's label (bar/line/area/pie/bubble) — the drill-down seam. Gauge has no
+     *  filterable categories, so it never emits. */
+    readonly categoryClick = output<string>();
 
     readonly renderKind = computed(() => this.plugin().render.kind);
 
@@ -63,12 +70,47 @@ export class VizRenderComponent {
         return (r.kind === 'chartjs' ? r.chartType : 'bar') as ChartType;
     });
 
-    readonly chartData = computed<ChartData | null>(() => {
-        const r = this.plugin().render;
-        if (r.kind !== 'chartjs') return null;
+    /** Props reordered by `sort` (on the first series' value) and trimmed to `limit` categories. Chart.js only —
+     *  table/KPI ignore sort/limit (rows already have their own grid sort; KPI has no categories). */
+    private readonly sortedProps = computed<VizProps>(() => {
         const p = this.props();
+        const opts = this.renderOptions();
+        if (!opts?.sort && !opts?.limit) return p;
+        let order = p.labels.map((_, i) => i);
+        if (opts.sort) {
+            const dir = opts.sort === 'asc' ? 1 : -1;
+            const value = (i: number): number => p.series[0]?.data[i] ?? 0;
+            order = [...order].sort((a, b) => dir * (value(a) - value(b)));
+        }
+        if (opts.limit) order = order.slice(0, opts.limit);
+        return {
+            ...p,
+            labels: order.map((i) => p.labels[i]),
+            series: p.series.map((s): VizSeries => ({ ...s, data: order.map((i) => s.data[i]) })),
+        };
+    });
+
+    readonly chartData = computed<ChartData | null>(() => {
+        const plugin = this.plugin();
+        const r = plugin.render;
+        if (r.kind !== 'chartjs') return null;
+        const p = this.sortedProps();
+        const palette = CHART_PALETTES[this.renderOptions()?.palette ?? ''] ?? CHART_CATEGORICAL;
+        const color = (i: number): string => palette[i % palette.length];
+
+        if (plugin.meta.type === 'gauge') {
+            const value = Math.max(0, Math.min(100, this.props().value ?? 0));
+            return { labels: ['Value', 'Remaining'], datasets: [{ data: [value, 100 - value], backgroundColor: [color(0), GAUGE_TRACK] }] };
+        }
+        if (plugin.meta.type === 'bubble') {
+            const [xs, ys, sizes] = p.series;
+            const maxSize = Math.max(1, ...(sizes?.data ?? [0]));
+            const toRadius = (v: number): number => 4 + (Math.max(0, v) / maxSize) * 20; // 4–24px, relative to the largest point
+            const points = (xs?.data ?? []).map((x, i) => ({ x, y: ys?.data[i] ?? 0, r: toRadius(sizes?.data[i] ?? 0) }));
+            return { labels: p.labels, datasets: [{ label: 'Bubble', data: points, backgroundColor: p.labels.map((_, i) => color(i)) }] };
+        }
+
         const isPie = r.chartType === 'pie' || r.chartType === 'doughnut';
-        const color = (i: number): string => CHART_CATEGORICAL[i % CHART_CATEGORICAL.length];
         if (isPie) {
             return {
                 labels: p.labels,
@@ -83,7 +125,36 @@ export class VizRenderComponent {
                 backgroundColor: color(i),
                 borderColor: color(i),
                 fill: (s['fill'] as boolean) ?? false,
+                stack: this.renderOptions()?.stacked ? 'stack' : undefined,
             })),
+        };
+    });
+
+    /** Chart.js overrides derived from `renderOptions` — legend show/position, axis titles, stacked scales —
+     *  plus the gauge's fixed half-circle styling (an explicit `renderOptions.legend` still overrides its
+     *  hidden-by-default legend). `<inspecto-chart>` deep-merges these under its theme defaults, so omitted
+     *  fields keep their styling. */
+    readonly chartJsOptions = computed<ChartOptions>(() => {
+        const isGauge = this.plugin().meta.type === 'gauge';
+        const opts = this.renderOptions();
+        const legend = opts?.legend;
+        const pluginsOverride = legend
+            ? { legend: { display: legend.show ?? true, position: legend.position ?? 'top' } }
+            : isGauge
+              ? { legend: { display: false }, tooltip: { enabled: false } }
+              : undefined;
+        const axis = opts?.axis;
+        const stacked = opts?.stacked;
+        return {
+            ...(isGauge ? { circumference: 180, rotation: 270, cutout: '70%' } : {}),
+            plugins: pluginsOverride,
+            scales:
+                axis?.xTitle || axis?.yTitle || stacked
+                    ? {
+                          x: { stacked: !!stacked, title: axis?.xTitle ? { display: true, text: axis.xTitle } : undefined },
+                          y: { stacked: !!stacked, title: axis?.yTitle ? { display: true, text: axis.yTitle } : undefined },
+                      }
+                    : undefined,
         };
     });
 
@@ -93,4 +164,12 @@ export class VizRenderComponent {
     });
 
     readonly kpiInputs = computed(() => ({ value: this.props().value ?? 0, label: this.title() }));
+
+    /** Resolve the clicked point's index to its category label (from the same, possibly sorted/limited,
+     *  labels the chart actually rendered) and emit it — skipped for gauge, whose slices aren't categories. */
+    onElementClick(index: number): void {
+        if (this.plugin().meta.type === 'gauge') return;
+        const label = this.sortedProps().labels[index];
+        if (label != null) this.categoryClick.emit(label);
+    }
 }

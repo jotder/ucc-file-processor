@@ -9,7 +9,7 @@ export interface ConfigFinding {
 
 /**
  * The registry entry for a component kind — its config / wiring / authoring / exec strategy bundle. This is
- * the platform-wide generalization of the Studio `VizPlugin` (which is the `kind:'chart'` entry).
+ * the platform-wide generalization of the Studio `VizPlugin` (which is the `kind:'widget'` entry).
  *
  * The authoring/exec seams are **string keys**, resolved Angular-side via a token map (NgComponentOutlet),
  * so this module imports no Angular and stays vitest-pure.

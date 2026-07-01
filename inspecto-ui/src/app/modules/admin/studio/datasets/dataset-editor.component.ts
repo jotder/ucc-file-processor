@@ -13,8 +13,9 @@ import { apiErrorMessage } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { ColumnMeta, QueryChange, QueryModel, QueryPanelComponent, QuerySource, inferColumns } from 'app/inspecto/query';
 import { DatasetColumnsComponent } from './dataset-columns.component';
+import { DatasetMeasuresComponent } from './dataset-measures.component';
 import { SAMPLE_SOURCES, SAMPLE_SOURCE_NAMES } from './dataset-sources';
-import { buildDataset, Dataset, DatasetColumn, DatasetKind, inferRoles } from './dataset-types';
+import { buildDataset, Dataset, DatasetColumn, DatasetKind, NamedMeasure, inferRoles } from './dataset-types';
 import { DatasetsService } from './datasets.service';
 
 const KINDS: DatasetKind[] = ['virtual', 'physical', 'materialized'];
@@ -40,6 +41,7 @@ const KINDS: DatasetKind[] = ['virtual', 'physical', 'materialized'];
         InspectoAlertComponent,
         QueryPanelComponent,
         DatasetColumnsComponent,
+        DatasetMeasuresComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './dataset-editor.component.html',
@@ -70,6 +72,7 @@ export class DatasetEditorComponent implements OnInit {
     readonly kind = signal<DatasetKind>('virtual');
     readonly sourceName = signal(SAMPLE_SOURCE_NAMES[0] ?? 'data');
     readonly columns = signal<DatasetColumn[]>([]);
+    readonly measures = signal<NamedMeasure[]>([]);
     private readonly model = signal<QueryModel | null>(null);
 
     /** The Query Core source for the embedded panel — the selected sample source's rows + inferred columns. */
@@ -119,6 +122,7 @@ export class DatasetEditorComponent implements OnInit {
         const inferred = inferRoles(this.inferredColumns());
         const bySaved = new Map(d.columns.map((c) => [c.name, c]));
         this.columns.set(inferred.map((c) => bySaved.get(c.name) ?? c));
+        this.measures.set(d.measures);
         this.model.set(d.query ?? null);
     }
 
@@ -128,6 +132,10 @@ export class DatasetEditorComponent implements OnInit {
 
     onColumnsChange(cols: DatasetColumn[]): void {
         this.columns.set(cols);
+    }
+
+    onMeasuresChange(measures: NamedMeasure[]): void {
+        this.measures.set(measures);
     }
 
     save(): void {
@@ -142,6 +150,7 @@ export class DatasetEditorComponent implements OnInit {
             query: kind === 'virtual' ? this.model() : null,
             physicalRef: kind === 'virtual' ? null : this.form.controls.physicalRef.value || null,
             columns: this.columns(),
+            measures: this.measures(),
         });
         this.saving.set(true);
         this.datasets.save(ds).subscribe({

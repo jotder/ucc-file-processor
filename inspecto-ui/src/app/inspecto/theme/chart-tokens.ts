@@ -34,6 +34,23 @@ export const CHART_CATEGORICAL: readonly string[] = [
     '#5B8FF9', '#61DDAA', '#F6BD16', '#7262FD', '#F6903D', '#78D3F8', '#EF4444', '#65789B', '#22C55E', '#A855F7',
 ];
 
+/** A muted single-hue ramp (indigo) — the curated alternative to {@link CHART_CATEGORICAL} for widgets that
+ *  want a calmer look (e.g. a single dominant series). */
+const CHART_MONOCHROME: readonly string[] = [
+    '#4f46e5', '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff',
+];
+
+/** Named, curated widget color palettes (`WidgetOptions.palette`) — never a free-form color list, so widgets
+ *  stay visually consistent. Add a new entry here to offer another curated option. */
+export const CHART_PALETTES: Readonly<Record<string, readonly string[]>> = {
+    categorical: CHART_CATEGORICAL,
+    monochrome: CHART_MONOCHROME,
+};
+
+/** The gauge widget's unfilled "remaining" track (Tailwind gray-400) — a neutral shade that reads on either
+ *  scheme, since `VizRenderComponent` (unlike `InspectoChartComponent`) doesn't thread the dark/light flag. */
+export const GAUGE_TRACK = '#9ca3af';
+
 /**
  * Outline stroke for a flow-editor node's status cue, or {@code null} to keep the category colour
  * ({@code configured}). Status is also conveyed by a label glyph + the inspector chip (never colour alone).

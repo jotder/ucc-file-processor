@@ -1,9 +1,11 @@
 import { Routes } from '@angular/router';
-import { ChartsComponent } from './charts.component';
+import { WidgetsComponent } from './widgets.component';
 import { ExploreComponent } from './explore.component';
+import { WidgetViewComponent } from './widget-view.component';
 
 export default [
-    { path: '', component: ChartsComponent },
+    { path: '', component: WidgetsComponent },
     { path: 'new', component: ExploreComponent },
+    { path: ':id/view', component: WidgetViewComponent },
     { path: ':id', component: ExploreComponent },
 ] as Routes;

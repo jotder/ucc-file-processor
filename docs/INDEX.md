@@ -77,6 +77,11 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
   dashboard builder over the Query Core (datasets · `VizPlugin` registry · charts · dashboards;
   offline-author/DuckDB-later). The visualization head on the rule-builder. Paired with its execution plan in
   [`superpower/studio-implementation-plan.md`](superpower/studio-implementation-plan.md). **Active (design).**
+- [`superpower/widget-library-spec.md`](superpower/widget-library-spec.md) — **Widget Library**: refines the
+  Studio design with widget identity/tags, a browsable library gallery, the mandatory-vs-advanced (cog) config
+  split, a shared Dataset result layer, a standalone `WidgetHost`, plus a boundary analysis. **Milestone 1 —
+  Full UI, mock backend** (active, 5 sub-phases) / **Milestone 2 — Backend** (backlog). Glossary-bound
+  Type→Instance (Visualization Type → Widget). **Active (design).**
 
 ## Strategy & roadmap (stakeholder-facing)
 
@@ -120,4 +125,4 @@ to this index if it becomes current again.
 
 ---
 
-**Last Updated**: 2026-06-28
+**Last Updated**: 2026-07-01

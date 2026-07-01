@@ -2,16 +2,16 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { getKind } from 'app/inspecto/component-model';
 import { allViz } from 'app/inspecto/viz';
 import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
-import { CHART_KIND, validateChartConfig } from './chart.kind';
+import { WIDGET_KIND, validateWidgetConfig } from './widget.kind';
 
-describe('chart ComponentKind', () => {
+describe('widget ComponentKind', () => {
     // Re-seed the (guarded) builtins so this is immune to a co-worker spec having cleared the shared registry.
     beforeEach(() => registerBuiltinViz());
 
     it('registers on the model with a mapping wiring and dataset as a part kind', () => {
-        expect(getKind('chart')).toBe(CHART_KIND);
-        expect(CHART_KIND.wiring).toBe('mapping');
-        expect(CHART_KIND.allowedPartKinds).toContain('dataset');
+        expect(getKind('widget')).toBe(WIDGET_KIND);
+        expect(WIDGET_KIND.wiring).toBe('mapping');
+        expect(WIDGET_KIND.allowedPartKinds).toContain('dataset');
     });
 
     it('registers the built-in viz plugins as a side effect', () => {
@@ -19,7 +19,7 @@ describe('chart ComponentKind', () => {
     });
 
     it('derives a channel mapping wiring from the controls', () => {
-        const wiring = CHART_KIND.deriveWiring!([], {
+        const wiring = WIDGET_KIND.deriveWiring!([], {
             datasetId: 'cdr',
             vizType: 'bar',
             controls: { x: [{ field: 'tariff' }], y: [{ field: 'duration_s', agg: 'sum' }] },
@@ -27,8 +27,8 @@ describe('chart ComponentKind', () => {
         expect(wiring).toEqual({ strategy: 'mapping', channels: { x: 'tariff', y: 'duration_s' } });
     });
 
-    it('flags a chart with no dataset or viz type', () => {
-        const findings = validateChartConfig({ controls: {} });
+    it('flags a widget with no dataset or viz type', () => {
+        const findings = validateWidgetConfig({ controls: {} });
         expect(findings.some((f) => f.path === 'datasetId')).toBe(true);
         expect(findings.some((f) => f.path === 'vizType')).toBe(true);
     });

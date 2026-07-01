@@ -9,7 +9,7 @@ import { ToastrService } from 'ngx-toastr';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
-import { ChartsService } from './charts.service';
+import { WidgetsService } from './widgets.service';
 import { ExploreComponent } from './explore.component';
 
 const DS: Dataset = {
@@ -31,7 +31,7 @@ function create() {
             provideNoopAnimations(),
             provideRouter([]),
             { provide: DatasetsService, useValue: { list: () => of([DS]), get: () => of(DS) } },
-            { provide: ChartsService, useValue: { get: () => of(null), save: () => of(null) } },
+            { provide: WidgetsService, useValue: { get: () => of(null), save: () => of(null) } },
             { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => of(undefined) }) } },
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },

@@ -31,11 +31,16 @@ export const LINE_PLUGIN = xyPlugin('line', 'line', 'Line', 'heroicons_outline:p
     minMeasure: 1,
     temporal: true,
 });
-export const BAR_PLUGIN = xyPlugin('bar', 'bar', 'Bar', 'heroicons_outline:chart-bar', { minMeasure: 1, minDim: 1 });
+export const BAR_PLUGIN = xyPlugin('bar', 'bar', 'Bar', 'heroicons_outline:chart-bar', { minMeasure: 1, minDim: 1, maxCardinality: 30 });
 export const AREA_PLUGIN = xyPlugin('area', 'line', 'Area', 'heroicons_outline:chart-bar', { minMeasure: 1, temporal: true }, true);
 
 export const PIE_PLUGIN: VizPlugin = {
-    meta: { type: 'pie', label: 'Pie', icon: 'heroicons_outline:chart-pie', fit: { minMeasure: 1, minDim: 1, maxDim: 1, temporal: false } },
+    meta: {
+        type: 'pie',
+        label: 'Pie',
+        icon: 'heroicons_outline:chart-pie',
+        fit: { minMeasure: 1, minDim: 1, maxDim: 1, temporal: false, maxCardinality: 8 },
+    },
     controls: [
         { channel: 'x', label: 'Slice by', acceptRoles: ['dimension'], required: true },
         { channel: 'y', label: 'Measure', acceptRoles: ['measure'], isMeasure: true, required: true },

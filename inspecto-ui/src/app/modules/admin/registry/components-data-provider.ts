@@ -6,7 +6,7 @@ import { ComponentDef, ComponentType, ComponentsService } from 'app/inspecto/api
 
 /**
  * The first {@link DataProvider} implementation: resolves the platform's existing registry kinds
- * (grammar / schema / transform / sink / rule + Studio's dataset / chart / dashboard) through
+ * (grammar / schema / transform / sink / rule + Studio's dataset / widget / dashboard) through
  * {@link ComponentsService}, mapping the stored {@link ComponentDef} onto the model's {@link Component}.
  * Backend-agnostic — the components mock serves these today; the identical calls hit DuckDB-backed storage
  * once the backend `ComponentStore` enum is widened.

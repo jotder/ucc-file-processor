@@ -14,7 +14,7 @@ import { Dataset } from './dataset-types';
 import { DatasetsService } from './datasets.service';
 
 /**
- * Studio **Datasets** — the data-source abstractions (physical / virtual / materialized) charts build on.
+ * Studio **Datasets** — the data-source abstractions (physical / virtual / materialized) widgets build on.
  * Lists the `dataset` components (mock-served) with their kind + source, and links to the editor. Mirrors
  * `ConnectionsComponent`; the first Studio surface on the unified component model.
  */

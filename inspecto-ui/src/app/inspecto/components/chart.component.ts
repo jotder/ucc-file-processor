@@ -3,9 +3,11 @@ import {
     Component,
     DestroyRef,
     ElementRef,
+    EventEmitter,
     Input,
     OnChanges,
     OnDestroy,
+    Output,
     ViewChild,
     inject,
 } from '@angular/core';
@@ -30,6 +32,8 @@ export class InspectoChartComponent implements AfterViewInit, OnChanges, OnDestr
     @Input({ required: true }) type: ChartType = 'bar';
     @Input({ required: true }) data: ChartData | null = null;
     @Input() options: ChartOptions = {};
+    /** The clicked data point's index, for drill-down — no-op cost when nobody listens. */
+    @Output() elementClick = new EventEmitter<number>();
 
     @ViewChild('canvas') private canvas!: ElementRef<HTMLCanvasElement>;
     private chart: Chart | null = null;
@@ -67,24 +71,31 @@ export class InspectoChartComponent implements AfterViewInit, OnChanges, OnDestr
         this.chart = null;
         if (!this.data) return;
         const { fg, grid } = canvasTheme(this.dark);
+        // Deep-merge (not replace) legend/scales so a caller's override (e.g. Widget renderOptions — legend
+        // position, an axis title, stacked) composes with the theme's fg/grid colors instead of losing them.
+        const axisDefaults = this.type === 'bar' ? { ticks: { color: fg }, grid: { color: grid } } : {};
         const config: ChartConfiguration = {
             type: this.type,
             data: this.data,
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: (_event, elements) => {
+                    const index = elements[0]?.index;
+                    if (index != null) this.elementClick.emit(index);
+                },
+                ...this.options,
                 plugins: {
-                    legend: { labels: { color: fg } },
                     ...this.options.plugins,
+                    legend: { labels: { color: fg }, ...this.options.plugins?.legend },
                 },
                 scales:
-                    this.type === 'bar'
+                    this.type === 'bar' || this.options.scales
                         ? {
-                              x: { ticks: { color: fg }, grid: { color: grid } },
-                              y: { ticks: { color: fg }, grid: { color: grid } },
+                              x: { ...axisDefaults, ...this.options.scales?.['x'] },
+                              y: { ...axisDefaults, ...this.options.scales?.['y'] },
                           }
                         : undefined,
-                ...this.options,
             },
         };
         this.chart = new Chart(this.canvas.nativeElement, config);

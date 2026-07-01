@@ -6,7 +6,7 @@ import { Dashboard, DashboardTile } from './dashboard-types';
 
 /**
  * Dashboard store — persists {@link Dashboard}s as the `dashboard` component type (mock-served by `studio-mock`).
- * Mirrors `charts.service` / `datasets.service`; a dashboard is "just a composite component" on the model.
+ * Mirrors `widgets.service` / `datasets.service`; a dashboard is "just a composite component" on the model.
  */
 @Injectable({ providedIn: 'root' })
 export class DashboardsService {

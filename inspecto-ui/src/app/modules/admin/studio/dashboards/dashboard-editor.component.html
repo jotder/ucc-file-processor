@@ -27,14 +27,14 @@
         </inspecto-alert>
     }
 
-    <!-- Toolbar: add chart + cross-filter -->
+    <!-- Toolbar: add widget + cross-filter -->
     <div class="bg-card mt-6 flex flex-col gap-4 rounded-2xl p-5 shadow">
         <div class="flex flex-wrap items-center gap-4">
             <mat-form-field subscriptSizing="dynamic" class="w-64">
-                <mat-label>Add chart</mat-label>
-                <mat-select [ngModel]="null" (ngModelChange)="addChart($event)" [ngModelOptions]="{ standalone: true }" aria-label="Add chart">
-                    @for (c of charts(); track c.id) {
-                        <mat-option [value]="c.id">{{ c.name }} <span class="text-secondary">({{ c.vizType }})</span></mat-option>
+                <mat-label>Add widget</mat-label>
+                <mat-select [ngModel]="null" (ngModelChange)="addWidget($event)" [ngModelOptions]="{ standalone: true }" aria-label="Add widget">
+                    @for (w of widgets(); track w.id) {
+                        <mat-option [value]="w.id">{{ w.name }} <span class="text-secondary">({{ w.vizType }})</span></mat-option>
                     }
                 </mat-select>
             </mat-form-field>
@@ -56,7 +56,7 @@
 
     <!-- Tile grid -->
     @if (tiles().length === 0) {
-        <div class="text-secondary mt-8">No tiles yet — add a saved chart above.</div>
+        <div class="text-secondary mt-8">No tiles yet — add a saved widget above.</div>
     } @else {
         <div
             cdkDropList
@@ -82,14 +82,14 @@
                                 <mat-icon class="icon-size-4" svgIcon="heroicons_outline:x-mark"></mat-icon>
                             </button>
                         </div>
-                        @if (chartOf(tile); as chart) {
+                        @if (widgetOf(tile); as widget) {
                             @if (datasetOf(tile); as dataset) {
-                                <app-dashboard-tile [chart]="chart" [dataset]="dataset" [filter]="filter()" />
+                                <app-dashboard-tile [widget]="widget" [dataset]="dataset" [filter]="filter()" (drill)="onDrill($event)" />
                             } @else {
-                                <div class="bg-card text-secondary rounded-2xl p-4 text-sm shadow">Dataset for “{{ chart.datasetId }}” not found.</div>
+                                <div class="bg-card text-secondary rounded-2xl p-4 text-sm shadow">Dataset for “{{ widget.datasetId }}” not found.</div>
                             }
                         } @else {
-                            <div class="bg-card text-secondary rounded-2xl p-4 text-sm shadow">Chart “{{ tile.chartId }}” not found.</div>
+                            <div class="bg-card text-secondary rounded-2xl p-4 text-sm shadow">Widget “{{ tile.widgetId }}” not found.</div>
                         }
                     </div>
                 </div>

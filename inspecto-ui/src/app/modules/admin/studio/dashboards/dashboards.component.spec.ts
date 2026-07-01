@@ -10,7 +10,7 @@ import { Dashboard } from './dashboard-types';
 import { DashboardsService } from './dashboards.service';
 import { DashboardsComponent } from './dashboards.component';
 
-const D1: Dashboard = { id: 'cdr_overview', name: 'cdr_overview', tiles: [{ chartId: 'bar1', span: 1 }], filter: null };
+const D1: Dashboard = { id: 'cdr_overview', name: 'cdr_overview', tiles: [{ widgetId: 'bar1', span: 1 }], filter: null };
 
 function create(dashboards: Dashboard[] = [D1]) {
     const remove = vi.fn(() => of(null));

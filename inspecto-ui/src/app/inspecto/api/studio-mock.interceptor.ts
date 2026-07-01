@@ -5,18 +5,18 @@ import { environment } from '../../../environments/environment';
 import { ComponentDef } from './components.service';
 
 /**
- * PROTOTYPE-ONLY mock for **Studio** component kinds (`dataset`/`chart`/`dashboard`). The backend
+ * PROTOTYPE-ONLY mock for **Studio** component kinds (`dataset`/`widget`/`dashboard`). The backend
  * `ComponentStore.WRITABLE_TYPES` enum is still closed (grammar/schema/transform/sink → unknown kinds 400),
  * so Studio's new kinds are served from an in-memory store here, the same pattern as the flow / rule mocks.
  *
  * Gated on {@code environment.mockStudio}. **Registered before `pipelineMockInterceptor`** so it claims the
- * Studio kinds' `/components/{dataset|chart|dashboard}` routes (pipeline-mock's generic `/components/*` CRUD would
+ * Studio kinds' `/components/{dataset|widget|dashboard}` routes (pipeline-mock's generic `/components/*` CRUD would
  * otherwise swallow them, but unseeded); grammar/schema/transform/sink fall through to pipeline-mock unchanged.
  * Flip the flag / remove the interceptor once the backend storage enum is widened.
  */
 
 /** Only the Studio kinds — everything else falls through to the flow mock (which owns the registry kinds + tests). */
-const STUDIO_TYPES = 'dataset|chart|dashboard';
+const STUDIO_TYPES = 'dataset|widget|dashboard';
 const COMPONENT_ONE = new RegExp(`/components/(${STUDIO_TYPES})/([^/]+)$`);
 const COMPONENTS = new RegExp(`/components/(${STUDIO_TYPES})$`);
 
@@ -39,6 +39,8 @@ const STORE: Record<string, ComponentDef[]> = {
                     { name: 'id', type: 'number', role: 'dimension' },
                     { name: 'msisdn', type: 'string', role: 'dimension' },
                     { name: 'duration_s', type: 'number', role: 'measure' },
+                    { name: 'bytes_used', type: 'number', role: 'measure' },
+                    { name: 'cost_usd', type: 'number', role: 'measure' },
                     { name: 'tariff', type: 'string', role: 'dimension' },
                     { name: 'event_time', type: 'date', role: 'temporal' },
                 ],
@@ -47,7 +49,7 @@ const STORE: Record<string, ComponentDef[]> = {
             },
         },
     ],
-    chart: [],
+    widget: [],
     dashboard: [],
 };
 

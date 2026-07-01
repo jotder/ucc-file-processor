@@ -21,6 +21,10 @@ const BAR = plugin('bar', { minMeasure: 1, minDim: 1 }, [
     { channel: 'x', label: 'Category', acceptRoles: ['dimension'] },
     { channel: 'y', label: 'Measure', acceptRoles: ['measure'], isMeasure: true },
 ]);
+const PIE = plugin('pie', { minMeasure: 1, minDim: 1, maxDim: 1, maxCardinality: 8 }, [
+    { channel: 'x', label: 'Slice by', acceptRoles: ['dimension'] },
+    { channel: 'y', label: 'Measure', acceptRoles: ['measure'], isMeasure: true },
+]);
 const TABLE = plugin('table', {}, []);
 
 const TEMPORAL_FIELDS: VizField[] = [
@@ -37,6 +41,7 @@ describe('recommend', () => {
         clearViz(); // immune to builtins a prior spec left in the shared (per-worker) registry
         registerViz(LINE);
         registerViz(BAR);
+        registerViz(PIE);
         registerViz(TABLE);
     });
     afterEach(() => clearViz());
@@ -51,6 +56,19 @@ describe('recommend', () => {
         const ranked = recommend(CATEGORICAL_FIELDS).map((p) => p.meta.type);
         expect(ranked).not.toContain('line');
         expect(ranked).toContain('bar');
+    });
+
+    it('prefers pie for a low-cardinality dimension', () => {
+        const fields: VizField[] = [{ ...CATEGORICAL_FIELDS[0], cardinality: 4 }, CATEGORICAL_FIELDS[1]];
+        const ranked = recommend(fields).map((p) => p.meta.type);
+        expect(ranked[0]).toBe('pie');
+    });
+
+    it('demotes pie for a high-cardinality dimension without disqualifying it', () => {
+        const fields: VizField[] = [{ ...CATEGORICAL_FIELDS[0], cardinality: 500 }, CATEGORICAL_FIELDS[1]];
+        const ranked = recommend(fields).map((p) => p.meta.type);
+        expect(ranked[0]).not.toBe('pie'); // no longer the top pick once it has too many slices
+        expect(ranked).toContain('pie'); // but still offered — maxCardinality penalises, never disqualifies
     });
 });
 

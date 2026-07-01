@@ -1,23 +1,26 @@
 <div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
     <nav class="text-secondary mb-1 text-sm" aria-label="Breadcrumb">
-        <a routerLink="/studio/charts" class="hover:underline">Charts</a>
+        <a routerLink="/studio/widgets" class="hover:underline">Widgets</a>
         <span class="px-1">/</span>
-        <span>{{ editing() ? id : 'New chart' }}</span>
+        <span>{{ editing() ? id : 'New widget' }}</span>
     </nav>
     <div class="flex items-center justify-between">
-        <h1 class="text-3xl font-extrabold leading-tight tracking-tight">{{ editing() ? 'Edit chart' : 'Explore' }}</h1>
+        <h1 class="text-3xl font-extrabold leading-tight tracking-tight">{{ editing() ? 'Edit widget' : 'Explore' }}</h1>
         <div class="flex items-center gap-2">
-            <button mat-button routerLink="/studio/charts">Cancel</button>
+            <button mat-icon-button (click)="openOptions()" [disabled]="!dataset() || !plugin()" matTooltip="Advanced options" aria-label="Advanced options">
+                <mat-icon svgIcon="heroicons_outline:cog"></mat-icon>
+            </button>
+            <button mat-button routerLink="/studio/widgets">Cancel</button>
             <button mat-flat-button color="primary" (click)="save()" [disabled]="!dataset() || !plugin()">
                 <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
-                <span class="ml-2">Save chart</span>
+                <span class="ml-2">Save widget</span>
             </button>
         </div>
     </div>
 
     @if (writesDisabled()) {
         <inspecto-alert class="mt-4 block" variant="warning" icon="heroicons_outline:lock-closed">
-            Chart saving is disabled on this server (no write root configured).
+            Widget saving is disabled on this server (no write root configured).
         </inspecto-alert>
     }
 
@@ -74,10 +77,11 @@
                 </div>
             } @else if (plugin(); as p) {
                 <div class="mb-2 flex items-center gap-2">
-                    <h2 class="text-lg font-semibold">{{ p.meta.label }}</h2>
+                    <h2 class="text-lg font-semibold">{{ options().title || p.meta.label }}</h2>
                     @if (running()) { <span class="text-secondary text-xs">updating…</span> }
                 </div>
-                <inspecto-viz-render [plugin]="p" [props]="props()" [title]="sourceName()" />
+                @if (options().subtitle) { <div class="text-secondary -mt-1 mb-2 text-sm">{{ options().subtitle }}</div> }
+                <inspecto-viz-render [plugin]="p" [props]="props()" [title]="sourceName()" [renderOptions]="options()" />
             }
         </div>
     </div>

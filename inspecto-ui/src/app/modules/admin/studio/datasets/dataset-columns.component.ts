@@ -9,7 +9,7 @@ const ROLES: DatasetRole[] = ['dimension', 'measure', 'temporal'];
 
 /**
  * Presentational role/format tagger for a dataset's columns (seeded by `inferRoles`). One row per column:
- * its inferred type, an editable **role** (dimension / measure / temporal — what a chart may bind it to), an
+ * its inferred type, an editable **role** (dimension / measure / temporal — what a widget may bind it to), an
  * optional display **label** and **format**. No HTTP / services — emits the edited array to the editor host.
  */
 @Component({

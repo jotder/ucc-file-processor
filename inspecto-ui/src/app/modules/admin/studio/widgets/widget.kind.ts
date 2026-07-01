@@ -1,34 +1,34 @@
 import { ComponentKind, ConfigFinding, Part, Wiring, getKind, registerKind } from 'app/inspecto/component-model';
-// Side-effect: ensure the built-in VizPlugins are registered (the chart kind's sub-types).
+// Side-effect: ensure the built-in VizPlugins are registered (the widget kind's sub-types).
 import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
-import { ChartConfig } from './chart-types';
+import { WidgetConfig } from './widget-types';
 
 registerBuiltinViz();
 
 /**
- * The `chart` {@link ComponentKind} — the adoption plan's "VizPlugin = first ComponentKind slice" made
- * concrete. A chart references a dataset (its one part kind) and authors a **mapping** wiring (field→channel),
+ * The `widget` {@link ComponentKind} — the adoption plan's "VizPlugin = first ComponentKind slice" made
+ * concrete. A widget references a dataset (its one part kind) and authors a **mapping** wiring (field→channel),
  * derived from its config. Authoring = the Studio explore workbench; exec = the viz runner (AlaSQL now).
  */
-export const CHART_KIND: ComponentKind<ChartConfig> = {
-    id: 'chart',
-    label: 'Chart',
+export const WIDGET_KIND: ComponentKind<WidgetConfig> = {
+    id: 'widget',
+    label: 'Widget',
     allowedPartKinds: ['dataset'],
     wiring: 'mapping',
     config: {
-        validate: validateChartConfig,
+        validate: validateWidgetConfig,
         create: () => ({ datasetId: '', vizType: 'bar', controls: {} }),
     },
-    deriveWiring: (_parts: Part[], config: ChartConfig): Wiring => ({
+    deriveWiring: (_parts: Part[], config: WidgetConfig): Wiring => ({
         strategy: 'mapping',
         channels: channelMap(config.controls),
     }),
-    authoring: { editorKey: 'chart' },
+    authoring: { editorKey: 'widget' },
     exec: { runnerKey: 'viz' },
 };
 
-/** Flatten the field-mapper state into a channel→fields map (the chart's wiring). */
-function channelMap(controls: ChartConfig['controls']): Record<string, string> {
+/** Flatten the field-mapper state into a channel→fields map (the widget's wiring). */
+function channelMap(controls: WidgetConfig['controls']): Record<string, string> {
     const out: Record<string, string> = {};
     for (const [channel, vals] of Object.entries(controls)) {
         if (vals?.length) out[channel] = vals.map((v) => v.field).join(',');
@@ -36,15 +36,15 @@ function channelMap(controls: ChartConfig['controls']): Record<string, string> {
     return out;
 }
 
-/** Tiny hand-written validator (no schema engine): a chart needs a dataset + a viz type. */
-export function validateChartConfig(config: unknown): ConfigFinding[] {
-    const c = (config ?? {}) as Partial<ChartConfig>;
+/** Tiny hand-written validator (no schema engine): a widget needs a dataset + a viz type. */
+export function validateWidgetConfig(config: unknown): ConfigFinding[] {
+    const c = (config ?? {}) as Partial<WidgetConfig>;
     const findings: ConfigFinding[] = [];
     if (!c.datasetId) findings.push({ severity: 'error', path: 'datasetId', message: 'Pick a dataset.' });
     if (!c.vizType) findings.push({ severity: 'error', path: 'vizType', message: 'Pick a visualization.' });
     return findings;
 }
 
-if (!getKind(CHART_KIND.id)) {
-    registerKind(CHART_KIND);
+if (!getKind(WIDGET_KIND.id)) {
+    registerKind(WIDGET_KIND);
 }

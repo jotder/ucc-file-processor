@@ -5,28 +5,45 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 
-export interface ChartSaveData {
+export interface WidgetSaveData {
     suggestedId: string;
     /** True when editing — the id is fixed and the field is read-only. */
     lockId: boolean;
+    tags?: string[];
+    description?: string;
 }
 
-/** Save-as-chart dialog — names the chart and closes with the id (or undefined on cancel). */
+export interface WidgetSaveResult {
+    name: string;
+    tags?: string[];
+    description?: string;
+}
+
+/** Save-as-widget dialog — names the widget (+ tags/description for the library gallery) and closes with the
+ *  result (or undefined on cancel). */
 @Component({
-    selector: 'app-chart-save-dialog',
+    selector: 'app-widget-save-dialog',
     standalone: true,
     imports: [ReactiveFormsModule, MatDialogModule, MatButtonModule, MatFormFieldModule, MatInputModule],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-        <h2 mat-dialog-title>Save chart</h2>
+        <h2 mat-dialog-title>Save widget</h2>
         <mat-dialog-content>
-            <form [formGroup]="form" (ngSubmit)="save()">
+            <form [formGroup]="form" (ngSubmit)="save()" class="flex flex-col gap-3">
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
-                    <mat-label>Chart id</mat-label>
+                    <mat-label>Widget id</mat-label>
                     <input matInput formControlName="name" [readonly]="data.lockId" placeholder="e.g. duration_by_tariff" />
                     @if (form.controls.name.hasError('pattern')) {
                         <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
                     }
+                </mat-form-field>
+                <mat-form-field class="w-full" subscriptSizing="dynamic">
+                    <mat-label>Tags</mat-label>
+                    <input matInput formControlName="tags" placeholder="comma-separated, e.g. ops, billing" />
+                </mat-form-field>
+                <mat-form-field class="w-full" subscriptSizing="dynamic">
+                    <mat-label>Description</mat-label>
+                    <input matInput formControlName="description" />
                 </mat-form-field>
             </form>
         </mat-dialog-content>
@@ -36,13 +53,15 @@ export interface ChartSaveData {
         </mat-dialog-actions>
     `,
 })
-export class ChartSaveDialog {
+export class WidgetSaveDialog {
     private fb = inject(FormBuilder);
-    private ref = inject(MatDialogRef<ChartSaveDialog, string>);
-    readonly data = inject<ChartSaveData>(MAT_DIALOG_DATA);
+    private ref = inject(MatDialogRef<WidgetSaveDialog, WidgetSaveResult>);
+    readonly data = inject<WidgetSaveData>(MAT_DIALOG_DATA);
 
     readonly form = this.fb.group({
         name: [this.data.suggestedId, [Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)]],
+        tags: [this.data.tags?.join(', ') ?? ''],
+        description: [this.data.description ?? ''],
     });
 
     save(): void {
@@ -52,6 +71,11 @@ export class ChartSaveDialog {
             this.form.markAllAsTouched();
             return;
         }
-        this.ref.close(name);
+        const tags = String(this.form.controls.tags.value ?? '')
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean);
+        const description = String(this.form.controls.description.value ?? '').trim() || undefined;
+        this.ref.close({ name, tags: tags.length ? tags : undefined, description });
     }
 }
