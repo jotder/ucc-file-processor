@@ -25,7 +25,7 @@ const PIPELINE_REF_KINDS = new Set(['grammar', 'schema', 'transform', 'sink']);
 
 /** Editors that exist today, for the node-detail "Open" link; kinds without one (atomic registry kinds) get none. */
 const EDITOR_PATH: Record<string, string> = {
-    dataset: '/studio/datasets',
+    dataset: '/catalog/datasets',
     widget: '/studio/widgets',
     dashboard: '/studio/dashboards',
 };

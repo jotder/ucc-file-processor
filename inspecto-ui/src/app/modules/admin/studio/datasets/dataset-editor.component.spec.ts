@@ -51,7 +51,7 @@ describe('DatasetEditorComponent', () => {
         fixture.componentInstance.form.controls.name.setValue('cdr_view');
         fixture.componentInstance.save();
         expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'cdr_view', kind: 'virtual', sourceName: 'cdr' }));
-        expect(nav).toHaveBeenCalledWith(['/studio/datasets']);
+        expect(nav).toHaveBeenCalledWith(['/catalog/datasets']);
     });
 
     it('does not save when the name is empty', () => {

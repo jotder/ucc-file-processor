@@ -56,7 +56,11 @@ join the nav as their phases land, never as dead links.
 
 - **Phase A — IA + vocabulary reorg (UI-only).** Rewrite `mock-api/common/navigation/data.ts`; move Sources
   & Jobs into Workbench; ops Overview rename; fold Registry nav into Catalog; add Stream + Matrix to
-  `GLOSSARY.md` + §13. Routes unchanged (paths still resolve). *This alone resolves the confusion.*
+  `GLOSSARY.md` + §13. Routes unchanged (paths still resolve). *This alone resolves the confusion.* **DONE**
+  (`22d377a`). **B.1 done** (same commit): Datasets nav item moved into the Catalog group; Catalog's graph
+  tab relabeled 'Graph'→'Lineage'. **B.2 done:** Datasets URL moved `/studio/datasets`→`/catalog/datasets`
+  (route now lives under `catalog.routes.ts`, component files unmoved under `studio/datasets/`; old
+  `/studio/datasets` redirects for back-compat; `dataset.kind` side-effect import relocated with it).
 - **Phase B — Catalog data-plane.** Stream-grouped Schema tree + data-asset browse (Tables/Matrices/
   Datasets); relationship graph with **Lineage** + **Usage/Reuse** lenses (reuse `catalog/graph-view.component.ts`
   + `component-model` `deriveComponentGraph()`); re-home Datasets into Catalog. Needs a backend catalog read model.

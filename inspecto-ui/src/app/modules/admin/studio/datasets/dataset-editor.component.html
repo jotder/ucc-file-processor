@@ -1,7 +1,7 @@
 <div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
     <!-- Breadcrumb + header -->
     <nav class="text-secondary mb-1 text-sm" aria-label="Breadcrumb">
-        <a routerLink="/studio/datasets" class="hover:underline">Datasets</a>
+        <a routerLink="/catalog/datasets" class="hover:underline">Datasets</a>
         <span class="px-1">/</span>
         <span>{{ editing() ? id : 'New dataset' }}</span>
     </nav>
@@ -10,7 +10,7 @@
             {{ editing() ? 'Edit dataset' : 'New dataset' }}
         </h1>
         <div class="flex items-center gap-2">
-            <button mat-button routerLink="/studio/datasets">Cancel</button>
+            <button mat-button routerLink="/catalog/datasets">Cancel</button>
             <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
                 @if (saving()) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
                 <span>Save dataset</span>

@@ -157,7 +157,7 @@ export class DatasetEditorComponent implements OnInit {
             next: () => {
                 this.saving.set(false);
                 this.toastr.success(`Dataset "${name}" saved`);
-                this.router.navigate(['/studio/datasets']);
+                this.router.navigate(['/catalog/datasets']);
             },
             error: (e) => {
                 this.saving.set(false);

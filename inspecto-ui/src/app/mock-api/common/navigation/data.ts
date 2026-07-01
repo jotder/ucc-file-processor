@@ -40,8 +40,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
                 icon    : 'heroicons_outline:rectangle-group',
                 children: [
                     { id: 'catalog',          title: 'Data Catalog', type: 'basic', icon: 'heroicons_outline:share',           link: '/catalog' },
-                    // Datasets are a data asset (Catalog's home); URL move /studio/datasets → /catalog/datasets is a follow-up (Phase B).
-                    { id: 'studio-datasets',  title: 'Datasets',     type: 'basic', icon: 'heroicons_outline:table-cells',     link: '/studio/datasets' },
+                    { id: 'studio-datasets',  title: 'Datasets',     type: 'basic', icon: 'heroicons_outline:table-cells',     link: '/catalog/datasets' },
                     { id: 'studio-registry',  title: 'Registry',     type: 'basic', icon: 'heroicons_outline:rectangle-group', link: '/registry' },
                 ]
             },
