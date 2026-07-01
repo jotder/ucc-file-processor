@@ -20,17 +20,19 @@ import {
 } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { fmtDateTime } from 'app/inspecto/grid';
+import { RegistryComponent } from './registry.component';
 import { G6GraphData, legendFor, toG6Data } from './catalog-graph';
 import { GraphViewComponent } from './graph-view.component';
 import { NodeDetailDialog } from './node-detail.dialog';
 
-type CatTab = 'tables' | 'streams' | 'kpis' | 'graph';
+type CatTab = 'tables' | 'streams' | 'kpis' | 'graph' | 'usage';
 
 /**
- * Data catalog — the metadata graph surfaced four ways: a Tables grid (with operational
+ * Data catalog — the metadata graph surfaced five ways: a Tables grid (with operational
  * overlay), a **Streams** grid (data origins — Source + Connection, browsed by name), a KPIs
- * grid, and a **Lineage** traversal tool (AntV G6). Any node opens a detail dialog (node + 2-hop
- * neighbours). All read-only (ASSIST_READ scope).
+ * grid, a **Lineage** traversal tool (AntV G6), and a **Usage/Reuse** lens (the former standalone
+ * Registry page, embedded — Catalog's definition includes "usage"). Any node opens a detail
+ * dialog (node + 2-hop neighbours). All read-only (ASSIST_READ scope).
  */
 @Component({
     standalone: true,
@@ -46,6 +48,7 @@ type CatTab = 'tables' | 'streams' | 'kpis' | 'graph';
         MatTabsModule,
         DataTableComponent,
         GraphViewComponent,
+        RegistryComponent,
     ],
     templateUrl: './catalog.component.html',
 })
@@ -58,6 +61,7 @@ export class CatalogComponent implements OnInit {
         { id: 'streams', label: 'Streams' },
         { id: 'kpis', label: 'KPIs' },
         { id: 'graph', label: 'Lineage' },
+        { id: 'usage', label: 'Usage' },
     ];
     tabIndex = 0;
     get activeTab(): CatTab {

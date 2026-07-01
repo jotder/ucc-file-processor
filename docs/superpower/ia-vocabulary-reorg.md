@@ -69,6 +69,11 @@ join the nav as their phases land, never as dead links.
   (Stream → its pipeline's output Table), so the Lineage graph and node-detail dialog also traverse
   Stream→Table. `CatalogService.streams()` hits a new mock-only `/catalog/streams`. No backend route yet —
   Schema-tree grouping remains open for a later slice.
+  **B.4 done:** Registry folded into Catalog as a 5th tab, **Usage**, embedding the former standalone
+  `RegistryComponent` (relocated `modules/admin/registry/` → `modules/admin/catalog/`, same filenames, so
+  the embed is same-feature not cross-feature). `/registry` now redirects to `/catalog`; its nav item is
+  gone. The embedded component's own `<h1>Registry</h1>` became `<h2>Usage &amp; reuse</h2>` (one h1 per
+  page). **Phase B is now complete** (B.1–B.4 all shipped, mock-only where noted).
 - **Phase C — Matrices (persisted summary Derived Tables).** Backend materialization of a cube/rollup
   Transform's output as a Derived Table, surfaced as a **Matrix** + selectable as a Studio Dataset. **Backend-gated.**
 - **Phase D — Job templates (trigger-condition-action).** Template model atop `com.gamma.job.JobService` +
