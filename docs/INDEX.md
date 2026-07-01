@@ -80,8 +80,16 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
 - [`superpower/widget-library-spec.md`](superpower/widget-library-spec.md) — **Widget Library**: refines the
   Studio design with widget identity/tags, a browsable library gallery, the mandatory-vs-advanced (cog) config
   split, a shared Dataset result layer, a standalone `WidgetHost`, plus a boundary analysis. **Milestone 1 —
-  Full UI, mock backend** (active, 5 sub-phases) / **Milestone 2 — Backend** (backlog). Glossary-bound
-  Type→Instance (Visualization Type → Widget). **Active (design).**
+  Full UI, mock backend** (**done**) / **Milestone 2 — Backend** (backlog, see
+  [`superpower/backend-backlog.md`](superpower/backend-backlog.md)). Glossary-bound Type→Instance
+  (Visualization Type → Widget).
+- [`superpower/ia-vocabulary-reorg.md`](superpower/ia-vocabulary-reorg.md) — **Platform IA reorg**: Workbench/
+  Studio/Catalog nav grouping, Stream + Matrix glossary additions, Catalog's Streams/Usage tabs, the
+  Processing Status Operations page. **Phases A/B/E done** (UI, mock-first); Phases C (Matrices) / D (Job
+  templates) are backend-gated, see [`superpower/backend-backlog.md`](superpower/backend-backlog.md).
+- [`superpower/backend-backlog.md`](superpower/backend-backlog.md) — **consolidated backend backlog**: the
+  one closed `ComponentStore.WRITABLE_TYPES` enum blocking Widget-Library M2, Matrices, and (partly) Job
+  templates — sequencing + current-state facts, not started.
 
 ## Strategy & roadmap (stakeholder-facing)
 
