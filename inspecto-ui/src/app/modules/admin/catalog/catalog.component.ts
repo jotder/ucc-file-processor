@@ -28,7 +28,7 @@ type CatTab = 'tables' | 'kpis' | 'graph';
 
 /**
  * Data catalog — the metadata graph surfaced three ways: a Tables grid (with operational
- * overlay), a KPIs grid, and a Graph traversal tool (AntV G6). Any node opens a detail
+ * overlay), a KPIs grid, and a **Lineage** traversal tool (AntV G6). Any node opens a detail
  * dialog (node + 2-hop neighbours). All read-only (ASSIST_READ scope).
  */
 @Component({
@@ -55,7 +55,7 @@ export class CatalogComponent implements OnInit {
     readonly tabs: { id: CatTab; label: string }[] = [
         { id: 'tables', label: 'Tables' },
         { id: 'kpis', label: 'KPIs' },
-        { id: 'graph', label: 'Graph' },
+        { id: 'graph', label: 'Lineage' },
     ];
     tabIndex = 0;
     get activeTab(): CatTab {

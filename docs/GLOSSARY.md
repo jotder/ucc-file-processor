@@ -73,6 +73,11 @@ Type, and optional rules.
 
 **Catalog** — The library/index of all Schemas (and Datasets) in a Space, with version history and usage.
 
+**Stream** — A named external **data origin** as seen in the **Catalog**: one feed (a database, Kafka topic,
+file drop, …) together with the Schemas and Tables it produces — browsable and groupable for lineage. A Stream
+is *populated by* a **Connection** (the endpoint) + one or more **Sources** (the collection tasks) authored in
+the Workbench; it is the **data-plane view of an origin**, not the acquisition config. ⛔ never "Data Source".
+
 ---
 
 ## 4. Rules (three distinct engines — never bare "Rule")
@@ -140,6 +145,10 @@ defines *when*, not *what*.
 
 **Derived Table** — A materialized Table produced by a Transform or cube/rollup. (≈ materialized view / mart /
 OLAP cube.)
+
+**Matrix** — The **user-facing name** for a summary / cube / roll-up data asset. It **is a Derived Table**
+(so it lives inside the **Dataset** umbrella) — "Matrix" is the label the Catalog and Studio show, not a new
+model type. ⛔ "Cube" stays a *verb* (the Transform action that produces it), never the asset's noun.
 
 **View** — A virtual (logical) query over a Table, Derived Table, or View. No storage of its own.
 
@@ -297,6 +306,8 @@ touchpoint before renaming; the backend hits below are *known examples*, not an 
 |---|---|---|
 | Flow | **Pipeline** | ✅ **UI DONE** (`feat/rename-flow-pipeline-runs`): authored-DAG editor FE renamed `Flow*`→`Pipeline*`, `modules/admin/flows/`→`pipelines/`, route `/flows`→`/pipelines`, `FlowsService`→`PipelinesService` + `Flow*` types, `flow-mock`→`pipeline-mock`. **Collision resolved** (full restructure): the *ingest ops* page took `/pipelines`, so it moved to **Runs** (`modules/admin/{pipelines→runs, pipeline-detail→run-detail}`, `Pipeline*`→`Run*` (`RunView`/`RunResult`/`RunStatus`), route `/pipelines`→`/runs`) — matches glossary §5 (Run = one execution). ✅ **Backend DONE** (`refactor/rename-flow-pipeline-backend`): `com.gamma.flow{,.exec}`→`com.gamma.pipeline{,.exec}` + the 18 `Flow*` types→`Pipeline*`; `JobType.FLOW`→`PIPELINE`; routes `/flows`→`/pipelines` (`FlowRoutes`→`PipelineRoutes`) and `/pipelines`→`/runs` (old `PipelineRoutes`→`RunRoutes`); FE service paths + mock-interceptor regexes re-aligned. Audit action names kept as `pipeline.*` (the audited entity is a pipeline config) via an `AuditTrail.resource()` override mapping `/runs`→`pipeline`. Kept: authored-flow storage dir `flows/` + JSON response keys. **No version bump** (nothing shipped on 4.x → no contract/data in the wild). Plans: `docs/superpower/flow-pipeline-runs-rename.md` (UI) + `flow-pipeline-backend-rename.md` (backend). |
 | Data Store | **Dataset** | Studio datasets UI; `dataset-types.ts` (already "Dataset" — verify no "store" labels); backend `ComponentStore` stays = *physical store*, not a Dataset |
+| Data Source *(browsable origin)* | **Stream** | **Additive, not a model rename.** New Catalog data-origin concept (§3); the acquisition *config* stays **Connection** + **Source**. Touchpoints so far: nav + Catalog labels (Phase A of `superpower/ia-vocabulary-reorg.md`). Backend Stream read-model is Phase B. |
+| Cube *(noun / summary asset)* | **Matrix** | **Additive label, not a model rename.** User-facing name for a summary **Derived Table** (§6-B); the model type stays `Derived Table` / `NodeKind.DERIVED_TABLE`. Touchpoints: Catalog/Studio UI labels; persisted materialization is Phase C. |
 | Issue | **Incident** | ✅ **DONE** (`2878b31`, breaking → 5.0): `ObjectType.INCIDENT`, `/objects?type=INCIDENT` + `objectType` value, UI `/issues`→`/incidents` (route file renamed), ops-mock seeds INCIDENT. No DB migration (in-memory `ObjectStore`). |
 | Rule *(bare)* | **Expectation** / **Alert Rule** / **Decision Rule** | rule builder UI; `AlertRule`, rule services — split by purpose |
 | Metric *(BI sense)* | **Measure** | ✅ **UI DONE** (`feat/rename-bi-metric-to-measure`): Studio/viz FE renamed — `DatasetRole`/`FieldRole` `'metric'`→`'measure'`, `NamedMetric`→`NamedMeasure`, `QueryMetric`→`QueryMeasure`, `buildMetric`/`metricId`, `isMetric`, `DatasetConfig.metrics`/`QuerySpec.measures`, plugins, mock data + specs. ✅ **Backend = NO-OP** (verified 2026-06-30): the backend BI concept is **KPI** (`kpis:` / `KpiMeta` / `NodeKind.KPI` / `IdScheme.kpi()`) — a *distinct canonical term* (a single-number Measure with a target), **not** renamed. There is no server-side "Metric" in the BI sense. Kept ops `MetricRegistry`/`MetricsService`/`AcquisitionTelemetry` as **Metric**. |

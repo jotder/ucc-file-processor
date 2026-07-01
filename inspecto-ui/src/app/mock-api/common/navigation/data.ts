@@ -3,55 +3,24 @@ import { GammaNavigationItem } from '@gamma/components/navigation';
 
 export const defaultNavigation: GammaNavigationItem[] = [
     {
-        id      : 'dashboards-group',
-        title   : 'Dashboards',
+        id      : 'platform-group',
+        title   : 'Platform',
         type    : 'collapsable',
         icon    : 'heroicons_outline:squares-2x2',
         children: [
-            { id: 'op-dashboard',  title: 'Operation Dashboard',   type: 'basic', icon: 'heroicons_outline:chart-bar',          link: '/dashboard' },
-            { id: 'acq-dashboard', title: 'Acquisition Dashboard', type: 'basic', icon: 'heroicons_outline:inbox-arrow-down',   link: '/sources' },
-        ]
-    },
-    {
-        id   : 'kpi-reports',
-        title: 'KPI & Reports',
-        type : 'basic',
-        icon : 'heroicons_outline:document-chart-bar',
-        link : '/kpi-reports'
-    },
-    {
-        id      : 'operations-group',
-        title   : 'Operations',
-        type    : 'collapsable',
-        icon    : 'heroicons_outline:bolt',
-        children: [
-            { id: 'scheduler', title: 'Scheduler', type: 'basic', icon: 'heroicons_outline:clock',                 link: '/jobs' },
-            { id: 'events',    title: 'Events',    type: 'basic', icon: 'heroicons_outline:queue-list',            link: '/events' },
-            { id: 'audit',     title: 'Audit log', type: 'basic', icon: 'heroicons_outline:shield-check',          link: '/audit' },
-            { id: 'diagnoses', title: 'Diagnoses', type: 'basic', icon: 'heroicons_outline:wrench-screwdriver',    link: '/diagnoses' },
-            { id: 'alerts',    title: 'Alerts',    type: 'basic', icon: 'heroicons_outline:bell-alert',            link: '/alerts' },
-            { id: 'incidents',    title: 'Incidents',    type: 'basic', icon: 'heroicons_outline:exclamation-triangle',  link: '/incidents' },
-            { id: 'cases',     title: 'Cases',     type: 'basic', icon: 'heroicons_outline:briefcase',             link: '/cases' }
-        ]
-    },
-    {
-        id      : 'workbench-group',
-        title   : 'Workbench',
-        type    : 'collapsable',
-        icon    : 'heroicons_outline:wrench',
-        children: [
             {
-                id      : 'runs-group',
-                title   : 'Data Sources',
+                id      : 'workbench-group',
+                title   : 'Workbench',
                 type    : 'collapsable',
-                icon    : 'heroicons_outline:arrows-right-left',
+                icon    : 'heroicons_outline:wrench',
                 children: [
-                    { id: 'pipelines',   title: 'Pipelines',   type: 'basic', icon: 'heroicons_outline:share',        link: '/pipelines' },
-                    { id: 'runs',        title: 'Runs',        type: 'basic', icon: 'heroicons_outline:queue-list',   link: '/runs' },
-                    { id: 'components',  title: 'Components',  type: 'basic', icon: 'heroicons_outline:puzzle-piece', link: '/components' },
-                    { id: 'enrichment',  title: 'Enrichment',  type: 'basic', icon: 'heroicons_outline:funnel',       link: '/enrichment' },
-                    { id: 'catalog',     title: 'Catalog',     type: 'basic', icon: 'heroicons_outline:share',        link: '/catalog' },
-                    { id: 'connections', title: 'Connections',  type: 'basic', icon: 'heroicons_outline:server-stack', link: '/connections' },
+                    { id: 'pipelines',   title: 'Pipelines',   type: 'basic', icon: 'heroicons_outline:share',            link: '/pipelines' },
+                    { id: 'runs',        title: 'Runs',        type: 'basic', icon: 'heroicons_outline:queue-list',       link: '/runs' },
+                    { id: 'jobs',        title: 'Jobs',        type: 'basic', icon: 'heroicons_outline:clock',            link: '/jobs' },
+                    { id: 'components',  title: 'Components',  type: 'basic', icon: 'heroicons_outline:puzzle-piece',     link: '/components' },
+                    { id: 'enrichment',  title: 'Enrichment',  type: 'basic', icon: 'heroicons_outline:funnel',          link: '/enrichment' },
+                    { id: 'connections', title: 'Connections', type: 'basic', icon: 'heroicons_outline:server-stack',     link: '/connections' },
+                    { id: 'sources',     title: 'Sources',     type: 'basic', icon: 'heroicons_outline:inbox-arrow-down', link: '/sources' },
                 ]
             },
             {
@@ -60,13 +29,45 @@ export const defaultNavigation: GammaNavigationItem[] = [
                 type    : 'collapsable',
                 icon    : 'heroicons_outline:presentation-chart-line',
                 children: [
-                    { id: 'studio-datasets',   title: 'Datasets',   type: 'basic', icon: 'heroicons_outline:table-cells',     link: '/studio/datasets' },
-                    { id: 'studio-widgets',    title: 'Widgets',    type: 'basic', icon: 'heroicons_outline:chart-pie',       link: '/studio/widgets' },
-                    { id: 'studio-dashboards', title: 'Dashboards', type: 'basic', icon: 'heroicons_outline:squares-2x2',     link: '/studio/dashboards' },
-                    { id: 'studio-registry',   title: 'Registry',   type: 'basic', icon: 'heroicons_outline:rectangle-group', link: '/registry' }
+                    { id: 'studio-widgets',    title: 'Widget Builder', type: 'basic', icon: 'heroicons_outline:chart-pie',   link: '/studio/widgets' },
+                    { id: 'studio-dashboards', title: 'Dashboards',     type: 'basic', icon: 'heroicons_outline:squares-2x2', link: '/studio/dashboards' },
+                ]
+            },
+            {
+                id      : 'catalog-group',
+                title   : 'Catalog',
+                type    : 'collapsable',
+                icon    : 'heroicons_outline:rectangle-group',
+                children: [
+                    { id: 'catalog',          title: 'Data Catalog', type: 'basic', icon: 'heroicons_outline:share',           link: '/catalog' },
+                    // Datasets are a data asset (Catalog's home); URL move /studio/datasets → /catalog/datasets is a follow-up (Phase B).
+                    { id: 'studio-datasets',  title: 'Datasets',     type: 'basic', icon: 'heroicons_outline:table-cells',     link: '/studio/datasets' },
+                    { id: 'studio-registry',  title: 'Registry',     type: 'basic', icon: 'heroicons_outline:rectangle-group', link: '/registry' },
                 ]
             },
         ]
+    },
+    {
+        id      : 'operations-group',
+        title   : 'Operations',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:bolt',
+        children: [
+            { id: 'op-overview', title: 'Overview',   type: 'basic', icon: 'heroicons_outline:chart-bar',             link: '/dashboard' },
+            { id: 'events',      title: 'Events',     type: 'basic', icon: 'heroicons_outline:queue-list',            link: '/events' },
+            { id: 'audit',       title: 'Audit log',  type: 'basic', icon: 'heroicons_outline:shield-check',          link: '/audit' },
+            { id: 'diagnoses',   title: 'Diagnoses',  type: 'basic', icon: 'heroicons_outline:wrench-screwdriver',    link: '/diagnoses' },
+            { id: 'alerts',      title: 'Alerts',     type: 'basic', icon: 'heroicons_outline:bell-alert',            link: '/alerts' },
+            { id: 'incidents',   title: 'Incidents',  type: 'basic', icon: 'heroicons_outline:exclamation-triangle',  link: '/incidents' },
+            { id: 'cases',       title: 'Cases',      type: 'basic', icon: 'heroicons_outline:briefcase',             link: '/cases' }
+        ]
+    },
+    {
+        id   : 'kpi-reports',
+        title: 'KPI & Reports',
+        type : 'basic',
+        icon : 'heroicons_outline:document-chart-bar',
+        link : '/kpi-reports'
     },
     {
         id      : 'settings-group',
