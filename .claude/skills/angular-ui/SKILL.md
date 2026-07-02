@@ -122,6 +122,11 @@ src/app/
   two-click (avoid G6 v5's `create-edge`), delete = a host `keydown`. Both reuse `canvasTheme()` + `nodeColor/nodeShape`
   (never hardcode canvas colours). **G6 can't instantiate in jsdom** — unit-test on the empty/no-graph path (canvas not
   mounted) for axe, and the editing logic via the component's methods with a mocked host.
+- **Ask the minimum (product-owner rule, 2026-07-02):** a form asks only what the action needs NOW;
+  everything else is on-demand. Concretely: **create flows name the artifact at SAVE time** (a save step
+  asks Name — pre-filled `<type>_<host>`-style, unique, = the id — plus optional Description) and
+  **rarely-used sections (tunnels/proxies/advanced) start collapsed even on edit**, with a chip hinting
+  what's configured. Reference: `connections/connection-form.dialog` (two-step create, collapsed Routing).
 - Detail pages carry a breadcrumb (list → id). Reference everything live at `/design`.
 
 ## 5. Styling
