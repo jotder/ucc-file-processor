@@ -17,6 +17,8 @@ export interface DashboardConfig {
     tiles: DashboardTile[];
     /** Cross-filter applied to every tile's QuerySpec (reuses the Query Core filter). */
     filter?: ConditionGroup | null;
+    /** Columns exposed to viewers as quick filters (the dashboard filter bar). */
+    exposedFields?: string[];
 }
 
 export interface Dashboard extends DashboardConfig {
@@ -25,6 +27,11 @@ export interface Dashboard extends DashboardConfig {
 }
 
 /** Build a {@link Dashboard} from a name + tiles/filter (mirrors `buildWidget`). */
-export function buildDashboard(name: string, tiles: DashboardTile[], filter?: ConditionGroup | null): Dashboard {
-    return { id: name, name, tiles, filter: filter ?? emptyGroup('AND') };
+export function buildDashboard(
+    name: string,
+    tiles: DashboardTile[],
+    filter?: ConditionGroup | null,
+    exposedFields?: string[],
+): Dashboard {
+    return { id: name, name, tiles, filter: filter ?? emptyGroup('AND'), exposedFields: exposedFields ?? [] };
 }

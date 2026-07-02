@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
-import { Aggregation, ChannelValue, ControlSpec, ControlValues, VizField, VizPlugin } from 'app/inspecto/viz';
+import { Aggregation, ChannelValue, ControlSpec, ControlValues, TimeGrain, VizField, VizPlugin } from 'app/inspecto/viz';
 
 const AGGS: Aggregation[] = ['sum', 'avg', 'min', 'max', 'count', 'countDistinct'];
+const GRAINS: TimeGrain[] = ['auto', 'day', 'week', 'month'];
 
 /**
  * Field mapper — the explore workbench's presentational control panel (a **controlled** component: renders
@@ -48,7 +49,20 @@ const AGGS: Aggregation[] = ['sum', 'avg', 'min', 'max', 'count', 'countDistinct
                         }
                     </mat-form-field>
 
-                    @if (control.isMeasure && !control.multiple) {
+                    @if (isTemporalSelected(control)) {
+                        <mat-form-field class="w-32" subscriptSizing="dynamic">
+                            <mat-label>Time grain</mat-label>
+                            <mat-select
+                                [ngModel]="grainFor(control.channel)"
+                                (ngModelChange)="onGrain(control.channel, $event)"
+                                [aria-label]="control.label + ' time grain'"
+                            >
+                                @for (g of grains; track g) { <mat-option [value]="g">{{ g }}</mat-option> }
+                            </mat-select>
+                        </mat-form-field>
+                    }
+
+                    @if (control.isMeasure && !control.multiple && !isExpressionSelected(control.channel)) {
                         <mat-form-field class="w-32" subscriptSizing="dynamic">
                             <mat-label>Aggregation</mat-label>
                             <mat-select
@@ -67,6 +81,7 @@ const AGGS: Aggregation[] = ['sum', 'avg', 'min', 'max', 'count', 'countDistinct
 })
 export class ExploreControlsComponent {
     readonly aggs = AGGS;
+    readonly grains = GRAINS;
 
     readonly plugin = input.required<VizPlugin>();
     readonly fields = input.required<VizField[]>();
@@ -87,15 +102,39 @@ export class ExploreControlsComponent {
         return this.values()[channel]?.[0]?.agg ?? 'sum';
     }
 
+    /** The x-style grain picker shows only when the channel's selected field is temporal. */
+    isTemporalSelected(control: ControlSpec): boolean {
+        if (control.multiple || control.isMeasure) return false;
+        const name = this.selectedField(control.channel);
+        return !!name && this.fields().find((f) => f.name === name)?.role === 'temporal';
+    }
+    grainFor(channel: ControlSpec['channel']): TimeGrain {
+        return this.values()[channel]?.[0]?.grain ?? 'auto';
+    }
+    onGrain(channel: ControlSpec['channel'], grain: TimeGrain): void {
+        const cur = this.values()[channel]?.[0];
+        if (!cur) return;
+        this.patch(channel, [{ ...cur, grain }]);
+    }
+
     onField(control: ControlSpec, field: string | null): void {
-        const cv: ChannelValue[] = field
-            ? [{ field, agg: control.isMeasure ? this.aggFor(control.channel) : undefined }]
-            : [];
+        const cv: ChannelValue[] = field ? [this.toChannelValue(control, field)] : [];
         this.patch(control.channel, cv);
     }
     onFields(control: ControlSpec, fields: string[]): void {
-        const cv: ChannelValue[] = fields.map((field) => ({ field, agg: control.isMeasure ? 'sum' : undefined }));
-        this.patch(control.channel, cv);
+        this.patch(control.channel, fields.map((field) => this.toChannelValue(control, field)));
+    }
+
+    /** A named-measure field carries its expression (no aggregation applies); a column gets the default agg. */
+    private toChannelValue(control: ControlSpec, field: string): ChannelValue {
+        const expression = this.fields().find((f) => f.name === field)?.expression;
+        if (expression) return { field, expression };
+        return { field, agg: control.isMeasure ? this.aggFor(control.channel) : undefined };
+    }
+
+    /** Hide the aggregation picker for named measures — the expression already aggregates. */
+    isExpressionSelected(channel: ControlSpec['channel']): boolean {
+        return !!this.values()[channel]?.[0]?.expression;
     }
     onAgg(channel: ControlSpec['channel'], agg: Aggregation): void {
         const cur = this.values()[channel]?.[0];

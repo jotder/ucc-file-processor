@@ -5,9 +5,11 @@ import { TABLE_PLUGIN } from './table.plugin';
 import { KPI_PLUGIN } from './kpi.plugin';
 import { BUBBLE_PLUGIN } from './bubble.plugin';
 import { GAUGE_PLUGIN } from './gauge.plugin';
+import { SCATTER_PLUGIN } from './scatter.plugin';
+import { FUNNEL_PLUGIN } from './funnel.plugin';
 
 /** The plugin set. KPI + table first (always-available), then the Chart.js standards, then the P3 breadth
- *  additions (bubble, gauge). */
+ *  additions (bubble, gauge, scatter, funnel). */
 export const BUILTIN_VIZ_PLUGINS: VizPlugin[] = [
     KPI_PLUGIN,
     TABLE_PLUGIN,
@@ -17,6 +19,8 @@ export const BUILTIN_VIZ_PLUGINS: VizPlugin[] = [
     PIE_PLUGIN,
     BUBBLE_PLUGIN,
     GAUGE_PLUGIN,
+    SCATTER_PLUGIN,
+    FUNNEL_PLUGIN,
 ];
 
 /**
@@ -37,3 +41,5 @@ export { TABLE_PLUGIN } from './table.plugin';
 export { KPI_PLUGIN } from './kpi.plugin';
 export { BUBBLE_PLUGIN } from './bubble.plugin';
 export { GAUGE_PLUGIN } from './gauge.plugin';
+export { SCATTER_PLUGIN } from './scatter.plugin';
+export { FUNNEL_PLUGIN } from './funnel.plugin';

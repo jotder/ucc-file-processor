@@ -1,5 +1,5 @@
 import { ConditionGroup } from 'app/inspecto/query';
-import { buildMeasure, measureId } from '../query-spec';
+import { channelMeasure, channelMeasureId } from '../query-spec';
 import { ChannelValue, ControlValues, QuerySpec, VizProps } from '../viz-types';
 
 /**
@@ -43,7 +43,7 @@ function distinct(rows: Record<string, unknown>[], key: string): string[] {
 /** Group-by = the x + series (dimension/temporal) channels; measures = the y channels' aggregations. */
 export function buildXyQuery(values: ControlValues, ctx: QueryCtx): QuerySpec {
     const groupBy = [field(values.x), field(values.series)].filter((f): f is string => !!f);
-    const measures = (values.y ?? []).map((cv) => buildMeasure(cv.agg ?? 'sum', cv.field));
+    const measures = (values.y ?? []).map(channelMeasure);
     return { datasetId: ctx.datasetId, sourceName: ctx.sourceName, groupBy, measures, filters: ctx.filters ?? null };
 }
 
@@ -53,7 +53,7 @@ export function transformXy(rows: Record<string, unknown>[], values: ControlValu
     const seriesField = field(values.series);
     const ycv = values.y?.[0];
     if (!xField || !ycv) return { labels: [], series: [] };
-    const mId = measureId(ycv.agg ?? 'sum', ycv.field);
+    const mId = channelMeasureId(ycv);
     const labels = distinct(rows, xField);
 
     if (seriesField) {
@@ -78,13 +78,13 @@ export function transformXy(rows: Record<string, unknown>[], values: ControlValu
 /** Single headline measure over the (single-row, ungrouped) result — the KPI value. */
 export function buildValueQuery(values: ControlValues, ctx: QueryCtx): QuerySpec {
     const cv = values.value?.[0] ?? values.y?.[0];
-    const measures = cv ? [buildMeasure(cv.agg ?? 'sum', cv.field)] : [];
+    const measures = cv ? [channelMeasure(cv)] : [];
     return { datasetId: ctx.datasetId, sourceName: ctx.sourceName, groupBy: [], measures, filters: ctx.filters ?? null };
 }
 
 export function transformValue(rows: Record<string, unknown>[], values: ControlValues): VizProps {
     const cv = values.value?.[0] ?? values.y?.[0];
     if (!cv) return { labels: [], series: [], value: 0 };
-    const mId = measureId(cv.agg ?? 'sum', cv.field);
+    const mId = channelMeasureId(cv);
     return { labels: [], series: [], value: num(rows[0]?.[mId]) };
 }
