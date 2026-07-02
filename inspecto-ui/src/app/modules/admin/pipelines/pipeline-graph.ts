@@ -318,3 +318,148 @@ export function groupByCategory(types: PipelineNodeType[]): NodeTypeGroup[] {
     for (const [category, ts] of byCat) ordered.push({ category, types: ts });
     return ordered;
 }
+
+/** Heroicon per palette category for the compact toolbar chips / palette buttons. */
+export function paletteHeroIcon(category: string): string {
+    switch (category) {
+        case 'SOURCE':    return 'heroicons_outline:arrow-down-on-square';
+        case 'PARSE':     return 'heroicons_outline:document-text';
+        case 'TRANSFORM': return 'heroicons_outline:arrows-right-left';
+        case 'SINK':      return 'heroicons_outline:circle-stack';
+        case 'CONTROL':   return 'heroicons_outline:bell-alert';
+        default:          return 'heroicons_outline:cube';
+    }
+}
+
+/** Heroicon for a node status (text + icon + colour → never colour alone). */
+export function statusIcon(s: NodeStatus): string {
+    switch (s) {
+        case 'unconfigured': return 'heroicons_outline:exclamation-triangle';
+        case 'dangling':     return 'heroicons_outline:x-circle';
+        case 'tested':       return 'heroicons_outline:check-circle';
+        case 'rejects':      return 'heroicons_outline:exclamation-triangle';
+        default:             return 'heroicons_outline:check';
+    }
+}
+
+/** Token colour for a node status ('' = inherit, for the neutral `configured` state). */
+export function statusTint(s: NodeStatus): string {
+    switch (s) {
+        case 'tested':     return 'var(--gamma-primary)';
+        case 'configured': return '';
+        default:           return 'var(--gamma-warn)';
+    }
+}
+
+/** Icon for a validation finding's severity. */
+export function findingIcon(sev: PipelineFinding['severity']): string {
+    switch (sev) {
+        case 'error':   return 'heroicons_outline:x-circle';
+        case 'warning': return 'heroicons_outline:exclamation-triangle';
+        default:        return 'heroicons_outline:information-circle';
+    }
+}
+
+/** Token colour for a validation finding's severity ('' = inherit, for `info`). */
+export function findingTint(sev: PipelineFinding['severity']): string {
+    return sev === 'info' ? '' : 'var(--gamma-warn)';
+}
+
+/** A node's config as display rows, for the inspector summary / hover tooltip. */
+export function nodeConfigEntries(n: AuthoredNode): { k: string; v: string }[] {
+    return Object.entries(n.config ?? {}).map(([k, v]) => ({
+        k,
+        v: typeof v === 'string' ? v : JSON.stringify(v),
+    }));
+}
+
+// ── Authored-model reducers (pure) + the canvas edge-id codec ──
+//
+// The G6 host has no concept of an edge's semantic identity, so the editor encodes
+// `<from>-><to>:<rel>:<nonce>` as the canvas edge id and decodes it back to look up/mutate the
+// authored model. These reducers return a NEW `AuthoredPipeline` (or `null` for a no-op, e.g. a
+// duplicate edge) — the editor component only owns applying the result + syncing the canvas.
+
+/** Monotonic tail for {@link encodeEdgeId} — `Date.now()` alone can collide when two edges are
+ *  encoded in the same millisecond (e.g. programmatic bulk-add), so a counter guarantees uniqueness. */
+let edgeIdSeq = 0;
+
+/** Encode a canvas edge id for one `(from, to, rel)` triple (nonce keeps ids unique after a re-label). */
+export function encodeEdgeId(from: string, to: string, rel: string): string {
+    return `${from}->${to}:${rel}:${Date.now()}-${++edgeIdSeq}`;
+}
+
+/** Decode a canvas edge id back to its `(from, to, rel)` triple, or `null` if malformed. */
+export function decodeEdgeId(g6EdgeId: string): { from: string; to: string; rel: string } | null {
+    const m = /^(.*)->(.*):([^:]*):[^:]*$/.exec(g6EdgeId);
+    return m ? { from: m[1], to: m[2], rel: m[3] } : null;
+}
+
+/** A fresh node id for `type`: its sanitized type name, deduplicated against the model's existing ids. */
+export function uniqueNodeId(model: AuthoredPipeline | null, type: string): string {
+    const base = type.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'node';
+    const ids = new Set(model?.nodes.map((n) => n.id));
+    let i = 1;
+    let id = `${base}_${i}`;
+    while (ids.has(id)) id = `${base}_${++i}`;
+    return id;
+}
+
+/** Append a node. */
+export function addNodeToModel(model: AuthoredPipeline, node: AuthoredNode): AuthoredPipeline {
+    return { ...model, nodes: [...model.nodes, node] };
+}
+
+/** Append an edge, or `null` if an identical `(from, to, rel)` edge already exists. */
+export function addEdgeToModel(model: AuthoredPipeline, from: string, to: string, rel: string): AuthoredPipeline | null {
+    if (model.edges.some((e) => e.from === from && e.to === to && e.rel === rel)) return null;
+    return { ...model, edges: [...model.edges, { from, rel, to }] };
+}
+
+/** Drop a node and every edge touching it. */
+export function removeNodeFromModel(model: AuthoredPipeline, id: string): AuthoredPipeline {
+    return {
+        ...model,
+        nodes: model.nodes.filter((n) => n.id !== id),
+        edges: model.edges.filter((e) => e.from !== id && e.to !== id),
+    };
+}
+
+/** Drop one `(from, to, rel)` edge. */
+export function removeEdgeFromModel(model: AuthoredPipeline, from: string, to: string, rel: string): AuthoredPipeline {
+    return { ...model, edges: model.edges.filter((e) => !(e.from === from && e.to === to && e.rel === rel)) };
+}
+
+/** Re-label an edge's relationship, or `null` if unchanged / would collide with an existing edge. */
+export function setEdgeRelInModel(
+    model: AuthoredPipeline,
+    from: string,
+    to: string,
+    oldRel: string,
+    newRel: string,
+): AuthoredPipeline | null {
+    if (oldRel === newRel) return null;
+    if (model.edges.some((e) => e.from === from && e.to === to && e.rel === newRel)) return null;
+    return {
+        ...model,
+        edges: model.edges.map((e) => (e.from === from && e.to === to && e.rel === oldRel ? { ...e, rel: newRel } : e)),
+    };
+}
+
+/** Replace a node in the model with its edited version (by id). */
+export function applyNodePatchInModel(model: AuthoredPipeline, updated: AuthoredNode): AuthoredPipeline {
+    return { ...model, nodes: model.nodes.map((n) => (n.id === updated.id ? updated : n)) };
+}
+
+/** Relationships a canvas edge may carry: the source node's emitted rels, `data`, and the edge's current rel. */
+export function candidateRelsFor(
+    model: AuthoredPipeline | null,
+    g6EdgeId: string,
+    typeEmits: ReadonlyMap<string, string[]>,
+): string[] {
+    const p = decodeEdgeId(g6EdgeId);
+    if (!p) return [];
+    const src = model?.nodes.find((n) => n.id === p.from);
+    const emits = src ? (typeEmits.get(src.type) ?? []) : [];
+    return [...new Set(['data', ...emits, p.rel])];
+}

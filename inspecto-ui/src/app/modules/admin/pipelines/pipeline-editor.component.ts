@@ -20,7 +20,6 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
 import {
-    AuthoredEdge,
     AuthoredPipeline,
     AuthoredNode,
     ComponentsService,
@@ -36,6 +35,8 @@ import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import { PipelineEditorGraphComponent } from './pipeline-editor-graph.component';
+import { PipelineInspectorComponent } from './pipeline-inspector.component';
+import { PipelinePaletteComponent } from './pipeline-palette.component';
 import { NodeConfigDialog, NodeConfigResult } from './node-config.dialog';
 import { ParserConfigDialog } from './parser-config.dialog';
 import { RunToHereDialog } from './run-to-here.dialog';
@@ -44,15 +45,27 @@ import {
     NodeStatus,
     NodeTypeGroup,
     TestOutcome,
+    addEdgeToModel,
+    addNodeToModel,
+    applyNodePatchInModel,
     authoredToG6,
     bindKindFor,
-    categoryColor,
+    candidateRelsFor,
     categoryLabel,
     categoryVisualKind,
     computeNodeStatus,
+    decodeEdgeId,
+    encodeEdgeId,
+    findingIcon,
+    findingTint,
     groupByCategory,
+    nodeConfigEntries,
+    removeEdgeFromModel,
+    removeNodeFromModel,
+    setEdgeRelInModel,
     statusLabel,
     typeCategoryMap,
+    uniqueNodeId,
     validatePipeline,
 } from './pipeline-graph';
 
@@ -61,6 +74,12 @@ import {
  * drag node types from the palette, click two nodes to connect, edit node config in the inspector, dry-run a
  * sample, and Save (PUT). The {@link AuthoredPipeline} signal is the logical truth; the canvas owns layout. Loaded
  * losslessly via {@code GET …/raw} so node config round-trips. Reached via the Pipelines pane's `editor` mode.
+ *
+ * The palette and the property drawer are their own presentational components
+ * ({@link PipelinePaletteComponent}, {@link PipelineInspectorComponent}); every model mutation (add/remove
+ * node or edge, re-label a relationship) is a pure reducer in `pipeline-graph.ts` — this container's job is
+ * CRUD orchestration, canvas event wiring, and keeping the canvas in sync with the model (review:
+ * `docs/superpower/reviews/pipeline-editor.md`).
  */
 @Component({
     selector: 'app-pipeline-editor',
@@ -76,6 +95,8 @@ import {
         MatSidenavModule,
         MatTooltipModule,
         PipelineEditorGraphComponent,
+        PipelineInspectorComponent,
+        PipelinePaletteComponent,
         InspectoEmptyStateComponent,
     ],
     templateUrl: './pipeline-editor.component.html',
@@ -112,7 +133,6 @@ export class PipelineEditorComponent implements OnInit {
     /** Set when a write returns 503 (no `-Dassist.write.root`) — the editor is read-only. */
     readonly unavailable = signal(false);
 
-    readonly paletteOpen = signal(false);
     readonly dryRunOpen = signal(false);
     readonly dryRunResult = signal<PipelineDryRunResult | null>(null);
     readonly dryRunError = signal<string | null>(null);
@@ -129,13 +149,12 @@ export class PipelineEditorComponent implements OnInit {
     readonly findings = signal<PipelineFinding[]>([]);
     readonly activating = signal(false);
     readonly statusLabel = statusLabel;
+    readonly findingIcon = findingIcon;
+    readonly findingTint = findingTint;
 
     readonly creating = signal(false);
     readonly newName = this.fb.control('', { nonNullable: true, validators: [Validators.required] });
     readonly sampleText = this.fb.control('[\n  {}\n]', { nonNullable: true });
-
-    readonly categoryColor = categoryColor;
-    readonly categoryLabel = categoryLabel;
 
     /** The property panel is collapsible (the editor body is just canvas + an optional inspector drawer). */
     readonly inspectorOpen = signal(true);
@@ -151,52 +170,8 @@ export class PipelineEditorComponent implements OnInit {
     /** Whether a node or edge is selected — gates the toolbar Delete action (selection-scoped). */
     readonly hasSelection = computed(() => !!this.selectedNode() || !!this.selectedEdgeId());
 
-    /** Heroicon per palette category for the compact toolbar chips. */
-    paletteHeroIcon(category: string): string {
-        switch (category) {
-            case 'SOURCE':    return 'heroicons_outline:arrow-down-on-square';
-            case 'PARSE':     return 'heroicons_outline:document-text';
-            case 'TRANSFORM': return 'heroicons_outline:arrows-right-left';
-            case 'SINK':      return 'heroicons_outline:circle-stack';
-            case 'CONTROL':   return 'heroicons_outline:bell-alert';
-            default:          return 'heroicons_outline:cube';
-        }
-    }
-
     toggleInspector(): void {
         this.inspectorOpen.update((o) => !o);
-    }
-
-    /** Heroicon for a node status (text + icon + colour → never colour alone). */
-    statusIcon(s: NodeStatus): string {
-        switch (s) {
-            case 'unconfigured': return 'heroicons_outline:exclamation-triangle';
-            case 'dangling':     return 'heroicons_outline:x-circle';
-            case 'tested':       return 'heroicons_outline:check-circle';
-            case 'rejects':      return 'heroicons_outline:exclamation-triangle';
-            default:             return 'heroicons_outline:check';
-        }
-    }
-
-    /** Token colour for a node status ('' = inherit, for the neutral `configured` state). */
-    statusTint(s: NodeStatus): string {
-        switch (s) {
-            case 'tested':     return 'var(--gamma-primary)';
-            case 'configured': return '';
-            default:           return 'var(--gamma-warn)';
-        }
-    }
-
-    findingIcon(sev: PipelineFinding['severity']): string {
-        switch (sev) {
-            case 'error':   return 'heroicons_outline:x-circle';
-            case 'warning': return 'heroicons_outline:exclamation-triangle';
-            default:        return 'heroicons_outline:information-circle';
-        }
-    }
-
-    findingTint(sev: PipelineFinding['severity']): string {
-        return sev === 'info' ? '' : 'var(--gamma-warn)';
     }
 
     /** The selected flow's editable model mapped to G6 data — fed to the host only on a flow switch. */
@@ -215,17 +190,21 @@ export class PipelineEditorComponent implements OnInit {
         for (const n of this.model()?.nodes ?? []) this.canvas?.setNodeStatus(n.id, this.statusOf(n));
     }
 
-    /** The selected node's config as display rows, for the inspector summary. */
-    configEntries(n: AuthoredNode): { k: string; v: string }[] {
-        return Object.entries(n.config ?? {}).map(([k, v]) => ({
-            k,
-            v: typeof v === 'string' ? v : JSON.stringify(v),
-        }));
-    }
-
     /** The palette category for a node type (drives the inspector's category label + colour). */
     typeCategory(type: string): string {
         return this.typeCat().get(type) ?? '';
+    }
+
+    /** Relationships the selected edge may carry — the inspector's picker options. */
+    candidateRels(): string[] {
+        const id = this.selectedEdgeId();
+        return id ? candidateRelsFor(this.model(), id, this.typeEmits()) : [];
+    }
+
+    /** The relationship the selected edge currently carries. */
+    selectedEdgeRel(): string | null {
+        const id = this.selectedEdgeId();
+        return id ? (decodeEdgeId(id)?.rel ?? null) : null;
     }
 
     ngOnInit(): void {
@@ -450,11 +429,8 @@ export class PipelineEditorComponent implements OnInit {
 
     /** Drag-to-draw: G6 already drew the edge, so only record it in the model (default `data` relationship). */
     onEdgeCreated(e: { source: string; target: string }): void {
-        const m = this.model();
-        if (!m || e.source === e.target) return;
-        if (m.edges.some((x) => x.from === e.source && x.to === e.target && x.rel === 'data')) return;
-        this.model.set({ ...m, edges: [...m.edges, { from: e.source, rel: 'data', to: e.target }] });
-        this.dirty.set(true);
+        if (e.source === e.target) return;
+        this.addEdge(e.source, e.target, 'data', { skipCanvas: true });
     }
 
     /** Hover preview: resolve the hovered node from the live model into a tooltip (or clear on leave). */
@@ -468,14 +444,11 @@ export class PipelineEditorComponent implements OnInit {
             this.hoverTip.set(null);
             return;
         }
-        const config = Object.entries(n.config ?? {})
-            .slice(0, 5)
-            .map(([k, v]) => ({ k, v: typeof v === 'string' ? v : JSON.stringify(v) }));
         this.hoverTip.set({
             name: n.name || n.id,
             type: n.type,
             category: categoryLabel(this.typeCat().get(n.type) ?? ''),
-            config,
+            config: nodeConfigEntries(n).slice(0, 5),
             x: h.x,
             y: h.y,
         });
@@ -502,9 +475,9 @@ export class PipelineEditorComponent implements OnInit {
     }
 
     private insertNode(type: string): AuthoredNode {
-        const id = this.uniqueNodeId(type);
+        const id = uniqueNodeId(this.model(), type);
         const node: AuthoredNode = { id, type };
-        this.model.update((m) => (m ? { ...m, nodes: [...m.nodes, node] } : m));
+        this.model.update((m) => (m ? addNodeToModel(m, node) : m));
         return node;
     }
 
@@ -537,7 +510,7 @@ export class PipelineEditorComponent implements OnInit {
     private applyNodePatch(updated: AuthoredNode): void {
         const m = this.model();
         if (!m) return;
-        this.model.set({ ...m, nodes: m.nodes.map((n) => (n.id === updated.id ? updated : n)) });
+        this.model.set(applyNodePatchInModel(m, updated));
         if (this.selectedNode()?.id === updated.id) this.selectedNode.set(updated);
         this.canvas?.updateNodeLabel(updated.id, updated.name || updated.id);
         // A freshly chosen/created ref is valid by construction; editing config invalidates a prior test.
@@ -586,45 +559,20 @@ export class PipelineEditorComponent implements OnInit {
 
     // ── edge relationship (Stage 2) ──
 
-    /** The relationship the selected edge currently carries. */
-    selectedEdgeRel(): string | null {
-        const id = this.selectedEdgeId();
-        return id ? (this.parseEdgeId(id)?.rel ?? null) : null;
-    }
-
-    /** Relationships the selected edge may carry — the source node's emitted rels (+ `data` + the current one). */
-    candidateRels(): string[] {
-        const id = this.selectedEdgeId();
-        const p = id ? this.parseEdgeId(id) : null;
-        if (!p) return [];
-        const src = this.model()?.nodes.find((n) => n.id === p.from);
-        const emits = src ? (this.typeEmits().get(src.type) ?? []) : [];
-        return [...new Set(['data', ...emits, p.rel])];
-    }
-
     /** Re-label the selected edge with a different relationship (the canvas edge id encodes the rel). */
     setEdgeRel(rel: string): void {
         const id = this.selectedEdgeId();
         const m = this.model();
-        if (!id || !m) return;
-        const p = this.parseEdgeId(id);
-        if (!p || p.rel === rel) return;
-        if (m.edges.some((e) => e.from === p.from && e.to === p.to && e.rel === rel)) return; // no dup
-        this.model.set({
-            ...m,
-            edges: m.edges.map((e) =>
-                e.from === p.from && e.to === p.to && e.rel === p.rel ? { ...e, rel } : e),
-        });
+        const p = id ? decodeEdgeId(id) : null;
+        if (!id || !m || !p) return;
+        const next = setEdgeRelInModel(m, p.from, p.to, p.rel, rel);
+        if (!next) return; // unchanged or would collide with an existing edge
+        this.model.set(next);
         this.canvas?.removeElement(id);
-        const newId = `${p.from}->${p.to}:${rel}:${Date.now()}`;
+        const newId = encodeEdgeId(p.from, p.to, rel);
         this.canvas?.addEdge(newId, p.from, p.to, rel);
         this.selectedEdgeId.set(newId);
         this.dirty.set(true);
-    }
-
-    private parseEdgeId(g6EdgeId: string): { from: string; to: string; rel: string } | null {
-        const match = /^(.*)->(.*):([^:]*):[^:]*$/.exec(g6EdgeId);
-        return match ? { from: match[1], to: match[2], rel: match[3] } : null;
     }
 
     // ── validate & activate (Stage 4) ──
@@ -689,37 +637,31 @@ export class PipelineEditorComponent implements OnInit {
 
     // ── helpers ──
 
-    private addEdge(from: string, to: string, rel: string): void {
+    /** Append `(from, to, rel)` to the model, syncing the canvas unless it already drew the edge itself. */
+    private addEdge(from: string, to: string, rel: string, opts: { skipCanvas?: boolean } = {}): void {
         const m = this.model();
         if (!m) return;
-        if (m.edges.some((e) => e.from === from && e.to === to && e.rel === rel)) return; // no dup
-        const edge: AuthoredEdge = { from, rel, to };
-        this.model.set({ ...m, edges: [...m.edges, edge] });
-        this.canvas?.addEdge(`${from}->${to}:${rel}:${Date.now()}`, from, to, rel);
+        const next = addEdgeToModel(m, from, to, rel);
+        if (!next) return; // duplicate — no-op
+        this.model.set(next);
+        if (!opts.skipCanvas) this.canvas?.addEdge(encodeEdgeId(from, to, rel), from, to, rel);
         this.dirty.set(true);
     }
 
     private removeNode(id: string): void {
         const m = this.model();
         if (!m) return;
-        this.model.set({
-            ...m,
-            nodes: m.nodes.filter((n) => n.id !== id),
-            edges: m.edges.filter((e) => e.from !== id && e.to !== id),
-        });
+        this.model.set(removeNodeFromModel(m, id));
         this.canvas?.removeElement(id);
         this.clearSelection();
         this.dirty.set(true);
     }
 
     private removeEdgeById(g6EdgeId: string): void {
-        // the host edge id is "<from>-><to>:<rel>:<n>"; recover the endpoints to drop it from the model
         const m = this.model();
-        if (!m) return;
-        const match = /^(.*)->(.*):([^:]*):[^:]*$/.exec(g6EdgeId);
-        if (match) {
-            const [, from, to, rel] = match;
-            this.model.set({ ...m, edges: m.edges.filter((e) => !(e.from === from && e.to === to && e.rel === rel)) });
+        const p = decodeEdgeId(g6EdgeId);
+        if (m && p) {
+            this.model.set(removeEdgeFromModel(m, p.from, p.to, p.rel));
             this.dirty.set(true);
         }
         this.canvas?.removeElement(g6EdgeId);
@@ -730,15 +672,6 @@ export class PipelineEditorComponent implements OnInit {
         this.selectedNode.set(null);
         this.selectedEdgeId.set(null);
         this.connectFrom.set(null);
-    }
-
-    private uniqueNodeId(type: string): string {
-        const base = type.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'node';
-        const ids = new Set(this.model()?.nodes.map((n) => n.id));
-        let i = 1;
-        let id = `${base}_${i}`;
-        while (ids.has(id)) id = `${base}_${++i}`;
-        return id;
     }
 
     private onWriteError(err: unknown, fallback: string): void {

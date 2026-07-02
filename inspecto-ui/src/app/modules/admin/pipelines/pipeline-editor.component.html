@@ -99,52 +99,8 @@
         <!-- editor body: canvas + floating palette + right-side property drawer -->
         <div class="relative min-h-0 flex-1">
 
-            <!-- colour-legend toggle — top-right of canvas; opens the floating palette -->
-            <button type="button"
-                    class="absolute right-2 top-2 z-10 flex items-center gap-1 rounded border px-2 py-1 text-xs"
-                    style="background: var(--gamma-bg-card); border-color: var(--gamma-border)"
-                    (click)="paletteOpen.set(!paletteOpen())"
-                    [matTooltip]="paletteOpen() ? 'Hide palette' : 'Show processor palette'"
-                    [attr.aria-label]="paletteOpen() ? 'Hide palette' : 'Show processor palette'">
-                @for (g of paletteGroups(); track g.category) {
-                    <span class="h-2.5 w-2.5 rounded-full" [style.background]="categoryColor(g.category)"></span>
-                }
-            </button>
-
-            <!-- floating palette panel (hidden by default, toggled by colour legend) -->
-            @if (paletteOpen()) {
-                <!-- pointer-events-none on the wrapper so drags/drops pass through to the canvas below;
-                     only the interactive content div restores pointer events -->
-                <div class="pointer-events-none absolute right-2 top-10 z-20 max-h-80 w-56">
-                <div class="pointer-events-auto overflow-y-auto rounded border shadow-lg"
-                     style="background: var(--gamma-bg-card); border-color: var(--gamma-border)">
-                    <div class="p-2">
-                        @for (group of paletteGroups(); track group.category) {
-                            <div class="mb-0.5 mt-2 flex items-center gap-1 text-xs font-semibold uppercase opacity-60">
-                                <span class="h-2 w-2 rounded-full" [style.background]="categoryColor(group.category)"></span>
-                                {{ categoryLabel(group.category) }}
-                            </div>
-                            @for (t of group.types; track t.type) {
-                                <button type="button"
-                                        class="flex w-full cursor-grab items-center gap-1.5 rounded px-2 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/10"
-                                        draggable="true"
-                                        [matTooltip]="t.description"
-                                        [attr.aria-label]="'Add ' + t.label"
-                                        (click)="addFromPalette(t.type)"
-                                        (dragstart)="$event.dataTransfer?.setData('text/flow-node-type', t.type)">
-                                    <mat-icon class="icon-size-4 shrink-0" [svgIcon]="paletteHeroIcon(group.category)"></mat-icon>
-                                    {{ t.label }}
-                                </button>
-                            }
-                        }
-                    </div>
-                    <div class="border-t px-3 py-1.5 text-xs opacity-50"
-                         style="border-color: var(--gamma-border)">
-                        click to add at centre · drag to position
-                    </div>
-                </div><!-- pointer-events-auto -->
-                </div><!-- pointer-events-none wrapper -->
-            }
+            <!-- floating processor palette (self-toggling; see PipelinePaletteComponent) -->
+            <app-pipeline-palette [groups]="paletteGroups()" (pick)="addFromPalette($event)"></app-pipeline-palette>
 
         <mat-drawer-container class="h-full overflow-hidden rounded" [hasBackdrop]="false"
                               style="background: var(--gamma-bg-card)">
@@ -152,78 +108,19 @@
             <mat-drawer #inspectorDrawer position="end" mode="over" [opened]="inspectorOpen()"
                         [disableClose]="true" class="w-72 p-3"
                         style="background: var(--gamma-bg-card); border-left: 1px solid var(--gamma-border)">
-                @if (selectedNode(); as n) {
-                    <div class="mb-1 flex items-center justify-between gap-2">
-                        <h3 class="truncate text-sm font-semibold">Node · {{ n.id }}</h3>
-                        <span class="shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold"
-                              [style.color]="categoryColor(typeCategory(n.type))"
-                              style="background: var(--gamma-bg-default)">
-                            {{ categoryLabel(typeCategory(n.type)) }}
-                        </span>
-                    </div>
-                    <p class="mb-1 text-xs opacity-70">{{ n.type }}</p>
-                    <p class="mb-2 inline-flex items-center gap-1 text-xs font-semibold"
-                       [style.color]="statusTint(statusOf(n))">
-                        <mat-icon class="icon-size-4" [svgIcon]="statusIcon(statusOf(n))"></mat-icon>
-                        {{ statusLabel(statusOf(n)) }}
-                    </p>
-
-                    @if (n.name) {
-                        <p class="text-sm"><span class="opacity-70">name:</span> {{ n.name }}</p>
-                    }
-                    @if (n.use) {
-                        <p class="text-sm"><span class="opacity-70">use:</span> {{ n.use }}</p>
-                    }
-                    @if (n.description) {
-                        <p class="text-sm opacity-80">{{ n.description }}</p>
-                    }
-
-                    @if (configEntries(n); as rows) {
-                        @if (rows.length) {
-                            <div class="mt-2">
-                                <span class="text-xs font-semibold uppercase opacity-70">Config</span>
-                                @for (c of rows; track c.k) {
-                                    <div class="truncate text-sm"><span class="opacity-70">{{ c.k }}:</span> {{ c.v }}</div>
-                                }
-                            </div>
-                        }
-                    }
-
-                    <div class="mt-3 flex flex-wrap gap-2">
-                        <button mat-flat-button color="primary" type="button" (click)="openNodeConfig(n)">
-                            <mat-icon svgIcon="heroicons_outline:cog-6-tooth"></mat-icon> Configure
-                        </button>
-                        <button mat-stroked-button type="button" (click)="openRunToHere(n)">
-                            <mat-icon svgIcon="heroicons_outline:play"></mat-icon> Run to here
-                        </button>
-                        <button mat-stroked-button type="button" (click)="armConnect()">
-                            <mat-icon svgIcon="heroicons_outline:arrow-right"></mat-icon> Connect
-                        </button>
-                        <button mat-stroked-button type="button" (click)="onDeleteKey()" aria-label="Delete node">
-                            <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete
-                        </button>
-                    </div>
-                } @else if (selectedEdgeId()) {
-                    <h3 class="mb-2 text-sm font-semibold">Connection</h3>
-                    <mat-form-field class="w-full" subscriptSizing="dynamic">
-                        <mat-label>Relationship</mat-label>
-                        <mat-select [value]="selectedEdgeRel()" (selectionChange)="setEdgeRel($event.value)">
-                            @for (r of candidateRels(); track r) {
-                                <mat-option [value]="r">{{ r }}</mat-option>
-                            }
-                        </mat-select>
-                    </mat-form-field>
-                    <p class="mt-1 text-xs opacity-60">The source's output this connection carries.</p>
-                    <button class="mt-3" mat-stroked-button type="button" (click)="onDeleteKey()" aria-label="Delete connection">
-                        <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete connection
-                    </button>
-                } @else {
-                    <p class="text-sm opacity-70">
-                        Drag a processor from the toolbar onto the canvas. Click a node or edge to select it;
-                        <b>double-click</b> a node (or use <b>Configure</b>) to edit its attributes.
-                        <b>Delete selected</b> removes the selected item.
-                    </p>
-                }
+                <app-pipeline-inspector
+                    [node]="selectedNode()"
+                    [status]="selectedNode() ? statusOf(selectedNode()!) : null"
+                    [category]="selectedNode() ? typeCategory(selectedNode()!.type) : ''"
+                    [selectedEdgeId]="selectedEdgeId()"
+                    [selectedEdgeRel]="selectedEdgeRel()"
+                    [candidateRels]="candidateRels()"
+                    (configure)="openNodeConfig($event)"
+                    (runToHere)="openRunToHere($event)"
+                    (connect)="armConnect()"
+                    (deleteSelected)="onDeleteKey()"
+                    (edgeRelChange)="setEdgeRel($event)">
+                </app-pipeline-inspector>
             </mat-drawer>
 
             <mat-drawer-content class="min-w-0">

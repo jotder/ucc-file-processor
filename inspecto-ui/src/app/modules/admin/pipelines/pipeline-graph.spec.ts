@@ -1,17 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { AuthoredPipeline, PipelineCombined, PipelineGraph, PipelineNode, PipelineNodeType } from 'app/inspecto/api';
+import { AuthoredNode, AuthoredPipeline, PipelineCombined, PipelineGraph, PipelineNode, PipelineNodeType } from 'app/inspecto/api';
 import { NODE_KIND_COLORS } from 'app/inspecto/theme/chart-tokens';
 import {
     TestOutcome,
+    addEdgeToModel,
+    addNodeToModel,
+    applyNodePatchInModel,
     bindKindFor,
+    candidateRelsFor,
     categoryVisualKind,
     computeNodeStatus,
+    decodeEdgeId,
+    encodeEdgeId,
     groupByCategory,
+    nodeConfigEntries,
     nodeDisplayLabel,
     provenanceCounts,
+    removeEdgeFromModel,
+    removeNodeFromModel,
     resolveNodeIcon,
+    setEdgeRelInModel,
     toCombinedG6Data,
     toPipelineG6Data,
+    uniqueNodeId,
     validatePipeline,
 } from './pipeline-graph';
 
@@ -211,5 +222,113 @@ describe('groupByCategory', () => {
             t('gap', 'CONTROL'), t('acquisition', 'SOURCE'), t('x', 'WEIRD'), t('sink.view', 'SINK'),
         ]);
         expect(groups.map((g) => g.category)).toEqual(['SOURCE', 'SINK', 'CONTROL', 'WEIRD']);
+    });
+});
+
+describe('nodeConfigEntries', () => {
+    it('stringifies non-string config values for display', () => {
+        const n: AuthoredNode = { id: 'n', type: 't', config: { a: 'x', b: 42, c: { nested: true } } };
+        expect(nodeConfigEntries(n)).toEqual([
+            { k: 'a', v: 'x' },
+            { k: 'b', v: '42' },
+            { k: 'c', v: '{"nested":true}' },
+        ]);
+    });
+
+    it('is empty for a node with no config', () => {
+        expect(nodeConfigEntries({ id: 'n', type: 't' })).toEqual([]);
+    });
+});
+
+describe('canvas edge-id codec', () => {
+    it('round-trips (from, to, rel) through encode/decode', () => {
+        const id = encodeEdgeId('src', 'dst', 'data');
+        expect(decodeEdgeId(id)).toEqual({ from: 'src', to: 'dst', rel: 'data' });
+    });
+
+    it('two encodes of the same triple stay distinct ids (nonce)', () => {
+        expect(encodeEdgeId('a', 'b', 'data') === encodeEdgeId('a', 'b', 'data')).toBe(false);
+    });
+
+    it('decode returns null for a malformed id', () => {
+        expect(decodeEdgeId('not-an-edge-id')).toBeNull();
+    });
+});
+
+describe('uniqueNodeId', () => {
+    it('sanitizes the type into a base id and starts at _1', () => {
+        expect(uniqueNodeId(null, 'transform.filter')).toBe('transform_filter_1');
+    });
+
+    it('skips ids already present on the model', () => {
+        const model: AuthoredPipeline = {
+            name: 'f', active: false,
+            nodes: [{ id: 'parser_dsv_1', type: 'parser.dsv' }, { id: 'parser_dsv_2', type: 'parser.dsv' }],
+            edges: [],
+        };
+        expect(uniqueNodeId(model, 'parser.dsv')).toBe('parser_dsv_3');
+    });
+});
+
+describe('authored-model reducers', () => {
+    const base: AuthoredPipeline = {
+        name: 'f', active: false,
+        nodes: [{ id: 'a', type: 'collector.file' }, { id: 'b', type: 'transform.filter' }],
+        edges: [{ from: 'a', rel: 'data', to: 'b' }],
+    };
+
+    it('addNodeToModel appends without mutating the input', () => {
+        const next = addNodeToModel(base, { id: 'c', type: 'sink.file' });
+        expect(next.nodes).toHaveLength(3);
+        expect(base.nodes).toHaveLength(2); // original untouched
+    });
+
+    it('addEdgeToModel appends a new edge, and returns null for a duplicate', () => {
+        const next = addEdgeToModel(base, 'b', 'c', 'data');
+        expect(next?.edges).toHaveLength(2);
+        expect(addEdgeToModel(base, 'a', 'b', 'data')).toBeNull();
+    });
+
+    it('removeNodeFromModel drops the node and every edge touching it', () => {
+        const next = removeNodeFromModel(base, 'a');
+        expect(next.nodes.map((n) => n.id)).toEqual(['b']);
+        expect(next.edges).toHaveLength(0);
+    });
+
+    it('removeEdgeFromModel drops only the matching edge', () => {
+        const withTwo = { ...base, edges: [...base.edges, { from: 'b', rel: 'kept', to: 'a' }] };
+        const next = removeEdgeFromModel(withTwo, 'a', 'b', 'data');
+        expect(next.edges).toEqual([{ from: 'b', rel: 'kept', to: 'a' }]);
+    });
+
+    it('setEdgeRelInModel relabels, and returns null when unchanged or colliding', () => {
+        const next = setEdgeRelInModel(base, 'a', 'b', 'data', 'kept');
+        expect(next?.edges[0].rel).toBe('kept');
+        expect(setEdgeRelInModel(base, 'a', 'b', 'data', 'data')).toBeNull(); // unchanged
+        const withTwo = { ...base, edges: [...base.edges, { from: 'a', rel: 'kept', to: 'b' }] };
+        expect(setEdgeRelInModel(withTwo, 'a', 'b', 'data', 'kept')).toBeNull(); // would collide
+    });
+
+    it('applyNodePatchInModel replaces a node by id', () => {
+        const patched: AuthoredNode = { id: 'a', type: 'collector.file', name: 'Renamed' };
+        const next = applyNodePatchInModel(base, patched);
+        expect(next.nodes.find((n) => n.id === 'a')?.name).toBe('Renamed');
+    });
+});
+
+describe('candidateRelsFor', () => {
+    it('offers the source node\'s emitted rels plus data and the edge\'s current rel', () => {
+        const model: AuthoredPipeline = {
+            name: 'f', active: false,
+            nodes: [{ id: 'a', type: 'transform.filter' }, { id: 'b', type: 'sink.file' }],
+            edges: [],
+        };
+        const emits = new Map([['transform.filter', ['kept', 'dropped']]]);
+        const id = encodeEdgeId('a', 'b', 'kept');
+        expect(candidateRelsFor(model, id, emits)).toEqual(['data', 'kept', 'dropped']);
+    });
+
+    it('returns an empty list for a malformed edge id', () => {
+        expect(candidateRelsFor(null, 'bad', new Map())).toEqual([]);
     });
 });
