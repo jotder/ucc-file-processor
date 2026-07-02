@@ -112,7 +112,11 @@
                         </div>
                     </div>
                 } @else {
-                    <div class="text-secondary mt-6">No nodes matched — adjust the filters and traverse again.</div>
+                    <inspecto-empty-state
+                        class="mt-6 block"
+                        icon="heroicons_outline:share"
+                        message="No nodes matched — adjust the filters and traverse again."
+                    ></inspecto-empty-state>
                 }
             }
         }

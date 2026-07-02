@@ -19,6 +19,7 @@ import {
     NodeKind,
 } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
+import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { fmtDateTime } from 'app/inspecto/grid';
 import { RegistryComponent } from './registry.component';
 import { G6GraphData, legendFor, toG6Data } from './catalog-graph';
@@ -47,6 +48,7 @@ type CatTab = 'tables' | 'streams' | 'kpis' | 'graph' | 'usage';
         MatSelectModule,
         MatTabsModule,
         DataTableComponent,
+        InspectoEmptyStateComponent,
         GraphViewComponent,
         RegistryComponent,
     ],
