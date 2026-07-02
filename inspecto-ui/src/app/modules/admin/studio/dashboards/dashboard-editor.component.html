@@ -13,6 +13,9 @@
                 @if (form.controls.name.hasError('pattern')) {
                     <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
                 }
+                @if (form.controls.name.hasError('duplicate')) {
+                    <mat-error>A dashboard with this id already exists.</mat-error>
+                }
             </mat-form-field>
             <button type="button" mat-stroked-button (click)="exportPngs()" [disabled]="!tiles().length">
                 <mat-icon class="icon-size-4 mr-1" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
@@ -89,7 +92,11 @@
 
     <!-- Tile grid -->
     @if (tiles().length === 0) {
-        <div class="text-secondary mt-8">No tiles yet — add a saved widget above.</div>
+        <inspecto-empty-state
+            class="mt-8 block"
+            icon="heroicons_outline:squares-2x2"
+            message="No tiles yet — add a saved widget above."
+        ></inspecto-empty-state>
     } @else {
         <div
             cdkDropList

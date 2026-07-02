@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormsModule, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,6 +12,7 @@ import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage } from 'app/inspecto/api';
 import { Condition, ColumnMeta, ConditionGroup, QueryConditionGroupComponent, emptyGroup, evaluateRows } from 'app/inspecto/query';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { DrillEvent } from '../widgets/widget-host.component';
 import { Widget } from '../widgets/widget-types';
 import { WidgetsService } from '../widgets/widgets.service';
@@ -25,6 +26,12 @@ import { DashboardDrillDrawerComponent } from './dashboard-drill-drawer.componen
 import { SAMPLE_SOURCES } from '../datasets/dataset-sources';
 import '../widgets/widget.kind'; // register widget kind + viz plugins (tiles call getViz)
 import './dashboard.kind'; // register the dashboard kind
+
+/** Rejects a value (case-insensitive, trimmed) already present in `taken` → `{ duplicate: true }`. */
+function uniqueNameValidator(taken: string[]): ValidatorFn {
+    const set = new Set(taken.map((t) => t.trim().toLowerCase()));
+    return (c: AbstractControl) => (set.has(String(c.value ?? '').trim().toLowerCase()) ? { duplicate: true } : null);
+}
 
 /**
  * Dashboard editor — compose saved widgets into a grid. Add widget tiles, drag to reorder (CDK), toggle each
@@ -46,6 +53,7 @@ import './dashboard.kind'; // register the dashboard kind
         MatTooltipModule,
         RouterLink,
         InspectoAlertComponent,
+        InspectoEmptyStateComponent,
         QueryConditionGroupComponent,
         DashboardTileComponent,
         DashboardFilterBarComponent,
@@ -150,6 +158,12 @@ export class DashboardEditorComponent implements OnInit {
             this.dashboardsApi.get(this.id).subscribe({
                 next: (d) => this.seed(d),
                 error: (e) => this.toastr.error(apiErrorMessage(e, `Could not load dashboard "${this.id}"`)),
+            });
+        } else {
+            // Product-wide rule: block a duplicate id inline on create rather than relying on the server 409.
+            this.dashboardsApi.list().subscribe((all) => {
+                this.form.controls.name.addValidators(uniqueNameValidator(all.map((d) => d.id)));
+                this.form.controls.name.updateValueAndValidity({ emitEvent: false });
             });
         }
     }

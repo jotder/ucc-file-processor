@@ -21,7 +21,7 @@ const DS: Dataset = {
 };
 const WIDGET: Widget = { id: 'bar1', name: 'Bar 1', datasetId: 'cdr_sample', vizType: 'bar', controls: { x: [{ field: 'tariff' }], y: [{ field: 'duration_s', agg: 'sum' }] } };
 
-function create(save = vi.fn((d: Dashboard) => of(d))) {
+function create(save = vi.fn((d: Dashboard) => of(d)), existing: Dashboard[] = []) {
     TestBed.configureTestingModule({
         imports: [DashboardEditorComponent],
         providers: [
@@ -29,7 +29,7 @@ function create(save = vi.fn((d: Dashboard) => of(d))) {
             provideRouter([]),
             { provide: WidgetsService, useValue: { list: () => of([WIDGET]) } },
             { provide: DatasetsService, useValue: { list: () => of([DS]) } },
-            { provide: DashboardsService, useValue: { get: () => of(null), save } },
+            { provide: DashboardsService, useValue: { get: () => of(null), list: () => of(existing), save } },
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
         ],
@@ -66,6 +66,18 @@ describe('DashboardEditorComponent', () => {
         fixture.componentInstance.save();
         expect(save).toHaveBeenCalledWith(expect.objectContaining({ id: 'cdr_overview', tiles: [{ widgetId: 'bar1', span: 1 }] }));
         expect(nav).toHaveBeenCalledWith(['/studio/dashboards']);
+    });
+
+    it('blocks save on a duplicate id (case-insensitive) per the product-wide rule', () => {
+        const save = vi.fn((d: Dashboard) => of(d));
+        const existing: Dashboard = { id: 'cdr_overview', name: 'cdr_overview', tiles: [], filter: null };
+        const fixture = create(save, [existing]);
+        fixture.detectChanges(); // loads widgets/datasets + the existing-ids list (create mode)
+        fixture.componentInstance.form.controls.name.setValue('CDR_Overview');
+        fixture.componentInstance.addWidget('bar1');
+        fixture.componentInstance.save();
+        expect(save).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.form.controls.name.hasError('duplicate')).toBe(true);
     });
 
     it('does not save with no tiles', () => {
