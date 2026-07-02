@@ -178,6 +178,12 @@ touching `inspecto-ui/`.** Highlights (full detail there):
 - **Connectivity** — `ConnectivityService` (status 0 ⇒ unreachable) + `<inspecto-connectivity-banner>` owns the
   "backend down" UX (don't add per-screen toasts; **503 ≠ backend-down**). Banner host needs
   `:host{display:contents}` so it doesn't steal layout width.
+- **Mocking** — ONE mock backend: `inspecto/mock/` (framework-free `MockStore`: per-Space, localStorage
+  `inspecto.mock.v1`, RefRule 409s, seed packs) behind the single `mockApiInterceptor`. New mock endpoints =
+  new handler there, **never** a new per-feature mock interceptor. 4xx replies must be `HttpErrorResponse`s.
+- **Config-attribute forms are schema-driven** — declare `AttributeSpec[]` (tier `required|optional|advanced`,
+  `dependsOn`) in `inspecto/component-model` and render with `<inspecto-schema-form>` (demo at `/design`;
+  pilot: jobs `job-form.dialog`). Hand-build only bespoke sections (canvases, key/value arrays).
 - **Optimistic mutations** — `optimisticMutate({apply,commit,reconcile,rollback,onError})` (`inspecto/api/
   optimistic.ts`); reassign arrays (`rows=[...]`) so the grid re-renders.
 - **G6 graph** — reuse `modules/admin/catalog/graph-view.component.ts` (`@Input data`, `@Output nodeClick`);
