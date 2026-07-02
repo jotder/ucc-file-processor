@@ -31,7 +31,14 @@ export interface AttributeSpec {
     key: string;
     label: string;
     type: AttributeType;
+    /** Disclosure/visibility bucket: required = always visible, optional = collapsed, advanced = behind the gear. */
     tier: AttributeTier;
+    /**
+     * Whether the value must be filled. Defaults to `tier === 'required'`. Set explicitly to decouple
+     * validation from visibility — e.g. an always-visible field that is optional (`tier: 'required',
+     * required: false`), as used by option sheets where every knob shows but none is mandatory.
+     */
+    required?: boolean;
     default?: unknown;
     /** Choices for `type: 'select'`. */
     options?: AttributeOption[];
@@ -48,6 +55,11 @@ export interface AttributeSpec {
 }
 
 const IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+/** Whether a spec's value must be filled — explicit `required`, else derived from the `required` tier. */
+export function isRequired(spec: AttributeSpec): boolean {
+    return spec.required ?? spec.tier === 'required';
+}
 
 /** The declared defaults, for initialising a new instance's config. */
 export function defaultsFor(specs: AttributeSpec[]): Record<string, unknown> {
@@ -78,7 +90,7 @@ export function validateAttributes(specs: AttributeSpec[], value: Record<string,
     for (const s of visibleSpecs(specs, value)) {
         const v = value[s.key];
         if (isBlank(v)) {
-            if (s.tier === 'required') {
+            if (isRequired(s)) {
                 findings.push({ severity: 'error', path: s.key, message: `${s.label} is required` });
             }
             continue;

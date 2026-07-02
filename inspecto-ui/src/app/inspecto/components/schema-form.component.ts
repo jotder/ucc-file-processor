@@ -9,7 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AttributeSpec, byTier, defaultsFor } from '../component-model';
+import { AttributeSpec, byTier, defaultsFor, isRequired } from '../component-model';
 
 /**
  * The shared spec-driven form renderer (Wave 0, W2): renders an {@link AttributeSpec} list as a
@@ -191,7 +191,7 @@ export class InspectoSchemaFormComponent {
 
     private validatorsFor(s: AttributeSpec): ValidatorFn[] {
         const v: ValidatorFn[] = [];
-        if (s.tier === 'required') v.push(Validators.required);
+        if (isRequired(s)) v.push(Validators.required);
         if (s.type === 'identifier') v.push(Validators.pattern(/^[A-Za-z][A-Za-z0-9_-]*$/));
         if (s.pattern) v.push(Validators.pattern(`^(?:${s.pattern})$`));
         if (s.type === 'number') {

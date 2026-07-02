@@ -4,6 +4,7 @@ import {
     attributeValidator,
     byTier,
     defaultsFor,
+    isRequired,
     validateAttributes,
     visibleSpecs,
 } from './attribute-spec';
@@ -43,6 +44,17 @@ describe('attribute-spec', () => {
         expect(findings.map((f) => f.path).sort()).toEqual(['name', 'threads', 'type']);
         expect(findings.every((f) => f.severity === 'error')).toBe(true);
         expect(validateAttributes(SPECS, {}).map((f) => f.path)).toEqual(['name', 'type']);
+    });
+
+    it('decouples required-validation from the always-visible tier', () => {
+        // An always-visible (required tier) field explicitly marked not required must not be flagged blank.
+        const specs: AttributeSpec[] = [
+            { key: 'title', label: 'Title', type: 'string', tier: 'required', required: false },
+            { key: 'name', label: 'Name', type: 'string', tier: 'required' },
+        ];
+        expect(isRequired(specs[0])).toBe(false);
+        expect(isRequired(specs[1])).toBe(true); // defaults from the tier
+        expect(validateAttributes(specs, {}).map((f) => f.path)).toEqual(['name']); // title omitted ⇒ no finding
     });
 
     it('accepts a fully valid config and wraps as a kind validator', () => {
