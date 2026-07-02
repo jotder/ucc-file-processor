@@ -192,6 +192,29 @@
             <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.form }}</code></pre>
         </section>
 
+        <!-- ── Schema-driven form (AttributeSpec → 3-tier disclosure) ────────────────────── -->
+        <section>
+            <div class="mb-3 flex items-center justify-between">
+                <h2 class="text-xl font-semibold">Schema-driven form</h2>
+                <button mat-stroked-button (click)="copy(snippets.schemaForm)">
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clipboard"></mat-icon>
+                    <span class="ml-1">Copy snippet</span>
+                </button>
+            </div>
+            <p class="text-secondary mb-4 text-sm">
+                <code>&lt;inspecto-schema-form&gt;</code> renders a Component Type's
+                <code>AttributeSpec[]</code> with the platform's three-tier disclosure: required fields up
+                front, optional collapsed, advanced behind the gear. <code>dependsOn</code> attributes show
+                (and validate) only while their controller matches — switch the protocol to see the Host
+                field appear and disappear. Prefer this over a hand-built form whenever the fields are
+                plain config attributes.
+            </p>
+            <div class="bg-card max-w-140 rounded-2xl p-6 shadow">
+                <inspecto-schema-form [specs]="schemaFormSpecs"></inspecto-schema-form>
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.schemaForm }}</code></pre>
+        </section>
+
         <!-- ── Data table (mini / standard / pro / pro max) ──────────────────────────────── -->
         <section>
             <div class="mb-3 flex items-center justify-between">

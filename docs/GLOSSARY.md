@@ -39,6 +39,32 @@ one Space is invisible to another.
 **Config** — The JSON specification of any Component, stored in **TOON** format. *Every* Component has a Config;
 its **Component Type** decides the Config's shape. Think of a Component as a manifest: `{ kind, name, config }`.
 
+**Space Template** — A reusable blueprint bundle of Components (Sources, Pipelines, Schemas, Datasets, Widgets,
+Dashboards, Rules, optional seed data) that instantiates a new **Space**. Type→Instance: the Template is the
+Type; the Space created from it is the Instance. Shipped verticals: Telecom Revenue Assurance, Fraud
+Management, Financial Auditing, Link Analysis. *(Added Wave 0, 2026-07-02.)*
+
+---
+
+## 1-A. Personas & Surfaces
+
+> Added Wave 0 (2026-07-02) per `superpower/frontend-review-and-completion-plan.md`.
+
+**Lens** — A persona-scoped view of the one operator console: **Business** (consume data, investigate
+provenance/lineage, raise Requirements) · **Builder** (author in Workbench + Studio) · **Ops** (built-in
+operational features). A Lens filters navigation and toolbars; it is **not** a permission — RBAC arrives with
+the security module and maps onto Lenses.
+
+**Workbench** — The Builder surface for acquisition + processing authoring: Connections, Sources, and
+Pipelines. *(Formalizes the informal use in §3 Stream.)*
+
+**Studio** — The Builder surface for BI authoring: Datasets, Widgets, Dashboards (and the future Link
+Analysis Studio).
+
+**Requirement** — A Business-authored request for a deliverable — **KPI | Report | Reconciliation | Rule** —
+with lifecycle `draft → submitted → in-build → delivered → accepted`, linkable to the Component(s) that
+satisfy it.
+
 ---
 
 ## 2. Connectivity & Ingestion
@@ -177,6 +203,12 @@ call it a "Metric" — that word is reserved for observability.)*
 
 **Report** — An **operational** report (run health, freshness, SLA — the *KPI & Reports* page). Kept distinct
 from analytical **Dashboards** built in Studio.
+
+**Reconciliation** — A comparison between two **Datasets** on matching keys (optionally with tolerances) that
+produces **Breaks**. The core Revenue-Assurance / Financial-Audit workload. *(Added Wave 0, 2026-07-02.)*
+
+**Break** — One unmatched or mismatched record (or group) found by a Reconciliation. Breaks have a lifecycle
+(open → matched/explained → closed) and can raise **Incidents**.
 
 ---
 

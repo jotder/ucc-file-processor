@@ -12,6 +12,8 @@ import { ToastrService } from 'ngx-toastr';
 
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
+import { AttributeSpec } from 'app/inspecto/component-model';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import {
     statusBadgeHtml,
@@ -56,6 +58,7 @@ interface DemoRow {
         StatusBadgeComponent,
         InspectoAlertComponent,
         InspectoEmptyStateComponent,
+        InspectoSchemaFormComponent,
         InspectoSkeletonComponent,
         DataTableComponent,
     ],
@@ -124,6 +127,25 @@ export class DesignSystemComponent {
         this.toast.success(`Valid id: ${this.form.value.id}`);
     }
 
+    // ── Schema-driven form (AttributeSpec → 3-tier disclosure) ───────────────────────────────
+    readonly schemaFormSpecs: AttributeSpec[] = [
+        { key: 'name', label: 'Source id', type: 'identifier', tier: 'required', placeholder: 'e.g. cdr_sftp' },
+        {
+            key: 'protocol', label: 'Protocol', type: 'select', tier: 'required', default: 'sftp',
+            options: [
+                { value: 'sftp', label: 'SFTP' },
+                { value: 'ftps', label: 'FTPS' },
+                { value: 'local', label: 'Local directory' },
+            ],
+        },
+        {
+            key: 'host', label: 'Host', type: 'string', tier: 'required',
+            dependsOn: { key: 'protocol', equals: 'sftp' }, help: 'Shown only while protocol = SFTP.',
+        },
+        { key: 'include', label: 'Include pattern', type: 'string', tier: 'optional', placeholder: 'glob:**/*.csv' },
+        { key: 'parallel_fetch', label: 'Parallel fetch', type: 'number', tier: 'advanced', default: 4, min: 1, max: 32 },
+    ];
+
     // ── Data table (tiered: mini / standard / pro / pro max) ─────────────────────────────────
     readonly dtTiers: DataTableTier[] = ['mini', 'standard', 'pro', 'proMax'];
     readonly dtTier = signal<DataTableTier>('standard');
@@ -147,6 +169,7 @@ export class DesignSystemComponent {
         skeleton: `<inspecto-skeleton width="40%" height="0.875rem" />   <!-- a label -->\n<inspecto-skeleton [lines]="4" />                     <!-- a paragraph -->\n<inspecto-skeleton height="12rem" />                  <!-- a block -->`,
         grid: `<ag-grid-angular\n  class="h-[42rem] w-full"\n  [theme]="themeSvc.theme()"\n  [rowData]="rows"\n  [columnDefs]="columnDefs"\n  [defaultColDef]="defaultColDef"\n  [loading]="loading"\n  [overlayNoRowsTemplate]="emptyOverlay"\n  (firstDataRendered)="refreshActions($event)"\n  (rowDataUpdated)="refreshActions($event)" />`,
         form: `form = this.fb.group({\n  id: ['', [Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)]],\n});\nsubmit() {\n  if (this.form.invalid) { this.form.markAllAsTouched(); return; }\n  // ...\n}`,
+        schemaForm: `// declare the attributes once (tier: required | optional | advanced)\nconst SPECS: AttributeSpec[] = [\n  { key: 'name', label: 'Source id', type: 'identifier', tier: 'required' },\n  { key: 'host', label: 'Host', type: 'string', tier: 'required',\n    dependsOn: { key: 'protocol', equals: 'sftp' } },\n  { key: 'parallel_fetch', label: 'Parallel fetch', type: 'number', tier: 'advanced', default: 4 },\n];\n\n<inspecto-schema-form #sf [specs]="specs" [initial]="existingConfig" />\n// on submit: if (!sf.validate()) return;  const config = sf.value();`,
         dataTable: `<!-- one component, four tiers; logic lives in inspecto/data-table/{core,sql} + inspecto/query -->\n<!-- standard: icon toolbar (columns · search · export) -->\n<!-- pro: + a CodeMirror SQL editor (runs offline via AlaSQL) + filter builder -->\n<!-- proMax: + "save as rule" (parameterized :fieldValue template) -->\n<inspecto-data-table\n  [tier]="'pro'"                 // 'mini' | 'standard' | 'pro' | 'proMax'\n  [rows]="rows"\n  [columns]="columnDefs"         // optional; omitted ⇒ one column per row key\n  [rowActions]="actions"\n  sourceName="cdr"\n  (rowClick)="open($event)"\n  (ruleSaved)="onRuleSaved($event)" />  // pro max`,
     };
     copy(text: string): void {

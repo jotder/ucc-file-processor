@@ -22,8 +22,7 @@ import { AUTH_HTTP_CLIENT } from './modules/auth/auth-http-client.token';
 import { errorInterceptor as inspectoErrorInterceptor } from './inspecto/api/error.interceptor';
 import { spaceInterceptor } from './inspecto/api/space.interceptor';
 import { connectionMockInterceptor } from './inspecto/api/connection-mock.interceptor';
-import { studioMockInterceptor } from './inspecto/api/studio-mock.interceptor';
-import { pipelineMockInterceptor } from './inspecto/api/pipeline-mock.interceptor';
+import { mockApiInterceptor } from './inspecto/mock';
 import { opsMockInterceptor } from './inspecto/api/ops-mock.interceptor';
 import { jobsMockInterceptor } from './inspecto/api/jobs-mock.interceptor';
 import { demoMockInterceptor } from './inspecto/api/demo-mock.interceptor';
@@ -39,9 +38,10 @@ export const appConfig: ApplicationConfig = {
         provideHttpClient(
             // connectionMockInterceptor is first so it short-circuits the mocked connection-workbench
             // routes (probe/explore/sample) before the space rewrite; prototype-only, see the flag.
-            // studioMockInterceptor runs before pipelineMockInterceptor so it claims the Studio component kinds'
-            // /components/{dataset|chart|dashboard} routes before pipeline-mock's generic /components/* CRUD.
-            withInterceptors([demoMockInterceptor, connectionMockInterceptor, studioMockInterceptor, pipelineMockInterceptor, opsMockInterceptor, jobsMockInterceptor, spaceInterceptor, inspectoErrorInterceptor])
+            // mockApiInterceptor is THE unified mock backend (inspecto/mock/): a persistent, per-space
+            // MockStore behind framework-free domain handlers. It has absorbed studio-mock and
+            // pipeline-mock; the remaining feature mocks migrate onto it domain by domain (plan W1).
+            withInterceptors([demoMockInterceptor, connectionMockInterceptor, mockApiInterceptor, opsMockInterceptor, jobsMockInterceptor, spaceInterceptor, inspectoErrorInterceptor])
         ),
 
         // Interceptor-free HttpClient for the vendored template AuthService only.

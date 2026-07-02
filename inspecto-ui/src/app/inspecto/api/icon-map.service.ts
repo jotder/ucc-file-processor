@@ -16,7 +16,7 @@ export interface IconRule {
  */
 export type IconMap = Record<string, IconRule>;
 
-/** CRUD for the configurable icon map (mock-backed via pipelineMockInterceptor; a per-space backend config later). */
+/** CRUD for the configurable icon map (mock-backed via the unified mock store; a per-space backend config later). */
 @Injectable({ providedIn: 'root' })
 export class IconMapService {
     private http = inject(HttpClient);

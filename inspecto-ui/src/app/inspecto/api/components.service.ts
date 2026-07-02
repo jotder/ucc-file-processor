@@ -5,7 +5,7 @@ import { apiUrl } from './api-base';
 
 /** The reusable component-registry kinds (mirrors backend `ComponentStore.WRITABLE_TYPES`). `rule` backs the
  *  data-table Pro Max rule templates; `dataset`/`widget`/`dashboard` back Studio. The backend storage enum is
- *  still closed (grammar/schema/transform/sink) — the extra kinds are mock-served (studio-mock / rule) until
+ *  still closed (grammar/schema/transform/sink) — the extra kinds are mock-served (unified mock store / rule) until
  *  persistence is widened. None of the extras are in {@link COMPONENT_TYPES} (not flow-node palette components). */
 export type ComponentType = 'grammar' | 'schema' | 'transform' | 'sink' | 'rule' | 'dataset' | 'widget' | 'dashboard';
 

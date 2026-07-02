@@ -1,3 +1,4 @@
+import type { AttributeSpec } from './attribute-spec';
 import { Part, Wiring, WiringStrategy } from './component-types';
 
 /** A finding from a kind's config validation — returned (never thrown) so the UI can surface them all at once. */
@@ -26,6 +27,12 @@ export interface ComponentKind<C = Record<string, unknown>> {
         validate(config: unknown): ConfigFinding[];
         create?(): C;
     };
+    /**
+     * ATTRIBUTE seam (W2) — the kind's config attributes with their disclosure tier
+     * (required / optional / advanced). Drives the shared `<inspecto-schema-form>` renderer;
+     * `attributeValidator(attributes)` gives the matching `config.validate` for spec-complete kinds.
+     */
+    attributes?: AttributeSpec[];
     /** WIRING seam — derive the typed Wiring from parts (pure). Atomic kinds omit it / return `{strategy:'none'}`. */
     deriveWiring?(parts: Part[], config: C): Wiring;
     /** AUTHORING seam — names the Angular editor to mount (resolved by a host token map; never imported here). */

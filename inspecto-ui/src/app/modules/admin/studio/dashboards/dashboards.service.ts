@@ -5,7 +5,7 @@ import { ConditionGroup, emptyGroup } from 'app/inspecto/query';
 import { Dashboard, DashboardTile } from './dashboard-types';
 
 /**
- * Dashboard store — persists {@link Dashboard}s as the `dashboard` component type (mock-served by `studio-mock`).
+ * Dashboard store — persists {@link Dashboard}s as the `dashboard` component type (mock-served by the unified mock store).
  * Mirrors `widgets.service` / `datasets.service`; a dashboard is "just a composite component" on the model.
  */
 @Injectable({ providedIn: 'root' })

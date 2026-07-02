@@ -5,7 +5,7 @@ import { ControlValues } from 'app/inspecto/viz';
 import { Widget, WidgetOptions } from './widget-types';
 
 /**
- * Widget store — persists {@link Widget}s as the `widget` component type (mock-served by `studio-mock`). Mirrors
+ * Widget store — persists {@link Widget}s as the `widget` component type (mock-served by the unified mock store). Mirrors
  * `datasets.service` / `rules.service`; the component model means a widget is "just a component" with a
  * mapping config.
  */

@@ -20,8 +20,6 @@ export * from './objects.service';
 export * from './connections.service';
 export * from './connection-probe.service';
 export * from './connection-mock.interceptor';
-export * from './studio-mock.interceptor';
-export * from './pipeline-mock.interceptor';
 export * from './jobs-mock.interceptor';
 export * from './components.service';
 export * from './icon-map.service';

@@ -9,7 +9,7 @@ import { JobRun, JobView } from './models';
  * PROTOTYPE-ONLY mock for the **Scheduler** (Operations). The backend already serves `GET /jobs`,
  * `GET /jobs/{name}/runs` and `POST /jobs/{name}/trigger`, but has no endpoints for the management actions
  * (create / edit / delete / enable / disable / reschedule) or per-run logs. This interceptor serves the whole
- * surface from an in-memory store so the page is fully clickable offline — same pattern as `studio-mock` /
+ * surface from an in-memory store so the page is fully clickable offline — same pattern as the unified mock store /
  * `flow-mock`. Gated on {@code environment.mockJobs}.
  *
  * **Falls through** (`next(req)`) for the DuckDB reporting endpoints (`/jobs/metrics`, `/jobs/runs`,

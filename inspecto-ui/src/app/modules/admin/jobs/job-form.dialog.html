@@ -7,60 +7,22 @@
         </inspecto-alert>
     }
 
-    <form [formGroup]="form" class="flex flex-col gap-1">
-        <div class="flex flex-wrap gap-3">
-            <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                <mat-label>Job id</mat-label>
-                <input matInput formControlName="name" placeholder="e.g. cdr_ingest_daily" />
-                @if (form.controls.name.hasError('pattern')) {
-                    <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
-                }
-            </mat-form-field>
-            <mat-form-field class="w-44" subscriptSizing="dynamic">
-                <mat-label>Type</mat-label>
-                <mat-select formControlName="type">
-                    @for (t of types; track t) { <mat-option [value]="t">{{ t }}</mat-option> }
-                </mat-select>
-            </mat-form-field>
-        </div>
+    <!-- Scalar attributes: spec-driven (JOB_ATTRIBUTES) — required up front, catch-up behind the gear. -->
+    <inspecto-schema-form #sf [specs]="attributes" [initial]="initialValue"></inspecto-schema-form>
 
-        <!-- Schedule -->
-        <div class="mt-3 text-secondary text-xs font-semibold uppercase tracking-wider" [class.text-primary]="data.focusSchedule">Schedule</div>
-        <mat-form-field class="w-full" subscriptSizing="dynamic">
-            <mat-label>Trigger</mat-label>
-            <mat-select formControlName="scheduleMode">
-                <mat-option value="cron">Cron schedule</mat-option>
-                <mat-option value="event">On pipeline (event-driven)</mat-option>
-                <mat-option value="manual">Manual only</mat-option>
+    <!-- Cron preset quick-pick (bespoke): visible while the trigger is a cron schedule. -->
+    @if (sf.form.get('cron')?.enabled) {
+        <mat-form-field class="w-48" subscriptSizing="dynamic">
+            <mat-label>Preset</mat-label>
+            <mat-select (selectionChange)="applyPreset($event.value)">
+                @for (p of cronPresets; track p.cron) { <mat-option [value]="p.cron">{{ p.label }}</mat-option> }
             </mat-select>
         </mat-form-field>
+    }
 
-        @if (form.controls.scheduleMode.value === 'cron') {
-            <div class="flex flex-wrap items-center gap-3">
-                <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                    <mat-label>Cron expression</mat-label>
-                    <input matInput formControlName="cron" placeholder="0 0 6 * * *" />
-                    <mat-hint>5 or 6 fields (sec min hour day month weekday)</mat-hint>
-                </mat-form-field>
-                <mat-form-field class="w-48" subscriptSizing="dynamic">
-                    <mat-label>Preset</mat-label>
-                    <mat-select (selectionChange)="applyPreset($event.value)">
-                        @for (p of cronPresets; track p.cron) { <mat-option [value]="p.cron">{{ p.label }}</mat-option> }
-                    </mat-select>
-                </mat-form-field>
-            </div>
-        } @else if (form.controls.scheduleMode.value === 'event') {
-            <mat-form-field class="w-full" subscriptSizing="dynamic">
-                <mat-label>On pipeline</mat-label>
-                <input matInput formControlName="onPipeline" placeholder="e.g. cdr_ingest" />
-                <mat-hint>Runs when this pipeline commits a batch.</mat-hint>
-            </mat-form-field>
-        }
-
-        <mat-slide-toggle class="mt-3" formControlName="enabled">Enabled (armed)</mat-slide-toggle>
-
-        <!-- Params -->
-        <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Parameters</div>
+    <!-- Params (bespoke key/value array) -->
+    <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Parameters</div>
+    <form [formGroup]="paramsForm">
         <div formArrayName="params" class="flex flex-col gap-2">
             @for (p of paramsArray.controls; track $index; let i = $index) {
                 <div [formGroupName]="i" class="flex items-center gap-2">

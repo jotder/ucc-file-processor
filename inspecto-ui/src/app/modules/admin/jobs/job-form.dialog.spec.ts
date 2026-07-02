@@ -29,17 +29,17 @@ describe('JobFormDialog', () => {
     it('seeds the form from an existing job (edit) with the id locked', () => {
         const { c } = create({ job: { name: 'j1', type: 'report', cron: '0 0 6 * * *', onPipeline: null, enabled: true, params: { report: 'x' } } });
         expect(c.isEdit).toBe(true);
-        expect(c.form.controls.name.disabled).toBe(true);
-        expect(c.form.controls.scheduleMode.value).toBe('cron');
+        expect(c.schemaForm.form.get('name')?.disabled).toBe(true);
+        expect(c.schemaForm.form.get('scheduleMode')?.value).toBe('cron');
         expect(c.paramsArray.length).toBe(1);
     });
 
     it('blocks save on an invalid cron, then creates on a valid one', () => {
         const { c, ref, save } = create({});
-        c.form.patchValue({ name: 'new_job', scheduleMode: 'cron', cron: 'nonsense' });
+        c.schemaForm.form.patchValue({ name: 'new_job', scheduleMode: 'cron', cron: 'nonsense' });
         c.save();
         expect(save).not.toHaveBeenCalled();
-        c.form.patchValue({ cron: '0 0 6 * * *' });
+        c.schemaForm.form.patchValue({ cron: '0 0 6 * * *' });
         c.save();
         expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'new_job', cron: '0 0 6 * * *', onPipeline: null }));
         expect(ref.close).toHaveBeenCalled();

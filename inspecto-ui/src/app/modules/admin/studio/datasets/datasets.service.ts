@@ -5,7 +5,7 @@ import { Dataset, DatasetColumn, DatasetConfig, DatasetKind, NamedMeasure } from
 
 /**
  * Dataset store — persists {@link Dataset}s through the component registry as the `dataset` component type
- * (mock-served by `studio-mock.interceptor` today; real persistence once the backend storage enum is widened).
+ * (mock-served by the unified mock store today; real persistence once the backend storage enum is widened).
  * Mirrors `inspecto/rule/rules.service.ts` — the component model means a dataset is "just a component" with a
  * {@link DatasetConfig} body.
  */

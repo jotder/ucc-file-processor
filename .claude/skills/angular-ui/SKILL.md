@@ -57,7 +57,7 @@ Incremental evolution without breaking existing features.
 | **Language** | TypeScript (strict); prefer explicit return types; `inject()` over constructor params in new code |
 | **State** | **Angular signals** (local + service-held shared state) + **RxJS** for async/streams. **No NgRx / global store.** |
 | **UI** | Angular **Material (M2)** + **Tailwind** on the gamma/Fuse shell; **ag-Grid 35** tables; **Chart.js** charts; **AntV G6** graphs |
-| **Forms** | **Reactive** (`FormBuilder`/`FormGroup`/`Validators`) + inline `<mat-error>`. Template-driven `ngModel` is legacy — do not add it |
+| **Forms** | **Reactive** (`FormBuilder`/`FormGroup`/`Validators`) + inline `<mat-error>`. Template-driven `ngModel` is legacy — do not add it. **Config-attribute forms are schema-driven**: declare `AttributeSpec[]` (tier: required \| optional \| advanced) in `inspecto/component-model` and render with `<inspecto-schema-form>` (pilot: jobs `job-form.dialog`; demo: `/design`). Hand-build only genuinely bespoke sections (canvases, key/value arrays) |
 | **Testing** | **vitest** via `@angular/build:unit-test` (jsdom) + `TestBed`; **axe-core** a11y via `expectNoA11yViolations` |
 | **Package mgr** | **npm** (`npm ci` in CI — keep `package-lock.json` in sync when adding deps) |
 
@@ -69,8 +69,11 @@ Incremental evolution without breaking existing features.
 src/app/
   inspecto/                 # SHARED / CORE (cross-feature). Never import a feature from here.
     api/                    # @Injectable({providedIn:'root'}) services + barrel index.ts
-    components/             # shared UI: status-badge, empty-state, skeleton, chart, connectivity-banner
+    components/             # shared UI: status-badge, empty-state, skeleton, chart, connectivity-banner, schema-form
     grid/                   # ag-Grid theme + helpers (index.ts)
+    mock/                   # THE unified mock backend: MockStore (per-space, localStorage-persisted) +
+                            # framework-free domain handlers + ONE mockApiInterceptor. New mock endpoints
+                            # go here as handlers — never as a new per-feature mock interceptor.
     theme/                  # chart-tokens.ts (the ONLY place canvas colors are hardcoded)
     testing/                # a11y.ts (expectNoA11yViolations)
     auth.service.ts, confirm.service.ts, …

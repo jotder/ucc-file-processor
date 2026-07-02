@@ -25,7 +25,7 @@ export const environment = {
     // Flip false / remove the opsMockInterceptor once these surfaces are wired to the real backend.
     mockOps: true,
     // Prototype-only: serve Studio's new component kinds (dataset/chart/dashboard) from an in-memory store
-    // until the backend storage enum is widened. Flip false / remove the studioMockInterceptor once wired.
+    // until the backend storage enum is widened. Flip false once wired to the real backend (gates the studio kinds in the unified mock store).
     mockStudio: true,
     // Prototype-only: serve the Scheduler's write actions (create/edit/delete/enable/disable/reschedule) and
     // per-run logs/events from an in-memory store. The read endpoints (list/runs/trigger) already exist on the
