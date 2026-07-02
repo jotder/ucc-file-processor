@@ -182,6 +182,7 @@ export class InspectoSchemaFormComponent {
         const c = this.form.get(spec.key);
         if (!c || !c.errors) return '';
         if (c.errors['required']) return `${spec.label} is required`;
+        if (c.errors['duplicate']) return `${spec.label} already exists`;
         if (c.errors['pattern']) return `${spec.label} has an invalid format`;
         if (c.errors['min']) return `${spec.label} must be ≥ ${spec.min}`;
         if (c.errors['max']) return `${spec.label} must be ≤ ${spec.max}`;

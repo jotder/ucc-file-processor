@@ -1,5 +1,5 @@
 import { AfterViewInit, ChangeDetectionStrategy, Component, inject, signal, ViewChild } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, ValidatorFn } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -18,6 +18,8 @@ import { JOB_ATTRIBUTES } from './job-attributes';
 export interface JobFormData {
     job?: JobDetail;
     focusSchedule?: boolean;
+    /** Ids already in use — on create the name control rejects a duplicate inline (product-wide rule). */
+    existingNames?: string[];
 }
 export interface JobFormResult {
     saved?: JobDetail;
@@ -30,6 +32,12 @@ const CRON_PRESETS: { label: string; cron: string }[] = [
     { label: 'Weekly (Sun 02:00)', cron: '0 0 2 * * 0' },
     { label: 'Monthly (1st 01:00)', cron: '0 0 1 1 * *' },
 ];
+
+/** Rejects a value (case-insensitive, trimmed) already present in `taken` → `{ duplicate: true }`. */
+function uniqueNameValidator(taken: string[]): ValidatorFn {
+    const set = new Set(taken.map((t) => t.trim().toLowerCase()));
+    return (c: AbstractControl) => (set.has(String(c.value ?? '').trim().toLowerCase()) ? { duplicate: true } : null);
+}
 
 /**
  * Create / edit / reschedule a scheduled job — the W2 pilot of `<inspecto-schema-form>`: every scalar
@@ -95,8 +103,15 @@ export class JobFormDialog implements AfterViewInit {
     }
 
     ngAfterViewInit(): void {
-        // The id is immutable once created (it is the storage key), like the old hand-built form.
-        if (this.isEdit) this.schemaForm.form.get('name')?.disable({ emitEvent: false });
+        const nameCtrl = this.schemaForm.form.get('name');
+        if (this.isEdit) {
+            // The id is immutable once created (it is the storage key), like the old hand-built form.
+            nameCtrl?.disable({ emitEvent: false });
+        } else if (this.data.existingNames?.length) {
+            // Block a duplicate id inline rather than relying on the server 409 (product-wide form rule).
+            nameCtrl?.addValidators(uniqueNameValidator(this.data.existingNames));
+            nameCtrl?.updateValueAndValidity({ emitEvent: false });
+        }
     }
 
     addParam(key = '', value = ''): void {

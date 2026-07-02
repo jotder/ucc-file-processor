@@ -45,6 +45,17 @@ describe('JobFormDialog', () => {
         expect(ref.close).toHaveBeenCalled();
     });
 
+    it('blocks save on a duplicate id (case-insensitive), then creates once unique', () => {
+        const { c, save } = create({ existingNames: ['cdr_ingest'] });
+        c.schemaForm.form.patchValue({ name: 'CDR_Ingest', scheduleMode: 'manual' });
+        c.save();
+        expect(save).not.toHaveBeenCalled();
+        expect(c.schemaForm.form.get('name')?.hasError('duplicate')).toBe(true);
+        c.schemaForm.form.patchValue({ name: 'cdr_ingest_2' });
+        c.save();
+        expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'cdr_ingest_2' }));
+    });
+
     it('renders with no a11y violations', async () => {
         const { fixture } = create({});
         await expectNoA11yViolations(fixture.nativeElement);

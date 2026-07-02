@@ -110,7 +110,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     /** Open the create dialog; reload the list when a job is saved. */
     newJob(): void {
         this.dialog
-            .open(JobFormDialog, { data: {}, width: '640px', maxHeight: '88vh' })
+            .open(JobFormDialog, { data: { existingNames: this.jobs.map((j) => j.name) }, width: '640px', maxHeight: '88vh' })
             .afterClosed()
             .subscribe((r) => {
                 if (r?.saved) {
