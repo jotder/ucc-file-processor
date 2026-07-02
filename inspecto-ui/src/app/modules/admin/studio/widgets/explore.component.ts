@@ -65,6 +65,7 @@ export class ExploreComponent implements OnInit {
     @Input() id?: string;
 
     readonly datasets = signal<Dataset[]>([]);
+    readonly existingWidgetIds = signal<string[]>([]);
     readonly selectedId = signal<string>('');
     readonly dataset = signal<Dataset | null>(null);
     readonly vizType = signal<string>('');
@@ -110,6 +111,10 @@ export class ExploreComponent implements OnInit {
         this.datasetsApi.list().subscribe({
             next: (d) => this.datasets.set(d),
             error: () => this.toastr.warning('Could not load datasets.'),
+        });
+        this.widgetsApi.list().subscribe({
+            next: (w) => this.existingWidgetIds.set(w.map((x) => x.id)),
+            error: () => undefined,
         });
         if (this.id) {
             this.editing.set(true);
@@ -201,6 +206,7 @@ export class ExploreComponent implements OnInit {
                     lockId: this.editing(),
                     tags: this.tags(),
                     description: this.description(),
+                    existingNames: this.existingWidgetIds(),
                 },
                 width: '420px',
             })

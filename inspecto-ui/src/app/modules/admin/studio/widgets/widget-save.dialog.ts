@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -11,6 +11,14 @@ export interface WidgetSaveData {
     lockId: boolean;
     tags?: string[];
     description?: string;
+    /** Ids already in use — on create the id control rejects a duplicate inline (product-wide rule). */
+    existingNames?: string[];
+}
+
+/** Rejects a value (case-insensitive, trimmed) already present in `taken` → `{ duplicate: true }`. */
+function uniqueNameValidator(taken: string[]): ValidatorFn {
+    const set = new Set(taken.map((t) => t.trim().toLowerCase()));
+    return (c: AbstractControl) => (set.has(String(c.value ?? '').trim().toLowerCase()) ? { duplicate: true } : null);
 }
 
 export interface WidgetSaveResult {
@@ -36,6 +44,9 @@ export interface WidgetSaveResult {
                     @if (form.controls.name.hasError('pattern')) {
                         <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
                     }
+                    @if (form.controls.name.hasError('duplicate')) {
+                        <mat-error>A widget with this id already exists.</mat-error>
+                    }
                 </mat-form-field>
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Tags</mat-label>
@@ -59,7 +70,14 @@ export class WidgetSaveDialog {
     readonly data = inject<WidgetSaveData>(MAT_DIALOG_DATA);
 
     readonly form = this.fb.group({
-        name: [this.data.suggestedId, [Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)]],
+        name: [
+            this.data.suggestedId,
+            [
+                Validators.required,
+                Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+                ...(this.data.lockId ? [] : [uniqueNameValidator(this.data.existingNames ?? [])]),
+            ],
+        ],
         tags: [this.data.tags?.join(', ') ?? ''],
         description: [this.data.description ?? ''],
     });

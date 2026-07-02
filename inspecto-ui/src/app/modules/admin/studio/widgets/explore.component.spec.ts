@@ -31,7 +31,7 @@ function create() {
             provideNoopAnimations(),
             provideRouter([]),
             { provide: DatasetsService, useValue: { list: () => of([DS]), get: () => of(DS) } },
-            { provide: WidgetsService, useValue: { get: () => of(null), save: () => of(null) } },
+            { provide: WidgetsService, useValue: { list: () => of([]), get: () => of(null), save: () => of(null) } },
             { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => of(undefined) }) } },
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },

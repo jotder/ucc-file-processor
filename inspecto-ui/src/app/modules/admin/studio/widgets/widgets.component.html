@@ -97,6 +97,10 @@
     </div>
 
     @if (widgets().length && visibleWidgets().length === 0) {
-        <div class="text-secondary mt-8">No widgets match “{{ filterText() }}”.</div>
+        <inspecto-empty-state
+            class="mt-8 block"
+            icon="heroicons_outline:magnifying-glass"
+            [message]="'No widgets match “' + filterText() + '”.'"
+        />
     }
 </div>
