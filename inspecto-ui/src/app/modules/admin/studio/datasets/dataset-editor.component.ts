@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,6 +19,12 @@ import { buildDataset, Dataset, DatasetColumn, DatasetKind, NamedMeasure, inferR
 import { DatasetsService } from './datasets.service';
 
 const KINDS: DatasetKind[] = ['virtual', 'physical', 'materialized'];
+
+/** Rejects a value (case-insensitive, trimmed) already present in `taken` → `{ duplicate: true }`. */
+function uniqueNameValidator(taken: string[]): ValidatorFn {
+    const set = new Set(taken.map((t) => t.trim().toLowerCase()));
+    return (c: AbstractControl) => (set.has(String(c.value ?? '').trim().toLowerCase()) ? { duplicate: true } : null);
+}
 
 /**
  * Dataset editor — create or edit a Studio {@link Dataset}. A **virtual** dataset embeds the Query Core
@@ -103,6 +109,14 @@ export class DatasetEditorComponent implements OnInit {
             this.loadExisting(this.id);
         } else {
             this.columns.set(inferRoles(this.inferredColumns()));
+            // Product-wide rule: block a duplicate id inline on create rather than relying on the server 409.
+            this.datasets
+                .list()
+                .pipe(takeUntilDestroyed(this.destroyRef))
+                .subscribe((all) => {
+                    this.form.controls.name.addValidators(uniqueNameValidator(all.map((d) => d.id)));
+                    this.form.controls.name.updateValueAndValidity({ emitEvent: false });
+                });
         }
     }
 

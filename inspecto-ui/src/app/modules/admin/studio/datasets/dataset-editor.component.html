@@ -31,6 +31,9 @@
             @if (form.controls.name.hasError('pattern')) {
                 <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
             }
+            @if (form.controls.name.hasError('duplicate')) {
+                <mat-error>A dataset with this id already exists.</mat-error>
+            }
         </mat-form-field>
 
         <mat-form-field subscriptSizing="dynamic">
