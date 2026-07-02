@@ -15,9 +15,10 @@
     <!-- Main -->
     <div class="flex flex-auto flex-col p-6 sm:p-10">
         @if (unavailable) {
-            <div class="text-secondary rounded-2xl border-2 border-dashed border-gray-300 p-8 dark:border-gray-600">
-                No enrichment jobs are registered.
-            </div>
+            <inspecto-empty-state
+                icon="heroicons_outline:sparkles"
+                message="No enrichment jobs are registered."
+            ></inspecto-empty-state>
         } @else {
             <inspecto-data-table
                 tier="standard"

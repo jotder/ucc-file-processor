@@ -8,8 +8,10 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ColDef } from 'ag-grid-community';
+import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { AuditRow, EnrichmentJobView, EnrichmentRunReport, EnrichmentService } from 'app/inspecto/api';
+import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { FmtPercentPipe } from 'app/inspecto/format';
 import { fmtDateTime } from 'app/inspecto/grid';
@@ -35,6 +37,7 @@ type EnrTab = 'runs' | 'lineage' | 'report';
         MatTabsModule,
         MatTooltipModule,
         DataTableComponent,
+        InspectoEmptyStateComponent,
         FmtPercentPipe,
     ],
     templateUrl: './enrichment.component.html',
@@ -73,7 +76,12 @@ export class EnrichmentComponent implements OnInit {
         { field: 'eventTriggered', headerName: 'Event', width: 90 },
         { field: 'scheduleTriggered', headerName: 'Scheduled', width: 110 },
         { field: 'runCount', headerName: 'Runs', width: 90 },
-        { field: 'lastRunStatus', headerName: 'Last status', width: 120 },
+        {
+            field: 'lastRunStatus',
+            headerName: 'Last status',
+            width: 120,
+            cellRenderer: (p: ICellRendererParams<EnrichmentJobView>) => (p.value ? statusBadgeHtml(p.value as string) : '—'),
+        },
         { field: 'lastRunTime', headerName: 'Last run', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
     ];
 
