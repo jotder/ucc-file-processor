@@ -3,7 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ColumnMeta, ConditionGroup } from 'app/inspecto/query';
-import { VizPlugin, VizProps, getViz } from 'app/inspecto/viz';
+import { VizPlugin, VizProps, bucketRows, getViz } from 'app/inspecto/viz';
 import { DatasetResultService } from 'app/inspecto/viz/dataset-result.service';
 import { VizRenderComponent } from 'app/inspecto/viz/viz-render.component';
 import { Widget } from './widget-types';
@@ -125,8 +125,10 @@ export class WidgetHostComponent {
                 sourceName: dataset.sourceName,
                 filters: this.filter(),
             });
+            const x = widget.controls.x?.[0];
+            const rows = x ? bucketRows(SAMPLE_SOURCES[dataset.sourceName] ?? [], x.field, x.grain) : SAMPLE_SOURCES[dataset.sourceName] ?? [];
             this.datasetResult
-                .run(spec, SAMPLE_SOURCES[dataset.sourceName] ?? [], this.colMetas())
+                .run(spec, rows, this.colMetas())
                 .then((res) => this.props.set(plugin.transformProps(res.ok ? res.rows : [], widget.controls)))
                 .catch(() => this.props.set({ labels: [], series: [] }));
         });

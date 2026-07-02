@@ -61,10 +61,16 @@ export interface ControlSpec {
     required?: boolean;
 }
 
+/** Time bucketing applied to a temporal channel before grouping (offline: rows are pre-bucketed;
+ *  server-side this compiles to `DATE_TRUNC` later). `auto`/absent ⇒ raw values. */
+export type TimeGrain = 'auto' | 'day' | 'week' | 'month';
+
 /** One channel's assignment: the field name + (for measure channels) the aggregation. */
 export interface ChannelValue {
     field: string;
     agg?: Aggregation;
+    /** Temporal channels only — the time bucket to group into. */
+    grain?: TimeGrain;
 }
 
 /** The current field-mapper state: channel → assignment(s). */

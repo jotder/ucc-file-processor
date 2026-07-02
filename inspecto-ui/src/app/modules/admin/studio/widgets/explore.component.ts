@@ -15,6 +15,7 @@ import {
     VizPlugin,
     VizProps,
     autoAssignChannels,
+    bucketRows,
     getViz,
     recommend,
     runSpec,
@@ -166,7 +167,9 @@ export class ExploreComponent implements OnInit {
         if (!plugin || !ds) return;
         const spec = plugin.buildQuery(this.controls(), { datasetId: ds.id, sourceName: ds.sourceName, filters: null });
         this.running.set(true);
-        runSpec(spec, this.rows(), this.colMetas())
+        const x = this.controls().x?.[0];
+        const rows = x ? bucketRows(this.rows(), x.field, x.grain) : this.rows();
+        runSpec(spec, rows, this.colMetas())
             .then((res) => {
                 this.props.set(plugin.transformProps(res.ok ? res.rows : [], this.controls()));
             })

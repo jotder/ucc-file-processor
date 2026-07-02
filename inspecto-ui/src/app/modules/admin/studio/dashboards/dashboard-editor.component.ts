@@ -10,7 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage } from 'app/inspecto/api';
-import { Condition, ColumnMeta, ConditionGroup, QueryConditionGroupComponent, emptyGroup } from 'app/inspecto/query';
+import { Condition, ColumnMeta, ConditionGroup, QueryConditionGroupComponent, emptyGroup, evaluateRows } from 'app/inspecto/query';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { DrillEvent } from '../widgets/widget-host.component';
 import { Widget } from '../widgets/widget-types';
@@ -20,6 +20,9 @@ import { DatasetsService } from '../datasets/datasets.service';
 import { Dashboard, DashboardTile, buildDashboard } from './dashboard-types';
 import { DashboardsService } from './dashboards.service';
 import { DashboardTileComponent } from './dashboard-tile.component';
+import { DashboardFilterBarComponent } from './dashboard-filter-bar.component';
+import { DashboardDrillDrawerComponent } from './dashboard-drill-drawer.component';
+import { SAMPLE_SOURCES } from '../datasets/dataset-sources';
 import '../widgets/widget.kind'; // register widget kind + viz plugins (tiles call getViz)
 import './dashboard.kind'; // register the dashboard kind
 
@@ -45,6 +48,8 @@ import './dashboard.kind'; // register the dashboard kind
         InspectoAlertComponent,
         QueryConditionGroupComponent,
         DashboardTileComponent,
+        DashboardFilterBarComponent,
+        DashboardDrillDrawerComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './dashboard-editor.component.html',
@@ -64,6 +69,9 @@ export class DashboardEditorComponent implements OnInit {
     readonly datasets = signal<Dataset[]>([]);
     readonly tiles = signal<DashboardTile[]>([]);
     readonly filter = signal<ConditionGroup>(emptyGroup('AND'));
+    readonly exposedFields = signal<string[]>([]);
+    /** Index of the tile whose underlying rows are open in the drill-through drawer (null = closed). */
+    readonly drillTileIndex = signal<number | null>(null);
     readonly editing = signal(false);
     readonly saving = signal(false);
     readonly writesDisabled = signal(false);
@@ -84,6 +92,43 @@ export class DashboardEditorComponent implements OnInit {
             }
         }
         return [...seen.values()];
+    });
+
+    /** Distinct sample values per exposed field (from the tiles' datasets' sample rows) — the quick-filter
+     *  pickers' choices. Capped so a high-cardinality column doesn't flood the select. */
+    readonly exposedValues = computed<Record<string, string[]>>(() => {
+        const exposed = this.exposedFields();
+        if (!exposed.length) return {};
+        const out: Record<string, Set<string>> = Object.fromEntries(exposed.map((f) => [f, new Set<string>()]));
+        const seenSources = new Set<string>();
+        for (const tile of this.tiles()) {
+            const source = this.datasetOf(tile)?.sourceName;
+            if (!source || seenSources.has(source)) continue;
+            seenSources.add(source);
+            for (const row of SAMPLE_SOURCES[source] ?? []) {
+                for (const f of exposed) {
+                    const v = row[f];
+                    if (v != null && out[f].size < 20) out[f].add(String(v));
+                }
+            }
+        }
+        return Object.fromEntries(Object.entries(out).map(([f, set]) => [f, [...set].sort()]));
+    });
+
+    /** The drill-through drawer's contents — the open tile's sample rows with the live cross-filter applied
+     *  (same offline evaluation the query panel previews with). */
+    readonly drillView = computed<{ title: string; sourceName: string; rows: Record<string, unknown>[] } | null>(() => {
+        const index = this.drillTileIndex();
+        if (index == null) return null;
+        const tile = this.tiles()[index];
+        const dataset = tile ? this.datasetOf(tile) : undefined;
+        if (!tile || !dataset) return null;
+        const columns: ColumnMeta[] = dataset.columns.map((c) => ({ name: c.name, type: c.type }));
+        const rows = evaluateRows(
+            { projection: '*', where: this.filter() },
+            { name: dataset.sourceName, rows: SAMPLE_SOURCES[dataset.sourceName] ?? [], columns },
+        );
+        return { title: this.widgetOf(tile)?.name ?? dataset.name, sourceName: dataset.sourceName, rows };
     });
 
     widgetOf(tile: DashboardTile): Widget | undefined {
@@ -111,6 +156,7 @@ export class DashboardEditorComponent implements OnInit {
     private seed(d: Dashboard): void {
         this.tiles.set(d.tiles);
         this.filter.set(d.filter ?? emptyGroup('AND'));
+        this.exposedFields.set(d.exposedFields ?? []);
     }
 
     addWidget(widgetId: string): void {
@@ -161,7 +207,7 @@ export class DashboardEditorComponent implements OnInit {
             this.toastr.warning('Add at least one widget.');
             return;
         }
-        const dashboard = buildDashboard(name, this.tiles(), this.filter());
+        const dashboard = buildDashboard(name, this.tiles(), this.filter(), this.exposedFields());
         this.saving.set(true);
         this.dashboardsApi.save(dashboard).subscribe({
             next: () => {

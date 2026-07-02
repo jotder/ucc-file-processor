@@ -51,8 +51,37 @@
                     (changed)="onFilterChanged()"
                 />
             </div>
+            <div>
+                <div class="text-secondary mb-1 text-xs font-semibold uppercase tracking-wider">Quick filters</div>
+                <mat-form-field subscriptSizing="dynamic" class="w-64">
+                    <mat-label>Exposed fields</mat-label>
+                    <mat-select
+                        multiple
+                        [ngModel]="exposedFields()"
+                        (ngModelChange)="exposedFields.set($event)"
+                        [ngModelOptions]="{ standalone: true }"
+                        aria-label="Fields exposed as quick filters"
+                    >
+                        @for (col of filterColumns(); track col.name) {
+                            <mat-option [value]="col.name">{{ col.name }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+            </div>
         }
     </div>
+
+    <!-- Viewer-facing quick-filter bar (renders only when fields are exposed) -->
+    @if (exposedFields().length) {
+        <div class="bg-card mt-4 rounded-2xl p-4 shadow">
+            <app-dashboard-filter-bar
+                [fields]="exposedFields()"
+                [values]="exposedValues()"
+                [filter]="filter()"
+                (toggle)="onDrill($event)"
+            />
+        </div>
+    }
 
     <!-- Tile grid -->
     @if (tiles().length === 0) {
@@ -75,6 +104,9 @@
                             <button mat-icon-button cdkDragHandle matTooltip="Drag to reorder" aria-label="Drag to reorder">
                                 <mat-icon class="icon-size-4" svgIcon="heroicons_outline:arrows-pointing-out"></mat-icon>
                             </button>
+                            <button mat-icon-button (click)="drillTileIndex.set($index)" matTooltip="View rows" aria-label="View underlying rows">
+                                <mat-icon class="icon-size-4" svgIcon="heroicons_outline:table-cells"></mat-icon>
+                            </button>
                             <button mat-icon-button (click)="toggleSpan($index)" [matTooltip]="tile.span === 1 ? 'Widen' : 'Narrow'" aria-label="Toggle width">
                                 <mat-icon class="icon-size-4" svgIcon="heroicons_outline:arrows-right-left"></mat-icon>
                             </button>
@@ -95,5 +127,15 @@
                 </div>
             }
         </div>
+    }
+
+    <!-- Drill-through: the open tile's underlying rows, cross-filter applied -->
+    @if (drillView(); as drill) {
+        <app-dashboard-drill-drawer
+            [title]="drill.title"
+            [sourceName]="drill.sourceName"
+            [rows]="drill.rows"
+            (closed)="drillTileIndex.set(null)"
+        />
     }
 </div>
