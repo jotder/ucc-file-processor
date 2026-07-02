@@ -7,14 +7,16 @@ import type {
 } from '../../api/connection-probe.service';
 import type { ConnectionProfile, ConnectionTestResult } from '../../api/connections.service';
 import { MockFlags } from '../mock-flags';
-import { json, match, MockHandler, MockRequest } from '../mock-http';
+import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
 
 /**
- * The connection-workbench mock domain (connect · explore · test · sample) — the port of the old
- * `connection-mock` interceptor onto the {@link MockStore} (the profile list is now seeded per
- * space; probe/explore/sample stay pure canned compute against the frozen contract). Real
- * `/connections` CRUD (POST/PUT/DELETE) still passes through — B2 wires the real library.
+ * The connection-workbench mock domain (connect · explore · test · sample · CRUD) — the port of the
+ * old `connection-mock` interceptor onto the {@link MockStore}. Profiles are seeded per space;
+ * probe/explore/sample stay pure canned compute against the frozen contract. CRUD is store-backed
+ * and mirrors the real `ConnectionRoutes` contract: 409 duplicate on create, 404 unknown on
+ * update/delete, 409 in-use on delete (via the store's integrity rules), and a `'***'` secret
+ * preserves the stored value on update. (The write-root 503 isn't simulated — mock = writes on.)
  *
  * <p>Demo affordances: name a connection containing {@code down} to see a failing probe; one containing a
  * DB hint ({@code db/pg/postgres/sql}) explores schemas/tables/columns instead of files; {@code s3/gcs/http}
@@ -47,6 +49,31 @@ export function connectionsHandler(flags: MockFlags): MockHandler {
             return json(mockProfileTest(req.body as Partial<ConnectionProfile> | null, req.params['target'] ?? 'connection'));
         }
         if (method === 'POST' && (m = match(url, TEST))) return json(mockTest(m[1]));
+        if (method === 'POST' && LIST.test(url)) {
+            const p = (req.body ?? {}) as ConnectionProfile;
+            const id = String(p.id ?? '').trim();
+            if (!id) return error(422, 'connection id is required');
+            if (store.has(space, CONNECTIONS_COLL, id)) return error(409, `connection "${id}" already exists`);
+            return json(store.put(space, CONNECTIONS_COLL, id, { ...p, id }));
+        }
+        if (method === 'PUT' && (m = match(url, DETAIL))) {
+            const id = m[1];
+            const existing = store.get<ConnectionProfile>(space, CONNECTIONS_COLL, id);
+            if (!existing) return error(404, `unknown connection "${id}"`);
+            const body = { ...((req.body ?? {}) as ConnectionProfile), id };
+            return json(store.put(space, CONNECTIONS_COLL, id, keepMaskedSecrets(body, existing)));
+        }
+        if (method === 'DELETE' && (m = match(url, DETAIL))) {
+            const id = m[1];
+            if (!store.has(space, CONNECTIONS_COLL, id)) return error(404, `unknown connection "${id}"`);
+            const refs = store.referencesTo(space, CONNECTIONS_COLL, id);
+            if (refs.length) {
+                const by = refs.map((r) => `${r.collection}/${r.id}`).join(', ');
+                return error(409, `connection "${id}" is in use by: ${by}`);
+            }
+            store.delete(space, CONNECTIONS_COLL, id);
+            return json({ deleted: true });
+        }
         if (method === 'GET' && (m = match(url, DETAIL))) {
             const id = m[1];
             return json(
@@ -57,6 +84,19 @@ export function connectionsHandler(flags: MockFlags): MockHandler {
         if (method === 'GET' && LIST.test(url)) return json(store.list<ConnectionProfile>(space, CONNECTIONS_COLL));
         return undefined;
     };
+}
+
+/** A `'***'` submitted for any secret keeps the stored value — the real update-route convention. */
+function keepMaskedSecrets(next: ConnectionProfile, stored: ConnectionProfile): ConnectionProfile {
+    const merged = { ...next };
+    if (merged.password === '***') merged.password = stored.password;
+    if (merged.tunnel?.password === '***') {
+        merged.tunnel = { ...merged.tunnel, password: stored.tunnel?.password };
+    }
+    if (merged.proxy?.password === '***') {
+        merged.proxy = { ...merged.proxy, password: stored.proxy?.password };
+    }
+    return merged;
 }
 
 function mockProfileTest(p: Partial<ConnectionProfile> | null, target: string): ConnectionTestResult {

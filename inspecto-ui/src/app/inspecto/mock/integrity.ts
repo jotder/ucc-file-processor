@@ -1,14 +1,16 @@
 import type { ComponentDef } from '../api/components.service';
 import type { AuthoredPipeline } from '../api/pipelines.service';
 import { componentCollection } from './handlers/components.handler';
+import { CONNECTIONS_COLL } from './handlers/connections.handler';
 import { PIPELINES_COLL } from './handlers/pipelines.handler';
 import { MockStore } from './mock-store';
 
 /**
  * Referential-integrity rules for the mock store — the mock analogue of the backend's 409-on-delete.
- * Two conventions are load-bearing today; panes add their own rules as their review (R6) wires them:
+ * Conventions load-bearing today; panes add their own rules as their review (R6) wires them:
  *
- * 1. An authored pipeline node's `use: '<kind>/<id>'` binding references a registry component.
+ * 1. An authored pipeline node's `use: '<kind>/<id>'` binding references a registry component —
+ *    or a connection profile (`use: 'connections/<id>'`), which blocks deleting an in-use connection.
  * 2. A component-model composite's `content.parts[].ref {kind, id}` references its child components
  *    (dashboards → widgets, widgets → inline/named datasets, …).
  */
@@ -25,7 +27,9 @@ export function registerIntegrityRules(store: MockStore): void {
                 if (slash <= 0) return [];
                 const kind = n.use.slice(0, slash);
                 const id = n.use.slice(slash + 1);
-                return COMPONENT_KINDS.includes(kind) && id ? [{ collection: componentCollection(kind), id }] : [];
+                if (!id) return [];
+                if (kind === 'connections') return [{ collection: CONNECTIONS_COLL, id }];
+                return COMPONENT_KINDS.includes(kind) ? [{ collection: componentCollection(kind), id }] : [];
             });
         },
     });

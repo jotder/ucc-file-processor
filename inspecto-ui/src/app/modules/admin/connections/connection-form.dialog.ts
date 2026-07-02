@@ -15,9 +15,11 @@ import { apiErrorMessage, ConnectionProfile, ConnectionsService, ConnectionTestR
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { CONNECTION_TYPES, attrsFor, connTypeDef, typeForConnector } from './connection-types';
 
-/** Dialog data: `profile` set ⇒ edit mode (id locked); absent ⇒ create. */
+/** Dialog data: `profile` set ⇒ edit mode (name/id locked); absent ⇒ create. */
 interface ConnectionFormData {
     profile?: ConnectionProfile;
+    /** Existing connection ids (create mode) — the save step validates name uniqueness against these. */
+    existingIds?: string[];
 }
 
 /** Dialog close payload: the saved (masked) profile, or a 503 signal so the caller can hide mutate actions. */
@@ -28,10 +30,17 @@ export interface ConnectionFormResult {
 
 /**
  * Create/edit a connection profile — a schema-driven, typed form (mirrors the parser-config dialog). A
- * connection-type dropdown (Database / FTP / FTPS / Local / SFTP) drives the per-type attribute sheet; the
- * shared SSH-tunnel (bastion) and proxy routing sit at the top of the form (the tunnel is on by default for
- * a new connection). Secrets are authored as `${ENV:…}` references, never raw values; on edit a masked
- * `'***'` is preserved server-side. Submits to POST /connections (create) or PUT /connections/{id} (edit).
+ * connection-type dropdown (Database / FTP / FTPS / Local / SFTP) drives the per-type attribute sheet.
+ * Progressive disclosure ("ask only what's necessary"):
+ *
+ * - **Create is two steps**: the config step asks only type + per-type attributes; the save step then asks
+ *   the connection **name** (= the profile id, pre-filled `<type>_<host>`, unique) + an optional
+ *   description. Name/description are asked ONLY at save time.
+ * - **Routing** (SSH tunnel/bastion + proxy) always starts collapsed — including on edit — since it's
+ *   rarely needed; the Routing button shows which hops are configured.
+ *
+ * Secrets are authored as `${ENV:…}` references, never raw values; on edit a masked `'***'` is preserved
+ * server-side. Submits to POST /connections (create) or PUT /connections/{id} (edit).
  */
 @Component({
     selector: 'app-connection-form-dialog',
@@ -83,14 +92,27 @@ export class ConnectionFormDialog {
     readonly proxyTesting = signal(false);
     readonly proxyResult = signal<ConnectionTestResult | null>(null);
 
+    /** Create flow: `config` (type + attributes) → `save` (name + optional description). Edit stays on `config`. */
+    readonly step = signal<'config' | 'save'>('config');
+
     /** The per-type attribute form (rebuilt whenever the connection type changes). */
     readonly attrsForm = signal<FormGroup>(this.fb.group({}));
 
-    readonly form = this.fb.group({
-        id: [
-            { value: '', disabled: this.isEdit },
-            [Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)],
+    /** Save-step fields (create only): the connection name IS the unique profile id; description optional. */
+    readonly saveForm = this.fb.group({
+        name: [
+            '',
+            [
+                Validators.required,
+                Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+                (c: { value: unknown }): { duplicate: true } | null =>
+                    (this.data.existingIds ?? []).includes(String(c.value ?? '').trim()) ? { duplicate: true } : null,
+            ],
         ],
+        description: [''],
+    });
+
+    readonly form = this.fb.group({
         tunnel: this.fb.group({
             host: [''],
             port: [22 as number | null],
@@ -111,7 +133,6 @@ export class ConnectionFormDialog {
         const p = this.data.profile;
         this.rebuildAttrs(this.connType(), p);
         if (p) {
-            this.form.patchValue({ id: p.id });
             // On edit, reflect the stored routing (a new connection keeps the default-on tunnel).
             this.tunnelEnabled.set(!!p.tunnel?.host);
             if (p.tunnel?.host) {
@@ -132,8 +153,8 @@ export class ConnectionFormDialog {
                     password: p.proxy.password ?? '',
                 });
             }
-            // Reveal the routing panel up front when an existing profile already uses a tunnel or proxy.
-            if (p.tunnel?.host || p.proxy?.host) this.routingOpen.set(true);
+            // Routing stays COLLAPSED even when configured — it's rarely edited; the Routing
+            // button's suffix chips (· SSH tunnel · proxy) say what's set without expanding.
         }
     }
 
@@ -158,11 +179,25 @@ export class ConnectionFormDialog {
         this.attrsForm.set(this.fb.group(group));
     }
 
+    /** The suggested connection name: `<type>_<host>` (base path for local), sanitized to the id charset. */
+    suggestedName(): string {
+        const raw = this.attrsForm().getRawValue() as Record<string, unknown>;
+        const hostish = String(raw['host'] ?? raw['basePath'] ?? '').trim();
+        const base = hostish ? `${this.connType()}_${hostish}` : this.connType();
+        return base.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^[^A-Za-z0-9]+/, '');
+    }
+
     /** Assemble the ConnectionProfile from the form (type-mapped fields + options + tunnel + proxy). */
     private build(): ConnectionProfile {
         const def = connTypeDef(this.connType());
-        const id = String(this.form.getRawValue().id ?? '').trim();
+        const id = this.isEdit
+            ? this.data.profile!.id
+            : String(this.saveForm.getRawValue().name ?? '').trim();
         const profile: ConnectionProfile = { id, connector: def.connector };
+        const description = this.isEdit
+            ? this.data.profile!.description
+            : String(this.saveForm.getRawValue().description ?? '').trim() || undefined;
+        if (description) profile.description = description;
         const fields = profile as unknown as Record<string, unknown>;
         const raw = this.attrsForm().getRawValue() as Record<string, unknown>;
         const options: Record<string, string> = {};
@@ -248,11 +283,28 @@ export class ConnectionFormDialog {
         });
     }
 
+    /** Create flow only: leave the save step back to the config step (name/description are kept). */
+    backToConfig(): void {
+        this.step.set('config');
+    }
+
     submit(): void {
         const af = this.attrsForm();
         if (this.form.invalid || af.invalid) {
             this.form.markAllAsTouched();
             af.markAllAsTouched();
+            return;
+        }
+        // Create asks name + description only now, at save time — config valid ⇒ advance to the save step.
+        if (!this.isEdit && this.step() === 'config') {
+            if (this.saveForm.controls.name.pristine) {
+                this.saveForm.patchValue({ name: this.suggestedName() });
+            }
+            this.step.set('save');
+            return;
+        }
+        if (!this.isEdit && this.saveForm.invalid) {
+            this.saveForm.markAllAsTouched();
             return;
         }
         const profile = this.build();

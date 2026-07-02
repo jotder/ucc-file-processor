@@ -1,19 +1,11 @@
-<h2 mat-dialog-title>{{ isEdit ? 'Edit connection' : 'New connection' }}</h2>
+<h2 mat-dialog-title>
+    {{ isEdit ? 'Edit connection — ' + data.profile?.id : step() === 'save' ? 'Save connection' : 'New connection' }}
+</h2>
 <form [formGroup]="form" (ngSubmit)="submit()">
     <mat-dialog-content class="space-y-3">
-        <!-- Id + connection type -->
+        @if (step() === 'config') {
+        <!-- Connection type (the name is asked later, at save time) -->
         <div class="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
-            <mat-form-field subscriptSizing="dynamic">
-                <mat-label>Id</mat-label>
-                <input matInput formControlName="id" required />
-                @if (form.get('id'); as c) {
-                    @if (c.hasError('required')) {
-                        <mat-error>Id is required.</mat-error>
-                    } @else if (c.hasError('pattern')) {
-                        <mat-error>Start with a letter or digit; then letters, digits, <code>. _ -</code> only.</mat-error>
-                    }
-                }
-            </mat-form-field>
             <mat-form-field subscriptSizing="dynamic">
                 <mat-label>Connection type</mat-label>
                 <mat-select [value]="connType()" (selectionChange)="onTypeChange($event.value)">
@@ -217,11 +209,41 @@
                 </inspecto-alert>
             }
         </div>
+        } @else {
+        <!-- Save step (create only): name + optional description, asked only now -->
+        <section [formGroup]="saveForm" aria-label="Name this connection" class="space-y-1">
+            <div class="text-secondary text-sm">
+                {{ connTypeLabel() }} connection configured — give it a unique name to save it.
+            </div>
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <mat-label>Name</mat-label>
+                <input matInput formControlName="name" required />
+                @if (saveForm.controls.name; as c) {
+                    @if (c.hasError('required')) {
+                        <mat-error>Name is required.</mat-error>
+                    } @else if (c.hasError('pattern')) {
+                        <mat-error>Start with a letter or digit; then letters, digits, <code>. _ -</code> only.</mat-error>
+                    } @else if (c.hasError('duplicate')) {
+                        <mat-error>A connection with this name already exists.</mat-error>
+                    }
+                }
+                <mat-hint>Unique — this is the profile id pipelines reference.</mat-hint>
+            </mat-form-field>
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <mat-label>Description</mat-label>
+                <textarea matInput formControlName="description" rows="2"></textarea>
+                <mat-hint>Optional — what this connection is for.</mat-hint>
+            </mat-form-field>
+        </section>
+        }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
+        @if (!isEdit && step() === 'save') {
+            <button type="button" mat-button (click)="backToConfig()">Back</button>
+        }
         <button type="button" mat-button mat-dialog-close>Cancel</button>
         <button type="submit" mat-flat-button color="primary" [disabled]="saving()">
-            {{ isEdit ? 'Save' : 'Create' }}
+            {{ isEdit ? 'Save' : step() === 'save' ? 'Create' : 'Continue' }}
         </button>
     </mat-dialog-actions>
 </form>

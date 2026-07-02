@@ -179,7 +179,7 @@ touching `inspecto-ui/`.** Highlights (full detail there):
   "backend down" UX (don't add per-screen toasts; **503 ≠ backend-down**). Banner host needs
   `:host{display:contents}` so it doesn't steal layout width.
 - **Mocking** — ONE mock backend: `inspecto/mock/` (framework-free `MockStore`: per-Space, localStorage
-  `inspecto.mock.v2`, RefRule 409s, seed packs) behind the single `mockApiInterceptor` — ALL six feature mocks
+  `inspecto.mock.vN` = `MOCK_STORE_KEY`, RefRule 409s, seed packs) behind the single `mockApiInterceptor` — ALL six feature mocks
   absorbed (demo → connections → components → pipelines → ops → jobs handler order = old chain precedence).
   New mock endpoints = new handler there, **never** a new per-feature mock interceptor. 4xx replies must be
   `HttpErrorResponse`s. `simulator.ts` ticks Runs/Events/Alerts lazily per intercepted request (no timers);

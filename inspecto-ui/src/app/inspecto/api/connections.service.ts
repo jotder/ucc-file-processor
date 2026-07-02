@@ -28,6 +28,8 @@ export interface ConnectionProxy {
 export interface ConnectionProfile {
     id: string;
     connector: string;
+    /** Optional free-text purpose, authored at save time ("what this connection is for"). */
+    description?: string;
     host?: string;
     port?: number;
     database?: string;

@@ -126,7 +126,11 @@ export class ConnectionsComponent implements OnInit {
 
     create(): void {
         this.dialog
-            .open(ConnectionFormDialog, { data: {}, width: '720px', maxHeight: '85vh' })
+            .open(ConnectionFormDialog, {
+                data: { existingIds: this.connections.map((c) => c.id) },
+                width: '720px',
+                maxHeight: '85vh',
+            })
             .afterClosed()
             .subscribe((r?: ConnectionFormResult) => this.afterForm(r));
     }

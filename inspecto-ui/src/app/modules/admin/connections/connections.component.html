@@ -61,6 +61,9 @@
                             <span>{{ endpoint(c) }}</span>
                             <inspecto-status-badge [value]="healthValue(c)" [label]="healthLabel(c)" />
                         </div>
+                        @if (c.description) {
+                            <div class="text-secondary mt-1 text-sm">{{ c.description }}</div>
+                        }
                     </div>
                     <div class="flex flex-wrap items-center gap-1">
                         <button mat-flat-button color="primary" (click)="test(c.id)" [disabled]="testing[c.id]">
