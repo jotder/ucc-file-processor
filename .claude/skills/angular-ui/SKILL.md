@@ -172,6 +172,13 @@ src/app/
   byte-identical) and exempts server-global/already-scoped paths (`/health`,`/ready`,`/metrics`,`/spaces*`).
   Detect the mode via `GET /spaces/_meta` → `{multiSpace}` (never infer from the space-list length). The header
   `space-switcher` and the `modules/admin/spaces` admin view are the only space-aware UI; switching reloads.
+- **Persona lens ("View as"):** `LensService` (`inspecto/api`) mirrors `SpacesService`'s shape (signal +
+  `localStorage` restore/persist) for the three lenses (business/builder/ops — `docs/GLOSSARY.md` §1-A). A
+  lens is a **UI-side annotation, never a permission**: gate an authoring action (create/edit/delete) with
+  `@if (!lens.readOnly())` — never hide *operational* actions (run-now, enable/disable toggle, dry-run,
+  activate) this way, only true config-authoring. Unlike the space switcher, switching lens does **not**
+  reload — it's purely reactive (`readOnly()` is a computed signal read directly in templates). Header
+  `lens-switcher` mounts next to `space-switcher`, classic layout only.
 
 ## 8. Error handling
 

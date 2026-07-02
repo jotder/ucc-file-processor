@@ -15,7 +15,7 @@
             <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
                 <mat-icon [svgIcon]="'heroicons_outline:arrow-path'"></mat-icon>
             </button>
-            @if (!writesDisabled) {
+            @if (!writesDisabled && !lens.readOnly()) {
                 <button mat-flat-button color="primary" (click)="create()">
                     <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
                     <span class="ml-2">New connection</span>
@@ -75,7 +75,7 @@
                         <button mat-icon-button [routerLink]="[c.id]" matTooltip="Open workbench (explore + sample)" aria-label="Open workbench">
                             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:beaker"></mat-icon>
                         </button>
-                        @if (!writesDisabled) {
+                        @if (!writesDisabled && !lens.readOnly()) {
                             <button mat-icon-button (click)="edit(c)" matTooltip="Edit" aria-label="Edit">
                                 <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
                             </button>

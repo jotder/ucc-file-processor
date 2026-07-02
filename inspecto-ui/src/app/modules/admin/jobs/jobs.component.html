@@ -30,7 +30,7 @@
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>
 
-            @if (mode === 'schedules') {
+            @if (mode === 'schedules' && !lens.readOnly()) {
                 <button mat-flat-button color="primary" (click)="newJob()">
                     <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
                     <span class="ml-2">New job</span>

@@ -5,7 +5,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { Observable, of, throwError } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { describe, expect, it } from 'vitest';
-import { JobFailureDay, JobMetrics, JobRunRow, JobView, JobsService } from 'app/inspecto/api';
+import { JobFailureDay, JobMetrics, JobRunRow, JobView, JobsService, LensService } from 'app/inspecto/api';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { JobsComponent, fmtDuration } from './jobs.component';
@@ -75,5 +75,13 @@ describe('JobsComponent', () => {
         fixture.componentInstance.setMode('reporting');
         fixture.detectChanges();
         await expectNoA11yViolations(fixture.nativeElement);
+    });
+
+    it('hides reschedule/edit/delete row actions in the Business (read-only) lens; keeps run/toggle', () => {
+        const fixture = create('ok');
+        const c = fixture.componentInstance;
+        TestBed.inject(LensService).selectLens('business');
+        const hints = c.scheduleActions.map((a) => (typeof a.hint === 'function' ? a.hint({ enabled: true } as JobView) : a.hint));
+        expect(hints).toEqual(['Run now', 'Disable']);
     });
 });

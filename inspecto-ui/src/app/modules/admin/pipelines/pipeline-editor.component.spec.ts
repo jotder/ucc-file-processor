@@ -3,7 +3,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { PipelineEditorComponent } from './pipeline-editor.component';
-import { AuthoredPipeline, ComponentsService, PipelineDryRunResult, PipelinesService } from 'app/inspecto/api';
+import { AuthoredPipeline, ComponentsService, LensService, PipelineDryRunResult, PipelinesService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ToastrService } from 'ngx-toastr';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -161,5 +161,15 @@ describe('PipelineEditorComponent', () => {
         const fixture = TestBed.createComponent(PipelineEditorComponent);
         fixture.detectChanges(); // no flows → empty-state, the G6 canvas is not mounted
         await expectNoA11yViolations(fixture.nativeElement);
+    });
+
+    it('hides New/Save/delete-selected in the Business (read-only) lens', () => {
+        TestBed.inject(LensService).selectLens('business');
+        const fixture = TestBed.createComponent(PipelineEditorComponent);
+        fixture.detectChanges();
+        const el = fixture.nativeElement as HTMLElement;
+        expect(el.querySelector('[aria-label="New pipeline"]')).toBeNull();
+        expect(el.querySelector('[aria-label="Save pipeline"]')).toBeNull();
+        expect(el.querySelector('[aria-label="Delete the selected node or edge"]')).toBeNull();
     });
 });

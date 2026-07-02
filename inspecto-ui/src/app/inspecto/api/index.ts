@@ -4,6 +4,7 @@ export * from './auto-refresh';
 export * from './error.interceptor';
 export * from './space.interceptor';
 export * from './spaces.service';
+export * from './lens.service';
 export * from './connectivity.service';
 export * from './optimistic';
 export * from './runs.service';

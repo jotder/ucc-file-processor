@@ -1,7 +1,7 @@
 <div class="flex h-full flex-col gap-3">
     <!-- toolbar -->
     <div class="flex flex-wrap items-center gap-2">
-        @if (creating()) {
+        @if (creating() && !lens.readOnly()) {
             <div class="flex items-center gap-2">
                 <mat-form-field subscriptSizing="dynamic" class="w-56">
                     <mat-label>New pipeline name</mat-label>
@@ -23,23 +23,25 @@
                     }
                 </mat-select>
             </mat-form-field>
-            <button mat-icon-button (click)="startNew()" matTooltip="New pipeline" aria-label="New pipeline">
-                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-            </button>
-            <button mat-icon-button color="primary" [disabled]="!dirty() || saving()" (click)="save()"
-                    matTooltip="Save" aria-label="Save pipeline">
-                <mat-icon svgIcon="heroicons_outline:check"></mat-icon>
-            </button>
-            <button mat-icon-button [matMenuTriggerFor]="flowMenu" [disabled]="!selectedId()"
-                    matTooltip="More pipeline actions" aria-label="More pipeline actions">
-                <mat-icon svgIcon="heroicons_outline:ellipsis-vertical"></mat-icon>
-            </button>
-            <mat-menu #flowMenu="matMenu">
-                <button mat-menu-item (click)="deleteFlow()">
-                    <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
-                    <span>Delete pipeline</span>
+            @if (!lens.readOnly()) {
+                <button mat-icon-button (click)="startNew()" matTooltip="New pipeline" aria-label="New pipeline">
+                    <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
                 </button>
-            </mat-menu>
+                <button mat-icon-button color="primary" [disabled]="!dirty() || saving()" (click)="save()"
+                        matTooltip="Save" aria-label="Save pipeline">
+                    <mat-icon svgIcon="heroicons_outline:check"></mat-icon>
+                </button>
+                <button mat-icon-button [matMenuTriggerFor]="flowMenu" [disabled]="!selectedId()"
+                        matTooltip="More pipeline actions" aria-label="More pipeline actions">
+                    <mat-icon svgIcon="heroicons_outline:ellipsis-vertical"></mat-icon>
+                </button>
+                <mat-menu #flowMenu="matMenu">
+                    <button mat-menu-item (click)="deleteFlow()">
+                        <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+                        <span>Delete pipeline</span>
+                    </button>
+                </mat-menu>
+            }
             <button mat-icon-button [disabled]="!selectedId()" (click)="toggleDryRun()"
                     matTooltip="Dry-run" aria-label="Dry-run">
                 <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
@@ -59,10 +61,12 @@
                     <mat-icon svgIcon="heroicons_outline:bolt"></mat-icon>
                 </button>
             }
-            <button mat-icon-button [disabled]="!hasSelection()" (click)="onDeleteKey()"
-                    matTooltip="Delete selected" aria-label="Delete the selected node or edge">
-                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
-            </button>
+            @if (!lens.readOnly()) {
+                <button mat-icon-button [disabled]="!hasSelection()" (click)="onDeleteKey()"
+                        matTooltip="Delete selected" aria-label="Delete the selected node or edge">
+                    <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
+                </button>
+            }
             <button mat-icon-button (click)="toggleInspector()"
                     [matTooltip]="inspectorOpen() ? 'Hide properties' : 'Show properties'"
                     [attr.aria-label]="inspectorOpen() ? 'Hide properties' : 'Show properties'">

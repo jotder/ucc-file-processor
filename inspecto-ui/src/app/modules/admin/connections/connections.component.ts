@@ -6,7 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, ConnectionProfile, ConnectionTestResult, ConnectionsService } from 'app/inspecto/api';
+import { apiErrorMessage, ConnectionProfile, ConnectionTestResult, ConnectionsService, LensService } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
@@ -30,6 +30,8 @@ export class ConnectionsComponent implements OnInit {
     private toastr = inject(ToastrService);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
+    /** Business lens = read-only across the Workbench (Wave-1 interview decision) — hides authoring. */
+    protected lens = inject(LensService);
 
     connections: ConnectionProfile[] = [];
     loading = false;

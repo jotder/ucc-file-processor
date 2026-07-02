@@ -29,6 +29,7 @@ import {
     PipelineSummary,
     IconMap,
     IconMapService,
+    LensService,
     apiErrorMessage,
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
@@ -111,6 +112,8 @@ export class PipelineEditorComponent implements OnInit {
     private toast = inject(ToastrService);
     private confirm = inject(InspectoConfirmService);
     private dialog = inject(MatDialog);
+    /** Business lens = read-only across the Workbench (Wave-1 interview decision) — hides authoring. */
+    protected lens = inject(LensService);
 
     @ViewChild(PipelineEditorGraphComponent) private canvas?: PipelineEditorGraphComponent;
 

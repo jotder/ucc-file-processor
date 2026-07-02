@@ -22,6 +22,7 @@ import {
     JobRunRow,
     JobsService,
     JobView,
+    LensService,
     visibleInterval,
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
@@ -81,6 +82,8 @@ export class JobsComponent implements OnInit, OnDestroy {
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     private router = inject(Router);
+    /** Business lens = read-only across the Workbench (Wave-1 interview decision) — hides authoring. */
+    protected lens = inject(LensService);
 
     mode: JobsViewMode = 'schedules';
 
@@ -140,17 +143,25 @@ export class JobsComponent implements OnInit, OnDestroy {
         { field: 'lastRunTime', headerName: 'Last run', width: 170, valueFormatter: (p) => fmtDateTime(p.value) },
     ];
 
-    readonly scheduleActions: InspectoRowAction<JobView>[] = [
-        { icon: 'heroicons_outline:play', hint: 'Run now', onClick: (j) => this.trigger(j) },
-        {
-            icon: (j) => (j.enabled ? 'heroicons_outline:pause-circle' : 'heroicons_outline:play-circle'),
-            hint: (j) => (j.enabled ? 'Disable' : 'Enable'),
-            onClick: (j) => this.toggleEnabled(j),
-        },
-        { icon: 'heroicons_outline:calendar-days', hint: 'Reschedule', onClick: (j) => this.edit(j, true) },
-        { icon: 'heroicons_outline:pencil-square', hint: 'Edit', onClick: (j) => this.edit(j, false) },
-        { icon: 'heroicons_outline:trash', hint: 'Delete', onClick: (j) => this.remove(j) },
-    ];
+    /** Run/toggle are operational, not authoring — available in every lens. Reschedule/edit/delete open
+     *  the config-authoring dialog or destroy the job, so they're hidden in the Business (read-only) lens. */
+    get scheduleActions(): InspectoRowAction<JobView>[] {
+        const ops: InspectoRowAction<JobView>[] = [
+            { icon: 'heroicons_outline:play', hint: 'Run now', onClick: (j) => this.trigger(j) },
+            {
+                icon: (j) => (j.enabled ? 'heroicons_outline:pause-circle' : 'heroicons_outline:play-circle'),
+                hint: (j) => (j.enabled ? 'Disable' : 'Enable'),
+                onClick: (j) => this.toggleEnabled(j),
+            },
+        ];
+        if (this.lens.readOnly()) return ops;
+        return [
+            ...ops,
+            { icon: 'heroicons_outline:calendar-days', hint: 'Reschedule', onClick: (j) => this.edit(j, true) },
+            { icon: 'heroicons_outline:pencil-square', hint: 'Edit', onClick: (j) => this.edit(j, false) },
+            { icon: 'heroicons_outline:trash', hint: 'Delete', onClick: (j) => this.remove(j) },
+        ];
+    }
 
     /** Reporting grid: the durable run history (newest first) from the DuckDB projection. */
     readonly reportColumnDefs: ColDef<JobRunRow>[] = [

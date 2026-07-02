@@ -13,6 +13,7 @@ import { Navigation } from 'app/core/navigation/navigation.types';
 // import { LanguagesComponent } from 'app/layout/common/languages/languages.component';
 // import { QuickChatComponent } from 'app/layout/common/quick-chat/quick-chat.component';
 // import { ShortcutsComponent } from 'app/layout/common/shortcuts/shortcuts.component';
+import { LensSwitcherComponent } from 'app/layout/common/lens-switcher/lens-switcher.component';
 import { NotificationBellComponent } from 'app/layout/common/notifications/notifications.component';
 import { SearchComponent } from 'app/layout/common/search/search.component';
 import { SpaceSwitcherComponent } from 'app/layout/common/space-switcher/space-switcher.component';
@@ -30,6 +31,7 @@ import { Subject, takeUntil } from 'rxjs';
         GammaVerticalNavigationComponent,
         MatButtonModule,
         MatIconModule,
+        LensSwitcherComponent,
         NotificationBellComponent,
         SearchComponent,
         SpaceSwitcherComponent,
