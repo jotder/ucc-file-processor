@@ -14,6 +14,10 @@
                     <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
                 }
             </mat-form-field>
+            <button type="button" mat-stroked-button (click)="exportPngs()" [disabled]="!tiles().length">
+                <mat-icon class="icon-size-4 mr-1" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+                <span>Export PNGs</span>
+            </button>
             <button type="button" mat-button routerLink="/studio/dashboards">Cancel</button>
             <button type="button" mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
                 <span>Save dashboard</span>

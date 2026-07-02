@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -60,6 +60,7 @@ export class DashboardEditorComponent implements OnInit {
     private widgetsApi = inject(WidgetsService);
     private datasetsApi = inject(DatasetsService);
     private router = inject(Router);
+    private elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
     private toastr = inject(ToastrService);
 
     /** Route param — the dashboard id to edit; absent on the `new` route. */
@@ -194,6 +195,23 @@ export class DashboardEditorComponent implements OnInit {
                 ? current.items.filter((_, i) => i !== idx)
                 : [...current.items, { kind: 'condition', field, operator: '=', value } as Condition];
         this.filter.set({ ...current, items });
+    }
+
+    /** Download every rendered tile canvas as a PNG — the offline "export dashboard" (chart tiles only;
+     *  table/KPI tiles have no canvas and export via their own surfaces). */
+    exportPngs(): void {
+        const canvases: NodeListOf<HTMLCanvasElement> = this.elementRef.nativeElement.querySelectorAll('app-dashboard-tile canvas');
+        if (!canvases.length) {
+            this.toastr.info('No chart tiles to export.');
+            return;
+        }
+        const name = String(this.form.controls.name.value ?? 'dashboard');
+        canvases.forEach((canvas, i) => {
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = `${name}-tile-${i + 1}.png`;
+            link.click();
+        });
     }
 
     save(): void {
