@@ -86,6 +86,11 @@ dropdown on the next dialog open.
    saved grammar under a new parser type, id unchanged) — not revisited, since changing it would be a
    larger behavior change outside this review's scope.
 
+**Answered (batched to product owner, 2026-07-02):** #2 — the duplicate-name **block** (mat-error, no
+silent overwrite) is confirmed the **product-wide rule** for all authoring forms; no change, and it's the
+standing default for every future form. #1/#3 stand as recorded assumptions (flag if a specific format's
+tier feels wrong once real backend parser config lands).
+
 ## R8 — Verify (evidence)
 
 - **Live smoke** (`:4204`, this session): opened the dialog on the `cdr_ingest` pipeline's real `parse`

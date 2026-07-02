@@ -67,6 +67,12 @@ node config is embedded in the authored-pipeline document, no new endpoint.
 3. **`transform.record` intentionally has no schema** — its config is arbitrary field-derivation rules with
    no fixed shape, so free-form is the honest surface for it today.
 
+**Answered (batched to product owner, 2026-07-02):** #2 — **keep persisting declared defaults** on save
+(consistent with every SchemaForm; configs stay explicit/self-documenting). The "omit untouched defaults"
+alternative was declined. #1/#3 stand as recorded assumptions. Also confirmed wave-wide: the **Business
+lens is read-only** across the Workbench (authoring gated to Builder) — wiring lands with the lens shell in
+Wave 2, so no gating code this wave.
+
 ## R8 — Verify (evidence)
 
 - **Live smoke** (`:4204`): opened the `cdr_ingest` pipeline's `write` node (`sink.file`) via the editor.
