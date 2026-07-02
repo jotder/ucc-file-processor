@@ -1,41 +1,36 @@
 <h2 mat-dialog-title class="flex items-center gap-2">
-    <span class="min-w-0 truncate">Configure parser · {{ data.node.id }}</span>
+    <span class="min-w-0 truncate">{{ step() === 'save' ? 'Save parser' : 'Configure parser · ' + data.node.id }}</span>
     <span class="flex-1"></span>
-    <button
-        mat-icon-button
-        type="button"
-        [attr.aria-label]="fullscreen() ? 'Exit full screen' : 'Full screen'"
-        [matTooltip]="fullscreen() ? 'Exit full screen' : 'Full screen'"
-        (click)="toggleFullscreen()"
-    >
-        <mat-icon
-            class="icon-size-5"
-            [svgIcon]="fullscreen() ? 'heroicons_outline:arrows-pointing-in' : 'heroicons_outline:arrows-pointing-out'"
-        ></mat-icon>
-    </button>
+    @if (step() === 'config') {
+        <button
+            mat-icon-button
+            type="button"
+            [attr.aria-label]="fullscreen() ? 'Exit full screen' : 'Full screen'"
+            [matTooltip]="fullscreen() ? 'Exit full screen' : 'Full screen'"
+            (click)="toggleFullscreen()"
+        >
+            <mat-icon
+                class="icon-size-5"
+                [svgIcon]="fullscreen() ? 'heroicons_outline:arrows-pointing-in' : 'heroicons_outline:arrows-pointing-out'"
+            ></mat-icon>
+        </button>
+    }
 </h2>
 
 <mat-dialog-content class="flex flex-col" [style.maxHeight]="fullscreen() ? 'calc(100vh - 9rem)' : '80vh'">
+    @if (step() === 'config') {
     <p class="text-secondary mb-3 text-xs">{{ data.typeLabel }} · {{ data.categoryLabel }}</p>
 
-    <!-- Reusable-grammar binding + file-format picker -->
-    <div class="mb-3 flex flex-wrap items-end gap-3" [formGroup]="form">
+    <!-- Reusable-grammar binding + file-format picker (name is asked later, at save time) -->
+    <div class="mb-3 flex flex-wrap items-end gap-3">
         <mat-form-field subscriptSizing="dynamic" class="w-56">
             <mat-label>Grammar</mat-label>
-            <mat-select formControlName="grammarId" (selectionChange)="onGrammarChange($event.value)">
+            <mat-select [value]="boundGrammarId() ?? ''" (selectionChange)="onGrammarChange($event.value)">
                 <mat-option value="">＋ New grammar</mat-option>
                 @for (g of grammars(); track g.name) {
                     <mat-option [value]="g.name">{{ g.name }}</mat-option>
                 }
             </mat-select>
-        </mat-form-field>
-
-        <mat-form-field subscriptSizing="dynamic" class="w-56">
-            <mat-label>Grammar id</mat-label>
-            <input matInput formControlName="name" placeholder="e.g. cdr_csv" />
-            @if (form.get('name')?.hasError('pattern')) {
-                <mat-error>Letters, digits, dot, dash, underscore.</mat-error>
-            }
         </mat-form-field>
 
         <mat-form-field subscriptSizing="dynamic" class="w-72">
@@ -74,78 +69,40 @@
                         ></mat-icon>
                     </button>
                 </div>
-                <form [formGroup]="propsForm()" class="overflow-y-auto pr-2" [style.maxHeight]="bigProps() ? '76vh' : '50vh'">
-                    @for (section of sections(); track section) {
-                        <div class="mb-1 mt-2 text-xs font-semibold uppercase tracking-wider opacity-60">{{ section }}</div>
-                        @for (p of propsInSection(section); track p.key) {
-                            @switch (p.control) {
-                                @case ('checkbox') {
-                                    <div class="py-1.5">
-                                        <mat-checkbox [formControlName]="p.key">{{ p.label }}</mat-checkbox>
-                                        @if (p.hint) { <div class="text-secondary ml-8 text-xs">{{ p.hint }}</div> }
-                                    </div>
-                                }
-                                @case ('module') {
-                                    <div class="py-1">
-                                        <div class="flex items-end gap-2">
-                                            <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                                                <mat-label>{{ p.label }}</mat-label>
-                                                <mat-select [formControlName]="p.key" (selectionChange)="onModuleSelect($event.value)">
-                                                    <mat-option value="">— none —</mat-option>
-                                                    @for (mod of asn1Modules(); track mod.name) {
-                                                        <mat-option [value]="mod.name">{{ mod.name }}</mat-option>
-                                                    }
-                                                </mat-select>
-                                            </mat-form-field>
-                                            <button mat-stroked-button type="button" class="mb-1"
-                                                    matTooltip="Upload a .asn / .asn1 module" (click)="moduleFile.click()">
-                                                <mat-icon svgIcon="heroicons_outline:arrow-up-tray"></mat-icon>
-                                                <span class="ml-1">Upload</span>
-                                            </button>
-                                            <input #moduleFile type="file" class="hidden" accept=".asn,.asn1,.txt"
-                                                   aria-label="Upload ASN.1 module file"
-                                                   (change)="onModuleUpload($any($event.target).files); moduleFile.value = ''" />
-                                        </div>
-                                        @if (p.hint) { <div class="text-secondary text-xs">{{ p.hint }}</div> }
-                                        <div class="text-secondary mt-1 text-xs">Source shows in the <span class="font-semibold">Grammar source</span> pane →</div>
-                                    </div>
-                                }
-                                @case ('select') {
-                                    <mat-form-field class="w-full" subscriptSizing="dynamic">
-                                        <mat-label>{{ p.label }}</mat-label>
-                                        <mat-select [formControlName]="p.key">
-                                            @for (o of p.options ?? []; track o) {
-                                                <mat-option [value]="o">{{ o }}</mat-option>
-                                            }
-                                        </mat-select>
-                                        @if (p.hint) { <mat-hint>{{ p.hint }}</mat-hint> }
-                                    </mat-form-field>
-                                }
-                                @case ('textarea') {
-                                    <mat-form-field class="w-full" subscriptSizing="dynamic">
-                                        <mat-label>{{ p.label }}</mat-label>
-                                        <textarea matInput rows="3" class="font-mono" [formControlName]="p.key"></textarea>
-                                        @if (p.hint) { <mat-hint>{{ p.hint }}</mat-hint> }
-                                    </mat-form-field>
-                                }
-                                @case ('number') {
-                                    <mat-form-field class="w-full" subscriptSizing="dynamic">
-                                        <mat-label>{{ p.label }}</mat-label>
-                                        <input matInput type="number" [formControlName]="p.key" />
-                                        @if (p.hint) { <mat-hint>{{ p.hint }}</mat-hint> }
-                                    </mat-form-field>
-                                }
-                                @default {
-                                    <mat-form-field class="w-full" subscriptSizing="dynamic">
-                                        <mat-label>{{ p.label }}</mat-label>
-                                        <input matInput [formControlName]="p.key" />
-                                        @if (p.hint) { <mat-hint>{{ p.hint }}</mat-hint> }
-                                    </mat-form-field>
-                                }
-                            }
-                        }
+                <div class="overflow-y-auto pr-2" [style.maxHeight]="bigProps() ? '76vh' : '50vh'">
+                    <!-- ASN.1 schema module — the one bespoke property (network-backed picker + upload). -->
+                    @if (moduleProp(); as mp) {
+                        <div class="mb-3" [formGroup]="moduleForm">
+                            <div class="flex items-end gap-2">
+                                <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                                    <mat-label>{{ mp.label }}</mat-label>
+                                    <mat-select formControlName="schema_spec" (selectionChange)="onModuleSelect($event.value)">
+                                        <mat-option value="">— none —</mat-option>
+                                        @for (mod of asn1Modules(); track mod.name) {
+                                            <mat-option [value]="mod.name">{{ mod.name }}</mat-option>
+                                        }
+                                    </mat-select>
+                                    @if (moduleForm.get('schema_spec')?.hasError('required') && moduleForm.get('schema_spec')?.touched) {
+                                        <mat-error>{{ mp.label }} is required</mat-error>
+                                    }
+                                </mat-form-field>
+                                <button mat-stroked-button type="button" class="mb-1"
+                                        matTooltip="Upload a .asn / .asn1 module" (click)="moduleFile.click()">
+                                    <mat-icon svgIcon="heroicons_outline:arrow-up-tray"></mat-icon>
+                                    <span class="ml-1">Upload</span>
+                                </button>
+                                <input #moduleFile type="file" class="hidden" accept=".asn,.asn1,.txt"
+                                       aria-label="Upload ASN.1 module file"
+                                       (change)="onModuleUpload($any($event.target).files); moduleFile.value = ''" />
+                            </div>
+                            @if (mp.hint) { <div class="text-secondary text-xs">{{ mp.hint }}</div> }
+                            <div class="text-secondary mt-1 text-xs">Source shows in the <span class="font-semibold">Grammar source</span> pane →</div>
+                        </div>
                     }
-                </form>
+
+                    <!-- Every other property, schema-driven: required up front, optional collapsed, advanced behind the gear. -->
+                    <inspecto-schema-form [specs]="schemaFormSpecs()" [initial]="schemaFormInitial()"></inspecto-schema-form>
+                </div>
             </section>
         }
 
@@ -279,12 +236,37 @@
             }
         </section>
     }
+    } @else {
+    <!-- Save step (create only): name is asked only now, prefilled `<type>_grammar` -->
+    <section aria-label="Name this parser" class="space-y-1" [formGroup]="saveForm">
+        <div class="text-secondary text-sm">
+            {{ parserTypeLabel() }} parser configured — give it a unique name to save it as a reusable grammar.
+        </div>
+        <mat-form-field class="w-full" subscriptSizing="dynamic">
+            <mat-label>Name</mat-label>
+            <input matInput formControlName="name" required />
+            @if (saveForm.controls.name; as c) {
+                @if (c.hasError('required')) {
+                    <mat-error>Name is required.</mat-error>
+                } @else if (c.hasError('pattern')) {
+                    <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
+                } @else if (c.hasError('duplicate')) {
+                    <mat-error>A grammar with this name already exists — pick it from the Grammar dropdown to edit it instead.</mat-error>
+                }
+            }
+            <mat-hint>Unique — this is the grammar id pipeline nodes reference.</mat-hint>
+        </mat-form-field>
+    </section>
+    }
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
+    @if (!boundGrammarId() && step() === 'save') {
+        <button type="button" mat-button (click)="backToConfig()">Back</button>
+    }
     <button type="button" mat-button mat-dialog-close>Cancel</button>
     <button type="button" mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
         @if (saving()) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }
-        <span>Save parser</span>
+        <span>{{ boundGrammarId() ? 'Save parser' : step() === 'save' ? 'Create parser' : 'Continue' }}</span>
     </button>
 </mat-dialog-actions>

@@ -1,8 +1,7 @@
 import { NgClass } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, ViewChild } from '@angular/core';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -21,9 +20,10 @@ import {
 } from 'app/inspecto/api';
 import { QueryPanelComponent, QuerySource } from 'app/inspecto/query';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
 import { NodeConfigResult } from './node-config.dialog';
 import { ParserTreeComponent } from './parser-tree.component';
-import { PARSER_TYPES, ParserProp, parserTypeDef, propsFor, sampleFor, sectionsFor } from './parser-types';
+import { modulePropFor, PARSER_TYPES, parserTypeDef, propsFor, sampleFor, toAttributeSpecs } from './parser-types';
 
 /** Dialog data: the parser node to configure + its (resolved) type/category labels for the header. */
 export interface ParserConfigData {
@@ -38,6 +38,17 @@ export interface ParserConfigData {
  * content, and Test to preview the parse: a searchable/sortable/filterable ag-Grid table for tabular formats,
  * or a collapsible tree ({@link ParserTreeComponent}) for hierarchical ones. The config persists as a reusable
  * `grammar` component (content `{ parser_type, ...props }`); on save the node is bound to it via `use`.
+ *
+ * The property sheet is **schema-driven** (`<inspecto-schema-form>` over `toAttributeSpecs`, review R2/R4):
+ * each type's required fields sit up front, common tweaks are one click away under "Optional settings", and
+ * rarely-touched tuning knobs (the shared Sampling controls, etc.) hide behind the advanced gear. The one
+ * bespoke exception is the ASN.1 schema-module picker (network-backed dropdown + upload) — rendered directly
+ * by this dialog via {@link modulePropFor}, not through the generic renderer.
+ *
+ * **Ask the minimum** (binding form rule): a fresh parser's config comes first; the grammar **name is asked
+ * only at save time** (a save step, pre-filled `<type>_grammar`, unique) — mirrors
+ * `connections/connection-form.dialog`. Editing an existing grammar (chosen from the Grammar dropdown, or
+ * pre-bound via the node's `use`) saves straight through with its id locked.
  */
 @Component({
     selector: 'app-parser-config-dialog',
@@ -47,7 +58,6 @@ export interface ParserConfigData {
         ReactiveFormsModule,
         MatDialogModule,
         MatButtonModule,
-        MatCheckboxModule,
         MatFormFieldModule,
         MatIconModule,
         MatInputModule,
@@ -56,6 +66,7 @@ export interface ParserConfigData {
         MatTooltipModule,
         QueryPanelComponent,
         InspectoAlertComponent,
+        InspectoSchemaFormComponent,
         ParserTreeComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,15 +83,27 @@ export class ParserConfigDialog {
 
     /** The selected file format (drives the property sheet + table-vs-tree output). */
     readonly parserType = signal('dsv');
-    /** The set of property fields for the current type (own props + the shared Sampling section). */
-    readonly props = computed(() => propsFor(this.parserType()));
-    readonly sections = computed(() => sectionsFor(this.parserType()));
+    readonly parserTypeLabel = computed(() => parserTypeDef(this.parserType()).label);
     readonly isHierarchical = computed(() => parserTypeDef(this.parserType()).hierarchical);
 
-    /** The dynamic, per-type property form (rebuilt whenever the type changes). */
-    readonly propsForm = signal<FormGroup>(this.fb.group({}));
+    /** The type's non-module properties, schema-form-ready (required/optional/advanced tiers). */
+    readonly schemaFormSpecs = computed(() => toAttributeSpecs(this.parserType()));
+    /** Saved values to seed the schema-form with; `undefined` ⇒ the type's plain defaults (fresh/new type). */
+    readonly schemaFormInitial = signal<Record<string, unknown> | undefined>(undefined);
+    @ViewChild(InspectoSchemaFormComponent) schemaForm!: InspectoSchemaFormComponent;
+
+    /** The type's `module` property (the ASN.1 schema picker), if any — the one bespoke property. */
+    readonly moduleProp = computed(() => modulePropFor(this.parserType()));
+    /** The built content snapshot from the config step — captured before the save step unmounts the
+     *  schema-form (its `<form>` is destroyed with the `@if` block, so it can't be read again there). */
+    private pendingContent: Record<string, unknown> | null = null;
+    /** NOTE: assumes at most one `module`-control property per type (true for all 9 formats today). */
+    readonly moduleForm = this.fb.group({ schema_spec: ['', Validators.required] });
+
     /** Existing reusable grammars (the choose-or-create options). */
     readonly grammars = signal<ComponentDef[]>([]);
+    /** The grammar being edited (dropdown-picked, or pre-bound via the node's `use`); `null` ⇒ authoring new. */
+    readonly boundGrammarId = signal<string | null>(null);
 
     /** Raw sample content the user pastes; fed to the Test preview. */
     readonly sampleText = signal('');
@@ -99,7 +122,7 @@ export class ParserConfigDialog {
     readonly moduleLoading = signal(false);
     readonly moduleError = signal<string | null>(null);
 
-    // ── View state: full-screen dialog · per-pane maximize · column search ──
+    // ── View state: full-screen dialog · per-pane maximize ──
     /** Expand the whole dialog to fill the viewport. */
     readonly fullscreen = signal(false);
     /** Which single pane fills the body (`null` = the normal split + full-width record viewer). */
@@ -111,14 +134,23 @@ export class ParserConfigDialog {
     readonly bigModule = computed(() => this.fullscreen() || this.maximized() === 'module');
     readonly bigOutput = computed(() => this.fullscreen() || this.maximized() === 'output');
 
-    /** Top-level controls: which grammar is bound (`''` = create new) + the id it saves under. */
-    readonly form = this.fb.group({
-        grammarId: this.fb.control(''),
-        name: this.fb.control('', [Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)]),
+    /** Create flow: `config` (pick/author + properties + test) → `save` (name, asked only now). Editing an
+     *  existing grammar stays on `config` and saves straight through. */
+    readonly step = signal<'config' | 'save'>('config');
+    /** Save-step field (create only): the grammar name IS the unique id pipeline nodes reference via `use`. */
+    readonly saveForm = this.fb.group({
+        name: [
+            '',
+            [
+                Validators.required,
+                Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+                (c: AbstractControl): ValidationErrors | null =>
+                    this.grammars().some((g) => g.name === String(c.value ?? '').trim()) ? { duplicate: true } : null,
+            ],
+        ],
     });
 
     constructor() {
-        this.rebuildProps('dsv');
         this.sampleText.set(sampleFor('dsv'));
         this.components.list('grammar').subscribe({
             next: (list) => {
@@ -135,7 +167,8 @@ export class ParserConfigDialog {
     /** Switch file format → reset the property sheet to that type's defaults + reseed the sample. */
     onTypeChange(type: string): void {
         this.parserType.set(type);
-        this.rebuildProps(type);
+        this.schemaFormInitial.set(undefined);
+        this.moduleForm.reset({ schema_spec: '' });
         this.sampleText.set(sampleFor(type));
         this.preview.set(null);
         this.testError.set(null);
@@ -143,29 +176,32 @@ export class ParserConfigDialog {
         this.maybeLoadModules(type);
     }
 
-    /** Choose an existing grammar to edit, or `''` to author a new one. */
+    /** Choose an existing grammar to edit, or `''` to author a new one (of the current type). */
     onGrammarChange(id: string): void {
         if (!id) {
-            this.form.patchValue({ grammarId: '', name: '' });
-            this.form.get('name')!.enable();
-            this.rebuildProps(this.parserType());
-            this.preview.set(null);
+            this.boundGrammarId.set(null);
+            this.saveForm.reset({ name: '' });
+            this.onTypeChange(this.parserType());
             return;
         }
         const def = this.grammars().find((g) => g.name === id);
         if (def) this.loadGrammar(def);
     }
 
-    /** Load a saved grammar's content into the form (type + props), locking the id. */
+    /** Load a saved grammar's content into the form (type + props), binding the id and locking the save step. */
     private loadGrammar(def: ComponentDef): void {
         const content = def.content ?? {};
         const type = typeof content['parser_type'] === 'string' ? (content['parser_type'] as string) : 'dsv';
         this.parserType.set(type);
-        this.rebuildProps(type, content);
+        this.schemaFormInitial.set(content);
+        this.moduleForm.patchValue({
+            schema_spec: typeof content['schema_spec'] === 'string' ? (content['schema_spec'] as string) : '',
+        });
         this.sampleText.set(sampleFor(type));
-        this.form.patchValue({ grammarId: def.name, name: def.name });
-        this.form.get('name')!.disable();
+        this.boundGrammarId.set(def.name);
+        this.saveForm.patchValue({ name: def.name });
         this.preview.set(null);
+        this.step.set('config');
         this.maybeLoadModules(type);
         if (type === 'asn1' && typeof content['schema_spec'] === 'string' && content['schema_spec']) {
             this.viewModule(content['schema_spec'] as string);
@@ -187,7 +223,6 @@ export class ParserConfigDialog {
 
     /** Pick a module from the library → bind it as `schema_spec` and download its source for the viewer. */
     onModuleSelect(name: string): void {
-        this.propsForm().get('schema_spec')?.setValue(name);
         this.viewModule(name);
     }
 
@@ -223,7 +258,7 @@ export class ParserConfigDialog {
                     next: () => {
                         this.moduleLoading.set(false);
                         this.moduleText.set(text);
-                        this.propsForm().get('schema_spec')?.setValue(file.name);
+                        this.moduleForm.get('schema_spec')?.setValue(file.name);
                         this.components.asn1Modules().subscribe((list) => this.asn1Modules.set(list));
                     },
                     error: (e) => {
@@ -236,21 +271,6 @@ export class ParserConfigDialog {
                 this.moduleError.set('Could not read the file.');
             },
         );
-    }
-
-    /** (Re)build the property form for `type`, seeding from `values` (a saved grammar) or the type defaults. */
-    private rebuildProps(type: string, values?: Record<string, unknown>): void {
-        const group: Record<string, unknown[]> = {};
-        for (const p of propsFor(type)) {
-            const init = values && p.key in values ? values[p.key] : p.default;
-            group[p.key] = [init];
-        }
-        this.propsForm.set(this.fb.group(group));
-    }
-
-    /** Fields belonging to one section, in declared order (drives the grouped form layout). */
-    propsInSection(section: string): ParserProp[] {
-        return this.props().filter((p) => p.section === section);
     }
 
     // ── Layout: full-screen + per-pane maximize ──
@@ -273,16 +293,25 @@ export class ParserConfigDialog {
         else this.ref.removePanelClass('dialog-fullscreen');
     }
 
-    /** Assemble the grammar content map from the form (`parser_type` + typed props; numbers coerced). */
+    /** Assemble the grammar content map: schema-form values + `parser_type` + the bespoke module field. */
     private buildContent(): Record<string, unknown> {
-        const raw = this.propsForm().getRawValue() as Record<string, unknown>;
+        const values = this.schemaForm.value();
         const out: Record<string, unknown> = { parser_type: this.parserType() };
         for (const p of propsFor(this.parserType())) {
-            let v = raw[p.key];
+            if (p.control === 'module') {
+                out[p.key] = this.moduleForm.get('schema_spec')?.value ?? '';
+                continue;
+            }
+            let v = values[p.key];
             if (p.control === 'number') v = v === '' || v == null ? null : Number(v);
             out[p.key] = v;
         }
         return out;
+    }
+
+    /** The suggested grammar name for a freshly authored parser: `<type>_grammar`, sanitized. */
+    suggestedName(): string {
+        return `${this.parserType()}_grammar`.replace(/[^A-Za-z0-9._-]+/g, '_');
     }
 
     /** Parse the sample with the in-progress config (no save) → table or tree preview. */
@@ -305,18 +334,44 @@ export class ParserConfigDialog {
         });
     }
 
+    /** Create flow only: leave the save step back to the config step (name is kept). */
+    backToConfig(): void {
+        this.step.set('config');
+    }
+
     /** Save the parser as a reusable grammar (create or update) and bind the node to it via `use`. */
     save(): void {
-        const nameCtrl = this.form.get('name')!;
-        const name = String(nameCtrl.value ?? '').trim();
-        if (!name || nameCtrl.invalid) {
-            this.form.markAllAsTouched();
+        if (this.step() === 'config') {
+            const specsOk = this.schemaForm.validate();
+            const moduleRequired = !!this.moduleProp();
+            if (moduleRequired) this.moduleForm.markAllAsTouched();
+            if (!specsOk || (moduleRequired && this.moduleForm.invalid)) return;
+
+            const content = this.buildContent();
+            const bound = this.boundGrammarId();
+            if (bound) {
+                this.persist(bound, content);
+                return;
+            }
+            // Ask the minimum: a fresh parser's name is asked only now, at save time.
+            this.pendingContent = content;
+            if (this.saveForm.controls.name.pristine) {
+                this.saveForm.patchValue({ name: this.suggestedName() });
+            }
+            this.step.set('save');
             return;
         }
-        const content = this.buildContent();
-        const exists = this.grammars().some((g) => g.name === name);
+
+        if (this.saveForm.invalid) {
+            this.saveForm.markAllAsTouched();
+            return;
+        }
+        this.persist(String(this.saveForm.getRawValue().name ?? '').trim(), this.pendingContent!);
+    }
+
+    private persist(name: string, content: Record<string, unknown>): void {
         this.saving.set(true);
-        const req$ = exists
+        const req$ = this.boundGrammarId()
             ? this.components.update('grammar', name, content)
             : this.components.create('grammar', { id: name, ...content });
         req$.subscribe({

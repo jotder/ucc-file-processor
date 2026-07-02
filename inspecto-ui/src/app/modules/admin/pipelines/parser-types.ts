@@ -1,22 +1,31 @@
+import type { AttributeSpec, AttributeTier, AttributeType } from 'app/inspecto/component-model';
+
 /**
  * The parser-type catalog that drives the {@link ParserConfigDialog} — one entry per supported file format
- * plus the typed property schema each exposes. The dialog renders these into grouped Material form fields
- * (the "typed form" surface) and persists the values as a reusable `grammar` component's content map
+ * plus the typed property schema each exposes. Properties render through the shared
+ * `<inspecto-schema-form>` (required tier up front, optional collapsed, advanced behind the gear — see
+ * {@link toAttributeSpecs}); the `module` control (ASN.1 schema picker) is the one bespoke exception,
+ * rendered by the dialog itself. Values persist as a reusable `grammar` component's content map
  * (`{ parser_type, ...props }`).
  *
  * <p>DSV mirrors the product spec + the backend {@code PipelineConfig.CsvSettings} fields exactly. The other
  * eight formats carry **best-guess** property sets (the spec only detailed DSV) — adjust as each parser's real
  * backend config firms up. {@link ParserTypeDef.hierarchical} types (ASN.1 / JSON / XML) preview their parse
  * output as a collapsible tree; the rest preview as a flat table.
+ *
+ * <p>**Tier audit (2026-07-02, review R2):** each property is classified `required` (defines whether the
+ * format parses at all), `optional` (commonly adjusted but has a working default), or `advanced` (rarely
+ * touched tuning knob) — see `docs/superpower/reviews/parser-config.md` for the rationale per type.
  */
 
 /**
  * The editor control rendered for one property. `module` is the ASN.1 schema-module picker: a dropdown of
- * the server-side module library (its source is downloaded + shown read-only) plus a local-file upload.
+ * the server-side module library (its source is downloaded + shown read-only) plus a local-file upload —
+ * excluded from {@link toAttributeSpecs} and rendered bespoke by the dialog.
  */
 export type ParserPropControl = 'text' | 'number' | 'checkbox' | 'select' | 'textarea' | 'module';
 
-/** One configurable property of a parser type — a single typed form field, grouped under a {@link section}. */
+/** One configurable property of a parser type — a single typed form field. */
 export interface ParserProp {
     /** Content-map key this property persists under (snake_case, mirrors the grammar `.toon`). */
     key: string;
@@ -24,12 +33,14 @@ export interface ParserProp {
     control: ParserPropControl;
     /** Initial value when the type is first selected (also the reset value). */
     default: string | number | boolean;
-    /** Section header the field renders under (e.g. "Properties" / "Sampling"). */
-    section: string;
+    /** Disclosure tier — drives the shared schema-form's required/optional/advanced grouping. */
+    tier: AttributeTier;
     /** Options for a `select` control. */
     options?: string[];
     /** Optional helper text under the field. */
     hint?: string;
+    /** Show this property only while another property in the same type holds a given value. */
+    dependsOn?: { key: string; equals: unknown };
 }
 
 /** A supported parser/file format + its property schema. */
@@ -40,15 +51,15 @@ export interface ParserTypeDef {
     label: string;
     /** Hierarchical formats preview as a tree; flat formats preview as a table. */
     hierarchical: boolean;
-    /** Format-specific properties (the shared Sampling section is appended by {@link propsFor}). */
+    /** Format-specific properties (the shared Sampling knobs are appended by {@link propsFor}). */
     props: ParserProp[];
 }
 
-/** Sampling controls common to every parser type (appended after each type's own properties). */
+/** Sampling controls common to every parser type — tuning knobs, always advanced. */
 const SAMPLING: ParserProp[] = [
-    { key: 'sample_rows', label: 'Sample rows count', control: 'number', default: 100, section: 'Sampling' },
-    { key: 'default_column_length', label: 'Default column length', control: 'number', default: 50, section: 'Sampling' },
-    { key: 'count_length_in_bytes', label: 'Count length in bytes', control: 'checkbox', default: false, section: 'Sampling' },
+    { key: 'sample_rows', label: 'Sample rows count', control: 'number', default: 100, tier: 'advanced' },
+    { key: 'default_column_length', label: 'Default column length', control: 'number', default: 50, tier: 'advanced' },
+    { key: 'count_length_in_bytes', label: 'Count length in bytes', control: 'checkbox', default: false, tier: 'advanced' },
 ];
 
 /** The parser catalog, in the spec's dropdown order. */
@@ -58,10 +69,10 @@ export const PARSER_TYPES: ParserTypeDef[] = [
         label: 'ASN.1 — ASN.1 file format',
         hierarchical: true,
         props: [
-            { key: 'extension', label: 'Extension', control: 'text', default: 'ber,der,asn1', section: 'Properties' },
-            { key: 'encoding_rules', label: 'Encoding rules', control: 'select', default: 'BER', section: 'Properties', options: ['BER', 'DER', 'CER', 'PER', 'UPER'] },
-            { key: 'schema_spec', label: 'ASN.1 schema (module)', control: 'module', default: '', section: 'Properties', hint: 'Pick a module from the library or upload a .asn / .asn1 file' },
-            { key: 'decode_implicit', label: 'Decode implicit tags', control: 'checkbox', default: true, section: 'Properties' },
+            { key: 'encoding_rules', label: 'Encoding rules', control: 'select', default: 'BER', tier: 'required', options: ['BER', 'DER', 'CER', 'PER', 'UPER'] },
+            { key: 'schema_spec', label: 'ASN.1 schema (module)', control: 'module', default: '', tier: 'required', hint: 'Pick a module from the library or upload a .asn / .asn1 file' },
+            { key: 'extension', label: 'Extension', control: 'text', default: 'ber,der,asn1', tier: 'optional' },
+            { key: 'decode_implicit', label: 'Decode implicit tags', control: 'checkbox', default: true, tier: 'advanced' },
         ],
     },
     {
@@ -69,18 +80,18 @@ export const PARSER_TYPES: ParserTypeDef[] = [
         label: 'DSV — Delimiter separated value files',
         hierarchical: false,
         props: [
-            { key: 'extension', label: 'Extension', control: 'text', default: 'csv,tsv,txt', section: 'Properties' },
-            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', section: 'Properties' },
-            { key: 'column_delimiter', label: 'Column delimiter', control: 'text', default: ',', section: 'Properties' },
-            { key: 'header_position', label: 'Header position', control: 'select', default: 'top', section: 'Properties', options: ['top', 'none', 'bottom'] },
-            { key: 'quote_char', label: 'Quote char', control: 'text', default: '"', section: 'Properties' },
-            { key: 'ignore_chars_outside_quotes', label: 'Ignore characters outside quotes', control: 'checkbox', default: false, section: 'Properties' },
-            { key: 'escape_char', label: 'Escape char', control: 'text', default: '\\', section: 'Properties' },
-            { key: 'null_value_mark', label: 'NULL value mark', control: 'text', default: '', section: 'Properties' },
-            { key: 'empty_string_as_null', label: 'Set empty strings to NULL', control: 'checkbox', default: false, section: 'Properties' },
-            { key: 'datetime_format', label: 'Date/time format', control: 'text', default: 'yyyy-MM-dd[ HH:mm:ss[.SSS]]', section: 'Properties' },
-            { key: 'trim_whitespace', label: 'Trim whitespaces', control: 'checkbox', default: false, section: 'Properties' },
-            { key: 'timezone_id', label: 'Timezone ID', control: 'text', default: '', section: 'Properties' },
+            { key: 'column_delimiter', label: 'Column delimiter', control: 'text', default: ',', tier: 'required' },
+            { key: 'header_position', label: 'Header position', control: 'select', default: 'top', tier: 'required', options: ['top', 'none', 'bottom'] },
+            { key: 'extension', label: 'Extension', control: 'text', default: 'csv,tsv,txt', tier: 'optional' },
+            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', tier: 'optional' },
+            { key: 'quote_char', label: 'Quote char', control: 'text', default: '"', tier: 'optional' },
+            { key: 'null_value_mark', label: 'NULL value mark', control: 'text', default: '', tier: 'optional' },
+            { key: 'datetime_format', label: 'Date/time format', control: 'text', default: 'yyyy-MM-dd[ HH:mm:ss[.SSS]]', tier: 'optional' },
+            { key: 'ignore_chars_outside_quotes', label: 'Ignore characters outside quotes', control: 'checkbox', default: false, tier: 'advanced' },
+            { key: 'escape_char', label: 'Escape char', control: 'text', default: '\\', tier: 'advanced' },
+            { key: 'empty_string_as_null', label: 'Set empty strings to NULL', control: 'checkbox', default: false, tier: 'advanced' },
+            { key: 'trim_whitespace', label: 'Trim whitespaces', control: 'checkbox', default: false, tier: 'advanced' },
+            { key: 'timezone_id', label: 'Timezone ID', control: 'text', default: '', tier: 'advanced' },
         ],
     },
     {
@@ -88,11 +99,11 @@ export const PARSER_TYPES: ParserTypeDef[] = [
         label: 'HTML — HTML file format',
         hierarchical: false,
         props: [
-            { key: 'extension', label: 'Extension', control: 'text', default: 'html,htm', section: 'Properties' },
-            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', section: 'Properties' },
-            { key: 'table_selector', label: 'Table selector', control: 'text', default: 'table', section: 'Properties', hint: 'CSS selector or 0-based table index' },
-            { key: 'header_position', label: 'Header position', control: 'select', default: 'top', section: 'Properties', options: ['top', 'none'] },
-            { key: 'datetime_format', label: 'Date/time format', control: 'text', default: 'yyyy-MM-dd', section: 'Properties' },
+            { key: 'table_selector', label: 'Table selector', control: 'text', default: 'table', tier: 'required', hint: 'CSS selector or 0-based table index' },
+            { key: 'header_position', label: 'Header position', control: 'select', default: 'top', tier: 'required', options: ['top', 'none'] },
+            { key: 'extension', label: 'Extension', control: 'text', default: 'html,htm', tier: 'optional' },
+            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', tier: 'optional' },
+            { key: 'datetime_format', label: 'Date/time format', control: 'text', default: 'yyyy-MM-dd', tier: 'optional' },
         ],
     },
     {
@@ -100,10 +111,10 @@ export const PARSER_TYPES: ParserTypeDef[] = [
         label: 'JSON — JSON file format',
         hierarchical: true,
         props: [
-            { key: 'extension', label: 'Extension', control: 'text', default: 'json,jsonl,ndjson', section: 'Properties' },
-            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', section: 'Properties' },
-            { key: 'mode', label: 'Document mode', control: 'select', default: 'array', section: 'Properties', options: ['array', 'object', 'ndjson'] },
-            { key: 'root_path', label: 'Record path', control: 'text', default: '$', section: 'Properties', hint: 'JSONPath to the array/object of records' },
+            { key: 'mode', label: 'Document mode', control: 'select', default: 'array', tier: 'required', options: ['array', 'object', 'ndjson'] },
+            { key: 'root_path', label: 'Record path', control: 'text', default: '$', tier: 'required', hint: 'JSONPath to the array/object of records' },
+            { key: 'extension', label: 'Extension', control: 'text', default: 'json,jsonl,ndjson', tier: 'optional' },
+            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', tier: 'optional' },
         ],
     },
     {
@@ -111,9 +122,9 @@ export const PARSER_TYPES: ParserTypeDef[] = [
         label: 'Other — Custom proprietary file format',
         hierarchical: false,
         props: [
-            { key: 'extension', label: 'Extension', control: 'text', default: '', section: 'Properties' },
-            { key: 'plugin_class', label: 'Parser plugin (FQCN)', control: 'text', default: '', section: 'Properties', hint: 'Fully-qualified class of the custom record parser' },
-            { key: 'plugin_config', label: 'Plugin config (JSON)', control: 'textarea', default: '{}', section: 'Properties' },
+            { key: 'plugin_class', label: 'Parser plugin (FQCN)', control: 'text', default: '', tier: 'required', hint: 'Fully-qualified class of the custom record parser' },
+            { key: 'extension', label: 'Extension', control: 'text', default: '', tier: 'optional' },
+            { key: 'plugin_config', label: 'Plugin config (JSON)', control: 'textarea', default: '{}', tier: 'advanced' },
         ],
     },
     {
@@ -121,8 +132,8 @@ export const PARSER_TYPES: ParserTypeDef[] = [
         label: 'Parquet — Parquet format',
         hierarchical: false,
         props: [
-            { key: 'extension', label: 'Extension', control: 'text', default: 'parquet', section: 'Properties' },
-            { key: 'columns', label: 'Columns (projection)', control: 'text', default: '', section: 'Properties', hint: 'Comma-separated columns to read; blank = all' },
+            { key: 'extension', label: 'Extension', control: 'text', default: 'parquet', tier: 'optional' },
+            { key: 'columns', label: 'Columns (projection)', control: 'text', default: '', tier: 'optional', hint: 'Comma-separated columns to read; blank = all' },
         ],
     },
     {
@@ -130,13 +141,16 @@ export const PARSER_TYPES: ParserTypeDef[] = [
         label: 'TXT — plain text format',
         hierarchical: false,
         props: [
-            { key: 'extension', label: 'Extension', control: 'text', default: 'txt,log', section: 'Properties' },
-            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', section: 'Properties' },
-            { key: 'frontend', label: 'Record frontend', control: 'select', default: 'line', section: 'Properties', options: ['line', 'fixedwidth'] },
-            { key: 'record_length', label: 'Record length', control: 'number', default: 0, section: 'Properties', hint: 'Fixed-width record length (0 = line mode)' },
-            { key: 'trim_whitespace', label: 'Trim whitespaces', control: 'checkbox', default: true, section: 'Properties' },
-            { key: 'datetime_format', label: 'Date/time format', control: 'text', default: 'yyyy-MM-dd HH:mm:ss', section: 'Properties' },
-            { key: 'timezone_id', label: 'Timezone ID', control: 'text', default: '', section: 'Properties' },
+            { key: 'frontend', label: 'Record frontend', control: 'select', default: 'line', tier: 'required', options: ['line', 'fixedwidth'] },
+            {
+                key: 'record_length', label: 'Record length', control: 'number', default: 0, tier: 'required',
+                dependsOn: { key: 'frontend', equals: 'fixedwidth' }, hint: 'Fixed-width record length',
+            },
+            { key: 'extension', label: 'Extension', control: 'text', default: 'txt,log', tier: 'optional' },
+            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', tier: 'optional' },
+            { key: 'datetime_format', label: 'Date/time format', control: 'text', default: 'yyyy-MM-dd HH:mm:ss', tier: 'optional' },
+            { key: 'trim_whitespace', label: 'Trim whitespaces', control: 'checkbox', default: true, tier: 'advanced' },
+            { key: 'timezone_id', label: 'Timezone ID', control: 'text', default: '', tier: 'advanced' },
         ],
     },
     {
@@ -144,11 +158,11 @@ export const PARSER_TYPES: ParserTypeDef[] = [
         label: 'XLSX — XLSX (Excel spreadsheet) format',
         hierarchical: false,
         props: [
-            { key: 'extension', label: 'Extension', control: 'text', default: 'xlsx,xls', section: 'Properties' },
-            { key: 'sheet', label: 'Sheet', control: 'text', default: '', section: 'Properties', hint: 'Sheet name or index; blank = first sheet' },
-            { key: 'header_position', label: 'Header position', control: 'select', default: 'top', section: 'Properties', options: ['top', 'none'] },
-            { key: 'skip_rows', label: 'Skip leading rows', control: 'number', default: 0, section: 'Properties' },
-            { key: 'datetime_format', label: 'Date/time format', control: 'text', default: 'yyyy-MM-dd', section: 'Properties' },
+            { key: 'header_position', label: 'Header position', control: 'select', default: 'top', tier: 'required', options: ['top', 'none'] },
+            { key: 'sheet', label: 'Sheet', control: 'text', default: '', tier: 'optional', hint: 'Sheet name or index; blank = first sheet' },
+            { key: 'extension', label: 'Extension', control: 'text', default: 'xlsx,xls', tier: 'optional' },
+            { key: 'datetime_format', label: 'Date/time format', control: 'text', default: 'yyyy-MM-dd', tier: 'optional' },
+            { key: 'skip_rows', label: 'Skip leading rows', control: 'number', default: 0, tier: 'advanced' },
         ],
     },
     {
@@ -156,10 +170,10 @@ export const PARSER_TYPES: ParserTypeDef[] = [
         label: 'XML — XML file format',
         hierarchical: true,
         props: [
-            { key: 'extension', label: 'Extension', control: 'text', default: 'xml', section: 'Properties' },
-            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', section: 'Properties' },
-            { key: 'record_xpath', label: 'Record element (XPath)', control: 'text', default: '/*/*', section: 'Properties', hint: 'XPath selecting each record element' },
-            { key: 'namespace_aware', label: 'Namespace aware', control: 'checkbox', default: false, section: 'Properties' },
+            { key: 'record_xpath', label: 'Record element (XPath)', control: 'text', default: '/*/*', tier: 'required', hint: 'XPath selecting each record element' },
+            { key: 'extension', label: 'Extension', control: 'text', default: 'xml', tier: 'optional' },
+            { key: 'encoding', label: 'Encoding', control: 'text', default: 'utf-8', tier: 'optional' },
+            { key: 'namespace_aware', label: 'Namespace aware', control: 'checkbox', default: false, tier: 'advanced' },
         ],
     },
 ];
@@ -171,16 +185,42 @@ export function parserTypeDef(type: string | undefined): ParserTypeDef {
     return (type && BY_TYPE.get(type)) || BY_TYPE.get('dsv')!;
 }
 
-/** A type's own properties followed by the shared Sampling section — the full ordered field list. */
+/** A type's own properties followed by the shared Sampling knobs — the full ordered field list. */
 export function propsFor(type: string | undefined): ParserProp[] {
     return [...parserTypeDef(type).props, ...SAMPLING];
 }
 
-/** Distinct section headers for a type, in first-seen order (drives the form's section grouping). */
-export function sectionsFor(type: string | undefined): string[] {
-    const seen: string[] = [];
-    for (const p of propsFor(type)) if (!seen.includes(p.section)) seen.push(p.section);
-    return seen;
+const CONTROL_TO_ATTRIBUTE_TYPE: Partial<Record<ParserPropControl, AttributeType>> = {
+    text: 'string',
+    number: 'number',
+    checkbox: 'boolean',
+    select: 'select',
+    textarea: 'multiline',
+};
+
+/**
+ * The non-`module` properties of a type as {@link AttributeSpec}s for `<inspecto-schema-form>`. The
+ * `module` control (ASN.1 schema picker) is excluded — it needs a network-backed picker + upload, so the
+ * dialog renders it bespoke; see {@link modulePropFor}.
+ */
+export function toAttributeSpecs(type: string | undefined): AttributeSpec[] {
+    return propsFor(type)
+        .filter((p) => p.control !== 'module')
+        .map((p) => ({
+            key: p.key,
+            label: p.label,
+            type: CONTROL_TO_ATTRIBUTE_TYPE[p.control] ?? 'string',
+            tier: p.tier,
+            default: p.default,
+            options: p.options?.map((o) => ({ value: o, label: o })),
+            hint: p.hint,
+            dependsOn: p.dependsOn,
+        }));
+}
+
+/** The type's `module`-control property (the ASN.1 schema picker), if it has one. */
+export function modulePropFor(type: string | undefined): ParserProp | undefined {
+    return parserTypeDef(type).props.find((p) => p.control === 'module');
 }
 
 /** A short illustrative sample seeded into the content viewer so Test has something to chew on. */
