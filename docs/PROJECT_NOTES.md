@@ -186,7 +186,12 @@ touching `inspecto-ui/`.** Highlights (full detail there):
   bump `MOCK_STORE_KEY` whenever a seed pack's SHAPE changes or stale localStorage masks the new seeds.
 - **Config-attribute forms are schema-driven** — declare `AttributeSpec[]` (tier `required|optional|advanced`,
   `dependsOn`) in `inspecto/component-model` and render with `<inspecto-schema-form>` (demo at `/design`;
-  pilot: jobs `job-form.dialog`). Hand-build only bespoke sections (canvases, key/value arrays).
+  pilot: jobs `job-form.dialog`). Hand-build only bespoke sections (canvases, key/value arrays). `tier`
+  (visibility) and `required` (validation) are decoupled — `required?: boolean` defaults from the tier but
+  can be set explicitly, e.g. `tier:'required', required:false` for an always-visible optional field
+  (`widget-option-attributes.ts`). Duplicate-name guard on create is a local `uniqueNameValidator` attached
+  to the id control, skipped entirely when the field is locked on edit (jobs/dataset-editor/
+  dashboard-editor/widgets all use this shape).
 - **Optimistic mutations** — `optimisticMutate({apply,commit,reconcile,rollback,onError})` (`inspecto/api/
   optimistic.ts`); reassign arrays (`rows=[...]`) so the grid re-renders.
 - **G6 graph** — reuse `modules/admin/catalog/graph-view.component.ts` (`@Input data`, `@Output nodeClick`);
