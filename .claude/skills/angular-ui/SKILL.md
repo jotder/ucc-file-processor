@@ -58,7 +58,7 @@ Incremental evolution without breaking existing features.
 | **State** | **Angular signals** (local + service-held shared state) + **RxJS** for async/streams. **No NgRx / global store.** |
 | **UI** | Angular **Material (M2)** + **Tailwind** on the gamma/Fuse shell; **ag-Grid 35** tables; **Chart.js** charts; **AntV G6** graphs |
 | **Forms** | **Reactive** (`FormBuilder`/`FormGroup`/`Validators`) + inline `<mat-error>`. Template-driven `ngModel` is legacy — do not add it. **Config-attribute forms are schema-driven**: declare `AttributeSpec[]` (tier: required \| optional \| advanced) in `inspecto/component-model` and render with `<inspecto-schema-form>` (pilot: jobs `job-form.dialog`; demo: `/design`). Hand-build only genuinely bespoke sections (canvases, key/value arrays) |
-| **Testing** | **vitest** via `@angular/build:unit-test` (jsdom) + `TestBed`; **axe-core** a11y via `expectNoA11yViolations` |
+| **Testing** | **vitest** via `@angular/build:unit-test` (jsdom) + `TestBed`; **axe-core** a11y via `expectNoA11yViolations`. Two recurring compile/run traps: (a) **one `TestBed.configureTestingModule` per test** — a helper that configures TestBed must be called **once** per `it()`; to assert several states, build one fixture and mutate its `@Input`s/`detectChanges()` between assertions (don't call the helper twice). (b) **no spread over `NodeListOf`** — use `Array.from(el.querySelectorAll(...))`, not `[...el.querySelectorAll(...)]` (TS2488 under the test tsconfig). |
 | **Package mgr** | **npm** (`npm ci` in CI — keep `package-lock.json` in sync when adding deps) |
 
 `graphify` indexes only the Java backend — for UI work, read the TS directly (graphify won't orient you).

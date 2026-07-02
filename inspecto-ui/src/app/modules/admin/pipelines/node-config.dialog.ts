@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, ViewChild } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -16,8 +16,11 @@ import {
     ComponentType,
     PipelinesService,
 } from 'app/inspecto/api';
+import { AttributeSpec } from 'app/inspecto/component-model';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
 import { ComponentFormDialog, ComponentFormResult } from 'app/modules/admin/components/component-form.dialog';
+import { nodeAttributesFor } from './node-attributes';
 
 /**
  * Dialog data: the node to configure, its (already-resolved) type/category labels for the header, and the
@@ -39,8 +42,13 @@ export interface NodeConfigResult {
 /**
  * Per-processor configuration popup (NiFi "Configure Processor"). Opened by double-clicking a node on the
  * flow-editor canvas (or the inspector's Configure button); edits a single {@link AuthoredNode}'s
- * name/description/component-ref + scalar config rows and returns the updated node. Identity (`id`/`type`)
- * is fixed — it's shown read-only in the header. The canvas owns layout; this only touches the logical node.
+ * name/description/component-ref + config and returns the updated node. Identity (`id`/`type`) is fixed.
+ *
+ * Config is **schema-driven** when the node type has a declared attribute schema
+ * ({@link nodeAttributesFor}): the shared `<inspecto-schema-form>` renders required/optional/advanced
+ * tiers. Any config key outside that schema — and every key for a plugin/unknown type with no schema —
+ * lives in the collapsed **Additional config** free-form key/value editor, so nothing is ever lost
+ * (review: `docs/superpower/reviews/node-config.md`).
  */
 @Component({
     selector: 'app-node-config-dialog',
@@ -55,6 +63,7 @@ export interface NodeConfigResult {
         MatProgressSpinnerModule,
         MatSelectModule,
         InspectoAlertComponent,
+        InspectoSchemaFormComponent,
     ],
     template: `
         <h2 mat-dialog-title>Configure · {{ data.node.id }}</h2>
@@ -100,34 +109,51 @@ export interface NodeConfigResult {
                     </mat-form-field>
                 }
 
+                <!-- Schema-driven config for known node types (required up front, rest behind disclosure). -->
+                @if (specs().length) {
+                    <div class="mb-1 mt-2 text-xs font-semibold uppercase opacity-70">Config</div>
+                    <inspecto-schema-form [specs]="specs()" [initial]="schemaInitial"></inspecto-schema-form>
+                }
+
+                <!-- Additional / free-form config: the primary editor for unknown types, else a collapsed
+                     escape hatch for keys outside the schema. -->
                 <div class="mb-1 mt-2 flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase opacity-70">Config</span>
-                    <button mat-stroked-button type="button" (click)="addConfigRow()">
-                        <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-                        <span class="ml-1">Add</span>
+                    <button type="button" class="flex items-center gap-1 text-xs font-semibold uppercase opacity-70"
+                            [attr.aria-expanded]="freeFormOpen()" (click)="freeFormOpen.set(!freeFormOpen())">
+                        <mat-icon class="icon-size-4" [svgIcon]="freeFormOpen() ? 'heroicons_outline:chevron-down' : 'heroicons_outline:chevron-right'"></mat-icon>
+                        {{ specs().length ? 'Additional config' : 'Config' }}
+                        @if (configRows.length) { <span class="opacity-60">({{ configRows.length }})</span> }
                     </button>
-                </div>
-                <div formArrayName="config" class="space-y-2">
-                    @for (row of configRows.controls; track $index) {
-                        <div class="flex items-center gap-1" [formGroupName]="$index">
-                            <mat-form-field subscriptSizing="dynamic" class="flex-1">
-                                <mat-label>Key</mat-label>
-                                <input matInput formControlName="key" />
-                            </mat-form-field>
-                            <mat-form-field subscriptSizing="dynamic" class="flex-1">
-                                <mat-label>Value</mat-label>
-                                <input matInput formControlName="value" />
-                            </mat-form-field>
-                            <button mat-icon-button type="button" (click)="removeConfigRow($index)"
-                                    aria-label="Remove config entry">
-                                <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
-                            </button>
-                        </div>
-                    }
-                    @if (!configRows.length) {
-                        <p class="text-sm opacity-60">No config — add a key/value entry above.</p>
+                    @if (freeFormOpen()) {
+                        <button mat-stroked-button type="button" (click)="addConfigRow()">
+                            <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                            <span class="ml-1">Add</span>
+                        </button>
                     }
                 </div>
+                @if (freeFormOpen()) {
+                    <div formArrayName="config" class="space-y-2">
+                        @for (row of configRows.controls; track $index) {
+                            <div class="flex items-center gap-1" [formGroupName]="$index">
+                                <mat-form-field subscriptSizing="dynamic" class="flex-1">
+                                    <mat-label>Key</mat-label>
+                                    <input matInput formControlName="key" />
+                                </mat-form-field>
+                                <mat-form-field subscriptSizing="dynamic" class="flex-1">
+                                    <mat-label>Value</mat-label>
+                                    <input matInput formControlName="value" />
+                                </mat-form-field>
+                                <button mat-icon-button type="button" (click)="removeConfigRow($index)"
+                                        aria-label="Remove config entry">
+                                    <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                </button>
+                            </div>
+                        }
+                        @if (!configRows.length) {
+                            <p class="text-sm opacity-60">No extra config — add a key/value entry above.</p>
+                        }
+                    </div>
+                }
 
                 <!-- Run just this processor over a bounded sample (no production write) -->
                 <div class="pt-2">
@@ -167,12 +193,21 @@ export class NodeConfigDialog {
     private ref = inject(MatDialogRef<NodeConfigDialog, NodeConfigResult>);
     readonly data = inject<NodeConfigData>(MAT_DIALOG_DATA);
 
+    @ViewChild(InspectoSchemaFormComponent) private schemaForm?: InspectoSchemaFormComponent;
+
     /** Existing components of the bound kind (the picker's options); empty until loaded / when not binding. */
     readonly componentOptions = signal<ComponentDef[]>([]);
     /** Title-cased label for the binding field ("Grammar" / "Transform" / "Sink"). */
     readonly bindLabel = this.data.bindKind
         ? this.data.bindKind.charAt(0).toUpperCase() + this.data.bindKind.slice(1)
         : '';
+
+    /** The node type's declared attribute schema (empty ⇒ free-form editor only). */
+    readonly specs = computed<AttributeSpec[]>(() => nodeAttributesFor(this.data.node.type) ?? []);
+    /** Schema-form seed: the node's config entries whose key the schema knows. */
+    readonly schemaInitial: Record<string, unknown> = {};
+    /** Free-form editor open state — open by default when there's no schema, or when extra keys exist. */
+    readonly freeFormOpen = signal(false);
 
     testing = false;
     testResult: ComponentTestResult | null = null;
@@ -191,9 +226,19 @@ export class NodeConfigDialog {
             description: n.description ?? '',
             use: n.use ?? '',
         });
+        // Split the stored config: schema-known keys seed the schema-form; the rest become free-form rows.
+        const schemaKeys = new Set(this.specs().map((s) => s.key));
+        let extraKeys = 0;
         for (const [key, value] of Object.entries(n.config ?? {})) {
-            this.configRows.push(this.configRow(key, typeof value === 'string' ? value : JSON.stringify(value)));
+            if (schemaKeys.has(key)) {
+                this.schemaInitial[key] = value;
+            } else {
+                this.configRows.push(this.configRow(key, typeof value === 'string' ? value : JSON.stringify(value)));
+                extraKeys++;
+            }
         }
+        // Show the free-form editor up front only when it's the primary surface or already carries keys.
+        this.freeFormOpen.set(this.specs().length === 0 || extraKeys > 0);
         if (this.data.bindKind) this.loadComponents();
     }
 
@@ -273,8 +318,18 @@ export class NodeConfigDialog {
     }
 
     save(): void {
+        if (this.schemaForm && !this.schemaForm.validate()) return;
         const v = this.form.getRawValue();
         const config: Record<string, unknown> = {};
+        // Schema-driven values first (numbers coerced per spec), then free-form rows for keys outside it.
+        if (this.schemaForm) {
+            const values = this.schemaForm.value();
+            for (const s of this.specs()) {
+                let val = values[s.key];
+                if (s.type === 'number') val = val === '' || val == null ? null : Number(val);
+                if (val !== '' && val != null) config[s.key] = val;
+            }
+        }
         for (const row of v.config as { key: string; value: string }[]) {
             if (row.key && row.key.trim()) config[row.key.trim()] = row.value;
         }
