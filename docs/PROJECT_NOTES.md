@@ -179,8 +179,11 @@ touching `inspecto-ui/`.** Highlights (full detail there):
   "backend down" UX (don't add per-screen toasts; **503 ≠ backend-down**). Banner host needs
   `:host{display:contents}` so it doesn't steal layout width.
 - **Mocking** — ONE mock backend: `inspecto/mock/` (framework-free `MockStore`: per-Space, localStorage
-  `inspecto.mock.v1`, RefRule 409s, seed packs) behind the single `mockApiInterceptor`. New mock endpoints =
-  new handler there, **never** a new per-feature mock interceptor. 4xx replies must be `HttpErrorResponse`s.
+  `inspecto.mock.v2`, RefRule 409s, seed packs) behind the single `mockApiInterceptor` — ALL six feature mocks
+  absorbed (demo → connections → components → pipelines → ops → jobs handler order = old chain precedence).
+  New mock endpoints = new handler there, **never** a new per-feature mock interceptor. 4xx replies must be
+  `HttpErrorResponse`s. `simulator.ts` ticks Runs/Events/Alerts lazily per intercepted request (no timers);
+  bump `MOCK_STORE_KEY` whenever a seed pack's SHAPE changes or stale localStorage masks the new seeds.
 - **Config-attribute forms are schema-driven** — declare `AttributeSpec[]` (tier `required|optional|advanced`,
   `dependsOn`) in `inspecto/component-model` and render with `<inspecto-schema-form>` (demo at `/design`;
   pilot: jobs `job-form.dialog`). Hand-build only bespoke sections (canvases, key/value arrays).

@@ -13,8 +13,8 @@ export const environment = {
     apiBaseUrl: '/api',
     hmr: false,
     // Prototype-only: serve mocked connect/explore/test/sample for the connection workbench until the
-    // real library + control routes land (B2). The connectionMockInterceptor only intercepts the three
-    // new /connections/{id}/{probe,explore,sample} paths; flip false / remove the interceptor in B2.
+    // real library + control routes land (B2). Gates the connections handler in the unified mock store
+    // (inspecto/mock/); flip false in B2.
     mockConnectionProbe: true,
     // Prototype-only: serve the Pipelines graph editor fully offline (node-type palette, authored-flow
     // CRUD, dry-run, per-processor test) from an in-memory store. Flip false / remove the interceptor
@@ -22,18 +22,19 @@ export const environment = {
     mockFlows: true,
     // Prototype-only: serve the operational-intelligence surfaces (events / alerts / objects / enrichment)
     // fully offline from in-memory datasets, so the reusable query panel can be exercised with no backend.
-    // Flip false / remove the opsMockInterceptor once these surfaces are wired to the real backend.
+    // Gates the ops handler in the unified mock store; flip false once wired to the real backend.
     mockOps: true,
     // Prototype-only: serve Studio's new component kinds (dataset/chart/dashboard) from an in-memory store
     // until the backend storage enum is widened. Flip false once wired to the real backend (gates the studio kinds in the unified mock store).
     mockStudio: true,
     // Prototype-only: serve the Scheduler's write actions (create/edit/delete/enable/disable/reschedule) and
-    // per-run logs/events from an in-memory store. The read endpoints (list/runs/trigger) already exist on the
-    // backend; the mock seeds jobs so the page works offline. Flip false / remove jobsMockInterceptor once the
-    // real Java endpoints land (see the plan's follow-on).
+    // per-run logs/events. The read endpoints (list/runs/trigger) already exist on the backend; the mock
+    // seeds jobs so the page works offline. Gates the jobs handler in the unified mock store; flip false
+    // once the real Java endpoints land (see the plan's follow-on).
     mockJobs: true,
     // Master demo-mode flag: mocks every remaining endpoint (health, status, pipelines, sources,
     // notifications, catalog, diagnoses, config) so the full UI works with no backend at all.
+    // Gates the demo handler in the unified mock store (inspecto/mock/).
     mockDemo: true,
     apiVersion: '/api/v1',
     basePath: '/',

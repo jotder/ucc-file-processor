@@ -5,13 +5,18 @@ import { NODE_KIND_COLORS } from '../../theme/chart-tokens';
 import { componentCollection } from '../handlers/components.handler';
 import { PIPELINES_COLL } from '../handlers/pipelines.handler';
 import { MockStore } from '../mock-store';
+import { seedOperations } from './operations.seed';
 
 /**
- * The default seed pack — the consolidated seeds formerly baked into the studio / pipeline mock
- * interceptors, applied once per space by `MockStore.ensureSeeded`. Space-Template seed packs
- * (Telecom RA / FMS / Financial Audit / Link Analysis, plan W5) will sit alongside this one.
+ * The default seed pack — the consolidated seeds formerly baked into the studio / pipeline / jobs /
+ * ops / connection / demo mock interceptors, applied once per space by `MockStore.ensureSeeded`.
+ * Space-Template seed packs (Telecom RA / FMS / Financial Audit / Link Analysis, plan W5) will sit
+ * alongside this one.
  */
 export function seedDefaultSpace(store: MockStore, space: string): void {
+    // Operations surface (jobs/runs · events · alerts · objects · enrichment · connections · notifications).
+    seedOperations(store, space);
+
     // ── Studio: a demo dataset so /studio/datasets isn't empty ─────────────────────────────────
     putComponent(store, space, 'dataset', 'cdr_sample', {
         name: 'cdr_sample',

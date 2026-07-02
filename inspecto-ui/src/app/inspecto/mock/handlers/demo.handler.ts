@@ -1,15 +1,31 @@
-import { HttpEvent, HttpInterceptorFn, HttpResponse } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
-import { environment } from '../../../environments/environment';
+import { MockFlags } from '../mock-flags';
+import { json, match, MockHandler, MockRequest } from '../mock-http';
+import { MockStore } from '../mock-store';
 
 /**
- * DEMO-ONLY mock for every endpoint not already covered by the feature-specific mock interceptors
- * (connection, flow, ops, studio, jobs). Provides realistic seed data so the full UI works offline
- * for stakeholder demos. Gated on {@code environment.mockDemo}.
+ * The demo catch-all mock domain — the port of the old `demo-mock` interceptor: every endpoint not
+ * owned by a feature-specific handler (health, status, report, metrics, sources, pipeline runtime
+ * views, notifications, catalog, diagnoses, config specs) so the full UI works offline for
+ * stakeholder demos. Notifications now live in the {@link MockStore} (read / read-all / delete
+ * genuinely round-trip and survive a reload); the read-only reporting surfaces stay canned,
+ * regenerated fresh each app boot. Registered FIRST, matching the old interceptor-chain position.
  */
 
-const LATENCY_MS = 150;
+export const NOTIFICATIONS_COLL = 'notification';
+
+interface Notification {
+    id: string;
+    ts: number;
+    timestamp: string;
+    category: string;
+    sourceType: string;
+    sourceId: string;
+    title: string;
+    body: string;
+    state: 'UNREAD' | 'READ';
+    readAt: number | null;
+}
+
 const NOW = Date.now();
 const PIPELINES = ['cdr_ingest', 'subscriber_load', 'voucher_etl', 'billing_daily', 'fraud_events'];
 
@@ -208,44 +224,7 @@ PIPELINES.forEach((name, i) => {
     };
 });
 
-// ── notifications ───────────────────────────────────────────────────────────
-
-const NOTIFICATIONS = Array.from({ length: 8 }, (_, i) => {
-    const cats = ['PIPELINE', 'JOB', 'OPS', 'SECURITY', 'PIPELINE'];
-    const titles = [
-        'Pipeline cdr_ingest batch failed',
-        'Job subscriber_rollup completed',
-        'High error rate on fraud_events',
-        'Unauthorized route access attempt',
-        'File quarantined in voucher_etl',
-        'Job billing_report succeeded',
-        'SLA breach on subscriber_load',
-        'Pipeline fraud_events recovered',
-    ];
-    const bodies = [
-        'Batch cdr_ingest-b1008 failed: 1 file rejected (parse_error). 0 of 1200 rows committed.',
-        'Job subscriber_rollup finished in 4.2s. 18,400 rows processed.',
-        'Error rate on fraud_events exceeded 5% threshold (currently 7.3%) over the last 15 minutes.',
-        'POST /runs/unknown/trigger returned 404. Actor: appUser, IP: 192.168.1.42.',
-        'File voucher_bad_0.csv quarantined in voucher_etl: schema_mismatch.',
-        'Job billing_report completed successfully. 3 output files, 24,000 rows.',
-        'Pipeline subscriber_load has not committed a batch in over 2 hours (SLA: 1h).',
-        'Pipeline fraud_events resumed normal operation. Error rate dropped to 1.2%.',
-    ];
-    const ts = NOW - i * 1_800_000;
-    return {
-        id: `notif-${100 + i}`,
-        ts,
-        timestamp: new Date(ts).toISOString(),
-        category: cats[i % cats.length],
-        sourceType: i % 2 === 0 ? 'BATCH_FAILED' : 'JOB_SUCCEEDED',
-        sourceId: PIPELINES[i % PIPELINES.length],
-        title: titles[i],
-        body: bodies[i],
-        state: i < 3 ? 'UNREAD' : 'READ',
-        readAt: i < 3 ? null : ts + 600_000,
-    };
-});
+// ── notifications (seed pack — applied per space via seeds/default-space.seed) ──
 
 const NOTIFICATION_PREFS = [
     { category: 'PIPELINE', label: 'Pipeline', critical: false, available: true, channels: { inApp: true, email: false } },
@@ -375,87 +354,135 @@ const DIAGNOSES_RE = /\/diagnoses$/;
 const CONFIG_SPEC = /\/config\/spec\/([^/]+)$/;
 const VALIDATE = /\/validate$/;
 
-export const demoMockInterceptor: HttpInterceptorFn = (req, next) => {
-    if (!(environment as { mockDemo?: boolean }).mockDemo) return next(req);
+export function demoHandler(flags: MockFlags): MockHandler {
+    return (req: MockRequest, store: MockStore) => {
+        if (!flags.mockDemo) return undefined;
+        const { method, url, space } = req;
+        let m: string[] | null;
 
-    let m: RegExpMatchArray | null;
+        // ── health / status / report ──
+        if (method === 'GET' && HEALTH.test(url)) return json({ status: 'UP' });
+        if (method === 'GET' && READY_RE.test(url)) return json(READY);
+        if (method === 'GET' && STATUS.test(url)) return json(STATUS_REPORT);
+        if (method === 'GET' && REPORT.test(url)) return json(SERVICE_REPORT);
+        if (method === 'GET' && METRICS.test(url) && !METRICS_ACQ.test(url)) return json(METRICS_TEXT);
+        if (method === 'GET' && METRICS_ACQ.test(url)) return json(ACQ_METRICS);
 
-    // ── health / status / report ──
-    if (req.method === 'GET' && HEALTH.test(req.url)) return reply({ status: 'UP' });
-    if (req.method === 'GET' && READY_RE.test(req.url)) return reply(READY);
-    if (req.method === 'GET' && STATUS.test(req.url)) return reply(STATUS_REPORT);
-    if (req.method === 'GET' && REPORT.test(req.url)) return reply(SERVICE_REPORT);
-    if (req.method === 'GET' && METRICS.test(req.url) && !METRICS_ACQ.test(req.url))
-        return reply(METRICS_TEXT);
-    if (req.method === 'GET' && METRICS_ACQ.test(req.url)) return reply(ACQ_METRICS);
+        // ── sources ──
+        if (method === 'GET' && SOURCES_RE.test(url)) return json(SOURCES);
 
-    // ── sources ──
-    if (req.method === 'GET' && SOURCES_RE.test(req.url)) return reply(SOURCES);
+        // ── pipelines ──
+        if (method === 'GET' && PIPELINES_LIST.test(url)) return json(PIPELINE_VIEWS);
+        if (method === 'GET' && (m = match(url, PIPELINE_BATCHES))) return json(batches(m[1]));
+        if (method === 'GET' && (m = match(url, PIPELINE_FILES))) return json(files(m[1]));
+        if (method === 'GET' && (m = match(url, PIPELINE_LINEAGE))) return json(lineage(m[1]));
+        if (method === 'GET' && (m = match(url, PIPELINE_QUARANTINE))) return json(quarantine(m[1]));
+        if (method === 'GET' && (m = match(url, PIPELINE_PENDING))) {
+            const name = m[1];
+            return json(INBOX_STATUSES[name] ?? { pipeline: name, inbox: `inboxes/${name}`, pending: 0, running: false });
+        }
+        if (method === 'GET' && (m = match(url, PIPELINE_REPORT))) {
+            const name = m[1];
+            return json(SERVICE_REPORT.pipelines.find((p) => p.pipeline === name) ?? SERVICE_REPORT.pipelines[0]);
+        }
+        if (method === 'GET' && match(url, PIPELINE_COMMITS)) return json(['batch-1000', 'batch-1001', 'batch-1002']);
+        if (method === 'POST' && match(url, PIPELINE_TRIGGER)) return json({ total: 3, failed: 0, status: 'triggered' });
+        if (method === 'POST' && (m = match(url, PIPELINE_PAUSE))) return json({ pipeline: m[1], paused: true });
+        if (method === 'POST' && (m = match(url, PIPELINE_RESUME))) return json({ pipeline: m[1], paused: false });
 
-    // ── pipelines ──
-    if (req.method === 'GET' && PIPELINES_LIST.test(req.url)) return reply(PIPELINE_VIEWS);
-    if (req.method === 'GET' && (m = req.url.match(PIPELINE_BATCHES))) return reply(batches(decodeURIComponent(m[1])));
-    if (req.method === 'GET' && (m = req.url.match(PIPELINE_FILES))) return reply(files(decodeURIComponent(m[1])));
-    if (req.method === 'GET' && (m = req.url.match(PIPELINE_LINEAGE))) return reply(lineage(decodeURIComponent(m[1])));
-    if (req.method === 'GET' && (m = req.url.match(PIPELINE_QUARANTINE))) return reply(quarantine(decodeURIComponent(m[1])));
-    if (req.method === 'GET' && (m = req.url.match(PIPELINE_PENDING))) {
-        const name = decodeURIComponent(m[1]);
-        return reply(INBOX_STATUSES[name] ?? { pipeline: name, inbox: `inboxes/${name}`, pending: 0, running: false });
-    }
-    if (req.method === 'GET' && (m = req.url.match(PIPELINE_REPORT))) {
-        const name = decodeURIComponent(m[1]);
-        const pr = SERVICE_REPORT.pipelines.find((p) => p.pipeline === name) ?? SERVICE_REPORT.pipelines[0];
-        return reply(pr);
-    }
-    if (req.method === 'GET' && (m = req.url.match(PIPELINE_COMMITS))) return reply(['batch-1000', 'batch-1001', 'batch-1002']);
-    if (req.method === 'POST' && (m = req.url.match(PIPELINE_TRIGGER)))
-        return reply({ total: 3, failed: 0, status: 'triggered' });
-    if (req.method === 'POST' && (m = req.url.match(PIPELINE_PAUSE)))
-        return reply({ pipeline: decodeURIComponent(m[1]), paused: true });
-    if (req.method === 'POST' && (m = req.url.match(PIPELINE_RESUME)))
-        return reply({ pipeline: decodeURIComponent(m[1]), paused: false });
+        // ── notifications (store-backed) ──
+        if (method === 'GET' && NOTIF_STREAM.test(url)) return undefined; // SSE — let it pass (no server = silent fail)
+        if (method === 'GET' && NOTIF_UNREAD.test(url)) {
+            return json({ count: allNotifications(store, space).filter((n) => n.state === 'UNREAD').length });
+        }
+        if (method === 'GET' && NOTIF_LIST.test(url)) return json(allNotifications(store, space));
+        if (method === 'POST' && NOTIF_READ_ALL.test(url)) {
+            const all = allNotifications(store, space);
+            for (const n of all.filter((x) => x.state === 'UNREAD')) {
+                store.put(space, NOTIFICATIONS_COLL, n.id, { ...n, state: 'READ', readAt: Date.now() });
+            }
+            return json({ updated: all.length });
+        }
+        if (method === 'POST' && (m = match(url, NOTIF_READ))) {
+            const n = store.get<Notification>(space, NOTIFICATIONS_COLL, m[1]);
+            if (n) store.put(space, NOTIFICATIONS_COLL, n.id, { ...n, state: 'READ', readAt: Date.now() });
+            return json({ ok: true });
+        }
+        if (method === 'DELETE' && (m = match(url, NOTIF_DELETE))) {
+            store.delete(space, NOTIFICATIONS_COLL, m[1]);
+            return json({ ok: true });
+        }
+        if (method === 'GET' && NOTIF_PREFS.test(url)) return json(NOTIFICATION_PREFS);
+        if (method === 'PUT' && NOTIF_PREFS.test(url)) return json(NOTIFICATION_PREFS);
 
-    // ── notifications ──
-    if (req.method === 'GET' && NOTIF_STREAM.test(req.url)) return next(req); // SSE — let it pass (no server = silent fail)
-    if (req.method === 'GET' && NOTIF_UNREAD.test(req.url))
-        return reply({ count: NOTIFICATIONS.filter((n) => n.state === 'UNREAD').length });
-    if (req.method === 'GET' && NOTIF_LIST.test(req.url)) return reply(NOTIFICATIONS);
-    if (req.method === 'POST' && NOTIF_READ_ALL.test(req.url)) return reply({ updated: NOTIFICATIONS.length });
-    if (req.method === 'POST' && (m = req.url.match(NOTIF_READ))) return reply({ ok: true });
-    if (req.method === 'DELETE' && (m = req.url.match(NOTIF_DELETE))) return reply({ ok: true });
-    if (req.method === 'GET' && NOTIF_PREFS.test(req.url)) return reply(NOTIFICATION_PREFS);
-    if (req.method === 'PUT' && NOTIF_PREFS.test(req.url)) return reply(NOTIFICATION_PREFS);
+        // ── catalog ──
+        if (method === 'GET' && CATALOG_KPIS_RE.test(url)) return json(CATALOG_KPIS);
+        if (method === 'GET' && CATALOG_STREAMS_RE.test(url)) return json(CATALOG_STREAMS);
+        if (method === 'GET' && CATALOG_TABLES_RE.test(url)) return json(CATALOG_TABLES);
+        if (method === 'GET' && (m = match(url, CATALOG_NODE))) {
+            const id = m[1];
+            const all = [...CATALOG_TABLES, ...CATALOG_STREAMS];
+            const node = all.find((t) => t.id === id) ?? all[0];
+            const edges = CATALOG_EDGES.filter((e) => e.from === id || e.to === id);
+            const neighborIds = new Set(edges.flatMap((e) => [e.from, e.to]));
+            const nodes = all.filter((n) => neighborIds.has(n.id) && n.id !== id);
+            return json({ node, neighbors: { nodes, edges } });
+        }
+        if (method === 'GET' && CATALOG_GRAPH.test(url)) {
+            return json({ nodes: [...CATALOG_TABLES, ...CATALOG_STREAMS], edges: CATALOG_EDGES });
+        }
 
-    // ── catalog ──
-    if (req.method === 'GET' && CATALOG_KPIS_RE.test(req.url)) return reply(CATALOG_KPIS);
-    if (req.method === 'GET' && CATALOG_STREAMS_RE.test(req.url)) return reply(CATALOG_STREAMS);
-    if (req.method === 'GET' && CATALOG_TABLES_RE.test(req.url)) return reply(CATALOG_TABLES);
-    if (req.method === 'GET' && (m = req.url.match(CATALOG_NODE))) {
-        const id = decodeURIComponent(m[1]);
-        const all = [...CATALOG_TABLES, ...CATALOG_STREAMS];
-        const node = all.find((t) => t.id === id) ?? all[0];
-        const edges = CATALOG_EDGES.filter((e) => e.from === id || e.to === id);
-        const neighborIds = new Set(edges.flatMap((e) => [e.from, e.to]));
-        const nodes = all.filter((n) => neighborIds.has(n.id) && n.id !== id);
-        return reply({ node, neighbors: { nodes, edges } });
-    }
-    if (req.method === 'GET' && CATALOG_GRAPH.test(req.url))
-        return reply({ nodes: [...CATALOG_TABLES, ...CATALOG_STREAMS], edges: CATALOG_EDGES });
+        // ── diagnoses ──
+        if (method === 'GET' && DIAGNOSES_RE.test(url)) return json(DIAGNOSES);
 
-    // ── diagnoses ──
-    if (req.method === 'GET' && DIAGNOSES_RE.test(req.url)) return reply(DIAGNOSES);
+        // ── config ──
+        if (method === 'GET' && (m = match(url, CONFIG_SPEC))) return json(CONFIG_SPECS[m[1]] ?? CONFIG_SPECS['pipeline']);
+        if (method === 'POST' && VALIDATE.test(url)) return json({ clean: true, findings: [], warnings: [] });
 
-    // ── config ──
-    if (req.method === 'GET' && (m = req.url.match(CONFIG_SPEC))) {
-        const type = decodeURIComponent(m[1]);
-        return reply(CONFIG_SPECS[type] ?? CONFIG_SPECS['pipeline']);
-    }
-    if (req.method === 'POST' && VALIDATE.test(req.url))
-        return reply({ clean: true, findings: [], warnings: [] });
+        return undefined;
+    };
+}
 
-    return next(req);
-};
+function allNotifications(store: MockStore, space: string): Notification[] {
+    return store.list<Notification>(space, NOTIFICATIONS_COLL).sort((a, b) => b.ts - a.ts);
+}
 
-function reply<T>(body: T): Observable<HttpEvent<unknown>> {
-    return of(new HttpResponse({ status: 200, body })).pipe(delay(LATENCY_MS));
+/** The notification seed rows — called from the default seed pack. */
+export function seedNotifications(now: number): Notification[] {
+    const cats = ['PIPELINE', 'JOB', 'OPS', 'SECURITY', 'PIPELINE'];
+    const titles = [
+        'Pipeline cdr_ingest batch failed',
+        'Job subscriber_rollup completed',
+        'High error rate on fraud_events',
+        'Unauthorized route access attempt',
+        'File quarantined in voucher_etl',
+        'Job billing_report succeeded',
+        'SLA breach on subscriber_load',
+        'Pipeline fraud_events recovered',
+    ];
+    const bodies = [
+        'Batch cdr_ingest-b1008 failed: 1 file rejected (parse_error). 0 of 1200 rows committed.',
+        'Job subscriber_rollup finished in 4.2s. 18,400 rows processed.',
+        'Error rate on fraud_events exceeded 5% threshold (currently 7.3%) over the last 15 minutes.',
+        'POST /runs/unknown/trigger returned 404. Actor: appUser, IP: 192.168.1.42.',
+        'File voucher_bad_0.csv quarantined in voucher_etl: schema_mismatch.',
+        'Job billing_report completed successfully. 3 output files, 24,000 rows.',
+        'Pipeline subscriber_load has not committed a batch in over 2 hours (SLA: 1h).',
+        'Pipeline fraud_events resumed normal operation. Error rate dropped to 1.2%.',
+    ];
+    return titles.map((title, i) => {
+        const ts = now - i * 1_800_000;
+        return {
+            id: `notif-${100 + i}`,
+            ts,
+            timestamp: new Date(ts).toISOString(),
+            category: cats[i % cats.length],
+            sourceType: i % 2 === 0 ? 'BATCH_FAILED' : 'JOB_SUCCEEDED',
+            sourceId: PIPELINES[i % PIPELINES.length],
+            title,
+            body: bodies[i],
+            state: i < 3 ? 'UNREAD' : 'READ',
+            readAt: i < 3 ? null : ts + 600_000,
+        };
+    });
 }

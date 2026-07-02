@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MockStore } from './mock-store';
+import { MOCK_STORE_KEY, MockStore } from './mock-store';
 import { memoryStorageAdapter } from './storage';
 
 interface Widget {
@@ -28,10 +28,10 @@ describe('MockStore', () => {
 
     it('discards a corrupt snapshot instead of failing', () => {
         const disk = memoryStorageAdapter();
-        disk.set('inspecto.mock.v1', '{not json');
+        disk.set(MOCK_STORE_KEY, '{not json');
         const store = new MockStore(disk);
         expect(store.list('default', 'job')).toEqual([]);
-        expect(disk.get('inspecto.mock.v1')).toBeNull(); // corrupt entry removed
+        expect(disk.get(MOCK_STORE_KEY)).toBeNull(); // corrupt entry removed
     });
 
     it('seeds a space exactly once, including across reloads', () => {
@@ -76,7 +76,7 @@ describe('MockStore', () => {
         const store = new MockStore(disk);
         store.ensureSeeded('default', (s, sp) => s.put(sp, 'dataset', 'a', { name: 'a' }));
         store.reset();
-        expect(disk.get('inspecto.mock.v1')).toBeNull();
+        expect(disk.get(MOCK_STORE_KEY)).toBeNull();
         let reseeded = false;
         store.ensureSeeded('default', () => (reseeded = true));
         expect(reseeded).toBe(true);

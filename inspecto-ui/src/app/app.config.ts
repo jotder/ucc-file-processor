@@ -21,11 +21,7 @@ import { TranslocoHttpLoader } from './core/transloco/transloco.http-loader';
 import { AUTH_HTTP_CLIENT } from './modules/auth/auth-http-client.token';
 import { errorInterceptor as inspectoErrorInterceptor } from './inspecto/api/error.interceptor';
 import { spaceInterceptor } from './inspecto/api/space.interceptor';
-import { connectionMockInterceptor } from './inspecto/api/connection-mock.interceptor';
 import { mockApiInterceptor } from './inspecto/mock';
-import { opsMockInterceptor } from './inspecto/api/ops-mock.interceptor';
-import { jobsMockInterceptor } from './inspecto/api/jobs-mock.interceptor';
-import { demoMockInterceptor } from './inspecto/api/demo-mock.interceptor';
 
 export const appConfig: ApplicationConfig = {
     providers: [
@@ -36,12 +32,11 @@ export const appConfig: ApplicationConfig = {
         // scope each call to the active space (rewrites /api/<path> → /api/spaces/<id>/<path>), then the
         // error/connectivity tracker observes the result. No bearer token is attached, no 401 handling.
         provideHttpClient(
-            // connectionMockInterceptor is first so it short-circuits the mocked connection-workbench
-            // routes (probe/explore/sample) before the space rewrite; prototype-only, see the flag.
             // mockApiInterceptor is THE unified mock backend (inspecto/mock/): a persistent, per-space
-            // MockStore behind framework-free domain handlers. It has absorbed studio-mock and
-            // pipeline-mock; the remaining feature mocks migrate onto it domain by domain (plan W1).
-            withInterceptors([demoMockInterceptor, connectionMockInterceptor, mockApiInterceptor, opsMockInterceptor, jobsMockInterceptor, spaceInterceptor, inspectoErrorInterceptor])
+            // MockStore behind framework-free domain handlers (demo, connections, components, pipelines,
+            // ops, jobs — plan W1) plus the liveness simulator. It runs before the space rewrite;
+            // per-domain environment.mock* flags gate each handler.
+            withInterceptors([mockApiInterceptor, spaceInterceptor, inspectoErrorInterceptor])
         ),
 
         // Interceptor-free HttpClient for the vendored template AuthService only.
