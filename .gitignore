@@ -1,5 +1,11 @@
 # Project exclude paths
-/.claude/
+# .claude/ IS tracked (shared team Claude Code setup: skills, agents, hooks, settings, maps) —
+# only session-local and machine-local state stays ignored:
+/.claude/settings.local.json
+/.claude/sessions/
+/.claude/worktrees/
+/.claude/completions/
+/.claude/templates/
 /.idea/
 /backup/
 /database/

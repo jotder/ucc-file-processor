@@ -88,6 +88,27 @@ produced for this project — must live **under the repo**, so they are IDE-read
 - **Live working state / hand-off** → `SESSION_STATUS.local.md` (gitignored but in-repo).
 - The user's auto-memory index is a thin pointer only; durable project knowledge belongs in the repo.
 
+## Shared team sandbox — shifts & handover
+
+This checkout is shared by a team working in shifts under one account. **All Claude Code setup —
+skills, agents, hooks, settings — lives in repo `.claude/`, never in the user profile**, so every
+shift gets the identical environment.
+
+- **Session-per-shift.** Resume from `SESSION_STATUS.local.md` and `.claude/sessions/snapshot.md`
+  (auto-written on every stop), not from old conversations. At shift end apply the `handoff` skill
+  and end the session. Mid-task compaction is the failure mode — externalize state instead.
+- Commits use the shared identity; work lands on `master` per the `release-workflow` skill — no
+  per-user branches or PRs.
+
+## Model & effort routing (token economy)
+
+- **Delegate, don't read raw:** broad code searches → `Explore` (pass `model: "haiku"` for pure
+  locating) or `backend-explorer`; builds/tests → `verify-runner`. Never parse full Maven/npm logs
+  in the main thread.
+- Reserve the strongest model + extended thinking ("think hard") for architecture and design
+  decisions; routine edits and mechanical refactors don't need it.
+- Big specs/docs go into `docs/` files and are referenced by path — never pasted inline into prompts.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
