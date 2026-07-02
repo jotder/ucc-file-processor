@@ -45,10 +45,13 @@ before code):
 
 ## 2. Platform workstreams (foundations — everything else depends on these)
 
-### W1 — Unified stateful mock store *(replaces 7 scattered interceptors)*
+### W1 — Unified stateful mock store *(replaces 7 scattered interceptors)* — ✅ SHIPPED 2026-07-02
 
-Today: `connection-mock`, `demo-mock`, `jobs-mock`, `ops-mock`, `pipeline-mock`, `studio-mock`,
-`space.interceptor` — inconsistent, all ephemeral, no cross-entity integrity.
+**Done** (`ae36be3` Wave-0 core + `7bbc56d` full migration, on `origin/master`): all six feature mocks
+(`studio`, `pipeline`, `demo`, `connection`, `ops`, `jobs`) are handlers over the persistent per-Space
+`MockStore` (`inspecto/mock/`), incl. the liveness simulator (lazy per-request tick — Runs complete,
+Events/Alerts append) and integrity 409s. `space.interceptor` stays (header injection), as planned.
+Connections CRUD is store-backed with the real ConnectionRoutes contract (`087d0e9`).
 
 - `inspecto/mock/` (framework-free core + one thin `HttpInterceptorFn`):
   - **Entity store**: per-Space collections keyed by Component kind + ops entities (events, runs, alerts, incidents, audit entries), CRUD with referential-integrity hooks (deleting a Dataset flags bound Widgets; deleting a Connection blocks Sources referencing it → mirrors the real 409 behavior).
