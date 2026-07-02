@@ -1,4 +1,11 @@
 {
+  "enabledPlugins": {
+    "apollo@inline": false,
+    "brand-voice@inline": false,
+    "common-room@inline": false,
+    "human-resources@inline": false,
+    "operations@inline": false
+  },
   "permissions": {
     "allow": [
       "Bash(mvn:*)",

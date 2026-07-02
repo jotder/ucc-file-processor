@@ -56,8 +56,10 @@ in shifts under one account; no per-user commits/branches/PRs; all Claude setup 
   manually to `.claude/settings.json` permissions.allow if wanted (deny on `git push --force` is in place).
 - **Worktree `quirky-lalande-a4a696`** — file-locked (open handle?); remove with
   `git worktree remove --force .claude/worktrees/quirky-lalande-a4a696` once nothing holds it.
-- **Disable unused plugins** (apollo, common-room, brand-voice, human-resources, operations — ≈0 uses;
-  they inject dozens of skill descriptions per session). Interactive `claude` → plugin settings.
+- ~~Disable unused plugins~~ — done 2026-07-02 via `enabledPlugins: false` entries in
+  `.claude/settings.json` (apollo/brand-voice/common-room/human-resources/operations@inline; the
+  harness's own `pluginUsage` counters confirmed 0 uses each). Takes effect on new sessions —
+  verify the skill list shrank next shift.
 - Consider `/model opusplan` as the daily default (Opus plans, Sonnet executes).
 
 ## Operating rules going forward (summary)
