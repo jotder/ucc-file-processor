@@ -62,7 +62,7 @@ const GRAINS: TimeGrain[] = ['auto', 'day', 'week', 'month'];
                         </mat-form-field>
                     }
 
-                    @if (control.isMeasure && !control.multiple) {
+                    @if (control.isMeasure && !control.multiple && !isExpressionSelected(control.channel)) {
                         <mat-form-field class="w-32" subscriptSizing="dynamic">
                             <mat-label>Aggregation</mat-label>
                             <mat-select
@@ -118,14 +118,23 @@ export class ExploreControlsComponent {
     }
 
     onField(control: ControlSpec, field: string | null): void {
-        const cv: ChannelValue[] = field
-            ? [{ field, agg: control.isMeasure ? this.aggFor(control.channel) : undefined }]
-            : [];
+        const cv: ChannelValue[] = field ? [this.toChannelValue(control, field)] : [];
         this.patch(control.channel, cv);
     }
     onFields(control: ControlSpec, fields: string[]): void {
-        const cv: ChannelValue[] = fields.map((field) => ({ field, agg: control.isMeasure ? 'sum' : undefined }));
-        this.patch(control.channel, cv);
+        this.patch(control.channel, fields.map((field) => this.toChannelValue(control, field)));
+    }
+
+    /** A named-measure field carries its expression (no aggregation applies); a column gets the default agg. */
+    private toChannelValue(control: ControlSpec, field: string): ChannelValue {
+        const expression = this.fields().find((f) => f.name === field)?.expression;
+        if (expression) return { field, expression };
+        return { field, agg: control.isMeasure ? this.aggFor(control.channel) : undefined };
+    }
+
+    /** Hide the aggregation picker for named measures — the expression already aggregates. */
+    isExpressionSelected(channel: ControlSpec['channel']): boolean {
+        return !!this.values()[channel]?.[0]?.expression;
     }
     onAgg(channel: ControlSpec['channel'], agg: Aggregation): void {
         const cur = this.values()[channel]?.[0];

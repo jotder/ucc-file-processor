@@ -19,6 +19,9 @@ export interface VizField {
     label?: string;
     /** Distinct-value count hint, when known — feeds Show-Me's cardinality-aware scoring. */
     cardinality?: number;
+    /** A dataset **named measure** — this field is a ready-made aggregate SQL expression, not a column;
+     *  channels carrying it use the expression verbatim and skip the aggregation picker. */
+    expression?: string;
 }
 
 /** Aggregation a measure channel applies to its column (offline: compiled to AlaSQL aggregate fns). */
@@ -71,6 +74,8 @@ export interface ChannelValue {
     agg?: Aggregation;
     /** Temporal channels only — the time bucket to group into. */
     grain?: TimeGrain;
+    /** Named-measure fields only — the measure's aggregate SQL, used verbatim instead of `agg(field)`. */
+    expression?: string;
 }
 
 /** The current field-mapper state: channel → assignment(s). */

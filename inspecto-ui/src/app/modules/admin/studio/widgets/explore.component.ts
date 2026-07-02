@@ -79,13 +79,23 @@ export class ExploreComponent implements OnInit {
 
     readonly fields = computed<VizField[]>(() => {
         const rows = this.rows();
-        return (this.dataset()?.columns ?? []).map((c) => ({
+        const ds = this.dataset();
+        const columns: VizField[] = (ds?.columns ?? []).map((c) => ({
             name: c.name,
             type: c.type,
             role: c.role,
             label: c.label,
             cardinality: c.role === 'dimension' ? distinctCount(rows, c.name) : undefined,
         }));
+        // Named measures join the field list as ready-made aggregates (expression carried verbatim).
+        const measures: VizField[] = (ds?.measures ?? []).map((m) => ({
+            name: m.id,
+            type: 'number',
+            role: 'measure',
+            label: m.label,
+            expression: m.expression,
+        }));
+        return [...columns, ...measures];
     });
     readonly recommended = computed<VizPlugin[]>(() => (this.dataset() ? recommend(this.fields()) : []));
     readonly plugin = computed<VizPlugin | null>(() => getViz(this.vizType()) ?? null);

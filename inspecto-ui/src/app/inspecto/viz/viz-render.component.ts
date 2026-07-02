@@ -102,6 +102,11 @@ export class VizRenderComponent {
             const value = Math.max(0, Math.min(100, this.props().value ?? 0));
             return { labels: ['Value', 'Remaining'], datasets: [{ data: [value, 100 - value], backgroundColor: [color(0), GAUGE_TRACK] }] };
         }
+        if (plugin.meta.type === 'scatter') {
+            const [xs, ys] = p.series;
+            const points = (xs?.data ?? []).map((x, i) => ({ x, y: ys?.data[i] ?? 0 }));
+            return { labels: p.labels, datasets: [{ label: 'Scatter', data: points, backgroundColor: p.labels.map((_, i) => color(i)) }] };
+        }
         if (plugin.meta.type === 'bubble') {
             const [xs, ys, sizes] = p.series;
             const maxSize = Math.max(1, ...(sizes?.data ?? [0]));
@@ -145,8 +150,10 @@ export class VizRenderComponent {
               : undefined;
         const axis = opts?.axis;
         const stacked = opts?.stacked;
+        const isFunnel = this.plugin().meta.type === 'funnel';
         return {
             ...(isGauge ? { circumference: 180, rotation: 270, cutout: '70%' } : {}),
+            ...(isFunnel ? { indexAxis: 'y' as const } : {}),
             plugins: pluginsOverride,
             scales:
                 axis?.xTitle || axis?.yTitle || stacked

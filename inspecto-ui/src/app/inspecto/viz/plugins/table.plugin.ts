@@ -1,4 +1,4 @@
-import { buildMeasure } from '../query-spec';
+import { channelMeasure } from '../query-spec';
 import { ControlValues, QuerySpec, VizPlugin, VizProps } from '../viz-types';
 import { QueryCtx } from './plugin-helpers';
 
@@ -8,7 +8,7 @@ import { QueryCtx } from './plugin-helpers';
  */
 function buildTableQuery(values: ControlValues, ctx: QueryCtx): QuerySpec {
     const groupBy = (values.x ?? []).map((cv) => cv.field);
-    const measures = (values.y ?? []).map((cv) => buildMeasure(cv.agg ?? 'sum', cv.field));
+    const measures = (values.y ?? []).map(channelMeasure);
     return { datasetId: ctx.datasetId, sourceName: ctx.sourceName, groupBy, measures, filters: ctx.filters ?? null };
 }
 

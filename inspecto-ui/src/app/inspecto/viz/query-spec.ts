@@ -1,6 +1,6 @@
 import { ColumnMeta, compileWhere, quoteIdent } from 'app/inspecto/query';
 import { runSql, SqlRunResult } from 'app/inspecto/data-table/sql/sql-run';
-import { Aggregation, QueryMeasure, QuerySpec } from './viz-types';
+import { Aggregation, ChannelValue, QueryMeasure, QuerySpec } from './viz-types';
 
 /**
  * Compile/run a {@link QuerySpec}. This is the QuerySpec→SQL boundary — the single swap seam between offline
@@ -37,6 +37,18 @@ export function measureId(agg: Aggregation, field: string): string {
 /** Build a {@link QueryMeasure} from an aggregation + column. */
 export function buildMeasure(agg: Aggregation, field: string, label?: string): QueryMeasure {
     return { id: measureId(agg, field), expression: aggExpression(agg, field), label: label ?? `${agg}(${field})` };
+}
+
+/** The measure a channel value contributes: a named measure's expression verbatim, else `agg(field)`. */
+export function channelMeasure(cv: ChannelValue): QueryMeasure {
+    if (cv.expression) return { id: channelMeasureId(cv), expression: cv.expression, label: cv.field };
+    return buildMeasure(cv.agg ?? 'sum', cv.field);
+}
+
+/** The result-column id {@link channelMeasure} selects as — what transformProps reads back. */
+export function channelMeasureId(cv: ChannelValue): string {
+    if (cv.expression) return cv.field.replace(/[^A-Za-z0-9_]/g, '_');
+    return measureId(cv.agg ?? 'sum', cv.field);
 }
 
 /**
