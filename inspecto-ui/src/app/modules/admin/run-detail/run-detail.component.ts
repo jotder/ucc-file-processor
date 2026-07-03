@@ -13,7 +13,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin, Observable } from 'rxjs';
-import { apiErrorMessage, AuditRow, BatchAuditReport, InboxStatus, RunsService } from 'app/inspecto/api';
+import { apiErrorMessage, AuditRow, BatchAuditReport, InboxStatus, LensService, RunsService } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { FmtPercentPipe } from 'app/inspecto/format';
 import { InspectoRowAction } from 'app/inspecto/grid';
@@ -55,6 +55,8 @@ export class RunDetailComponent implements OnInit {
     private router = inject(Router);
     private dialog = inject(MatDialog);
     private toastr = inject(ToastrService);
+    /** Business lens = read-only observe on Runs (plan §1) — hides the reprocess row action. */
+    protected lens = inject(LensService);
 
     name = '';
     loading = false;
@@ -164,22 +166,24 @@ export class RunDetailComponent implements OnInit {
     }
 
     // ── row actions (audit rows are loose maps; columns are auto-derived by the data table) ──
-    private readonly batchActions: InspectoRowAction<AuditRow>[] = [
-        {
+    /** Batch actions only on the Batches tab; lineage/quarantine/commits are read-only. Reprocess is
+     *  hidden in the Business lens (read-only observe, plan §1) — Lineage & details stays available. */
+    get auditRowActions(): InspectoRowAction<AuditRow>[] {
+        if (this.activeTab !== 'batches') return [];
+        const details: InspectoRowAction<AuditRow> = {
             icon: 'heroicons_outline:rectangle-group',
             hint: 'Lineage & details',
             onClick: (r) => this.openBatchById(r['batch_id']),
-        },
-        {
-            icon: 'heroicons_outline:arrow-path',
-            hint: 'Reprocess this batch',
-            onClick: (r) => this.reprocessRow(r),
-        },
-    ];
-
-    /** Batch actions only on the Batches tab; lineage/quarantine/commits are read-only. */
-    get auditRowActions(): InspectoRowAction<AuditRow>[] {
-        return this.activeTab === 'batches' ? this.batchActions : [];
+        };
+        if (this.lens.readOnly()) return [details];
+        return [
+            details,
+            {
+                icon: 'heroicons_outline:arrow-path',
+                hint: 'Reprocess this batch',
+                onClick: (r) => this.reprocessRow(r),
+            },
+        ];
     }
 
     readonly fileRowActions: InspectoRowAction<AuditRow>[] = [
@@ -235,6 +239,7 @@ export class RunDetailComponent implements OnInit {
     }
 
     reprocessRow(r: AuditRow): void {
+        if (this.lens.readOnly()) return; // Business lens: read-only observe
         const id = r['batch_id'];
         if (!id) {
             this.toastr.warning('No batch id on this row');

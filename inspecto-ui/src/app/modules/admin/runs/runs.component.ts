@@ -9,7 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, DEFAULT_REFRESH_MS, optimisticMutate, RunsService, RunView, visibleInterval } from 'app/inspecto/api';
+import { apiErrorMessage, DEFAULT_REFRESH_MS, LensService, optimisticMutate, RunsService, RunView, visibleInterval } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoRowAction } from 'app/inspecto/grid';
@@ -40,6 +40,8 @@ export class RunsComponent implements OnInit {
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     private destroyRef = inject(DestroyRef);
+    /** Business lens = read-only observe on Runs (plan §1) — hides trigger/pause/reprocess. */
+    protected lens = inject(LensService);
 
     runs: RunView[] = [];
     loading = false;
@@ -53,28 +55,35 @@ export class RunsComponent implements OnInit {
         { field: 'committedBatches', headerName: 'Committed', width: 120 },
     ];
 
-    readonly rowActions: InspectoRowAction<RunView>[] = [
-        {
-            icon: 'heroicons_outline:play',
-            hint: 'Trigger',
-            onClick: (p) => this.trigger(p.name),
-        },
-        {
-            icon: (p) => (p.paused ? 'heroicons_outline:play-circle' : 'heroicons_outline:pause-circle'),
-            hint: (p) => (p.paused ? 'Resume' : 'Pause'),
-            onClick: (p) => this.togglePause(p),
-        },
-        {
-            icon: 'heroicons_outline:arrow-path',
-            hint: 'Reprocess batch',
-            onClick: (p) => this.openReprocess(p.name),
-        },
-        {
+    /** Business lens is read-only observe (plan §1) — only "Open detail" stays; every other action here
+     *  mutates a run (trigger/pause/resume/reprocess), unlike Jobs' run-now/toggle which are kept
+     *  available to every lens as operational. */
+    get rowActions(): InspectoRowAction<RunView>[] {
+        const detail: InspectoRowAction<RunView> = {
             icon: 'heroicons_outline:chevron-right',
             hint: 'Open detail',
             onClick: (p) => this.openDetail(p.name),
-        },
-    ];
+        };
+        if (this.lens.readOnly()) return [detail];
+        return [
+            {
+                icon: 'heroicons_outline:play',
+                hint: 'Trigger',
+                onClick: (p) => this.trigger(p.name),
+            },
+            {
+                icon: (p) => (p.paused ? 'heroicons_outline:play-circle' : 'heroicons_outline:pause-circle'),
+                hint: (p) => (p.paused ? 'Resume' : 'Pause'),
+                onClick: (p) => this.togglePause(p),
+            },
+            {
+                icon: 'heroicons_outline:arrow-path',
+                hint: 'Reprocess batch',
+                onClick: (p) => this.openReprocess(p.name),
+            },
+            detail,
+        ];
+    }
 
     ngOnInit(): void {
         this.load();
@@ -100,6 +109,7 @@ export class RunsComponent implements OnInit {
     }
 
     async trigger(name: string): Promise<void> {
+        if (this.lens.readOnly()) return; // Business lens: read-only observe
         if (!(await this.confirm.confirm(`Trigger run "${name}" now?`, 'Trigger run'))) return;
         this.api.trigger(name).subscribe({
             next: (r) => {
@@ -112,6 +122,7 @@ export class RunsComponent implements OnInit {
     }
 
     async runAll(): Promise<void> {
+        if (this.lens.readOnly()) return; // Business lens: read-only observe
         if (!(await this.confirm.confirm('Trigger all runs now?', 'Run all'))) return;
         this.loading = true;
         this.api.runAll().subscribe({
@@ -130,6 +141,7 @@ export class RunsComponent implements OnInit {
     }
 
     async togglePause(p: RunView): Promise<void> {
+        if (this.lens.readOnly()) return; // Business lens: read-only observe
         const wasPaused = p.paused;
         const verb = wasPaused ? 'Resume' : 'Pause';
         if (!(await this.confirm.confirm(`${verb} run "${p.name}"?`, `${verb} run`))) return;
@@ -156,6 +168,7 @@ export class RunsComponent implements OnInit {
     }
 
     openReprocess(name: string): void {
+        if (this.lens.readOnly()) return; // Business lens: read-only observe
         this.dialogOpen = true;
         const ref = this.dialog.open(ReprocessDialog, { data: { pipeline: name }, width: '420px' });
         ref.afterClosed().subscribe((batchId: string | undefined) => {
