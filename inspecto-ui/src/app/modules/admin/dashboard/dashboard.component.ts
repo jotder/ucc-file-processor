@@ -6,8 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AgGridAngular } from 'ag-grid-angular';
-import { ColDef } from 'ag-grid-community';
+import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ChartData } from 'chart.js';
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin, of } from 'rxjs';
@@ -21,14 +20,16 @@ import {
     HealthService,
     ReadyStatus,
     ReportsService,
+    RunStatus,
     ServiceReport,
     StatusReport,
     visibleInterval,
 } from 'app/inspecto/api';
 import { InspectoChartComponent } from 'app/inspecto/components/chart.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
-import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
-import { INSPECTO_DEFAULT_COL_DEF, InspectoGridThemeService, fmtDateTime } from 'app/inspecto/grid';
+import { StatusBadgeComponent, statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
+import { DataTableComponent } from 'app/inspecto/data-table';
+import { fmtDateTime } from 'app/inspecto/grid';
 import { fmtBytes, fmtInt, fmtPercent } from 'app/inspecto/format';
 import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
 
@@ -45,10 +46,10 @@ import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
         MatIconModule,
         MatSlideToggleModule,
         MatTooltipModule,
-        AgGridAngular,
         InspectoChartComponent,
         InspectoSkeletonComponent,
         StatusBadgeComponent,
+        DataTableComponent,
     ],
     templateUrl: './dashboard.component.html',
 })
@@ -59,8 +60,6 @@ export class DashboardComponent implements OnInit {
     private eventsApi = inject(EventsService);
     private toastr = inject(ToastrService);
     private destroyRef = inject(DestroyRef);
-    readonly gridTheme = inject(InspectoGridThemeService);
-    readonly defaultColDef = INSPECTO_DEFAULT_COL_DEF;
 
     autoRefresh = true;
     loading = true;
@@ -78,13 +77,23 @@ export class DashboardComponent implements OnInit {
     /** Newest few events for the activity feed (GET /events/search?limit=8). */
     recentEvents: EventRow[] = [];
 
-    readonly pipelineColumns: ColDef[] = [
+    readonly pipelineColumns: ColDef<RunStatus>[] = [
         { field: 'pipeline', headerName: 'Pipeline', flex: 1 },
-        { field: 'paused', headerName: 'Paused', width: 110 },
+        {
+            field: 'paused',
+            headerName: 'Paused',
+            width: 110,
+            cellRenderer: (p: ICellRendererParams<RunStatus>) => statusBadgeHtml(p.value ? 'paused' : 'active'),
+        },
         { field: 'committedBatches', headerName: 'Committed', width: 130 },
         { field: 'quarantineFiles', headerName: 'Quarantine', width: 130 },
         { field: 'lastBatchId', headerName: 'Last batch', flex: 1 },
-        { field: 'lastBatchStatus', headerName: 'Last status', width: 140 },
+        {
+            field: 'lastBatchStatus',
+            headerName: 'Last status',
+            width: 140,
+            cellRenderer: (p: ICellRendererParams<RunStatus>) => (p.value ? statusBadgeHtml(p.value) : '—'),
+        },
         { field: 'lastBatchTime', headerName: 'Last time', width: 180, valueFormatter: (p) => fmtDateTime(p.value) },
     ];
 
