@@ -1,14 +1,32 @@
+import { inject } from '@angular/core';
 import { Route } from '@angular/router';
 import { initialDataResolver } from 'app/app.resolvers';
+import { Lens, LensService } from 'app/inspecto/api';
 import { LayoutComponent } from 'app/layout/layout.component';
+
+/** The default landing route per persona lens (W4 — plan §1's per-lens home page). Each target is the
+ *  first-listed pane for that lens in the persona→surface map: Business raises KPI/Report requirements,
+ *  Builder authors pipelines, Ops monitors events. Nav itself is never filtered — every lens can reach
+ *  every route — this only decides where "/" lands. */
+export const LENS_HOME: Record<Lens, string> = {
+    business: 'kpi-reports',
+    builder: 'pipelines',
+    ops: 'events',
+};
+
+/** Route-level redirect target for `''` — reads the persisted lens (no route data/resolver needed since
+ *  `LensService` restores synchronously from `localStorage` in its constructor). */
+export function lensHomeRedirect(): string {
+    return LENS_HOME[inject(LensService).currentLens()];
+}
 
 // @formatter:off
 /* eslint-disable max-len */
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
 export const appRoutes: Route[] = [
 
-    // Default to the dashboard overview
-    { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+    // Default landing route — per-lens home page (W4).
+    { path: '', pathMatch: 'full', redirectTo: lensHomeRedirect },
 
     // Template OAuth flow, kept for reference (Inspecto uses operator tokens instead):
     // { path: 'signed-in-redirect', pathMatch: 'full', redirectTo: 'dashboard' },
