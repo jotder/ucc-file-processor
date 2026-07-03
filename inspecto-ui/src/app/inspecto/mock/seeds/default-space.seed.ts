@@ -37,6 +37,35 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
         viz: null,
     });
 
+    // ── Reconciliation (C9): the two RA sides as datasets + a seeded reconciliation over them ──────
+    for (const side of ['switch_cdr', 'billing_cdr'] as const) {
+        putComponent(store, space, 'dataset', side, {
+            name: side,
+            kind: 'virtual',
+            sourceName: side,
+            query: { projection: '*', where: { kind: 'group', op: 'AND', items: [] }, sqlOverride: null },
+            physicalRef: null,
+            columns: [
+                { name: 'id', type: 'number', role: 'dimension' },
+                { name: 'msisdn', type: 'string', role: 'dimension' },
+                { name: 'duration_s', type: 'number', role: 'measure' },
+                { name: 'cost_usd', type: 'number', role: 'measure' },
+                { name: 'event_time', type: 'date', role: 'temporal' },
+            ],
+            measures: [],
+            viz: null,
+        });
+    }
+    putComponent(store, space, 'reconciliation', 'switch_vs_billing', {
+        name: 'switch_vs_billing',
+        leftDataset: 'switch_cdr',
+        rightDataset: 'billing_cdr',
+        keyColumns: ['id'],
+        compareColumns: [{ column: 'cost_usd', toleranceType: 'absolute', tolerance: 0.02 }],
+        breaks: [],
+        lastRunAt: null,
+    });
+
     // ── Registry kinds: options for the in-graph "choose a grammar/transform/sink" picker ──────
     putComponent(store, space, 'grammar', 'cdr_csv', { delimiter: ',', has_header: true });
     putComponent(store, space, 'grammar', 'pipe_delimited', { delimiter: '|', has_header: false });

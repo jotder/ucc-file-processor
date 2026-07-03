@@ -76,6 +76,13 @@ export const defaultNavigation: GammaNavigationItem[] = [
         link : '/requirements'
     },
     {
+        id   : 'reconciliation',
+        title: 'Reconciliation',
+        type : 'basic',
+        icon : 'heroicons_outline:scale',
+        link : '/reconciliation'
+    },
+    {
         id      : 'settings-group',
         title   : 'Settings',
         type    : 'collapsable',

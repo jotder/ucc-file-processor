@@ -76,6 +76,7 @@ export const appRoutes: Route[] = [
             { path: 'sources', loadChildren: () => import('app/modules/admin/sources/sources.routes') },
             { path: 'kpi-reports', loadChildren: () => import('app/modules/admin/kpi-reports/kpi-reports.routes') },
             { path: 'requirements', loadChildren: () => import('app/modules/admin/requirements/requirements.routes') },
+            { path: 'reconciliation', loadChildren: () => import('app/modules/admin/reconciliation/reconciliation.routes') },
             { path: 'connections', loadChildren: () => import('app/modules/admin/connections/connections.routes') },
             { path: 'jobs', loadChildren: () => import('app/modules/admin/jobs/jobs.routes') },
             { path: 'jobs/:name', loadChildren: () => import('app/modules/admin/jobs/job-detail/job-detail.routes') },

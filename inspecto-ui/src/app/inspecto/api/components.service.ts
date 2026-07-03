@@ -8,7 +8,7 @@ import { apiUrl } from './api-base';
  *  Business Requirements-intake queue (C1). The backend storage enum is still closed
  *  (grammar/schema/transform/sink) — the extra kinds are mock-served (unified mock store) until
  *  persistence is widened. None of the extras are in {@link COMPONENT_TYPES} (not flow-node palette components). */
-export type ComponentType = 'grammar' | 'schema' | 'transform' | 'sink' | 'rule' | 'dataset' | 'widget' | 'dashboard' | 'requirement';
+export type ComponentType = 'grammar' | 'schema' | 'transform' | 'sink' | 'rule' | 'dataset' | 'widget' | 'dashboard' | 'requirement' | 'reconciliation';
 
 /** The component kinds, in palette order, for the list/editor. */
 export const COMPONENT_TYPES: ComponentType[] = ['grammar', 'schema', 'transform', 'sink'];

@@ -1,0 +1,152 @@
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { Dataset } from '../studio/datasets/dataset-types';
+import { DatasetsService } from '../studio/datasets/datasets.service';
+import { CompareColumn, ToleranceType } from 'app/inspecto/reconciliation';
+
+export interface ReconciliationFormResult {
+    name: string;
+    leftDataset: string;
+    rightDataset: string;
+    keyColumns: string[];
+    compareColumns: CompareColumn[];
+}
+
+interface CompareRow {
+    column: string;
+    toleranceType: ToleranceType;
+    tolerance: number;
+}
+
+/** Define a Dataset-vs-Dataset reconciliation — pick both sides, the key column(s), and the compare
+ *  column(s) each with a tolerance. Column pickers are driven by the left dataset's declared columns. */
+@Component({
+    selector: 'app-reconciliation-form-dialog',
+    standalone: true,
+    imports: [FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
+        <h2 mat-dialog-title>New reconciliation</h2>
+        <mat-dialog-content class="flex flex-col gap-3">
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <mat-label>Name</mat-label>
+                <input matInput [(ngModel)]="name" placeholder="e.g. switch vs billing" />
+            </mat-form-field>
+
+            <div class="flex gap-3">
+                <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                    <mat-label>Left dataset (source of truth)</mat-label>
+                    <mat-select [(ngModel)]="leftDataset" (ngModelChange)="onLeftChange($event)">
+                        @for (d of datasets(); track d.id) { <mat-option [value]="d.id">{{ d.name }}</mat-option> }
+                    </mat-select>
+                </mat-form-field>
+                <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                    <mat-label>Right dataset</mat-label>
+                    <mat-select [(ngModel)]="rightDataset">
+                        @for (d of datasets(); track d.id) { <mat-option [value]="d.id">{{ d.name }}</mat-option> }
+                    </mat-select>
+                </mat-form-field>
+            </div>
+
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <mat-label>Key column(s)</mat-label>
+                <mat-select [(ngModel)]="keyColumns" multiple>
+                    @for (c of leftColumns(); track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+                </mat-select>
+            </mat-form-field>
+
+            <div class="flex items-center justify-between">
+                <span class="text-secondary text-xs font-semibold uppercase tracking-wider">Compare columns</span>
+                <button mat-stroked-button type="button" (click)="addCompare()" [disabled]="!leftColumns().length">
+                    <mat-icon svgIcon="heroicons_outline:plus"></mat-icon><span class="ml-1">Add</span>
+                </button>
+            </div>
+            @for (row of compareRows(); track $index; let i = $index) {
+                <div class="flex items-center gap-2">
+                    <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                        <mat-label>Column</mat-label>
+                        <mat-select [(ngModel)]="row.column">
+                            @for (c of leftColumns(); track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field class="w-36" subscriptSizing="dynamic">
+                        <mat-label>Tolerance</mat-label>
+                        <mat-select [(ngModel)]="row.toleranceType">
+                            <mat-option value="exact">exact</mat-option>
+                            <mat-option value="absolute">± absolute</mat-option>
+                            <mat-option value="percent">± percent</mat-option>
+                        </mat-select>
+                    </mat-form-field>
+                    @if (row.toleranceType !== 'exact') {
+                        <mat-form-field class="w-24" subscriptSizing="dynamic">
+                            <mat-label>Value</mat-label>
+                            <input matInput type="number" [(ngModel)]="row.tolerance" />
+                        </mat-form-field>
+                    }
+                    <button mat-icon-button type="button" (click)="removeCompare(i)" aria-label="Remove compare column">
+                        <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
+                    </button>
+                </div>
+            }
+        </mat-dialog-content>
+        <mat-dialog-actions align="end">
+            <button type="button" mat-button mat-dialog-close>Cancel</button>
+            <button type="button" mat-flat-button color="primary" [disabled]="!valid()" (click)="submit()">Create</button>
+        </mat-dialog-actions>
+    `,
+})
+export class ReconciliationFormDialog {
+    private datasetsApi = inject(DatasetsService);
+    private ref = inject(MatDialogRef<ReconciliationFormDialog, ReconciliationFormResult>);
+
+    readonly datasets = signal<Dataset[]>([]);
+    readonly leftColumns = signal<string[]>([]);
+    readonly compareRows = signal<CompareRow[]>([]);
+
+    name = '';
+    leftDataset = '';
+    rightDataset = '';
+    keyColumns: string[] = [];
+
+    /** Plain method (not a `computed`): the inputs are ngModel-bound instance fields, not signals, so a
+     *  computed would memoize its first (empty) result and never re-evaluate. */
+    valid(): boolean {
+        return !!this.name.trim() && !!this.leftDataset && !!this.rightDataset && this.keyColumns.length > 0;
+    }
+
+    constructor() {
+        this.datasetsApi.list().subscribe((d) => this.datasets.set(d));
+    }
+
+    onLeftChange(id: string): void {
+        this.leftColumns.set(this.datasets().find((d) => d.id === id)?.columns.map((c) => c.name) ?? []);
+        // drop key/compare picks no longer valid for the new left dataset
+        const cols = new Set(this.leftColumns());
+        this.keyColumns = this.keyColumns.filter((k) => cols.has(k));
+        this.compareRows.update((rows) => rows.filter((r) => cols.has(r.column)));
+    }
+
+    addCompare(): void {
+        this.compareRows.update((rows) => [...rows, { column: this.leftColumns()[0] ?? '', toleranceType: 'absolute', tolerance: 0 }]);
+    }
+    removeCompare(i: number): void {
+        this.compareRows.update((rows) => rows.filter((_, idx) => idx !== i));
+    }
+
+    submit(): void {
+        if (!this.valid()) return;
+        this.ref.close({
+            name: this.name.trim(),
+            leftDataset: this.leftDataset,
+            rightDataset: this.rightDataset,
+            keyColumns: this.keyColumns,
+            compareColumns: this.compareRows().filter((r) => r.column),
+        });
+    }
+}
