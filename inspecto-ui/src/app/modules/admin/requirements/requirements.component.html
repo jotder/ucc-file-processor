@@ -1,0 +1,37 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 sm:p-8">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold tracking-tight">Requirements</h1>
+            <div class="text-secondary mt-1 text-sm">KPI, Report, Reconciliation and Rule requests — Builder's intake queue</div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button mat-icon-button (click)="load()" [disabled]="loading()" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+            <button mat-flat-button color="primary" (click)="submit()">
+                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                <span class="ml-2">New requirement</span>
+            </button>
+        </div>
+    </div>
+
+    @if (!loading() && requirements().length === 0) {
+        <inspecto-empty-state
+            icon="heroicons_outline:inbox-stack"
+            title="No requirements yet"
+            message="Submit a KPI, Report, Reconciliation or Rule requirement — Builder picks it up from this queue."
+        />
+    } @else {
+        <inspecto-data-table
+            tier="standard"
+            sourceName="requirements"
+            exportName="requirements"
+            [rows]="requirements()"
+            [columns]="columns"
+            [rowActions]="rowActions"
+            [loading]="loading()"
+            [autoHeight]="true"
+            (rowClick)="openDetail($any($event))"
+        />
+    }
+</div>

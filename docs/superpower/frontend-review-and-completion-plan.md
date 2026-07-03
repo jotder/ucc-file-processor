@@ -163,8 +163,8 @@ Seed questions already known to be non-obvious — each wave adds its own via R7
 
 1. Per pane × lens: which actions are visible to Business vs Builder vs Ops? (default: Business read-only everywhere except Requirements.) — **ANSWERED 2026-07-02 (Wave-1 batch):** Business is **read-only** across the Builder/Workbench panes, authoring gated to Builder; gating wiring lands with the lens shell in Wave 2.
 2. Parser kinds: which of the 9 formats' options are truly `required` vs `advanced`? (drives the first big AttributeSpec set)
-3. Reconciliation semantics: match keys only, or tolerance-based amount matching? Break lifecycle (auto-close on re-match?)
-4. Requirement lifecycle: who accepts — Business author or Ops? SLA on requirements?
+3. Reconciliation semantics: match keys only, or tolerance-based amount matching? Break lifecycle (auto-close on re-match?) — **ANSWERED 2026-07-03 (Wave-3 batch):** keys + a configurable tolerance (absolute or %) on numeric compare columns; a break **auto-closes** when its key re-matches within tolerance on a later run (with an auto-resolved note), manual override remains possible.
+4. Requirement lifecycle: who accepts — Business author or Ops? SLA on requirements? — **ANSWERED 2026-07-03 (Wave-3 batch):** Business submits a Requirement (Submitted); it lands in a **Builder-facing queue**; Builder accepts/rejects (Accepted/Rejected), then delivers by linking the requirement to the Component(s) that satisfy it. No separate approval role; no SLA timer built yet (flag if wanted later).
 5. Incident/Case: which fields are mandatory at creation vs triage? Assignment model (queues vs direct)?
 6. Space Template scope: config-only blueprint, or including sample data by default?
 7. KPI targets/thresholds: authored by Business (requirement) or Builder (implementation)?

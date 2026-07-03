@@ -69,6 +69,13 @@ export const defaultNavigation: GammaNavigationItem[] = [
         link : '/kpi-reports'
     },
     {
+        id   : 'requirements',
+        title: 'Requirements',
+        type : 'basic',
+        icon : 'heroicons_outline:inbox-stack',
+        link : '/requirements'
+    },
+    {
         id      : 'settings-group',
         title   : 'Settings',
         type    : 'collapsable',
