@@ -89,7 +89,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
         icon    : 'heroicons_outline:cog-8-tooth',
         children: [
             { id: 'config',         title: 'Config',         type: 'basic', icon: 'heroicons_outline:adjustments-horizontal', link: '/config' },
-            { id: 'notification-prefs', title: 'Notifications', type: 'basic', icon: 'heroicons_outline:bell',                link: '/settings/notifications' },
+            { id: 'notification-center', title: 'Notifications', type: 'basic', icon: 'heroicons_outline:bell',               link: '/notification-center' },
             { id: 'spaces',         title: 'Spaces',         type: 'basic', icon: 'heroicons_outline:square-3-stack-3d',      link: '/spaces' },
             { id: 'model-settings', title: 'Model Settings', type: 'basic', icon: 'heroicons_outline:cpu-chip',               link: '/settings/models' },
             { id: 'icon-settings',  title: 'Processor Icons', type: 'basic', icon: 'heroicons_outline:paint-brush',           link: '/settings/icons' },

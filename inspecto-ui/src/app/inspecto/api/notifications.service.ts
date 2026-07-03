@@ -33,6 +33,30 @@ export interface NotificationPrefRow {
     channels: ChannelToggles;
 }
 
+/** A configured delivery channel (GET/POST /notifications/channels) — C4. Delivery is mocked (no real IO). */
+export interface NotificationChannel {
+    id: string;
+    kind: 'EMAIL' | 'WEBHOOK' | string;
+    /** Where deliveries go: an address for EMAIL, a URL for WEBHOOK. */
+    target: string;
+    description?: string;
+    enabled: boolean;
+    createdAt: number;
+}
+
+/** One delivery-ledger entry: a notification handed to one channel (GET /notifications/deliveries) — C4. */
+export interface ChannelDelivery {
+    id: string;
+    ts: number;
+    channelId: string;
+    channelKind: string;
+    target: string;
+    /** What caused it — e.g. ALERT_FIRED, INCIDENT_OPENED. */
+    trigger: string;
+    subject: string;
+    status: 'SENT' | string;
+}
+
 /**
  * In-app notification feed (the bell) + preference grid. Holds the feed and unread badge as signals so
  * the toolbar bell renders reactively; the real-time SSE stream and a polling fallback both flow through
@@ -115,6 +139,35 @@ export class NotificationsService {
     savePreferences(rows: NotificationPrefRow[]): Observable<NotificationPrefRow[]> {
         return this.http.put<NotificationPrefRow[]>(apiUrl('/notifications/preferences'), {
             preferences: rows,
+        });
+    }
+
+    // ── C4 Notification center: channels + delivery ledger ─────────────────────
+
+    /** Configured delivery channels (GET /notifications/channels). */
+    channels(): Observable<NotificationChannel[]> {
+        return this.http.get<NotificationChannel[]>(apiUrl('/notifications/channels'));
+    }
+
+    /** Create a channel (POST /notifications/channels); 409 on a duplicate id. */
+    createChannel(ch: Omit<NotificationChannel, 'createdAt'>): Observable<NotificationChannel> {
+        return this.http.post<NotificationChannel>(apiUrl('/notifications/channels'), ch);
+    }
+
+    /** Update a channel — config edit or enable/disable (PUT /notifications/channels/{id}). */
+    updateChannel(id: string, patch: Partial<NotificationChannel>): Observable<NotificationChannel> {
+        return this.http.put<NotificationChannel>(apiUrl(`/notifications/channels/${encodeURIComponent(id)}`), patch);
+    }
+
+    /** Delete a channel (DELETE /notifications/channels/{id}). */
+    deleteChannel(id: string): Observable<unknown> {
+        return this.http.delete(apiUrl(`/notifications/channels/${encodeURIComponent(id)}`));
+    }
+
+    /** The delivery ledger, newest-first (GET /notifications/deliveries). */
+    deliveries(limit = 200): Observable<ChannelDelivery[]> {
+        return this.http.get<ChannelDelivery[]>(apiUrl('/notifications/deliveries'), {
+            params: toParams({ limit }),
         });
     }
 }

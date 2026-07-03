@@ -1,0 +1,68 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Notification center</h1>
+            <div class="text-secondary mt-1.5">
+                Where alert &amp; incident notifications go — delivery channels, the delivery ledger, and your preferences
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        <mat-tab-group animationDuration="0ms">
+            <!-- Channels -->
+            <mat-tab label="Channels">
+                <div class="flex flex-col gap-4 pt-6">
+                    <div class="flex items-center justify-end gap-2">
+                        <button mat-icon-button (click)="loadChannels()" matTooltip="Refresh" aria-label="Refresh channels">
+                            <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                        </button>
+                        <button mat-flat-button color="primary" (click)="openForm()">
+                            <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                            <span class="ml-2">New channel</span>
+                        </button>
+                    </div>
+                    <inspecto-data-table
+                        tier="standard"
+                        sourceName="notification-channels"
+                        exportName="notification-channels"
+                        [rows]="channels"
+                        [columns]="channelCols"
+                        [rowActions]="channelActions"
+                        [loading]="loadingChannels"
+                        noRowsTitle="No channels configured"
+                        noRowsHint="Add an email or webhook channel — fired alerts and opened incidents will fan out to it."
+                    />
+                </div>
+            </mat-tab>
+
+            <!-- Deliveries -->
+            <mat-tab label="Deliveries">
+                <div class="flex flex-col gap-4 pt-6">
+                    <div class="flex items-center justify-end">
+                        <button mat-icon-button (click)="loadDeliveries()" matTooltip="Refresh" aria-label="Refresh deliveries">
+                            <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                        </button>
+                    </div>
+                    <inspecto-data-table
+                        tier="standard"
+                        sourceName="notification-deliveries"
+                        exportName="notification-deliveries"
+                        [rows]="deliveries"
+                        [columns]="deliveryCols"
+                        [loading]="loadingDeliveries"
+                        noRowsTitle="Nothing delivered yet"
+                        noRowsHint="When an alert fires or an incident opens, one entry per enabled channel lands here."
+                    />
+                </div>
+            </mat-tab>
+
+            <!-- Preferences (the former standalone pane, embedded) -->
+            <mat-tab label="Preferences">
+                <app-notification-preferences />
+            </mat-tab>
+        </mat-tab-group>
+    </div>
+</div>

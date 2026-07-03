@@ -92,7 +92,9 @@ export const appRoutes: Route[] = [
             { path: 'assist', loadChildren: () => import('app/modules/admin/assist/assist.routes') },
             { path: 'settings/models', loadChildren: () => import('app/modules/admin/model-settings/model-settings.routes') },
             { path: 'settings/icons', loadChildren: () => import('app/modules/admin/icon-settings/icon-settings.routes') },
-            { path: 'settings/notifications', loadChildren: () => import('app/modules/admin/notification-preferences/notification-preferences.routes') },
+            { path: 'notification-center', loadChildren: () => import('app/modules/admin/notification-center/notification-center.routes') },
+            // The old standalone prefs pane moved into the center as a tab (C4).
+            { path: 'settings/notifications', redirectTo: 'notification-center' },
         ]
     }
 ];

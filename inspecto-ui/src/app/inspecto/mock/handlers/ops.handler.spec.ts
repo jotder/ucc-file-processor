@@ -4,6 +4,7 @@ import type { EventRow } from '../../api/events.service';
 import type { OperationalObject } from '../../api/objects.service';
 import { MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
+import { NOTIFICATION_CHANNELS_COLL, NOTIFICATION_DELIVERIES_COLL } from '../notify';
 import { seedDefaultSpace } from '../seeds/default-space.seed';
 import { opsHandler } from './ops.handler';
 
@@ -181,6 +182,20 @@ describe('opsHandler', () => {
         expect(rca.length).toBe(2);
         const after = handler(req('GET', `/api/objects/${a.id}/comments`), store)?.body as Array<{ body: string }>;
         expect(after.length).toBe(3); // 1 comment + 2 RCA sections
+    });
+
+    it('fans fired alerts and opened incidents out to enabled channels (C4)', () => {
+        const store = seededStore();
+        store.put('default', NOTIFICATION_CHANNELS_COLL, 'ops_email', {
+            id: 'ops_email', kind: 'EMAIL', target: 'ops@x.com', enabled: true, createdAt: 1,
+        });
+
+        handler(req('POST', '/api/alerts/evaluate'), store);
+        handler(req('POST', '/api/objects', { type: 'INCIDENT', title: 'Late feed' }), store);
+        handler(req('POST', '/api/objects', { type: 'CASE', title: 'No fan-out for cases' }), store);
+
+        const deliveries = store.list<{ trigger: string }>('default', NOTIFICATION_DELIVERIES_COLL);
+        expect(deliveries.map((d) => d.trigger).sort()).toEqual(['ALERT_FIRED', 'INCIDENT_OPENED']);
     });
 
     it('falls through entirely when mockOps is off', () => {

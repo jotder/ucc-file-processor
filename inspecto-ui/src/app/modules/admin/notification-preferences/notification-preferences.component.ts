@@ -27,7 +27,8 @@ import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.comp
     template: `
         <div class="flex max-w-3xl flex-col gap-4 p-6">
             <div>
-                <h1 class="text-2xl font-semibold">Notification preferences</h1>
+                <!-- h2: this pane is embedded as a Notification-center tab (the page h1 lives there). -->
+                <h2 class="text-2xl font-semibold">Notification preferences</h2>
                 <p class="text-secondary mt-1">
                     Choose how you're notified for each category. Settings apply to the current user.
                 </p>

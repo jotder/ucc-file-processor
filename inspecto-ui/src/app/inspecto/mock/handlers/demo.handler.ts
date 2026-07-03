@@ -1,6 +1,13 @@
 import { MockFlags } from '../mock-flags';
-import { json, match, MockHandler, MockRequest } from '../mock-http';
+import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
+import {
+    NOTIFICATION_CHANNELS_COLL,
+    NOTIFICATION_DELIVERIES_COLL,
+    NOTIFICATIONS_COLL,
+    type ChannelDelivery,
+    type NotificationChannel,
+} from '../notify';
 
 /**
  * The demo catch-all mock domain — the port of the old `demo-mock` interceptor: every endpoint not
@@ -11,7 +18,10 @@ import { MockStore } from '../mock-store';
  * regenerated fresh each app boot. Registered FIRST, matching the old interceptor-chain position.
  */
 
-export const NOTIFICATIONS_COLL = 'notification';
+// The collection constant moved to ../notify (shared with the fan-out helper); re-export for the seeds.
+export { NOTIFICATIONS_COLL };
+
+const NOTIFICATION_PREFS_COLL = 'notification-pref';
 
 interface Notification {
     id: string;
@@ -345,6 +355,9 @@ const NOTIF_READ_ALL = /\/notifications\/read-all$/;
 const NOTIF_READ = /\/notifications\/([^/]+)\/read$/;
 const NOTIF_DELETE = /\/notifications\/([^/]+)$/;
 const NOTIF_PREFS = /\/notifications\/preferences$/;
+const NOTIF_CHANNELS = /\/notifications\/channels$/;
+const NOTIF_CHANNEL_ONE = /\/notifications\/channels\/([^/]+)$/;
+const NOTIF_DELIVERIES = /\/notifications\/deliveries$/;
 const CATALOG_TABLES_RE = /\/catalog$/;
 const CATALOG_KPIS_RE = /\/catalog\/kpis$/;
 const CATALOG_STREAMS_RE = /\/catalog\/streams$/;
@@ -412,8 +425,46 @@ export function demoHandler(flags: MockFlags): MockHandler {
             store.delete(space, NOTIFICATIONS_COLL, m[1]);
             return json({ ok: true });
         }
-        if (method === 'GET' && NOTIF_PREFS.test(url)) return json(NOTIFICATION_PREFS);
-        if (method === 'PUT' && NOTIF_PREFS.test(url)) return json(NOTIFICATION_PREFS);
+        // Preferences persist per space; the static grid is only the never-saved default.
+        if (method === 'GET' && NOTIF_PREFS.test(url)) {
+            const saved = store.get<{ rows: unknown[] }>(space, NOTIFICATION_PREFS_COLL, 'grid');
+            return json(saved?.rows ?? NOTIFICATION_PREFS);
+        }
+        if (method === 'PUT' && NOTIF_PREFS.test(url)) {
+            const rows = (req.body as { preferences?: unknown[] })?.preferences ?? [];
+            store.put(space, NOTIFICATION_PREFS_COLL, 'grid', { rows });
+            return json(rows);
+        }
+        // Channels (C4) — CRUD over the store; deliveries are appended by notify.fanOut.
+        if (method === 'GET' && NOTIF_CHANNELS.test(url)) {
+            return json(store.list<NotificationChannel>(space, NOTIFICATION_CHANNELS_COLL));
+        }
+        if (method === 'POST' && NOTIF_CHANNELS.test(url)) {
+            const b = (req.body ?? {}) as Partial<NotificationChannel>;
+            if (!b.id || !b.kind || !b.target) return error(422, 'id, kind and target are required');
+            if (store.get(space, NOTIFICATION_CHANNELS_COLL, b.id)) return error(409, `channel ${b.id} already exists`);
+            const ch: NotificationChannel = {
+                id: b.id, kind: b.kind, target: b.target, description: b.description,
+                enabled: b.enabled !== false, createdAt: Date.now(),
+            };
+            return json(store.put(space, NOTIFICATION_CHANNELS_COLL, ch.id, ch));
+        }
+        if (method === 'PUT' && (m = match(url, NOTIF_CHANNEL_ONE))) {
+            const existing = store.get<NotificationChannel>(space, NOTIFICATION_CHANNELS_COLL, m[1]);
+            if (!existing) return error(404, `channel ${m[1]} not found`);
+            const b = (req.body ?? {}) as Partial<NotificationChannel>;
+            const next = { ...existing, ...b, id: existing.id, createdAt: existing.createdAt };
+            return json(store.put(space, NOTIFICATION_CHANNELS_COLL, next.id, next));
+        }
+        if (method === 'DELETE' && (m = match(url, NOTIF_CHANNEL_ONE))) {
+            store.delete(space, NOTIFICATION_CHANNELS_COLL, m[1]);
+            return json({ deleted: m[1] });
+        }
+        if (method === 'GET' && NOTIF_DELIVERIES.test(url)) {
+            const all = store.list<ChannelDelivery>(space, NOTIFICATION_DELIVERIES_COLL).sort((a, b) => b.ts - a.ts);
+            const limit = Number(req.params['limit']);
+            return json(Number.isFinite(limit) && limit > 0 ? all.slice(0, limit) : all);
+        }
 
         // ── catalog ──
         if (method === 'GET' && CATALOG_KPIS_RE.test(url)) return json(CATALOG_KPIS);

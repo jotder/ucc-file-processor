@@ -5,6 +5,7 @@ import type { ObjectGraph, ObjectLink, ObjectNote, OperationalObject } from '../
 import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
+import { fanOut } from '../notify';
 
 /**
  * The operational-intelligence mock domain (events · alerts · objects · enrichment) — the port of
@@ -103,6 +104,7 @@ export function opsHandler(flags: MockFlags): MockHandler {
                 message: `Manual sweep: ${rule.metric} ${rule.comparator} ${rule.threshold} breached (${rule.name})`,
             };
             store.put(space, FIRED_ALERTS_COLL, `fired-${fired.epochMillis}`, fired);
+            fanOut(store, space, 'ALERT_FIRED', 'OPS', `Alert: ${fired.rule}`, fired.message, fired.rule);
             return json([fired]);
         }
         if (method === 'GET' && ALERTS.test(url)) {
@@ -133,7 +135,11 @@ export function opsHandler(flags: MockFlags): MockHandler {
                 updatedAt: now,
                 closedAt: 0,
             };
-            return json(store.put(space, OPS_OBJECTS_COLL, obj.id, obj));
+            store.put(space, OPS_OBJECTS_COLL, obj.id, obj);
+            if (obj.objectType === 'INCIDENT') {
+                fanOut(store, space, 'INCIDENT_OPENED', 'OPS', `Incident opened: ${obj.title}`, obj.description, obj.id);
+            }
+            return json(obj);
         }
         if (method === 'POST' && (m = match(url, OBJECT_TRANSITION))) {
             const obj = store.get<OperationalObject>(space, OPS_OBJECTS_COLL, m[1]);

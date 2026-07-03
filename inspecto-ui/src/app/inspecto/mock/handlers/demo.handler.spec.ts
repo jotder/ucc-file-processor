@@ -21,6 +21,34 @@ function seededStore(): MockStore {
 describe('demoHandler', () => {
     const handler = demoHandler({ mockDemo: true });
 
+    it('round-trips channels (C4) and enforces the duplicate-id 409', () => {
+        const store = seededStore();
+        expect(handler(req('GET', '/api/notifications/channels'), store)?.body).toEqual([]);
+
+        handler(req('POST', '/api/notifications/channels', { id: 'ops_email', kind: 'EMAIL', target: 'ops@x.com' }), store);
+        const dup = handler(req('POST', '/api/notifications/channels', { id: 'ops_email', kind: 'EMAIL', target: 'b@x.com' }), store);
+        expect(dup?.status).toBe(409);
+
+        handler(req('PUT', '/api/notifications/channels/ops_email', { enabled: false }), store);
+        const list = handler(req('GET', '/api/notifications/channels'), store)?.body as Array<{ enabled: boolean }>;
+        expect(list[0].enabled).toBe(false);
+
+        handler(req('DELETE', '/api/notifications/channels/ops_email'), store);
+        expect(handler(req('GET', '/api/notifications/channels'), store)?.body).toEqual([]);
+    });
+
+    it('persists the preference grid per space (was a static no-op)', () => {
+        const store = seededStore();
+        const before = handler(req('GET', '/api/notifications/preferences'), store)?.body as Array<{
+            category: string;
+            channels: { email: boolean };
+        }>;
+        const edited = before.map((r) => (r.category === 'PIPELINE' ? { ...r, channels: { ...r.channels, email: true } } : r));
+        handler(req('PUT', '/api/notifications/preferences', { preferences: edited }), store);
+        const after = handler(req('GET', '/api/notifications/preferences'), store)?.body as typeof before;
+        expect(after.find((r) => r.category === 'PIPELINE')?.channels.email).toBe(true);
+    });
+
     it('serves the health / status surface', () => {
         const store = seededStore();
         expect(handler(req('GET', '/api/health'), store)?.body).toEqual({ status: 'UP' });

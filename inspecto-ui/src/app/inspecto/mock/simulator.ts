@@ -6,6 +6,7 @@ import { EVENTS_COLL, FIRED_ALERTS_COLL } from './handlers/ops.handler';
 import { JOB_RUN_LOGS_COLL, JOB_RUNS_COLL, JOBS_COLL, recordRun } from './handlers/jobs.handler';
 import { MockFlags } from './mock-flags';
 import { MockStore } from './mock-store';
+import { fanOut } from './notify';
 
 /**
  * The liveness simulator (plan W1) — ticks Runs / Events / Alerts so the Ops screens feel real in
@@ -93,6 +94,7 @@ function fireAlert(store: MockStore, space: string, now: number, n: number): voi
     };
     store.put(space, FIRED_ALERTS_COLL, `alert-${now}`, alert);
     trim(store, space, FIRED_ALERTS_COLL, MAX_ALERTS, (a) => (a as FiredAlert).epochMillis);
+    fanOut(store, space, 'ALERT_FIRED', 'OPS', `Alert: ${alert.rule}`, `${alert.metric} on ${alert.pipeline}`, alert.rule);
 }
 
 // ── job runs ────────────────────────────────────────────────────────────────
