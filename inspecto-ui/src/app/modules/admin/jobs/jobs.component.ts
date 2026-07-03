@@ -154,7 +154,7 @@ export class JobsComponent implements OnInit, OnDestroy {
                 onClick: (j) => this.toggleEnabled(j),
             },
         ];
-        if (this.lens.readOnly()) return ops;
+        if (!this.lens.canAuthorWorkbench()) return ops;
         return [
             ...ops,
             { icon: 'heroicons_outline:calendar-days', hint: 'Reschedule', onClick: (j) => this.edit(j, true) },

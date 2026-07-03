@@ -36,7 +36,7 @@ export type RequirementDecisionResult =
                 <p class="text-secondary text-sm"><span class="font-medium">Delivered via:</span> {{ data.deliveredNote }}</p>
             }
 
-            @if (!lens.readOnly() && data.status === 'submitted') {
+            @if (lens.canTriageRequirements() && data.status === 'submitted') {
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Note (optional)</mat-label>
                     <textarea matInput rows="2" [(ngModel)]="noteValue"></textarea>
@@ -46,7 +46,7 @@ export type RequirementDecisionResult =
                     <button mat-stroked-button color="warn" (click)="decide(false)">Reject</button>
                 </div>
             }
-            @if (!lens.readOnly() && data.status === 'accepted') {
+            @if (lens.canTriageRequirements() && data.status === 'accepted') {
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Delivered via (optional)</mat-label>
                     <input matInput [(ngModel)]="noteValue" placeholder="e.g. dashboard/churn_kpi" />

@@ -172,12 +172,19 @@ src/app/
   byte-identical) and exempts server-global/already-scoped paths (`/health`,`/ready`,`/metrics`,`/spaces*`).
   Detect the mode via `GET /spaces/_meta` → `{multiSpace}` (never infer from the space-list length). The header
   `space-switcher` and the `modules/admin/spaces` admin view are the only space-aware UI; switching reloads.
-- **Persona lens ("View as"):** `LensService` (`inspecto/api`) mirrors `SpacesService`'s shape (signal +
-  `localStorage` restore/persist) for the three lenses (business/builder/ops — `docs/GLOSSARY.md` §1-A). A
-  lens is a **UI-side annotation, never a permission**: gate an authoring action (create/edit/delete) with
-  `@if (!lens.readOnly())` — never hide *operational* actions (run-now, enable/disable toggle, dry-run,
-  activate) this way, only true config-authoring. Unlike the space switcher, switching lens does **not**
-  reload — it's purely reactive (`readOnly()` is a computed signal read directly in templates). Header
+- **Persona lens ("View as") + the Capability seam:** `LensService` (`inspecto/api`) mirrors
+  `SpacesService`'s shape (signal + `localStorage` restore/persist) for the three lenses
+  (business/builder/ops — `docs/GLOSSARY.md` §1-A). A lens is a **UI-side annotation, never a permission**
+  (Lens ≠ Role — RBAC is security-module scope; design: `docs/superpower/rbac-groundwork.md`). Panes gate on
+  the **named capability signals** — `lens.canAuthorWorkbench()` (Workbench create/edit/delete),
+  `lens.canOperateRuns()` (Runs trigger/pause/reprocess), `lens.canTriageRequirements()` (C1 triage) —
+  **never on `readOnly()`/lens identity**; add a new named capability per distinct authorization question
+  (today they derive from the lens; under RBAC they re-derive from role grants with no pane changes).
+  Default heuristic: operational actions (run-now, enable/disable, dry-run, activate) stay available in
+  every lens — gate only true config-authoring — *unless* the plan explicitly says otherwise for a pane
+  (Runs is "read-only observe" for Business, hence `canOperateRuns`). Gate the **mutating method**
+  (defense-in-depth), not just the button, on canvas/drag surfaces. Unlike the space switcher, switching
+  lens does **not** reload — capabilities are computed signals read directly in templates. Header
   `lens-switcher` mounts next to `space-switcher`, classic layout only.
 
 ## 8. Error handling

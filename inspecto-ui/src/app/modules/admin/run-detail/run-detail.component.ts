@@ -175,7 +175,7 @@ export class RunDetailComponent implements OnInit {
             hint: 'Lineage & details',
             onClick: (r) => this.openBatchById(r['batch_id']),
         };
-        if (this.lens.readOnly()) return [details];
+        if (!this.lens.canOperateRuns()) return [details];
         return [
             details,
             {
@@ -239,7 +239,7 @@ export class RunDetailComponent implements OnInit {
     }
 
     reprocessRow(r: AuditRow): void {
-        if (this.lens.readOnly()) return; // Business lens: read-only observe
+        if (!this.lens.canOperateRuns()) return; // Business lens: read-only observe
         const id = r['batch_id'];
         if (!id) {
             this.toastr.warning('No batch id on this row');

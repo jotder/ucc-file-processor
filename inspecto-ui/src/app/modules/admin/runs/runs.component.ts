@@ -64,7 +64,7 @@ export class RunsComponent implements OnInit {
             hint: 'Open detail',
             onClick: (p) => this.openDetail(p.name),
         };
-        if (this.lens.readOnly()) return [detail];
+        if (!this.lens.canOperateRuns()) return [detail];
         return [
             {
                 icon: 'heroicons_outline:play',
@@ -109,7 +109,7 @@ export class RunsComponent implements OnInit {
     }
 
     async trigger(name: string): Promise<void> {
-        if (this.lens.readOnly()) return; // Business lens: read-only observe
+        if (!this.lens.canOperateRuns()) return; // Business lens: read-only observe
         if (!(await this.confirm.confirm(`Trigger run "${name}" now?`, 'Trigger run'))) return;
         this.api.trigger(name).subscribe({
             next: (r) => {
@@ -122,7 +122,7 @@ export class RunsComponent implements OnInit {
     }
 
     async runAll(): Promise<void> {
-        if (this.lens.readOnly()) return; // Business lens: read-only observe
+        if (!this.lens.canOperateRuns()) return; // Business lens: read-only observe
         if (!(await this.confirm.confirm('Trigger all runs now?', 'Run all'))) return;
         this.loading = true;
         this.api.runAll().subscribe({
@@ -141,7 +141,7 @@ export class RunsComponent implements OnInit {
     }
 
     async togglePause(p: RunView): Promise<void> {
-        if (this.lens.readOnly()) return; // Business lens: read-only observe
+        if (!this.lens.canOperateRuns()) return; // Business lens: read-only observe
         const wasPaused = p.paused;
         const verb = wasPaused ? 'Resume' : 'Pause';
         if (!(await this.confirm.confirm(`${verb} run "${p.name}"?`, `${verb} run`))) return;
@@ -168,7 +168,7 @@ export class RunsComponent implements OnInit {
     }
 
     openReprocess(name: string): void {
-        if (this.lens.readOnly()) return; // Business lens: read-only observe
+        if (!this.lens.canOperateRuns()) return; // Business lens: read-only observe
         this.dialogOpen = true;
         const ref = this.dialog.open(ReprocessDialog, { data: { pipeline: name }, width: '420px' });
         ref.afterClosed().subscribe((batchId: string | undefined) => {

@@ -1,7 +1,7 @@
 <div class="flex h-full flex-col gap-3">
     <!-- toolbar -->
     <div class="flex flex-wrap items-center gap-2">
-        @if (creating() && !lens.readOnly()) {
+        @if (creating() && lens.canAuthorWorkbench()) {
             <div class="flex items-center gap-2">
                 <mat-form-field subscriptSizing="dynamic" class="w-56">
                     <mat-label>New pipeline name</mat-label>
@@ -23,7 +23,7 @@
                     }
                 </mat-select>
             </mat-form-field>
-            @if (!lens.readOnly()) {
+            @if (lens.canAuthorWorkbench()) {
                 <button mat-icon-button (click)="startNew()" matTooltip="New pipeline" aria-label="New pipeline">
                     <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
                 </button>
@@ -61,7 +61,7 @@
                     <mat-icon svgIcon="heroicons_outline:bolt"></mat-icon>
                 </button>
             }
-            @if (!lens.readOnly()) {
+            @if (lens.canAuthorWorkbench()) {
                 <button mat-icon-button [disabled]="!hasSelection()" (click)="onDeleteKey()"
                         matTooltip="Delete selected" aria-label="Delete the selected node or edge">
                     <mat-icon svgIcon="heroicons_outline:trash"></mat-icon>
@@ -119,7 +119,7 @@
                     [selectedEdgeId]="selectedEdgeId()"
                     [selectedEdgeRel]="selectedEdgeRel()"
                     [candidateRels]="candidateRels()"
-                    [readOnly]="lens.readOnly()"
+                    [readOnly]="!lens.canAuthorWorkbench()"
                     (configure)="openNodeConfig($event)"
                     (runToHere)="openRunToHere($event)"
                     (connect)="armConnect()"

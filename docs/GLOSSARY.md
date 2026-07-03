@@ -53,7 +53,20 @@ Management, Financial Auditing, Link Analysis. *(Added Wave 0, 2026-07-02.)*
 **Lens** — A persona-scoped view of the one operator console: **Business** (consume data, investigate
 provenance/lineage, raise Requirements) · **Builder** (author in Workbench + Studio) · **Ops** (built-in
 operational features). A Lens filters navigation and toolbars; it is **not** a permission — RBAC arrives with
-the security module and maps onto Lenses.
+the security module and maps onto Lenses. ⛔ Never use *Lens* to mean an authorization: a Lens is
+self-selected and freely switchable; a **Role** is assigned and enforced.
+
+**Role** — An **assigned authorization** (security-module editions): a named grant set held by a user
+(e.g. Business User, Pipeline Developer, Operations/Support, Power User, Admin, Super User). A user may hold
+several Roles; Roles *project onto* Lenses (they decide which Lenses are available and which **Capabilities**
+are granted within them) but are enforced server-side, unlike Lenses. Not built in the auth-free core.
+*(Added 2026-07-03; design: `superpower/rbac-groundwork.md`.)*
+
+**Capability** — One named authorization question the UI gates on (e.g. `canAuthorWorkbench`,
+`canOperateRuns`, `canTriageRequirements` — `LensService`). The **seam between Lens and Role**: in the
+auth-free core a Capability is derived from the active Lens (honor-system preview); under RBAC the same
+signals are re-derived from the subject's Role grants and no pane changes. Panes gate on a Capability,
+never on Lens identity. *(Added 2026-07-03.)*
 
 **Workbench** — The Builder surface for acquisition + processing authoring: Connections, Sources, and
 Pipelines. *(Formalizes the informal use in §3 Stream.)*
@@ -62,8 +75,10 @@ Pipelines. *(Formalizes the informal use in §3 Stream.)*
 Analysis Studio).
 
 **Requirement** — A Business-authored request for a deliverable — **KPI | Report | Reconciliation | Rule** —
-with lifecycle `draft → submitted → in-build → delivered → accepted`, linkable to the Component(s) that
-satisfy it.
+with lifecycle `submitted → accepted | rejected → delivered` (Business submits; Builder triages the intake
+queue and decides; delivery is recorded against the requirement), linkable to the Component(s) that satisfy
+it. *(Lifecycle simplified from the Wave-0 draft per the product-owner decision 2026-07-03, shipped as C1 —
+`superpower/reviews/requirements-intake.md`.)*
 
 ---
 
@@ -207,8 +222,11 @@ from analytical **Dashboards** built in Studio.
 **Reconciliation** — A comparison between two **Datasets** on matching keys (optionally with tolerances) that
 produces **Breaks**. The core Revenue-Assurance / Financial-Audit workload. *(Added Wave 0, 2026-07-02.)*
 
-**Break** — One unmatched or mismatched record (or group) found by a Reconciliation. Breaks have a lifecycle
-(open → matched/explained → closed) and can raise **Incidents**.
+**Break** — One unmatched or mismatched record found by a Reconciliation, typed **missing-left |
+missing-right | value-break**. Lifecycle `open → resolved | auto-closed`: a Break **auto-closes** when its
+key re-matches within tolerance on a later run; manual resolutions (with a note) are preserved across runs.
+Breaks can raise **Incidents** (future). *(Lifecycle locked with the product owner 2026-07-03, shipped as
+C9 — `superpower/reviews/reconciliation.md`.)*
 
 ---
 

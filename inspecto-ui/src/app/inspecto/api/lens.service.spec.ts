@@ -40,6 +40,18 @@ describe('LensService', () => {
         expect(service.readOnly()).toBe(false);
     });
 
+    it('capabilities (the RBAC seam) all deny in the business lens and grant otherwise', () => {
+        const service = TestBed.inject(LensService);
+        service.selectLens('business');
+        expect(service.canAuthorWorkbench()).toBe(false);
+        expect(service.canOperateRuns()).toBe(false);
+        expect(service.canTriageRequirements()).toBe(false);
+        service.selectLens('ops');
+        expect(service.canAuthorWorkbench()).toBe(true);
+        expect(service.canOperateRuns()).toBe(true);
+        expect(service.canTriageRequirements()).toBe(true);
+    });
+
     it('exposes the three lenses in display order', () => {
         expect(LensService.LENSES.map((l) => l.id)).toEqual(['business', 'builder', 'ops']);
     });

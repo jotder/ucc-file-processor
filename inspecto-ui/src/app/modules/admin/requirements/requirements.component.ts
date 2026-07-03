@@ -92,7 +92,7 @@ export class RequirementsComponent implements OnInit {
             .open(RequirementDecisionDialog, { data: r, width: '520px' })
             .afterClosed()
             .subscribe((result?: RequirementDecisionResult) => {
-                if (!result || this.lens.readOnly()) return;
+                if (!result || !this.lens.canTriageRequirements()) return;
                 const updated =
                     result.action === 'decide'
                         ? decideRequirement(r, result.accept, result.note)
