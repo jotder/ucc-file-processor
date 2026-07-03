@@ -3,7 +3,7 @@ import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { ToastrService } from 'ngx-toastr';
 import { ConnectionProfile, ConnectionsService, LensService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
@@ -30,6 +30,9 @@ function create(list: ConnectionProfile[] = [CONN]) {
 }
 
 describe('ConnectionsComponent', () => {
+    // LensService persists to localStorage; clear it so a lens set by one test/file can't leak into another.
+    beforeEach(() => localStorage.removeItem('inspecto.currentLens'));
+
     it('loads connections on init', () => {
         const c = create().componentInstance;
         expect(c.connections).toEqual([CONN]);

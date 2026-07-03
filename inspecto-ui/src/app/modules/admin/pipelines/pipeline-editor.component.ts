@@ -362,6 +362,7 @@ export class PipelineEditorComponent implements OnInit {
     }
 
     openNodeConfig(node: AuthoredNode): void {
+        if (this.lens.readOnly()) return; // Business lens: no-op — double-click/Configure can't mutate
         const category = this.typeCategory(node.type);
         // Parsers get the rich multi-pane parser editor; every other category uses the generic config popup.
         const ref =
@@ -432,6 +433,7 @@ export class PipelineEditorComponent implements OnInit {
 
     /** Drag-to-draw: G6 already drew the edge, so only record it in the model (default `data` relationship). */
     onEdgeCreated(e: { source: string; target: string }): void {
+        if (this.lens.readOnly()) return; // Business lens: canvas drag-to-draw can't mutate
         if (e.source === e.target) return;
         this.addEdge(e.source, e.target, 'data', { skipCanvas: true });
     }
@@ -459,7 +461,7 @@ export class PipelineEditorComponent implements OnInit {
 
     /** Palette drag-drop: place the new node where it was dropped. */
     onDropAdd(e: { type: string; x: number; y: number }): void {
-        if (!this.model()) return;
+        if (this.lens.readOnly() || !this.model()) return; // Business lens: palette drag can't mutate
         const node = this.insertNode(e.type);
         this.canvas?.addNode(node.id, node.id, this.visualKind(e.type), e.x, e.y);
         this.selectNewNode(node);
@@ -467,7 +469,7 @@ export class PipelineEditorComponent implements OnInit {
 
     /** Palette click / keyboard (Enter): add the node at the canvas centre — the no-mouse path to add. */
     addFromPalette(type: string): void {
-        if (!this.model()) return;
+        if (this.lens.readOnly() || !this.model()) return; // Business lens: palette click can't mutate
         const node = this.insertNode(type);
         this.canvas?.addNodeAtCenter(node.id, node.id, this.visualKind(type));
         this.selectNewNode(node);
@@ -492,6 +494,7 @@ export class PipelineEditorComponent implements OnInit {
     }
 
     onDeleteKey(): void {
+        if (this.lens.readOnly()) return; // Business lens: the canvas Delete key can't mutate
         const edgeId = this.selectedEdgeId();
         const node = this.selectedNode();
         if (edgeId) {

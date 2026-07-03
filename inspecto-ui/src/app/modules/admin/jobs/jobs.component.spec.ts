@@ -4,7 +4,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
 import { Observable, of, throwError } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { JobFailureDay, JobMetrics, JobRunRow, JobView, JobsService, LensService } from 'app/inspecto/api';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -51,6 +51,9 @@ describe('fmtDuration', () => {
 });
 
 describe('JobsComponent', () => {
+    // LensService persists to localStorage; clear it so a lens set by one test/file can't leak into another.
+    beforeEach(() => localStorage.removeItem('inspecto.currentLens'));
+
     it('lazy-loads the reporting projection when switching to reporting mode', () => {
         const c = create('ok').componentInstance;
         expect(c.metrics).toBeNull();

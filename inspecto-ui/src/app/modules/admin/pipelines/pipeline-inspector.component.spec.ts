@@ -81,6 +81,24 @@ describe('PipelineInspectorComponent', () => {
         expect(del).toHaveBeenCalled();
     });
 
+    it('readOnly hides Configure/Connect/Delete but keeps Run to here', () => {
+        // One TestBed/fixture, mutated between assertions — TestBed can only be configured once per test.
+        const { fixture, c } = create({ node: NODE, status: 'configured', category: 'PARSE', readOnly: true });
+        const el = fixture.nativeElement as HTMLElement;
+        const buttons = Array.from(el.querySelectorAll('button'));
+        expect(buttons.some((b) => b.textContent?.includes('Configure'))).toBe(false);
+        expect(buttons.some((b) => b.textContent?.includes('Connect'))).toBe(false);
+        expect(el.querySelector('[aria-label="Delete node"]')).toBeNull();
+        expect(buttons.some((b) => b.textContent?.includes('Run to here'))).toBe(true);
+    });
+
+    it('readOnly hides Delete connection in the edge view', () => {
+        const { fixture } = create({
+            selectedEdgeId: 'a->b:data:1', selectedEdgeRel: 'data', candidateRels: ['data', 'kept'], readOnly: true,
+        });
+        expect(fixture.nativeElement.querySelector('[aria-label="Delete connection"]')).toBeNull();
+    });
+
     it('has no a11y violations in any of the three states', async () => {
         // One TestBed/fixture, mutated between assertions — TestBed can only be configured once per test.
         const { fixture, c } = create();

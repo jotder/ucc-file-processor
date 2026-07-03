@@ -66,38 +66,48 @@ import {
             }
 
             <div class="mt-3 flex flex-wrap gap-2">
-                <button mat-flat-button color="primary" type="button" (click)="configure.emit(node)">
-                    <mat-icon svgIcon="heroicons_outline:cog-6-tooth"></mat-icon> Configure
-                </button>
+                @if (!readOnly) {
+                    <button mat-flat-button color="primary" type="button" (click)="configure.emit(node)">
+                        <mat-icon svgIcon="heroicons_outline:cog-6-tooth"></mat-icon> Configure
+                    </button>
+                }
                 <button mat-stroked-button type="button" (click)="runToHere.emit(node)">
                     <mat-icon svgIcon="heroicons_outline:play"></mat-icon> Run to here
                 </button>
-                <button mat-stroked-button type="button" (click)="connect.emit()">
-                    <mat-icon svgIcon="heroicons_outline:arrow-right"></mat-icon> Connect
-                </button>
-                <button mat-stroked-button type="button" (click)="deleteSelected.emit()" aria-label="Delete node">
-                    <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete
-                </button>
+                @if (!readOnly) {
+                    <button mat-stroked-button type="button" (click)="connect.emit()">
+                        <mat-icon svgIcon="heroicons_outline:arrow-right"></mat-icon> Connect
+                    </button>
+                    <button mat-stroked-button type="button" (click)="deleteSelected.emit()" aria-label="Delete node">
+                        <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete
+                    </button>
+                }
             </div>
         } @else if (selectedEdgeId) {
             <h3 class="mb-2 text-sm font-semibold">Connection</h3>
             <mat-form-field class="w-full" subscriptSizing="dynamic">
                 <mat-label>Relationship</mat-label>
-                <mat-select [value]="selectedEdgeRel" (selectionChange)="edgeRelChange.emit($event.value)">
+                <mat-select [value]="selectedEdgeRel" [disabled]="readOnly" (selectionChange)="edgeRelChange.emit($event.value)">
                     @for (r of candidateRels; track r) {
                         <mat-option [value]="r">{{ r }}</mat-option>
                     }
                 </mat-select>
             </mat-form-field>
             <p class="mt-1 text-xs opacity-60">The source's output this connection carries.</p>
-            <button class="mt-3" mat-stroked-button type="button" (click)="deleteSelected.emit()" aria-label="Delete connection">
-                <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete connection
-            </button>
+            @if (!readOnly) {
+                <button class="mt-3" mat-stroked-button type="button" (click)="deleteSelected.emit()" aria-label="Delete connection">
+                    <mat-icon svgIcon="heroicons_outline:trash"></mat-icon> Delete connection
+                </button>
+            }
         } @else {
             <p class="text-sm opacity-70">
-                Drag a processor from the toolbar onto the canvas. Click a node or edge to select it;
-                <b>double-click</b> a node (or use <b>Configure</b>) to edit its attributes.
-                <b>Delete selected</b> removes the selected item.
+                @if (readOnly) {
+                    Click a node or edge to inspect it. Authoring is read-only in the Business lens.
+                } @else {
+                    Drag a processor from the toolbar onto the canvas. Click a node or edge to select it;
+                    <b>double-click</b> a node (or use <b>Configure</b>) to edit its attributes.
+                    <b>Delete selected</b> removes the selected item.
+                }
             </p>
         }
     `,
@@ -111,6 +121,8 @@ export class PipelineInspectorComponent {
     @Input() selectedEdgeId: string | null = null;
     @Input() selectedEdgeRel: string | null = null;
     @Input() candidateRels: string[] = [];
+    /** Business lens: hide every authoring action (Configure/Connect/Delete/relabel), keep Run to here. */
+    @Input() readOnly = false;
 
     @Output() configure = new EventEmitter<AuthoredNode>();
     @Output() runToHere = new EventEmitter<AuthoredNode>();

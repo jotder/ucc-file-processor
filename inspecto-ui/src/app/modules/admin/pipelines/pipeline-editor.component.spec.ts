@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { MatDialog } from '@angular/material/dialog';
 import { PipelineEditorComponent } from './pipeline-editor.component';
 import { AuthoredPipeline, ComponentsService, LensService, PipelineDryRunResult, PipelinesService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
@@ -40,8 +41,11 @@ describe('PipelineEditorComponent', () => {
         deleteAuthored: ReturnType<typeof vi.fn>;
         dryRunAuthored: ReturnType<typeof vi.fn>;
     };
+    let dialog: { open: ReturnType<typeof vi.fn> };
 
     beforeEach(() => {
+        // LensService persists to localStorage; clear it so a lens set by one test/file can't leak into another.
+        localStorage.removeItem('inspecto.currentLens');
         api = {
             authoredList: vi.fn().mockReturnValue(of([])),
             nodeTypes: vi.fn().mockReturnValue(
@@ -53,6 +57,7 @@ describe('PipelineEditorComponent', () => {
             deleteAuthored: vi.fn().mockReturnValue(of({})),
             dryRunAuthored: vi.fn().mockReturnValue(of({ seedNode: 'src', nodes: [], sinks: [] } as PipelineDryRunResult)),
         };
+        dialog = { open: vi.fn() };
         TestBed.configureTestingModule({
             imports: [PipelineEditorComponent],
             providers: [
@@ -61,6 +66,7 @@ describe('PipelineEditorComponent', () => {
                 { provide: ComponentsService, useValue: { list: vi.fn().mockReturnValue(of([])) } },
                 { provide: ToastrService, useValue: { success: vi.fn(), error: vi.fn() } },
                 { provide: InspectoConfirmService, useValue: { confirmDestructive: vi.fn().mockResolvedValue(true) } },
+                { provide: MatDialog, useValue: dialog },
             ],
         });
     });
@@ -171,5 +177,27 @@ describe('PipelineEditorComponent', () => {
         expect(el.querySelector('[aria-label="New pipeline"]')).toBeNull();
         expect(el.querySelector('[aria-label="Save pipeline"]')).toBeNull();
         expect(el.querySelector('[aria-label="Delete the selected node or edge"]')).toBeNull();
+    });
+
+    it('the Business lens blocks model mutation even when called directly (defense-in-depth)', () => {
+        TestBed.inject(LensService).selectLens('business');
+        const c = make();
+        c.model.set(structuredClone(FLOW));
+
+        c.onDropAdd({ type: 'transform.filter', x: 10, y: 20 });
+        expect(c.model()!.nodes).toHaveLength(2); // unchanged
+
+        c.addFromPalette('transform.filter');
+        expect(c.model()!.nodes).toHaveLength(2); // unchanged
+
+        c.selectedNode.set(c.model()!.nodes[1]);
+        c.onDeleteKey();
+        expect(c.model()!.nodes).toHaveLength(2); // unchanged
+
+        c.onEdgeCreated({ source: 'flt', target: 'src' });
+        expect(c.model()!.edges.filter((e) => e.from === 'flt' && e.to === 'src')).toHaveLength(0);
+
+        c.openNodeConfig(c.model()!.nodes[0]);
+        expect(dialog.open).not.toHaveBeenCalled();
     });
 });
