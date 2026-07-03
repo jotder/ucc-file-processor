@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -13,7 +14,7 @@ function create() {
         providers: [
             provideNoopAnimations(),
             { provide: MatDialogRef, useValue: { close: () => {} } },
-            { provide: SpacesService, useValue: {} },
+            { provide: SpacesService, useValue: { availableSpaces: signal([{ id: 'taken' }]) } },
             { provide: ToastrService, useValue: {} },
         ],
     });
@@ -30,6 +31,16 @@ describe('SpaceFormDialog', () => {
         expect(c.form.valid).toBe(true);
         c.form.patchValue({ id: 'Bad Id' });
         expect(c.form.get('id')!.hasError('pattern')).toBe(true);
+    });
+
+    it('blocks a duplicate id inline (case-insensitive)', () => {
+        const c = create().componentInstance;
+        c.form.patchValue({ id: 'taken' });
+        expect(c.form.get('id')!.hasError('duplicate')).toBe(true);
+        c.form.patchValue({ id: 'TAKEN' });
+        expect(c.form.get('id')!.hasError('pattern')).toBe(true); // uppercase also fails the charset
+        c.form.patchValue({ id: 'fresh' });
+        expect(c.form.valid).toBe(true);
     });
 
     it('has no a11y violations', async () => {

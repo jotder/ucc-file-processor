@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -21,6 +22,7 @@ const PREVIEW: ImportPreview = {
 
 function create(data: ImportBundleData, preview?: ImportPreview) {
     const stub = {
+        availableSpaces: signal([{ id: 'alpha' }]),
         importPreview: () => of(preview ?? PREVIEW),
         importBundle: () => of({ kind: 'data_source', imported: ['orders'], pipelines: ['orders'], overwritten: true }),
         createFromBundle: () => of({ id: 'x', displayName: '', description: '', createdAt: '' }),
@@ -55,6 +57,14 @@ describe('ImportBundleDialog', () => {
         c.file = new File([], 'b.zip');
         c.preview = { ...PREVIEW, conflicts: [], valid: false };
         expect(c.canImport()).toBe(false);
+    });
+
+    it('blocks a duplicate new-space id inline in create-from-bundle mode', () => {
+        const c = create({}).componentInstance;
+        c.newId.setValue('alpha');
+        expect(c.newId.hasError('duplicate')).toBe(true);
+        c.newId.setValue('fresh');
+        expect(c.newId.valid).toBe(true);
     });
 
     it('import mode has no a11y violations', async () => {

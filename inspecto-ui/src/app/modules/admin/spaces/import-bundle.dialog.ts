@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormControl, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -10,6 +10,12 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ImportPreview, SpacesService } from 'app/inspecto/api';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
+
+/** Rejects a value (case-insensitive, trimmed) already present in `taken` → `{ duplicate: true }`. */
+function uniqueNameValidator(taken: string[]): ValidatorFn {
+    const set = new Set(taken.map((t) => t.trim().toLowerCase()));
+    return (c: AbstractControl) => (set.has(String(c.value ?? '').trim().toLowerCase()) ? { duplicate: true } : null);
+}
 
 /**
  * Dialog input. `spaceId` set ⇒ import a bundle INTO that existing space (with a dry-run preview that
@@ -46,6 +52,8 @@ export interface ImportBundleData {
                         <mat-error>Id is required.</mat-error>
                     } @else if (newId.hasError('pattern')) {
                         <mat-error>Use a–z, 0–9, hyphen; start with a letter or digit; max 63 chars.</mat-error>
+                    } @else if (newId.hasError('duplicate')) {
+                        <mat-error>A space with this id already exists.</mat-error>
                     }
                 </mat-form-field>
             }
@@ -162,7 +170,11 @@ export class ImportBundleDialog {
     readonly isImport = !!this.data.spaceId;
     readonly newId = new FormControl('', {
         nonNullable: true,
-        validators: [Validators.required, Validators.pattern(/^[a-z0-9][a-z0-9-]{0,62}$/)],
+        validators: [
+            Validators.required,
+            Validators.pattern(/^[a-z0-9][a-z0-9-]{0,62}$/),
+            uniqueNameValidator(this.api.availableSpaces().map((s) => s.id)),
+        ],
     });
     readonly overwrite = new FormControl(false, { nonNullable: true });
 

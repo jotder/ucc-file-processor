@@ -1,11 +1,17 @@
 import { Component, inject } from '@angular/core';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, Space, SpacesService } from 'app/inspecto/api';
+
+/** Rejects a value (case-insensitive, trimmed) already present in `taken` → `{ duplicate: true }`. */
+function uniqueNameValidator(taken: string[]): ValidatorFn {
+    const set = new Set(taken.map((t) => t.trim().toLowerCase()));
+    return (c: AbstractControl) => (set.has(String(c.value ?? '').trim().toLowerCase()) ? { duplicate: true } : null);
+}
 
 /**
  * Create + boot a new (empty) space. The id is the on-disk folder name and the request key, so it is
@@ -35,6 +41,8 @@ import { apiErrorMessage, Space, SpacesService } from 'app/inspecto/api';
                             <mat-error>Id is required.</mat-error>
                         } @else if (c.hasError('pattern')) {
                             <mat-error>Use a–z, 0–9, hyphen; start with a letter or digit; max 63 chars.</mat-error>
+                        } @else if (c.hasError('duplicate')) {
+                            <mat-error>A space with this id already exists.</mat-error>
                         }
                     }
                 </mat-form-field>
@@ -65,7 +73,14 @@ export class SpaceFormDialog {
     saving = false;
 
     form: FormGroup = this.fb.group({
-        id: ['', [Validators.required, Validators.pattern(/^[a-z0-9][a-z0-9-]{0,62}$/)]],
+        id: [
+            '',
+            [
+                Validators.required,
+                Validators.pattern(/^[a-z0-9][a-z0-9-]{0,62}$/),
+                uniqueNameValidator(this.api.availableSpaces().map((s) => s.id)),
+            ],
+        ],
         display_name: [''],
         description: [''],
     });

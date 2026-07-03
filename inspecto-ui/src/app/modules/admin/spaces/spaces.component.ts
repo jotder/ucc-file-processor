@@ -55,9 +55,9 @@ export class SpacesComponent implements OnInit {
         this.loading = true;
         this.spaces.refresh().subscribe({
             next: () => (this.loading = false),
-            error: () => {
+            error: (e) => {
                 this.loading = false;
-                this.toastr.warning('Could not load spaces — is ControlApi running?');
+                this.toastr.warning(apiErrorMessage(e, 'Could not load spaces.'));
             },
         });
     }

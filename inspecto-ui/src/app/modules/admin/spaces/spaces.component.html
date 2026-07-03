@@ -110,7 +110,11 @@
                             @if (dsLoading[s.id]) {
                                 <div class="flex items-center gap-2 text-sm"><mat-spinner diameter="16"></mat-spinner> Loading…</div>
                             } @else if ((dataSources[s.id]?.length ?? 0) === 0) {
-                                <div class="text-secondary text-sm">No data sources in this space yet.</div>
+                                <inspecto-empty-state
+                                    icon="heroicons_outline:circle-stack"
+                                    title="No data sources"
+                                    message="No data sources in this space yet."
+                                ></inspecto-empty-state>
                             } @else {
                                 <div class="flex flex-col gap-1">
                                     @for (ds of dataSources[s.id]; track ds) {
