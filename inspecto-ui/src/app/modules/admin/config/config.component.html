@@ -40,6 +40,15 @@
                         </div>
                     }
 
+                    @if (!spec && !specLoading) {
+                        <inspecto-empty-state
+                            class="mt-4 block"
+                            icon="heroicons_outline:document-text"
+                            title="Spec unavailable"
+                            [message]="'The field spec for &quot;' + type + '&quot; could not be loaded. Retry by re-selecting the config type.'"
+                        ></inspecto-empty-state>
+                    }
+
                     @if (spec && !specLoading) {
                         <div class="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
                             @for (f of spec.fields; track f.path) {
@@ -50,7 +59,7 @@
                                     @switch (editorType(f)) {
                                         @case ('select') {
                                             <mat-form-field class="gamma-mat-dense w-full" subscriptSizing="dynamic">
-                                                <mat-select [(ngModel)]="model[f.path]">
+                                                <mat-select [(ngModel)]="model[f.path]" [aria-label]="f.path">
                                                     <mat-option [value]="undefined">—</mat-option>
                                                     @for (o of f.options || []; track o) {
                                                         <mat-option [value]="o">{{ o }}</mat-option>
@@ -62,21 +71,23 @@
                                             <mat-form-field class="gamma-mat-dense w-full" subscriptSizing="dynamic">
                                                 <input matInput [ngModel]="tagsText(f.path)"
                                                        (ngModelChange)="setTags(f.path, $event)"
+                                                       [attr.aria-label]="f.path"
                                                        placeholder="comma-separated values…" />
                                             </mat-form-field>
                                         }
                                         @case ('number') {
                                             <mat-form-field class="gamma-mat-dense w-full" subscriptSizing="dynamic">
                                                 <input matInput type="number" [(ngModel)]="model[f.path]"
+                                                       [attr.aria-label]="f.path"
                                                        [min]="f.minValue ?? null" [max]="f.maxValue ?? null" />
                                             </mat-form-field>
                                         }
                                         @case ('boolean') {
-                                            <mat-checkbox [(ngModel)]="model[f.path]"></mat-checkbox>
+                                            <mat-checkbox [(ngModel)]="model[f.path]" [aria-label]="f.path"></mat-checkbox>
                                         }
                                         @default {
                                             <mat-form-field class="gamma-mat-dense w-full" subscriptSizing="dynamic">
-                                                <input matInput [(ngModel)]="model[f.path]" />
+                                                <input matInput [(ngModel)]="model[f.path]" [attr.aria-label]="f.path" />
                                             </mat-form-field>
                                         }
                                     }
@@ -157,7 +168,7 @@
                         <tbody>
                             @for (f of result.findings; track $index) {
                                 <tr>
-                                    <td class="border-b px-2 py-1">{{ f.severity }}</td>
+                                    <td class="border-b px-2 py-1"><inspecto-status-badge [value]="f.severity" /></td>
                                     <td class="border-b px-2 py-1">{{ f.fieldPath }}</td>
                                     <td class="border-b px-2 py-1">{{ f.message }}</td>
                                 </tr>

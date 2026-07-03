@@ -488,10 +488,39 @@ export function demoHandler(flags: MockFlags): MockHandler {
 
         // ── config ──
         if (method === 'GET' && (m = match(url, CONFIG_SPEC))) return json(CONFIG_SPECS[m[1]] ?? CONFIG_SPECS['pipeline']);
-        if (method === 'POST' && VALIDATE.test(url)) return json({ clean: true, findings: [], warnings: [] });
+        if (method === 'POST' && VALIDATE.test(url)) return json(validateBody(req.body as Record<string, unknown> | undefined));
 
         return undefined;
     };
+}
+
+/**
+ * Mock POST /validate. Draft mode ({type, config}) checks the type's spec for missing required
+ * fields (dotted paths) so the findings table is exercisable in demo; file mode ({configPath})
+ * stays always-clean.
+ */
+function validateBody(body: Record<string, unknown> | undefined): {
+    clean: boolean;
+    findings: { severity: string; fieldPath: string; message: string }[];
+    warnings: string[];
+    safetyChecked: boolean;
+} {
+    const type = body?.['type'] as string | undefined;
+    const config = (body?.['config'] ?? {}) as Record<string, unknown>;
+    const spec = type ? (CONFIG_SPECS[type] as { fields?: { path: string; required?: boolean }[] } | undefined) : undefined;
+    const findings: { severity: string; fieldPath: string; message: string }[] = [];
+    for (const f of spec?.fields ?? []) {
+        if (!f.required) continue;
+        // walk the dotted path through the assembled (nested) config
+        let cur: unknown = config;
+        for (const part of f.path.split('.')) {
+            cur = cur && typeof cur === 'object' ? (cur as Record<string, unknown>)[part] : undefined;
+        }
+        if (cur === undefined || cur === null || cur === '') {
+            findings.push({ severity: 'ERROR', fieldPath: f.path, message: `Required field "${f.path}" is missing.` });
+        }
+    }
+    return { clean: findings.length === 0, findings, warnings: [], safetyChecked: !!body?.['safety'] };
 }
 
 function allNotifications(store: MockStore, space: string): Notification[] {

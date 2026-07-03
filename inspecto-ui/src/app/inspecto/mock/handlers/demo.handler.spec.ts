@@ -74,6 +74,32 @@ describe('demoHandler', () => {
         expect(list.some((n) => n.id === 'notif-101')).toBe(false);
     });
 
+    it('validates a draft against the spec — missing required fields become ERROR findings', () => {
+        const store = seededStore();
+        const bad = handler(req('POST', '/api/validate', { type: 'pipeline', config: {} }), store)?.body as {
+            clean: boolean;
+            findings: { severity: string; fieldPath: string }[];
+        };
+        expect(bad.clean).toBe(false);
+        expect(bad.findings.map((f) => f.fieldPath)).toContain('pipeline');
+        expect(bad.findings.every((f) => f.severity === 'ERROR')).toBe(true);
+
+        const ok = handler(
+            req('POST', '/api/validate', {
+                type: 'pipeline',
+                config: { pipeline: 'cdr', source: { connector: 'sftp' } },
+                safety: true,
+            }),
+            store,
+        )?.body as { clean: boolean; findings: { fieldPath: string }[]; safetyChecked: boolean };
+        expect(ok.findings.filter((f) => f.fieldPath === 'pipeline')).toEqual([]);
+        expect(ok.safetyChecked).toBe(true);
+
+        // file mode stays always-clean
+        const file = handler(req('POST', '/api/validate', { configPath: 'configs/cdr.toon' }), store)?.body as { clean: boolean };
+        expect(file.clean).toBe(true);
+    });
+
     it('lets the SSE stream fall through and gates on mockDemo', () => {
         const store = seededStore();
         expect(handler(req('GET', '/api/notifications/stream'), store)).toBeUndefined();

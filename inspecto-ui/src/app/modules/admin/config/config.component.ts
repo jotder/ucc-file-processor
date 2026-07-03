@@ -8,7 +8,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { ToastrService } from 'ngx-toastr';
-import { ConfigService, ConfigSpec, ConfigType, FieldSpec, ValidateResult } from 'app/inspecto/api';
+import { apiErrorMessage, ConfigService, ConfigSpec, ConfigType, FieldSpec, ValidateResult } from 'app/inspecto/api';
+import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 
@@ -32,6 +33,7 @@ const CONFIG_TYPES: ConfigType[] = ['pipeline', 'enrichment', 'job', 'schema', '
         MatInputModule,
         MatSelectModule,
         MatTabsModule,
+        InspectoEmptyStateComponent,
         InspectoSkeletonComponent,
         StatusBadgeComponent,
     ],
@@ -76,9 +78,10 @@ export class ConfigComponent implements OnInit {
                 for (const f of s.fields) if (f.default !== undefined) this.model[f.path] = f.default;
                 this.specLoading = false;
             },
-            error: () => {
+            error: (e) => {
                 this.spec = null;
                 this.specLoading = false;
+                this.toastr.warning(apiErrorMessage(e, `Could not load the "${this.type}" spec.`));
             },
         });
     }
@@ -137,9 +140,9 @@ export class ConfigComponent implements OnInit {
                 this.result = r;
                 this.validating = false;
             },
-            error: () => {
+            error: (e) => {
                 this.validating = false;
-                this.toastr.error('Validation failed');
+                this.toastr.error(apiErrorMessage(e, 'Validation failed.'));
             },
         });
     }
@@ -157,9 +160,9 @@ export class ConfigComponent implements OnInit {
                 this.result = r;
                 this.validating = false;
             },
-            error: () => {
+            error: (e) => {
                 this.validating = false;
-                this.toastr.error('Validation failed');
+                this.toastr.error(apiErrorMessage(e, 'Validation failed.'));
             },
         });
     }
