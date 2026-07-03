@@ -7,6 +7,7 @@ import { SpacesService } from '../api/spaces.service';
 import { componentsHandler } from './handlers/components.handler';
 import { connectionsHandler } from './handlers/connections.handler';
 import { demoHandler } from './handlers/demo.handler';
+import { expectationsHandler } from './handlers/expectations.handler';
 import { jobsHandler } from './handlers/jobs.handler';
 import { opsHandler } from './handlers/ops.handler';
 import { pipelinesHandler } from './handlers/pipelines.handler';
@@ -44,6 +45,7 @@ const HANDLERS: MockHandler[] = [
     componentsHandler(flags),
     pipelinesHandler(flags),
     opsHandler(flags),
+    expectationsHandler(flags),
     jobsHandler(flags),
 ];
 

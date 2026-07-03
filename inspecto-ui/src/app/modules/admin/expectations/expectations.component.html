@@ -1,0 +1,54 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex items-center justify-between border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Expectations</h1>
+            <div class="text-secondary mt-1.5">
+                Data-quality checks (non-null · range · regex · referential) attached to Pipelines and Jobs.
+                A failed check raises an Incident.
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading || sweeping) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+            <button mat-stroked-button (click)="evaluateAll()" [disabled]="sweeping || !rows.length">
+                <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
+                <span class="ml-2">Run all checks</span>
+            </button>
+            @if (lens.canAuthorWorkbench()) {
+                <button mat-flat-button color="primary" (click)="newExpectation()">
+                    <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                    <span class="ml-2">New expectation</span>
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        @if (!loading && rows.length === 0) {
+            <inspecto-empty-state
+                icon="heroicons_outline:check-badge"
+                title="No expectations yet"
+                message="Declare data-quality checks over your pipelines and jobs — non-null, range, regex or referential — and run them on demand."
+                [actionLabel]="lens.canAuthorWorkbench() ? 'New expectation' : ''"
+                (action)="newExpectation()"
+            ></inspecto-empty-state>
+        } @else {
+            <inspecto-data-table
+                tier="standard"
+                sourceName="expectations"
+                exportName="expectations"
+                [rows]="rows"
+                [columns]="columnDefs"
+                [rowActions]="rowActions"
+                [loading]="loading"
+                [autoHeight]="true"
+            />
+        }
+    </div>
+</div>

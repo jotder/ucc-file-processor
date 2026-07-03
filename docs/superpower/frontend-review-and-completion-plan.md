@@ -153,7 +153,7 @@ smoke · handoff per shift protocol.
 |---|---|---|---|---|
 | C1 | **Requirements intake** — author KPI/Report/Reconciliation/Rule Requirements; lifecycle; link to delivering Components; Builder sees a queue | Business | W1, W2 | **P1** (Wave 3) |
 | C9 | **Reconciliation** — define Dataset-vs-Dataset match (keys, tolerances) → Break report + Break drill grid; feeds RA/Audit templates | Business | W1, W2, query lib | **P1** (Wave 3) |
-| C2 | **Expectation builder** — DQ rules (non-null/range/regex/referential) authored via SchemaForm, attached to Pipelines/Jobs; mock failures raise Incidents | Builder | W2, `rule/` lib | **P1** (Wave 4) |
+| C2 | **Expectation builder** — DQ rules (non-null/range/regex/referential) authored via SchemaForm, attached to Pipelines/Jobs; mock failures raise Incidents — **✅ SHIPPED 2026-07-04** (`/expectations` Workbench pane; evaluate + sweep raise deduped correlated Incidents + EXPECTATION_FAILED fan-out; MOCK_STORE_KEY→v5; owner decisions in `reviews/expectations.md`) | Builder | W2, `rule/` lib | **P1** (Wave 4) |
 | C4 | **Notification center** — Alert/Incident delivery to channels (email/webhook mock), per-user prefs (extends existing pane) — **✅ SHIPPED 2026-07-03** (`reviews/notification-center.md`) | Ops | W1 | **P1** (Wave 4) |
 | C3 | **Decision Rule builder** — business routing rules + consequences, surfaced as first-class (today buried in `transform.route`) | Builder | C2 patterns | **P2** |
 | C6 | **Scheduled reports** — Dashboard/Report on a Trigger → export (PNG exists; add PDF/CSV mock + schedule UI) | Builder/Business | W1, Jobs review | **P2** |

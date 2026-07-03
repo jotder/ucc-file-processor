@@ -5,6 +5,7 @@ import type { JobDetail } from '../../api/jobs.service';
 import type { EnrichmentJobView } from '../../api/models';
 import type { OperationalObject } from '../../api/objects.service';
 import { CONNECTIONS_COLL } from '../handlers/connections.handler';
+import { EXPECTATIONS_COLL, MockExpectation } from '../handlers/expectations.handler';
 import { NOTIFICATIONS_COLL, seedNotifications } from '../handlers/demo.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
 import {
@@ -191,4 +192,35 @@ export function seedOperations(store: MockStore, space: string): void {
 
     // ── Notifications ───────────────────────────────────────────────────────────────────────────
     for (const notif of seedNotifications(now)) store.put(space, NOTIFICATIONS_COLL, notif.id, notif);
+
+    // ── Expectations (C2) — DQ checks over the seeded pipelines/jobs. `demoViolations` is the
+    //    mock-only deterministic outcome: > 0 ⇒ that check FAILS on evaluation and raises an Incident. ──
+    const expectations: MockExpectation[] = [
+        {
+            name: 'cdr_msisdn_not_null', description: 'Every CDR must carry a subscriber number',
+            targetType: 'pipeline', target: 'cdr_ingest', column: 'msisdn', kind: 'non_null',
+            min: null, max: null, pattern: null, refDataset: null, refColumn: null,
+            severity: 'CRITICAL', enabled: true, lastResult: null, createdAt: min(-600), updatedAt: min(-600),
+        },
+        {
+            name: 'cdr_duration_range', description: 'Call duration must be 0–86400 s',
+            targetType: 'pipeline', target: 'cdr_ingest', column: 'duration_s', kind: 'range',
+            min: 0, max: 86_400, pattern: null, refDataset: null, refColumn: null,
+            severity: 'MAJOR', enabled: true, lastResult: null, createdAt: min(-580), updatedAt: min(-580),
+            demoViolations: 12,
+        },
+        {
+            name: 'cdr_msisdn_format', description: 'Subscriber numbers are E.164',
+            targetType: 'job', target: 'cdr_ingest_daily', column: 'msisdn', kind: 'regex',
+            min: null, max: null, pattern: '^\\+?[1-9]\\d{6,14}$', refDataset: null, refColumn: null,
+            severity: 'MINOR', enabled: true, lastResult: null, createdAt: min(-560), updatedAt: min(-560),
+        },
+        {
+            name: 'cdr_tariff_known', description: 'Tariff codes must exist in the tariff reference',
+            targetType: 'pipeline', target: 'cdr_ingest', column: 'tariff', kind: 'referential',
+            min: null, max: null, pattern: null, refDataset: 'tariff_ref', refColumn: 'code',
+            severity: 'MAJOR', enabled: false, lastResult: null, createdAt: min(-540), updatedAt: min(-540),
+        },
+    ];
+    for (const e of expectations) store.put(space, EXPECTATIONS_COLL, e.name, e);
 }
