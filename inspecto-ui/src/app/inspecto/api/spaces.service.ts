@@ -20,6 +20,25 @@ export interface CreateSpaceRequest {
     id: string;
     display_name?: string;
     description?: string;
+    /** A Space-Template id ({@link SpaceTemplateInfo}) — the new space is seeded from its blueprint. */
+    template?: string;
+}
+
+/**
+ * A **Space Template** manifest — GET /spaces/templates. A reusable blueprint bundle of Components
+ * (Connections → Sources → Pipelines → Datasets → Widgets → Dashboards → Rules + sample data) that
+ * instantiates a new Space (Template is the Type, the Space the Instance — docs/GLOSSARY.md).
+ */
+export interface SpaceTemplateInfo {
+    id: string;
+    name: string;
+    /** One-line vertical pitch, shown on the gallery card (also the created space's default description). */
+    tagline: string;
+    description: string;
+    /** Heroicons name for the gallery card. */
+    icon: string;
+    /** Human summary of the blueprint's contents, rendered as card chips. */
+    contents: string[];
 }
 
 /** DELETE /spaces/{id} response. */
@@ -127,6 +146,11 @@ export class SpacesService {
     /** Create + boot a space (multi-space servers only). 400 bad id, 409 dup / single-tenant. */
     create(req: CreateSpaceRequest): Observable<Space> {
         return this.http.post<Space>(apiUrl('/spaces'), req);
+    }
+
+    /** The Space-Template catalog (blueprint bundles "New space from template" instantiates). */
+    templates(): Observable<SpaceTemplateInfo[]> {
+        return this.http.get<SpaceTemplateInfo[]>(apiUrl('/spaces/templates'));
     }
 
     /** Deregister + drain a space; `purge` also deletes its files. 404 unknown, 409 single-tenant. */

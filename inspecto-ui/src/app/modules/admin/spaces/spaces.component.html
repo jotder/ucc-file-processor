@@ -20,6 +20,10 @@
                 <button mat-icon-button (click)="createFromBundle()" matTooltip="Create from bundle" aria-label="Create from bundle">
                     <mat-icon svgIcon="heroicons_outline:arrow-up-tray"></mat-icon>
                 </button>
+                <button mat-stroked-button (click)="newFromTemplate()">
+                    <mat-icon svgIcon="heroicons_outline:square-3-stack-3d"></mat-icon>
+                    <span class="ml-2">New from template</span>
+                </button>
                 <button mat-flat-button color="primary" (click)="newSpace()">
                     <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
                     <span class="ml-2">New space</span>
@@ -42,9 +46,9 @@
             class="mt-8 block"
             icon="heroicons_outline:square-3-stack-3d"
             title="No spaces yet"
-            message="Create your first space, or onboard one from an exported bundle."
-            actionLabel="New space"
-            (action)="newSpace()"
+            message="Create your first space from a vertical template, empty, or onboarded from an exported bundle."
+            actionLabel="New from template"
+            (action)="newFromTemplate()"
         ></inspecto-empty-state>
     }
 

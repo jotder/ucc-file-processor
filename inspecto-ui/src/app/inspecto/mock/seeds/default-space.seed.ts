@@ -1,11 +1,8 @@
-import type { ComponentDef } from '../../api/components.service';
 import type { AuthoredPipeline } from '../../api/pipelines.service';
-import type { IconMap } from '../../api/icon-map.service';
-import { NODE_KIND_COLORS } from '../../theme/chart-tokens';
-import { componentCollection } from '../handlers/components.handler';
 import { PIPELINES_COLL } from '../handlers/pipelines.handler';
 import { MockStore } from '../mock-store';
 import { seedOperations } from './operations.seed';
+import { putComponent, seedIconMap } from './seed-utils';
 
 /**
  * The default seed pack — the consolidated seeds formerly baked into the studio / pipeline / jobs /
@@ -112,24 +109,7 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
     store.put(space, PIPELINES_COLL, subscriberLoad.name, subscriberLoad);
 
     // ── Processor icon map (category defaults + sub-type overrides) ─────────────────────────────
-    const C = NODE_KIND_COLORS; // category accent colours, sourced from the canvas token owner
-    const iconMap: IconMap = {
-        SOURCE: { glyph: 'arrow-in', color: C.SOURCE },
-        PARSE: { glyph: 'lines', color: C.SCHEMA },
-        TRANSFORM: { glyph: 'transform', color: C.ENRICHMENT },
-        SINK: { glyph: 'cylinder', color: C.TABLE },
-        CONTROL: { glyph: 'bell', color: C.KPI },
-        'collector.file': { glyph: 'file', color: C.SOURCE },
-        'collector.database': { glyph: 'database', color: C.SOURCE },
-        'collector.stream': { glyph: 'stream', color: C.SOURCE },
-        'transform.filter': { glyph: 'filter', color: C.ENRICHMENT },
-        'transform.route': { glyph: 'route', color: C.ENRICHMENT },
-        'transform.aggregate': { glyph: 'sigma', color: C.ENRICHMENT },
-        'transform.alert': { glyph: 'bell', color: C.KPI },
-        'sink.file': { glyph: 'write', color: C.TABLE },
-        'sink.database': { glyph: 'database', color: C.TABLE },
-    };
-    store.put(space, 'config', 'icon-map', iconMap);
+    seedIconMap(store, space);
 
     // ── ASN.1 schema-module library (parser config `schema_spec` picker) ────────────────────────
     store.put(space, 'asn1-module', 'cdr_3gpp_ts32297', {
@@ -156,9 +136,4 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
             'END',
         ].join('\n'),
     });
-}
-
-function putComponent(store: MockStore, space: string, kind: string, name: string, content: Record<string, unknown>): void {
-    const def: ComponentDef = { type: kind, name, ref: `${kind}/${name}`, content };
-    store.put(space, componentCollection(kind), name, def);
 }

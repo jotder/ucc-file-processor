@@ -3,6 +3,7 @@
  * the app environment themselves (keeps them pure and individually testable).
  */
 export interface MockFlags {
+    mockSpaces?: boolean;
     mockStudio?: boolean;
     mockFlows?: boolean;
     mockJobs?: boolean;

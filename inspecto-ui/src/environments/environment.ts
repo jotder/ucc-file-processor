@@ -16,6 +16,10 @@ export const environment = {
     // real library + control routes land (B2). Gates the connections handler in the unified mock store
     // (inspecto/mock/); flip false in B2.
     mockConnectionProbe: true,
+    // Prototype-only (W5): serve the server-global /spaces surface (meta/list/create/delete/datasources)
+    // + the /spaces/templates catalog from the mock store, making the multi-space runtime + the
+    // Space-Templates gallery fully demoable offline. Flip false against a real multi-space backend.
+    mockSpaces: true,
     // Prototype-only: serve the Pipelines graph editor fully offline (node-type palette, authored-flow
     // CRUD, dry-run, per-processor test) from an in-memory store. Flip false / remove the interceptor
     // once the real flow backend is wired.

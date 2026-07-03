@@ -10,6 +10,7 @@ import { demoHandler } from './handlers/demo.handler';
 import { jobsHandler } from './handlers/jobs.handler';
 import { opsHandler } from './handlers/ops.handler';
 import { pipelinesHandler } from './handlers/pipelines.handler';
+import { spacesHandler } from './handlers/spaces.handler';
 import { registerIntegrityRules } from './integrity';
 import { MockFlags } from './mock-flags';
 import { MockHandler, MockRequest } from './mock-http';
@@ -37,6 +38,7 @@ registerIntegrityRules(mockStore);
 const flags = environment as MockFlags;
 // Order preserves the old interceptor-chain precedence: demo → connections → components/pipelines → ops → jobs.
 const HANDLERS: MockHandler[] = [
+    spacesHandler(flags), // server-global /spaces — ahead of the per-space domains
     demoHandler(flags),
     connectionsHandler(flags),
     componentsHandler(flags),

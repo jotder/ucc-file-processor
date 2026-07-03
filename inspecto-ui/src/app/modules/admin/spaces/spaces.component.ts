@@ -11,6 +11,7 @@ import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { SpaceFormDialog } from './space-form.dialog';
+import { SpaceTemplateGalleryData, SpaceTemplateGalleryDialog } from './space-template-gallery.dialog';
 import { ImportBundleData, ImportBundleDialog } from './import-bundle.dialog';
 
 /**
@@ -72,6 +73,33 @@ export class SpacesComponent implements OnInit {
             .subscribe((created?: Space) => {
                 if (created) this.reload();
             });
+    }
+
+    /** W5: pick a Space Template from the gallery, name the space, and offer to switch into it. */
+    newFromTemplate(): void {
+        const data: SpaceTemplateGalleryData = {
+            existingIds: this.spaces.availableSpaces().map((s) => s.id),
+        };
+        this.dialog
+            .open(SpaceTemplateGalleryDialog, { data, width: '640px', maxHeight: '85vh' })
+            .afterClosed()
+            .subscribe((created?: Space) => {
+                if (created) {
+                    this.reload();
+                    this.offerSwitch(created);
+                }
+            });
+    }
+
+    /** Switching re-scopes the whole app, so it hard-reloads (same contract as the header switcher). */
+    private async offerSwitch(s: Space): Promise<void> {
+        const go = await this.confirm.confirm(
+            `Switch to the new space "${s.displayName}" now? The app reloads scoped to it.`,
+            'Space created',
+        );
+        if (!go) return;
+        this.spaces.selectSpace(s.id);
+        window.location.assign('/dashboard');
     }
 
     createFromBundle(): void {
