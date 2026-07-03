@@ -6,10 +6,12 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ColDef } from 'ag-grid-community';
+import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { AssistService, Diagnosis } from 'app/inspecto/api';
+import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
+import { fmtDateTime } from 'app/inspecto/grid';
 import { DiagnosisDetailDialog } from './diagnosis-detail.dialog';
 
 /**
@@ -46,11 +48,16 @@ export class DiagnosesComponent implements OnInit {
             headerName: 'When',
             width: 180,
             sort: 'desc',
-            valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleString() : ''),
+            valueFormatter: (p) => fmtDateTime(p.value),
         },
         { field: 'pipeline', headerName: 'Pipeline', flex: 1 },
         { field: 'batchId', headerName: 'Batch', flex: 1 },
-        { field: 'severity', headerName: 'Severity', width: 120 },
+        {
+            field: 'severity',
+            headerName: 'Severity',
+            width: 120,
+            cellRenderer: (p: ICellRendererParams<Diagnosis>) => statusBadgeHtml(p.value as string),
+        },
         { field: 'rootCause', headerName: 'Root cause', flex: 3, wrapText: true, autoHeight: true },
         { field: 'heuristicOnly', headerName: 'Heuristic', width: 110 },
     ];
@@ -69,7 +76,8 @@ export class DiagnosesComponent implements OnInit {
             error: () => {
                 this.diagnoses = [];
                 this.loading = false;
-                this.toastr.warning('Could not load diagnoses — is ControlApi running?');
+                // Unreachable-backend messaging is the connectivity banner's job (§8) — plain failure toast only.
+                this.toastr.error('Failed to load diagnoses');
             },
         });
     }

@@ -3,10 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { ColDef } from 'ag-grid-community';
+import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { AlertRule, AlertsService, apiErrorMessage, FiredAlert } from 'app/inspecto/api';
+import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
+import { fmtDateTime } from 'app/inspecto/grid';
 
 /**
  * Alerts — the core alert engine's surface (v4.1, B5): recent fired alerts (GET /alerts) over the
@@ -42,9 +44,14 @@ export class AlertsComponent implements OnInit {
             headerName: 'When',
             width: 180,
             sort: 'desc',
-            valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleString() : ''),
+            valueFormatter: (p) => fmtDateTime(p.value),
         },
-        { field: 'severity', headerName: 'Severity', width: 120 },
+        {
+            field: 'severity',
+            headerName: 'Severity',
+            width: 120,
+            cellRenderer: (p: ICellRendererParams<FiredAlert>) => statusBadgeHtml(p.value as string),
+        },
         { field: 'rule', headerName: 'Rule', flex: 1 },
         { field: 'pipeline', headerName: 'Pipeline', flex: 1 },
         { field: 'metric', headerName: 'Metric', width: 140 },
@@ -64,9 +71,10 @@ export class AlertsComponent implements OnInit {
                 this.loading = false;
             },
             error: () => {
+                // Unreachable-backend messaging is the connectivity banner's job (§8) — plain failure toast only.
                 this.alerts = [];
                 this.loading = false;
-                this.toastr.warning('Could not load alerts — is ControlApi running?');
+                this.toastr.error('Failed to load alerts');
             },
         });
         this.api.rules().subscribe({

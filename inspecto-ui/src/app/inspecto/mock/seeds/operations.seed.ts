@@ -80,6 +80,46 @@ export function seedOperations(store: MockStore, space: string): void {
         store.put(space, EVENTS_COLL, event.eventId, event);
     }
 
+    // ── Audit trail (8 AUDIT + 2 ACCESS_DENIED) — feeds the read-only Audit-log pane ────────────
+    const auditEntries: Array<[string, string, string, string, string, string]> = [
+        // [type, actor, action, category, target_type:target_id, message]
+        ['AUDIT', 'ops.admin', 'pipeline.created', 'config', 'pipeline:cdr_ingest', 'Created pipeline cdr_ingest'],
+        ['AUDIT', 'ops.admin', 'connection.updated', 'config', 'connection:cdr_sftp_prod', 'Rotated credentials reference'],
+        ['AUDIT', 'builder.rita', 'job.triggered', 'operate', 'job:daily_summary_report', 'Manual run requested'],
+        ['AUDIT', 'builder.rita', 'dataset.updated', 'config', 'dataset:cdr_enriched', 'Added column roaming_flag'],
+        ['AUDIT', 'ops.admin', 'pipeline.paused', 'operate', 'pipeline:voucher_etl', 'Paused for maintenance window'],
+        ['AUDIT', 'ops.admin', 'pipeline.resumed', 'operate', 'pipeline:voucher_etl', 'Maintenance complete'],
+        ['AUDIT', 'business.amol', 'report.exported', 'read', 'report:daily_summary', 'Exported daily_summary.csv'],
+        ['AUDIT', 'ops.admin', 'job.deleted', 'destructive', 'job:legacy_reconcile', 'Removed retired job'],
+        ['ACCESS_DENIED', 'business.amol', 'pipeline.delete', 'destructive', 'pipeline:cdr_ingest', 'Denied: business lens cannot delete pipelines'],
+        ['ACCESS_DENIED', 'unknown', 'config.read', 'read', 'space:default', 'Denied: unauthenticated request'],
+    ];
+    auditEntries.forEach(([type, actor, action, category, target, message], i) => {
+        const ts = now - i * 3_600_000 - 120_000;
+        const [targetType, targetId] = target.split(':');
+        const audit: EventRow = {
+            eventId: 'evt-audit-' + i,
+            ts,
+            timestamp: new Date(ts).toISOString(),
+            level: type === 'ACCESS_DENIED' ? 'WARN' : 'INFO',
+            type,
+            source: 'audit',
+            pipeline: null,
+            correlationId: null,
+            message,
+            attributes: {
+                actor,
+                action,
+                action_category: category,
+                target_type: targetType,
+                target_id: targetId,
+                ip: '10.20.0.' + (5 + (i % 3)),
+                user_agent: 'Mozilla/5.0 (inspecto-ui)',
+            },
+        };
+        store.put(space, EVENTS_COLL, audit.eventId, audit);
+    });
+
     // ── Fired alerts (12) + the rules that fired them ───────────────────────────────────────────
     for (let i = 0; i < 12; i++) {
         const alert: FiredAlert = {

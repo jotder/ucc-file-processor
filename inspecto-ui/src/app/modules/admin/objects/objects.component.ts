@@ -7,9 +7,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
-import { ColDef } from 'ag-grid-community';
+import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ObjectsService, OperationalObject } from 'app/inspecto/api';
+import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
@@ -69,8 +70,19 @@ export class ObjectsComponent implements OnInit {
 
     readonly columnDefs: ColDef<OperationalObject>[] = [
         { field: 'title', headerName: 'Title', flex: 1 },
-        { field: 'status', headerName: 'Status', width: 140 },
-        { field: 'severity', headerName: 'Severity', width: 110 },
+        {
+            field: 'status',
+            headerName: 'Status',
+            width: 140,
+            cellRenderer: (p: ICellRendererParams<OperationalObject>) => statusBadgeHtml(p.value as string),
+        },
+        {
+            field: 'severity',
+            headerName: 'Severity',
+            width: 110,
+            cellRenderer: (p: ICellRendererParams<OperationalObject>) =>
+                p.value ? statusBadgeHtml(p.value as string) : '—',
+        },
         { field: 'priority', headerName: 'Priority', width: 100 },
         { field: 'assignee', headerName: 'Assignee', width: 130 },
         { field: 'correlationId', headerName: 'Pipeline / corr.', width: 160 },
