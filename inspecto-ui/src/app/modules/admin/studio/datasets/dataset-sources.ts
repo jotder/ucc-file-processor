@@ -73,6 +73,81 @@ export const SAMPLE_SOURCES: Record<string, Record<string, unknown>[]> = {
         { id: 'l-04', source: 'sub-01', target: 'acc-02', link_type: 'payment', weight: 2, first_seen: '2026-06-15 16:00:00' },
         { id: 'l-05', source: 'sub-03', target: 'acc-01', link_type: 'payment', weight: 1, first_seen: '2026-06-18 10:00:00' },
     ],
+    // ── Link Analysis example graphs (C5 user testing): four link tables at rising complexity.
+    //    Each projects source → target (+ link_type); the default space seeds a dataset + a saved
+    //    Link-Analysis view per table so testers one-click load them (default-space.seed.ts). ──
+    // 1. Simple — a 6-node star, one link type: the first-contact demo.
+    graph_simple: [
+        { id: 's-1', source: 'Hub subscriber', target: 'Alice', link_type: 'calls' },
+        { id: 's-2', source: 'Hub subscriber', target: 'Bikash', link_type: 'calls' },
+        { id: 's-3', source: 'Hub subscriber', target: 'Chen', link_type: 'calls' },
+        { id: 's-4', source: 'Hub subscriber', target: 'Divya', link_type: 'calls' },
+        { id: 's-5', source: 'Hub subscriber', target: 'Emeka', link_type: 'calls' },
+    ],
+    // 2. Moderate — a call ring and a call chain joined by ONE bridge, three link types
+    //    (11 nodes / 13 links): exercises shortest path, the type filter and two communities.
+    graph_moderate: [
+        // cluster A: a 4-subscriber call ring sharing one device, paying one account
+        { id: 'm-1', source: 'Sub A1', target: 'Sub A2', link_type: 'calls' },
+        { id: 'm-2', source: 'Sub A2', target: 'Sub A3', link_type: 'calls' },
+        { id: 'm-3', source: 'Sub A3', target: 'Sub A4', link_type: 'calls' },
+        { id: 'm-4', source: 'Sub A4', target: 'Sub A1', link_type: 'calls' },
+        { id: 'm-5', source: 'Sub A1', target: 'Device IMEI-A', link_type: 'shared_device' },
+        { id: 'm-6', source: 'Sub A2', target: 'Device IMEI-A', link_type: 'shared_device' },
+        { id: 'm-7', source: 'Sub A3', target: 'Device IMEI-A', link_type: 'shared_device' },
+        { id: 'm-8', source: 'Sub A1', target: 'Account ACC-A', link_type: 'payment' },
+        // cluster B: a 4-subscriber call chain
+        { id: 'm-9', source: 'Sub B1', target: 'Sub B2', link_type: 'calls' },
+        { id: 'm-10', source: 'Sub B2', target: 'Sub B3', link_type: 'calls' },
+        { id: 'm-11', source: 'Sub B3', target: 'Sub B4', link_type: 'calls' },
+        { id: 'm-12', source: 'Sub B4', target: 'Account ACC-B', link_type: 'payment' },
+        // the single bridge between the clusters (the shortest-path demo crosses it)
+        { id: 'm-13', source: 'Sub A3', target: 'Sub B2', link_type: 'calls' },
+    ],
+    // 3. Mind map — a "Data Quality" topic tree: 1 root → 5 branches → 14 leaves
+    //    (20 nodes / 19 links): exercises the hierarchy layout and Explain node.
+    graph_mindmap: [
+        { id: 't-1', source: 'Data Quality', target: 'Accuracy', link_type: 'topic' },
+        { id: 't-2', source: 'Data Quality', target: 'Completeness', link_type: 'topic' },
+        { id: 't-3', source: 'Data Quality', target: 'Timeliness', link_type: 'topic' },
+        { id: 't-4', source: 'Data Quality', target: 'Consistency', link_type: 'topic' },
+        { id: 't-5', source: 'Data Quality', target: 'Validity', link_type: 'topic' },
+        { id: 't-6', source: 'Accuracy', target: 'Golden records', link_type: 'subtopic' },
+        { id: 't-7', source: 'Accuracy', target: 'Source-of-truth checks', link_type: 'subtopic' },
+        { id: 't-8', source: 'Accuracy', target: 'Sampling audits', link_type: 'subtopic' },
+        { id: 't-9', source: 'Completeness', target: 'Mandatory fields', link_type: 'subtopic' },
+        { id: 't-10', source: 'Completeness', target: 'Gap detection', link_type: 'subtopic' },
+        { id: 't-11', source: 'Completeness', target: 'Late data', link_type: 'subtopic' },
+        { id: 't-12', source: 'Timeliness', target: 'SLA windows', link_type: 'subtopic' },
+        { id: 't-13', source: 'Timeliness', target: 'Freshness alerts', link_type: 'subtopic' },
+        { id: 't-14', source: 'Timeliness', target: 'Backfill policy', link_type: 'subtopic' },
+        { id: 't-15', source: 'Consistency', target: 'Cross-system recon', link_type: 'subtopic' },
+        { id: 't-16', source: 'Consistency', target: 'Referential checks', link_type: 'subtopic' },
+        { id: 't-17', source: 'Validity', target: 'Schema checks', link_type: 'subtopic' },
+        { id: 't-18', source: 'Validity', target: 'Range rules', link_type: 'subtopic' },
+        { id: 't-19', source: 'Validity', target: 'Pattern rules', link_type: 'subtopic' },
+    ],
+    // 4. Complex — three fraud rings (ring calls + a shared device + mule-account payments each),
+    //    the mules cashing out through one hub, two inter-ring bridges, plus a background chatter
+    //    ring (41 nodes / 57 links): exercises centrality and community detection at scale.
+    graph_complex: (() => {
+        const rows: Record<string, unknown>[] = [];
+        const add = (source: string, target: string, link_type: string): void => {
+            rows.push({ id: `x-${rows.length + 1}`, source, target, link_type });
+        };
+        for (const ring of ['R1', 'R2', 'R3']) {
+            const subs = Array.from({ length: 8 }, (_, i) => `Sub ${ring}-${i + 1}`);
+            subs.forEach((s, i) => add(s, subs[(i + 1) % subs.length], 'calls')); // the call ring
+            subs.filter((_, i) => i % 2 === 0).forEach((s) => add(s, `Device IMEI-${ring}`, 'shared_device'));
+            add(subs[0], `Account MULE-${ring}`, 'payment');
+            add(subs[4], `Account MULE-${ring}`, 'payment');
+            add(`Account MULE-${ring}`, 'Account CASHOUT-HUB', 'payment');
+        }
+        add('Sub R1-3', 'Sub R2-6', 'calls'); // inter-ring bridges
+        add('Sub R2-2', 'Sub R3-7', 'calls');
+        for (let i = 1; i <= 10; i++) add(`Sub N-${i}`, `Sub N-${(i % 10) + 1}`, 'calls'); // background chatter
+        return rows;
+    })(),
 };
 
 export const SAMPLE_SOURCE_NAMES = Object.keys(SAMPLE_SOURCES);

@@ -53,6 +53,18 @@ that collapse to a selected-values status with an edit affordance, an icon per c
   active), conditional `x-mark` clear, search + PNG/JSON exports; save-view form collapsed behind the bookmark.
 - +3 pane specs (auto-collapse/edit-reopen, openTool/toggleTool + failure-keeps-form, header result chips).
 
+## Example graphs for user testing (2026-07-04)
+Four sample link tables at rising complexity (`SAMPLE_SOURCES.graph_{simple,moderate,mindmap,complex}`),
+each seeded in the **default space** as a dataset + a pre-wired saved view (`default-space.seed.ts`;
+`MOCK_STORE_KEY` → **v7** so existing browsers reseed). Testers open `/studio/link-analysis` and one-click
+load under Saved views:
+1. **Example 1 — Simple star** (6 nodes / 5 links, one type) — first contact.
+2. **Example 2 — Two clusters** (11/13, 3 types; ring + chain + ONE bridge) — shortest path, type filter, 2 communities.
+3. **Example 3 — Mind map** (20/19; "Data Quality" root → 5 branches → 14 leaves) — hierarchy layout, Explain node.
+4. **Example 4 — Fraud network** (41/57, generated: 3 rings + shared devices + mule accounts → one cash-out
+   hub + bridges + background chatter) — centrality hubs and community detection at scale.
+Projection shapes pinned by a spec in `entity-projection.spec.ts` so seed edits can't silently break a view.
+
 ## R8 verification (2026-07-04)
 - `lint:tokens` ✓ · prod `build` ✓ (lazy `link-analysis-routes` chunk 30 kB) · `test:ci` **737 / 0 / 5**
   (+30 specs: 6 source-contract, 15 analysis, 6 projection, 5 pane incl. axe + duplicate-guard + failing-source

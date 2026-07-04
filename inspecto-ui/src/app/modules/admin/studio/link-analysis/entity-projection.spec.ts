@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { of } from 'rxjs';
+import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-sources';
 import { Dataset } from 'app/modules/admin/studio/datasets/dataset-types';
 import {
     EntityProjectionGraphSource,
@@ -46,6 +47,29 @@ describe('projectEntities', () => {
         const g = projectEntities(many, { datasetId: 'd', sourceCol: 'a', targetCol: 'b' }) as ProjectedGraph;
         expect(g.nodes).toHaveLength(PROJECTION_NODE_CAP);
         expect(g.truncated).toBe(true);
+    });
+});
+
+// The four example graphs seeded for user testing (default-space.seed.ts): pin each one's
+// shape so a seed edit can't silently break a saved example view.
+describe('example graph sample sources (C5 user testing)', () => {
+    const CASES: Array<[source: string, nodes: number, links: number]> = [
+        ['graph_simple', 6, 5],
+        ['graph_moderate', 11, 13],
+        ['graph_mindmap', 20, 19],
+        ['graph_complex', 41, 57],
+    ];
+
+    it('each projects cleanly with the seeded mapping and stays under the node cap', () => {
+        for (const [source, nodes, links] of CASES) {
+            const g = projectEntities(SAMPLE_SOURCES[source], {
+                datasetId: source, sourceCol: 'source', targetCol: 'target', linkKindCol: 'link_type',
+            });
+            if (isProjectionError(g)) throw new Error(`${source}: ${g.error}`);
+            expect(g.nodes, source).toHaveLength(nodes);
+            expect(g.edges, source).toHaveLength(links);
+            expect(g.truncated, source).toBe(false);
+        }
     });
 });
 

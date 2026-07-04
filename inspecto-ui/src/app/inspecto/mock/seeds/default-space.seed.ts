@@ -34,6 +34,51 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
         viz: null,
     });
 
+    // ── Link Analysis (C5): four example graphs at rising complexity for user testing — each a
+    //    link-table dataset (rows in SAMPLE_SOURCES) + a saved view, so /studio/link-analysis
+    //    loads them one-click under Saved views ────────────────────────────────────────────────
+    const exampleGraphs: Array<{ id: string; name: string; description: string }> = [
+        {
+            id: 'graph_simple', name: 'Example 1 — Simple star',
+            description: 'One hub calling five subscribers — a first look at the canvas.',
+        },
+        {
+            id: 'graph_moderate', name: 'Example 2 — Two clusters',
+            description: 'A call ring and a chain joined by one bridge — try Shortest path and the type filter.',
+        },
+        {
+            id: 'graph_mindmap', name: 'Example 3 — Mind map',
+            description: 'A Data Quality topic tree — try Explain node on a branch.',
+        },
+        {
+            id: 'graph_complex', name: 'Example 4 — Fraud network',
+            description: 'Three rings, mule accounts and a cash-out hub — try Centrality and Communities.',
+        },
+    ];
+    for (const g of exampleGraphs) {
+        putComponent(store, space, 'dataset', g.id, {
+            name: g.id,
+            kind: 'virtual',
+            sourceName: g.id,
+            query: { projection: '*', where: { kind: 'group', op: 'AND', items: [] }, sqlOverride: null },
+            physicalRef: null,
+            columns: [
+                { name: 'id', type: 'string', role: 'dimension' },
+                { name: 'source', type: 'string', role: 'dimension' },
+                { name: 'target', type: 'string', role: 'dimension' },
+                { name: 'link_type', type: 'string', role: 'dimension' },
+            ],
+            measures: [],
+            viz: null,
+        });
+        putComponent(store, space, 'link-analysis-view', g.id.replace(/_/g, '-'), {
+            name: g.name,
+            description: g.description,
+            sourceId: 'entity-projection',
+            query: { projection: { datasetId: g.id, sourceCol: 'source', targetCol: 'target', linkKindCol: 'link_type' } },
+        });
+    }
+
     // ── Reconciliation (C9): the two RA sides as datasets + a seeded reconciliation over them ──────
     for (const side of ['switch_cdr', 'billing_cdr'] as const) {
         putComponent(store, space, 'dataset', side, {
