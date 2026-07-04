@@ -117,6 +117,64 @@ describe('LinkAnalysisComponent', () => {
         expect(c.emphasis()?.groups?.get('a')).toBe(c.emphasis()?.groups?.get('c'));
     });
 
+    it('smart form: auto-collapses to the selected-values summary after a run, and edit reopens it', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        expect(fixture.componentInstance.queryOpen()).toBe(true); // full form until something runs
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+
+        expect(c.queryOpen()).toBe(false); // collapsed — the summary + status bar take over
+        expect(c.sourceLabel()).toBe('Entity/Link (from a Dataset)');
+        expect(c.querySummary().map((i) => `${i.label}: ${i.value}`)).toEqual(['Dataset: Links', 'Mapping: source → target']);
+
+        c.leftOpen.set(false);
+        c.editQuery(); // the status-bar pencil / collapsed-strip tool
+        expect(c.leftOpen()).toBe(true);
+        expect(c.queryOpen()).toBe(true);
+    });
+
+    it('workspace: a failed query keeps the form open; openTool/toggleTool drive the analysis toolbox', async () => {
+        const { fixture } = create({ fail: true });
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        expect(c.queryOpen()).toBe(true); // a failing query needs its form back
+        expect(c.querySummary()).toEqual([]);
+
+        c.rightOpen.set(false);
+        c.openTool('communities'); // collapsed-strip icon expands straight onto the tool
+        expect(c.rightOpen()).toBe(true);
+        expect(c.tab()).toBe('communities');
+        c.toggleTool('communities'); // clicking the open header collapses the group
+        expect(c.tab()).toBeNull();
+        c.toggleTool('path');
+        expect(c.tab()).toBe('path');
+    });
+
+    it('tool-group headers chip their results after each analysis runs', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        expect(c.toolBadge('path')).toBe('');
+
+        c.pathFrom.set('a');
+        c.pathTo.set('c');
+        c.runPath();
+        expect(c.toolBadge('path')).toBe('3 hops');
+
+        c.explainFor.set('b');
+        c.runExplain();
+        expect(c.toolBadge('explain')).toBe('B');
+
+        c.runCentrality();
+        expect(c.toolBadge('centrality')).toBe('top 5');
+
+        c.runCommunities();
+        expect(c.toolBadge('communities')).toBe('2 found');
+    });
+
     it('surfaces a failing source as an inline error, not a blank pane', async () => {
         const { fixture } = create({ fail: true });
         fixture.detectChanges();

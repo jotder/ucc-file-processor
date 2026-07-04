@@ -35,6 +35,24 @@ PNG (via a new `GraphViewComponent.exportPng()` — G6 `toDataURL`) + JSON (the 
 ## Deliberate scope cuts (in the plan §6 for V1)
 Multi-mapping (multiple entity types) · incremental expansion · all-paths surfacing in the UI (`allPaths` is implemented and tested, not yet surfaced) · collapse/pin/hide/minimap/fullscreen · property/time filters · layout+analysis persisted with the view · Widget/dashboard binding · SVG/GraphML/report export.
 
+## Workspace refinement (2026-07-04, same day — canvas-first pass)
+Owner ask: bigger canvas, room for many controls (tool/toolbox/tool-group), collapsible panes, smart forms
+that collapse to a selected-values status with an edit affordance, an icon per control.
+- **Full-height studio layout** (`h-full min-h-0` flex, pattern of the pipeline editor): the canvas now grows
+  into all remaining space; `GraphViewComponent` gains an opt-in `fill` input (default byte-identical `62vh`
+  for the 4 existing hosts) + a `ResizeObserver` → `graph.resize()` so collapsing a pane resizes the canvas live.
+- **Both rails collapse to an 11-wide icon strip** (chevron-double toggles): left strip = query
+  (`adjustments-horizontal`) + saved views (`folder-open`); right strip = one icon per analysis tool. Clicking a
+  strip icon expands the pane straight onto that tool (`openTool`).
+- **Smart query form:** auto-collapses after a successful run to a selected-values summary (icon · label ·
+  value rows + Re-run); a failing run reopens it. A **top status bar** over the canvas shows the active query as
+  chips with a pencil (`editQuery`) — works even with the left pane collapsed. `lastRun`/`querySummary` signals.
+- **Analysis rail → accordion toolbox:** the four tools are collapsible tool groups (icon + header + a result
+  chip: `3 hops` / node label / `top 20` / `n found`), one open at a time (`tab: AnalysisTab | null`).
+- **Canvas toolbar:** kind checkboxes moved into a `funnel` mat-menu (button tints primary when a filter is
+  active), conditional `x-mark` clear, search + PNG/JSON exports; save-view form collapsed behind the bookmark.
+- +3 pane specs (auto-collapse/edit-reopen, openTool/toggleTool + failure-keeps-form, header result chips).
+
 ## R8 verification (2026-07-04)
 - `lint:tokens` ✓ · prod `build` ✓ (lazy `link-analysis-routes` chunk 30 kB) · `test:ci` **737 / 0 / 5**
   (+30 specs: 6 source-contract, 15 analysis, 6 projection, 5 pane incl. axe + duplicate-guard + failing-source

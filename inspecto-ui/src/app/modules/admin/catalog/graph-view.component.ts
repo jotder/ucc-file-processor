@@ -38,18 +38,22 @@ export interface GraphEmphasis {
     selector: 'inspecto-graph-view',
     standalone: true,
     template: '<div #host class="h-full w-full"></div>',
-    // Bigger + viewport-dynamic (was a fixed 40rem); autoFit:'view' scales the graph to fill it.
-    host: { class: 'block w-full min-h-96 h-[62vh]' },
+    // Default: viewport-dynamic height for scrolling pages. `fill` mode instead grows into the
+    // remaining space of a flex-column studio (Link Analysis); autoFit:'view' scales the graph.
+    host: { '[class]': `fill ? 'block w-full min-h-0 flex-auto' : 'block w-full min-h-96 h-[62vh]'` },
 })
 export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     @Input({ required: true }) data: G6GraphData | null = null;
     @Input() emphasis: GraphEmphasis | null = null;
+    /** Fill the remaining space of a flex-column parent instead of the fixed 62vh page band. */
+    @Input() fill = false;
     @Output() nodeClick = new EventEmitter<string>();
 
     @ViewChild('host') private hostEl!: ElementRef<HTMLDivElement>;
     private graph: Graph | null = null;
     private dark = false;
     private ready = false;
+    private resizeObserver: ResizeObserver | null = null;
     private destroyRef = inject(DestroyRef);
 
     constructor() {
@@ -67,6 +71,11 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     ngAfterViewInit(): void {
         this.ready = true;
         this.rebuild();
+        // Track container size (collapsible side panes resize the canvas live). Absent in jsdom.
+        if (typeof ResizeObserver !== 'undefined') {
+            this.resizeObserver = new ResizeObserver(() => this.graph?.resize());
+            this.resizeObserver.observe(this.hostEl.nativeElement);
+        }
     }
 
     ngOnChanges(): void {
@@ -74,6 +83,7 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     }
 
     ngOnDestroy(): void {
+        this.resizeObserver?.disconnect();
         this.graph?.destroy();
     }
 

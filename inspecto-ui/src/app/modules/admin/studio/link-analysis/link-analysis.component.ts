@@ -7,7 +7,9 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
 import { firstValueFrom } from 'rxjs';
 import { PipelineSummary, PipelinesService, apiErrorMessage } from 'app/inspecto/api';
@@ -46,6 +48,13 @@ function uniqueNameValidator(taken: () => string[]): ValidatorFn {
 
 type AnalysisTab = 'path' | 'explain' | 'centrality' | 'communities';
 
+/** One line of the collapsed-query status (left-pane summary + the top status bar chips). */
+interface QuerySummaryItem {
+    icon: string;
+    label: string;
+    value: string;
+}
+
 /**
  * **Link Analysis Studio** (C5, plan: docs/superpower/link-analysis-studio-plan.md §3 P3) — pick a
  * GraphSource, shape a query, render through the shared {@link GraphViewComponent}, analyze with the
@@ -57,7 +66,7 @@ type AnalysisTab = 'path' | 'explain' | 'centrality' | 'communities';
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         DecimalPipe, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatFormFieldModule,
-        MatIconModule, MatInputModule, MatSelectModule,
+        MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatTooltipModule,
         InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, GraphViewComponent,
     ],
     templateUrl: './link-analysis.component.html',
@@ -73,6 +82,22 @@ export class LinkAnalysisComponent implements OnInit {
     readonly sources = this.graphSources.sources;
 
     @ViewChild(GraphViewComponent) private graphView?: GraphViewComponent;
+
+    // ── workspace layout: both rails collapse to a slim tool strip to maximize the canvas ──
+    readonly leftOpen = signal(true);
+    readonly rightOpen = signal(true);
+    /** Full query form vs its collapsed selected-values summary (auto-collapses after a run). */
+    readonly queryOpen = signal(true);
+    /** The save-a-view form, collapsed behind the bookmark button until asked for. */
+    readonly saveOpen = signal(false);
+
+    /** The analysis tool groups (right-pane accordion + its collapsed icon strip). */
+    readonly tools: { id: AnalysisTab; label: string; icon: string }[] = [
+        { id: 'path', label: 'Shortest path', icon: 'heroicons_outline:arrows-right-left' },
+        { id: 'explain', label: 'Explain node', icon: 'heroicons_outline:light-bulb' },
+        { id: 'centrality', label: 'Centrality', icon: 'heroicons_outline:star' },
+        { id: 'communities', label: 'Communities', icon: 'heroicons_outline:user-group' },
+    ];
 
     // ── query builder ──
     readonly sourceId = signal<GraphSourceId>('entity-projection');
@@ -98,6 +123,47 @@ export class LinkAnalysisComponent implements OnInit {
     readonly loadError = signal('');
     readonly graph = signal<G6GraphData | null>(null);
     readonly truncated = signal(false);
+    /** The query behind the rendered graph — what the collapsed form + status bar summarize. */
+    readonly lastRun = signal<{ sourceId: GraphSourceId; query: GraphSourceQuery } | null>(null);
+
+    readonly sourceLabel = computed<string>(() => {
+        const run = this.lastRun();
+        return run ? (this.sources.find((s) => s.id === run.sourceId)?.label ?? run.sourceId) : '';
+    });
+    readonly querySummary = computed<QuerySummaryItem[]>(() => {
+        const run = this.lastRun();
+        if (!run) return [];
+        const q = run.query;
+        switch (run.sourceId) {
+            case 'entity-projection': {
+                const p = q.projection;
+                if (!p) return [];
+                const ds = this.datasets().find((d) => d.id === p.datasetId);
+                const items: QuerySummaryItem[] = [
+                    { icon: 'heroicons_outline:table-cells', label: 'Dataset', value: ds?.name ?? p.datasetId },
+                    { icon: 'heroicons_outline:arrow-long-right', label: 'Mapping', value: `${p.sourceCol} → ${p.targetCol}` },
+                ];
+                if (p.linkKindCol) items.push({ icon: 'heroicons_outline:hashtag', label: 'Link type', value: p.linkKindCol });
+                return items;
+            }
+            case 'lineage':
+                return [
+                    { icon: 'heroicons_outline:viewfinder-circle', label: 'Root', value: q.from || 'whole graph' },
+                    { icon: 'heroicons_outline:hashtag', label: 'Depth', value: String(q.depth ?? 2) },
+                    {
+                        icon: 'heroicons_outline:arrows-right-left', label: 'Direction',
+                        value: q.direction === 'in' ? 'Upstream' : q.direction === 'out' ? 'Downstream' : 'Both',
+                    },
+                ];
+            case 'provenance': {
+                const items: QuerySummaryItem[] = [{ icon: 'heroicons_outline:queue-list', label: 'Pipeline', value: q.from ?? '' }];
+                if (q.counts) items.push({ icon: 'heroicons_outline:chart-bar', label: 'Edges', value: 'weighted by record counts' });
+                return items;
+            }
+            default:
+                return [{ icon: 'heroicons_outline:share', label: 'Scope', value: 'every registered component' }];
+        }
+    });
 
     // ── search & kind filtering ──
     readonly search = signal('');
@@ -119,7 +185,8 @@ export class LinkAnalysisComponent implements OnInit {
     });
 
     // ── analysis ──
-    readonly tab = signal<AnalysisTab>('path');
+    /** The open tool group (accordion: one open at a time; `null` = all collapsed). */
+    readonly tab = signal<AnalysisTab | null>('path');
     readonly pathFrom = signal('');
     readonly pathTo = signal('');
     readonly explainFor = signal('');
@@ -207,11 +274,50 @@ export class LinkAnalysisComponent implements OnInit {
             this.graph.set(g);
             this.truncated.set(!!(g as ProjectedGraph).truncated);
             this.kindFilter.set([]);
+            this.lastRun.set({ sourceId, query: q });
+            this.queryOpen.set(false); // smart form: collapse to the selected-values summary
         } catch (err) {
             this.graph.set(null);
+            this.lastRun.set(null);
+            this.queryOpen.set(true); // a failing query needs its form back
             this.loadError.set(err instanceof Error ? err.message : apiErrorMessage(err, 'The graph query failed.'));
         } finally {
             this.loading.set(false);
+        }
+    }
+
+    // ── workspace layout ──
+
+    /** Reopen the full query form (top-bar pencil / collapsed-rail tool), expanding the left pane. */
+    editQuery(): void {
+        this.leftOpen.set(true);
+        this.queryOpen.set(true);
+    }
+
+    /** From the collapsed right strip: expand the pane straight onto one tool group. */
+    openTool(tool: AnalysisTab): void {
+        this.rightOpen.set(true);
+        this.tab.set(tool);
+    }
+
+    /** Accordion header click — open this group, or collapse it if already open. */
+    toggleTool(tool: AnalysisTab): void {
+        this.tab.set(this.tab() === tool ? null : tool);
+    }
+
+    /** The result chip on a tool-group header (empty until that analysis has run). */
+    toolBadge(tool: AnalysisTab): string {
+        switch (tool) {
+            case 'path': {
+                const p = this.pathResult();
+                return p ? `${p.hops.length} hops` : '';
+            }
+            case 'explain':
+                return this.explainText() ? this.labelOf(this.explainFor()) : '';
+            case 'centrality':
+                return this.ranking().length ? `top ${this.ranking().length}` : '';
+            case 'communities':
+                return this.communities().length ? `${this.communities().length} found` : '';
         }
     }
 
@@ -369,6 +475,7 @@ export class LinkAnalysisComponent implements OnInit {
             await firstValueFrom(this.viewsService.save(view));
             this.views.set([...this.views().filter((v) => v.id !== view.id), view]);
             this.saveForm.reset({ name: '', description: '' });
+            this.saveOpen.set(false);
             this.toastr.success(`Saved “${view.name}”.`);
         } catch (err) {
             this.toastr.error(apiErrorMessage(err, 'Saving the view failed.'));
