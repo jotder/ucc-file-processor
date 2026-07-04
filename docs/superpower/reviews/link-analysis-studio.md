@@ -85,7 +85,30 @@ collapse/expand branches, hover/click details, fit, fullscreen).
 - +3 pane specs (collapse/expand, display save/load round-trip, table rows + search narrowing) and
   +2 analysis-lib specs.
 
+## Display: per-kind shape + line pattern/size (2026-07-04, fourth pass)
+Owner ask: beyond label toggles and colour, let the Display menu also choose a node **shape** ("icon")
+and a link **pattern** and **size** per kind.
+- `GraphDisplayOptions` extended with `nodeShapes` (node kind → G6 shape), `edgePatterns` (edge kind →
+  `solid`/`dashed`/`dotted`) and `edgeSizes` (edge kind → line width). Offered options + the
+  `edgeDash()` `lineDash` mapping live next to `GraphDisplayOptions` in `graph-view.component.ts`
+  (`GRAPH_NODE_SHAPES`, `GRAPH_EDGE_PATTERNS`, `GRAPH_EDGE_SIZES`).
+- Shared host applies them in `rebuild()`: node `type` = the per-kind shape override (icon tiles still
+  win), edge `lineDash` from the pattern, edge `lineWidth` = size override else the existing
+  provenance-weight scaling else the default. All opt-in — the 4 existing hosts pass no `nodeShapes`/
+  `edgePatterns`/`edgeSizes`, so behaviour is byte-identical.
+- Display menu gains **Node shape / Link pattern / Link size** sections (glyph buttons per kind, each
+  with a reset), mirroring the colour rows; all three **persist with the saved view** and re-apply on
+  load, and each feeds `displayCustomized()` (paint-brush tint).
+- Extended the display round-trip pane spec to cover the three new setters + save/load.
+
 ## R8 verification (2026-07-04)
+- Fourth pass re-verified: `lint:tokens` ✓ · prod `build` ✓ (no new warnings) · `test:ci` **745 / 0 / 5**
+  (only the known `simulator.spec.ts` stale-RUNNING flake failed — not a regression). Live smoke:
+  Example 2 (two clusters, 3 link types) → Display menu shows all five sections; picking Diamond shape
+  for `entity`, Dashed pattern + L width for `calls` updates the signals and rebuilds the canvas;
+  `displayCustomized()` true; per-kind reset clears just that kind; 0 console errors.
+
+## R8 verification (2026-07-04, third pass)
 - Third pass re-verified: `lint:tokens` ✓ · prod `build` ✓ (no new warnings) · `test:ci` **744 / 0 / 5**
   (the only 2 failures were the two pre-known intermittent flakes — `simulator.spec.ts` stale-RUNNING and
   `widget.kind.spec.ts` registry isolation — not regressions). Live smoke: Example 4 (fraud network,

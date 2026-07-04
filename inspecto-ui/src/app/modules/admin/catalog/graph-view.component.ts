@@ -29,10 +29,14 @@ export interface GraphEmphasis {
     groups?: Map<string, string>;
 }
 
+/** Line pattern for a relationship kind (Link Analysis "Display" menu). */
+export type EdgePattern = 'solid' | 'dashed' | 'dotted';
+
 /**
  * Optional presentation overrides (Link Analysis Studio "Display" menu — persisted with a saved
- * view): label visibility plus per-kind colour overrides. Edge kinds match on the base kind (the
- * projection's folded `calls · 2` styles as `calls`). `null` = the built-in defaults.
+ * view): label visibility plus per-kind colour/shape/pattern/size overrides. Edge kinds match on
+ * the base kind (the projection's folded `calls · 2` styles as `calls`). `null` = the built-in
+ * defaults.
  */
 export interface GraphDisplayOptions {
     nodeLabels: boolean;
@@ -41,6 +45,41 @@ export interface GraphDisplayOptions {
     nodeColors: Record<string, string>;
     /** edge (relationship) kind → stroke colour. */
     edgeColors: Record<string, string>;
+    /** node kind → G6 shape name (the per-kind "icon"). */
+    nodeShapes: Record<string, string>;
+    /** edge (relationship) kind → line pattern. */
+    edgePatterns: Record<string, EdgePattern>;
+    /** edge (relationship) kind → line width in px. */
+    edgeSizes: Record<string, number>;
+}
+
+/** The node shapes the Display menu offers per kind (value = G6 node type; glyph = the picker face). */
+export const GRAPH_NODE_SHAPES: readonly { value: string; glyph: string; label: string }[] = [
+    { value: 'circle', glyph: '●', label: 'Circle' },
+    { value: 'rect', glyph: '■', label: 'Square' },
+    { value: 'diamond', glyph: '◆', label: 'Diamond' },
+    { value: 'triangle', glyph: '▲', label: 'Triangle' },
+    { value: 'star', glyph: '★', label: 'Star' },
+    { value: 'hexagon', glyph: '⬢', label: 'Hexagon' },
+];
+
+/** The line patterns the Display menu offers per relationship kind. */
+export const GRAPH_EDGE_PATTERNS: readonly { value: EdgePattern; glyph: string; label: string }[] = [
+    { value: 'solid', glyph: '—', label: 'Solid' },
+    { value: 'dashed', glyph: '╌', label: 'Dashed' },
+    { value: 'dotted', glyph: '⋯', label: 'Dotted' },
+];
+
+/** The line widths the Display menu offers per relationship kind. */
+export const GRAPH_EDGE_SIZES: readonly { value: number; label: string }[] = [
+    { value: 1.5, label: 'S' },
+    { value: 3, label: 'M' },
+    { value: 5, label: 'L' },
+];
+
+/** The G6 `lineDash` array for a pattern; solid (or unset) = a solid stroke (`undefined`). */
+export function edgeDash(pattern: EdgePattern | undefined): number[] | undefined {
+    return pattern === 'dashed' ? [6, 4] : pattern === 'dotted' ? [1, 3] : undefined;
 }
 
 /** The relationship kind an edge styles by — the folded-count suffix (`calls · 2`) stripped. */
@@ -169,7 +208,7 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
             node: {
                 // Icon tile (rounded rect + glyph) when the data carries a resolved icon (flow/pipeline views);
                 // otherwise the per-kind shape (the catalog metadata graph).
-                type: (d) => (iconOf(d) ? 'rect' : nodeShape(kindOf(d))),
+                type: (d) => (iconOf(d) ? 'rect' : (display?.nodeShapes[kindOf(d)] ?? nodeShape(kindOf(d)))),
                 style: {
                     size: (d) => (iconOf(d) ? [46, 34] : 32),
                     radius: 8,
@@ -194,9 +233,12 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                     stroke: (d) => edgeColorOf(d),
                     opacity: (d) => (emEdges ? (emEdges.has(d.id as string) ? 1 : 0.2) : 1),
                     endArrow: true,
-                    // Optional data-plane weight (T22 provenance overlay) scales the line width log-style;
-                    // absent ⇒ the default width, so the catalog / combined views are unaffected.
+                    lineDash: (d) => edgeDash(display?.edgePatterns[baseEdgeKind((d.data as { kind?: string }).kind)]),
+                    // Per-kind size override wins; else the optional data-plane weight (T22 provenance
+                    // overlay) scales the line width log-style; else the default (catalog/combined views).
                     lineWidth: (d) => {
+                        const override = display?.edgeSizes[baseEdgeKind((d.data as { kind?: string }).kind)];
+                        if (override) return override;
                         const w = (d.data as { weight?: number }).weight;
                         return w && w > 0 ? Math.min(12, 1.5 + Math.log2(w + 1)) : 1.5;
                     },

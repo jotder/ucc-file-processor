@@ -290,7 +290,7 @@
                     <span class="flex-auto"></span>
                     <button mat-icon-button [matMenuTriggerFor]="displayMenu"
                             [color]="displayCustomized() ? 'primary' : undefined"
-                            matTooltip="Display options" aria-label="Display options (labels and colors)">
+                            matTooltip="Display options" aria-label="Display options (labels, colors, shapes and line styles)">
                         <mat-icon svgIcon="heroicons_outline:paint-brush"></mat-icon>
                     </button>
                     <mat-menu #displayMenu="matMenu">
@@ -314,6 +314,23 @@
                                     </button>
                                 </div>
                             }
+                            <span class="text-secondary mt-1 text-xs font-medium uppercase tracking-wide">Node shape</span>
+                            @for (k of nodeKinds(); track k) {
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-24 truncate text-sm" [title]="k">{{ k }}</span>
+                                    @for (sh of shapeOptions; track sh.value) {
+                                        <button type="button" class="flex h-5 w-5 items-center justify-center rounded border text-xs leading-none"
+                                                [class.ring-2]="nodeShapes()[k] === sh.value"
+                                                (click)="setNodeShape(k, sh.value)"
+                                                [attr.aria-pressed]="nodeShapes()[k] === sh.value"
+                                                [attr.aria-label]="sh.label + ' shape for ' + k">{{ sh.glyph }}</button>
+                                    }
+                                    <button mat-icon-button class="!h-6 !w-6" (click)="setNodeShape(k, null)"
+                                            [attr.aria-label]="'Reset the shape of ' + k">
+                                        <mat-icon class="icon-size-3" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                    </button>
+                                </div>
+                            }
                             <span class="text-secondary mt-1 text-xs font-medium uppercase tracking-wide">Link colors</span>
                             @for (k of edgeKinds(); track k) {
                                 <div class="flex items-center gap-1.5">
@@ -327,6 +344,40 @@
                                     }
                                     <button mat-icon-button class="!h-6 !w-6" (click)="setEdgeColor(k, null)"
                                             [attr.aria-label]="'Reset the color of ' + k">
+                                        <mat-icon class="icon-size-3" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                    </button>
+                                </div>
+                            }
+                            <span class="text-secondary mt-1 text-xs font-medium uppercase tracking-wide">Link pattern</span>
+                            @for (k of edgeKinds(); track k) {
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-24 truncate text-sm" [title]="k">{{ k }}</span>
+                                    @for (p of patternOptions; track p.value) {
+                                        <button type="button" class="flex h-5 w-7 items-center justify-center rounded border text-xs leading-none"
+                                                [class.ring-2]="edgePatterns()[k] === p.value"
+                                                (click)="setEdgePattern(k, p.value)"
+                                                [attr.aria-pressed]="edgePatterns()[k] === p.value"
+                                                [attr.aria-label]="p.label + ' pattern for ' + k">{{ p.glyph }}</button>
+                                    }
+                                    <button mat-icon-button class="!h-6 !w-6" (click)="setEdgePattern(k, null)"
+                                            [attr.aria-label]="'Reset the pattern of ' + k">
+                                        <mat-icon class="icon-size-3" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                    </button>
+                                </div>
+                            }
+                            <span class="text-secondary mt-1 text-xs font-medium uppercase tracking-wide">Link size</span>
+                            @for (k of edgeKinds(); track k) {
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-24 truncate text-sm" [title]="k">{{ k }}</span>
+                                    @for (z of sizeOptions; track z.value) {
+                                        <button type="button" class="flex h-5 w-5 items-center justify-center rounded border text-xs leading-none"
+                                                [class.ring-2]="edgeSizes()[k] === z.value"
+                                                (click)="setEdgeSize(k, z.value)"
+                                                [attr.aria-pressed]="edgeSizes()[k] === z.value"
+                                                [attr.aria-label]="z.label + ' width for ' + k">{{ z.label }}</button>
+                                    }
+                                    <button mat-icon-button class="!h-6 !w-6" (click)="setEdgeSize(k, null)"
+                                            [attr.aria-label]="'Reset the width of ' + k">
                                         <mat-icon class="icon-size-3" svgIcon="heroicons_outline:x-mark"></mat-icon>
                                     </button>
                                 </div>

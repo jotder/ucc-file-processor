@@ -36,6 +36,10 @@ import {
 } from 'app/inspecto/graph';
 import { ICON_COLOR_SWATCHES } from 'app/inspecto/theme/chart-tokens';
 import {
+    EdgePattern,
+    GRAPH_EDGE_PATTERNS,
+    GRAPH_EDGE_SIZES,
+    GRAPH_NODE_SHAPES,
     GraphDisplayOptions,
     GraphEmphasis,
     GraphViewComponent,
@@ -209,17 +213,28 @@ export class LinkAnalysisComponent implements OnInit {
     readonly edgeLabels = signal(true);
     readonly nodeColors = signal<Record<string, string>>({});
     readonly edgeColors = signal<Record<string, string>>({});
+    readonly nodeShapes = signal<Record<string, string>>({});
+    readonly edgePatterns = signal<Record<string, EdgePattern>>({});
+    readonly edgeSizes = signal<Record<string, number>>({});
     readonly displayOptions = computed<GraphDisplayOptions>(() => ({
         nodeLabels: this.nodeLabels(),
         edgeLabels: this.edgeLabels(),
         nodeColors: this.nodeColors(),
         edgeColors: this.edgeColors(),
+        nodeShapes: this.nodeShapes(),
+        edgePatterns: this.edgePatterns(),
+        edgeSizes: this.edgeSizes(),
     }));
     readonly swatches = ICON_COLOR_SWATCHES;
+    readonly shapeOptions = GRAPH_NODE_SHAPES;
+    readonly patternOptions = GRAPH_EDGE_PATTERNS;
+    readonly sizeOptions = GRAPH_EDGE_SIZES;
     /** True when any display option deviates from the defaults (tints the paint-brush button). */
     readonly displayCustomized = computed<boolean>(
         () => !this.nodeLabels() || !this.edgeLabels()
-            || Object.keys(this.nodeColors()).length > 0 || Object.keys(this.edgeColors()).length > 0,
+            || Object.keys(this.nodeColors()).length > 0 || Object.keys(this.edgeColors()).length > 0
+            || Object.keys(this.nodeShapes()).length > 0 || Object.keys(this.edgePatterns()).length > 0
+            || Object.keys(this.edgeSizes()).length > 0,
     );
 
     // ── fullscreen (whole studio or just the canvas zone) + bottom data panel ──
@@ -426,11 +441,32 @@ export class LinkAnalysisComponent implements OnInit {
         this.edgeColors.set(color ? { ...rest, [kind]: color } : rest);
     }
 
+    /** Pick (or with `null` clear) the shape ("icon") for a node kind. */
+    setNodeShape(kind: string, shape: string | null): void {
+        const { [kind]: _old, ...rest } = this.nodeShapes();
+        this.nodeShapes.set(shape ? { ...rest, [kind]: shape } : rest);
+    }
+
+    /** Pick (or with `null` clear) the line pattern for a relationship kind. */
+    setEdgePattern(kind: string, pattern: EdgePattern | null): void {
+        const { [kind]: _old, ...rest } = this.edgePatterns();
+        this.edgePatterns.set(pattern ? { ...rest, [kind]: pattern } : rest);
+    }
+
+    /** Pick (or with `null` clear) the line width for a relationship kind. */
+    setEdgeSize(kind: string, size: number | null): void {
+        const { [kind]: _old, ...rest } = this.edgeSizes();
+        this.edgeSizes.set(size != null ? { ...rest, [kind]: size } : rest);
+    }
+
     private applyDisplay(display: GraphDisplayOptions | undefined): void {
         this.nodeLabels.set(display?.nodeLabels ?? true);
         this.edgeLabels.set(display?.edgeLabels ?? true);
         this.nodeColors.set(display?.nodeColors ?? {});
         this.edgeColors.set(display?.edgeColors ?? {});
+        this.nodeShapes.set(display?.nodeShapes ?? {});
+        this.edgePatterns.set(display?.edgePatterns ?? {});
+        this.edgeSizes.set(display?.edgeSizes ?? {});
     }
 
     // ── canvas tools: fit · fullscreen · collapse/expand ──

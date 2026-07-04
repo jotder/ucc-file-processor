@@ -213,6 +213,9 @@ describe('LinkAnalysisComponent', () => {
         c.setNodeColor('entity', c.swatches[0]);
         c.setNodeColor('entity', c.swatches[1]); // re-pick replaces
         c.setEdgeColor('link', c.swatches[2]);
+        c.setNodeShape('entity', 'diamond');
+        c.setEdgePattern('link', 'dashed');
+        c.setEdgeSize('link', 3);
         expect(c.displayCustomized()).toBe(true);
 
         c.saveForm.patchValue({ name: 'Styled' });
@@ -221,13 +224,19 @@ describe('LinkAnalysisComponent', () => {
         expect(saved.display).toEqual({
             nodeLabels: true, edgeLabels: false,
             nodeColors: { entity: c.swatches[1] }, edgeColors: { link: c.swatches[2] },
+            nodeShapes: { entity: 'diamond' }, edgePatterns: { link: 'dashed' }, edgeSizes: { link: 3 },
         });
 
         c.setNodeColor('entity', null); // drift away, then load restores the captured styling
+        c.setNodeShape('entity', null);
+        c.setEdgePattern('link', null);
         c.edgeLabels.set(true);
         await c.loadView(saved);
         expect(c.edgeLabels()).toBe(false);
         expect(c.nodeColors()).toEqual({ entity: c.swatches[1] });
+        expect(c.nodeShapes()).toEqual({ entity: 'diamond' });
+        expect(c.edgePatterns()).toEqual({ link: 'dashed' });
+        expect(c.edgeSizes()).toEqual({ link: 3 });
 
         await c.loadView({ id: 'plain', name: 'Plain', sourceId: 'entity-projection', query: {} });
         expect(c.displayCustomized()).toBe(false); // a view without display resets to defaults
