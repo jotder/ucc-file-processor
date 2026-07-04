@@ -61,7 +61,7 @@ retention, lineage) that usually surrounds them.
 | # | Feature | Why | Effort | P | S | E |
 |---|---|---|---|---|---|---|
 | S1 | **Decision Rule surface** — first-class business-routing rule authoring (today buried in `transform.route` config) | Completes the three-rule-engine model (Expectation / Alert Rule / Decision Rule) | M | ✅ | ✅ | ✅ |
-| S2 | **Link Analysis Studio** (Entity/Link graph, P3 — designed, deferred) | The heart of the **xDR-style investigation** positioning: pivot records as business entities inside Cases | L | *(proposed)* — | ➕ | ➕ |
+| S2 | **Link Analysis Studio** (Entity/Link graph — MVP shipped mock-first 2026-07-04, `reviews/link-analysis-studio.md`) | The heart of the **xDR-style investigation** positioning: pivot records as business entities inside Cases | L | *(proposed)* — | ➕ | ➕ |
 | S3 | **Streaming source consumer** — adapter stream-consumer runtime (land-then-ack seam exists) | Kafka-ish feeds without a second tool | M | ✅ | ✅ | ✅ |
 | S4 | **Scheduled reports & export delivery** — Dashboard/Report on a Trigger → PDF/PNG/CSV to email/webhook | Superset/Tableau parity for ops reporting | M | *(proposed)* — | ➕ | ➕ |
 | S5 | **Row-level calculated columns in Studio Datasets** (deferred from BI pass) | Analyst self-service without Pipeline round-trip | S | ✅ | ✅ | ✅ |

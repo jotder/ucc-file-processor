@@ -306,7 +306,7 @@ plane's words for another.
 | **P1 — Artifact graph** | authored **Components** | Component / Part — `part-of`, `uses` | Registry (derived) |
 | **P2 — Lineage graph** | **data assets** (Source→Table→View→KPI) | Asset — `EMITS·DECLARES·DESCRIBES·MATERIALIZES·FEEDS·JOINS_INTO·COMPUTED_FROM·CONSUMES` | `MetadataGraphService` |
 | **P2′ — Provenance** | a **Batch**'s records through **Steps** | Step — `flowed-through` (+ row counts) | `DbProvenanceStore` + Provenance rows |
-| **P3 — Entity / Link graph** | **records as business entities** | **Entity** / **Link** (+ attributes) | *deferred — see below* |
+| **P3 — Entity / Link graph** | **records as business entities** | **Entity** / **Link** (+ attributes) | Entity Projection over a Dataset (mock-first — see below) |
 
 **Lineage vs Provenance** — **Lineage** = the *derived asset graph* (which asset feeds which); design-time,
 structural. **Provenance** = the *recorded fact* of where data actually came from (which file's records flowed
@@ -322,11 +322,16 @@ consuming it — i.e. *file → store → flow-step → sink*. ⛔ do not "join 
 is a business edge between Entities (a call, a transaction) carrying typed attributes (call-type, duration). ⛔
 Never use Entity/Link for artifacts (Component/Part) or assets (Asset/Lineage).
 
-**P3 is DEFERRED (scope undecided).** The business Entity/Link graph pairs with **schema relationships** and is
-*designed but not built* in this pass. When built it is a **Graph Visualization Type** whose **Widget** binds a
-**Dataset** via a `mapping` wiring (column → source Entity, column → target Entity, columns → Link
-type/attributes) — the same Type→Instance pattern as every other Widget. Design:
-[`superpower/link-analysis-and-graphsource.md`](superpower/link-analysis-and-graphsource.md).
+**Entity Projection** *(P3)* — The **mapping** (not a store) that folds a **Dataset**'s rows into an
+Entity/Link graph: column → source Entity, column → target Entity, optional columns → Link type/attributes.
+Built **frontend-mock-first in the Link Analysis Studio** (C5, 2026-07-04); the backend projection + schema
+relationships remain open. Design: [`superpower/link-analysis-and-graphsource.md`](superpower/link-analysis-and-graphsource.md);
+plan: [`superpower/link-analysis-studio-plan.md`](superpower/link-analysis-studio-plan.md).
+
+**Link Analysis Studio** — The Builder-lens Studio pane (`/studio/link-analysis`) for graph investigation:
+pick a **GraphSource** + query, render via the shared G6 host, analyze (paths, neighborhood, centrality,
+communities). A saved investigation is a **Link-Analysis View** (Component kind `link-analysis-view`); when
+its source is `entity-projection` it is a **Widget** (a Graph Visualization Type bound to a Dataset).
 
 ### Resolved collisions (do not regress)
 - **`USES` → `CONSUMES`** in the **Lineage** graph (Report→KPI), so it no longer collides with the **component**

@@ -17,7 +17,7 @@ import { registerPlatformKinds } from './platform-kinds';
 
 /** The component-registry kinds the reuse-graph loads (the backend `ComponentType`s). Pipelines are loaded
  *  separately (authored flows via {@link PipelinesService}) since they live in their own store, not `/components`. */
-const REGISTRY_KINDS = ['dataset', 'widget', 'dashboard', 'grammar', 'schema', 'transform', 'sink', 'rule'];
+export const REGISTRY_KINDS = ['dataset', 'widget', 'dashboard', 'grammar', 'schema', 'transform', 'sink', 'rule'];
 
 /** The kinds a pipeline node may bind (mirrors `PIPELINE_KIND.allowedPartKinds`); a node's `use=<kind>/<id>`
  *  ref is turned into a part only for these, so source→connection refs don't clutter the graph. */

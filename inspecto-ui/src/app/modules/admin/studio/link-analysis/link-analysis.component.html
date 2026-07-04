@@ -1,0 +1,290 @@
+<div class="flex min-w-0 flex-auto flex-col p-6">
+    <h1 class="text-3xl font-semibold tracking-tight">Link Analysis</h1>
+    <p class="text-secondary mt-1">
+        Investigate relationships — project a Dataset into an Entity/Link graph, or explore the lineage,
+        component and pipeline planes — then run paths, neighborhoods, centrality and communities.
+    </p>
+
+    <div class="mt-6 flex min-w-0 flex-auto flex-col gap-6 lg:flex-row">
+        <!-- ── left rail: query builder + saved views ── -->
+        <div class="flex w-full shrink-0 flex-col gap-4 lg:w-80">
+            <form [formGroup]="queryForm" (ngSubmit)="run()" class="flex flex-col" aria-label="Graph query">
+                <mat-form-field>
+                    <mat-label>Graph source</mat-label>
+                    <mat-select [value]="sourceId()" (valueChange)="sourceId.set($event)" aria-label="Graph source">
+                        @for (s of sources; track s.id) {
+                            <mat-option [value]="s.id">{{ s.label }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+
+                @switch (sourceId()) {
+                    @case ('entity-projection') {
+                        <mat-form-field>
+                            <mat-label>Dataset</mat-label>
+                            <mat-select formControlName="datasetId">
+                                @for (d of datasets(); track d.id) {
+                                    <mat-option [value]="d.id">{{ d.name }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                        <mat-form-field>
+                            <mat-label>Source entity column</mat-label>
+                            <mat-select formControlName="sourceCol">
+                                @for (c of datasetColumns(); track c) {
+                                    <mat-option [value]="c">{{ c }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                        <mat-form-field>
+                            <mat-label>Target entity column</mat-label>
+                            <mat-select formControlName="targetCol">
+                                @for (c of datasetColumns(); track c) {
+                                    <mat-option [value]="c">{{ c }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                        <mat-form-field>
+                            <mat-label>Link type column (optional)</mat-label>
+                            <mat-select formControlName="linkKindCol">
+                                <mat-option value="">—</mat-option>
+                                @for (c of datasetColumns(); track c) {
+                                    <mat-option [value]="c">{{ c }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                    }
+                    @case ('lineage') {
+                        <mat-form-field>
+                            <mat-label>Root node (optional)</mat-label>
+                            <input matInput formControlName="from" placeholder="e.g. table:cdr" />
+                        </mat-form-field>
+                        <mat-form-field>
+                            <mat-label>Depth</mat-label>
+                            <input matInput type="number" min="1" max="10" formControlName="depth" />
+                        </mat-form-field>
+                        <mat-form-field>
+                            <mat-label>Direction</mat-label>
+                            <mat-select formControlName="direction">
+                                <mat-option value="both">Both</mat-option>
+                                <mat-option value="out">Downstream</mat-option>
+                                <mat-option value="in">Upstream</mat-option>
+                            </mat-select>
+                        </mat-form-field>
+                    }
+                    @case ('provenance') {
+                        <mat-form-field>
+                            <mat-label>Pipeline</mat-label>
+                            <mat-select formControlName="pipeline">
+                                @for (p of pipelines(); track p.name) {
+                                    <mat-option [value]="p.name">{{ p.name }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                        <mat-checkbox formControlName="counts" class="mb-4">Weight edges by last run's record counts</mat-checkbox>
+                    }
+                    @default {
+                        <p class="text-secondary mb-4 text-sm">Graphs every registered component and its references.</p>
+                    }
+                }
+
+                <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+                    <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
+                    Run query
+                </button>
+            </form>
+
+            <!-- saved views -->
+            <div class="rounded-lg border p-4">
+                <h2 class="text-lg font-medium">Saved views</h2>
+                @if (views().length) {
+                    <ul class="mt-2 flex flex-col gap-1" aria-label="Saved views">
+                        @for (v of views(); track v.id) {
+                            <li>
+                                <button mat-button class="w-full !justify-start" (click)="loadView(v)" [attr.aria-label]="'Load view ' + v.name">
+                                    <mat-icon svgIcon="heroicons_outline:folder-open"></mat-icon>
+                                    {{ v.name }}
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                } @else {
+                    <p class="text-secondary mt-2 text-sm">Nothing saved yet.</p>
+                }
+
+                <form [formGroup]="saveForm" (ngSubmit)="saveView()" class="mt-3 flex flex-col" aria-label="Save this view">
+                    <mat-form-field>
+                        <mat-label>Name</mat-label>
+                        <input matInput formControlName="name" />
+                        @if (saveForm.controls.name.hasError('required')) {
+                            <mat-error>A name is required.</mat-error>
+                        }
+                        @if (saveForm.controls.name.hasError('duplicate')) {
+                            <mat-error>A view with this name already exists.</mat-error>
+                        }
+                    </mat-form-field>
+                    <mat-form-field>
+                        <mat-label>Description (optional)</mat-label>
+                        <input matInput formControlName="description" />
+                    </mat-form-field>
+                    <button mat-stroked-button type="submit" [disabled]="saving() || !graph()">
+                        <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
+                        Save view
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ── center: canvas ── -->
+        <div class="flex min-w-0 flex-auto flex-col gap-3">
+            @if (loadError()) {
+                <inspecto-alert variant="error" title="Query failed">{{ loadError() }}</inspecto-alert>
+            }
+            @if (truncated()) {
+                <inspecto-alert variant="warning" title="Truncated">
+                    The projection hit the node cap — narrow the dataset or filter to see everything.
+                </inspecto-alert>
+            }
+
+            @if (graph(); as g) {
+                <!-- search + kind filters -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <mat-form-field subscriptSizing="dynamic" class="w-64">
+                        <mat-label>Search nodes</mat-label>
+                        <input matInput [value]="search()" (input)="onSearch($any($event.target).value)" aria-label="Search nodes" />
+                        <mat-icon matSuffix svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                    </mat-form-field>
+                    @for (k of nodeKinds(); track k) {
+                        <mat-checkbox [checked]="kindOn(k)" (change)="toggleKind(k, $event.checked)">{{ k }}</mat-checkbox>
+                    }
+                    <button mat-button (click)="clearFilters()" aria-label="Clear search and filters">Clear filters</button>
+                    <button mat-icon-button (click)="exportPng()" aria-label="Export as PNG" title="Export PNG">
+                        <mat-icon svgIcon="heroicons_outline:photo"></mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="exportJson()" aria-label="Export as JSON" title="Export JSON">
+                        <mat-icon svgIcon="heroicons_outline:code-bracket"></mat-icon>
+                    </button>
+                    <span class="text-secondary ml-auto text-sm">
+                        {{ displayed()?.nodes?.length ?? 0 }} nodes · {{ displayed()?.edges?.length ?? 0 }} links
+                    </span>
+                </div>
+                <inspecto-graph-view [data]="displayed()" [emphasis]="emphasis()"></inspecto-graph-view>
+            } @else if (loading()) {
+                <inspecto-skeleton [lines]="6" height="2rem"></inspecto-skeleton>
+            } @else {
+                <inspecto-empty-state
+                    icon="heroicons_outline:share"
+                    title="No graph yet"
+                    message="Pick a graph source on the left and run a query to start investigating."
+                ></inspecto-empty-state>
+            }
+        </div>
+
+        <!-- ── right rail: analysis ── -->
+        @if (graph()) {
+            <div class="flex w-full shrink-0 flex-col gap-3 lg:w-96" aria-label="Analysis">
+                <mat-button-toggle-group [value]="tab()" (change)="tab.set($event.value)" aria-label="Analysis type" class="flex-wrap">
+                    <mat-button-toggle value="path">Path</mat-button-toggle>
+                    <mat-button-toggle value="explain">Explain</mat-button-toggle>
+                    <mat-button-toggle value="centrality">Centrality</mat-button-toggle>
+                    <mat-button-toggle value="communities">Communities</mat-button-toggle>
+                </mat-button-toggle-group>
+
+                @if (analysisError()) {
+                    <inspecto-alert variant="warning" title="Analysis">{{ analysisError() }}</inspecto-alert>
+                }
+
+                @switch (tab()) {
+                    @case ('path') {
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>From</mat-label>
+                            <mat-select [value]="pathFrom()" (valueChange)="pathFrom.set($event)">
+                                @for (n of nodeOptions(); track n.id) {
+                                    <mat-option [value]="n.id">{{ n.label }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>To</mat-label>
+                            <mat-select [value]="pathTo()" (valueChange)="pathTo.set($event)">
+                                @for (n of nodeOptions(); track n.id) {
+                                    <mat-option [value]="n.id">{{ n.label }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                        <button mat-stroked-button (click)="runPath()" [disabled]="!pathFrom() || !pathTo()">Find shortest path</button>
+                        @if (pathResult(); as p) {
+                            <ol class="mt-2 list-inside list-decimal text-sm" aria-label="Path hops">
+                                @for (hop of p.hops; track hop) {
+                                    <li>
+                                        <button class="underline-offset-2 hover:underline" (click)="focusNode(hop)">{{ labelOf(hop) }}</button>
+                                    </li>
+                                }
+                            </ol>
+                        }
+                    }
+                    @case ('explain') {
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Node</mat-label>
+                            <mat-select [value]="explainFor()" (valueChange)="explainFor.set($event)">
+                                @for (n of nodeOptions(); track n.id) {
+                                    <mat-option [value]="n.id">{{ n.label }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                        <mat-form-field subscriptSizing="dynamic" class="w-28">
+                            <mat-label>Hops</mat-label>
+                            <input matInput type="number" min="1" max="5" [value]="explainHops()" (input)="explainHops.set(+$any($event.target).value || 1)" />
+                        </mat-form-field>
+                        <button mat-stroked-button (click)="runExplain()" [disabled]="!explainFor()">Explain neighborhood</button>
+                        @if (explainText()) {
+                            <p class="mt-2 text-sm" role="status">{{ explainText() }}</p>
+                        }
+                    }
+                    @case ('centrality') {
+                        <mat-button-toggle-group [value]="centralityMetric()" (change)="centralityMetric.set($event.value)" aria-label="Centrality metric">
+                            <mat-button-toggle value="degree">Degree</mat-button-toggle>
+                            <mat-button-toggle value="betweenness">Betweenness</mat-button-toggle>
+                        </mat-button-toggle-group>
+                        <button mat-stroked-button (click)="runCentrality()">Rank nodes</button>
+                        @if (ranking().length) {
+                            <table class="mt-2 w-full text-sm">
+                                <caption class="sr-only">Node ranking by {{ centralityMetric() }} centrality</caption>
+                                <thead>
+                                    <tr class="text-left">
+                                        <th scope="col" class="py-1">Node</th>
+                                        <th scope="col" class="py-1 text-right">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (r of ranking(); track r.id) {
+                                        <tr>
+                                            <td class="py-0.5">
+                                                <button class="underline-offset-2 hover:underline" (click)="focusNode(r.id)">{{ r.label }}</button>
+                                            </td>
+                                            <td class="py-0.5 text-right tabular-nums">{{ r.score | number: '1.0-2' }}</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    }
+                    @case ('communities') {
+                        <button mat-stroked-button (click)="runCommunities()">Detect communities</button>
+                        @if (communities().length) {
+                            <ul class="mt-2 flex flex-col gap-1 text-sm" aria-label="Communities">
+                                @for (c of communities(); track c.id; let i = $index) {
+                                    <li>
+                                        <button class="underline-offset-2 hover:underline" (click)="focusCommunity(c.members)">
+                                            Community {{ i + 1 }} — {{ c.members.length }} nodes
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    }
+                }
+            </div>
+        }
+    </div>
+</div>

@@ -10,4 +10,5 @@ export default [
     { path: 'datasets', redirectTo: '/catalog/datasets' },
     { path: 'widgets', loadChildren: () => import('./widgets/widgets.routes') },
     { path: 'dashboards', loadChildren: () => import('./dashboards/dashboards.routes') },
+    { path: 'link-analysis', loadChildren: () => import('./link-analysis/link-analysis.routes') },
 ] as Routes;

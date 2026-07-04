@@ -16,7 +16,18 @@ import { GammaConfigService } from '@gamma/services/config';
 import { Graph, GraphData, NodeData, NodeEvent } from '@antv/g6';
 import { G6GraphData, nodeColor, nodeShape } from './catalog-graph';
 import { NodeKind } from 'app/inspecto/api';
-import { canvasTheme } from 'app/inspecto/theme/chart-tokens';
+import { ICON_COLOR_SWATCHES, canvasTheme } from 'app/inspecto/theme/chart-tokens';
+
+/**
+ * An analysis-result overlay (Link Analysis Studio): listed nodes/edges render full-strength (or
+ * group-coloured), everything else dims. `groups` maps nodeId → a group key (e.g. a community id);
+ * each distinct key gets a swatch colour. `null` = no emphasis (all full-strength).
+ */
+export interface GraphEmphasis {
+    nodeIds: string[];
+    edgeIds?: string[];
+    groups?: Map<string, string>;
+}
 
 /**
  * Read-only AntV G6 host for the catalog metadata graph: layered (dagre) layout,
@@ -32,6 +43,7 @@ import { canvasTheme } from 'app/inspecto/theme/chart-tokens';
 })
 export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     @Input({ required: true }) data: G6GraphData | null = null;
+    @Input() emphasis: GraphEmphasis | null = null;
     @Output() nodeClick = new EventEmitter<string>();
 
     @ViewChild('host') private hostEl!: ElementRef<HTMLDivElement>;
@@ -65,6 +77,11 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         this.graph?.destroy();
     }
 
+    /** The rendered canvas as a PNG data-URI (Link Analysis export), or `null` before the first render. */
+    exportPng(): Promise<string> | null {
+        return this.graph ? this.graph.toDataURL({ type: 'image/png' }) : null;
+    }
+
     private rebuild(): void {
         this.graph?.destroy();
         this.graph = null;
@@ -72,7 +89,20 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         const { fg, surface: nodeFill, edge } = canvasTheme(this.dark);
         const kindOf = (d: NodeData): NodeKind => (d.data as { kind: NodeKind }).kind;
         const iconOf = (d: NodeData): string | undefined => (d.data as { iconSrc?: string }).iconSrc;
-        const colorOf = (d: NodeData): string => (d.data as { color?: string }).color ?? nodeColor(kindOf(d));
+        // Emphasis overlay: swatch per distinct group key; non-listed elements dim.
+        const em = this.emphasis;
+        const emNodes = em ? new Set(em.nodeIds) : null;
+        const emEdges = em?.edgeIds ? new Set(em.edgeIds) : null;
+        const groupSwatch = new Map<string, string>();
+        for (const g of em?.groups?.values() ?? []) {
+            if (!groupSwatch.has(g)) groupSwatch.set(g, ICON_COLOR_SWATCHES[groupSwatch.size % ICON_COLOR_SWATCHES.length]);
+        }
+        const nodeDim = (id: string): boolean => !!emNodes && !emNodes.has(id) && !em?.groups?.has(id);
+        const colorOf = (d: NodeData): string => {
+            const group = em?.groups?.get(d.id as string);
+            if (group) return groupSwatch.get(group)!;
+            return (d.data as { color?: string }).color ?? nodeColor(kindOf(d));
+        };
         const graph = new Graph({
             container: this.hostEl.nativeElement,
             data: this.data as unknown as GraphData,
@@ -95,12 +125,15 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                     labelFontSize: 11,
                     labelPlacement: 'bottom',
                     cursor: 'pointer',
+                    opacity: (d) => (nodeDim(d.id as string) ? 0.25 : 1),
+                    labelOpacity: (d) => (nodeDim(d.id as string) ? 0.35 : 1),
                 },
             },
             edge: {
                 type: 'line',
                 style: {
                     stroke: edge,
+                    opacity: (d) => (emEdges ? (emEdges.has(d.id as string) ? 1 : 0.2) : 1),
                     endArrow: true,
                     // Optional data-plane weight (T22 provenance overlay) scales the line width log-style;
                     // absent ⇒ the default width, so the catalog / combined views are unaffected.

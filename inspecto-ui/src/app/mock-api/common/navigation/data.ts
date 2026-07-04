@@ -33,6 +33,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
                 children: [
                     { id: 'studio-widgets',    title: 'Widget Builder', type: 'basic', icon: 'heroicons_outline:chart-pie',   link: '/studio/widgets' },
                     { id: 'studio-dashboards', title: 'Dashboards',     type: 'basic', icon: 'heroicons_outline:squares-2x2', link: '/studio/dashboards' },
+                    { id: 'studio-link-analysis', title: 'Link Analysis', type: 'basic', icon: 'heroicons_outline:share',    link: '/studio/link-analysis' },
                 ]
             },
             {

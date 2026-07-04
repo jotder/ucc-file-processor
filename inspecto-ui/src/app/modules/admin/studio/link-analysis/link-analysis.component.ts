@@ -1,0 +1,396 @@
+import { DecimalPipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { ToastrService } from 'ngx-toastr';
+import { firstValueFrom } from 'rxjs';
+import { PipelineSummary, PipelinesService, apiErrorMessage } from 'app/inspecto/api';
+import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
+import {
+    G6GraphData,
+    GraphSourceId,
+    GraphSourceQuery,
+    NodeScore,
+    betweennessCentrality,
+    degreeCentrality,
+    detectCommunities,
+    explainNode,
+    filterByKinds,
+    neighborhood,
+    searchNodes,
+    shortestPath,
+} from 'app/inspecto/graph';
+import { GraphEmphasis, GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
+import { Dataset } from 'app/modules/admin/studio/datasets/dataset-types';
+import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.service';
+import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-sources';
+import { ProjectedGraph } from './entity-projection';
+import { GraphSourcesService } from './graph-sources';
+import { LinkAnalysisService, LinkAnalysisView } from './link-analysis.service';
+
+/** Inline duplicate-name guard (house form rule) — blocks saving a view under a taken name. */
+function uniqueNameValidator(taken: () => string[]): ValidatorFn {
+    return (c: AbstractControl) => {
+        const v = String(c.value ?? '').trim().toLowerCase();
+        return taken().some((t) => t.trim().toLowerCase() === v) ? { duplicate: true } : null;
+    };
+}
+
+type AnalysisTab = 'path' | 'explain' | 'centrality' | 'communities';
+
+/**
+ * **Link Analysis Studio** (C5, plan: docs/superpower/link-analysis-studio-plan.md §3 P3) — pick a
+ * GraphSource, shape a query, render through the shared {@link GraphViewComponent}, analyze with the
+ * pure `graph-analysis` library, and save the investigation as a `link-analysis-view` Component.
+ */
+@Component({
+    selector: 'inspecto-link-analysis',
+    standalone: true,
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [
+        DecimalPipe, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatFormFieldModule,
+        MatIconModule, MatInputModule, MatSelectModule,
+        InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, GraphViewComponent,
+    ],
+    templateUrl: './link-analysis.component.html',
+})
+export class LinkAnalysisComponent implements OnInit {
+    private fb = inject(FormBuilder);
+    private toastr = inject(ToastrService);
+    private graphSources = inject(GraphSourcesService);
+    private datasetsService = inject(DatasetsService);
+    private pipelinesService = inject(PipelinesService);
+    private viewsService = inject(LinkAnalysisService);
+
+    readonly sources = this.graphSources.sources;
+
+    @ViewChild(GraphViewComponent) private graphView?: GraphViewComponent;
+
+    // ── query builder ──
+    readonly sourceId = signal<GraphSourceId>('entity-projection');
+    readonly datasets = signal<Dataset[]>([]);
+    readonly pipelines = signal<PipelineSummary[]>([]);
+    readonly queryForm = this.fb.nonNullable.group({
+        from: [''],
+        depth: [2],
+        direction: ['both' as 'out' | 'in' | 'both'],
+        pipeline: [''],
+        counts: [false],
+        datasetId: [''],
+        sourceCol: [''],
+        targetCol: [''],
+        linkKindCol: [''],
+    });
+
+    /** Columns offered by the projection mapping selects — the picked Dataset's columns (or its sample rows'). */
+    readonly datasetColumns = signal<string[]>([]);
+
+    // ── result state ──
+    readonly loading = signal(false);
+    readonly loadError = signal('');
+    readonly graph = signal<G6GraphData | null>(null);
+    readonly truncated = signal(false);
+
+    // ── search & kind filtering ──
+    readonly search = signal('');
+    readonly kindFilter = signal<string[]>([]); // empty = all
+    readonly nodeKinds = computed<string[]>(() => {
+        const g = this.graph();
+        return g ? [...new Set(g.nodes.map((n) => n.data.kind))].sort() : [];
+    });
+    readonly displayed = computed<G6GraphData | null>(() => {
+        const g = this.graph();
+        return g ? filterByKinds(g, this.kindFilter(), []) : null;
+    });
+    readonly nodeOptions = computed(() => {
+        const g = this.displayed();
+        return (g?.nodes ?? [])
+            .map((n) => ({ id: n.id, label: n.data.label }))
+            .sort((a, b) => a.label.localeCompare(b.label))
+            .slice(0, 500);
+    });
+
+    // ── analysis ──
+    readonly tab = signal<AnalysisTab>('path');
+    readonly pathFrom = signal('');
+    readonly pathTo = signal('');
+    readonly explainFor = signal('');
+    readonly explainHops = signal(1);
+    readonly centralityMetric = signal<'degree' | 'betweenness'>('degree');
+    readonly analysisError = signal('');
+    readonly emphasis = signal<GraphEmphasis | null>(null);
+    readonly pathResult = signal<{ hops: string[] } | null>(null);
+    readonly explainText = signal('');
+    readonly ranking = signal<NodeScore[]>([]);
+    readonly communities = signal<{ id: string; members: string[] }[]>([]);
+
+    // ── saved views ──
+    readonly views = signal<LinkAnalysisView[]>([]);
+    readonly saveForm = this.fb.nonNullable.group({
+        name: ['', [Validators.required, uniqueNameValidator(() => this.views().map((v) => v.name))]],
+        description: [''],
+    });
+    readonly saving = signal(false);
+
+    ngOnInit(): void {
+        // Each list degrades independently — a failing lookup must not blank the pane.
+        this.datasetsService.list().subscribe({ next: (d) => this.datasets.set(d), error: () => undefined });
+        this.pipelinesService.list().subscribe({ next: (p) => this.pipelines.set(p), error: () => undefined });
+        this.viewsService.list().subscribe({ next: (v) => this.views.set(v), error: () => undefined });
+        this.queryForm.controls.datasetId.valueChanges.subscribe((id) => this.onDatasetPicked(id));
+    }
+
+    labelOf(id: string): string {
+        return this.graph()?.nodes.find((n) => n.id === id)?.data.label ?? id;
+    }
+
+    private onDatasetPicked(id: string): void {
+        const ds = this.datasets().find((d) => d.id === id);
+        if (!ds) {
+            this.datasetColumns.set([]);
+            return;
+        }
+        const declared = ds.columns.map((c) => c.name);
+        const sampled = Object.keys(SAMPLE_SOURCES[ds.sourceName]?.[0] ?? {});
+        this.datasetColumns.set(declared.length ? declared : sampled);
+    }
+
+    /** The query the current form + source amounts to (also what a saved view persists). */
+    private buildQuery(): GraphSourceQuery | { error: string } {
+        const f = this.queryForm.getRawValue();
+        switch (this.sourceId()) {
+            case 'entity-projection':
+                if (!f.datasetId || !f.sourceCol || !f.targetCol) {
+                    return { error: 'Pick a dataset plus its source and target columns.' };
+                }
+                return {
+                    projection: {
+                        datasetId: f.datasetId, sourceCol: f.sourceCol, targetCol: f.targetCol,
+                        linkKindCol: f.linkKindCol || undefined,
+                    },
+                };
+            case 'provenance':
+                if (!f.pipeline) return { error: 'Pick a pipeline.' };
+                return { from: f.pipeline, counts: f.counts };
+            case 'lineage':
+                return { from: f.from || undefined, depth: f.depth, direction: f.direction };
+            default:
+                return {};
+        }
+    }
+
+    async run(): Promise<void> {
+        const q = this.buildQuery();
+        if ('error' in q) {
+            this.loadError.set(q.error);
+            return;
+        }
+        await this.execute(this.sourceId(), q);
+    }
+
+    private async execute(sourceId: GraphSourceId, q: GraphSourceQuery): Promise<void> {
+        const source = this.graphSources.byId(sourceId);
+        if (!source) return;
+        this.loading.set(true);
+        this.loadError.set('');
+        this.resetAnalysis();
+        try {
+            const g = await source.query(q);
+            this.graph.set(g);
+            this.truncated.set(!!(g as ProjectedGraph).truncated);
+            this.kindFilter.set([]);
+        } catch (err) {
+            this.graph.set(null);
+            this.loadError.set(err instanceof Error ? err.message : apiErrorMessage(err, 'The graph query failed.'));
+        } finally {
+            this.loading.set(false);
+        }
+    }
+
+    private resetAnalysis(): void {
+        this.emphasis.set(null);
+        this.pathResult.set(null);
+        this.explainText.set('');
+        this.ranking.set([]);
+        this.communities.set([]);
+        this.analysisError.set('');
+        this.pathFrom.set('');
+        this.pathTo.set('');
+        this.explainFor.set('');
+        this.search.set('');
+    }
+
+    // ── search & filters ──
+
+    onSearch(text: string): void {
+        this.search.set(text);
+        const g = this.displayed();
+        if (!g || !text.trim()) {
+            this.emphasis.set(null);
+            return;
+        }
+        this.emphasis.set({ nodeIds: searchNodes(g, text), edgeIds: [] });
+    }
+
+    toggleKind(kind: string, on: boolean): void {
+        const all = this.nodeKinds();
+        const current = this.kindFilter().length ? this.kindFilter() : all;
+        const next = on ? [...new Set([...current, kind])] : current.filter((k) => k !== kind);
+        this.kindFilter.set(next.length === all.length ? [] : next);
+    }
+
+    kindOn(kind: string): boolean {
+        return !this.kindFilter().length || this.kindFilter().includes(kind);
+    }
+
+    clearFilters(): void {
+        this.kindFilter.set([]);
+        this.search.set('');
+        this.emphasis.set(null);
+    }
+
+    // ── analysis ──
+
+    runPath(): void {
+        const g = this.displayed();
+        if (!g || !this.pathFrom() || !this.pathTo()) return;
+        this.analysisError.set('');
+        const p = shortestPath(g, this.pathFrom(), this.pathTo());
+        if (!p) {
+            this.pathResult.set(null);
+            this.emphasis.set(null);
+            this.analysisError.set('No path connects the two nodes.');
+            return;
+        }
+        this.pathResult.set({ hops: p.nodeIds });
+        this.emphasis.set({ nodeIds: p.nodeIds, edgeIds: p.edgeIds });
+    }
+
+    runExplain(): void {
+        const g = this.displayed();
+        const id = this.explainFor();
+        if (!g || !id) return;
+        const nb = neighborhood(g, id, this.explainHops());
+        this.explainText.set(explainNode(g, id));
+        this.emphasis.set({ nodeIds: nb.nodes.map((n) => n.id), edgeIds: nb.edges.map((e) => e.id) });
+    }
+
+    runCentrality(): void {
+        const g = this.displayed();
+        if (!g) return;
+        this.analysisError.set('');
+        try {
+            const scores = this.centralityMetric() === 'degree' ? degreeCentrality(g) : betweennessCentrality(g);
+            this.ranking.set(scores.slice(0, 20));
+            this.emphasis.set(null);
+        } catch (err) {
+            this.ranking.set([]);
+            this.analysisError.set(err instanceof Error ? err.message : 'The analysis failed.');
+        }
+    }
+
+    focusNode(id: string): void {
+        this.emphasis.set({ nodeIds: [id], edgeIds: [] });
+    }
+
+    runCommunities(): void {
+        const g = this.displayed();
+        if (!g) return;
+        const byNode = detectCommunities(g);
+        const grouped = new Map<string, string[]>();
+        for (const [node, community] of byNode) {
+            const arr = grouped.get(community) ?? [];
+            arr.push(node);
+            grouped.set(community, arr);
+        }
+        const list = [...grouped.entries()]
+            .map(([id, members]) => ({ id, members }))
+            .sort((a, b) => b.members.length - a.members.length);
+        this.communities.set(list);
+        this.emphasis.set({ nodeIds: [], groups: byNode });
+    }
+
+    focusCommunity(members: string[]): void {
+        this.emphasis.set({ nodeIds: members, edgeIds: [] });
+    }
+
+    // ── export ──
+
+    /** Download the displayed graph as `link-analysis.json` (the shared G6GraphData shape). */
+    exportJson(): void {
+        const g = this.displayed();
+        if (!g) return;
+        this.download(URL.createObjectURL(new Blob([JSON.stringify(g, null, 2)], { type: 'application/json' })), 'link-analysis.json');
+    }
+
+    /** Download the rendered canvas as `link-analysis.png`. */
+    async exportPng(): Promise<void> {
+        const dataUri = await this.graphView?.exportPng();
+        if (dataUri) this.download(dataUri, 'link-analysis.png');
+        else this.toastr.warning('Nothing rendered to export yet.');
+    }
+
+    private download(href: string, filename: string): void {
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = filename;
+        a.click();
+        if (href.startsWith('blob:')) URL.revokeObjectURL(href);
+    }
+
+    // ── saved views ──
+
+    async saveView(): Promise<void> {
+        this.saveForm.markAllAsTouched();
+        if (this.saveForm.invalid) return;
+        const q = this.buildQuery();
+        if ('error' in q) {
+            this.loadError.set(q.error);
+            return;
+        }
+        const { name, description } = this.saveForm.getRawValue();
+        const view: LinkAnalysisView = {
+            id: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            name: name.trim(),
+            description: description.trim() || undefined,
+            sourceId: this.sourceId(),
+            query: q,
+        };
+        this.saving.set(true);
+        try {
+            await firstValueFrom(this.viewsService.save(view));
+            this.views.set([...this.views().filter((v) => v.id !== view.id), view]);
+            this.saveForm.reset({ name: '', description: '' });
+            this.toastr.success(`Saved “${view.name}”.`);
+        } catch (err) {
+            this.toastr.error(apiErrorMessage(err, 'Saving the view failed.'));
+        } finally {
+            this.saving.set(false);
+        }
+    }
+
+    async loadView(view: LinkAnalysisView): Promise<void> {
+        this.sourceId.set(view.sourceId);
+        const p = view.query.projection;
+        this.queryForm.patchValue({
+            from: view.query.from ?? '',
+            depth: view.query.depth ?? 2,
+            direction: view.query.direction ?? 'both',
+            pipeline: view.sourceId === 'provenance' ? (view.query.from ?? '') : '',
+            counts: view.query.counts ?? false,
+            datasetId: p?.datasetId ?? '',
+            sourceCol: p?.sourceCol ?? '',
+            targetCol: p?.targetCol ?? '',
+            linkKindCol: p?.linkKindCol ?? '',
+        });
+        await this.execute(view.sourceId, view.query);
+    }
+}
