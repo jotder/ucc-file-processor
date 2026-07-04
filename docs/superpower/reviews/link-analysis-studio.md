@@ -65,8 +65,34 @@ load under Saved views:
    hub + bridges + background chatter) — centrality hubs and community detection at scale.
 Projection shapes pinned by a spec in `entity-projection.spec.ts` so seed edits can't silently break a view.
 
+## Graph visualization options + data panel (2026-07-04, third pass)
+Owner ask: bottom data table, rich canvas options (labels, per-type styling saved with views,
+collapse/expand branches, hover/click details, fit, fullscreen).
+- **Bottom collapsible data panel** under the canvas: the displayed graph as an
+  `<inspecto-data-table tier="standard">` (Links ⇄ Nodes toggle, search-narrowed to match the canvas,
+  CSV export free from the tier); row click focuses the element. Query form stays in the left pane.
+- **Display menu** (`paint-brush`, tints when customized): node/link label toggles + per-node-kind and
+  per-relationship-kind colour swatches (`ICON_COLOR_SWATCHES`); **persisted as `display` on the saved
+  view and re-applied on load** (`GraphDisplayOptions` on the shared host; edge kinds match on the base
+  kind — `calls · 2` styles as `calls`).
+- **Canvas tools:** fit-to-screen (`GraphViewComponent.fitView`), **fullscreen** for the whole studio
+  (header) and for the canvas zone (toolbar) via the Fullscreen API, hover **tooltips** (G6 tooltip
+  plugin: node label/kind/degree, edge kind + endpoints), node/edge **click → detail popup**
+  (`element-detail.dialog.ts`: full rows + Focus + Collapse/Expand branch).
+- **Collapse/expand branches:** pure `descendants`/`collapseBranches` in `graph-analysis.ts` (BFS on
+  outgoing edges; roots stay visible); an "n collapsed" toolbar chip expands all.
+- Shared-host additions are all opt-in (`display`/`tooltips` default off; the 4 existing hosts unchanged).
+- +3 pane specs (collapse/expand, display save/load round-trip, table rows + search narrowing) and
+  +2 analysis-lib specs.
+
 ## R8 verification (2026-07-04)
-- `lint:tokens` ✓ · prod `build` ✓ (lazy `link-analysis-routes` chunk 30 kB) · `test:ci` **737 / 0 / 5**
+- Third pass re-verified: `lint:tokens` ✓ · prod `build` ✓ (no new warnings) · `test:ci` **744 / 0 / 5**
+  (the only 2 failures were the two pre-known intermittent flakes — `simulator.spec.ts` stale-RUNNING and
+  `widget.kind.spec.ts` registry isolation — not regressions). Live smoke: Example 4 (fraud network,
+  41 nodes · 57 links) via saved-view load → data panel renders the graph in an ag-grid with Links ⇄ Nodes
+  toggle, display menu shows label toggles + per-kind colour swatches, fit/fullscreen/PNG/JSON toolbar
+  present, collapsed-query status chips over the canvas; 0 console errors.
+- MVP pass: `lint:tokens` ✓ · prod `build` ✓ (lazy `link-analysis-routes` chunk 30 kB) · `test:ci` **737 / 0 / 5**
   (+30 specs: 6 source-contract, 15 analysis, 6 projection, 5 pane incl. axe + duplicate-guard + failing-source
   degradation). One real bug caught by the tests: LPA's smallest-label tie-break flooded across bridge edges and
   merged clusters — fixed to strict-improvement switching + a deterministic singleton-absorb pass (oscillating

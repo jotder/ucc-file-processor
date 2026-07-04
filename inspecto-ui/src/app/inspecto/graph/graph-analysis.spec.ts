@@ -4,8 +4,10 @@ import {
     ANALYSIS_NODE_CAP,
     allPaths,
     betweennessCentrality,
+    collapseBranches,
     connectedComponents,
     degreeCentrality,
+    descendants,
     detectCommunities,
     explainNode,
     filterByKinds,
@@ -169,5 +171,29 @@ describe('searchNodes / filterByKinds', () => {
     it('filters edges by kind; empty filters are a no-op', () => {
         expect(filterByKinds(typed, [], ['uses']).edges).toHaveLength(2);
         expect(filterByKinds(typed, [], [])).toEqual(typed);
+    });
+});
+
+describe('descendants / collapseBranches', () => {
+    /** A tree r→(b1,b2); b1→(l1,l2); b2→l3 — plus the island x→y. */
+    const tree: G6GraphData = {
+        nodes: ['r', 'b1', 'b2', 'l1', 'l2', 'l3', 'x', 'y'].map((id) => node(id)),
+        edges: [edge('r', 'b1'), edge('r', 'b2'), edge('b1', 'l1'), edge('b1', 'l2'), edge('b2', 'l3'), edge('x', 'y')],
+    };
+
+    it('descendants walks outgoing edges only, excluding the root', () => {
+        expect([...descendants(tree, 'b1')].sort()).toEqual(['l1', 'l2']);
+        expect([...descendants(tree, 'r')].sort()).toEqual(['b1', 'b2', 'l1', 'l2', 'l3']);
+        expect(descendants(tree, 'l1').size).toBe(0);
+        expect([...descendants(g, 'a')].sort()).toEqual(['b', 'c', 'd']); // survives the d→a cycle without looping
+    });
+
+    it('collapseBranches hides each root’s subtree but keeps the roots visible', () => {
+        const c = collapseBranches(tree, ['b1']);
+        expect(c.nodes.map((n) => n.id).sort()).toEqual(['b1', 'b2', 'l3', 'r', 'x', 'y']);
+        expect(c.edges.some((e) => e.source === 'b1')).toBe(false); // edges into the hidden subtree drop
+        expect(collapseBranches(tree, []).nodes).toHaveLength(8); // no-op without roots
+        // collapsing an ancestor keeps a collapsed descendant root visible too
+        expect(collapseBranches(tree, ['r', 'b1']).nodes.map((n) => n.id).sort()).toEqual(['b1', 'r', 'x', 'y']);
     });
 });

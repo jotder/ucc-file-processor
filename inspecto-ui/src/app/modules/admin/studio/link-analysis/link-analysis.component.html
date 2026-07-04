@@ -1,10 +1,16 @@
-<div class="flex h-full min-h-0 flex-auto flex-col p-4">
+<div #studioRoot class="flex h-full min-h-0 flex-auto flex-col p-4"
+     [style.background]="fullscreen() === 'app' ? 'var(--gamma-bg-default)' : null">
     <!-- ── compact header (the canvas gets the space) ── -->
-    <div class="flex flex-wrap items-baseline gap-2">
+    <div class="flex flex-wrap items-center gap-2">
         <h1 class="text-2xl font-semibold tracking-tight">Link Analysis</h1>
         <span class="text-secondary hidden text-sm md:inline">
             project a Dataset — or the lineage / component / pipeline planes — into an Entity/Link graph, then analyze it.
         </span>
+        <button mat-icon-button class="ml-auto" (click)="toggleFullscreen('app')"
+                [matTooltip]="fullscreen() === 'app' ? 'Exit full screen' : 'Full screen'"
+                [attr.aria-label]="fullscreen() === 'app' ? 'Exit full screen' : 'Open the studio in full screen'">
+            <mat-icon [svgIcon]="fullscreen() === 'app' ? 'heroicons_outline:arrows-pointing-in' : 'heroicons_outline:arrows-pointing-out'"></mat-icon>
+        </button>
     </div>
 
     <div class="mt-3 flex min-h-0 flex-auto gap-3">
@@ -251,7 +257,7 @@
                     </span>
                 </div>
 
-                <!-- canvas toolbar: search · type filter · clear · exports -->
+                <!-- canvas toolbar: search · type filter · clear · display · fit · fullscreen · exports -->
                 <div class="flex flex-wrap items-center gap-2">
                     <mat-form-field subscriptSizing="dynamic" class="w-56">
                         <mat-label>Search nodes</mat-label>
@@ -275,7 +281,66 @@
                             <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
                         </button>
                     }
+                    @if (collapsedRoots().length) {
+                        <button mat-button (click)="expandAll()" [attr.aria-label]="'Expand ' + collapsedRoots().length + ' collapsed branches'">
+                            <mat-icon svgIcon="heroicons_outline:plus-circle"></mat-icon>
+                            {{ collapsedRoots().length }} collapsed
+                        </button>
+                    }
                     <span class="flex-auto"></span>
+                    <button mat-icon-button [matMenuTriggerFor]="displayMenu"
+                            [color]="displayCustomized() ? 'primary' : undefined"
+                            matTooltip="Display options" aria-label="Display options (labels and colors)">
+                        <mat-icon svgIcon="heroicons_outline:paint-brush"></mat-icon>
+                    </button>
+                    <mat-menu #displayMenu="matMenu">
+                        <div class="flex max-h-96 flex-col gap-2 overflow-y-auto px-4 py-2" (click)="$event.stopPropagation()" aria-label="Display options">
+                            <mat-checkbox [checked]="nodeLabels()" (change)="nodeLabels.set($event.checked)">Node labels</mat-checkbox>
+                            <mat-checkbox [checked]="edgeLabels()" (change)="edgeLabels.set($event.checked)">Link labels</mat-checkbox>
+                            <span class="text-secondary mt-1 text-xs font-medium uppercase tracking-wide">Node colors</span>
+                            @for (k of nodeKinds(); track k) {
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-24 truncate text-sm" [title]="k">{{ k }}</span>
+                                    @for (s of swatches; track s) {
+                                        <button type="button" class="h-4 w-4 rounded-full border" [style.background]="s"
+                                                [class.ring-2]="nodeColors()[k] === s"
+                                                (click)="setNodeColor(k, s)"
+                                                [attr.aria-pressed]="nodeColors()[k] === s"
+                                                [attr.aria-label]="'Color nodes of type ' + k"></button>
+                                    }
+                                    <button mat-icon-button class="!h-6 !w-6" (click)="setNodeColor(k, null)"
+                                            [attr.aria-label]="'Reset the color of ' + k">
+                                        <mat-icon class="icon-size-3" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                    </button>
+                                </div>
+                            }
+                            <span class="text-secondary mt-1 text-xs font-medium uppercase tracking-wide">Link colors</span>
+                            @for (k of edgeKinds(); track k) {
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-24 truncate text-sm" [title]="k">{{ k }}</span>
+                                    @for (s of swatches; track s) {
+                                        <button type="button" class="h-4 w-4 rounded-full border" [style.background]="s"
+                                                [class.ring-2]="edgeColors()[k] === s"
+                                                (click)="setEdgeColor(k, s)"
+                                                [attr.aria-pressed]="edgeColors()[k] === s"
+                                                [attr.aria-label]="'Color links of type ' + k"></button>
+                                    }
+                                    <button mat-icon-button class="!h-6 !w-6" (click)="setEdgeColor(k, null)"
+                                            [attr.aria-label]="'Reset the color of ' + k">
+                                        <mat-icon class="icon-size-3" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </mat-menu>
+                    <button mat-icon-button (click)="fitToScreen()" matTooltip="Fit to screen" aria-label="Fit the graph to the screen">
+                        <mat-icon svgIcon="heroicons_outline:viewfinder-circle"></mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="toggleFullscreen('graph')"
+                            [matTooltip]="fullscreen() === 'graph' ? 'Exit graph full screen' : 'Graph full screen'"
+                            [attr.aria-label]="fullscreen() === 'graph' ? 'Exit graph full screen' : 'View the graph in full screen'">
+                        <mat-icon [svgIcon]="fullscreen() === 'graph' ? 'heroicons_outline:arrows-pointing-in' : 'heroicons_outline:arrows-pointing-out'"></mat-icon>
+                    </button>
                     <button mat-icon-button (click)="exportPng()" matTooltip="Export PNG" aria-label="Export as PNG">
                         <mat-icon svgIcon="heroicons_outline:photo"></mat-icon>
                     </button>
@@ -284,7 +349,44 @@
                     </button>
                 </div>
 
-                <inspecto-graph-view [fill]="true" [data]="displayed()" [emphasis]="emphasis()"></inspecto-graph-view>
+                <!-- canvas zone (graph + bottom data panel — the graph-fullscreen target) -->
+                <div #canvasZone class="flex min-h-0 flex-auto flex-col gap-2"
+                     [style.background]="fullscreen() === 'graph' ? 'var(--gamma-bg-default)' : null"
+                     [class.p-3]="fullscreen() === 'graph'">
+                    <inspecto-graph-view [fill]="true" [data]="displayed()" [emphasis]="emphasis()"
+                                         [display]="displayOptions()" [tooltips]="true"
+                                         (nodeClick)="onNodeClick($event)" (edgeClick)="onEdgeClick($event)"></inspecto-graph-view>
+
+                    <!-- collapsible bottom panel: the displayed (and searched) graph as a table -->
+                    <div class="rounded-lg border">
+                        <div class="flex flex-wrap items-center gap-2 px-3 py-1">
+                            <mat-icon class="icon-size-4" svgIcon="heroicons_outline:table-cells"></mat-icon>
+                            <span class="text-sm font-medium">Data</span>
+                            <span class="text-secondary text-xs">{{ tableRows().length }} rows</span>
+                            @if (bottomOpen()) {
+                                <mat-button-toggle-group class="ml-2" [value]="tableMode()" (change)="tableMode.set($event.value)"
+                                                         aria-label="Table contents">
+                                    <mat-button-toggle value="links">Links</mat-button-toggle>
+                                    <mat-button-toggle value="nodes">Nodes</mat-button-toggle>
+                                </mat-button-toggle-group>
+                            }
+                            <button mat-icon-button class="ml-auto" (click)="bottomOpen.set(!bottomOpen())"
+                                    [attr.aria-expanded]="bottomOpen()" aria-controls="graph-data-table"
+                                    [matTooltip]="bottomOpen() ? 'Hide the data table' : 'Show the data table'"
+                                    [attr.aria-label]="bottomOpen() ? 'Hide the data table' : 'Show the data table'">
+                                <mat-icon [svgIcon]="bottomOpen() ? 'heroicons_outline:chevron-down' : 'heroicons_outline:chevron-up'"></mat-icon>
+                            </button>
+                        </div>
+                        @if (bottomOpen()) {
+                            <div id="graph-data-table" class="px-2 pb-2">
+                                <inspecto-data-table tier="standard" [rows]="tableRows()" height="15rem" [pageSize]="10"
+                                                     exportName="link-analysis" sourceName="link-analysis"
+                                                     noRowsTitle="Nothing matches the current graph"
+                                                     (rowClick)="onTableRow($event)"></inspecto-data-table>
+                            </div>
+                        }
+                    </div>
+                </div>
             } @else if (loading()) {
                 <inspecto-skeleton [lines]="6" height="2rem"></inspecto-skeleton>
             } @else {

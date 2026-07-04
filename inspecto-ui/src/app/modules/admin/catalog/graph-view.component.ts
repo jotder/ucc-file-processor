@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { GammaConfigService } from '@gamma/services/config';
-import { Graph, GraphData, NodeData, NodeEvent } from '@antv/g6';
+import { EdgeData, EdgeEvent, ElementDatum, Graph, GraphData, NodeData, NodeEvent } from '@antv/g6';
 import { G6GraphData, nodeColor, nodeShape } from './catalog-graph';
 import { NodeKind } from 'app/inspecto/api';
 import { ICON_COLOR_SWATCHES, canvasTheme } from 'app/inspecto/theme/chart-tokens';
@@ -28,6 +28,28 @@ export interface GraphEmphasis {
     edgeIds?: string[];
     groups?: Map<string, string>;
 }
+
+/**
+ * Optional presentation overrides (Link Analysis Studio "Display" menu — persisted with a saved
+ * view): label visibility plus per-kind colour overrides. Edge kinds match on the base kind (the
+ * projection's folded `calls · 2` styles as `calls`). `null` = the built-in defaults.
+ */
+export interface GraphDisplayOptions {
+    nodeLabels: boolean;
+    edgeLabels: boolean;
+    /** node kind → stroke colour (a chart-token swatch). */
+    nodeColors: Record<string, string>;
+    /** edge (relationship) kind → stroke colour. */
+    edgeColors: Record<string, string>;
+}
+
+/** The relationship kind an edge styles by — the folded-count suffix (`calls · 2`) stripped. */
+export function baseEdgeKind(kind: unknown): string {
+    return String(kind ?? '').split(' · ')[0];
+}
+
+const esc = (s: unknown): string =>
+    String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /**
  * Read-only AntV G6 host for the catalog metadata graph: layered (dagre) layout,
@@ -47,7 +69,12 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     @Input() emphasis: GraphEmphasis | null = null;
     /** Fill the remaining space of a flex-column parent instead of the fixed 62vh page band. */
     @Input() fill = false;
+    /** Presentation overrides (labels on/off, per-kind colours); `null` = defaults. */
+    @Input() display: GraphDisplayOptions | null = null;
+    /** Enable hover tooltips with short node/edge details (Link Analysis). */
+    @Input() tooltips = false;
     @Output() nodeClick = new EventEmitter<string>();
+    @Output() edgeClick = new EventEmitter<string>();
 
     @ViewChild('host') private hostEl!: ElementRef<HTMLDivElement>;
     private graph: Graph | null = null;
@@ -92,6 +119,25 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         return this.graph ? this.graph.toDataURL({ type: 'image/png' }) : null;
     }
 
+    /** Re-fit the whole graph into the viewport (the toolbar's fit-to-screen). */
+    fitView(): void {
+        void this.graph?.fitView();
+    }
+
+    /** Short hover details: node → label/kind/degree, edge → kind + endpoint labels. */
+    private tooltipHtml(items: ElementDatum[]): string {
+        const d = items[0];
+        if (!d) return '';
+        const data = (d.data ?? {}) as { label?: string; kind?: string };
+        if ('source' in d && 'target' in d) {
+            const label = (id: unknown): string =>
+                (this.data?.nodes.find((n) => n.id === id)?.data.label ?? String(id)) as string;
+            return `<b>${esc(data.kind)}</b><br/>${esc(label((d as EdgeData).source))} → ${esc(label((d as EdgeData).target))}`;
+        }
+        const degree = this.data?.edges.filter((e) => e.source === d.id || e.target === d.id).length ?? 0;
+        return `<b>${esc(data.label)}</b><br/>${esc(data.kind)} · ${degree} link${degree === 1 ? '' : 's'}`;
+    }
+
     private rebuild(): void {
         this.graph?.destroy();
         this.graph = null;
@@ -108,11 +154,14 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
             if (!groupSwatch.has(g)) groupSwatch.set(g, ICON_COLOR_SWATCHES[groupSwatch.size % ICON_COLOR_SWATCHES.length]);
         }
         const nodeDim = (id: string): boolean => !!emNodes && !emNodes.has(id) && !em?.groups?.has(id);
+        const display = this.display;
         const colorOf = (d: NodeData): string => {
             const group = em?.groups?.get(d.id as string);
-            if (group) return groupSwatch.get(group)!;
-            return (d.data as { color?: string }).color ?? nodeColor(kindOf(d));
+            if (group) return groupSwatch.get(group)!; // analysis overlay wins over styling
+            return display?.nodeColors[kindOf(d)] ?? (d.data as { color?: string }).color ?? nodeColor(kindOf(d));
         };
+        const edgeColorOf = (d: EdgeData): string =>
+            display?.edgeColors[baseEdgeKind((d.data as { kind?: string }).kind)] ?? edge;
         const graph = new Graph({
             container: this.hostEl.nativeElement,
             data: this.data as unknown as GraphData,
@@ -130,7 +179,7 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                     iconSrc: (d) => iconOf(d),
                     iconWidth: 22,
                     iconHeight: 22,
-                    labelText: (d) => (d.data as { label: string }).label,
+                    labelText: display?.nodeLabels === false ? undefined : (d): string => (d.data as { label: string }).label,
                     labelFill: fg,
                     labelFontSize: 11,
                     labelPlacement: 'bottom',
@@ -142,7 +191,7 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
             edge: {
                 type: 'line',
                 style: {
-                    stroke: edge,
+                    stroke: (d) => edgeColorOf(d),
                     opacity: (d) => (emEdges ? (emEdges.has(d.id as string) ? 1 : 0.2) : 1),
                     endArrow: true,
                     // Optional data-plane weight (T22 provenance overlay) scales the line width log-style;
@@ -151,7 +200,7 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                         const w = (d.data as { weight?: number }).weight;
                         return w && w > 0 ? Math.min(12, 1.5 + Math.log2(w + 1)) : 1.5;
                     },
-                    labelText: (d) => (d.data as { kind: string }).kind,
+                    labelText: display?.edgeLabels === false ? undefined : (d): string => (d.data as { kind: string }).kind,
                     labelFill: fg,
                     labelFontSize: 9,
                     labelBackground: false,
@@ -159,10 +208,17 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
             },
             layout: { type: 'antv-dagre', rankdir: 'LR', nodesep: 18, ranksep: 60 },
             behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
+            plugins: this.tooltips
+                ? [{ type: 'tooltip', trigger: 'hover', getContent: async (_e: unknown, items: ElementDatum[]) => this.tooltipHtml(items) }]
+                : [],
         });
         graph.on(NodeEvent.CLICK, (e) => {
             const id = (e as unknown as { target?: { id?: string } }).target?.id;
             if (id) this.nodeClick.emit(id);
+        });
+        graph.on(EdgeEvent.CLICK, (e) => {
+            const id = (e as unknown as { target?: { id?: string } }).target?.id;
+            if (id) this.edgeClick.emit(id);
         });
         graph.render();
         this.graph = graph;

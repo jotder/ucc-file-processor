@@ -122,8 +122,11 @@ src/app/
   two-click (avoid G6 v5's `create-edge`), delete = a host `keydown`. Both reuse `canvasTheme()` + `nodeColor/nodeShape`
   (never hardcode canvas colours). The read-only host defaults to a `62vh` page band; pass `[fill]="true"` inside a
   full-height flex column (Link Analysis studio) to grow into the remaining space — its `ResizeObserver` re-sizes the
-  canvas live when collapsible side panes open/close. **G6 can't instantiate in jsdom** — unit-test on the
-  empty/no-graph path (canvas not mounted) for axe, and the editing logic via the component's methods with a mocked host.
+  canvas live when collapsible side panes open/close. Further opt-ins on the read-only host: `[display]`
+  (`GraphDisplayOptions` — label toggles + per-kind colour overrides, what Link Analysis persists with a saved view),
+  `[tooltips]="true"` (G6 hover tooltip plugin), `(edgeClick)`, and `fitView()`. **G6 can't instantiate in jsdom** —
+  unit-test on the empty/no-graph path (canvas not mounted) for axe, and the editing logic via the component's methods
+  with a mocked host.
 - **Ask the minimum (product-owner rule, 2026-07-02):** a form asks only what the action needs NOW;
   everything else is on-demand. Concretely: **create flows name the artifact at SAVE time** (a save step
   asks Name — pre-filled `<type>_<host>`-style, unique, = the id — plus optional Description) and

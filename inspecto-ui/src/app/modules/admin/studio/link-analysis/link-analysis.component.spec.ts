@@ -184,6 +184,76 @@ describe('LinkAnalysisComponent', () => {
         expect(fixture.nativeElement.textContent).toContain('Query failed');
     });
 
+    it('collapse/expand branches hide and restore a node’s downstream subtree', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+
+        c.collapseBranch('b'); // a→b→c: hides c, keeps b
+        expect(c.displayed()?.nodes.map((n) => n.id)).toEqual(['a', 'b', 'd', 'e']);
+        c.expandBranch('b');
+        expect(c.displayed()?.nodes).toHaveLength(5);
+
+        c.collapseBranch('a');
+        c.collapseBranch('d');
+        expect(c.displayed()?.nodes.map((n) => n.id)).toEqual(['a', 'd']);
+        c.expandAll();
+        expect(c.displayed()?.nodes).toHaveLength(5);
+    });
+
+    it('display options travel with a saved view and are re-applied on load', async () => {
+        const { fixture, save } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+
+        expect(c.displayCustomized()).toBe(false);
+        c.edgeLabels.set(false);
+        c.setNodeColor('entity', c.swatches[0]);
+        c.setNodeColor('entity', c.swatches[1]); // re-pick replaces
+        c.setEdgeColor('link', c.swatches[2]);
+        expect(c.displayCustomized()).toBe(true);
+
+        c.saveForm.patchValue({ name: 'Styled' });
+        await c.saveView();
+        const saved = save.mock.calls[0][0];
+        expect(saved.display).toEqual({
+            nodeLabels: true, edgeLabels: false,
+            nodeColors: { entity: c.swatches[1] }, edgeColors: { link: c.swatches[2] },
+        });
+
+        c.setNodeColor('entity', null); // drift away, then load restores the captured styling
+        c.edgeLabels.set(true);
+        await c.loadView(saved);
+        expect(c.edgeLabels()).toBe(false);
+        expect(c.nodeColors()).toEqual({ entity: c.swatches[1] });
+
+        await c.loadView({ id: 'plain', name: 'Plain', sourceId: 'entity-projection', query: {} });
+        expect(c.displayCustomized()).toBe(false); // a view without display resets to defaults
+    });
+
+    it('the bottom panel tables the displayed graph and narrows with the search', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+
+        expect(c.tableRows()).toHaveLength(3); // links mode: all three edges
+        c.tableMode.set('nodes');
+        expect(c.tableRows()).toHaveLength(5);
+        expect(c.tableRows()[0]).toEqual({ label: 'A', kind: 'entity', links: 1, id: 'a' });
+
+        c.onSearch('a'); // search narrows the table to the matched node…
+        expect(c.tableRows()).toEqual([{ label: 'A', kind: 'entity', links: 1, id: 'a' }]);
+        c.tableMode.set('links');
+        expect(c.tableRows().map((r) => r['id'])).toEqual(['a->b']); // …and to links touching it
+
+        c.toggleKind('other', false); // the kind filter flows through too
+        c.onSearch('');
+        expect(c.tableRows().map((r) => r['id'])).toEqual(['a->b', 'b->c']);
+    });
+
     it('saves a view (duplicate name blocked inline) and reloads a saved view', async () => {
         const existing: LinkAnalysisView = { id: 'ring', name: 'Ring', sourceId: 'entity-projection', query: {} };
         const { fixture, save, queried } = create({ views: [existing] });

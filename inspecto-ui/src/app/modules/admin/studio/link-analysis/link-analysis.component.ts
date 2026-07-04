@@ -1,9 +1,10 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators, AbstractControl, ValidatorFn } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -16,13 +17,16 @@ import { PipelineSummary, PipelinesService, apiErrorMessage } from 'app/inspecto
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
+import { DataTableComponent } from 'app/inspecto/data-table';
 import {
     G6GraphData,
     GraphSourceId,
     GraphSourceQuery,
     NodeScore,
     betweennessCentrality,
+    collapseBranches,
     degreeCentrality,
+    descendants,
     detectCommunities,
     explainNode,
     filterByKinds,
@@ -30,7 +34,14 @@ import {
     searchNodes,
     shortestPath,
 } from 'app/inspecto/graph';
-import { GraphEmphasis, GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
+import { ICON_COLOR_SWATCHES } from 'app/inspecto/theme/chart-tokens';
+import {
+    GraphDisplayOptions,
+    GraphEmphasis,
+    GraphViewComponent,
+    baseEdgeKind,
+} from 'app/modules/admin/catalog/graph-view.component';
+import { ElementDetailDialog, ElementDetailResult } from './element-detail.dialog';
 import { Dataset } from 'app/modules/admin/studio/datasets/dataset-types';
 import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.service';
 import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-sources';
@@ -65,15 +76,18 @@ interface QuerySummaryItem {
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        DecimalPipe, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatFormFieldModule,
-        MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatTooltipModule,
+        DecimalPipe, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule,
+        MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatTooltipModule,
         InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, GraphViewComponent,
+        DataTableComponent,
     ],
     templateUrl: './link-analysis.component.html',
+    host: { '(document:fullscreenchange)': 'onFullscreenChange()' },
 })
 export class LinkAnalysisComponent implements OnInit {
     private fb = inject(FormBuilder);
     private toastr = inject(ToastrService);
+    private dialog = inject(MatDialog);
     private graphSources = inject(GraphSourcesService);
     private datasetsService = inject(DatasetsService);
     private pipelinesService = inject(PipelinesService);
@@ -82,6 +96,8 @@ export class LinkAnalysisComponent implements OnInit {
     readonly sources = this.graphSources.sources;
 
     @ViewChild(GraphViewComponent) private graphView?: GraphViewComponent;
+    @ViewChild('studioRoot') private studioRoot?: ElementRef<HTMLElement>;
+    @ViewChild('canvasZone') private canvasZone?: ElementRef<HTMLElement>;
 
     // ── workspace layout: both rails collapse to a slim tool strip to maximize the canvas ──
     readonly leftOpen = signal(true);
@@ -172,9 +188,70 @@ export class LinkAnalysisComponent implements OnInit {
         const g = this.graph();
         return g ? [...new Set(g.nodes.map((n) => n.data.kind))].sort() : [];
     });
-    readonly displayed = computed<G6GraphData | null>(() => {
+    readonly edgeKinds = computed<string[]>(() => {
+        const g = this.graph();
+        return g ? [...new Set(g.edges.map((e) => baseEdgeKind(e.data.kind)))].sort() : [];
+    });
+    /** Collapsed branch roots — their downstream nodes are hidden until expanded. */
+    readonly collapsedRoots = signal<string[]>([]);
+    /** The kind-filtered graph BEFORE branch collapsing (collapse/expand decisions read this). */
+    private readonly baseGraph = computed<G6GraphData | null>(() => {
         const g = this.graph();
         return g ? filterByKinds(g, this.kindFilter(), []) : null;
+    });
+    readonly displayed = computed<G6GraphData | null>(() => {
+        const g = this.baseGraph();
+        return g ? collapseBranches(g, this.collapsedRoots()) : null;
+    });
+
+    // ── display options (persisted with a saved view; applied on load) ──
+    readonly nodeLabels = signal(true);
+    readonly edgeLabels = signal(true);
+    readonly nodeColors = signal<Record<string, string>>({});
+    readonly edgeColors = signal<Record<string, string>>({});
+    readonly displayOptions = computed<GraphDisplayOptions>(() => ({
+        nodeLabels: this.nodeLabels(),
+        edgeLabels: this.edgeLabels(),
+        nodeColors: this.nodeColors(),
+        edgeColors: this.edgeColors(),
+    }));
+    readonly swatches = ICON_COLOR_SWATCHES;
+    /** True when any display option deviates from the defaults (tints the paint-brush button). */
+    readonly displayCustomized = computed<boolean>(
+        () => !this.nodeLabels() || !this.edgeLabels()
+            || Object.keys(this.nodeColors()).length > 0 || Object.keys(this.edgeColors()).length > 0,
+    );
+
+    // ── fullscreen (whole studio or just the canvas zone) + bottom data panel ──
+    readonly fullscreen = signal<'app' | 'graph' | null>(null);
+    readonly bottomOpen = signal(false);
+    readonly tableMode = signal<'links' | 'nodes'>('links');
+    /** The displayed graph as rows — search-narrowed, so canvas and table show the same result. */
+    readonly tableRows = computed<Record<string, unknown>[]>(() => {
+        const g = this.displayed();
+        if (!g) return [];
+        const q = this.search().trim();
+        const match = q ? new Set(searchNodes(g, q)) : null;
+        if (this.tableMode() === 'nodes') {
+            return g.nodes
+                .filter((n) => !match || match.has(n.id))
+                .map((n) => ({
+                    label: n.data.label,
+                    kind: n.data.kind,
+                    links: g.edges.filter((e) => e.source === n.id || e.target === n.id).length,
+                    id: n.id,
+                }));
+        }
+        const label = (id: string): string => g.nodes.find((n) => n.id === id)?.data.label ?? id;
+        return g.edges
+            .filter((e) => !match || match.has(e.source) || match.has(e.target))
+            .map((e) => ({
+                source: label(e.source),
+                relationship: baseEdgeKind(e.data.kind),
+                target: label(e.target),
+                rows: (e.data as { count?: number }).count ?? 1,
+                id: e.id,
+            }));
     });
     readonly nodeOptions = computed(() => {
         const g = this.displayed();
@@ -332,6 +409,135 @@ export class LinkAnalysisComponent implements OnInit {
         this.pathTo.set('');
         this.explainFor.set('');
         this.search.set('');
+        this.collapsedRoots.set([]);
+    }
+
+    // ── display options ──
+
+    /** Pick (or with `null` clear) the stroke colour for a node kind. */
+    setNodeColor(kind: string, color: string | null): void {
+        const { [kind]: _old, ...rest } = this.nodeColors();
+        this.nodeColors.set(color ? { ...rest, [kind]: color } : rest);
+    }
+
+    /** Pick (or with `null` clear) the stroke colour for a relationship kind. */
+    setEdgeColor(kind: string, color: string | null): void {
+        const { [kind]: _old, ...rest } = this.edgeColors();
+        this.edgeColors.set(color ? { ...rest, [kind]: color } : rest);
+    }
+
+    private applyDisplay(display: GraphDisplayOptions | undefined): void {
+        this.nodeLabels.set(display?.nodeLabels ?? true);
+        this.edgeLabels.set(display?.edgeLabels ?? true);
+        this.nodeColors.set(display?.nodeColors ?? {});
+        this.edgeColors.set(display?.edgeColors ?? {});
+    }
+
+    // ── canvas tools: fit · fullscreen · collapse/expand ──
+
+    fitToScreen(): void {
+        this.graphView?.fitView();
+    }
+
+    /** Toggle fullscreen for the whole studio (`app`) or just the canvas zone (`graph`). */
+    toggleFullscreen(zone: 'app' | 'graph'): void {
+        const el = (zone === 'app' ? this.studioRoot : this.canvasZone)?.nativeElement;
+        if (!el?.requestFullscreen) return; // unsupported environment (e.g. jsdom)
+        if (document.fullscreenElement) void document.exitFullscreen();
+        else void el.requestFullscreen();
+    }
+
+    onFullscreenChange(): void {
+        const fs = document.fullscreenElement;
+        this.fullscreen.set(
+            fs && fs === this.studioRoot?.nativeElement ? 'app'
+            : fs && fs === this.canvasZone?.nativeElement ? 'graph'
+            : null,
+        );
+    }
+
+    /** Hide everything downstream of the node (the detail popup's Collapse branch). */
+    collapseBranch(id: string): void {
+        if (!this.collapsedRoots().includes(id)) this.collapsedRoots.set([...this.collapsedRoots(), id]);
+    }
+
+    expandBranch(id: string): void {
+        this.collapsedRoots.set(this.collapsedRoots().filter((r) => r !== id));
+    }
+
+    expandAll(): void {
+        this.collapsedRoots.set([]);
+    }
+
+    // ── element details (canvas click → full-detail popup) ──
+
+    onNodeClick(id: string): void {
+        const g = this.baseGraph();
+        const node = g?.nodes.find((n) => n.id === id);
+        if (!g || !node) return;
+        const outgoing = g.edges.filter((e) => e.source === id);
+        const incoming = g.edges.filter((e) => e.target === id);
+        const neighbors = [...new Set([...outgoing.map((e) => e.target), ...incoming.map((e) => e.source)])]
+            .map((n) => this.labelOf(n));
+        const collapsed = this.collapsedRoots().includes(id);
+        this.dialog
+            .open(ElementDetailDialog, {
+                width: '28rem',
+                data: {
+                    title: node.data.label,
+                    subtitle: node.data.kind,
+                    rows: [
+                        { label: 'ID', value: id },
+                        { label: 'Links', value: `${outgoing.length + incoming.length} (${outgoing.length} out · ${incoming.length} in)` },
+                        { label: 'Neighbors', value: neighbors.slice(0, 8).join(', ') + (neighbors.length > 8 ? ` … +${neighbors.length - 8}` : '') },
+                    ],
+                    branch: collapsed ? 'expand' : descendants(g, id).size ? 'collapse' : undefined,
+                },
+            })
+            .afterClosed()
+            .subscribe((action: ElementDetailResult) => {
+                if (action === 'focus') this.focusNode(id);
+                else if (action === 'collapse') this.collapseBranch(id);
+                else if (action === 'expand') this.expandBranch(id);
+            });
+    }
+
+    onEdgeClick(id: string): void {
+        const g = this.displayed();
+        const edge = g?.edges.find((e) => e.id === id);
+        if (!g || !edge) return;
+        const count = (edge.data as { count?: number }).count;
+        this.dialog
+            .open(ElementDetailDialog, {
+                width: '28rem',
+                data: {
+                    title: `${this.labelOf(edge.source)} → ${this.labelOf(edge.target)}`,
+                    subtitle: baseEdgeKind(edge.data.kind),
+                    rows: [
+                        { label: 'From', value: this.labelOf(edge.source) },
+                        { label: 'To', value: this.labelOf(edge.target) },
+                        { label: 'Relationship', value: baseEdgeKind(edge.data.kind) },
+                        ...(count ? [{ label: 'Folded rows', value: String(count) }] : []),
+                        { label: 'ID', value: id },
+                    ],
+                },
+            })
+            .afterClosed()
+            .subscribe((action: ElementDetailResult) => {
+                if (action === 'focus') this.emphasis.set({ nodeIds: [edge.source, edge.target], edgeIds: [id] });
+            });
+    }
+
+    /** Bottom-panel row click — focus the element on the canvas (rows carry their graph id). */
+    onTableRow(row: Record<string, unknown>): void {
+        const id = String(row['id'] ?? '');
+        if (!id) return;
+        if (this.tableMode() === 'nodes') {
+            this.focusNode(id);
+            return;
+        }
+        const edge = this.displayed()?.edges.find((e) => e.id === id);
+        if (edge) this.emphasis.set({ nodeIds: [edge.source, edge.target], edgeIds: [id] });
     }
 
     // ── search & filters ──
@@ -469,6 +675,7 @@ export class LinkAnalysisComponent implements OnInit {
             description: description.trim() || undefined,
             sourceId: this.sourceId(),
             query: q,
+            display: this.displayOptions(), // styling travels with the view; reapplied on load
         };
         this.saving.set(true);
         try {
@@ -486,6 +693,7 @@ export class LinkAnalysisComponent implements OnInit {
 
     async loadView(view: LinkAnalysisView): Promise<void> {
         this.sourceId.set(view.sourceId);
+        this.applyDisplay(view.display);
         const p = view.query.projection;
         this.queryForm.patchValue({
             from: view.query.from ?? '',

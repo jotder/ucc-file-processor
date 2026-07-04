@@ -342,3 +342,32 @@ export function filterByKinds(g: G6GraphData, nodeKinds: string[], edgeKinds: st
     );
     return { nodes, edges };
 }
+
+/** All nodes strictly downstream of `rootId` (BFS along outgoing edges; the root excluded). */
+export function descendants(g: G6GraphData, rootId: string): Set<string> {
+    const out = new Map<string, string[]>();
+    for (const e of g.edges) out.set(e.source, [...(out.get(e.source) ?? []), e.target]);
+    const seen = new Set<string>();
+    const queue = [...(out.get(rootId) ?? [])];
+    while (queue.length) {
+        const id = queue.shift()!;
+        if (id === rootId || seen.has(id)) continue;
+        seen.add(id);
+        queue.push(...(out.get(id) ?? []));
+    }
+    return seen;
+}
+
+/**
+ * Collapse-branches view (Link Analysis): hide everything strictly downstream of each collapsed
+ * root (the roots themselves stay visible), dropping edges that lose an endpoint.
+ */
+export function collapseBranches(g: G6GraphData, collapsedRoots: string[]): G6GraphData {
+    if (!collapsedRoots.length) return g;
+    const hidden = new Set<string>();
+    for (const root of collapsedRoots) for (const id of descendants(g, root)) hidden.add(id);
+    for (const root of collapsedRoots) hidden.delete(root); // a collapsed root under another stays visible
+    const nodes = g.nodes.filter((n) => !hidden.has(n.id));
+    const edges = g.edges.filter((e) => !hidden.has(e.source) && !hidden.has(e.target));
+    return { nodes, edges };
+}
