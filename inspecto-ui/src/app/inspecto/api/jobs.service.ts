@@ -43,6 +43,14 @@ export interface JobRunLogs {
   events: JobEvent[];
 }
 
+/** A generated export (C6) behind a `type:'report'` job's completed run (GET .../runs/{runId}/artifact). */
+export interface ReportArtifact {
+  runId: string;
+  filename: string;
+  mime: string;
+  content: string;
+}
+
 /** Aggregate job-execution metrics (GET /jobs/metrics) — the DuckDB reporting projection (T27). */
 export interface JobMetrics {
   total: number;
@@ -110,6 +118,10 @@ export class JobsService {
   }
   runLogs(name: string, runId: string): Observable<JobRunLogs> {
     return this.http.get<JobRunLogs>(apiUrl(`/jobs/${encodeURIComponent(name)}/runs/${encodeURIComponent(runId)}/logs`));
+  }
+  /** C6: the generated artifact behind a `type:'report'` job's completed run. */
+  runArtifact(name: string, runId: string): Observable<ReportArtifact> {
+    return this.http.get<ReportArtifact>(apiUrl(`/jobs/${encodeURIComponent(name)}/runs/${encodeURIComponent(runId)}/artifact`));
   }
 
   // ── T27 reporting (404 unless the DuckDB backend is on: -Djobs.backend=duckdb) ──

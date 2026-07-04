@@ -1,8 +1,11 @@
+import type { ComponentDef } from '../../api/components.service';
 import type { JobDetail, JobRunLogs, JobUpsert } from '../../api/jobs.service';
 import type { JobRun, JobView } from '../../api/models';
+import { componentCollection } from './components.handler';
 import { MockFlags } from '../mock-flags';
-import { json, match, MockHandler, MockRequest } from '../mock-http';
+import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
+import { fanOut } from '../notify';
 
 /**
  * The Scheduler mock domain — the port of the old `jobs-mock` interceptor onto the persistent
@@ -18,11 +21,22 @@ import { MockStore } from '../mock-store';
 export const JOBS_COLL = 'job';
 export const JOB_RUNS_COLL = 'job-run';
 export const JOB_RUN_LOGS_COLL = 'job-run-log';
+export const REPORT_ARTIFACTS_COLL = 'report-artifact';
+
+/** A generated export (C6) — the mock-only payload behind a report job's completed run. */
+export interface ReportArtifact {
+    runId: string;
+    filename: string;
+    mime: string;
+    /** CSV: the raw text. PDF/PNG: a short placeholder string (no real rendering in mock). */
+    content: string;
+}
 
 const RESERVED = new Set(['metrics', 'runs', 'failures']); // /jobs/<reserved> are real reporting routes, not job ids
 
 const JOBS = /\/jobs$/;
 const JOB_RUN_LOGS = /\/jobs\/([^/]+)\/runs\/([^/]+)\/logs$/;
+const JOB_RUN_ARTIFACT = /\/jobs\/([^/]+)\/runs\/([^/]+)\/artifact$/;
 const JOB_RUNS = /\/jobs\/([^/]+)\/runs$/;
 const JOB_TRIGGER = /\/jobs\/([^/]+)\/trigger$/;
 const JOB_TOGGLE = /\/jobs\/([^/]+)\/(enable|disable)$/;
@@ -35,6 +49,10 @@ export function jobsHandler(flags: MockFlags): MockHandler {
         const { method, url, space } = req;
         let m: string[] | null;
 
+        if (method === 'GET' && (m = match(url, JOB_RUN_ARTIFACT))) {
+            const artifact = store.get<ReportArtifact>(space, REPORT_ARTIFACTS_COLL, m[2]);
+            return artifact ? json(artifact) : error(404, `no artifact for run ${m[2]}`);
+        }
         if (method === 'GET' && (m = match(url, JOB_RUN_LOGS))) return json(runLogs(store, space, m[2]));
         if (method === 'GET' && (m = match(url, JOB_RUNS))) return json(runsOf(store, space, m[1]));
         if (method === 'POST' && (m = match(url, JOB_TRIGGER))) return json(trigger(store, space, m[1]));
@@ -115,9 +133,69 @@ export function recordRun(
 function trigger(store: MockStore, space: string, name: string): { job: string; status: string } {
     const job = store.get<JobDetail>(space, JOBS_COLL, name);
     if (!job) return { job: name, status: 'UNKNOWN' };
-    const run = recordRun(store, space, name, 'MANUAL', 'SUCCESS', Date.now(), 1_200, `Manual run of "${name}".`);
+    // Only C6 dashboard-export jobs (identified by `params.dashboardId`) get the export treatment —
+    // `type: 'report'` predates C6 and also covers other report jobs (e.g. the seeded billing report).
+    const run = job.params?.['dashboardId']
+        ? runReportExport(store, space, job)
+        : recordRun(store, space, name, 'MANUAL', 'SUCCESS', Date.now(), 1_200, `Manual run of "${name}".`);
     store.put(space, JOBS_COLL, name, { ...job, lastStatus: run.status, lastRunTime: run.startTime });
     return { job: name, status: run.status };
+}
+
+/**
+ * Run a scheduled Dashboard export (C6): CSV is a real serialization of the dashboard's tiles; PDF/PNG
+ * are mock placeholders (no rendering engine here). Stores the artifact for download and fans out
+ * REPORT_EXPORTED — the same shared notification core as Alerts/Expectations.
+ */
+function runReportExport(store: MockStore, space: string, job: JobDetail): JobRun {
+    const dashboardId = String(job.params?.['dashboardId'] ?? '');
+    const format = String(job.params?.['format'] ?? 'csv');
+    const dashboard = store.get<ComponentDef>(space, componentCollection('dashboard'), dashboardId);
+    const tiles = (dashboard?.content?.['tiles'] as unknown[] | undefined) ?? [];
+    const startedAt = Date.now();
+
+    if (!dashboard) {
+        return recordRun(store, space, job.name, 'MANUAL', 'FAILED', startedAt, 400, `Dashboard "${dashboardId}" no longer exists.`);
+    }
+
+    const run = recordRun(
+        store,
+        space,
+        job.name,
+        'MANUAL',
+        'SUCCESS',
+        startedAt,
+        800,
+        `Exported "${dashboardId}" as ${format.toUpperCase()} (${tiles.length} tile(s)).`,
+    );
+
+    const artifact: ReportArtifact =
+        format === 'csv'
+            ? {
+                  runId: run.runId,
+                  filename: `${dashboardId}.csv`,
+                  mime: 'text/csv',
+                  content: ['tile_index,widget_id,span', ...tiles.map((t, i) => `${i},${(t as { widgetId?: string }).widgetId ?? ''},${(t as { span?: number }).span ?? 1}`)].join('\n'),
+              }
+            : {
+                  runId: run.runId,
+                  filename: `${dashboardId}.${format}`,
+                  mime: format === 'pdf' ? 'application/pdf' : 'image/png',
+                  content: `Mock ${format.toUpperCase()} snapshot of dashboard "${dashboardId}" (${tiles.length} tile(s)) — no rendering engine in mock mode.`,
+              };
+    store.put(space, REPORT_ARTIFACTS_COLL, run.runId, artifact);
+
+    const recipients = (job.params?.['recipients'] as string[] | undefined) ?? [];
+    fanOut(
+        store,
+        space,
+        'REPORT_EXPORTED',
+        'OPS',
+        `Report ready: ${job.name}`,
+        `"${dashboardId}" exported as ${format.toUpperCase()}${recipients.length ? ` for ${recipients.join(', ')}` : ''}.`,
+        run.runId,
+    );
+    return run;
 }
 
 function setEnabled(store: MockStore, space: string, name: string, enabled: boolean): JobDetail | undefined {

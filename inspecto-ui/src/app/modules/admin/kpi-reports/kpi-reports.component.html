@@ -1,0 +1,73 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 sm:p-8">
+    <div class="mb-6 flex items-center gap-3">
+        <mat-icon class="text-primary icon-size-8" svgIcon="heroicons_outline:document-chart-bar"></mat-icon>
+        <h1 class="text-2xl font-semibold tracking-tight">KPI & Reports</h1>
+    </div>
+
+    @if (loading()) {
+        <inspecto-skeleton [lines]="3" height="4rem" />
+    } @else if (dashboards().length === 0) {
+        <inspecto-empty-state
+            icon="heroicons_outline:document-chart-bar"
+            title="No dashboards yet"
+            message="Build a dashboard in Studio and it will appear here."
+            actionLabel="Create a dashboard"
+            (action)="createDashboard()"
+        />
+    } @else {
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            @for (d of dashboards(); track d.id) {
+                <div class="bg-card flex flex-col gap-2 rounded-2xl p-5 shadow">
+                    <a class="flex flex-col gap-1 transition-opacity hover:opacity-80" [routerLink]="['/studio/dashboards', d.id]">
+                        <div class="flex items-center gap-2">
+                            <mat-icon class="text-primary icon-size-5" svgIcon="heroicons_outline:squares-2x2"></mat-icon>
+                            <span class="truncate font-semibold">{{ d.name }}</span>
+                        </div>
+                        <span class="text-secondary text-sm">
+                            {{ d.tiles.length }} tile(s){{ d.exposedFields?.length ? ' · ' + d.exposedFields!.length + ' quick filter(s)' : '' }}
+                        </span>
+                    </a>
+
+                    <!-- C6: scheduled exports for this dashboard -->
+                    <div class="mt-1 border-t pt-2">
+                        @for (job of jobsFor(d.id); track job.name) {
+                            <div class="flex items-center justify-between gap-2 py-1 text-sm">
+                                <div class="min-w-0">
+                                    <span class="truncate font-medium">{{ job.name }}</span>
+                                    <span class="text-secondary ml-1 uppercase">{{ paramsOf(job).format }}</span>
+                                    <span [innerHTML]="statusBadgeHtml(job.enabled ? 'enabled' : 'disabled')"></span>
+                                    @if (job.lastRunTime) {
+                                        <span class="text-secondary ml-1 text-xs">last {{ fmtDateTime(job.lastRunTime) }}</span>
+                                    }
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button mat-icon-button (click)="runNow(job)" matTooltip="Run now" [attr.aria-label]="'Run ' + job.name + ' now'">
+                                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:play"></mat-icon>
+                                    </button>
+                                    <button mat-icon-button (click)="downloadLatest(job)" [disabled]="!job.lastRunTime"
+                                            matTooltip="Download latest export" [attr.aria-label]="'Download latest export for ' + job.name">
+                                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+                                    </button>
+                                    @if (lens.canAuthorWorkbench()) {
+                                        <button mat-icon-button (click)="editSchedule(job, d)" matTooltip="Edit schedule" [attr.aria-label]="'Edit schedule ' + job.name">
+                                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                                        </button>
+                                        <button mat-icon-button (click)="removeSchedule(job)" matTooltip="Delete schedule" [attr.aria-label]="'Delete schedule ' + job.name">
+                                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        @if (lens.canAuthorWorkbench()) {
+                            <button mat-button class="mt-1 -ml-2" (click)="scheduleExport(d)">
+                                <mat-icon svgIcon="heroicons_outline:clock"></mat-icon>
+                                <span class="ml-1">Schedule export</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

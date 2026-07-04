@@ -1,76 +1,184 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink } from '@angular/router';
+import { ToastrService } from 'ngx-toastr';
+import { apiErrorMessage, JobDetail, JobsService, LensService } from 'app/inspecto/api';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
+import { fmtDateTime } from 'app/inspecto/grid';
 import { Dashboard } from '../studio/dashboards/dashboard-types';
 import { DashboardsService } from '../studio/dashboards/dashboards.service';
+import { ScheduleExportData, ScheduleExportDialog, ScheduleExportResult } from './schedule-export.dialog';
+
+/** A `type:'report'` job's dashboard-export params (C6) — no new entity, params carry the shape. */
+interface ReportJobParams {
+    dashboardId: string;
+    format: 'csv' | 'pdf' | 'png';
+    recipients: string[];
+}
 
 /**
- * KPI & Reports — the read-only landing gallery over the Studio dashboards: every saved dashboard as a card
- * (tile count + quick-filter count) opening in the Studio editor. Replaces the "coming soon" placeholder;
- * authoring stays in Studio.
+ * KPI & Reports — the read-only landing gallery over the Studio dashboards, extended (C6) with
+ * **scheduled exports**: a dashboard export IS a Job (`type: 'report'`, reusing the existing
+ * scheduler/run-history/live-tail wholesale) so this pane only adds the "Schedule export" action and
+ * a status list — authoring stays here, execution stays in Jobs.
  */
 @Component({
     standalone: true,
-    imports: [MatIconModule, RouterLink, InspectoEmptyStateComponent, InspectoSkeletonComponent],
+    imports: [
+        MatButtonModule,
+        MatIconModule,
+        MatTooltipModule,
+        RouterLink,
+        InspectoEmptyStateComponent,
+        InspectoSkeletonComponent,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-        <div class="flex min-w-0 flex-auto flex-col p-6 sm:p-8">
-            <div class="mb-6 flex items-center gap-3">
-                <mat-icon class="text-primary icon-size-8" svgIcon="heroicons_outline:document-chart-bar"></mat-icon>
-                <h1 class="text-2xl font-semibold tracking-tight">KPI &amp; Reports</h1>
-            </div>
-
-            @if (loading()) {
-                <inspecto-skeleton [lines]="3" height="4rem" />
-            } @else if (dashboards().length === 0) {
-                <inspecto-empty-state
-                    icon="heroicons_outline:document-chart-bar"
-                    title="No dashboards yet"
-                    message="Build a dashboard in Studio and it will appear here."
-                    actionLabel="Create a dashboard"
-                    (action)="createDashboard()"
-                />
-            } @else {
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    @for (d of dashboards(); track d.id) {
-                        <a
-                            class="bg-card flex flex-col gap-1 rounded-2xl p-5 shadow transition-shadow hover:shadow-md"
-                            [routerLink]="['/studio/dashboards', d.id]"
-                        >
-                            <div class="flex items-center gap-2">
-                                <mat-icon class="text-primary icon-size-5" svgIcon="heroicons_outline:squares-2x2"></mat-icon>
-                                <span class="truncate font-semibold">{{ d.name }}</span>
-                            </div>
-                            <span class="text-secondary text-sm">
-                                {{ d.tiles.length }} tile(s){{ d.exposedFields?.length ? ' · ' + d.exposedFields!.length + ' quick filter(s)' : '' }}
-                            </span>
-                        </a>
-                    }
-                </div>
-            }
-        </div>
-    `,
+    templateUrl: `./kpi-reports.component.html`,
 })
 export class KpiReportsComponent implements OnInit {
     private dashboardsApi = inject(DashboardsService);
+    private jobsApi = inject(JobsService);
+    private dialog = inject(MatDialog);
+    private toastr = inject(ToastrService);
+    private confirm = inject(InspectoConfirmService);
     private router = inject(Router);
+    protected lens = inject(LensService);
+
+    readonly dashboards = signal<Dashboard[]>([]);
+    readonly reportJobs = signal<JobDetail[]>([]);
+    readonly loading = signal(true);
+    readonly statusBadgeHtml = statusBadgeHtml;
+    readonly fmtDateTime = fmtDateTime;
 
     createDashboard(): void {
         this.router.navigate(['/studio/dashboards/new']);
     }
 
-    readonly dashboards = signal<Dashboard[]>([]);
-    readonly loading = signal(true);
-
     ngOnInit(): void {
+        this.load();
+    }
+
+    load(): void {
+        this.loading.set(true);
         this.dashboardsApi.list().subscribe({
             next: (d) => {
                 this.dashboards.set(d);
                 this.loading.set(false);
             },
             error: () => this.loading.set(false),
+        });
+        this.loadReportDetails();
+    }
+
+    /** The list projection omits `params` (dashboardId/format/recipients) — fetch full detail per job. */
+    private loadReportDetails(): void {
+        this.jobsApi.list().subscribe((jobs) => {
+            const names = jobs.filter((j) => j.type === 'report').map((j) => j.name);
+            if (!names.length) {
+                this.reportJobs.set([]);
+                return;
+            }
+            Promise.all(names.map((n) => this.jobsApi.get(n).toPromise())).then((details) => {
+                this.reportJobs.set(details.filter((d): d is JobDetail => !!d));
+            });
+        });
+    }
+
+    jobsFor(dashboardId: string): JobDetail[] {
+        return this.reportJobs().filter((j) => this.paramsOf(j).dashboardId === dashboardId);
+    }
+
+    paramsOf(j: JobDetail): ReportJobParams {
+        const p = j.params ?? {};
+        return {
+            dashboardId: String(p['dashboardId'] ?? ''),
+            format: (p['format'] as ReportJobParams['format']) ?? 'csv',
+            recipients: (p['recipients'] as string[]) ?? [],
+        };
+    }
+
+    scheduleExport(d: Dashboard): void {
+        const data: ScheduleExportData = {
+            dashboardId: d.id,
+            dashboardName: d.name,
+            existingNames: this.reportJobs().map((j) => j.name),
+        };
+        this.dialog
+            .open(ScheduleExportDialog, { data, width: '560px', maxHeight: '88vh' })
+            .afterClosed()
+            .subscribe((r?: ScheduleExportResult) => {
+                if (r?.saved) {
+                    this.toastr.success(`Scheduled export "${r.saved.name}" created`);
+                    this.loadReportDetails();
+                }
+            });
+    }
+
+    editSchedule(job: JobDetail, d: Dashboard): void {
+        const data: ScheduleExportData = { dashboardId: d.id, dashboardName: d.name, job };
+        this.dialog
+            .open(ScheduleExportDialog, { data, width: '560px', maxHeight: '88vh' })
+            .afterClosed()
+            .subscribe((r?: ScheduleExportResult) => {
+                if (r?.saved) {
+                    this.toastr.success(`Scheduled export "${r.saved.name}" saved`);
+                    this.loadReportDetails();
+                }
+            });
+    }
+
+    /** Run now: triggers the underlying job — a successful run produces a downloadable artifact. */
+    runNow(job: JobDetail): void {
+        this.jobsApi.trigger(job.name).subscribe({
+            next: () => {
+                this.toastr.success(`Export "${job.name}" ran.`);
+                this.loadReportDetails();
+            },
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Could not run "${job.name}".`)),
+        });
+    }
+
+    /** Download the latest run's artifact (mirrors the events CSV-export client pattern). */
+    downloadLatest(job: JobDetail): void {
+        if (!job.lastRunTime) {
+            this.toastr.warning(`"${job.name}" has not run yet.`);
+            return;
+        }
+        this.jobsApi.runs(job.name).subscribe({
+            next: (runs) => {
+                const latest = runs[0];
+                if (!latest) return;
+                this.jobsApi.runArtifact(job.name, latest.runId).subscribe({
+                    next: (a) => {
+                        const blob = new Blob([a.content], { type: a.mime });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = a.filename;
+                        link.click();
+                        URL.revokeObjectURL(url);
+                    },
+                    error: (e) => this.toastr.error(apiErrorMessage(e, 'No artifact for the latest run.')),
+                });
+            },
+            error: (e) => this.toastr.error(apiErrorMessage(e, 'Could not load run history.')),
+        });
+    }
+
+    async removeSchedule(job: JobDetail): Promise<void> {
+        if (!(await this.confirm.confirmDestructive(`Delete scheduled export "${job.name}"?`))) return;
+        this.jobsApi.remove(job.name).subscribe({
+            next: () => {
+                this.toastr.success(`Scheduled export "${job.name}" deleted`);
+                this.reportJobs.set(this.reportJobs().filter((j) => j.name !== job.name));
+            },
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Could not delete "${job.name}".`)),
         });
     }
 }
