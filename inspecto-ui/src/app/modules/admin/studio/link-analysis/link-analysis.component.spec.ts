@@ -128,13 +128,14 @@ describe('LinkAnalysisComponent', () => {
         expect(c.sourceLabel()).toBe('Entity/Link (from a Dataset)');
         expect(c.querySummary().map((i) => `${i.label}: ${i.value}`)).toEqual(['Dataset: Links', 'Mapping: source → target']);
 
-        c.leftOpen.set(false);
-        c.editQuery(); // the status-bar pencil / collapsed-strip tool
-        expect(c.leftOpen()).toBe(true);
+        c.bottomTab.set('data');
+        c.editQuery(); // the status-bar pencil jumps back to the Query tab, form expanded
+        expect(c.bottomTab()).toBe('query');
+        expect(c.bottomOpen()).toBe(true);
         expect(c.queryOpen()).toBe(true);
     });
 
-    it('workspace: a failed query keeps the form open; openTool/toggleTool drive the analysis toolbox', async () => {
+    it('workspace: a failed query keeps the form open; openAnalysis/toggleTool drive the analysis toolbox', async () => {
         const { fixture } = create({ fail: true });
         fixture.detectChanges();
         await runQuery(fixture);
@@ -142,11 +143,13 @@ describe('LinkAnalysisComponent', () => {
         expect(c.queryOpen()).toBe(true); // a failing query needs its form back
         expect(c.querySummary()).toEqual([]);
 
-        c.rightOpen.set(false);
-        c.openTool('communities'); // collapsed-strip icon expands straight onto the tool
-        expect(c.rightOpen()).toBe(true);
-        expect(c.tab()).toBe('communities');
+        c.bottomOpen.set(false);
+        c.openAnalysis(); // the toolbar algorithms icon opens the bottom Analysis tab
+        expect(c.bottomOpen()).toBe(true);
+        expect(c.bottomTab()).toBe('analysis');
         c.toggleTool('communities'); // clicking the open header collapses the group
+        expect(c.tab()).toBe('communities');
+        c.toggleTool('communities');
         expect(c.tab()).toBeNull();
         c.toggleTool('path');
         expect(c.tab()).toBe('path');

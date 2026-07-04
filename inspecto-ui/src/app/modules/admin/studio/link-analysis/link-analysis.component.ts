@@ -8,7 +8,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatMenuModule } from '@angular/material/menu';
+import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
@@ -102,16 +102,13 @@ export class LinkAnalysisComponent implements OnInit {
     @ViewChild(GraphViewComponent) private graphView?: GraphViewComponent;
     @ViewChild('studioRoot') private studioRoot?: ElementRef<HTMLElement>;
     @ViewChild('canvasZone') private canvasZone?: ElementRef<HTMLElement>;
+    @ViewChild('saveTrigger') private saveTrigger?: MatMenuTrigger;
 
-    // ── workspace layout: both rails collapse to a slim tool strip to maximize the canvas ──
-    readonly leftOpen = signal(true);
-    readonly rightOpen = signal(true);
+    // ── workspace layout: canvas-first; a single bottom panel holds Query / Analysis / Data ──
     /** Full query form vs its collapsed selected-values summary (auto-collapses after a run). */
     readonly queryOpen = signal(true);
-    /** The save-a-view form, collapsed behind the bookmark button until asked for. */
-    readonly saveOpen = signal(false);
 
-    /** The analysis tool groups (right-pane accordion + its collapsed icon strip). */
+    /** The analysis tool groups (the Analysis-tab accordion = the graph-algorithms toolbox). */
     readonly tools: { id: AnalysisTab; label: string; icon: string }[] = [
         { id: 'path', label: 'Shortest path', icon: 'heroicons_outline:arrows-right-left' },
         { id: 'explain', label: 'Explain node', icon: 'heroicons_outline:light-bulb' },
@@ -237,9 +234,10 @@ export class LinkAnalysisComponent implements OnInit {
             || Object.keys(this.edgeSizes()).length > 0,
     );
 
-    // ── fullscreen (whole studio or just the canvas zone) + bottom data panel ──
+    // ── fullscreen (whole studio or just the canvas zone) + bottom panel (Query/Analysis/Data) ──
     readonly fullscreen = signal<'app' | 'graph' | null>(null);
-    readonly bottomOpen = signal(false);
+    readonly bottomOpen = signal(true);
+    readonly bottomTab = signal<'query' | 'analysis' | 'data'>('query');
     readonly tableMode = signal<'links' | 'nodes'>('links');
     /** The displayed graph as rows — search-narrowed, so canvas and table show the same result. */
     readonly tableRows = computed<Record<string, unknown>[]>(() => {
@@ -380,16 +378,23 @@ export class LinkAnalysisComponent implements OnInit {
 
     // ── workspace layout ──
 
-    /** Reopen the full query form (top-bar pencil / collapsed-rail tool), expanding the left pane. */
+    /** Reopen the full query form (status-bar pencil) in the bottom panel's Query tab. */
     editQuery(): void {
-        this.leftOpen.set(true);
+        this.bottomOpen.set(true);
+        this.bottomTab.set('query');
         this.queryOpen.set(true);
     }
 
-    /** From the collapsed right strip: expand the pane straight onto one tool group. */
-    openTool(tool: AnalysisTab): void {
-        this.rightOpen.set(true);
-        this.tab.set(tool);
+    /** Open the graph-algorithms toolbox (the bottom panel's Analysis tab). */
+    openAnalysis(): void {
+        this.bottomOpen.set(true);
+        this.bottomTab.set('analysis');
+    }
+
+    /** Switch the bottom panel to a tab, opening it if collapsed. */
+    selectBottomTab(tab: 'query' | 'analysis' | 'data'): void {
+        this.bottomTab.set(tab);
+        this.bottomOpen.set(true);
     }
 
     /** Accordion header click — open this group, or collapse it if already open. */
@@ -718,7 +723,7 @@ export class LinkAnalysisComponent implements OnInit {
             await firstValueFrom(this.viewsService.save(view));
             this.views.set([...this.views().filter((v) => v.id !== view.id), view]);
             this.saveForm.reset({ name: '', description: '' });
-            this.saveOpen.set(false);
+            this.saveTrigger?.closeMenu();
             this.toastr.success(`Saved “${view.name}”.`);
         } catch (err) {
             this.toastr.error(apiErrorMessage(err, 'Saving the view failed.'));
