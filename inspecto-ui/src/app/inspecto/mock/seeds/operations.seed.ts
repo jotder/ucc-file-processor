@@ -5,6 +5,7 @@ import type { JobDetail } from '../../api/jobs.service';
 import type { EnrichmentJobView } from '../../api/models';
 import type { OperationalObject } from '../../api/objects.service';
 import { CONNECTIONS_COLL } from '../handlers/connections.handler';
+import { DECISION_RULES_COLL, MockDecisionRule } from '../handlers/decision-rules.handler';
 import { EXPECTATIONS_COLL, MockExpectation } from '../handlers/expectations.handler';
 import { NOTIFICATIONS_COLL, seedNotifications } from '../handlers/demo.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
@@ -223,4 +224,48 @@ export function seedOperations(store: MockStore, space: string): void {
         },
     ];
     for (const e of expectations) store.put(space, EXPECTATIONS_COLL, e.name, e);
+
+    // ── Decision Rules (C3) — routing rules over the CDR stream. `demoMatched`/`demoTotal` are the
+    //    mock-only deterministic simulation outcome (no real records to route). ───────────────────
+    const decisionRules: MockDecisionRule[] = [
+        {
+            name: 'route_emea_traffic', description: 'EMEA tariffs branch to the regional sink',
+            targetType: 'pipeline', target: 'cdr_ingest', priority: 10, enabled: true,
+            when: {
+                kind: 'group', op: 'AND',
+                items: [{ kind: 'condition', field: 'tariff', operator: 'startsWith', value: 'EMEA_' }],
+            },
+            consequences: [{ action: 'route', destination: 'emea' }],
+            lastSimulation: null, createdAt: min(-500), updatedAt: min(-500),
+            demoMatched: 412, demoTotal: 1000,
+        },
+        {
+            name: 'quarantine_high_cost', description: 'Suspicious high-cost calls held for review and flagged',
+            targetType: 'pipeline', target: 'cdr_ingest', priority: 20, enabled: true,
+            when: {
+                kind: 'group', op: 'AND',
+                items: [
+                    { kind: 'condition', field: 'cost_usd', operator: '>', value: '100' },
+                    { kind: 'condition', field: 'duration_s', operator: '<', value: '60' },
+                ],
+            },
+            consequences: [
+                { action: 'quarantine', destination: 'possible fraud pattern' },
+                { action: 'tag', destination: 'high_risk' },
+            ],
+            lastSimulation: null, createdAt: min(-490), updatedAt: min(-490),
+            demoMatched: 7, demoTotal: 1000,
+        },
+        {
+            name: 'drop_zero_duration', description: 'Zero-duration technical records are noise',
+            targetType: 'pipeline', target: 'cdr_ingest', priority: 30, enabled: false,
+            when: {
+                kind: 'group', op: 'AND',
+                items: [{ kind: 'condition', field: 'duration_s', operator: '=', value: '0' }],
+            },
+            consequences: [{ action: 'drop' }],
+            lastSimulation: null, createdAt: min(-480), updatedAt: min(-480),
+        },
+    ];
+    for (const r of decisionRules) store.put(space, DECISION_RULES_COLL, r.name, r);
 }

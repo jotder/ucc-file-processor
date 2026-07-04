@@ -18,6 +18,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
                     { id: 'runs',        title: 'Runs',        type: 'basic', icon: 'heroicons_outline:queue-list',       link: '/runs' },
                     { id: 'jobs',        title: 'Jobs',        type: 'basic', icon: 'heroicons_outline:clock',            link: '/jobs' },
                     { id: 'expectations', title: 'Expectations', type: 'basic', icon: 'heroicons_outline:check-badge',   link: '/expectations' },
+                    { id: 'decision-rules', title: 'Decision Rules', type: 'basic', icon: 'heroicons_outline:arrows-right-left', link: '/decision-rules' },
                     { id: 'components',  title: 'Components',  type: 'basic', icon: 'heroicons_outline:puzzle-piece',     link: '/components' },
                     { id: 'enrichment',  title: 'Enrichment',  type: 'basic', icon: 'heroicons_outline:funnel',          link: '/enrichment' },
                     { id: 'connections', title: 'Connections', type: 'basic', icon: 'heroicons_outline:server-stack',     link: '/connections' },

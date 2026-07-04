@@ -1,0 +1,50 @@
+<div class="flex min-w-0 flex-auto flex-col">
+    <!-- Header -->
+    <div class="bg-card flex items-center justify-between border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Decision Rules</h1>
+            <div class="text-secondary mt-1.5">
+                Business routing rules over Pipeline and Job records — when records match, route them to a
+                branch, tag, quarantine or drop them. Simulate any rule as a dry run.
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            @if (loading) {
+                <mat-spinner diameter="24"></mat-spinner>
+            }
+            <button mat-icon-button (click)="load()" [disabled]="loading" aria-label="Refresh">
+                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            </button>
+            @if (lens.canAuthorWorkbench()) {
+                <button mat-flat-button color="primary" (click)="newRule()">
+                    <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                    <span class="ml-2">New decision rule</span>
+                </button>
+            }
+        </div>
+    </div>
+
+    <!-- Main -->
+    <div class="flex flex-auto flex-col p-6 sm:p-10">
+        @if (!loading && rows.length === 0) {
+            <inspecto-empty-state
+                icon="heroicons_outline:arrows-right-left"
+                title="No decision rules yet"
+                message="Declare routing rules over your pipelines and jobs — when records match a condition, route them to a branch, tag, quarantine or drop them."
+                [actionLabel]="lens.canAuthorWorkbench() ? 'New decision rule' : ''"
+                (action)="newRule()"
+            ></inspecto-empty-state>
+        } @else {
+            <inspecto-data-table
+                tier="standard"
+                sourceName="decision-rules"
+                exportName="decision-rules"
+                [rows]="rows"
+                [columns]="columnDefs"
+                [rowActions]="rowActions"
+                [loading]="loading"
+                [autoHeight]="true"
+            />
+        }
+    </div>
+</div>

@@ -28,3 +28,4 @@ export * from './events.service';
 export * from './pipelines.service';
 export * from './notifications.service';
 export * from './expectations.service';
+export * from './decision-rules.service';

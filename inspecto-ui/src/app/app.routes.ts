@@ -79,6 +79,7 @@ export const appRoutes: Route[] = [
             { path: 'reconciliation', loadChildren: () => import('app/modules/admin/reconciliation/reconciliation.routes') },
             { path: 'connections', loadChildren: () => import('app/modules/admin/connections/connections.routes') },
             { path: 'expectations', loadChildren: () => import('app/modules/admin/expectations/expectations.routes') },
+            { path: 'decision-rules', loadChildren: () => import('app/modules/admin/decision-rules/decision-rules.routes') },
             { path: 'jobs', loadChildren: () => import('app/modules/admin/jobs/jobs.routes') },
             { path: 'jobs/:name', loadChildren: () => import('app/modules/admin/jobs/job-detail/job-detail.routes') },
             { path: 'enrichment', loadChildren: () => import('app/modules/admin/enrichment/enrichment.routes') },

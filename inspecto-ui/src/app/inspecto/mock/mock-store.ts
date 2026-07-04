@@ -34,7 +34,7 @@ type SpaceData = Record<string, Record<string, unknown>>; // collection → id �
 type StoreData = Record<string, SpaceData>; // space → collections
 
 /** Bump when the persisted shape or the seed contract changes — old snapshots are then discarded. */
-export const MOCK_STORE_KEY = 'inspecto.mock.v5'; // v5: Expectations seed (C2) — new expectation collection
+export const MOCK_STORE_KEY = 'inspecto.mock.v6'; // v6: Decision Rules seed (C3) — new decision-rule collection
 
 export class MockStore {
     private data: StoreData = {};
