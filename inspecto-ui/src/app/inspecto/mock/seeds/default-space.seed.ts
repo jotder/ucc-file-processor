@@ -79,6 +79,37 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
         });
     }
 
+    // ── Geo Map Analysis: a coordinate-bearing dataset + a saved Geo View, so /studio/geo-map
+    //    demos one-click under Saved views ────────────────────────────────────────────────────
+    putComponent(store, space, 'dataset', 'cell_sites', {
+        name: 'cell_sites',
+        kind: 'virtual',
+        sourceName: 'cell_sites',
+        query: { projection: '*', where: { kind: 'group', op: 'AND', items: [] }, sqlOverride: null },
+        physicalRef: null,
+        columns: [
+            { name: 'id', type: 'string', role: 'dimension' },
+            { name: 'site', type: 'string', role: 'dimension' },
+            { name: 'site_type', type: 'string', role: 'dimension' },
+            { name: 'lat', type: 'number', role: 'dimension' },
+            { name: 'lon', type: 'number', role: 'dimension' },
+            { name: 'seen_time', type: 'date', role: 'temporal' },
+        ],
+        measures: [],
+        viz: null,
+    });
+    putComponent(store, space, 'geo-map-view', 'dhaka-network', {
+        name: 'Example — Dhaka cell network',
+        description: 'A tower grid, a hopping device and a roaming trail — try the type filter and click a point.',
+        sourceId: 'dataset',
+        query: {
+            projection: {
+                datasetId: 'cell_sites', latCol: 'lat', lonCol: 'lon',
+                entityCol: 'site', kindCol: 'site_type', timeCol: 'seen_time',
+            },
+        },
+    });
+
     // ── Reconciliation (C9): the two RA sides as datasets + a seeded reconciliation over them ──────
     for (const side of ['switch_cdr', 'billing_cdr'] as const) {
         putComponent(store, space, 'dataset', side, {

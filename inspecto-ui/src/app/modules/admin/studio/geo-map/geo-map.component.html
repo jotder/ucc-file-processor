@@ -1,0 +1,250 @@
+<div class="flex h-full min-h-0 flex-auto flex-col p-4">
+    <!-- ── compact header (the map gets the space) ── -->
+    <div class="flex flex-wrap items-center gap-2">
+        <h1 class="text-2xl font-semibold tracking-tight">Geo Map Analysis</h1>
+        <span class="text-secondary hidden text-sm md:inline">
+            project a Dataset's coordinates onto the map, then investigate where things happen.
+        </span>
+    </div>
+
+    <div class="mt-3 flex min-h-0 min-w-0 flex-auto flex-col gap-2">
+        @if (loadError()) {
+            <inspecto-alert variant="error" title="Query failed">{{ loadError() }}</inspecto-alert>
+        }
+        @if (geo(); as g) {
+            @if (g.truncated) {
+                <inspecto-alert variant="warning" title="Truncated">
+                    The projection hit the point cap — narrow the dataset to see everything.
+                </inspecto-alert>
+            }
+            @if (g.skipped > 0) {
+                <inspecto-alert variant="warning" title="Rows skipped">
+                    {{ g.skipped | number }} rows had a missing or invalid coordinate and were left off the map.
+                </inspecto-alert>
+            }
+        }
+
+        <!-- ══ toolbar: map tools · saved views · save · export ══ -->
+        <div class="flex flex-wrap items-center gap-2">
+            @if (geo()) {
+                <!-- search points (icon → popover) -->
+                <button mat-icon-button [matMenuTriggerFor]="searchMenu" [color]="search() ? 'primary' : undefined"
+                        matTooltip="Search points" aria-label="Search points">
+                    <mat-icon svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                </button>
+                <mat-menu #searchMenu="matMenu">
+                    <div class="p-3" (click)="$event.stopPropagation()">
+                        <mat-form-field subscriptSizing="dynamic" class="w-64">
+                            <mat-label>Search points</mat-label>
+                            <input matInput [value]="search()" (input)="onSearch($any($event.target).value)" aria-label="Search points" />
+                            <mat-icon matSuffix svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                        </mat-form-field>
+                    </div>
+                </mat-menu>
+
+                <!-- kind filter -->
+                <button mat-icon-button [matMenuTriggerFor]="kindMenu" [color]="kindFilter().length ? 'primary' : undefined"
+                        matTooltip="Filter point types"
+                        [attr.aria-label]="'Filter point types' + (kindFilter().length ? ' (filter active)' : '')">
+                    <mat-icon svgIcon="heroicons_outline:funnel"></mat-icon>
+                </button>
+                <mat-menu #kindMenu="matMenu">
+                    <div class="flex flex-col gap-1 px-4 py-2" (click)="$event.stopPropagation()" aria-label="Point types">
+                        @for (k of pointKinds(); track k) {
+                            <mat-checkbox [checked]="kindOn(k)" (change)="toggleKind(k, $event.checked)">{{ k }}</mat-checkbox>
+                        }
+                    </div>
+                </mat-menu>
+
+                <button mat-icon-button (click)="fit()" matTooltip="Fit to data" aria-label="Fit the map to the data">
+                    <mat-icon svgIcon="heroicons_outline:viewfinder-circle"></mat-icon>
+                </button>
+
+                <button mat-icon-button (click)="dataOpen.set(!dataOpen())"
+                        [color]="dataOpen() ? 'primary' : undefined"
+                        matTooltip="Data" aria-label="Toggle the data panel">
+                    <mat-icon svgIcon="heroicons_outline:table-cells"></mat-icon>
+                </button>
+
+                @if (search() || kindFilter().length || selectedId()) {
+                    <button mat-icon-button (click)="clearInvestigation()" matTooltip="Clear search & filters" aria-label="Clear search and filters">
+                        <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
+                    </button>
+                }
+            }
+
+            <span class="flex-auto"></span>
+
+            <!-- edit query -->
+            @if (lastRun() && !queryOpen()) {
+                <button mat-button (click)="queryOpen.set(true)" aria-label="Edit the query">
+                    <mat-icon svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                    <span class="max-w-72 truncate">{{ querySummary() }}</span>
+                </button>
+            }
+
+            <!-- saved views (open) — always available -->
+            <button mat-icon-button [matMenuTriggerFor]="viewsMenu" matTooltip="Saved views" aria-label="Open saved views">
+                <mat-icon svgIcon="heroicons_outline:folder-open"></mat-icon>
+            </button>
+            <mat-menu #viewsMenu="matMenu">
+                @if (views().length) {
+                    @for (v of views(); track v.id) {
+                        <button mat-menu-item (click)="loadView(v)" [attr.aria-label]="'Load view ' + v.name">
+                            <mat-icon svgIcon="heroicons_outline:folder-open"></mat-icon>
+                            <span>{{ v.name }}</span>
+                        </button>
+                    }
+                } @else {
+                    <div class="text-secondary px-4 py-2 text-sm">Nothing saved yet.</div>
+                }
+            </mat-menu>
+
+            <!-- save view — needs a rendered map -->
+            <button mat-icon-button #saveTrigger="matMenuTrigger" [matMenuTriggerFor]="saveMenu" [disabled]="!geo()"
+                    matTooltip="Save view" aria-label="Save the current view">
+                <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
+            </button>
+            <mat-menu #saveMenu="matMenu">
+                <form [formGroup]="saveForm" (ngSubmit)="saveView()" class="flex w-72 flex-col p-3"
+                      (click)="$event.stopPropagation()" aria-label="Save this view">
+                    <mat-form-field>
+                        <mat-label>Name</mat-label>
+                        <input matInput formControlName="name" />
+                        @if (saveForm.controls.name.hasError('required')) {
+                            <mat-error>A name is required.</mat-error>
+                        }
+                        @if (saveForm.controls.name.hasError('duplicate')) {
+                            <mat-error>A view with this name already exists.</mat-error>
+                        }
+                    </mat-form-field>
+                    <mat-form-field>
+                        <mat-label>Description (optional)</mat-label>
+                        <input matInput formControlName="description" />
+                    </mat-form-field>
+                    <button mat-stroked-button type="submit" [disabled]="saving() || !geo()">
+                        <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
+                        Save view
+                    </button>
+                </form>
+            </mat-menu>
+
+            <!-- export -->
+            <button mat-icon-button [matMenuTriggerFor]="exportMenu" [disabled]="!geo()"
+                    matTooltip="Export" aria-label="Export the map">
+                <mat-icon svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+            </button>
+            <mat-menu #exportMenu="matMenu">
+                <button mat-menu-item (click)="exportPng()" aria-label="Export as PNG">
+                    <mat-icon svgIcon="heroicons_outline:photo"></mat-icon>
+                    <span>PNG image</span>
+                </button>
+                <button mat-menu-item (click)="exportGeoJson()" aria-label="Export as GeoJSON">
+                    <mat-icon svgIcon="heroicons_outline:globe-alt"></mat-icon>
+                    <span>GeoJSON</span>
+                </button>
+            </mat-menu>
+        </div>
+
+        <!-- ══ query builder (collapses to the toolbar summary after a run) ══ -->
+        @if (queryOpen()) {
+            <form [formGroup]="queryForm" (ngSubmit)="run()"
+                  class="bg-card flex flex-wrap items-start gap-3 rounded-2xl p-4 shadow" aria-label="Geo query">
+                <mat-form-field subscriptSizing="dynamic" class="w-56">
+                    <mat-label>Dataset</mat-label>
+                    <mat-select formControlName="datasetId">
+                        @for (d of datasets(); track d.id) {
+                            <mat-option [value]="d.id">{{ d.name }}</mat-option>
+                        }
+                    </mat-select>
+                    @if (queryForm.controls.datasetId.hasError('required') && queryForm.controls.datasetId.touched) {
+                        <mat-error>Pick a dataset.</mat-error>
+                    }
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic" class="w-44">
+                    <mat-label>Latitude column</mat-label>
+                    <mat-select formControlName="latCol">
+                        @for (c of datasetColumns(); track c) {
+                            <mat-option [value]="c">{{ c }}</mat-option>
+                        }
+                    </mat-select>
+                    @if (queryForm.controls.latCol.hasError('required') && queryForm.controls.latCol.touched) {
+                        <mat-error>Required.</mat-error>
+                    }
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic" class="w-44">
+                    <mat-label>Longitude column</mat-label>
+                    <mat-select formControlName="lonCol">
+                        @for (c of datasetColumns(); track c) {
+                            <mat-option [value]="c">{{ c }}</mat-option>
+                        }
+                    </mat-select>
+                    @if (queryForm.controls.lonCol.hasError('required') && queryForm.controls.lonCol.touched) {
+                        <mat-error>Required.</mat-error>
+                    }
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic" class="w-44">
+                    <mat-label>Entity column (optional)</mat-label>
+                    <mat-select formControlName="entityCol">
+                        <mat-option value="">—</mat-option>
+                        @for (c of datasetColumns(); track c) {
+                            <mat-option [value]="c">{{ c }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic" class="w-44">
+                    <mat-label>Type column (optional)</mat-label>
+                    <mat-select formControlName="kindCol">
+                        <mat-option value="">—</mat-option>
+                        @for (c of datasetColumns(); track c) {
+                            <mat-option [value]="c">{{ c }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic" class="w-44">
+                    <mat-label>Time column (optional)</mat-label>
+                    <mat-select formControlName="timeCol">
+                        <mat-option value="">—</mat-option>
+                        @for (c of datasetColumns(); track c) {
+                            <mat-option [value]="c">{{ c }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+                <button mat-flat-button color="primary" type="submit" class="mt-1" [disabled]="loading()">
+                    <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
+                    Run
+                </button>
+            </form>
+        }
+
+        <!-- ══ the map ══ -->
+        @if (loading()) {
+            <inspecto-skeleton height="24rem" />
+        } @else if (displayed(); as d) {
+            <inspecto-map-view [data]="d" [emphasis]="emphasis()" [fill]="true" (pointClick)="onPointClick($event)" />
+            <p class="sr-only" role="status">
+                Map showing {{ d.points.length }} points{{ search() ? ' matching the search' : '' }}.
+            </p>
+        } @else {
+            <inspecto-empty-state
+                icon="heroicons_outline:globe-alt"
+                title="No map yet"
+                message="Pick a dataset, map its latitude and longitude columns, then run the query." />
+        }
+
+        <!-- ══ bottom data panel (the shared table; row click focuses the map) ══ -->
+        @if (geo() && dataOpen()) {
+            <div class="bg-card min-w-0 overflow-x-auto rounded-2xl p-3 shadow">
+                <inspecto-data-table
+                    tier="standard"
+                    [rows]="rows()"
+                    height="15rem"
+                    [pageSize]="10"
+                    sourceName="geo_points"
+                    exportName="geo-points"
+                    noRowsTitle="No points match"
+                    (rowClick)="onRowClick($event)" />
+            </div>
+        }
+    </div>
+</div>

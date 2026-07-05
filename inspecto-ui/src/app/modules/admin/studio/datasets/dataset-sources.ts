@@ -148,6 +148,31 @@ export const SAMPLE_SOURCES: Record<string, Record<string, unknown>[]> = {
         for (let i = 1; i <= 10; i++) add(`Sub N-${i}`, `Sub N-${(i % 10) + 1}`, 'calls'); // background chatter
         return rows;
     })(),
+
+    // Geo Map Analysis example: cell sites + device sightings with WGS84 coordinates (a Dhaka
+    // tower grid, a hopping device, a roaming trail to other cities, and two broken rows the
+    // projection must skip — exercising the invalid-coordinate banner).
+    cell_sites: (() => {
+        const rows: Record<string, unknown>[] = [];
+        const add = (site: string, site_type: string, lat: number | null, lon: number | null, hour: number): void => {
+            rows.push({
+                id: `g-${rows.length + 1}`, site, site_type, lat, lon,
+                seen_time: `2026-06-01T${String(hour).padStart(2, '0')}:00:00Z`,
+            });
+        };
+        for (let i = 0; i < 12; i++) {
+            add(`Tower DHK-${i + 1}`, 'tower', 23.72 + (i % 4) * 0.045, 90.36 + Math.floor(i / 4) * 0.05, 8);
+        }
+        for (let i = 0; i < 6; i++) {
+            add('Device IMEI-4411', 'device', 23.726 + i * 0.028, 90.365 + i * 0.03, 9 + i);
+        }
+        add('Device IMEI-9902', 'device', 23.8103, 90.4125, 9); // Dhaka
+        add('Device IMEI-9902', 'device', 22.3569, 91.7832, 13); // Chattogram
+        add('Device IMEI-9902', 'device', 24.3745, 88.6042, 18); // Rajshahi
+        add('Tower BAD-1', 'tower', null, 90.4, 8);
+        add('Tower BAD-2', 'tower', 123.45, 90.4, 8);
+        return rows;
+    })(),
 };
 
 export const SAMPLE_SOURCE_NAMES = Object.keys(SAMPLE_SOURCES);

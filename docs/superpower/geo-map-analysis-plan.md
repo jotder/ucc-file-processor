@@ -175,6 +175,12 @@ unbuilt security module), 3D terrain.
 4. Glossary: add GeoSource / GeoQuery / Geo View / Layer to `docs/GLOSSARY.md`.
 
 ### Phase 1 — MVP studio (demo-able)
+> **DONE 2026-07-05** — review sheet: [`reviews/geo-map-studio.md`](reviews/geo-map-studio.md).
+> Deviations from the sketch: saved views don't capture camera yet; the Link-Analysis toolbox-shell/
+> results-panel extraction was partially superseded (search/filter/data-panel were rebuilt lean in the
+> geo studio; `uniqueNameValidator` joined the investigation lib; the accordion shell extraction is
+> deferred until a third consumer needs it). The seeded example is `cell_sites` → "Example — Dhaka
+> cell network".
 Route `studio/geo-map`; `GeoMapComponent` mirroring the Link Analysis shell (source picker → query
 form → run → map). `DatasetGeoSource` with lat/lon/entity/kind/time mapping + validation + preview.
 `MapViewComponent` with markers, clustering, tooltips, selection, fit-to-data, light/dark, scale bar,
