@@ -146,6 +146,38 @@ export function filterByTime(data: GeoData, from: number | null, to: number | nu
     };
 }
 
+/** True when the coordinate lies inside the polygon ring (ray casting; ring = [lon, lat][]). */
+export function pointInPolygon(lat: number, lon: number, ring: readonly [number, number][]): boolean {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i];
+        const [xj, yj] = ring[j];
+        if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+}
+
+/** Destination coordinate from a start, initial bearing (degrees) and distance (meters). */
+export function destinationPoint(lat: number, lon: number, bearingDeg: number, distM: number): [number, number] {
+    const δ = distM / EARTH_RADIUS_M;
+    const θ = rad(bearingDeg);
+    const φ1 = rad(lat);
+    const λ1 = rad(lon);
+    const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+    const λ2 = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1), Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2));
+    return [(φ2 * 180) / Math.PI, (((λ2 * 180) / Math.PI + 540) % 360) - 180];
+}
+
+/** A closed circle ring around a center as [lon, lat] coords (radius-search overlays). */
+export function circleRing(lat: number, lon: number, radiusM: number, steps = 64): [number, number][] {
+    const ring: [number, number][] = [];
+    for (let i = 0; i <= steps; i++) {
+        const [dLat, dLon] = destinationPoint(lat, lon, (i * 360) / steps, radiusM);
+        ring.push([dLon, dLat]);
+    }
+    return ring;
+}
+
 /** One cell of a density grid: cell-center coordinates + the points that fell in. */
 export interface DensityCell {
     lat: number;

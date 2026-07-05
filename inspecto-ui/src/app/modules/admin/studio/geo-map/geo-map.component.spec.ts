@@ -203,6 +203,73 @@ describe('GeoMapComponent', () => {
         }
     });
 
+    it('investigation tools: measure, radius search, polygon filter and notes', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+
+        // measure: Dhaka → London along two clicks
+        c.setTool('measure');
+        c.onMapClick({ lat: 23.81, lon: 90.41 });
+        c.onMapClick({ lat: 51.5, lon: -0.12 });
+        expect(c.measureTotalM()).toBeGreaterThan(7_900_000);
+        expect(c.overlay().features.some((f) => f.geometry.type === 'LineString')).toBe(true);
+
+        // radius search centered on pt:0 (pt:1 is ~2.4 km away, London far outside)
+        c.setTool('radius');
+        c.searchRadiusM.set(5000);
+        c.onMapClick({ lat: 23.81, lon: 90.41 });
+        expect(c.radiusHits().map((h) => h.point.id)).toEqual(['pt:0', 'pt:1']);
+        expect(c.overlay().features.some((f) => f.geometry.type === 'Polygon')).toBe(true);
+
+        // polygon filter: a box around Dhaka keeps 2 of 3 points
+        c.clearTools();
+        c.setTool('polygon');
+        c.onMapClick({ lat: 23, lon: 90 });
+        c.onMapClick({ lat: 23, lon: 91 });
+        c.onMapClick({ lat: 24.5, lon: 91 });
+        c.onMapClick({ lat: 24.5, lon: 90 });
+        c.closePolygon();
+        expect(c.displayed()?.points.map((p) => p.id)).toEqual(['pt:0', 'pt:1']);
+        expect(c.activeTool()).toBeNull();
+
+        // notes: need text; ignored while a non-note tool owns the canvas
+        c.setTool('note');
+        c.onMapClick({ lat: 23.81, lon: 90.41 }); // no text yet → ignored
+        expect(c.notes()).toHaveLength(0);
+        c.noteText.set('meeting point');
+        c.onMapClick({ lat: 23.81, lon: 90.41 });
+        expect(c.notes()).toHaveLength(1);
+        expect(c.overlay().features.some((f) => f.properties?.['label'] === 'meeting point')).toBe(true);
+
+        // clearInvestigation drops tool artifacts but keeps annotations
+        c.clearInvestigation();
+        expect(c.polygonFilter()).toBeNull();
+        expect(c.displayed()?.points).toHaveLength(3);
+        expect(c.notes()).toHaveLength(1);
+    });
+
+    it('persists notes with a saved view and blocks point details while a tool is active', async () => {
+        const { fixture, save } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        c.setTool('note');
+        c.noteText.set('drop site');
+        c.onMapClick({ lat: 23.79, lon: 90.4 });
+        c.setTool(null);
+        c.saveForm.patchValue({ name: 'Annotated' });
+        await c.saveView();
+        expect(save.mock.calls[0][0].notes).toHaveLength(1);
+        expect(save.mock.calls[0][0].notes![0].text).toBe('drop site');
+
+        // while a tool is active, canvas point clicks don't open the detail dialog
+        c.setTool('measure');
+        c.onPointClick('pt:0');
+        expect(c.selectedId()).toBeNull();
+    });
+
     it('captures display mode with a saved view and restores a route view', async () => {
         const routeView: GeoMapView = {
             id: 'corridors', name: 'Corridors', sourceId: 'od-routes', display: 'heatmap',

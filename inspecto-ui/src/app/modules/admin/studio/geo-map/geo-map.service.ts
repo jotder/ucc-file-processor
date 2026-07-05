@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ComponentsService } from 'app/inspecto/api';
-import { GeoCamera, GeoDisplayMode, GeoQuery, GeoSourceId } from 'app/inspecto/geo';
+import { GeoCamera, GeoDisplayMode, GeoNote, GeoQuery, GeoSourceId } from 'app/inspecto/geo';
 import { SavedViewStore } from 'app/inspecto/investigation';
 
 /**
@@ -19,6 +19,8 @@ export interface GeoMapView {
     display?: GeoDisplayMode;
     /** Camera position captured with the view; absent = fit to data. */
     camera?: GeoCamera;
+    /** Investigator annotations pinned to coordinates; absent = none. */
+    notes?: GeoNote[];
 }
 
 /** View store — a thin kind/codec binding over the shared {@link SavedViewStore}. */
@@ -27,16 +29,16 @@ export class GeoMapService {
     private store = new SavedViewStore<GeoMapView>(inject(ComponentsService), 'geo-map-view', {
         toContent: (v) => ({
             name: v.name, description: v.description, sourceId: v.sourceId, query: v.query,
-            display: v.display, camera: v.camera,
+            display: v.display, camera: v.camera, notes: v.notes,
         }),
         fromContent: (id, content) => {
             const c = content as {
                 name?: string; description?: string; sourceId?: GeoSourceId; query?: GeoQuery;
-                display?: GeoDisplayMode; camera?: GeoCamera;
+                display?: GeoDisplayMode; camera?: GeoCamera; notes?: GeoNote[];
             };
             return {
                 id, name: c.name ?? id, description: c.description, sourceId: c.sourceId ?? 'dataset',
-                query: c.query ?? {}, display: c.display, camera: c.camera,
+                query: c.query ?? {}, display: c.display, camera: c.camera, notes: c.notes,
             };
         },
     });

@@ -1,7 +1,27 @@
-# Review sheet — Geo Map Analysis Studio (Phases 1–3a)
+# Review sheet — Geo Map Analysis Studio (Phases 1–3b)
 
 **Route:** `/studio/geo-map` · **Plan:** [`../geo-map-analysis-plan.md`](../geo-map-analysis-plan.md) §Phase 0–3
 · **Reviewed:** 2026-07-05 · **Status:** ✅ shipped (mock-first, like Link Analysis MVP)
+
+## Phase 3b addendum (tools, annotations, layers)
+
+- **Tools menu** (wrench toggle): *Measure* (click a path, running great-circle total labels the
+  last vertex) · *Radius* (click a center, drawn circle + "N within X km" label, hits feed the
+  nearby list) · *Polygon* (click corners, close → filters the displayed subset via
+  `pointInPolygon`) · *Note* (type text, click to pin — amber-accented labels).
+- **Notes persist in the saved view** (`GeoMapView.notes`); `clearInvestigation` drops tool
+  drawings but keeps annotations. Standalone bookmarks folded into saved views (documented
+  decision — a view already captures camera/display/notes).
+- **Layer manager** (stack toggle): place labels · country boundaries · point labels, plus a
+  custom **GeoJSON overlay upload** (validated, feature count toasted, removable).
+- **Parallel-route separation**: corridors sharing an endpoint pair bow apart (sin-weighted
+  perpendicular offset), keeping both clickable.
+- **Seam kept lean**: the map host only gained `mapClick` + a generic `overlay` FeatureCollection
+  input (fill/line/point/label layers); all tool geometry is pure and studio-composed.
+- **Verification**: build + `test:ci` green (see gate totals in the commit); tool flows spec'd
+  (measure sum, radius hits, polygon filter, note persistence, tool-active click guard). Live
+  (CS4): measure Dhaka→Comilla = 87.4 km, radius 2 km → 107 depot pings, polygon box 576→114
+  points, note pinned + overlay rendered, place-label toggle applied — zero console errors.
 
 ## Case-study pack addendum (CS1–CS5)
 

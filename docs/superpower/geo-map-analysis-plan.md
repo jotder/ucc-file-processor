@@ -216,8 +216,16 @@ manager + bundled boundaries. Bookmarks/annotations (persisted in the view confi
 > Link Analysis, whose dataset-backed source model can't take an ad-hoc graph until the V1
 > multi-mapping line), and **event playback** (play/pause sweeping the time window). The Dhaka
 > seed now demos all three tools at default params. GAUNTLET 835/0/5.
-> **Phase 3b remaining:** measure/draw tools + polygon selection, layer manager + bundled
-> boundaries, bookmarks/annotations, curved parallel-route separation, radius-circle search UI.
+> **Phase 3b DONE 2026-07-05** — shipped: investigation **Tools** menu (measure path with
+> running great-circle total · radius search with drawn circle + hit count · polygon selection
+> that filters the displayed subset · pinned **notes** persisted in the saved-view config),
+> **layer manager** (place-label / boundary / point-label toggles + custom GeoJSON overlay
+> upload), and the deferred **parallel-route bow separation**. Architecture: the map host only
+> gained a generic `mapClick` output + a generic `overlay` FeatureCollection input — all tool
+> geometry is pure (`pointInPolygon`/`circleRing`/`destinationPoint` in `geo-analysis.ts`) and
+> composed in the studio, so it's fully unit-testable. **Deviation:** standalone "bookmarks"
+> folded into saved views (a view already captures camera + display + notes — one view per
+> spot IS the bookmark); revisit only if users ask for intra-view bookmark lists.
 
 ### Phase 4 — Platform & scale (COULD)
 Geo Widget + Link-Analysis Widget via one shared VizPlugin component-render seam; dataset binding +

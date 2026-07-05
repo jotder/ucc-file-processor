@@ -86,7 +86,90 @@
                     <mat-icon svgIcon="heroicons_outline:beaker"></mat-icon>
                 </button>
 
-                @if (search() || kindFilter().length || selectedId() || timeRange() || viewBox()) {
+                <!-- investigation tools (measure / radius / polygon / note) -->
+                <button mat-icon-button [matMenuTriggerFor]="toolsMenu"
+                        [color]="toolsActive() || notes().length ? 'primary' : undefined"
+                        matTooltip="Investigation tools" aria-label="Investigation tools (measure, radius search, polygon, notes)">
+                    <mat-icon svgIcon="heroicons_outline:wrench-screwdriver"></mat-icon>
+                </button>
+                <mat-menu #toolsMenu="matMenu">
+                    <div class="flex w-80 flex-col gap-2 p-3" (click)="$event.stopPropagation()" aria-label="Investigation tools">
+                        <mat-button-toggle-group [value]="activeTool()" (change)="setTool($event.value)"
+                                                 hideSingleSelectionIndicator aria-label="Active tool">
+                            <mat-button-toggle value="measure" matTooltip="Click the map to measure a path">Measure</mat-button-toggle>
+                            <mat-button-toggle value="radius" matTooltip="Click the map to search around a spot">Radius</mat-button-toggle>
+                            <mat-button-toggle value="polygon" matTooltip="Click corners, then close to filter">Polygon</mat-button-toggle>
+                            <mat-button-toggle value="note" matTooltip="Type a note, then click the map to pin it">Note</mat-button-toggle>
+                        </mat-button-toggle-group>
+                        @if (activeTool() === 'measure' && measureVertices().length > 1) {
+                            <p class="text-sm">Path: <b>{{ fmtDistance(measureTotalM()) }}</b> over {{ measureVertices().length }} points</p>
+                        }
+                        @if (activeTool() === 'radius') {
+                            <mat-form-field subscriptSizing="dynamic" class="w-36">
+                                <mat-label>Radius (m)</mat-label>
+                                <input matInput type="number" min="10" [value]="searchRadiusM()"
+                                       (input)="searchRadiusM.set(+$any($event.target).value || 1000)" aria-label="Search radius in meters" />
+                            </mat-form-field>
+                            @if (radiusCenter()) {
+                                <p class="text-sm"><b>{{ radiusHits().length }}</b> points within {{ fmtDistance(searchRadiusM()) }}</p>
+                            }
+                        }
+                        @if (activeTool() === 'polygon' && polygonVertices().length >= 3) {
+                            <button mat-stroked-button (click)="closePolygon()" aria-label="Close the polygon and filter to it">
+                                <mat-icon svgIcon="heroicons_outline:check"></mat-icon>
+                                Close polygon ({{ polygonVertices().length }} corners) & filter
+                            </button>
+                        }
+                        @if (activeTool() === 'note') {
+                            <mat-form-field subscriptSizing="dynamic">
+                                <mat-label>Note text</mat-label>
+                                <input matInput [value]="noteText()" (input)="noteText.set($any($event.target).value)"
+                                       placeholder="e.g. suspected meeting point" aria-label="Note text" />
+                            </mat-form-field>
+                        }
+                        <div class="flex gap-2">
+                            @if (toolsActive()) {
+                                <button mat-button (click)="clearTools()" aria-label="Clear tool drawings">Clear drawings</button>
+                            }
+                            @if (notes().length) {
+                                <button mat-button (click)="notes.set([])" [attr.aria-label]="'Remove all ' + notes().length + ' notes'">
+                                    Clear {{ notes().length }} notes
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </mat-menu>
+
+                <!-- layer manager -->
+                <button mat-icon-button [matMenuTriggerFor]="layersMenu"
+                        [color]="customOverlay() ? 'primary' : undefined"
+                        matTooltip="Layers" aria-label="Layer manager">
+                    <mat-icon svgIcon="heroicons_outline:square-3-stack-3d"></mat-icon>
+                </button>
+                <mat-menu #layersMenu="matMenu">
+                    <div class="flex w-64 flex-col gap-1 p-3" (click)="$event.stopPropagation()" aria-label="Layers">
+                        <mat-checkbox [checked]="layerToggles().placeLabels !== false"
+                                      (change)="toggleLayer('placeLabels', $event.checked)">Place labels</mat-checkbox>
+                        <mat-checkbox [checked]="layerToggles().boundaries !== false"
+                                      (change)="toggleLayer('boundaries', $event.checked)">Country boundaries</mat-checkbox>
+                        <mat-checkbox [checked]="layerToggles().pointLabels !== false"
+                                      (change)="toggleLayer('pointLabels', $event.checked)">Point labels</mat-checkbox>
+                        <input #overlayFile type="file" accept=".json,.geojson,application/geo+json" class="hidden"
+                               (change)="onOverlayFile(overlayFile)" aria-label="GeoJSON overlay file" />
+                        <button mat-stroked-button class="mt-1" (click)="overlayFile.click()" aria-label="Add a GeoJSON overlay">
+                            <mat-icon svgIcon="heroicons_outline:arrow-up-tray"></mat-icon>
+                            Add GeoJSON overlay
+                        </button>
+                        @if (customOverlay(); as o) {
+                            <button mat-button (click)="customOverlay.set(null)"
+                                    [attr.aria-label]="'Remove the overlay (' + o.features.length + ' features)'">
+                                Remove overlay ({{ o.features.length }} features)
+                            </button>
+                        }
+                    </div>
+                </mat-menu>
+
+                @if (search() || kindFilter().length || selectedId() || timeRange() || viewBox() || polygonFilter()) {
                     <button mat-icon-button (click)="clearInvestigation()" matTooltip="Clear search & filters" aria-label="Clear search and filters">
                         <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
                     </button>
@@ -319,7 +402,9 @@
             <inspecto-skeleton height="24rem" />
         } @else if (displayed(); as d) {
             <inspecto-map-view [data]="d" [emphasis]="emphasis()" [display]="displayMode()" [camera]="loadCamera"
-                               [fill]="true" (pointClick)="onPointClick($event)" (routeClick)="onRouteClick($event)" />
+                               [overlay]="overlay()" [layers]="layerToggles()" [fill]="true"
+                               (pointClick)="onPointClick($event)" (routeClick)="onRouteClick($event)"
+                               (mapClick)="onMapClick($event)" />
             <p class="sr-only" role="status">
                 Map showing {{ d.points.length }} points{{ search() ? ' matching the search' : '' }}.
             </p>

@@ -30,6 +30,14 @@ export interface GeoRoute {
     time?: number;
 }
 
+/** An investigator's annotation pinned to a coordinate (persisted with a saved Geo View). */
+export interface GeoNote {
+    id: string;
+    lat: number;
+    lon: number;
+    text: string;
+}
+
 /** What a GeoSource query returns and the map view renders. */
 export interface GeoData {
     points: GeoPoint[];

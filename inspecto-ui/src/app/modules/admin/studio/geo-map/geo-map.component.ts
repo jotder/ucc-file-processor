@@ -27,11 +27,14 @@ import {
     GeoEmphasis,
     GeoPoint,
     GeoQuery,
+    GeoLayerToggles,
+    GeoNote,
     GeoSourceId,
     MapViewComponent,
     CoLocation,
     FrequentLocation,
     StayPoint,
+    circleRing,
     coLocationGraph,
     coLocations,
     filterByKinds,
@@ -39,11 +42,14 @@ import {
     formatDistance,
     frequentLocations,
     haversineMeters,
+    nearby,
+    pointInPolygon,
     searchPoints,
     stayPoints,
     timeExtent,
     withinBBox,
 } from 'app/inspecto/geo';
+import type { Feature, FeatureCollection } from 'geojson';
 import {
     ElementDetailDialog,
     ElementDetailResult,
@@ -54,7 +60,11 @@ import { apiErrorMessage } from 'app/inspecto/api';
 import { Dataset } from 'app/modules/admin/studio/datasets/dataset-types';
 import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.service';
 import { datasetRows } from 'app/modules/admin/studio/link-analysis/entity-projection';
+import { ICON_COLOR_SWATCHES } from 'app/inspecto/theme/chart-tokens';
 import { GeoSourcesService, ProjectedGeo } from './geo-projection';
+
+/** Annotation accent — the amber chart-token swatch (visually distinct from data kinds). */
+const NOTE_ACCENT = ICON_COLOR_SWATCHES[3];
 import { GeoMapService, GeoMapView } from './geo-map.service';
 import { ColocationGraphDialog } from './colocation-graph.dialog';
 
@@ -170,6 +180,87 @@ export class GeoMapComponent implements OnInit, OnDestroy {
     readonly playing = signal(false);
     private playTimer: ReturnType<typeof setInterval> | null = null;
 
+    // ── investigation tools (Phase 3b): measure / radius search / polygon filter / notes ──
+    readonly activeTool = signal<'measure' | 'radius' | 'polygon' | 'note' | null>(null);
+    readonly measureVertices = signal<{ lat: number; lon: number }[]>([]);
+    readonly radiusCenter = signal<{ lat: number; lon: number } | null>(null);
+    readonly searchRadiusM = signal(1000);
+    readonly polygonVertices = signal<{ lat: number; lon: number }[]>([]);
+    /** A closed [lon, lat] ring filtering the displayed subset; `null` = no polygon filter. */
+    readonly polygonFilter = signal<[number, number][] | null>(null);
+    readonly notes = signal<GeoNote[]>([]);
+    readonly noteText = signal('');
+    /** Layer-manager state + an uploaded custom GeoJSON overlay. */
+    readonly layerToggles = signal<GeoLayerToggles>({});
+    readonly customOverlay = signal<FeatureCollection | null>(null);
+
+    /** Template alias for the pure formatter. */
+    readonly fmtDistance = formatDistance;
+
+    readonly measureTotalM = computed<number>(() => {
+        const v = this.measureVertices();
+        let total = 0;
+        for (let i = 1; i < v.length; i++) total += haversineMeters(v[i - 1].lat, v[i - 1].lon, v[i].lat, v[i].lon);
+        return total;
+    });
+
+    /** Points within the radius-search circle, nearest first. */
+    readonly radiusHits = computed(() => {
+        const c = this.radiusCenter();
+        const d = this.displayed();
+        return c && d ? nearby(d.points, c.lat, c.lon, this.searchRadiusM()) : [];
+    });
+
+    /** Everything the map draws on top of the data plane (tools + notes + uploaded GeoJSON). */
+    readonly overlay = computed<FeatureCollection>(() => {
+        const features: Feature[] = [...(this.customOverlay()?.features ?? [])];
+        const line = (pts: { lat: number; lon: number }[], label?: string): void => {
+            if (pts.length > 1) {
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: pts.map((p) => [p.lon, p.lat]) },
+                    properties: {},
+                });
+            }
+            for (const [i, p] of pts.entries()) {
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+                    properties: label && i === pts.length - 1 ? { label } : {},
+                });
+            }
+        };
+        const m = this.measureVertices();
+        if (m.length) line(m, formatDistance(this.measureTotalM()));
+        const rc = this.radiusCenter();
+        if (rc) {
+            features.push({
+                type: 'Feature',
+                geometry: { type: 'Polygon', coordinates: [circleRing(rc.lat, rc.lon, this.searchRadiusM())] },
+                properties: {},
+            });
+            features.push({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [rc.lon, rc.lat] },
+                properties: { label: `${this.radiusHits().length} within ${formatDistance(this.searchRadiusM())}` },
+            });
+        }
+        const pv = this.polygonVertices();
+        if (pv.length) line(pv);
+        const ring = this.polygonFilter();
+        if (ring) {
+            features.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} });
+        }
+        for (const n of this.notes()) {
+            features.push({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [n.lon, n.lat] },
+                properties: { label: n.text, color: NOTE_ACCENT },
+            });
+        }
+        return { type: 'FeatureCollection', features };
+    });
+
     /** All point kinds present in the result (the filter menu's options). */
     readonly pointKinds = computed<string[]>(() =>
         [...new Set((this.geo()?.points ?? []).map((p) => p.kind))].sort(),
@@ -186,6 +277,12 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         const box = this.viewBox();
         if (box) {
             const points = withinBBox(d.points, box);
+            const keep = new Set(points.map((p) => p.id));
+            d = { points, routes: d.routes.filter((r) => keep.has(r.from) && keep.has(r.to)) };
+        }
+        const ring = this.polygonFilter();
+        if (ring) {
+            const points = d.points.filter((p) => pointInPolygon(p.lat, p.lon, ring));
             const keep = new Set(points.map((p) => p.id));
             d = { points, routes: d.routes.filter((r) => keep.has(r.from) && keep.has(r.to)) };
         }
@@ -347,6 +444,7 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         this.timeRange.set(null);
         this.viewBox.set(null);
         this.clearAnalysis();
+        this.clearTools(); // notes survive — they're annotations, cleared/saved with the view
     }
 
     fit(): void {
@@ -448,8 +546,82 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         this.resultEmphasis.set(null);
     }
 
+    // ── investigation tools ──
+    /** Tool clicks land here (the map host emits every click; points also emit pointClick). */
+    onMapClick(at: { lat: number; lon: number }): void {
+        switch (this.activeTool()) {
+            case 'measure':
+                this.measureVertices.set([...this.measureVertices(), at]);
+                break;
+            case 'radius':
+                this.radiusCenter.set(at);
+                break;
+            case 'polygon':
+                this.polygonFilter.set(null);
+                this.polygonVertices.set([...this.polygonVertices(), at]);
+                break;
+            case 'note': {
+                const text = this.noteText().trim();
+                if (!text) return;
+                this.notes.set([...this.notes(), { id: `note-${Date.now()}`, lat: at.lat, lon: at.lon, text }]);
+                break;
+            }
+        }
+    }
+
+    setTool(tool: 'measure' | 'radius' | 'polygon' | 'note' | null): void {
+        this.activeTool.set(this.activeTool() === tool ? null : tool);
+    }
+
+    /** Close the in-progress polygon into a filter ring. */
+    closePolygon(): void {
+        const v = this.polygonVertices();
+        if (v.length < 3) return;
+        this.polygonFilter.set([...v, v[0]].map((p) => [p.lon, p.lat]));
+        this.polygonVertices.set([]);
+        this.activeTool.set(null);
+    }
+
+    clearTools(): void {
+        this.activeTool.set(null);
+        this.measureVertices.set([]);
+        this.radiusCenter.set(null);
+        this.polygonVertices.set([]);
+        this.polygonFilter.set(null);
+    }
+
+    /** Any tool artifact on the canvas (drives the clear-tools affordance). */
+    readonly toolsActive = computed<boolean>(
+        () => !!(this.activeTool() || this.measureVertices().length || this.radiusCenter() || this.polygonVertices().length || this.polygonFilter()),
+    );
+
+    /** Custom GeoJSON overlay upload (layer manager). */
+    onOverlayFile(input: HTMLInputElement): void {
+        const file = input.files?.[0];
+        input.value = '';
+        if (!file) return;
+        file.text().then(
+            (text) => {
+                try {
+                    const fc = JSON.parse(text) as FeatureCollection;
+                    if (fc?.type !== 'FeatureCollection' || !Array.isArray(fc.features)) throw new Error('not a FeatureCollection');
+                    this.customOverlay.set(fc);
+                    this.toastr.success(`Overlay loaded (${fc.features.length} features).`);
+                } catch {
+                    this.toastr.error('Not a valid GeoJSON FeatureCollection.');
+                }
+            },
+            () => this.toastr.error('Reading the file failed.'),
+        );
+    }
+
+    toggleLayer(key: keyof GeoLayerToggles, on: boolean): void {
+        this.layerToggles.set({ ...this.layerToggles(), [key]: on });
+    }
+
     /** Canvas or data-row click → full details (attributes + the 3 nearest points). */
     onPointClick(id: string): void {
+        if (this.activeTool()) return; // tool clicks own the canvas
         const d = this.displayed();
         const p = d?.points.find((x) => x.id === id);
         if (!d || !p) return;
@@ -531,6 +703,7 @@ export class GeoMapComponent implements OnInit, OnDestroy {
             query,
             display: this.displayMode(),
             camera: this.mapView?.getCamera() ?? undefined,
+            notes: this.notes().length ? this.notes() : undefined,
         };
         this.saving.set(true);
         try {
@@ -550,6 +723,7 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         this.sourceId.set(view.sourceId);
         this.displayMode.set(view.display ?? 'markers');
         this.loadCamera = view.camera ?? null;
+        this.notes.set(view.notes ?? []);
         const p = view.query.projection;
         const r = view.query.routes;
         if (p) {

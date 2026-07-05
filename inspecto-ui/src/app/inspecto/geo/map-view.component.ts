@@ -23,6 +23,8 @@ import { greatCircleArc } from './geo-analysis';
 import { GeoCamera } from './geo-source';
 import { GeoData } from './geo-types';
 
+const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
+
 /** Register the pmtiles:// protocol once (customer vector-tile archives, Phase 4 seam). */
 let pmtilesRegistered = false;
 function ensurePmtilesProtocol(): void {
@@ -41,6 +43,13 @@ export interface GeoEmphasis {
 /** How the data plane renders: individual markers (clustered) or a density heatmap. */
 export type GeoDisplayMode = 'markers' | 'heatmap';
 
+/** Toggleable map strata (the studio's layer manager). Absent field = visible. */
+export interface GeoLayerToggles {
+    placeLabels?: boolean;
+    boundaries?: boolean;
+    pointLabels?: boolean;
+}
+
 const POINTS_SOURCE = 'inspecto-points';
 const POINTS_RAW_SOURCE = 'inspecto-points-raw'; // unclustered twin feeding the heatmap
 const POINTS_LAYER = 'inspecto-points-circles';
@@ -51,6 +60,12 @@ const HEATMAP_LAYER = 'inspecto-points-heatmap';
 const ROUTES_SOURCE = 'inspecto-routes';
 const ROUTES_LAYER = 'inspecto-routes-lines';
 const ROUTE_ARROWS_LAYER = 'inspecto-routes-arrows';
+const OVERLAY_SOURCE = 'inspecto-overlay';
+const OVERLAY_FILL_LAYER = 'inspecto-overlay-fills';
+const OVERLAY_LINE_LAYER = 'inspecto-overlay-lines';
+const OVERLAY_POINT_LAYER = 'inspecto-overlay-points';
+const OVERLAY_LABEL_LAYER = 'inspecto-overlay-labels';
+const PLACE_LABEL_LAYERS = ['places-major', 'places-mid', 'places-minor'];
 
 /**
  * Read-only MapLibre GL host for Geo Map Analysis — the map analog of `GraphViewComponent`
@@ -77,10 +92,20 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     @Input() display: GeoDisplayMode = 'markers';
     /** Initial camera (a saved view's); `null` = fit to data on load. */
     @Input() camera: GeoCamera | null = null;
+    /**
+     * Investigation overlay (measure lines, radius circles, polygons, notes, custom GeoJSON):
+     * generic Fill/Line/Point rendering; a feature's `label` property renders as text and its
+     * `color` property overrides the accent.
+     */
+    @Input() overlay: FeatureCollection | null = null;
+    /** Layer-manager toggles; `null` = everything visible. */
+    @Input() layers: GeoLayerToggles | null = null;
     /** Fill the remaining space of a flex-column parent instead of the fixed 62vh page band. */
     @Input() fill = false;
     @Output() pointClick = new EventEmitter<string>();
     @Output() routeClick = new EventEmitter<string>();
+    /** Any map click (tools: measure/radius/polygon/note placement). */
+    @Output() mapClick = new EventEmitter<{ lat: number; lon: number }>();
 
     @ViewChild('host') private hostEl!: ElementRef<HTMLDivElement>;
     private map: MlMap | null = null;
@@ -230,6 +255,9 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                 const id = e.features?.[0]?.properties?.['id'];
                 if (id != null) this.zone.run(() => this.routeClick.emit(String(id)));
             });
+            map.on('click', (e) => {
+                this.zone.run(() => this.mapClick.emit({ lat: e.lngLat.lat, lon: e.lngLat.lng }));
+            });
             for (const layer of [POINTS_LAYER, CLUSTERS_LAYER, ROUTES_LAYER]) {
                 map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
                 map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
@@ -258,22 +286,41 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         };
     }
 
-    /** Routes as great-circle LineStrings between their endpoint points. */
+    /**
+     * Routes as great-circle LineStrings between their endpoint points. Routes sharing an
+     * endpoint pair (parallel/antiparallel corridors) bow apart so both stay clickable.
+     */
     private routesGeoJson(): FeatureCollection {
         const byId = new Map((this.data?.points ?? []).map((p) => [p.id, p]));
         const colors = this.kindColors();
         const em = this.emphasis?.routeIds ? new Set(this.emphasis.routeIds) : null;
         const kinds = [...new Set((this.data?.routes ?? []).map((r) => r.kind))].sort();
         const kindColor = new Map(kinds.map((k, i) => [k, ICON_COLOR_SWATCHES[(colors.size + i) % ICON_COLOR_SWATCHES.length]]));
+        const pairSeen = new Map<string, number>();
         return {
             type: 'FeatureCollection',
             features: (this.data?.routes ?? []).flatMap((r) => {
                 const a = byId.get(r.from);
                 const b = byId.get(r.to);
                 if (!a || !b) return [];
+                const pairKey = [r.from, r.to].sort().join('|');
+                const dup = pairSeen.get(pairKey) ?? 0;
+                pairSeen.set(pairKey, dup + 1);
+                let coords = greatCircleArc(a.lat, a.lon, b.lat, b.lon);
+                if (dup > 0) {
+                    // Bow the duplicate perpendicular to the chord, strongest mid-arc.
+                    const nx = -(b.lat - a.lat);
+                    const ny = b.lon - a.lon;
+                    const len = Math.hypot(nx, ny) || 1;
+                    const amp = 0.06 * Math.ceil(dup / 2) * (dup % 2 ? 1 : -1);
+                    coords = coords.map(([lon, lat], i) => {
+                        const f = Math.sin((i / (coords.length - 1)) * Math.PI) * amp;
+                        return [lon + (nx / len) * f, lat + (ny / len) * f] as [number, number];
+                    });
+                }
                 return [{
                     type: 'Feature' as const,
-                    geometry: { type: 'LineString' as const, coordinates: greatCircleArc(a.lat, a.lon, b.lat, b.lon) },
+                    geometry: { type: 'LineString' as const, coordinates: coords },
                     properties: {
                         id: r.id,
                         kind: r.kind,
@@ -399,7 +446,79 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                 'text-opacity': ['case', ['==', ['get', 'em'], -1], 0.35, 1],
             },
         });
+        // Investigation overlay (tools/notes/custom GeoJSON) — always on top of the data plane.
+        map.addSource(OVERLAY_SOURCE, { type: 'geojson', data: this.overlay ?? EMPTY_FC });
+        map.addLayer({
+            id: OVERLAY_FILL_LAYER,
+            type: 'fill',
+            source: OVERLAY_SOURCE,
+            filter: ['==', ['geometry-type'], 'Polygon'],
+            paint: {
+                'fill-color': ['coalesce', ['get', 'color'], palette.point],
+                'fill-opacity': 0.12,
+            },
+        });
+        map.addLayer({
+            id: OVERLAY_LINE_LAYER,
+            type: 'line',
+            source: OVERLAY_SOURCE,
+            filter: ['in', ['geometry-type'], ['literal', ['LineString', 'Polygon']]],
+            layout: { 'line-cap': 'round' },
+            paint: {
+                'line-color': ['coalesce', ['get', 'color'], palette.point],
+                'line-width': 2,
+                'line-dasharray': [2, 1.5],
+            },
+        });
+        map.addLayer({
+            id: OVERLAY_POINT_LAYER,
+            type: 'circle',
+            source: OVERLAY_SOURCE,
+            filter: ['==', ['geometry-type'], 'Point'],
+            paint: {
+                'circle-radius': 4,
+                'circle-color': ['coalesce', ['get', 'color'], palette.point],
+                'circle-stroke-color': palette.pointStroke,
+                'circle-stroke-width': 1.5,
+            },
+        });
+        map.addLayer({
+            id: OVERLAY_LABEL_LAYER,
+            type: 'symbol',
+            source: OVERLAY_SOURCE,
+            filter: ['has', 'label'],
+            layout: {
+                'text-field': ['get', 'label'],
+                'text-font': ['Noto Sans Regular'],
+                'text-size': 12,
+                'text-anchor': 'bottom',
+                'text-offset': [0, -0.6],
+                'text-allow-overlap': true,
+            },
+            paint: {
+                'text-color': palette.placeText,
+                'text-halo-color': palette.placeHalo,
+                'text-halo-width': 1.2,
+            },
+        });
         this.applyDisplayMode();
+        this.applyLayerToggles();
+    }
+
+    /** Layer-manager visibility (basemap place labels, boundaries, data-point labels). */
+    private applyLayerToggles(): void {
+        const map = this.map;
+        if (!map) return;
+        const set = (ids: string[], on: boolean | undefined): void => {
+            for (const id of ids) {
+                if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on === false ? 'none' : 'visible');
+            }
+        };
+        set(PLACE_LABEL_LAYERS, this.layers?.placeLabels);
+        set(['boundaries'], this.layers?.boundaries);
+        // Point labels also obey the heatmap swap — only force-hide, never force-show, here.
+        if (this.layers?.pointLabels === false) set([LABELS_LAYER], false);
+        else if (this.display === 'markers') set([LABELS_LAYER], true);
     }
 
     private applyData(): void {
@@ -408,7 +527,9 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
             (this.map?.getSource(id) as GeoJSONSource | undefined)?.setData(points);
         }
         (this.map?.getSource(ROUTES_SOURCE) as GeoJSONSource | undefined)?.setData(this.routesGeoJson());
+        (this.map?.getSource(OVERLAY_SOURCE) as GeoJSONSource | undefined)?.setData(this.overlay ?? EMPTY_FC);
         this.applyDisplayMode();
+        this.applyLayerToggles();
     }
 
     /** Heatmap swaps in for the marker/cluster layers; routes stay visible in both modes. */

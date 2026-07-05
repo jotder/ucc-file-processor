@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     boundsOf,
+    circleRing,
     clusterLocations,
     coLocationGraph,
     coLocations,
@@ -11,7 +12,9 @@ import {
     greatCircleArc,
     gridDensity,
     haversineMeters,
+    destinationPoint,
     nearby,
+    pointInPolygon,
     searchPoints,
     stayPoints,
     timeExtent,
@@ -123,6 +126,27 @@ describe('geo-analysis', () => {
         const clusters = clusterLocations(DATA.points, 2000);
         expect(clusters).toHaveLength(1);
         expect(clusters[0].sort()).toEqual(['dhk', 'dhk2']);
+    });
+
+    it('point-in-polygon via ray casting', () => {
+        const box: [number, number][] = [[90, 23], [91, 23], [91, 24], [90, 24], [90, 23]];
+        expect(pointInPolygon(23.5, 90.5, box)).toBe(true);
+        expect(pointInPolygon(24.5, 90.5, box)).toBe(false);
+        expect(pointInPolygon(23.5, 89.9, box)).toBe(false);
+    });
+
+    it('destination points and circle rings honour the radius', () => {
+        const [dLat, dLon] = destinationPoint(23.81, 90.41, 90, 10_000); // 10 km due east
+        expect(haversineMeters(23.81, 90.41, dLat, dLon)).toBeCloseTo(10_000, -1);
+        expect(dLon).toBeGreaterThan(90.41);
+        const ring = circleRing(23.81, 90.41, 5000, 32);
+        expect(ring).toHaveLength(33); // closed
+        expect(ring[0]).toEqual(ring[32]);
+        for (const [lon, lat] of ring) {
+            expect(haversineMeters(23.81, 90.41, lat, lon)).toBeCloseTo(5000, -1);
+        }
+        // A circle ring is a usable polygon: its center is inside.
+        expect(pointInPolygon(23.81, 90.41, ring)).toBe(true);
     });
 
     // ── geo intelligence (Phase 3) ───────────────────────────────────────────────────────────
