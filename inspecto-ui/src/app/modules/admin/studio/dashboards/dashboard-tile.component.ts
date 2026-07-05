@@ -19,7 +19,8 @@ import { DrillEvent, WidgetHostComponent } from '../widgets/widget-host.componen
 })
 export class DashboardTileComponent {
     readonly widget = input.required<Widget>();
-    readonly dataset = input.required<Dataset>();
+    /** Absent for view-bound widgets (geo-map / link-analysis) — their saved view is the binding. */
+    readonly dataset = input<Dataset | undefined>(undefined);
     readonly filter = input<ConditionGroup | null>(null);
     readonly drill = output<DrillEvent>();
 }

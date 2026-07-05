@@ -115,9 +115,13 @@
                             <button mat-icon-button cdkDragHandle matTooltip="Drag to reorder" aria-label="Drag to reorder">
                                 <mat-icon class="icon-size-4" svgIcon="heroicons_outline:arrows-pointing-out"></mat-icon>
                             </button>
-                            <button mat-icon-button (click)="drillTileIndex.set($index)" matTooltip="View rows" aria-label="View underlying rows">
-                                <mat-icon class="icon-size-4" svgIcon="heroicons_outline:table-cells"></mat-icon>
-                            </button>
+                            @if (widgetOf(tile); as w) {
+                                @if (!isViewBound(w)) {
+                                    <button mat-icon-button (click)="drillTileIndex.set($index)" matTooltip="View rows" aria-label="View underlying rows">
+                                        <mat-icon class="icon-size-4" svgIcon="heroicons_outline:table-cells"></mat-icon>
+                                    </button>
+                                }
+                            }
                             <button mat-icon-button (click)="toggleSpan($index)" [matTooltip]="tile.span === 1 ? 'Widen' : 'Narrow'" aria-label="Toggle width">
                                 <mat-icon class="icon-size-4" svgIcon="heroicons_outline:arrows-right-left"></mat-icon>
                             </button>
@@ -126,7 +130,10 @@
                             </button>
                         </div>
                         @if (widgetOf(tile); as widget) {
-                            @if (datasetOf(tile); as dataset) {
+                            @if (isViewBound(widget)) {
+                                <!-- View-bound tile: the saved view is the binding — the cross-filter doesn't apply. -->
+                                <app-dashboard-tile [widget]="widget" />
+                            } @else if (datasetOf(tile); as dataset) {
                                 <app-dashboard-tile [widget]="widget" [dataset]="dataset" [filter]="filter()" (drill)="onDrill($event)" />
                             } @else {
                                 <div class="bg-card text-secondary rounded-2xl p-4 text-sm shadow">Dataset for “{{ widget.datasetId }}” not found.</div>

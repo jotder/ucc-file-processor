@@ -1,3 +1,4 @@
+import { Component, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { describe, expect, it } from 'vitest';
@@ -5,8 +6,15 @@ import { GammaConfigService } from '@gamma/services/config';
 import { of } from 'rxjs';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { BAR_PLUGIN, BUBBLE_PLUGIN, GAUGE_PLUGIN, KPI_PLUGIN, PIE_PLUGIN, TABLE_PLUGIN } from './plugins';
+import { getVizComponentLoader, registerVizComponent } from './viz-components';
 import { VizPlugin, VizProps } from './viz-types';
 import { VizRenderComponent } from './viz-render.component';
+
+/** Stub outlet for the loader-registry test — stands in for the lazily-loaded geo/link view hosts. */
+@Component({ selector: 'spec-view-stub', standalone: true, template: '' })
+class ViewStubComponent {
+    readonly viewId = input<string | undefined>(undefined);
+}
 
 function create(plugin: VizPlugin, props: VizProps) {
     TestBed.configureTestingModule({
@@ -50,7 +58,28 @@ describe('VizRenderComponent', () => {
         const c = fixture.componentInstance;
         expect(c.renderKind()).toBe('component');
         expect(c.outletComponent()).toBeTruthy();
-        expect(c.kpiInputs()).toEqual({ value: 99, label: 'Revenue' });
+        expect(c.outletInputs()).toEqual({ value: 99, label: 'Revenue' });
+    });
+
+    it('resolves a view-bound plugin through the async loader registry and passes the viewId', async () => {
+        // A stub component through the loader seam — the real geo/link hosts are registered by widget.kind.
+        if (!getVizComponentLoader('spec-view-stub')) {
+            registerVizComponent('spec-view-stub', () => Promise.resolve(ViewStubComponent));
+        }
+        const plugin: VizPlugin = {
+            meta: { type: 'spec-view', label: 'Spec view', icon: 'heroicons_outline:map', fit: {}, viewKind: 'geo-map-view' },
+            controls: [],
+            buildQuery: () => ({ datasetId: '', sourceName: '', groupBy: [], measures: [] }),
+            transformProps: () => ({ labels: [], series: [] }),
+            render: { kind: 'component', componentKey: 'spec-view-stub' },
+        };
+        const fixture = create(plugin, { labels: [], series: [] });
+        fixture.componentRef.setInput('viewId', 'dhaka-network');
+        fixture.detectChanges();
+        await fixture.whenStable();
+        const c = fixture.componentInstance;
+        expect(c.outletComponent()).toBe(ViewStubComponent);
+        expect(c.outletInputs()).toEqual({ viewId: 'dhaka-network' });
     });
 
     it('renders the KPI arm with no a11y violations', async () => {

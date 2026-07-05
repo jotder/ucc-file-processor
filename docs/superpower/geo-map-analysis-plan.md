@@ -234,6 +234,20 @@ offline installs — same class of problem as the DuckDB native-access flag), se
 projection/aggregation endpoint (ENDPOINT skill, fail-closed gates), widen backend `ComponentStore`
 enum (`geo-map-view` + `link-analysis-view` + friends together). Tile-server config seam. Pluggable
 geocoding. Performance track (progressive loading, worker-side binning).
+> **Phase 4a (widgets) DONE 2026-07-05** — shipped the UI half, mock-first: two **view-bound**
+> VizPlugins (`geo-map` / `link-analysis`; `VizMeta.viewKind` discriminator, excluded from Show-Me)
+> whose widgets bind a **saved view id** (`WidgetConfig.viewId`) instead of a dataset + channels; an
+> **async component-loader registry** (`inspecto/viz/viz-components.ts`) so the MapLibre/G6 hosts
+> load via dynamic `import()` — never in the eager dashboard bundle; read-only wrapper hosts
+> (`geo-view-widget` / `link-view-widget`) that re-run the view's own GeoSource/GraphSource query and
+> render the shared map/graph hosts with the captured camera/display/layout; the Explore workbench
+> swaps the field mapper for a saved-view picker on view-bound types; dashboard tiles accept
+> dataset-less widgets (cross-filter/drill don't apply — the view's query is self-contained, and the
+> per-tile "View rows" affordance hides). Seeded: `dhaka_network_map` + `fraud_network_graph` widgets
+> and the `investigation_overview` dashboard (mock store → v8). GAUNTLET 859/0/5; live-verified on
+> the dashboard (map loaded, Dhaka camera, 19 rendered features; G6 41 nodes/57 edges) and the
+> Explore flow. **Remaining Phase 4 backlog:** tile-server config seam, pluggable geocoding,
+> everything backend (DuckDB spatial, projection endpoint, `ComponentStore` widening), performance.
 
 ---
 

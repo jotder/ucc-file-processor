@@ -7,9 +7,10 @@ import { BUBBLE_PLUGIN } from './bubble.plugin';
 import { GAUGE_PLUGIN } from './gauge.plugin';
 import { SCATTER_PLUGIN } from './scatter.plugin';
 import { FUNNEL_PLUGIN } from './funnel.plugin';
+import { GEO_MAP_PLUGIN, LINK_ANALYSIS_PLUGIN } from './view.plugins';
 
 /** The plugin set. KPI + table first (always-available), then the Chart.js standards, then the P3 breadth
- *  additions (bubble, gauge, scatter, funnel). */
+ *  additions (bubble, gauge, scatter, funnel), then the view-bound investigation plugins (Phase 4). */
 export const BUILTIN_VIZ_PLUGINS: VizPlugin[] = [
     KPI_PLUGIN,
     TABLE_PLUGIN,
@@ -21,6 +22,8 @@ export const BUILTIN_VIZ_PLUGINS: VizPlugin[] = [
     GAUGE_PLUGIN,
     SCATTER_PLUGIN,
     FUNNEL_PLUGIN,
+    GEO_MAP_PLUGIN,
+    LINK_ANALYSIS_PLUGIN,
 ];
 
 /**
@@ -43,3 +46,4 @@ export { BUBBLE_PLUGIN } from './bubble.plugin';
 export { GAUGE_PLUGIN } from './gauge.plugin';
 export { SCATTER_PLUGIN } from './scatter.plugin';
 export { FUNNEL_PLUGIN } from './funnel.plugin';
+export { GEO_MAP_PLUGIN, LINK_ANALYSIS_PLUGIN } from './view.plugins';

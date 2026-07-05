@@ -131,6 +131,13 @@ src/app/
   unit-test on the empty/no-graph path (canvas not mounted) for axe, and the editing logic via the component's methods
   with a mocked host. Pure graph algorithms (`inspecto/graph/graph-analysis.ts` — path/centrality/`detectCommunities`+
   `louvainCommunities`/`matchPattern` motif search/…) are the testable seam: hand-built fixtures, no canvas.
+- **View-bound widgets (geo Phase 4a).** A Studio Widget is either **dataset-bound** (vizType + dataset +
+  channel mapping → QuerySpec) or **view-bound** (`VizMeta.viewKind` set on the plugin; the binding is
+  `WidgetConfig.viewId` → a saved `geo-map-view`/`link-analysis-view` Component; no dataset, no query run,
+  the dashboard cross-filter/drill don't apply). Heavy component-render hosts register an **async loader**
+  via `registerVizComponent(key, () => import(...))` (`inspecto/viz/viz-components.ts`) — never add
+  MapLibre/G6 to `viz-render`'s static `COMPONENT_BY_KEY`. Reference wrappers:
+  `studio/geo-map/geo-view-widget.component`, `studio/link-analysis/link-view-widget.component`.
 - **Ask the minimum (product-owner rule, 2026-07-02):** a form asks only what the action needs NOW;
   everything else is on-demand. Concretely: **create flows name the artifact at SAVE time** (a save step
   asks Name — pre-filled `<type>_<host>`-style, unique, = the id — plus optional Description) and

@@ -47,6 +47,10 @@ export class GeoMapService {
         return this.store.list();
     }
 
+    get(id: string): Observable<GeoMapView | null> {
+        return this.store.get(id);
+    }
+
     save(view: GeoMapView): Observable<GeoMapView> {
         return this.store.save(view);
     }

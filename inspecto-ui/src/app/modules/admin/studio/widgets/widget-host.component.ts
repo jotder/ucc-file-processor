@@ -50,7 +50,10 @@ export interface DrillEvent {
                     }
                 </div>
                 @if (plugin(); as p) {
-                    @if (resolvedDataset(); as dataset) {
+                    @if (viewBound()) {
+                        <!-- View-bound (geo-map / link-analysis): the saved view is the binding — no dataset/query. -->
+                        <inspecto-viz-render [plugin]="p" [props]="props()" [title]="widget.name" [viewId]="widget.viewId" />
+                    } @else if (resolvedDataset(); as dataset) {
                         <inspecto-viz-render
                             [plugin]="p"
                             [props]="props()"
@@ -93,6 +96,8 @@ export class WidgetHostComponent {
         const w = this.resolvedWidget();
         return w ? getViz(w.vizType) ?? null : null;
     });
+    /** View-bound widget (`meta.viewKind`) — renders a saved investigation view; no dataset, no query run. */
+    readonly viewBound = computed(() => !!this.plugin()?.meta.viewKind);
     readonly props = signal<VizProps>({ labels: [], series: [] });
     readonly canExport = computed(() => this.plugin()?.render.kind === 'chartjs');
 
@@ -109,7 +114,7 @@ export class WidgetHostComponent {
         });
         effect(() => {
             const w = this.resolvedWidget();
-            if (!w || this.dataset()) return;
+            if (!w || !w.datasetId || this.dataset()) return; // view-bound widgets have no dataset
             this.datasetsApi.get(w.datasetId).subscribe({ next: (d) => this.fetchedDataset.set(d), error: () => undefined });
         });
 
@@ -119,7 +124,7 @@ export class WidgetHostComponent {
             const plugin = this.plugin();
             const widget = this.resolvedWidget();
             const dataset = this.resolvedDataset();
-            if (!plugin || !widget || !dataset) return;
+            if (!plugin || !widget || !dataset || plugin.meta.viewKind) return;
             const spec = plugin.buildQuery(widget.controls, {
                 datasetId: dataset.id,
                 sourceName: dataset.sourceName,

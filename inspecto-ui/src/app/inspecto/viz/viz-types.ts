@@ -107,6 +107,10 @@ export interface VizMeta {
     label: string;
     icon: string;
     fit: VizFit;
+    /** A **view-bound** plugin renders a saved investigation view (a Component of this kind, e.g.
+     *  `geo-map-view`) instead of a dataset + channel mapping. Such plugins have no controls, skip the
+     *  query pipeline entirely (the widget's binding is a `viewId`), and are excluded from Show-Me. */
+    viewKind?: string;
 }
 
 /** A Chart.js-ish dataset the render host feeds to `<inspecto-chart>` (kept loose to avoid a chart.js dep here). */

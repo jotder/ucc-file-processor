@@ -31,6 +31,13 @@ export class SavedViewStore<TView extends { id: string }> {
             .pipe(map((defs: ComponentDef[]) => defs.map((d) => this.codec.fromContent(d.name, d.content))));
     }
 
+    /** One view by id, or `null` when it doesn't exist (the mock GET returns a `null` body, not a 404). */
+    get(id: string): Observable<TView | null> {
+        return this.components
+            .get(this.kind, id)
+            .pipe(map((d: ComponentDef | null) => (d ? this.codec.fromContent(d.name, d.content) : null)));
+    }
+
     save(view: TView): Observable<TView> {
         return this.components
             .create(this.kind, { id: view.id, ...this.codec.toContent(view) })

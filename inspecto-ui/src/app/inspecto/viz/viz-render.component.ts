@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Type, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Type, computed, effect, input, output, signal } from '@angular/core';
 import { NgComponentOutlet } from '@angular/common';
 import { ColDef } from 'ag-grid-community';
 import { ChartData, ChartOptions, ChartType } from 'chart.js';
@@ -6,9 +6,11 @@ import { InspectoChartComponent } from 'app/inspecto/components/chart.component'
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { CHART_CATEGORICAL, CHART_PALETTES, GAUGE_TRACK } from 'app/inspecto/theme/chart-tokens';
 import { KpiComponent } from './plugins/kpi.component';
+import { getVizComponentLoader } from './viz-components';
 import { VizPlugin, VizProps, VizRenderOptions, VizSeries } from './viz-types';
 
-/** componentKey → Angular component, for plugins that render via the escape hatch (`render.kind:'component'`). */
+/** componentKey → Angular component, for plugins that render via the escape hatch (`render.kind:'component'`).
+ *  Only lightweight components belong here — heavy hosts register an async loader instead (`viz-components.ts`). */
 const COMPONENT_BY_KEY: Record<string, Type<unknown>> = { kpi: KpiComponent };
 
 /**
@@ -36,7 +38,7 @@ const COMPONENT_BY_KEY: Record<string, Type<unknown>> = { kpi: KpiComponent };
             @case ('component') {
                 @if (outletComponent(); as cmp) {
                     <div class="h-64">
-                        <ng-container *ngComponentOutlet="cmp; inputs: kpiInputs()" />
+                        <ng-container *ngComponentOutlet="cmp; inputs: outletInputs()" />
                     </div>
                 }
             }
@@ -53,17 +55,39 @@ export class VizRenderComponent {
     readonly title = input('data');
     /** The advanced/cog render options (palette, sort/limit, axis titles, legend, stacked) — all optional. */
     readonly renderOptions = input<VizRenderOptions | undefined>(undefined);
+    /** For view-bound plugins (`meta.viewKind`): the saved view id the outlet component renders. */
+    readonly viewId = input<string | undefined>(undefined);
     /** Emits the clicked category's label (bar/line/area/pie/bubble) — the drill-down seam. Gauge has no
      *  filterable categories, so it never emits. */
     readonly categoryClick = output<string>();
 
     readonly renderKind = computed(() => this.plugin().render.kind);
 
-    /** The Angular component for a `component`-render plugin, resolved from its `componentKey`. */
+    /** A lazily-loaded component-render host (from a registered loader), once its import resolves. */
+    private readonly loadedComponent = signal<Type<unknown> | null>(null);
+
+    /** The Angular component for a `component`-render plugin — static map first, then the loader registry. */
     readonly outletComponent = computed<Type<unknown> | null>(() => {
         const r = this.plugin().render;
-        return r.kind === 'component' ? COMPONENT_BY_KEY[r.componentKey] ?? null : null;
+        return r.kind === 'component' ? COMPONENT_BY_KEY[r.componentKey] ?? this.loadedComponent() : null;
     });
+
+    constructor() {
+        // Resolve a registered async loader when the plugin needs one (keeps MapLibre/G6 out of eager bundles).
+        // The stale-key guard drops a resolution that lands after the plugin has already changed.
+        effect(() => {
+            const r = this.plugin().render;
+            if (r.kind !== 'component' || COMPONENT_BY_KEY[r.componentKey]) return;
+            const loader = getVizComponentLoader(r.componentKey);
+            this.loadedComponent.set(null);
+            if (!loader) return;
+            const key = r.componentKey;
+            loader().then((cmp) => {
+                const current = this.plugin().render;
+                if (current.kind === 'component' && current.componentKey === key) this.loadedComponent.set(cmp);
+            });
+        });
+    }
 
     readonly chartType = computed<ChartType>(() => {
         const r = this.plugin().render;
@@ -170,7 +194,13 @@ export class VizRenderComponent {
         return cols?.length ? cols.map((f) => ({ field: f })) : undefined;
     });
 
-    readonly kpiInputs = computed(() => ({ value: this.props().value ?? 0, label: this.title() }));
+    /** Inputs for the outlet component — the KPI's value/label, or a view-bound wrapper's saved-view id. */
+    readonly outletInputs = computed<Record<string, unknown>>(() => {
+        const r = this.plugin().render;
+        return r.kind === 'component' && r.componentKey === 'kpi'
+            ? { value: this.props().value ?? 0, label: this.title() }
+            : { viewId: this.viewId() };
+    });
 
     /** Resolve the clicked point's index to its category label (from the same, possibly sorted/limited,
      *  labels the chart actually rendered) and emit it — skipped for gauge, whose slices aren't categories. */

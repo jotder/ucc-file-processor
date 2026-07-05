@@ -7,11 +7,11 @@
     <div class="flex items-center justify-between">
         <h1 class="text-3xl font-extrabold leading-tight tracking-tight">{{ editing() ? 'Edit widget' : 'Explore' }}</h1>
         <div class="flex items-center gap-2">
-            <button mat-icon-button (click)="openOptions()" [disabled]="!dataset() || !plugin()" matTooltip="Advanced options" aria-label="Advanced options">
+            <button mat-icon-button (click)="openOptions()" [disabled]="viewBound() || !dataset() || !plugin()" matTooltip="Advanced options" aria-label="Advanced options">
                 <mat-icon svgIcon="heroicons_outline:cog"></mat-icon>
             </button>
             <button mat-button routerLink="/studio/widgets">Cancel</button>
-            <button mat-flat-button color="primary" (click)="save()" [disabled]="!dataset() || !plugin()">
+            <button mat-flat-button color="primary" (click)="save()" [disabled]="!plugin() || (viewBound() ? !viewId() : !dataset())">
                 <mat-icon svgIcon="heroicons_outline:bookmark"></mat-icon>
                 <span class="ml-2">Save widget</span>
             </button>
@@ -36,7 +36,40 @@
                 </mat-select>
             </mat-form-field>
 
-            @if (dataset()) {
+            <!-- Investigation views: bind a saved studio view (geo-map / link-analysis) instead of a dataset. -->
+            <div>
+                <div class="text-secondary mb-1 text-xs font-semibold uppercase tracking-wider">Investigation views</div>
+                <div class="flex flex-wrap gap-1">
+                    @for (p of viewPlugins; track p.meta.type) {
+                        <button
+                            mat-stroked-button
+                            class="!min-w-0"
+                            [color]="vizType() === p.meta.type ? 'primary' : undefined"
+                            (click)="setVizType(p.meta.type)"
+                            [attr.aria-pressed]="vizType() === p.meta.type"
+                        >
+                            <mat-icon class="icon-size-4" [svgIcon]="p.meta.icon"></mat-icon>
+                            <span class="ml-1">{{ p.meta.label }}</span>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @if (viewBound()) {
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Saved view</mat-label>
+                    <mat-select [ngModel]="viewId()" (ngModelChange)="viewId.set($event)" aria-label="Saved view">
+                        @for (v of savedViews(); track v.id) {
+                            <mat-option [value]="v.id">{{ v.name }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+                @if (!savedViews().length) {
+                    <div class="text-secondary text-sm">No saved views yet — create one in its studio first.</div>
+                }
+            }
+
+            @if (dataset() && !viewBound()) {
                 <div>
                     <div class="text-secondary mb-1 text-xs font-semibold uppercase tracking-wider">Visualization</div>
                     <div class="flex flex-wrap gap-1">
@@ -71,7 +104,14 @@
 
         <!-- Live preview -->
         <div class="bg-card min-h-[20rem] rounded-2xl p-5 shadow">
-            @if (!dataset()) {
+            @if (viewBound()) {
+                @if (plugin(); as p) {
+                    <div class="mb-2 flex items-center gap-2">
+                        <h2 class="text-lg font-semibold">{{ p.meta.label }}</h2>
+                    </div>
+                    <inspecto-viz-render [plugin]="p" [props]="props()" [title]="p.meta.label" [viewId]="viewId() || undefined" />
+                }
+            } @else if (!dataset()) {
                 <div class="text-secondary flex h-64 items-center justify-center text-sm">
                     Pick a dataset to start exploring.
                 </div>

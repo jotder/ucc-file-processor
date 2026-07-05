@@ -7,13 +7,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage } from 'app/inspecto/api';
+import { ComponentType, ComponentsService, apiErrorMessage } from 'app/inspecto/api';
 import { ColumnMeta } from 'app/inspecto/query';
 import {
     ControlValues,
     VizField,
     VizPlugin,
     VizProps,
+    allViz,
     autoAssignChannels,
     bucketRows,
     getViz,
@@ -57,6 +58,7 @@ import './widget.kind'; // ensure the widget kind + viz plugins are registered
 export class ExploreComponent implements OnInit {
     private datasetsApi = inject(DatasetsService);
     private widgetsApi = inject(WidgetsService);
+    private componentsApi = inject(ComponentsService);
     private dialog = inject(MatDialog);
     private router = inject(Router);
     private toastr = inject(ToastrService);
@@ -102,6 +104,13 @@ export class ExploreComponent implements OnInit {
     readonly plugin = computed<VizPlugin | null>(() => getViz(this.vizType()) ?? null);
     readonly sourceName = computed(() => this.dataset()?.sourceName ?? 'data');
 
+    /** The view-bound plugins (geo-map / link-analysis) — offered without a dataset; excluded from Show-Me. */
+    readonly viewPlugins: VizPlugin[] = allViz().filter((p) => !!p.meta.viewKind);
+    readonly viewBound = computed(() => !!this.plugin()?.meta.viewKind);
+    /** The selected saved view (a view-bound widget's binding) + the picker's choices. */
+    readonly viewId = signal<string>('');
+    readonly savedViews = signal<{ id: string; name: string }[]>([]);
+
     private readonly rows = computed(() => SAMPLE_SOURCES[this.dataset()?.sourceName ?? ''] ?? []);
     private readonly colMetas = computed<ColumnMeta[]>(() =>
         (this.dataset()?.columns ?? []).map((c) => ({ name: c.name, type: c.type })),
@@ -137,12 +146,26 @@ export class ExploreComponent implements OnInit {
         });
     }
 
-    /** Switch the visualization — re-auto-assign channels for the new plugin's controls, then render. */
+    /** Switch the visualization — re-auto-assign channels for the new plugin's controls, then render.
+     *  A view-bound plugin instead clears the mapping and loads its saved-view picker choices. */
     setVizType(type: string): void {
         this.vizType.set(type);
         const p = this.plugin();
+        if (p?.meta.viewKind) {
+            this.controls.set({});
+            this.loadSavedViews(p.meta.viewKind);
+            return;
+        }
         this.controls.set(p ? autoAssignChannels(p, this.fields()) : {});
         this.run();
+    }
+
+    /** The saved views of a kind, as id/name picker choices (names only — no feature service needed). */
+    private loadSavedViews(viewKind: string): void {
+        this.componentsApi.list(viewKind as ComponentType).subscribe({
+            next: (defs) => this.savedViews.set(defs.map((d) => ({ id: d.name, name: String(d.content['name'] ?? d.name) }))),
+            error: () => this.toastr.warning('Could not load saved views.'),
+        });
     }
 
     onControls(values: ControlValues): void {
@@ -164,9 +187,15 @@ export class ExploreComponent implements OnInit {
         this.selectedId.set(w.datasetId);
         this.vizType.set(w.vizType);
         this.controls.set(w.controls);
+        this.viewId.set(w.viewId ?? '');
         this.options.set(w.options ?? {});
         this.tags.set(w.tags);
         this.description.set(w.description);
+        const viewKind = getViz(w.vizType)?.meta.viewKind;
+        if (viewKind) {
+            this.loadSavedViews(viewKind);
+            return; // view-bound: no dataset to fetch, no query to run
+        }
         this.datasetsApi.get(w.datasetId).subscribe({
             next: (d) => {
                 this.dataset.set(d);
@@ -179,7 +208,7 @@ export class ExploreComponent implements OnInit {
     private run(): void {
         const plugin = this.plugin();
         const ds = this.dataset();
-        if (!plugin || !ds) return;
+        if (!plugin || !ds || plugin.meta.viewKind) return;
         const spec = plugin.buildQuery(this.controls(), { datasetId: ds.id, sourceName: ds.sourceName, filters: null });
         this.running.set(true);
         const x = this.controls().x?.[0];
@@ -195,14 +224,15 @@ export class ExploreComponent implements OnInit {
     save(): void {
         const ds = this.dataset();
         const plugin = this.plugin();
-        if (!ds || !plugin) {
-            this.toastr.warning('Pick a dataset and a visualization first.');
+        const viewBound = !!plugin?.meta.viewKind;
+        if (!plugin || (viewBound ? !this.viewId() : !ds)) {
+            this.toastr.warning(viewBound ? 'Pick a saved view first.' : 'Pick a dataset and a visualization first.');
             return;
         }
         this.dialog
             .open(WidgetSaveDialog, {
                 data: {
-                    suggestedId: this.id ?? `${ds.id}_${this.vizType()}`,
+                    suggestedId: this.id ?? `${viewBound ? this.viewId() : ds!.id}_${this.vizType()}`,
                     lockId: this.editing(),
                     tags: this.tags(),
                     description: this.description(),
@@ -214,10 +244,11 @@ export class ExploreComponent implements OnInit {
             .subscribe((result?: WidgetSaveResult) => {
                 if (!result) return;
                 const { name, tags, description } = result;
-                const widget = buildWidget(name, ds.id, this.vizType(), this.controls(), {
+                const widget = buildWidget(name, viewBound ? '' : ds!.id, this.vizType(), viewBound ? {} : this.controls(), {
                     options: this.options(),
                     tags,
                     description,
+                    viewId: viewBound ? this.viewId() : undefined,
                 });
                 this.widgetsApi.save(widget).subscribe({
                     next: () => {

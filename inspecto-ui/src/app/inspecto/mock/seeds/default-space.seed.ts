@@ -198,6 +198,41 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
         camera: { center: [88.894, 23.045], zoom: 11 },
     });
 
+    // ── Investigation widgets + a dashboard (geo Phase 4): saved views as dashboard tiles ──────
+    putComponent(store, space, 'widget', 'dhaka_network_map', {
+        name: 'dhaka_network_map',
+        datasetId: '',
+        vizType: 'geo-map',
+        controls: {},
+        viewId: 'dhaka-network',
+        description: 'The Dhaka cell-network Geo View as a dashboard tile.',
+    });
+    putComponent(store, space, 'widget', 'fraud_network_graph', {
+        name: 'fraud_network_graph',
+        datasetId: '',
+        vizType: 'link-analysis',
+        controls: {},
+        viewId: 'graph-complex',
+        description: 'The fraud-network Link-Analysis view as a dashboard tile.',
+    });
+    putComponent(store, space, 'widget', 'cost_by_tariff', {
+        name: 'cost_by_tariff',
+        datasetId: 'cdr_sample',
+        vizType: 'bar',
+        controls: { x: [{ field: 'tariff' }], y: [{ field: 'cost_usd', agg: 'sum' }] },
+        description: 'Total cost per tariff from the CDR sample.',
+    });
+    putComponent(store, space, 'dashboard', 'investigation_overview', {
+        name: 'investigation_overview',
+        tiles: [
+            { widgetId: 'dhaka_network_map', span: 2 },
+            { widgetId: 'fraud_network_graph', span: 1 },
+            { widgetId: 'cost_by_tariff', span: 1 },
+        ],
+        filter: null,
+        exposedFields: [],
+    });
+
     // ── Reconciliation (C9): the two RA sides as datasets + a seeded reconciliation over them ──────
     for (const side of ['switch_cdr', 'billing_cdr'] as const) {
         putComponent(store, space, 'dataset', side, {

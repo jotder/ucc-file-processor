@@ -34,6 +34,10 @@ export class LinkAnalysisService {
         return this.store.list();
     }
 
+    get(id: string): Observable<LinkAnalysisView | null> {
+        return this.store.get(id);
+    }
+
     save(view: LinkAnalysisView): Observable<LinkAnalysisView> {
         return this.store.save(view);
     }

@@ -32,4 +32,21 @@ describe('WidgetsService', () => {
         expect(widgets[0].name).toBe('c1');
         expect(widgets[0].vizType).toBe('bar');
     });
+
+    it('round-trips a view-bound widget’s viewId through the content codec', () => {
+        const stored = { name: 'map1', datasetId: '', vizType: 'geo-map', controls: {}, viewId: 'dhaka-network' };
+        const create = vi.fn((_t: string, c: Record<string, unknown>) =>
+            of({ type: 'widget', name: String(c['id']), ref: `widget/${c['id']}`, content: c }),
+        );
+        const list = vi.fn(() => of([{ type: 'widget', name: 'map1', ref: 'widget/map1', content: stored }]));
+        TestBed.configureTestingModule({
+            providers: [WidgetsService, { provide: ComponentsService, useValue: { create, list } }],
+        });
+        const svc = TestBed.inject(WidgetsService);
+        svc.save(buildWidget('map1', '', 'geo-map', {}, { viewId: 'dhaka-network' })).subscribe();
+        expect(create).toHaveBeenCalledWith('widget', expect.objectContaining({ viewId: 'dhaka-network' }));
+        let widgets: { viewId?: string }[] = [];
+        svc.list().subscribe((w) => (widgets = w));
+        expect(widgets[0].viewId).toBe('dhaka-network');
+    });
 });

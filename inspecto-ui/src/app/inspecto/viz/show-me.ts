@@ -44,10 +44,12 @@ function fitScore(fit: VizFit, c: FieldCounts): number {
     return score;
 }
 
-/** The plugins that fit the field set, best first. */
+/** The plugins that fit the field set, best first. View-bound plugins (`meta.viewKind`) are excluded —
+ *  they bind a saved investigation view, not fields, so no field set can recommend them. */
 export function recommend(fields: VizField[]): VizPlugin[] {
     const c = counts(fields);
     return allViz()
+        .filter((p) => !p.meta.viewKind)
         .map((p) => ({ p, score: fitScore(p.meta.fit, c) }))
         .filter((x) => x.score >= 0)
         .sort((a, b) => b.score - a.score)

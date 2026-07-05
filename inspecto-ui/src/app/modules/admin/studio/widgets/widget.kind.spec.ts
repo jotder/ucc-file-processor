@@ -32,4 +32,12 @@ describe('widget ComponentKind', () => {
         expect(findings.some((f) => f.path === 'datasetId')).toBe(true);
         expect(findings.some((f) => f.path === 'vizType')).toBe(true);
     });
+
+    it('view-bound widget: requires a saved view instead of a dataset', () => {
+        const missing = validateWidgetConfig({ vizType: 'geo-map', controls: {} });
+        expect(missing.some((f) => f.path === 'viewId')).toBe(true);
+        expect(missing.some((f) => f.path === 'datasetId')).toBe(false);
+        const ok = validateWidgetConfig({ vizType: 'link-analysis', controls: {}, viewId: 'graph-complex' });
+        expect(ok).toEqual([]);
+    });
 });

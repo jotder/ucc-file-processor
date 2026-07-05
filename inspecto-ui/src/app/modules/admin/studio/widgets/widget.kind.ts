@@ -1,9 +1,23 @@
 import { ComponentKind, ConfigFinding, Part, Wiring, getKind, registerKind } from 'app/inspecto/component-model';
+import { getViz, getVizComponentLoader, registerVizComponent } from 'app/inspecto/viz';
 // Side-effect: ensure the built-in VizPlugins are registered (the widget kind's sub-types).
 import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
 import { WidgetConfig } from './widget-types';
 
 registerBuiltinViz();
+
+// The view-bound plugins' render hosts, registered as ASYNC loaders so MapLibre/G6 stay out of every
+// eager bundle that pulls this module in (explore, dashboards, the gallery). Guarded like registerBuiltinViz.
+if (!getVizComponentLoader('geo-map-view')) {
+    registerVizComponent('geo-map-view', () =>
+        import('../geo-map/geo-view-widget.component').then((m) => m.GeoViewWidgetComponent),
+    );
+}
+if (!getVizComponentLoader('link-analysis-view')) {
+    registerVizComponent('link-analysis-view', () =>
+        import('../link-analysis/link-view-widget.component').then((m) => m.LinkViewWidgetComponent),
+    );
+}
 
 /**
  * The `widget` {@link ComponentKind} — the adoption plan's "VizPlugin = first ComponentKind slice" made
@@ -36,11 +50,17 @@ function channelMap(controls: WidgetConfig['controls']): Record<string, string> 
     return out;
 }
 
-/** Tiny hand-written validator (no schema engine): a widget needs a dataset + a viz type. */
+/** Tiny hand-written validator (no schema engine): a widget needs a viz type, plus a dataset — or, for a
+ *  view-bound viz type (`meta.viewKind`), a saved view instead. */
 export function validateWidgetConfig(config: unknown): ConfigFinding[] {
     const c = (config ?? {}) as Partial<WidgetConfig>;
     const findings: ConfigFinding[] = [];
-    if (!c.datasetId) findings.push({ severity: 'error', path: 'datasetId', message: 'Pick a dataset.' });
+    const viewBound = !!getViz(c.vizType ?? '')?.meta.viewKind;
+    if (viewBound) {
+        if (!c.viewId) findings.push({ severity: 'error', path: 'viewId', message: 'Pick a saved view.' });
+    } else if (!c.datasetId) {
+        findings.push({ severity: 'error', path: 'datasetId', message: 'Pick a dataset.' });
+    }
     if (!c.vizType) findings.push({ severity: 'error', path: 'vizType', message: 'Pick a visualization.' });
     return findings;
 }

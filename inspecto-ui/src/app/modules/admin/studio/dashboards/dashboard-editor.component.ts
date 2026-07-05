@@ -10,6 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage } from 'app/inspecto/api';
+import { getViz } from 'app/inspecto/viz';
 import { Condition, ColumnMeta, ConditionGroup, QueryConditionGroupComponent, emptyGroup, evaluateRows } from 'app/inspecto/query';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
@@ -146,6 +147,10 @@ export class DashboardEditorComponent implements OnInit {
     datasetOf(tile: DashboardTile): Dataset | undefined {
         const widget = this.widgetOf(tile);
         return widget ? this.datasetsById().get(widget.datasetId) : undefined;
+    }
+    /** View-bound widget (geo-map / link-analysis) — no dataset; the cross-filter/drill don't apply. */
+    isViewBound(widget: Widget): boolean {
+        return !!getViz(widget.vizType)?.meta.viewKind;
     }
 
     ngOnInit(): void {

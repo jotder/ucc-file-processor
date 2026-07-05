@@ -75,6 +75,29 @@ describe('WidgetHostComponent', () => {
         expect(fixture.componentInstance.canExport()).toBe(false);
     });
 
+    it('view-bound widget: no dataset fetch, no query — renders the saved-view arm', () => {
+        const viewWidget: Widget = { id: 'w', name: 'Dhaka map', datasetId: '', vizType: 'geo-map', controls: {}, viewId: 'dhaka-network' };
+        let datasetFetched = false;
+        const fixture = create([
+            { provide: WidgetsService, useValue: {} },
+            {
+                provide: DatasetsService,
+                useValue: {
+                    get: () => {
+                        datasetFetched = true;
+                        return of(DS);
+                    },
+                },
+            },
+        ]);
+        fixture.componentRef.setInput('widget', viewWidget);
+        fixture.detectChanges();
+        expect(fixture.componentInstance.viewBound()).toBe(true);
+        expect(fixture.componentInstance.canExport()).toBe(false);
+        expect(datasetFetched).toBe(false);
+        expect(fixture.nativeElement.querySelector('inspecto-viz-render')).toBeTruthy();
+    });
+
     it('resolves a category click to the widget’s x-channel field and emits a drill event', () => {
         const barWidget: Widget = { ...WIDGET, vizType: 'bar', controls: { x: [{ field: 'tariff' }], y: [{ field: 'duration_s', agg: 'sum' }] } };
         const fixture = create([{ provide: WidgetsService, useValue: {} }, { provide: DatasetsService, useValue: {} }]);

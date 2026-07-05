@@ -6,11 +6,14 @@ import { ControlValues, VizRenderOptions } from 'app/inspecto/viz';
  * The widget's "wiring" (in component-model terms) is the channel mapping. Mirrors `dataset-types.ts`.
  */
 export interface WidgetConfig {
+    /** Empty for view-bound widgets (`viewId` is their binding instead). */
     datasetId: string;
-    /** The VizPlugin type (`bar`/`line`/`kpi`/…). */
+    /** The VizPlugin type (`bar`/`line`/`kpi`/…, or the view-bound `geo-map`/`link-analysis`). */
     vizType: string;
-    /** The field→channel mapping the plugin compiles to a QuerySpec. */
+    /** The field→channel mapping the plugin compiles to a QuerySpec (empty for view-bound widgets). */
     controls: ControlValues;
+    /** View-bound widgets only: the saved investigation view (`geo-map-view`/`link-analysis-view`) to render. */
+    viewId?: string;
     /** Free-text tags for the library gallery's search/filter (e.g. `ops`, `billing`). */
     tags?: string[];
     /** Shown as the library card's subtitle. */
@@ -41,7 +44,7 @@ export function buildWidget(
     datasetId: string,
     vizType: string,
     controls: ControlValues,
-    extra?: Pick<WidgetConfig, 'tags' | 'description' | 'options'>,
+    extra?: Pick<WidgetConfig, 'tags' | 'description' | 'options' | 'viewId'>,
 ): Widget {
     return {
         id: name,
@@ -49,6 +52,7 @@ export function buildWidget(
         datasetId,
         vizType,
         controls,
+        viewId: extra?.viewId,
         tags: extra?.tags,
         description: extra?.description,
         options: extra?.options,
