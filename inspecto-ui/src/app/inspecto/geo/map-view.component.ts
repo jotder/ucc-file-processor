@@ -8,6 +8,7 @@ import {
     OnChanges,
     OnDestroy,
     Output,
+    SimpleChanges,
     ViewChild,
     inject,
     NgZone,
@@ -102,6 +103,8 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     @Input() layers: GeoLayerToggles | null = null;
     /** Fill the remaining space of a flex-column parent instead of the fixed 62vh page band. */
     @Input() fill = false;
+    /** Customer raster tile-server template (Settings → Map); `null` = the offline bundled basemap. */
+    @Input() tileServerUrl: string | null = null;
     @Output() pointClick = new EventEmitter<string>();
     @Output() routeClick = new EventEmitter<string>();
     /** Any map click (tools: measure/radius/polygon/note placement). */
@@ -136,8 +139,11 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         }
     }
 
-    ngOnChanges(): void {
-        if (this.ready) this.sync();
+    ngOnChanges(changes: SimpleChanges): void {
+        if (!this.ready) return;
+        this.sync();
+        // A live tile-server change needs a style swap (sync only re-applies the data plane).
+        if (changes['tileServerUrl'] && !changes['tileServerUrl'].firstChange && this.map) this.applyScheme();
     }
 
     ngOnDestroy(): void {
@@ -223,7 +229,7 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         this.zone.runOutsideAngular(() => {
             const map = new maplibregl.Map({
                 container: this.hostEl.nativeElement,
-                style: basemapStyle(this.dark),
+                style: basemapStyle(this.dark, undefined, this.tileServerUrl),
                 center: [10, 20],
                 zoom: 1.2,
                 attributionControl: { compact: true },
@@ -545,7 +551,7 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
 
     private applyScheme(): void {
         if (!this.map) return;
-        this.map.setStyle(basemapStyle(this.dark));
+        this.map.setStyle(basemapStyle(this.dark, undefined, this.tileServerUrl));
         // setStyle drops custom sources/layers — re-add the data plane once the style loads.
         this.map.once('styledata', () => {
             if (this.map && !this.map.getSource(POINTS_SOURCE)) this.addDataLayers(this.map);

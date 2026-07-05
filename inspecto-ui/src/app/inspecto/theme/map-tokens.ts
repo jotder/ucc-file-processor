@@ -46,7 +46,7 @@ export function mapPalette(dark: boolean): MapPalette {
 }
 
 /** The offline basemap style: land / lakes / country boundaries / place labels, scheme-aware. */
-export function basemapStyle(dark: boolean, assetBase?: string): StyleSpecification {
+export function basemapStyle(dark: boolean, assetBase?: string, tileServerUrl?: string | null): StyleSpecification {
     // Inline styles need absolute resource URLs (no style URL to resolve relative paths against).
     assetBase ??= new URL('assets/basemap', document.baseURI).toString();
     const p = mapPalette(dark);
@@ -62,11 +62,20 @@ export function basemapStyle(dark: boolean, assetBase?: string): StyleSpecificat
             lakes: src('lakes.geojson'),
             boundaries: src('boundaries.geojson'),
             places: src('places.geojson'),
+            // The Phase 4 tile-server seam (Settings → Map): a customer {z}/{x}/{y} raster template
+            // (satellite etc.) replaces the offline land/lake fills; boundaries/labels stay on top.
+            ...(tileServerUrl
+                ? { imagery: { type: 'raster' as const, tiles: [tileServerUrl], tileSize: 256, attribution: 'Customer tile server' } }
+                : {}),
         },
         layers: [
             { id: 'background', type: 'background', paint: { 'background-color': p.water } },
-            { id: 'land', type: 'fill', source: 'land', paint: { 'fill-color': p.land } },
-            { id: 'lakes', type: 'fill', source: 'lakes', paint: { 'fill-color': p.water } },
+            ...(tileServerUrl
+                ? [{ id: 'imagery', type: 'raster' as const, source: 'imagery' }]
+                : [
+                      { id: 'land', type: 'fill' as const, source: 'land', paint: { 'fill-color': p.land } },
+                      { id: 'lakes', type: 'fill' as const, source: 'lakes', paint: { 'fill-color': p.water } },
+                  ]),
             {
                 id: 'boundaries',
                 type: 'line',

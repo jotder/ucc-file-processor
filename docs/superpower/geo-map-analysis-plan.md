@@ -248,6 +248,17 @@ geocoding. Performance track (progressive loading, worker-side binning).
 > the dashboard (map loaded, Dhaka camera, 19 rendered features; G6 41 nodes/57 edges) and the
 > Explore flow. **Remaining Phase 4 backlog:** tile-server config seam, pluggable geocoding,
 > everything backend (DuckDB spatial, projection endpoint, `ComponentStore` widening), performance.
+> **Phase 4b (tile-server config seam) DONE 2026-07-05** — Settings → Map pane (`/settings/map`,
+> `modules/admin/map-settings/`): an optional customer tile-server URL (a `{z}/{x}/{y}` raster
+> template or a `pmtiles://` archive, inline-validated) persisted per space via `GET|PUT
+> /settings/geo` (new `settings.handler` mock domain + `GeoSettingsService` — the UI-preferences
+> API contract the backend will later serve for real). `basemapStyle(dark, assetBase?,
+> tileServerUrl?)` swaps the offline land/lake fills for the raster `imagery` layer (boundaries +
+> place labels stay on top — this is the "satellite unlock"); `MapViewComponent` gains a
+> `tileServerUrl` input (kept HTTP-free — the geo studio + geo widget fetch the setting and bind
+> it; a live change restyles via the existing `applyScheme` path). Live-verified: saved a data-URI
+> raster template, the studio map's style showed the `imagery` source/layer with the data planes
+> intact, then reset to the offline default.
 
 ---
 

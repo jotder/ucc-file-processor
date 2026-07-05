@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it } from 'vitest';
-import { ComponentDef, ComponentsService } from 'app/inspecto/api';
+import { ComponentDef, ComponentsService, GeoSettingsService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { DatasetsService } from '../datasets/datasets.service';
 import { GeoViewWidgetComponent } from './geo-view-widget.component';
@@ -15,6 +15,7 @@ function create(components: Partial<ComponentsService>) {
         providers: [
             provideNoopAnimations(),
             { provide: ComponentsService, useValue: components },
+            { provide: GeoSettingsService, useValue: { get: () => of({ tileServerUrl: null }) } },
             { provide: DatasetsService, useValue: {} },
         ],
     });

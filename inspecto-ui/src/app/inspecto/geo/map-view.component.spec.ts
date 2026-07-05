@@ -1,3 +1,4 @@
+import { SimpleChanges } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 import { of } from 'rxjs';
@@ -38,7 +39,7 @@ describe('MapViewComponent', () => {
         expect(fixture.componentInstance.exportPng()).toBeNull();
         fixture.componentInstance.fitToData();
         fixture.componentInstance.data = { points: [], routes: [] };
-        fixture.componentInstance.ngOnChanges();
+        fixture.componentInstance.ngOnChanges({} as SimpleChanges);
         expect(fixture.nativeElement.querySelector('canvas')).toBeNull();
     });
 });

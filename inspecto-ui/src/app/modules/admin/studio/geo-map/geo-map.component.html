@@ -402,7 +402,7 @@
             <inspecto-skeleton height="24rem" />
         } @else if (displayed(); as d) {
             <inspecto-map-view [data]="d" [emphasis]="emphasis()" [display]="displayMode()" [camera]="loadCamera"
-                               [overlay]="overlay()" [layers]="layerToggles()" [fill]="true"
+                               [overlay]="overlay()" [layers]="layerToggles()" [tileServerUrl]="tileServerUrl()" [fill]="true"
                                (pointClick)="onPointClick($event)" (routeClick)="onRouteClick($event)"
                                (mapClick)="onMapClick($event)" />
             <p class="sr-only" role="status">

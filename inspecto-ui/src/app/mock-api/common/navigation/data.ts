@@ -97,6 +97,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
             { id: 'spaces',         title: 'Spaces',         type: 'basic', icon: 'heroicons_outline:square-3-stack-3d',      link: '/spaces' },
             { id: 'model-settings', title: 'Model Settings', type: 'basic', icon: 'heroicons_outline:cpu-chip',               link: '/settings/models' },
             { id: 'icon-settings',  title: 'Processor Icons', type: 'basic', icon: 'heroicons_outline:paint-brush',           link: '/settings/icons' },
+            { id: 'map-settings',   title: 'Map Settings',   type: 'basic', icon: 'heroicons_outline:map',                    link: '/settings/map' },
             { id: 'design-system',  title: 'Design System',  type: 'basic', icon: 'heroicons_outline:swatch',                 link: '/design' }
         ]
     },

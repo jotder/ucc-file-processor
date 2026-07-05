@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
+import { GeoSettingsService } from 'app/inspecto/api';
 import { GeoData, MapViewComponent } from 'app/inspecto/geo';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
@@ -27,6 +28,7 @@ import { GeoSourcesService } from './geo-projection';
                     [data]="d"
                     [display]="view()?.display ?? 'markers'"
                     [camera]="view()?.camera ?? null"
+                    [tileServerUrl]="tileServerUrl()"
                     [fill]="true"
                 />
             } @else if (loaded()) {
@@ -49,8 +51,13 @@ export class GeoViewWidgetComponent {
     readonly error = signal<string | null>(null);
     /** The view fetch settled (found or not) — gates the not-found empty state vs the loading strip. */
     readonly loaded = signal(false);
+    /** Customer tile server (Settings → Map); `null` = the bundled offline basemap. */
+    readonly tileServerUrl = signal<string | null>(null);
 
     constructor() {
+        inject(GeoSettingsService)
+            .get()
+            .subscribe({ next: (s) => this.tileServerUrl.set(s.tileServerUrl), error: () => undefined });
         effect(() => {
             const id = this.viewId();
             this.view.set(null);

@@ -29,3 +29,4 @@ export * from './pipelines.service';
 export * from './notifications.service';
 export * from './expectations.service';
 export * from './decision-rules.service';
+export * from './geo-settings.service';

@@ -5,6 +5,7 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { ToastrService } from 'ngx-toastr';
+import { GeoSettingsService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { GeoSource } from 'app/inspecto/geo';
 import { Dataset } from '../datasets/dataset-types';
@@ -63,6 +64,7 @@ function create(opts: { fail?: boolean; views?: GeoMapView[] } = {}) {
             { provide: GeoSourcesService, useValue: { sources: [fakeSource, fakeRouteSource] } },
             { provide: DatasetsService, useValue: { list: () => of([DS]) } },
             { provide: GeoMapService, useValue: { list: () => of(opts.views ?? []), save } },
+            { provide: GeoSettingsService, useValue: { get: () => of({ tileServerUrl: null }) } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
             { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined } },
         ],

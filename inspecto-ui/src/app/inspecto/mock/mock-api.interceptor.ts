@@ -12,6 +12,7 @@ import { expectationsHandler } from './handlers/expectations.handler';
 import { jobsHandler } from './handlers/jobs.handler';
 import { opsHandler } from './handlers/ops.handler';
 import { pipelinesHandler } from './handlers/pipelines.handler';
+import { settingsHandler } from './handlers/settings.handler';
 import { spacesHandler } from './handlers/spaces.handler';
 import { registerIntegrityRules } from './integrity';
 import { MockFlags } from './mock-flags';
@@ -49,6 +50,7 @@ const HANDLERS: MockHandler[] = [
     expectationsHandler(flags),
     decisionRulesHandler(flags),
     jobsHandler(flags),
+    settingsHandler(flags),
 ];
 
 export const mockApiInterceptor: HttpInterceptorFn = (req, next) => {

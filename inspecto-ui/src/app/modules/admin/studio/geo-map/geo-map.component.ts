@@ -56,7 +56,7 @@ import {
     ElementDetailRow,
     uniqueNameValidator,
 } from 'app/inspecto/investigation';
-import { apiErrorMessage } from 'app/inspecto/api';
+import { GeoSettingsService, apiErrorMessage } from 'app/inspecto/api';
 import { Dataset } from 'app/modules/admin/studio/datasets/dataset-types';
 import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.service';
 import { datasetRows } from 'app/modules/admin/studio/link-analysis/entity-projection';
@@ -103,6 +103,10 @@ export class GeoMapComponent implements OnInit, OnDestroy {
     private geoSources = inject(GeoSourcesService);
     private datasetsService = inject(DatasetsService);
     private viewsService = inject(GeoMapService);
+    private geoSettings = inject(GeoSettingsService);
+
+    /** Customer tile server (Settings → Map); `null` = the bundled offline basemap. */
+    readonly tileServerUrl = signal<string | null>(null);
 
     @ViewChild(MapViewComponent) private mapView?: MapViewComponent;
     @ViewChild('saveTrigger') private saveTrigger?: MatMenuTrigger;
@@ -329,6 +333,7 @@ export class GeoMapComponent implements OnInit, OnDestroy {
     ngOnInit(): void {
         this.datasetsService.list().subscribe({ next: (d) => this.datasets.set(d), error: () => undefined });
         this.viewsService.list().subscribe({ next: (v) => this.views.set(v), error: () => undefined });
+        this.geoSettings.get().subscribe({ next: (s) => this.tileServerUrl.set(s.tileServerUrl), error: () => undefined });
         this.queryForm.controls.datasetId.valueChanges.subscribe((id) => this.onDatasetPicked(id));
     }
 
