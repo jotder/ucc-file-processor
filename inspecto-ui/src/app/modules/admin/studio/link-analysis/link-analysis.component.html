@@ -55,6 +55,22 @@
                     </div>
                 </mat-menu>
 
+                <!-- layout toolbox -->
+                <button mat-icon-button [matMenuTriggerFor]="layoutMenu"
+                        [color]="layoutId() !== 'dagre' ? 'primary' : undefined"
+                        matTooltip="Layout" aria-label="Graph layout">
+                    <mat-icon svgIcon="heroicons_outline:squares-2x2"></mat-icon>
+                </button>
+                <mat-menu #layoutMenu="matMenu">
+                    @for (l of layouts; track l.id) {
+                        <button mat-menu-item (click)="setLayout(l.id)" [disabled]="l.tree && !isTreeShaped()"
+                                [attr.aria-label]="l.label + (l.tree && !isTreeShaped() ? ' (needs a tree-shaped graph)' : '')">
+                            <mat-icon [svgIcon]="layoutId() === l.id ? 'heroicons_outline:check' : 'heroicons_outline:squares-2x2'"></mat-icon>
+                            <span>{{ l.label }}</span>
+                        </button>
+                    }
+                </mat-menu>
+
                 <!-- graph-algorithms toolbox (opens the bottom Analysis tab) -->
                 <button mat-icon-button (click)="openAnalysis()"
                         [color]="bottomOpen() && bottomTab() === 'analysis' ? 'primary' : undefined"
@@ -264,7 +280,7 @@
                 </div>
 
                 <inspecto-graph-view [fill]="true" [data]="displayed()" [emphasis]="emphasis()"
-                                     [display]="displayOptions()" [tooltips]="true"
+                                     [display]="displayOptions()" [tooltips]="true" [layout]="layoutId()"
                                      (nodeClick)="onNodeClick($event)" (edgeClick)="onEdgeClick($event)"></inspecto-graph-view>
             } @else if (loading()) {
                 <inspecto-skeleton [lines]="6" height="2rem"></inspecto-skeleton>

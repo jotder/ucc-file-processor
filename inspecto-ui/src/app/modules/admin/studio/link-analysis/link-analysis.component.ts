@@ -30,6 +30,7 @@ import {
     detectCommunities,
     explainNode,
     filterByKinds,
+    isForest,
     neighborhood,
     searchNodes,
     shortestPath,
@@ -39,9 +40,11 @@ import {
     EdgePattern,
     GRAPH_EDGE_PATTERNS,
     GRAPH_EDGE_SIZES,
+    GRAPH_LAYOUTS,
     GRAPH_NODE_SHAPES,
     GraphDisplayOptions,
     GraphEmphasis,
+    GraphLayoutId,
     GraphViewComponent,
     baseEdgeKind,
 } from 'app/modules/admin/catalog/graph-view.component';
@@ -233,6 +236,15 @@ export class LinkAnalysisComponent implements OnInit {
             || Object.keys(this.nodeShapes()).length > 0 || Object.keys(this.edgePatterns()).length > 0
             || Object.keys(this.edgeSizes()).length > 0,
     );
+
+    // ── layout (the Layout toolbox; persisted with a saved view) ──
+    readonly layoutId = signal<GraphLayoutId>('dagre');
+    readonly layouts = GRAPH_LAYOUTS;
+    /** Whether the current graph is tree/forest-shaped — gates the tree layouts. */
+    readonly isTreeShaped = computed<boolean>(() => {
+        const g = this.displayed();
+        return !!g && isForest(g);
+    });
 
     // ── fullscreen (whole studio or just the canvas zone) + bottom panel (Query/Analysis/Data) ──
     readonly fullscreen = signal<'app' | 'graph' | null>(null);
@@ -462,6 +474,11 @@ export class LinkAnalysisComponent implements OnInit {
     setEdgeSize(kind: string, size: number | null): void {
         const { [kind]: _old, ...rest } = this.edgeSizes();
         this.edgeSizes.set(size != null ? { ...rest, [kind]: size } : rest);
+    }
+
+    /** Pick a graph layout (tree layouts are gated on {@link isTreeShaped} in the template). */
+    setLayout(id: GraphLayoutId): void {
+        this.layoutId.set(id);
     }
 
     private applyDisplay(display: GraphDisplayOptions | undefined): void {
@@ -717,6 +734,7 @@ export class LinkAnalysisComponent implements OnInit {
             sourceId: this.sourceId(),
             query: q,
             display: this.displayOptions(), // styling travels with the view; reapplied on load
+            layout: this.layoutId(),
         };
         this.saving.set(true);
         try {
@@ -735,6 +753,7 @@ export class LinkAnalysisComponent implements OnInit {
     async loadView(view: LinkAnalysisView): Promise<void> {
         this.sourceId.set(view.sourceId);
         this.applyDisplay(view.display);
+        this.layoutId.set(view.layout ?? 'dagre');
         const p = view.query.projection;
         this.queryForm.patchValue({
             from: view.query.from ?? '',

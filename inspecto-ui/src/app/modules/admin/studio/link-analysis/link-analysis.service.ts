@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ComponentsService } from 'app/inspecto/api';
 import { GraphSourceId, GraphSourceQuery } from 'app/inspecto/graph';
-import { GraphDisplayOptions } from 'app/modules/admin/catalog/graph-view.component';
+import { GraphDisplayOptions, GraphLayoutId } from 'app/modules/admin/catalog/graph-view.component';
 
 /**
  * A saved investigation — a **Link-Analysis View** (GLOSSARY §11), persisted as the
@@ -17,6 +17,8 @@ export interface LinkAnalysisView {
     query: GraphSourceQuery;
     /** Presentation (labels + per-kind colours) captured with the view; absent = defaults. */
     display?: GraphDisplayOptions;
+    /** The chosen graph layout; absent = the default layered layout. */
+    layout?: GraphLayoutId;
 }
 
 /** View store — mirrors `widgets.service` / `datasets.service` over the components seam. */
@@ -40,13 +42,13 @@ export class LinkAnalysisService {
 }
 
 function toContent(v: LinkAnalysisView): Record<string, unknown> {
-    return { name: v.name, description: v.description, sourceId: v.sourceId, query: v.query, display: v.display };
+    return { name: v.name, description: v.description, sourceId: v.sourceId, query: v.query, display: v.display, layout: v.layout };
 }
 
 function fromContent(id: string, content: Record<string, unknown>): LinkAnalysisView {
     const c = content as {
         name?: string; description?: string; sourceId?: GraphSourceId; query?: GraphSourceQuery;
-        display?: GraphDisplayOptions;
+        display?: GraphDisplayOptions; layout?: GraphLayoutId;
     };
     return {
         id,
@@ -55,5 +57,6 @@ function fromContent(id: string, content: Record<string, unknown>): LinkAnalysis
         sourceId: c.sourceId ?? 'lineage',
         query: c.query ?? {},
         display: c.display,
+        layout: c.layout,
     };
 }

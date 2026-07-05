@@ -343,6 +343,38 @@ export function filterByKinds(g: G6GraphData, nodeKinds: string[], edgeKinds: st
     return { nodes, edges };
 }
 
+/**
+ * True when the graph is a forest — every node has ≤1 parent and there are no cycles (Kahn's peel) —
+ * so the tree layouts (mind map / org chart / radial tree) can lay it out. Empty graph ⇒ false.
+ */
+export function isForest(g: G6GraphData): boolean {
+    if (!g.nodes.length) return false;
+    const indeg = new Map<string, number>();
+    const out = new Map<string, string[]>();
+    for (const n of g.nodes) {
+        indeg.set(n.id, 0);
+        out.set(n.id, []);
+    }
+    for (const e of g.edges) {
+        if (!indeg.has(e.source) || !indeg.has(e.target)) continue;
+        indeg.set(e.target, indeg.get(e.target)! + 1);
+        out.get(e.source)!.push(e.target);
+    }
+    if ([...indeg.values()].some((d) => d > 1)) return false; // a 2-parent node isn't a tree
+    const queue = [...indeg.entries()].filter(([, d]) => d === 0).map(([id]) => id);
+    const seen = new Set<string>();
+    while (queue.length) {
+        const id = queue.shift()!;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        for (const t of out.get(id) ?? []) {
+            indeg.set(t, indeg.get(t)! - 1);
+            if (indeg.get(t) === 0) queue.push(t);
+        }
+    }
+    return seen.size === g.nodes.length; // leftover ⇒ a cycle
+}
+
 /** All nodes strictly downstream of `rootId` (BFS along outgoing edges; the root excluded). */
 export function descendants(g: G6GraphData, rootId: string): Set<string> {
     const out = new Map<string, string[]>();

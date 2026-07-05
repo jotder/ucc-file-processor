@@ -11,6 +11,7 @@ import {
     detectCommunities,
     explainNode,
     filterByKinds,
+    isForest,
     neighborhood,
     searchNodes,
     shortestPath,
@@ -171,6 +172,33 @@ describe('searchNodes / filterByKinds', () => {
     it('filters edges by kind; empty filters are a no-op', () => {
         expect(filterByKinds(typed, [], ['uses']).edges).toHaveLength(2);
         expect(filterByKinds(typed, [], [])).toEqual(typed);
+    });
+});
+
+describe('isForest', () => {
+    /** A tree r→(b1,b2); b1→(l1,l2); b2→l3 — plus the island x→y. A forest (two trees). */
+    const forest: G6GraphData = {
+        nodes: ['r', 'b1', 'b2', 'l1', 'l2', 'l3', 'x', 'y'].map((id) => node(id)),
+        edges: [edge('r', 'b1'), edge('r', 'b2'), edge('b1', 'l1'), edge('b1', 'l2'), edge('b2', 'l3'), edge('x', 'y')],
+    };
+
+    it('accepts a forest of trees', () => {
+        expect(isForest(forest)).toBe(true);
+    });
+
+    it('rejects a node with two parents', () => {
+        const diamond: G6GraphData = { nodes: ['a', 'b', 'c', 'd'].map((id) => node(id)), edges: [edge('a', 'b'), edge('a', 'c'), edge('b', 'd'), edge('c', 'd')] };
+        expect(isForest(diamond)).toBe(false); // d has two parents
+    });
+
+    it('rejects a cycle even when every node has one parent', () => {
+        expect(isForest(g)).toBe(false); // the d→a cycle
+        const pureCycle: G6GraphData = { nodes: ['p', 'q', 'r'].map((id) => node(id)), edges: [edge('p', 'q'), edge('q', 'r'), edge('r', 'p')] };
+        expect(isForest(pureCycle)).toBe(false);
+    });
+
+    it('rejects the empty graph', () => {
+        expect(isForest({ nodes: [], edges: [] })).toBe(false);
     });
 });
 

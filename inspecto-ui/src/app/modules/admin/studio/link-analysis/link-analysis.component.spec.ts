@@ -245,6 +245,30 @@ describe('LinkAnalysisComponent', () => {
         expect(c.displayCustomized()).toBe(false); // a view without display resets to defaults
     });
 
+    it('layout: defaults to dagre, gates tree layouts on the graph shape, and travels with a saved view', async () => {
+        const { fixture, save } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+
+        expect(c.layoutId()).toBe('dagre');
+        expect(c.isTreeShaped()).toBe(true); // GRAPH (a→b→c, d→e) is a forest — tree layouts enabled
+
+        c.setLayout('radial');
+        expect(c.layoutId()).toBe('radial');
+
+        c.saveForm.patchValue({ name: 'Radial view' });
+        await c.saveView();
+        expect(save.mock.calls[0][0].layout).toBe('radial');
+
+        c.setLayout('mindmap'); // drift, then load restores the captured layout
+        await c.loadView({ id: 'r', name: 'Radial view', sourceId: 'entity-projection', query: {}, layout: 'radial' });
+        expect(c.layoutId()).toBe('radial');
+
+        await c.loadView({ id: 'plain', name: 'Plain', sourceId: 'entity-projection', query: {} });
+        expect(c.layoutId()).toBe('dagre'); // a view without a layout resets to the default
+    });
+
     it('the bottom panel tables the displayed graph and narrows with the search', async () => {
         const { fixture } = create();
         fixture.detectChanges();

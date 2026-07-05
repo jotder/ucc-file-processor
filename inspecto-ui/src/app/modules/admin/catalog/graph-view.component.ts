@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { GammaConfigService } from '@gamma/services/config';
-import { EdgeData, EdgeEvent, ElementDatum, Graph, GraphData, NodeData, NodeEvent } from '@antv/g6';
+import { EdgeData, EdgeEvent, ElementDatum, Graph, GraphData, LayoutOptions, NodeData, NodeEvent } from '@antv/g6';
 import { G6GraphData, nodeColor, nodeShape } from './catalog-graph';
 import { NodeKind } from 'app/inspecto/api';
 import { ICON_COLOR_SWATCHES, canvasTheme } from 'app/inspecto/theme/chart-tokens';
@@ -82,6 +82,45 @@ export function edgeDash(pattern: EdgePattern | undefined): number[] | undefined
     return pattern === 'dashed' ? [6, 4] : pattern === 'dotted' ? [1, 3] : undefined;
 }
 
+/** A selectable graph layout — the requested names mapped onto G6 v5 built-in layout types. */
+export type GraphLayoutId =
+    | 'dagre' | 'grid' | 'force' | 'force-cluster' | 'radial'
+    | 'concentric' | 'circular' | 'mds'
+    | 'mindmap' | 'org' | 'radial-tree';
+
+/** The layouts the Link Analysis "Layout" toolbox offers; `tree` ones need a tree/forest graph. */
+export const GRAPH_LAYOUTS: readonly { id: GraphLayoutId; label: string; tree: boolean }[] = [
+    { id: 'dagre', label: 'Flow (layered)', tree: false },
+    { id: 'grid', label: 'Grid', tree: false },
+    { id: 'force', label: 'Force', tree: false },
+    { id: 'force-cluster', label: 'Clustering force', tree: false },
+    { id: 'radial', label: 'Radial', tree: false },
+    { id: 'concentric', label: 'Degree ordered', tree: false },
+    { id: 'circular', label: 'Circular', tree: false },
+    { id: 'mds', label: 'Information density', tree: false },
+    { id: 'mindmap', label: 'Mind map', tree: true },
+    { id: 'org', label: 'Organization chart', tree: true },
+    { id: 'radial-tree', label: 'Radial tree', tree: true },
+];
+
+/** The G6 layout options for an id; `null`/`dagre` = the default LR layered layout (unchanged). */
+export function layoutConfig(id: GraphLayoutId | null): Record<string, unknown> {
+    switch (id) {
+        case 'grid': return { type: 'grid' };
+        case 'force': return { type: 'd3-force', collide: { radius: 28 } };
+        case 'force-cluster': return { type: 'force-atlas2', kr: 20, preventOverlap: true };
+        case 'radial': return { type: 'radial', unitRadius: 120, preventOverlap: true };
+        case 'concentric': return { type: 'concentric', sortBy: 'degree', preventOverlap: true, nodeSize: 40 };
+        case 'circular': return { type: 'circular' };
+        case 'mds': return { type: 'mds' };
+        case 'mindmap': return { type: 'mindmap', direction: 'H', getHeight: () => 32, getWidth: () => 32, getVGap: () => 12, getHGap: () => 60 };
+        case 'org': return { type: 'compact-box', direction: 'TB', getHeight: () => 32, getWidth: () => 60, getVGap: () => 30, getHGap: () => 20 };
+        case 'radial-tree': return { type: 'dendrogram', radial: true, nodeSep: 40, rankSep: 120 };
+        case 'dagre':
+        default: return { type: 'antv-dagre', rankdir: 'LR', nodesep: 18, ranksep: 60 };
+    }
+}
+
 /** The relationship kind an edge styles by — the folded-count suffix (`calls · 2`) stripped. */
 export function baseEdgeKind(kind: unknown): string {
     return String(kind ?? '').split(' · ')[0];
@@ -112,6 +151,8 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     @Input() display: GraphDisplayOptions | null = null;
     /** Enable hover tooltips with short node/edge details (Link Analysis). */
     @Input() tooltips = false;
+    /** Graph layout; `null` = the default LR layered layout (the 4 existing hosts). */
+    @Input() layout: GraphLayoutId | null = null;
     @Output() nodeClick = new EventEmitter<string>();
     @Output() edgeClick = new EventEmitter<string>();
 
@@ -248,7 +289,7 @@ export class GraphViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                     labelBackground: false,
                 },
             },
-            layout: { type: 'antv-dagre', rankdir: 'LR', nodesep: 18, ranksep: 60 },
+            layout: layoutConfig(this.layout) as LayoutOptions,
             behaviors: ['drag-canvas', 'zoom-canvas', 'drag-element'],
             plugins: this.tooltips
                 ? [{ type: 'tooltip', trigger: 'hover', getContent: async (_e: unknown, items: ElementDatum[]) => this.tooltipHtml(items) }]
