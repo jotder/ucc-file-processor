@@ -79,11 +79,30 @@ switchers icon-only, grid self-scrolls.
   the file is `pipeline-graph.ts`). Neither pane authors named artifacts ⇒ dup-guard/ask-the-minimum
   not applicable. Live-verified /design renders the new card at 375px, 0 console errors.
 
-## P4 — final GAUNTLET + bundle smoke
-- [ ] `lint:tokens` · prod `build` · `test:ci` · `package.ps1` bundle smoke (boots from the artifact).
-- [ ] Update this sheet, memory index breadcrumb; handoff.
+## P4 — final GAUNTLET + bundle smoke — DONE 2026-07-05
+- [x] UI GAUNTLET: `lint:tokens` ✓ · `test:ci` **804 / 0 / 5** (one transient hit on the known
+  `widget.kind.spec.ts` registry-isolation flake on the first pass; clean re-run, not a regression) ·
+  prod `build` ✓ (22.8s, only the two documented pre-existing warnings).
+- [x] Backend reactor: `mvn -o clean test` — BUILD SUCCESS, all 5 modules, **32 tests / 0 failures /
+  0 errors**, 1:32 min. The two uncommitted side-task files (`ControlApi.java`,
+  `ControlApiConnectionsTest.java`) were untouched and caused no failures (`ControlApiConnectionsTest`:
+  2/0/0/0).
+- [x] Bundle: `mvn -o clean package -DskipTests` → `file-processor-4.0.0-SNAPSHOT.jar` (96.4 MB) ·
+  `package.ps1 -NoBuild` → succeeded first try, jlink runtime built clean (91.5 MB) — the previously-seen
+  jlink rough edge did **not** reproduce this run · final `file-processor-deploy.zip` (160.5 MB).
+- [x] Boot smoke: booted the bundle's jar directly (`--enable-native-access=ALL-UNNAMED
+  -Dcontrol.port=8091 -Dspaces.root=spaces -Dui.dir=./ui`) — port 8080 was another session's server
+  (left untouched) and the originally-planned 8090 was occupied by an unrelated Windows process
+  (`WsToastNotification.exe`), so 8091 was used instead. `GET /health` → 200 `{"status":"UP"}`;
+  `GET /` → 200 UI index HTML. Server killed cleanly afterward, port confirmed clear.
+- [x] Sheet updated (this entry); memory index breadcrumb — see MEMORY.md.
+
+**P4 overall: PASS.** Wave 5 (Hardening) is COMPLETE — release-candidate quality confirmed end to end
+(lint → unit+a11y → prod build → backend reactor → packaged bundle → live boot from the artifact).
 
 ## Log
 - 2026-07-05: sheet created; baseline captured; gap inventory computed (35 raw → ~22 in-scope after
   excluding vendored + already-covered).
+- 2026-07-05: P1–P4 all closed same day. Commits: P1 `5eb7243` · P2 `3b2954a` · P3 `9c888a8` (P4 is a
+  verification pass, no code diff to commit beyond this sheet).
 </content>
