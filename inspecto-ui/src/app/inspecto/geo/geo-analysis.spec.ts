@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
     boundsOf,
     clusterLocations,
+    coLocationGraph,
+    coLocations,
     filterByKinds,
     filterByTime,
     formatDistance,
+    frequentLocations,
     greatCircleArc,
     gridDensity,
     haversineMeters,
     nearby,
     searchPoints,
+    stayPoints,
     timeExtent,
     validCoordinate,
     withinBBox,
@@ -119,5 +123,55 @@ describe('geo-analysis', () => {
         const clusters = clusterLocations(DATA.points, 2000);
         expect(clusters).toHaveLength(1);
         expect(clusters[0].sort()).toEqual(['dhk', 'dhk2']);
+    });
+
+    // ── geo intelligence (Phase 3) ───────────────────────────────────────────────────────────
+    const HOUR = 3_600_000;
+    const track = (entity: string, legs: [number, number, number][]): GeoPoint[] =>
+        legs.map(([lat, lon, h], i) => ({
+            id: `${entity}-${i}`, lat, lon, kind: 'device', label: entity, time: h * HOUR,
+        }));
+
+    it('detects stay-points: a dwell within radius spanning the minimum time', () => {
+        const pts = track('A', [
+            [23.8100, 90.4100, 1], [23.8101, 90.4101, 3], [23.8102, 90.4100, 5], // 4h dwell
+            [23.9000, 90.5000, 6], // moves away
+        ]);
+        const stays = stayPoints(pts, 200, 2 * HOUR);
+        expect(stays).toHaveLength(1);
+        expect(stays[0].entity).toBe('A');
+        expect(stays[0].pointIds).toEqual(['A-0', 'A-1', 'A-2']);
+        expect(stays[0].to - stays[0].from).toBe(4 * HOUR);
+        // Too-short dwell → nothing
+        expect(stayPoints(pts, 200, 5 * HOUR)).toHaveLength(0);
+    });
+
+    it('finds frequent locations per entity, busiest first', () => {
+        const pts = [
+            ...track('A', [[23.81, 90.41, 1], [23.8101, 90.4101, 4], [23.8102, 90.41, 9], [22.35, 91.78, 6]]),
+            ...track('B', [[23.81, 90.41, 2], [22.35, 91.78, 3]]),
+        ];
+        const freq = frequentLocations(pts, 300, 2);
+        expect(freq).toHaveLength(1); // only A's Dhaka spot has ≥2 visits
+        expect(freq[0].entity).toBe('A');
+        expect(freq[0].count).toBe(3);
+    });
+
+    it('detects repeated co-location and builds the bridge graph', () => {
+        const pts = [
+            ...track('A', [[23.81, 90.41, 1], [23.81, 90.41, 10], [22.35, 91.78, 20]]),
+            ...track('B', [[23.8101, 90.4101, 1.5], [23.8101, 90.4101, 10.5], [24.89, 91.87, 20]]),
+            ...track('C', [[23.81, 90.41, 40]]), // right place, wrong time
+        ];
+        const pairs = coLocations(pts, 300, HOUR);
+        expect(pairs).toHaveLength(1);
+        expect([pairs[0].a, pairs[0].b]).toEqual(['A', 'B']);
+        expect(pairs[0].count).toBe(2);
+        expect(pairs[0].firstAt).toBe(1 * HOUR);
+
+        const g = coLocationGraph(pairs);
+        expect(g.nodes.map((n) => n.id).sort()).toEqual(['entity:A', 'entity:B']);
+        expect(g.edges).toHaveLength(1);
+        expect(g.edges[0].data.kind).toBe('co-located · 2');
     });
 });

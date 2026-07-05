@@ -163,12 +163,18 @@ export const SAMPLE_SOURCES: Record<string, Record<string, unknown>[]> = {
         for (let i = 0; i < 12; i++) {
             add(`Tower DHK-${i + 1}`, 'tower', 23.72 + (i % 4) * 0.045, 90.36 + Math.floor(i / 4) * 0.05, 8);
         }
-        for (let i = 0; i < 6; i++) {
-            add('Device IMEI-4411', 'device', 23.726 + i * 0.028, 90.365 + i * 0.03, 9 + i);
-        }
-        add('Device IMEI-9902', 'device', 23.8103, 90.4125, 9); // Dhaka
-        add('Device IMEI-9902', 'device', 22.3569, 91.7832, 13); // Chattogram
-        add('Device IMEI-9902', 'device', 24.3745, 88.6042, 18); // Rajshahi
+        // …a device hopping across it — with a two-hour dwell at 11:00–12:00 (stay-point demo)…
+        add('Device IMEI-4411', 'device', 23.726, 90.365, 9);
+        add('Device IMEI-4411', 'device', 23.754, 90.395, 10);
+        add('Device IMEI-4411', 'device', 23.8103, 90.4125, 11);
+        add('Device IMEI-4411', 'device', 23.8104, 90.4126, 12);
+        add('Device IMEI-4411', 'device', 23.838, 90.455, 13);
+        add('Device IMEI-4411', 'device', 23.866, 90.485, 14);
+        // …a second device that MEETS IMEI-4411 during the dwell (co-location demo), then roams…
+        add('Device IMEI-9902', 'device', 23.8104, 90.4124, 11); // same spot, same hour
+        add('Device IMEI-9902', 'device', 23.8103, 90.4125, 12); // met again (repeated co-location)
+        add('Device IMEI-9902', 'device', 22.3569, 91.7832, 16); // Chattogram
+        add('Device IMEI-9902', 'device', 24.3745, 88.6042, 20); // Rajshahi
         add('Tower BAD-1', 'tower', null, 90.4, 8);
         add('Tower BAD-2', 'tower', 123.45, 90.4, 8);
         return rows;

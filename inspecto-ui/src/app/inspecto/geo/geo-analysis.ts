@@ -1,3 +1,4 @@
+import type { G6GraphData } from 'app/inspecto/graph';
 import { GeoData, GeoPoint } from './geo-types';
 
 /**
@@ -172,6 +173,172 @@ export function gridDensity(points: readonly GeoPoint[], cellDeg: number): Densi
         cell.pointIds.push(p.id);
     }
     return [...cells.values()].sort((a, b) => b.count - a.count);
+}
+
+// ── Geo intelligence (Phase 3) — entity identity = the point's `label` (the mapped entity
+//    column); unlabeled or untimed points are skipped by the time-based tools. ─────────────────
+
+/** A detected dwell: an entity stayed within `radiusM` of one spot for at least the dwell time. */
+export interface StayPoint {
+    entity: string;
+    /** Centroid of the dwell's points. */
+    lat: number;
+    lon: number;
+    from: number;
+    to: number;
+    /** Points folded into this stay. */
+    pointIds: string[];
+}
+
+/**
+ * Stay-point detection: per entity, walk its timed points chronologically; consecutive points
+ * within `radiusM` of the anchor form a candidate dwell, kept when it spans ≥ `minDwellMs`.
+ */
+export function stayPoints(points: readonly GeoPoint[], radiusM: number, minDwellMs: number): StayPoint[] {
+    const out: StayPoint[] = [];
+    for (const [entity, pts] of byEntityChronological(points)) {
+        let i = 0;
+        while (i < pts.length) {
+            const anchor = pts[i];
+            let j = i + 1;
+            while (j < pts.length && haversineMeters(anchor.lat, anchor.lon, pts[j].lat, pts[j].lon) <= radiusM) j++;
+            const span = pts[j - 1].time! - anchor.time!;
+            if (j - i >= 2 && span >= minDwellMs) {
+                const cluster = pts.slice(i, j);
+                out.push({
+                    entity,
+                    lat: cluster.reduce((s, p) => s + p.lat, 0) / cluster.length,
+                    lon: cluster.reduce((s, p) => s + p.lon, 0) / cluster.length,
+                    from: anchor.time!,
+                    to: pts[j - 1].time!,
+                    pointIds: cluster.map((p) => p.id),
+                });
+            }
+            i = j > i + 1 ? j : i + 1;
+        }
+    }
+    return out.sort((a, b) => b.to - b.from - (a.to - a.from));
+}
+
+/** A spot an entity keeps returning to. */
+export interface FrequentLocation {
+    entity: string;
+    lat: number;
+    lon: number;
+    /** Sightings folded into this spot. */
+    count: number;
+    pointIds: string[];
+}
+
+/** Frequent locations: per entity, greedy spatial grouping; spots with ≥ `minVisits`, busiest first. */
+export function frequentLocations(points: readonly GeoPoint[], radiusM: number, minVisits = 2): FrequentLocation[] {
+    const out: FrequentLocation[] = [];
+    const byEntity = new Map<string, GeoPoint[]>();
+    for (const p of points.slice(0, ANALYSIS_POINT_CAP)) {
+        if (!p.label) continue;
+        (byEntity.get(p.label) ?? byEntity.set(p.label, []).get(p.label)!).push(p);
+    }
+    for (const [entity, pts] of byEntity) {
+        const assigned = new Set<string>();
+        for (const seed of pts) {
+            if (assigned.has(seed.id)) continue;
+            const members = pts.filter(
+                (p) => !assigned.has(p.id) && haversineMeters(seed.lat, seed.lon, p.lat, p.lon) <= radiusM,
+            );
+            for (const m of members) assigned.add(m.id);
+            if (members.length >= minVisits) {
+                out.push({
+                    entity,
+                    lat: members.reduce((s, p) => s + p.lat, 0) / members.length,
+                    lon: members.reduce((s, p) => s + p.lon, 0) / members.length,
+                    count: members.length,
+                    pointIds: members.map((p) => p.id),
+                });
+            }
+        }
+    }
+    return out.sort((a, b) => b.count - a.count);
+}
+
+/** Two entities seen together: within `radiusM` of each other inside a `windowMs` time window. */
+export interface CoLocation {
+    a: string;
+    b: string;
+    /** Distinct meeting events folded in. */
+    count: number;
+    /** Where they first met (one of a's points). */
+    lat: number;
+    lon: number;
+    firstAt: number;
+    pointIds: string[];
+}
+
+/**
+ * Repeated co-location detection: cross-entity point pairs close in space AND time, folded per
+ * entity pair (order-independent), most-met first. O(n²), capped at {@link ANALYSIS_POINT_CAP}.
+ */
+export function coLocations(points: readonly GeoPoint[], radiusM: number, windowMs: number): CoLocation[] {
+    const pts = points.slice(0, ANALYSIS_POINT_CAP).filter((p) => p.label && p.time !== undefined);
+    const byPair = new Map<string, CoLocation>();
+    for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+            const p = pts[i], q = pts[j];
+            if (p.label === q.label) continue;
+            if (Math.abs(p.time! - q.time!) > windowMs) continue;
+            if (haversineMeters(p.lat, p.lon, q.lat, q.lon) > radiusM) continue;
+            const [a, b] = [p.label!, q.label!].sort();
+            const key = `${a} ${b}`;
+            const at = Math.min(p.time!, q.time!);
+            const hit = byPair.get(key);
+            if (hit) {
+                hit.count++;
+                hit.pointIds.push(p.id, q.id);
+                if (at < hit.firstAt) {
+                    hit.firstAt = at;
+                    hit.lat = p.lat;
+                    hit.lon = p.lon;
+                }
+            } else {
+                byPair.set(key, { a, b, count: 1, lat: p.lat, lon: p.lon, firstAt: at, pointIds: [p.id, q.id] });
+            }
+        }
+    }
+    return [...byPair.values()].sort((x, y) => y.count - x.count);
+}
+
+/**
+ * Co-locations as an Entity/Link graph for the shared G6 host (`GraphViewComponent`) — the
+ * bridge from geo investigation into link analysis: entities become nodes, each pair a
+ * weighted `co-located` edge.
+ */
+export function coLocationGraph(pairs: readonly CoLocation[]): G6GraphData {
+    const nodes = new Map<string, { id: string; data: { label: string; kind: string } }>();
+    for (const p of pairs) {
+        for (const name of [p.a, p.b]) {
+            const id = `entity:${name}`;
+            if (!nodes.has(id)) nodes.set(id, { id, data: { label: name, kind: 'entity' } });
+        }
+    }
+    return {
+        nodes: [...nodes.values()],
+        edges: pairs.map((p) => ({
+            id: `co:${p.a}->${p.b}`,
+            source: `entity:${p.a}`,
+            target: `entity:${p.b}`,
+            data: { kind: p.count > 1 ? `co-located · ${p.count}` : 'co-located', weight: p.count },
+        })),
+    } as G6GraphData;
+}
+
+/** Timed, labeled points grouped per entity and sorted chronologically. */
+function byEntityChronological(points: readonly GeoPoint[]): Map<string, GeoPoint[]> {
+    const byEntity = new Map<string, GeoPoint[]>();
+    for (const p of points.slice(0, ANALYSIS_POINT_CAP)) {
+        if (!p.label || p.time === undefined) continue;
+        (byEntity.get(p.label) ?? byEntity.set(p.label, []).get(p.label)!).push(p);
+    }
+    for (const pts of byEntity.values()) pts.sort((a, b) => a.time! - b.time!);
+    return byEntity;
 }
 
 /**

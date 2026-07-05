@@ -139,6 +139,70 @@ describe('GeoMapComponent', () => {
         expect(c.displayed()?.routes).toHaveLength(1);
     });
 
+    it('geo intelligence: co-location detection over timed points + the graph bridge shape', async () => {
+        const HOUR = 3_600_000;
+        const timedGeo: ProjectedGeo = {
+            points: [
+                { id: 'a1', lat: 23.81, lon: 90.41, kind: 'device', label: 'A', time: 1 * HOUR },
+                { id: 'a2', lat: 23.81, lon: 90.41, kind: 'device', label: 'A', time: 3 * HOUR },
+                { id: 'b1', lat: 23.8101, lon: 90.4101, kind: 'device', label: 'B', time: 1 * HOUR },
+                { id: 'b2', lat: 23.8101, lon: 90.4101, kind: 'device', label: 'B', time: 3 * HOUR },
+                { id: 'c1', lat: 51.5, lon: -0.12, kind: 'device', label: 'C', time: 1 * HOUR },
+            ],
+            routes: [], truncated: false, skipped: 0,
+        };
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        expect(c.analysisReady()).toBe(false); // GEO fixture is untimed → hint, no tools
+
+        c.geo.set(timedGeo);
+        expect(c.analysisReady()).toBe(true);
+        c.analysisTool.set('coloc');
+        c.runAnalysis();
+        expect(c.colocs()).toHaveLength(1);
+        expect(c.colocs()[0].count).toBe(2);
+
+        c.focusResult(c.colocs()[0].pointIds, 23.81, 90.41);
+        expect(c.emphasis()?.pointIds).toEqual(c.colocs()[0].pointIds);
+
+        c.analysisTool.set('frequent');
+        c.runAnalysis();
+        expect(c.freqs().map((f) => f.entity).sort()).toEqual(['A', 'B']);
+
+        c.clearInvestigation();
+        expect(c.colocs()).toHaveLength(0);
+        expect(c.emphasis()).toBeNull();
+    });
+
+    it('playback sweeps the time window across the extent and stops at the end', async () => {
+        vi.useFakeTimers();
+        try {
+            const { fixture } = create();
+            fixture.detectChanges();
+            await runQuery(fixture);
+            const c = fixture.componentInstance;
+            c.geo.set({
+                points: [
+                    { id: 'p1', lat: 1, lon: 1, kind: 'x', label: 'P', time: 0 },
+                    { id: 'p2', lat: 2, lon: 2, kind: 'x', label: 'P', time: 30_000 },
+                ],
+                routes: [], truncated: false, skipped: 0,
+            });
+            c.togglePlay();
+            expect(c.playing()).toBe(true);
+            expect(c.timeRange()).toEqual([0, 0]);
+            vi.advanceTimersByTime(400 * 5);
+            expect(c.timeRange()![1]).toBeGreaterThan(0);
+            vi.advanceTimersByTime(400 * 40);
+            expect(c.playing()).toBe(false); // reached the end and stopped
+            expect(c.timeRange()![1]).toBe(30_000);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('captures display mode with a saved view and restores a route view', async () => {
         const routeView: GeoMapView = {
             id: 'corridors', name: 'Corridors', sourceId: 'od-routes', display: 'heatmap',

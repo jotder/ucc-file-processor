@@ -209,6 +209,15 @@ Measure/draw tools; polygon selection; stay-points, frequent locations, movement
 co-location detection; **bridge to Link Analysis**: "project co-locations as graph" button emits
 `G6GraphData` and opens Link Analysis — the flagship cross-studio story. Animated playback. Layer
 manager + bundled boundaries. Bookmarks/annotations (persisted in the view config).
+> **Phase 3a DONE 2026-07-05** — shipped: geo-intelligence toolbox (co-location / frequent
+> locations / stay points, param-driven, clickable results → emphasis + fly-to; pure fns in
+> `geo-analysis.ts`), **co-location → graph bridge** ("View as graph" renders the pair graph
+> through the shared `GraphViewComponent` — deviation: inline dialog instead of navigating to
+> Link Analysis, whose dataset-backed source model can't take an ad-hoc graph until the V1
+> multi-mapping line), and **event playback** (play/pause sweeping the time window). The Dhaka
+> seed now demos all three tools at default params. GAUNTLET 835/0/5.
+> **Phase 3b remaining:** measure/draw tools + polygon selection, layer manager + bundled
+> boundaries, bookmarks/annotations, curved parallel-route separation, radius-circle search UI.
 
 ### Phase 4 — Platform & scale (COULD)
 Geo Widget + Link-Analysis Widget via one shared VizPlugin component-render seam; dataset binding +

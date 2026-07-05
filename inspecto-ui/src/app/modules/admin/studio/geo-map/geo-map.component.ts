@@ -1,7 +1,8 @@
-import { ChangeDetectionStrategy, Component, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -28,11 +29,18 @@ import {
     GeoQuery,
     GeoSourceId,
     MapViewComponent,
+    CoLocation,
+    FrequentLocation,
+    StayPoint,
+    coLocationGraph,
+    coLocations,
     filterByKinds,
     filterByTime,
     formatDistance,
+    frequentLocations,
     haversineMeters,
     searchPoints,
+    stayPoints,
     timeExtent,
     withinBBox,
 } from 'app/inspecto/geo';
@@ -48,6 +56,7 @@ import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.serv
 import { datasetRows } from 'app/modules/admin/studio/link-analysis/entity-projection';
 import { GeoSourcesService, ProjectedGeo } from './geo-projection';
 import { GeoMapService, GeoMapView } from './geo-map.service';
+import { ColocationGraphDialog } from './colocation-graph.dialog';
 
 /** One row of the bottom Data panel (a point, flattened for the shared table). */
 interface PointRow {
@@ -70,14 +79,14 @@ interface PointRow {
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
-        DecimalPipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule,
-        MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatSliderModule, MatTooltipModule,
+        DecimalPipe, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule,
+        MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatSliderModule, MatTooltipModule,
         InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, MapViewComponent,
         DataTableComponent,
     ],
     templateUrl: './geo-map.component.html',
 })
-export class GeoMapComponent implements OnInit {
+export class GeoMapComponent implements OnInit, OnDestroy {
     private fb = inject(FormBuilder);
     private toastr = inject(ToastrService);
     private dialog = inject(MatDialog);
@@ -137,6 +146,30 @@ export class GeoMapComponent implements OnInit {
         return g ? timeExtent(g) : null;
     });
 
+    // ── geo intelligence (Phase 3) ──
+    readonly analysisOpen = signal(false);
+    readonly analysisTool = signal<'stay' | 'frequent' | 'coloc'>('coloc');
+    /** Tool parameters (meters / minutes — converted to ms at run time). */
+    readonly radiusM = signal(250);
+    readonly windowMin = signal(60);
+    readonly dwellMin = signal(30);
+    readonly stays = signal<StayPoint[]>([]);
+    readonly freqs = signal<FrequentLocation[]>([]);
+    readonly colocs = signal<CoLocation[]>([]);
+    readonly analysisRan = signal(false);
+    /** Analysis-result highlight (kept separate from search/selection emphasis). */
+    readonly resultEmphasis = signal<string[] | null>(null);
+
+    /** The intelligence tools need entity + time mappings — hint instead of empty results. */
+    readonly analysisReady = computed<boolean>(() => {
+        const pts = this.geo()?.points ?? [];
+        return pts.some((p) => p.label && p.time !== undefined);
+    });
+
+    // ── playback (animates the time-window end across the extent) ──
+    readonly playing = signal(false);
+    private playTimer: ReturnType<typeof setInterval> | null = null;
+
     /** All point kinds present in the result (the filter menu's options). */
     readonly pointKinds = computed<string[]>(() =>
         [...new Set((this.geo()?.points ?? []).map((p) => p.kind))].sort(),
@@ -159,12 +192,14 @@ export class GeoMapComponent implements OnInit {
         return d;
     });
 
-    /** Search/selection highlight: matching points full-strength, the rest dimmed. */
+    /** Search / analysis-result / selection highlight: matches full-strength, the rest dimmed. */
     readonly emphasis = computed<GeoEmphasis | null>(() => {
         const d = this.displayed();
         if (!d) return null;
         const q = this.search();
         if (q) return { pointIds: searchPoints(d, q) };
+        const result = this.resultEmphasis();
+        if (result) return { pointIds: result };
         const sel = this.selectedId();
         return sel ? { pointIds: [sel] } : null;
     });
@@ -311,6 +346,7 @@ export class GeoMapComponent implements OnInit {
         this.selectedId.set(null);
         this.timeRange.set(null);
         this.viewBox.set(null);
+        this.clearAnalysis();
     }
 
     fit(): void {
@@ -341,6 +377,75 @@ export class GeoMapComponent implements OnInit {
     /** Short date-time label for the slider readout. */
     timeLabel(t: number): string {
         return new Date(t).toISOString().slice(0, 16).replace('T', ' ');
+    }
+
+    /** Event playback: sweep the time-window end across the extent (~30 steps). */
+    togglePlay(): void {
+        if (this.playing()) {
+            this.stopPlayback();
+            return;
+        }
+        const ext = this.extent();
+        if (!ext) return;
+        const [start, end] = ext;
+        const step = Math.max(1, (end - start) / 30);
+        let t = start;
+        this.playing.set(true);
+        this.timeRange.set([start, start]);
+        this.playTimer = setInterval(() => {
+            t = Math.min(end, t + step);
+            this.timeRange.set([start, t]);
+            if (t >= end) this.stopPlayback();
+        }, 400);
+    }
+
+    private stopPlayback(): void {
+        if (this.playTimer) clearInterval(this.playTimer);
+        this.playTimer = null;
+        this.playing.set(false);
+    }
+
+    ngOnDestroy(): void {
+        this.stopPlayback();
+    }
+
+    // ── geo intelligence ──
+    runAnalysis(): void {
+        const pts = this.displayed()?.points ?? [];
+        const radius = this.radiusM();
+        switch (this.analysisTool()) {
+            case 'stay':
+                this.stays.set(stayPoints(pts, radius, this.dwellMin() * 60_000));
+                break;
+            case 'frequent':
+                this.freqs.set(frequentLocations(pts, radius));
+                break;
+            case 'coloc':
+                this.colocs.set(coLocations(pts, radius, this.windowMin() * 60_000));
+                break;
+        }
+        this.analysisRan.set(true);
+    }
+
+    /** Result click: highlight the folded points and fly to the spot. */
+    focusResult(pointIds: string[], lat: number, lon: number): void {
+        this.search.set('');
+        this.selectedId.set(null);
+        this.resultEmphasis.set(pointIds);
+        this.mapView?.setCamera({ center: [lon, lat], zoom: 12 });
+    }
+
+    /** Open the co-location pairs as an Entity/Link graph (the Link Analysis bridge). */
+    viewCoLocationGraph(): void {
+        this.dialog.open(ColocationGraphDialog, { data: { graph: coLocationGraph(this.colocs()) } });
+    }
+
+    clearAnalysis(): void {
+        this.stays.set([]);
+        this.freqs.set([]);
+        this.colocs.set([]);
+        this.analysisRan.set(false);
+        this.resultEmphasis.set(null);
     }
 
     /** Canvas or data-row click → full details (attributes + the 3 nearest points). */

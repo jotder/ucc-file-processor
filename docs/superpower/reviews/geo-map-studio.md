@@ -1,7 +1,24 @@
-# Review sheet — Geo Map Analysis Studio (Phases 1–2)
+# Review sheet — Geo Map Analysis Studio (Phases 1–3a)
 
-**Route:** `/studio/geo-map` · **Plan:** [`../geo-map-analysis-plan.md`](../geo-map-analysis-plan.md) §Phase 0–2
+**Route:** `/studio/geo-map` · **Plan:** [`../geo-map-analysis-plan.md`](../geo-map-analysis-plan.md) §Phase 0–3
 · **Reviewed:** 2026-07-05 · **Status:** ✅ shipped (mock-first, like Link Analysis MVP)
+
+## Phase 3a addendum (geo intelligence)
+
+- **Toolbox** (beaker toggle): Co-location (radius + time window) · Frequent locations (radius) ·
+  Stay points (radius + min dwell) — pure functions in `geo-analysis.ts`, results are clickable
+  (emphasis + fly-to). Hint shown when entity/time columns aren't mapped.
+- **Graph bridge**: "View as graph" opens the co-location pairs as an Entity/Link graph through
+  the **shared `GraphViewComponent`** (same renderer as Link Analysis; weighted `co-located`
+  edges). Full navigation into `/studio/link-analysis` deferred — its sources are dataset-backed
+  (V1 multi-mapping line).
+- **Playback**: play/pause on the timeline sweeps the time-window end across the extent (~30
+  steps at 400 ms); stops at the end.
+- **Seeds**: the Dhaka example now contains a 2-hour dwell and a repeated two-device meeting, so
+  all three tools produce results at default parameters.
+- **Verification**: GAUNTLET green first-run — build PASS, `test:ci` **835 passed / 0 failed**
+  (5 net new). Live: co-location returns "IMEI-4411 ↔ IMEI-9902 · met 4×", the bridge dialog
+  mounts the G6 host with a painted canvas, playback starts/pauses.
 
 ## Phase 2 addendum (routes & time — completes the MUST scope)
 
