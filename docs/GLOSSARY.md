@@ -71,8 +71,10 @@ never on Lens identity. *(Added 2026-07-03.)*
 **Workbench** — The Builder surface for acquisition + processing authoring: Connections, Sources, and
 Pipelines. *(Formalizes the informal use in §3 Stream.)*
 
-**Studio** — The Builder surface for BI authoring: Datasets, Widgets, Dashboards (and the future Link
-Analysis Studio).
+**Studio** — The Builder surface for BI authoring: Datasets, Widgets, Dashboards, plus the Link Analysis
+and Geo Map Analysis studios. Pane labels (2026-07-06): **Viz Library** (the searchable Widget gallery),
+**Widget Builder** (the Widget authoring/edit surface), **Dashboard Builder** (the Dashboard list + editor).
+The labels name surfaces only — the artifacts stay **Widget** / **Dashboard** (§7).
 
 **Requirement** — A Business-authored request for a deliverable — **KPI | Report | Reconciliation | Rule** —
 with lifecycle `submitted → accepted | rejected → delivered` (Business submits; Builder triages the intake
@@ -208,7 +210,12 @@ is a **Component Type** (declares a config schema). ⛔ do not call the template
 **Widget** — A **Visualization Type + Config + a binding to a Dataset's resultset metadata** — i.e. the
 configured, renderable **instance**. This is the Type→Instance pattern made concrete.
 
-**Dashboard** — A layout (grid) of Widgets (tiles), shared per Space.
+**Dashboard** — A layout (grid) of Widgets (tiles), shared per Space. Authored in the **Dashboard Builder**
+pane.
+
+**Viz Library** — The Studio pane listing every saved **Widget** (searchable by text / viz type / tags; each
+card can be viewed standalone, edited in the **Widget Builder**, or placed on a Dashboard). A pane label, not
+a new concept — the items are Widgets.
 
 **KPI** — A single-number **Measure** with a target/threshold, rendered as a headline tile (mini → standard →
 max).

@@ -1,8 +1,8 @@
 <div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
     <div class="flex items-center justify-between">
         <div>
-            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Widgets</h1>
-            <div class="text-secondary mt-1">Saved visualizations built on your datasets.</div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Viz Library</h1>
+            <div class="text-secondary mt-1">Saved widgets — charts, tables, maps and link graphs — ready to view or place on a dashboard.</div>
         </div>
         <div class="flex items-center gap-3">
             @if (loading()) { <mat-spinner diameter="24"></mat-spinner> }
@@ -26,6 +26,25 @@
             (input)="onFilter($event)"
         />
     </div>
+
+    @if (allTypes().length > 1) {
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+            <span class="text-secondary text-xs font-semibold uppercase tracking-wider">Type:</span>
+            @for (type of allTypes(); track type) {
+                <button
+                    type="button"
+                    class="rounded-full border px-2.5 py-0.5 text-xs"
+                    [class.border-primary]="activeType() === type"
+                    [class.text-primary]="activeType() === type"
+                    [class.border-gray-300]="activeType() !== type"
+                    [attr.aria-pressed]="activeType() === type"
+                    (click)="toggleType(type)"
+                >
+                    {{ type }}
+                </button>
+            }
+        </div>
+    }
 
     @if (allTags().length) {
         <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -63,7 +82,11 @@
                         <div class="break-all font-mono text-lg font-semibold">{{ w.id }}</div>
                         <div class="text-secondary mt-0.5 flex flex-wrap items-center gap-2 text-sm">
                             <inspecto-status-badge [value]="w.vizType" [label]="w.vizType" />
-                            <span>dataset: <span class="font-mono">{{ w.datasetId }}</span></span>
+                            @if (w.viewId) {
+                                <span>view: <span class="font-mono">{{ w.viewId }}</span></span>
+                            } @else {
+                                <span>dataset: <span class="font-mono">{{ w.datasetId }}</span></span>
+                            }
                         </div>
                         @if (w.description) { <div class="text-secondary mt-1 text-sm">{{ w.description }}</div> }
                         @if (w.tags?.length) {
@@ -78,8 +101,11 @@
                         <button mat-icon-button [routerLink]="[w.id, 'view']" matTooltip="Open standalone" aria-label="Open standalone">
                             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:external-link"></mat-icon>
                         </button>
-                        <button mat-icon-button [routerLink]="[w.id]" matTooltip="Edit" aria-label="Edit">
+                        <button mat-icon-button [routerLink]="[w.id]" matTooltip="Edit in Widget Builder" aria-label="Edit in Widget Builder">
                             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                        </button>
+                        <button mat-icon-button (click)="addToDashboard(w)" matTooltip="Add to dashboard" aria-label="Add to dashboard">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:squares-plus"></mat-icon>
                         </button>
                         <button mat-icon-button (click)="remove(w)" matTooltip="Delete" aria-label="Delete">
                             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
@@ -87,7 +113,12 @@
                     </div>
                 </div>
 
-                @if (datasetsById().get(w.datasetId); as ds) {
+                @if (w.viewId) {
+                    <!-- View-bound (geo-map / link-analysis): the host renders the saved view — no dataset. -->
+                    <div class="mt-3 h-40 overflow-hidden">
+                        <app-widget-host [widget]="w" />
+                    </div>
+                } @else if (datasetsById().get(w.datasetId); as ds) {
                     <div class="mt-3 h-40 overflow-hidden">
                         <app-widget-host [widget]="w" [dataset]="ds" />
                     </div>

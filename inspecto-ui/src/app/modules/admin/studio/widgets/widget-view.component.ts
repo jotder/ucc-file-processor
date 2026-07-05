@@ -16,7 +16,7 @@ import { WidgetHostComponent } from './widget-host.component';
     template: `
         <div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
             <nav class="text-secondary mb-1 text-sm" aria-label="Breadcrumb">
-                <a routerLink="/studio/widgets" class="hover:underline">Widgets</a>
+                <a routerLink="/studio/widgets" class="hover:underline">Viz Library</a>
                 <span class="px-1">/</span>
                 <span>{{ id }}</span>
             </nav>

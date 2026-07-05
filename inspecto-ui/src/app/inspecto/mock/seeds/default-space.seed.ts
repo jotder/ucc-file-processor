@@ -222,12 +222,20 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
         controls: { x: [{ field: 'tariff' }], y: [{ field: 'cost_usd', agg: 'sum' }] },
         description: 'Total cost per tariff from the CDR sample.',
     });
+    putComponent(store, space, 'widget', 'tariff_usage_table', {
+        name: 'tariff_usage_table',
+        datasetId: 'cdr_sample',
+        vizType: 'table',
+        controls: { x: [{ field: 'tariff' }], y: [{ field: 'duration_s', agg: 'sum' }, { field: 'cost_usd', agg: 'sum' }] },
+        description: 'Per-tariff usage and cost as a sortable table.',
+    });
     putComponent(store, space, 'dashboard', 'investigation_overview', {
         name: 'investigation_overview',
         tiles: [
             { widgetId: 'dhaka_network_map', span: 2 },
             { widgetId: 'fraud_network_graph', span: 1 },
             { widgetId: 'cost_by_tariff', span: 1 },
+            { widgetId: 'tariff_usage_table', span: 2 },
         ],
         filter: null,
         exposedFields: [],

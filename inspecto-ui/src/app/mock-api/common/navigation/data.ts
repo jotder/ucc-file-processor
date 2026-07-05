@@ -31,8 +31,8 @@ export const defaultNavigation: GammaNavigationItem[] = [
                 type    : 'collapsable',
                 icon    : 'heroicons_outline:presentation-chart-line',
                 children: [
-                    { id: 'studio-widgets',    title: 'Widget Builder', type: 'basic', icon: 'heroicons_outline:chart-pie',   link: '/studio/widgets' },
-                    { id: 'studio-dashboards', title: 'Dashboards',     type: 'basic', icon: 'heroicons_outline:squares-2x2', link: '/studio/dashboards' },
+                    { id: 'studio-viz-library', title: 'Viz Library',    type: 'basic', icon: 'heroicons_outline:rectangle-stack', link: '/studio/widgets' },
+                    { id: 'studio-dashboards', title: 'Dashboard Builder', type: 'basic', icon: 'heroicons_outline:squares-2x2', link: '/studio/dashboards' },
                     { id: 'studio-link-analysis', title: 'Link Analysis', type: 'basic', icon: 'heroicons_outline:share',    link: '/studio/link-analysis' },
                     { id: 'studio-geo-map',    title: 'Geo Map Analysis', type: 'basic', icon: 'heroicons_outline:globe-alt', link: '/studio/geo-map' },
                 ]

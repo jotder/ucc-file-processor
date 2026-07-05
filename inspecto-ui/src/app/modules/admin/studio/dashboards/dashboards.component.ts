@@ -12,7 +12,7 @@ import { Dashboard } from './dashboard-types';
 import { DashboardsService } from './dashboards.service';
 
 /**
- * Studio **Dashboards** — saved compositions of widgets (the `dashboard` composite kind). Lists dashboards with
+ * Studio **Dashboard Builder** — saved compositions of widgets (the `dashboard` composite kind). Lists dashboards with
  * their tile count and links to the grid editor. Mirrors `WidgetsComponent`.
  */
 @Component({

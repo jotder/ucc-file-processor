@@ -34,7 +34,7 @@ type SpaceData = Record<string, Record<string, unknown>>; // collection → id �
 type StoreData = Record<string, SpaceData>; // space → collections
 
 /** Bump when the persisted shape or the seed contract changes — old snapshots are then discarded. */
-export const MOCK_STORE_KEY = 'inspecto.mock.v8'; // v8: investigation widgets (geo Phase 4) — view-bound widgets + demo dashboard
+export const MOCK_STORE_KEY = 'inspecto.mock.v9'; // v9: Viz Library — seeded table widget on the demo dashboard
 
 export class MockStore {
     private data: StoreData = {};
