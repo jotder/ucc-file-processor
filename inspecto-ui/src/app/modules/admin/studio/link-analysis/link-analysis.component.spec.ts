@@ -290,6 +290,55 @@ describe('LinkAnalysisComponent', () => {
         expect(c.tableRows().map((r) => r['id'])).toEqual(['a->b', 'b->c']);
     });
 
+    it('communities: the Louvain method also groups the graph and paints group emphasis', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+
+        c.communityMethod.set('louvain');
+        c.runCommunities();
+        expect(c.communities()).toHaveLength(2); // a–b–c and d–e
+        expect(c.toolBadge('communities')).toBe('2 found');
+        expect(c.emphasis()?.groups?.get('a')).toBe(c.emphasis()?.groups?.get('c'));
+        expect(c.emphasis()?.groups?.get('a')).not.toBe(c.emphasis()?.groups?.get('d'));
+    });
+
+    it('pattern: builds a motif, matches it, gates on node kind, and focuses a match', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+
+        // default motif = any start → any out-edge → any node: every out-edge (a→b, b→c, d→e)
+        c.runPattern();
+        expect(c.patternMatches()).toHaveLength(3);
+        expect(c.toolBadge('pattern')).toBe('3 matches');
+        expect(c.emphasis()?.nodeIds).toEqual(expect.arrayContaining(['a', 'b', 'c', 'd', 'e']));
+
+        // constrain the start to 'entity' (a,b,c): only a→b and b→c remain
+        c.updatePatternStep(0, { nodeKind: 'entity' });
+        c.runPattern();
+        expect(c.patternMatches()).toHaveLength(2);
+
+        c.addPatternStep();
+        expect(c.patternSteps()).toHaveLength(3);
+        c.removePatternStep(2);
+        expect(c.patternSteps()).toHaveLength(2);
+        c.removePatternStep(0); // never drops below one step
+        expect(c.patternSteps()).toHaveLength(1);
+
+        const first = c.patternMatches()[0];
+        c.focusMatch(first);
+        expect(c.emphasis()?.nodeIds).toEqual(first.nodeIds);
+
+        // a motif with no occurrence surfaces an inline message, not a blank result
+        c.patternSteps.set([{ nodeKind: 'other' }, { edgeKind: 'nope', direction: 'out' }]);
+        c.runPattern();
+        expect(c.patternMatches()).toHaveLength(0);
+        expect(c.analysisError()).toMatch(/No matches/);
+    });
+
     it('saves a view (duplicate name blocked inline) and reloads a saved view', async () => {
         const existing: LinkAnalysisView = { id: 'ring', name: 'Ring', sourceId: 'entity-projection', query: {} };
         const { fixture, save, queried } = create({ views: [existing] });

@@ -559,10 +559,17 @@
                                                         }
                                                     }
                                                     @case ('communities') {
-                                                        <button mat-stroked-button (click)="runCommunities()" class="self-start">
-                                                            <mat-icon svgIcon="heroicons_outline:user-group"></mat-icon>
-                                                            Detect communities
-                                                        </button>
+                                                        <div class="flex flex-wrap items-center gap-2">
+                                                            <mat-button-toggle-group [value]="communityMethod()" (change)="communityMethod.set($event.value)"
+                                                                                     aria-label="Community detection method">
+                                                                <mat-button-toggle value="label-prop">LP automatic clustering</mat-button-toggle>
+                                                                <mat-button-toggle value="louvain">Louvain</mat-button-toggle>
+                                                            </mat-button-toggle-group>
+                                                            <button mat-stroked-button (click)="runCommunities()">
+                                                                <mat-icon svgIcon="heroicons_outline:user-group"></mat-icon>
+                                                                Detect communities
+                                                            </button>
+                                                        </div>
                                                         @if (communities().length) {
                                                             <ul class="mt-1 flex flex-col gap-1 text-sm" aria-label="Communities">
                                                                 @for (c of communities(); track c.id; let i = $index) {
@@ -570,6 +577,68 @@
                                                                         <button class="underline-offset-2 hover:underline" (click)="focusCommunity(c.members)">
                                                                             Community {{ i + 1 }} — {{ c.members.length }} nodes
                                                                         </button>
+                                                                    </li>
+                                                                }
+                                                            </ul>
+                                                        }
+                                                    }
+                                                    @case ('pattern') {
+                                                        <p class="text-sm text-secondary">Match a path motif — a start node, then one hop per step.</p>
+                                                        <div class="flex flex-col gap-2">
+                                                            @for (step of patternSteps(); track $index; let i = $index) {
+                                                                <div class="flex flex-wrap items-center gap-2">
+                                                                    @if (i === 0) {
+                                                                        <span class="w-16 text-sm font-medium">Start</span>
+                                                                    } @else {
+                                                                        <mat-button-toggle-group class="shrink-0" [value]="step.direction ?? 'out'"
+                                                                                                 (change)="updatePatternStep(i, { direction: $event.value })"
+                                                                                                 [attr.aria-label]="'Step ' + (i + 1) + ' direction'">
+                                                                            <mat-button-toggle value="out" aria-label="outgoing">→</mat-button-toggle>
+                                                                            <mat-button-toggle value="in" aria-label="incoming">←</mat-button-toggle>
+                                                                            <mat-button-toggle value="both" aria-label="either direction">↔</mat-button-toggle>
+                                                                        </mat-button-toggle-group>
+                                                                        <mat-form-field subscriptSizing="dynamic" class="w-40">
+                                                                            <mat-label>Link kind</mat-label>
+                                                                            <mat-select [value]="step.edgeKind ?? ''" (valueChange)="updatePatternStep(i, { edgeKind: $event || undefined })">
+                                                                                <mat-option [value]="''">Any</mat-option>
+                                                                                @for (k of edgeKinds(); track k) {
+                                                                                    <mat-option [value]="k">{{ k }}</mat-option>
+                                                                                }
+                                                                            </mat-select>
+                                                                        </mat-form-field>
+                                                                    }
+                                                                    <mat-form-field subscriptSizing="dynamic" class="w-40">
+                                                                        <mat-label>Node kind</mat-label>
+                                                                        <mat-select [value]="step.nodeKind ?? ''" (valueChange)="updatePatternStep(i, { nodeKind: $event || undefined })">
+                                                                            <mat-option [value]="''">Any</mat-option>
+                                                                            @for (k of nodeKinds(); track k) {
+                                                                                <mat-option [value]="k">{{ k }}</mat-option>
+                                                                            }
+                                                                        </mat-select>
+                                                                    </mat-form-field>
+                                                                    @if (i > 0) {
+                                                                        <button mat-icon-button (click)="removePatternStep(i)" [attr.aria-label]="'Remove step ' + (i + 1)">
+                                                                            <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                                                        </button>
+                                                                    }
+                                                                </div>
+                                                            }
+                                                        </div>
+                                                        <div class="flex flex-wrap items-center gap-2">
+                                                            <button mat-stroked-button (click)="addPatternStep()">
+                                                                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                                                                Add step
+                                                            </button>
+                                                            <button mat-stroked-button (click)="runPattern()">
+                                                                <mat-icon svgIcon="heroicons_outline:magnifying-glass-circle"></mat-icon>
+                                                                Find matches
+                                                            </button>
+                                                        </div>
+                                                        @if (patternMatches().length) {
+                                                            <ul class="mt-1 flex flex-col gap-1 text-sm" aria-label="Pattern matches">
+                                                                @for (m of patternMatches(); track $index) {
+                                                                    <li>
+                                                                        <button class="underline-offset-2 hover:underline" (click)="focusMatch(m)">{{ patternMatchLabel(m) }}</button>
                                                                     </li>
                                                                 }
                                                             </ul>

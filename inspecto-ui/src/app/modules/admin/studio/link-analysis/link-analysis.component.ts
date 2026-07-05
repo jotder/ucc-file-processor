@@ -20,9 +20,11 @@ import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.comp
 import { DataTableComponent } from 'app/inspecto/data-table';
 import {
     G6GraphData,
+    GraphSelection,
     GraphSourceId,
     GraphSourceQuery,
     NodeScore,
+    PatternStep,
     betweennessCentrality,
     collapseBranches,
     degreeCentrality,
@@ -31,6 +33,8 @@ import {
     explainNode,
     filterByKinds,
     isForest,
+    louvainCommunities,
+    matchPattern,
     neighborhood,
     searchNodes,
     shortestPath,
@@ -64,7 +68,7 @@ function uniqueNameValidator(taken: () => string[]): ValidatorFn {
     };
 }
 
-type AnalysisTab = 'path' | 'explain' | 'centrality' | 'communities';
+type AnalysisTab = 'path' | 'explain' | 'centrality' | 'communities' | 'pattern';
 
 /** One line of the collapsed-query status (left-pane summary + the top status bar chips). */
 interface QuerySummaryItem {
@@ -117,6 +121,7 @@ export class LinkAnalysisComponent implements OnInit {
         { id: 'explain', label: 'Explain node', icon: 'heroicons_outline:light-bulb' },
         { id: 'centrality', label: 'Centrality', icon: 'heroicons_outline:star' },
         { id: 'communities', label: 'Communities', icon: 'heroicons_outline:user-group' },
+        { id: 'pattern', label: 'Pattern match', icon: 'heroicons_outline:magnifying-glass-circle' },
     ];
 
     // ── query builder ──
@@ -299,7 +304,11 @@ export class LinkAnalysisComponent implements OnInit {
     readonly pathResult = signal<{ hops: string[] } | null>(null);
     readonly explainText = signal('');
     readonly ranking = signal<NodeScore[]>([]);
+    readonly communityMethod = signal<'label-prop' | 'louvain'>('label-prop');
     readonly communities = signal<{ id: string; members: string[] }[]>([]);
+    /** The pattern-match motif — step 0 = the start node; each later step traverses one edge. */
+    readonly patternSteps = signal<PatternStep[]>([{}, { direction: 'out' }]);
+    readonly patternMatches = signal<GraphSelection[]>([]);
 
     // ── saved views ──
     readonly views = signal<LinkAnalysisView[]>([]);
@@ -427,6 +436,8 @@ export class LinkAnalysisComponent implements OnInit {
                 return this.ranking().length ? `top ${this.ranking().length}` : '';
             case 'communities':
                 return this.communities().length ? `${this.communities().length} found` : '';
+            case 'pattern':
+                return this.patternMatches().length ? `${this.patternMatches().length} matches` : '';
         }
     }
 
@@ -436,6 +447,7 @@ export class LinkAnalysisComponent implements OnInit {
         this.explainText.set('');
         this.ranking.set([]);
         this.communities.set([]);
+        this.patternMatches.set([]);
         this.analysisError.set('');
         this.pathFrom.set('');
         this.pathTo.set('');
@@ -674,7 +686,15 @@ export class LinkAnalysisComponent implements OnInit {
     runCommunities(): void {
         const g = this.displayed();
         if (!g) return;
-        const byNode = detectCommunities(g);
+        this.analysisError.set('');
+        let byNode: Map<string, string>;
+        try {
+            byNode = this.communityMethod() === 'louvain' ? louvainCommunities(g) : detectCommunities(g);
+        } catch (err) {
+            this.communities.set([]);
+            this.analysisError.set(err instanceof Error ? err.message : 'The analysis failed.');
+            return;
+        }
         const grouped = new Map<string, string[]>();
         for (const [node, community] of byNode) {
             const arr = grouped.get(community) ?? [];
@@ -690,6 +710,46 @@ export class LinkAnalysisComponent implements OnInit {
 
     focusCommunity(members: string[]): void {
         this.emphasis.set({ nodeIds: members, edgeIds: [] });
+    }
+
+    // ── pattern matching (motif builder) ──
+
+    addPatternStep(): void {
+        this.patternSteps.update((s) => [...s, { direction: 'out' }]);
+    }
+
+    removePatternStep(i: number): void {
+        this.patternSteps.update((s) => (s.length > 1 ? s.filter((_, idx) => idx !== i) : s));
+    }
+
+    updatePatternStep(i: number, patch: Partial<PatternStep>): void {
+        this.patternSteps.update((s) => s.map((step, idx) => (idx === i ? { ...step, ...patch } : step)));
+    }
+
+    runPattern(): void {
+        const g = this.displayed();
+        if (!g) return;
+        this.analysisError.set('');
+        const matches = matchPattern(g, this.patternSteps());
+        this.patternMatches.set(matches);
+        if (!matches.length) {
+            this.emphasis.set(null);
+            this.analysisError.set('No matches for this pattern.');
+            return;
+        }
+        this.emphasis.set({
+            nodeIds: [...new Set(matches.flatMap((m) => m.nodeIds))],
+            edgeIds: [...new Set(matches.flatMap((m) => m.edgeIds))],
+        });
+    }
+
+    focusMatch(m: GraphSelection): void {
+        this.emphasis.set({ nodeIds: m.nodeIds, edgeIds: m.edgeIds });
+    }
+
+    /** The node labels of a match joined into a readable chain (`Acme → Bob → Store`). */
+    patternMatchLabel(m: GraphSelection): string {
+        return m.nodeIds.map((id) => this.labelOf(id)).join(' → ');
     }
 
     // ── export ──

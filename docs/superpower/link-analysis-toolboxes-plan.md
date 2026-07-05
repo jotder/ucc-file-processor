@@ -1,6 +1,7 @@
 # Link Analysis — Toolboxes, Layouts & Algorithms (plan)
 
-**Status:** DRAFT — awaiting owner approval before build. **Date:** 2026-07-04.
+**Status:** Waves A–C SHIPPED (A `ab8b44c` 2026-07-04; B `de1a8e2`, C committed 2026-07-05); Wave D docs
+done — see [`reviews/link-analysis-studio.md`](reviews/link-analysis-studio.md). **Date:** 2026-07-04.
 **Feeds:** `docs/superpower/reviews/link-analysis-studio.md` (review sheet, appended per wave).
 **Builds on:** the shipped C5 studio (`modules/admin/studio/link-analysis/`) + shared G6 host
 (`modules/admin/catalog/graph-view.component.ts`) + pure lib (`inspecto/graph/graph-analysis.ts`).

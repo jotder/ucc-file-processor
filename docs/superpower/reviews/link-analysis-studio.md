@@ -125,3 +125,46 @@ and a link **pattern** and **size** per kind.
   shortest path, degree ranking (CELL-101 top, score 2), 3 communities (3/3/2), explain text («CELL-101 (entity) —
   ← premium: …»), emphasis set; view "Subscriber-cell map" saved → **survives a full reload** and re-runs from
   localStorage; 0 console errors.
+
+## Toolboxes: layouts (Wave B) + algorithms (Wave C) (2026-07-05)
+Plan: [`../link-analysis-toolboxes-plan.md`](../link-analysis-toolboxes-plan.md). Wave A (canvas-first
+restructure) shipped 2026-07-04 (`ab8b44c`). This pass shipped Waves B–C.
+
+### Wave B — Layout toolbox (`de1a8e2`)
+- Shared host `GraphViewComponent` gains `@Input layout: GraphLayoutId | null` (`null` = the existing LR
+  `antv-dagre`, so the 4 existing hosts are byte-identical). `GRAPH_LAYOUTS` (11 entries) maps the requested
+  names → G6 v5 built-ins via `layoutConfig()`, cast to G6 `LayoutOptions` at the call boundary.
+- Layouts: Flow/layered (dagre) · Grid · Force · Clustering force · Radial · Degree ordered (concentric) ·
+  Circular · Information density (mds) · **Mind map / Org chart / Radial tree** (tree-only). The three tree
+  layouts are gated on the pure `isForest(g)` (Kahn peel; each node ≤1 parent, acyclic) — disabled with an
+  explanatory `aria-label` off-tree.
+- New **Layout** toolbar menu (tints when non-default); the chosen layout **persists with the saved view**
+  (`LinkAnalysisView.layout`, re-applied on load).
+
+### Wave C — Algorithm toolbox
+- **Louvain** (`louvainCommunities` in `graph-analysis.ts`): modularity optimization (local-moving +
+  community aggregation to convergence), deterministic (id-order visits, strict-gain moves),
+  `ANALYSIS_NODE_CAP` guarded, smallest-member community ids — **same output contract as
+  `detectCommunities`**, so the Communities tool just adds an **LP automatic clustering / Louvain** method
+  toggle and reuses the list + group emphasis.
+- **Graph pattern matching** (`matchPattern` + `PatternStep`): a path-motif matcher (start node, then one
+  edge-hop per step with `nodeKind?`/`edgeKind?`/`direction`; wildcards; base-kind normalized; match-count
+  capped). New **Pattern match** tool = a compact motif builder (add/remove steps, direction toggle,
+  link-kind + node-kind selects) → a Results list; each match focuses/emphasizes on the canvas. Deliberately
+  a path motif, **not** subgraph isomorphism (that's the V2 line).
+
+### R8 verification (2026-07-05)
+- **Wave B:** `lint:tokens` ✓ · prod `build` ✓ (no new warnings) · `test:ci` **751 / 0 / 5** (+ `isForest`
+  lib spec and pane layout spec). Live smoke (:4204, lineage forest 10n/5e): all 11 layouts apply with 0
+  console errors; tree layouts correctly enabled on the forest. **Caught + fixed** a blocking TS2322 —
+  `layoutConfig`'s `Record<string,unknown>` isn't assignable to G6 `layout`; boundary-cast to `LayoutOptions`.
+- **Wave C:** `lint:tokens` ✓ · prod `build` ✓ (no new warnings) · lib spec isolated **31/31**
+  (louvain: two-cliques→2, single-community, no-edges→singletons, cap; matchPattern: motif match, wildcard,
+  direction, no-match, folded-suffix, cap). Full `test:ci` green with the dev server stopped (a concurrent
+  `ng serve` had induced a batch of 5 s a11y/init timeouts in unrelated specs — load, not regression). Live
+  smoke: Louvain → 5 communities + group emphasis; pattern default → 5 matches; typed `SOURCE —EMITS→ TABLE`
+  → 5 matches (`sftp_cdr → cdr_output`), focus emphasis; 0 console errors.
+
+### Remaining (toolboxes plan)
+Wave D docs done (this sheet + angular-ui SKILL `[layout]`/algorithms note). Still open per plan §V1/backlog:
+per-layout tuning UIs, layout animation, full subgraph-isomorphism, pattern library/save.

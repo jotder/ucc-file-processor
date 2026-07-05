@@ -296,6 +296,110 @@ export function detectCommunities(g: G6GraphData, maxIterations = 20): Map<strin
     return out;
 }
 
+/**
+ * Community detection by Louvain modularity optimization (undirected, unit-weight, deterministic:
+ * level nodes visited in id order, moves only on a strict modularity gain). Local-moving +
+ * community aggregation to convergence. Returns nodeId → communityId (id = the community's smallest
+ * member), matching the {@link detectCommunities} contract so the UI shares the list + emphasis code.
+ * Throws above {@link ANALYSIS_NODE_CAP} — callers surface that as a typed message.
+ */
+export function louvainCommunities(g: G6GraphData): Map<string, string> {
+    if (g.nodes.length > ANALYSIS_NODE_CAP) {
+        throw new Error(`Community detection is capped at ${ANALYSIS_NODE_CAP} nodes (graph has ${g.nodes.length}).`);
+    }
+    const ids = g.nodes.map((n) => n.id).sort();
+    const n = ids.length;
+    if (!n) return new Map();
+    const index = new Map(ids.map((id, i) => [id, i]));
+
+    // Level-0 weighted undirected graph: adj[i] = nbrIdx → weight (each edge once per endpoint),
+    // self[i] = self-loop weight. m2 = Σ degree = 2m, invariant across aggregation levels.
+    let adj: Map<number, number>[] = ids.map(() => new Map<number, number>());
+    let self = new Array<number>(n).fill(0);
+    let m2 = 0;
+    for (const e of g.edges) {
+        const a = index.get(e.source);
+        const b = index.get(e.target);
+        if (a == null || b == null) continue;
+        if (a === b) { self[a] += 1; m2 += 2; continue; }
+        adj[a].set(b, (adj[a].get(b) ?? 0) + 1);
+        adj[b].set(a, (adj[b].get(a) ?? 0) + 1);
+        m2 += 2;
+    }
+    if (m2 === 0) return new Map(ids.map((id) => [id, id])); // no edges ⇒ singletons
+
+    let membership = ids.map((_, i) => i); // original node idx → current-level node idx
+    for (;;) {
+        const size = adj.length;
+        const deg = new Array<number>(size).fill(0);
+        for (let i = 0; i < size; i++) {
+            let d = 2 * self[i];
+            for (const w of adj[i].values()) d += w;
+            deg[i] = d;
+        }
+        const comm = adj.map((_, i) => i);
+        const commTot = deg.slice(); // Σtot per community
+        let improved = true;
+        let moved = false;
+        while (improved) {
+            improved = false;
+            for (let i = 0; i < size; i++) {
+                const ci = comm[i];
+                const kiIn = new Map<number, number>(); // weight from i to each neighbor community
+                for (const [j, w] of adj[i]) {
+                    const cj = comm[j];
+                    kiIn.set(cj, (kiIn.get(cj) ?? 0) + w);
+                }
+                commTot[ci] -= deg[i]; // detach i
+                let bestC = ci;
+                let bestGain = (kiIn.get(ci) ?? 0) - (deg[i] * commTot[ci]) / m2;
+                for (const c of [...kiIn.keys()].sort((x, y) => x - y)) {
+                    if (c === ci) continue;
+                    const gain = kiIn.get(c)! - (deg[i] * commTot[c]) / m2;
+                    if (gain > bestGain + 1e-12) { bestGain = gain; bestC = c; }
+                }
+                commTot[bestC] += deg[i];
+                if (bestC !== ci) { comm[i] = bestC; improved = true; moved = true; }
+            }
+        }
+        // Relabel this level's communities to contiguous ids and fold into the original membership.
+        const remap = new Map<number, number>();
+        for (const c of comm) if (!remap.has(c)) remap.set(c, remap.size);
+        const newSize = remap.size;
+        membership = membership.map((lvl) => remap.get(comm[lvl])!);
+        if (!moved || newSize === size) break; // converged
+
+        // Aggregate communities into super-nodes for the next level.
+        const nAdj: Map<number, number>[] = Array.from({ length: newSize }, () => new Map<number, number>());
+        const nSelf = new Array<number>(newSize).fill(0);
+        for (let i = 0; i < size; i++) nSelf[remap.get(comm[i])!] += self[i];
+        for (let i = 0; i < size; i++) {
+            const ci = remap.get(comm[i])!;
+            for (const [j, w] of adj[i]) {
+                const cj = remap.get(comm[j])!;
+                if (ci === cj) { if (i < j) nSelf[ci] += w; }
+                else nAdj[ci].set(cj, (nAdj[ci].get(cj) ?? 0) + w);
+            }
+        }
+        adj = nAdj;
+        self = nSelf;
+    }
+
+    // Group by final community, label each by its smallest member id.
+    const members = new Map<number, string[]>();
+    for (let i = 0; i < n; i++) {
+        const arr = members.get(membership[i]) ?? [];
+        arr.push(ids[i]);
+        members.set(membership[i], arr);
+    }
+    const out = new Map<string, string>();
+    for (const arr of members.values()) {
+        const rep = [...arr].sort()[0];
+        for (const id of arr) out.set(id, rep);
+    }
+    return out;
+}
+
 /** Connected components (undirected), largest first — each as a node-id list. */
 export function connectedComponents(g: G6GraphData): string[][] {
     const adj = adjacency(g);
@@ -341,6 +445,73 @@ export function filterByKinds(g: G6GraphData, nodeKinds: string[], edgeKinds: st
         (e) => keep.has(e.source) && keep.has(e.target) && (!edgeKinds.length || edgeKinds.includes(e.data.kind)),
     );
     return { nodes, edges };
+}
+
+/** One step of a {@link matchPattern} motif. `undefined` kind = wildcard; on step 0 edge fields are ignored. */
+export interface PatternStep {
+    /** The kind the node at this step must be; wildcard when absent. */
+    nodeKind?: string;
+    /** The kind the edge into this step must be (base kind, `calls · 2` ⇒ `calls`); wildcard when absent. */
+    edgeKind?: string;
+    /** The traversal direction from the previous step into this one; defaults to `out`. */
+    direction?: GraphDirection;
+}
+
+/** Base relationship kind — the folded-count suffix (`calls · 2`) stripped, mirroring the canvas. */
+function baseKind(kind: unknown): string {
+    return String(kind ?? '').split(' · ')[0];
+}
+
+/**
+ * Find every simple path matching an ordered node/edge-kind **motif** (a path pattern, not full
+ * subgraph isomorphism — the deliberate MVP shape). Step 0 constrains the start node; each later step
+ * traverses one edge (matching `edgeKind`/`direction`) to a node matching `nodeKind`. No node repeats
+ * within a match. Returns one {@link GraphSelection} per match, capped at `limit` (default 200).
+ */
+export function matchPattern(g: G6GraphData, steps: PatternStep[], opts: { limit?: number } = {}): GraphSelection[] {
+    const { limit = 200 } = opts;
+    if (!steps.length) return [];
+    const adj = adjacency(g);
+    const nodeKind = new Map(g.nodes.map((nd) => [nd.id, nd.data.kind]));
+    const edgeKind = new Map(g.edges.map((e) => [e.id, baseKind(e.data.kind)]));
+    const nodeOk = (id: string, k?: string): boolean => !k || nodeKind.get(id) === k;
+
+    const results: GraphSelection[] = [];
+    const nodePath: string[] = [];
+    const edgePath: string[] = [];
+    const onPath = new Set<string>();
+    const walk = (stepIdx: number): void => {
+        if (results.length >= limit) return;
+        if (stepIdx >= steps.length) {
+            results.push({ nodeIds: [...nodePath], edgeIds: [...edgePath] });
+            return;
+        }
+        const step = steps[stepIdx];
+        const cur = nodePath[nodePath.length - 1];
+        for (const [next, edgeId] of neighborsOf(adj, cur, step.direction ?? 'out')) {
+            if (onPath.has(next)) continue;
+            if (step.edgeKind && edgeKind.get(edgeId) !== step.edgeKind) continue;
+            if (!nodeOk(next, step.nodeKind)) continue;
+            onPath.add(next);
+            nodePath.push(next);
+            edgePath.push(edgeId);
+            walk(stepIdx + 1);
+            onPath.delete(next);
+            nodePath.pop();
+            edgePath.pop();
+            if (results.length >= limit) return;
+        }
+    };
+    for (const start of g.nodes) {
+        if (results.length >= limit) break;
+        if (!nodeOk(start.id, steps[0].nodeKind)) continue;
+        nodePath.push(start.id);
+        onPath.add(start.id);
+        walk(1);
+        onPath.delete(start.id);
+        nodePath.pop();
+    }
+    return results;
 }
 
 /**

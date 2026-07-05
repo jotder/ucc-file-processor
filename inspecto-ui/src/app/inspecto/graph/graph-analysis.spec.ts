@@ -12,6 +12,8 @@ import {
     explainNode,
     filterByKinds,
     isForest,
+    louvainCommunities,
+    matchPattern,
     neighborhood,
     searchNodes,
     shortestPath,
@@ -223,5 +225,66 @@ describe('descendants / collapseBranches', () => {
         expect(collapseBranches(tree, []).nodes).toHaveLength(8); // no-op without roots
         // collapsing an ancestor keeps a collapsed descendant root visible too
         expect(collapseBranches(tree, ['r', 'b1']).nodes.map((n) => n.id).sort()).toEqual(['b1', 'r', 'x', 'y']);
+    });
+});
+
+describe('louvainCommunities', () => {
+    /** All undirected pairs of a node set — a clique. */
+    const clique = (ids: string[]): G6GraphData['edges'] =>
+        ids.flatMap((s, i) => ids.slice(i + 1).map((t) => edge(s, t)));
+
+    it('separates two cliques joined by a single bridge, labelling each by its smallest member', () => {
+        const twoCliques: G6GraphData = {
+            nodes: ['a1', 'a2', 'a3', 'a4', 'b1', 'b2', 'b3', 'b4'].map((id) => node(id)),
+            edges: [...clique(['a1', 'a2', 'a3', 'a4']), ...clique(['b1', 'b2', 'b3', 'b4']), edge('a1', 'b1')],
+        };
+        const c = louvainCommunities(twoCliques);
+        expect(['a1', 'a2', 'a3', 'a4'].every((id) => c.get(id) === 'a1')).toBe(true);
+        expect(['b1', 'b2', 'b3', 'b4'].every((id) => c.get(id) === 'b1')).toBe(true);
+        expect(c.get('a1')).not.toBe(c.get('b1'));
+    });
+
+    it('keeps a single dense component as one community', () => {
+        const tri: G6GraphData = { nodes: ['p', 'q', 'r'].map((id) => node(id)), edges: [edge('p', 'q'), edge('q', 'r'), edge('r', 'p')] };
+        const c = louvainCommunities(tri);
+        expect(new Set(c.values()).size).toBe(1);
+        expect(c.get('r')).toBe('p'); // smallest-member label
+    });
+
+    it('returns singletons when there are no edges, and is capped', () => {
+        expect(louvainCommunities({ nodes: ['m', 'n'].map((id) => node(id)), edges: [] })).toEqual(new Map([['m', 'm'], ['n', 'n']]));
+        const big: G6GraphData = { nodes: Array.from({ length: ANALYSIS_NODE_CAP + 1 }, (_, i) => node(`n${i}`)), edges: [] };
+        expect(() => louvainCommunities(big)).toThrow(/capped/);
+    });
+});
+
+describe('matchPattern', () => {
+    /** acc1 —transfer→ acc2 —transfer→ m1, plus acc1 —pay→ acc3. */
+    const fraud: G6GraphData = {
+        nodes: [node('acc1', 'account'), node('acc2', 'account'), node('m1', 'merchant'), node('acc3', 'account')],
+        edges: [edge('acc1', 'acc2', 'transfer'), edge('acc2', 'm1', 'transfer'), edge('acc1', 'acc3', 'pay')],
+    };
+
+    it('matches an ordered node/edge-kind path motif with its node+edge ids', () => {
+        const m = matchPattern(fraud, [{ nodeKind: 'account' }, { edgeKind: 'transfer', nodeKind: 'account' }, { edgeKind: 'transfer', nodeKind: 'merchant' }]);
+        expect(m).toHaveLength(1);
+        expect(m[0].nodeIds).toEqual(['acc1', 'acc2', 'm1']);
+        expect(m[0].edgeIds).toEqual(['acc1->acc2:transfer', 'acc2->m1:transfer']);
+    });
+
+    it('treats absent kinds as wildcards and follows the requested direction', () => {
+        expect(matchPattern(fraud, [{}, {}])).toHaveLength(3); // every out-edge = a 2-node path
+        expect(matchPattern(fraud, [{ nodeKind: 'merchant' }, { nodeKind: 'account', edgeKind: 'transfer', direction: 'in' }])[0].nodeIds).toEqual(['m1', 'acc2']);
+    });
+
+    it('returns no matches when the motif does not occur, and strips the folded-count edge suffix', () => {
+        expect(matchPattern(fraud, [{ nodeKind: 'account' }, { edgeKind: 'pay', nodeKind: 'merchant' }])).toHaveLength(0);
+        const folded: G6GraphData = { nodes: [node('p', 'account'), node('q', 'account')], edges: [edge('p', 'q', 'transfer · 2')] };
+        expect(matchPattern(folded, [{ nodeKind: 'account' }, { edgeKind: 'transfer', nodeKind: 'account' }])).toHaveLength(1);
+    });
+
+    it('caps the number of matches', () => {
+        const star: G6GraphData = { nodes: ['c', 'm0', 'm1', 'm2'].map((id) => node(id)), edges: ['m0', 'm1', 'm2'].map((t) => edge('c', t)) };
+        expect(matchPattern(star, [{}, {}], { limit: 2 })).toHaveLength(2);
     });
 });

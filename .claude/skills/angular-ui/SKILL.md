@@ -124,9 +124,13 @@ src/app/
   full-height flex column (Link Analysis studio) to grow into the remaining space — its `ResizeObserver` re-sizes the
   canvas live when collapsible side panes open/close. Further opt-ins on the read-only host: `[display]`
   (`GraphDisplayOptions` — label toggles + per-kind colour/shape/pattern/size overrides, what Link Analysis persists with a saved view),
-  `[tooltips]="true"` (G6 hover tooltip plugin), `(edgeClick)`, and `fitView()`. **G6 can't instantiate in jsdom** —
+  `[tooltips]="true"` (G6 hover tooltip plugin), `(edgeClick)`, `fitView()`, and `[layout]` (`GraphLayoutId | null`;
+  `null` = the default LR `antv-dagre`, so the 4 existing hosts are byte-identical — `GRAPH_LAYOUTS` maps the ids to
+  G6 built-ins via `layoutConfig()`, cast to `LayoutOptions` at the call boundary; the 3 tree layouts gate on the pure
+  `isForest()`). **G6 can't instantiate in jsdom** —
   unit-test on the empty/no-graph path (canvas not mounted) for axe, and the editing logic via the component's methods
-  with a mocked host.
+  with a mocked host. Pure graph algorithms (`inspecto/graph/graph-analysis.ts` — path/centrality/`detectCommunities`+
+  `louvainCommunities`/`matchPattern` motif search/…) are the testable seam: hand-built fixtures, no canvas.
 - **Ask the minimum (product-owner rule, 2026-07-02):** a form asks only what the action needs NOW;
   everything else is on-demand. Concretely: **create flows name the artifact at SAVE time** (a save step
   asks Name — pre-filled `<type>_<host>`-style, unique, = the id — plus optional Description) and
