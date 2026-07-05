@@ -97,6 +97,10 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
 - [`superpower/geo-map-case-studies.md`](superpower/geo-map-case-studies.md) — **CS1–CS5 case-study pack**:
   five boundary-pushing seeded investigation scenarios (point-cap stress, impossible travel, weighted
   corridors, fleet dwells, border co-location) with pinned spec invariants. **Shipped.**
+- [`superpower/pipeline-case-studies.md`](superpower/pipeline-case-studies.md) — **Pipelines CS1–CS5
+  case-study pack**: five boundary-pushing seeded authored pipelines (canvas scale, clone-mode streaming,
+  disconnected legs, full parser-format gauntlet, dead-letter torture) + data sources and reusable
+  grammars, with pinned spec invariants. **Shipped.**
 
 ## Strategy & roadmap (stakeholder-facing)
 
