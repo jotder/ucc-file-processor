@@ -40,7 +40,7 @@ import { AssistPanelComponent } from 'app/inspecto/components/assist-panel.compo
                 <div class="mt-4">
                     <div class="flex items-center justify-between font-semibold">
                         Suggested alert rule (.toon)
-                        <button mat-icon-button (click)="copy(d.suggestedAlertRuleToon)">
+                        <button mat-icon-button aria-label="Copy suggested alert rule" (click)="copy(d.suggestedAlertRuleToon)">
                             <mat-icon svgIcon="heroicons_outline:clipboard-document"></mat-icon>
                         </button>
                     </div>
