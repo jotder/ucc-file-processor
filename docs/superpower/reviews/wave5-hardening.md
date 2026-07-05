@@ -69,10 +69,15 @@ At 768px all 32 routes were already clean (no tablet-specific defects). ag-Grid 
 their own container (by design, not a violation). Visual proof: /expectations at 375px — header wraps,
 switchers icon-only, grid self-scrolls.
 
-## P3 — /design gallery + icon/model-settings sweep
-- [ ] `/design`: add the new shared-host primitives from this stretch (GraphView `[layout]` picker; note the
-  algorithm/pattern toolbox lives in Link Analysis, not a shared primitive).
-- [ ] icon-settings + model-settings: a11y labels, form rules (ask-the-minimum / dup-guard where authoring).
+## P3 — /design gallery + icon/model-settings sweep — DONE 2026-07-05
+- [x] `/design` Graph-hosts card refreshed: documents the read-only host's opt-in inputs (`[fill]` /
+  `[display]` / `[tooltips]` / `[emphasis]` / `[layout]` with the 11-layout table + `isForest()` tree
+  gating) and points at Link Analysis as the live everything-on example + the `graph-analysis.ts`
+  algorithm library. Also fixed banned vocabulary in the card (*Flows* → *Pipelines*, per GLOSSARY).
+- [x] icon-settings + model-settings swept: axe specs green (P1), all icon-only buttons labelled,
+  no banned vocabulary in UI text. One stale comment fixed (icon-settings referenced `flow-graph`;
+  the file is `pipeline-graph.ts`). Neither pane authors named artifacts ⇒ dup-guard/ask-the-minimum
+  not applicable. Live-verified /design renders the new card at 375px, 0 console errors.
 
 ## P4 — final GAUNTLET + bundle smoke
 - [ ] `lint:tokens` · prod `build` · `test:ci` · `package.ps1` bundle smoke (boots from the artifact).

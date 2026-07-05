@@ -13,7 +13,7 @@ import { NodeTypeGroup, categoryLabel, groupByCategory, resolveNodeIcon } from '
  * Processor-icon settings — map each processor **type** (and per-**sub-type**) to a glyph + colour. A
  * sub-type row overrides its category default; an unset ("inherit") row uses the category rule, then the
  * built-in per-kind glyph. Persists the whole map via {@link IconMapService} (mock-backed). The pipeline
- * graphs read this map to render their nodes (see flow-graph `resolveNodeIcon`).
+ * graphs read this map to render their nodes (see `pipeline-graph.ts` `resolveNodeIcon`).
  */
 @Component({
     selector: 'app-icon-settings',

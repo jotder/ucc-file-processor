@@ -254,15 +254,24 @@
             <p class="text-secondary mb-4 text-sm">
                 Two patterns for node-graph views — both reuse <code>canvasTheme()</code> +
                 <code>nodeColor/nodeShape</code> (never hardcode canvas colours). See the
-                <code>angular-ui</code> skill §4. Live examples are on the <b>Flows</b> pane
-                (Per-flow / Combined / Editor toggle).
+                <code>angular-ui</code> skill §4. Live examples are on the <b>Pipelines</b> pane
+                (Per-pipeline / Combined / Editor toggle) and the <b>Link Analysis</b> studio.
             </p>
             <div class="bg-card grid gap-4 rounded-2xl p-6 shadow sm:grid-cols-2">
                 <div>
                     <div class="mb-1 text-sm font-medium">Read-only</div>
                     <p class="text-secondary text-sm">
                         <code>catalog/graph-view.component</code> — rebuilds the graph on every data / scheme
-                        change. For static visualisations (catalog graph, Flows Per-flow / Combined).
+                        change. For static visualisations (catalog graph, Pipelines Per-pipeline / Combined).
+                        Opt-in inputs (all default off; hosts stay byte-identical without them):
+                        <code>[fill]</code> grow-to-container, <code>[display]</code> per-kind
+                        colour/shape/pattern/size overrides, <code>[tooltips]</code> hover details,
+                        <code>[emphasis]</code> highlight/dim + community grouping, and <code>[layout]</code> —
+                        11 selectable G6 layouts (<code>GRAPH_LAYOUTS</code>/<code>layoutConfig()</code>; the 3
+                        tree layouts gate on the pure <code>isForest()</code>). Live with all options: the
+                        <b>Link Analysis</b> studio, which pairs it with the pure algorithm library
+                        <code>inspecto/graph/graph-analysis.ts</code> (paths, centrality, LP + Louvain
+                        communities, motif pattern matching).
                     </p>
                 </div>
                 <div>
