@@ -356,6 +356,11 @@ options + camera. Parallel to **Link-Analysis View**.
 plane (points/routes), and overlays (heatmap; Phase 3 boundaries/custom GeoJSON). ⛔ don't reuse *Layer* for
 non-map stacking concepts.
 
+**Geocoder** *(geo only)* — The pluggable seam that turns a place *name* into candidate coordinates (the
+"find place" jump), parallel to **GeoSource**. Ships one implementation: the offline place-table geocoder
+(no network); a customer online geocoder (e.g. Nominatim URL) implements the same interface. Distinct from
+**GeoSource** (which projects *Dataset rows* onto the map) — geocoding resolves a name to a point.
+
 ### Resolved collisions (do not regress)
 - **`USES` → `CONSUMES`** in the **Lineage** graph (Report→KPI), so it no longer collides with the **component**
   graph's `uses` (composite→part). Two planes, two words.

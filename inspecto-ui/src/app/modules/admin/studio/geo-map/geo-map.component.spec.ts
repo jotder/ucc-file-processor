@@ -113,6 +113,17 @@ describe('GeoMapComponent', () => {
         expect(c.rows()).toHaveLength(3);
     });
 
+    it('find-place geocodes via the seam and populates candidates (blank clears them)', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.onFindPlace('dhaka');
+        await Promise.resolve(); // the geocode promise resolves synchronously (offline table)
+        expect(c.placeResults().map((r) => r.name)).toContain('Dhaka');
+        c.onFindPlace('');
+        expect(c.placeResults()).toEqual([]);
+    });
+
     it('reports a failed query inline', async () => {
         const { fixture } = create({ fail: true });
         fixture.detectChanges();

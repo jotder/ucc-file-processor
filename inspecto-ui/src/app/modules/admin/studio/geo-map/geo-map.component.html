@@ -42,6 +42,31 @@
                     </div>
                 </mat-menu>
 
+                <!-- find place (geocoder → fly the map) -->
+                <button mat-icon-button [matMenuTriggerFor]="placeMenu" matTooltip="Find place" aria-label="Find place">
+                    <mat-icon svgIcon="heroicons_outline:map-pin"></mat-icon>
+                </button>
+                <mat-menu #placeMenu="matMenu">
+                    <div class="flex w-72 flex-col gap-1 p-3" (click)="$event.stopPropagation()" aria-label="Find place">
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Find place</mat-label>
+                            <input matInput [value]="placeQuery()" (input)="onFindPlace($any($event.target).value)"
+                                   placeholder="e.g. Dhaka" aria-label="Find place by name" />
+                            <mat-icon matSuffix svgIcon="heroicons_outline:map-pin"></mat-icon>
+                        </mat-form-field>
+                        @if (placeQuery() && !placeResults().length) {
+                            <p class="text-secondary text-sm">No matching place.</p>
+                        }
+                        @for (r of placeResults(); track r.name + r.lat) {
+                            <button mat-button class="!justify-start" (click)="goToPlace(r)"
+                                    [attr.aria-label]="'Go to ' + r.name">
+                                <span>{{ r.name }}</span>
+                                @if (r.context) { <span class="text-secondary ml-1 text-xs">{{ r.context }}</span> }
+                            </button>
+                        }
+                    </div>
+                </mat-menu>
+
                 <!-- kind filter -->
                 <button mat-icon-button [matMenuTriggerFor]="kindMenu" [color]="kindFilter().length ? 'primary' : undefined"
                         matTooltip="Filter point types"

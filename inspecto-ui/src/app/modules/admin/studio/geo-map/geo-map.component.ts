@@ -62,6 +62,8 @@ import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.serv
 import { datasetRows } from 'app/modules/admin/studio/link-analysis/entity-projection';
 import { ICON_COLOR_SWATCHES } from 'app/inspecto/theme/chart-tokens';
 import { GeoSourcesService, ProjectedGeo } from './geo-projection';
+import { GeocoderService } from './geocoder.service';
+import { GeocodeResult } from 'app/inspecto/geo';
 
 /** Annotation accent — the amber chart-token swatch (visually distinct from data kinds). */
 const NOTE_ACCENT = ICON_COLOR_SWATCHES[3];
@@ -104,9 +106,14 @@ export class GeoMapComponent implements OnInit, OnDestroy {
     private datasetsService = inject(DatasetsService);
     private viewsService = inject(GeoMapService);
     private geoSettings = inject(GeoSettingsService);
+    private geocoder = inject(GeocoderService);
 
     /** Customer tile server (Settings → Map); `null` = the bundled offline basemap. */
     readonly tileServerUrl = signal<string | null>(null);
+
+    // ── find place (geocoding seam, D4) ──
+    readonly placeQuery = signal('');
+    readonly placeResults = signal<GeocodeResult[]>([]);
 
     @ViewChild(MapViewComponent) private mapView?: MapViewComponent;
     @ViewChild('saveTrigger') private saveTrigger?: MatMenuTrigger;
@@ -429,6 +436,21 @@ export class GeoMapComponent implements OnInit, OnDestroy {
     // ── investigation ──
     onSearch(text: string): void {
         this.search.set(text);
+    }
+
+    /** Geocode a place name through the pluggable seam (offline table by default) — populates candidates. */
+    onFindPlace(text: string): void {
+        this.placeQuery.set(text);
+        if (!text.trim()) {
+            this.placeResults.set([]);
+            return;
+        }
+        this.geocoder.geocode(text).then((results) => this.placeResults.set(results));
+    }
+
+    /** Fly the map to a chosen geocoding candidate (the point need not be in the data). */
+    goToPlace(result: GeocodeResult): void {
+        this.mapView?.flyToCoord(result.lat, result.lon);
     }
 
     kindOn(kind: string): boolean {

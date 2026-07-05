@@ -259,6 +259,16 @@ geocoding. Performance track (progressive loading, worker-side binning).
 > it; a live change restyles via the existing `applyScheme` path). Live-verified: saved a data-URI
 > raster template, the studio map's style showed the `imagery` source/layer with the data planes
 > intact, then reset to the offline default.
+> **Phase 4c (pluggable geocoding) DONE 2026-07-05** — the D4 seam: a pure framework-free `Geocoder`
+> interface + `OfflineGeocoder` (prefix/substring match over a bundled place table, invalid-coordinate
+> safe) in `inspecto/geo/geo-geocoder.ts`, a `GeocoderService` holding the offline geocoder as default
+> (a customer Nominatim-URL geocoder joins behind the same interface — no consumer change), and a
+> curated `world-places.ts` table (major cities + the demo/case-study anchors). The geo studio gains a
+> **Find place** toolbar popover: geocode a name → click a candidate → `MapViewComponent.flyToCoord`
+> centres the map (the point needn't be in the data). GLOSSARY §11 gains **Geocoder**. Live-verified
+> the find→fly flow. Geo Phase 4 UI scope (4a widgets + 4b tiles + 4c geocoding) is now complete; the
+> remaining Phase 4 backlog is all backend (DuckDB spatial, projection endpoint, `ComponentStore`
+> widening) + performance.
 
 ---
 

@@ -177,6 +177,11 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         this.map.easeTo({ center: [p.lon, p.lat], zoom: Math.max(this.map.getZoom(), 10), duration: 400 });
     }
 
+    /** Center on an arbitrary coordinate (geocoder "find place" — the point need not be in the data). */
+    flyToCoord(lat: number, lon: number, zoom = 10): void {
+        this.map?.easeTo({ center: [lon, lat], zoom: Math.max(this.map.getZoom(), zoom), duration: 400 });
+    }
+
     /** Jump to a saved view's camera (also applied automatically on mount via `[camera]`). */
     setCamera(camera: GeoCamera): void {
         this.map?.jumpTo({ center: camera.center, zoom: camera.zoom });
