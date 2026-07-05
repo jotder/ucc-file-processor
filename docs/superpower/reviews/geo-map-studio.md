@@ -3,6 +3,17 @@
 **Route:** `/studio/geo-map` · **Plan:** [`../geo-map-analysis-plan.md`](../geo-map-analysis-plan.md) §Phase 0–3
 · **Reviewed:** 2026-07-05 · **Status:** ✅ shipped (mock-first, like Link Analysis MVP)
 
+## Case-study pack addendum (CS1–CS5)
+
+Five boundary-pushing seeded scenarios — catalog, per-case drive instructions, and pinned spec
+invariants in [`../geo-map-case-studies.md`](../geo-map-case-studies.md)
+(`geo-case-studies.spec.ts`). Live-verified 2026-07-05: CS1 truncates at exactly 5,000 points with
+25 skipped and both kinds; CS2's search finds ACC-007's 3 logins (the only >1,800 km/h account);
+CS3 folds 901 legs into 24 corridors (weight 3–150, 4 channels, 5 skipped); CS4 detects 20 dwells
+including exactly the 2 staged roadside stops and depots for all 6 trucks; CS5 opens as heatmap
+with its saved camera and the staged pairs (B01↔B07×4, B03↔B11×3) top the co-location list.
+GAUNTLET green (841/0/5); the new spec file runs in ~66 ms despite the 5.6k-row projection.
+
 ## Phase 3a addendum (geo intelligence)
 
 - **Toolbox** (beaker toggle): Co-location (radius + time window) · Frequent locations (radius) ·

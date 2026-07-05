@@ -142,6 +142,62 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
         },
     });
 
+    // ── Geo Map Analysis case studies CS1–CS5 (docs/superpower/geo-map-case-studies.md):
+    //    five boundary-pushing datasets + one-click saved Geo Views ──────────────────────────
+    const geoCol = (name: string, type: 'string' | 'number' | 'date', role: 'dimension' | 'temporal' = 'dimension') =>
+        ({ name, type, role });
+    const geoCaseDatasets: Array<{ id: string; columns: ReturnType<typeof geoCol>[] }> = [
+        { id: 'simbox_sweep', columns: [geoCol('id', 'string'), geoCol('msisdn', 'string'), geoCol('role', 'string'), geoCol('lat', 'number'), geoCol('lon', 'number'), geoCol('event_time', 'date', 'temporal')] },
+        { id: 'impossible_travel', columns: [geoCol('id', 'string'), geoCol('account', 'string'), geoCol('channel', 'string'), geoCol('lat', 'number'), geoCol('lon', 'number'), geoCol('login_time', 'date', 'temporal')] },
+        { id: 'mule_corridors', columns: [geoCol('id', 'string'), geoCol('from_city', 'string'), geoCol('from_lat', 'number'), geoCol('from_lon', 'number'), geoCol('to_city', 'string'), geoCol('to_lat', 'number'), geoCol('to_lon', 'number'), geoCol('channel', 'string'), geoCol('moved_at', 'date', 'temporal')] },
+        { id: 'fleet_breadcrumbs', columns: [geoCol('id', 'string'), geoCol('truck', 'string'), geoCol('status', 'string'), geoCol('lat', 'number'), geoCol('lon', 'number'), geoCol('ping_time', 'date', 'temporal')] },
+        { id: 'border_roamers', columns: [geoCol('id', 'string'), geoCol('imei', 'string'), geoCol('side', 'string'), geoCol('lat', 'number'), geoCol('lon', 'number'), geoCol('seen_at', 'date', 'temporal')] },
+    ];
+    for (const d of geoCaseDatasets) {
+        putComponent(store, space, 'dataset', d.id, {
+            name: d.id,
+            kind: 'virtual',
+            sourceName: d.id,
+            query: { projection: '*', where: { kind: 'group', op: 'AND', items: [] }, sqlOverride: null },
+            physicalRef: null,
+            columns: d.columns,
+            measures: [],
+            viz: null,
+        });
+    }
+    putComponent(store, space, 'geo-map-view', 'cs1-simbox-farms', {
+        name: 'CS1 — SIM-box farms (stress: 5.6k events)',
+        description: 'Three static SIM farms among 350 roaming subscribers. Deliberately trips the 5,000-point cap AND the invalid-row banner. Try: type filter → simbox, Stay points, then Co-location on a filtered view.',
+        sourceId: 'dataset',
+        query: { projection: { datasetId: 'simbox_sweep', latCol: 'lat', lonCol: 'lon', entityCol: 'msisdn', kindCol: 'role', timeCol: 'event_time' } },
+    });
+    putComponent(store, space, 'geo-map-view', 'cs2-impossible-travel', {
+        name: 'CS2 — Impossible travel',
+        description: 'Ten accounts logging in around their home cities — one jumps New York → Singapore in 65 minutes. Try: search ACC-007, then press Play on the timeline.',
+        sourceId: 'dataset',
+        query: { projection: { datasetId: 'impossible_travel', latCol: 'lat', lonCol: 'lon', entityCol: 'account', kindCol: 'channel', timeCol: 'login_time' } },
+    });
+    putComponent(store, space, 'geo-map-view', 'cs3-mule-corridors', {
+        name: 'CS3 — Mule corridors (900 legs → 24 routes)',
+        description: 'A week of money movements over 18 cities folding into weighted great-circle corridors across 4 channels. Try: click the thickest corridor, filter by channel, time-slide the week.',
+        sourceId: 'od-routes',
+        query: { routes: { datasetId: 'mule_corridors', fromLatCol: 'from_lat', fromLonCol: 'from_lon', toLatCol: 'to_lat', toLonCol: 'to_lon', fromCol: 'from_city', toCol: 'to_city', kindCol: 'channel', timeCol: 'moved_at' } },
+    });
+    putComponent(store, space, 'geo-map-view', 'cs4-fleet-dwell-audit', {
+        name: 'CS4 — Fleet dwell audit (24h breadcrumbs)',
+        description: 'Six trucks, 15-minute GPS pings for a day; two take unscheduled roadside stops. Try: Stay points (radius 300 m, dwell 45 min), Frequent locations for the depots, Play for the day.',
+        sourceId: 'dataset',
+        query: { projection: { datasetId: 'fleet_breadcrumbs', latCol: 'lat', lonCol: 'lon', entityCol: 'truck', kindCol: 'status', timeCol: 'ping_time' } },
+    });
+    putComponent(store, space, 'geo-map-view', 'cs5-border-hotspots', {
+        name: 'CS5 — Border roamers (heatmap)',
+        description: 'Twelve devices oscillating across a border strip for three days, with staged meetings at the crossings. Opens as a heatmap over the strip. Try: Co-location (radius 300 m / 30 min), switch back to markers, filter to view.',
+        sourceId: 'dataset',
+        query: { projection: { datasetId: 'border_roamers', latCol: 'lat', lonCol: 'lon', entityCol: 'imei', kindCol: 'side', timeCol: 'seen_at' } },
+        display: 'heatmap',
+        camera: { center: [88.894, 23.045], zoom: 11 },
+    });
+
     // ── Reconciliation (C9): the two RA sides as datasets + a seeded reconciliation over them ──────
     for (const side of ['switch_cdr', 'billing_cdr'] as const) {
         putComponent(store, space, 'dataset', side, {

@@ -202,6 +202,196 @@ export const SAMPLE_SOURCES: Record<string, Record<string, unknown>[]> = {
         rows.push({ id: 'm-bad', from_city: 'Dhaka', from_lat: 23.8103, from_lon: 90.4125, to_city: 'Nowhere', to_lat: null, to_lon: null, channel: 'wire', moved_at: '2026-06-02T20:30:00Z' });
         return rows;
     })(),
+
+    // ═══ Geo Map Analysis case studies CS1–CS5 (docs/superpower/geo-map-case-studies.md) ═══
+    // Deterministic generators (LCG-seeded — same data every build) sized to push a specific
+    // boundary each: the point cap, impossible travel, weighted global corridors, dwell
+    // detection over dense tracks, and cross-border co-location.
+
+    // CS1 — SIM-box farms (STRESS): 3 static farms × 40 SIMs × 12 calls + 350 roaming
+    // subscribers × 12 events = 5,640 valid rows (trips GEO_POINT_CAP=5000 → Truncated banner)
+    // + 25 leading broken rows (→ Rows-skipped banner). Farms are dwell/co-location goldmines.
+    simbox_sweep: (() => {
+        const rand = lcg(11);
+        const rows: Record<string, unknown>[] = [];
+        const at = (min: number): string => new Date(Date.UTC(2026, 5, 3, 0, Math.round(min))).toISOString();
+        for (let b = 0; b < 25; b++) {
+            rows.push({ id: `sb-bad-${b}`, msisdn: `SIM-BAD-${b}`, role: 'simbox', lat: b % 2 ? null : 999, lon: 90.4, event_time: at(60) });
+        }
+        const farms: [number, number][] = [[23.7104, 90.4074], [23.7806, 90.2792], [23.8759, 90.3795]];
+        farms.forEach((f, fi) => {
+            for (let s = 0; s < 40; s++) {
+                const lat = f[0] + (rand() - 0.5) * 0.0008;
+                const lon = f[1] + (rand() - 0.5) * 0.0008;
+                for (let e = 0; e < 12; e++) {
+                    rows.push({
+                        id: `sb-${rows.length}`, msisdn: `SIM-F${fi + 1}-${String(s + 1).padStart(2, '0')}`,
+                        role: 'simbox', lat, lon, event_time: at(360 + e * 90 + rand() * 30),
+                    });
+                }
+            }
+        });
+        for (let u = 0; u < 350; u++) {
+            let lat = 23.6 + rand() * 0.35;
+            let lon = 90.25 + rand() * 0.3;
+            for (let e = 0; e < 12; e++) {
+                lat += (rand() - 0.5) * 0.02;
+                lon += (rand() - 0.5) * 0.02;
+                rows.push({
+                    id: `sb-${rows.length}`, msisdn: `MS-${String(u + 1).padStart(3, '0')}`,
+                    role: 'subscriber', lat, lon, event_time: at(300 + e * 100 + rand() * 60),
+                });
+            }
+        }
+        return rows;
+    })(),
+
+    // CS2 — Impossible travel: 10 account entities logging in around home regions; ACC-007
+    // jumps New York 13:00 → Singapore 14:05 (≈15,300 km in 65 min) — the flagged anomaly.
+    impossible_travel: (() => {
+        const rand = lcg(22);
+        const rows: Record<string, unknown>[] = [];
+        const homes: [string, number, number][] = [
+            ['ACC-001', 51.5074, -0.1278], ['ACC-002', 40.7128, -74.006], ['ACC-003', 23.8103, 90.4125],
+            ['ACC-004', 1.3521, 103.8198], ['ACC-005', 25.2048, 55.2708], ['ACC-006', 48.8566, 2.3522],
+            ['ACC-008', 35.6762, 139.6503], ['ACC-009', -33.8688, 151.2093], ['ACC-010', 19.076, 72.8777],
+        ];
+        const at = (h: number, m: number): string => new Date(Date.UTC(2026, 5, 4, h, m)).toISOString();
+        for (const [account, lat, lon] of homes) {
+            for (let e = 0; e < 12; e++) {
+                rows.push({
+                    id: `it-${rows.length}`, account, channel: rand() > 0.4 ? 'mobile' : 'web',
+                    lat: lat + (rand() - 0.5) * 0.15, lon: lon + (rand() - 0.5) * 0.15,
+                    login_time: at(6 + Math.floor(e * 1.4), Math.floor(rand() * 59)),
+                });
+            }
+        }
+        // The anomaly: same account, two continents, 65 minutes apart.
+        rows.push({ id: 'it-x1', account: 'ACC-007', channel: 'web', lat: 40.7128, lon: -74.006, login_time: at(13, 0) });
+        rows.push({ id: 'it-x2', account: 'ACC-007', channel: 'web', lat: 1.3521, lon: 103.8198, login_time: at(14, 5) });
+        rows.push({ id: 'it-x3', account: 'ACC-007', channel: 'mobile', lat: 1.3548, lon: 103.822, login_time: at(15, 30) });
+        return rows;
+    })(),
+
+    // CS3 — Mule corridors: ~900 O/D legs over 18 world cities folding into 24 weighted
+    // corridors across 4 channel kinds (weight range 3 → 150) + 5 broken legs.
+    mule_corridors: (() => {
+        const rand = lcg(33);
+        const c: Record<string, [number, number]> = {
+            Dhaka: [23.8103, 90.4125], Chattogram: [22.3569, 91.7832], Dubai: [25.2048, 55.2708],
+            Singapore: [1.3521, 103.8198], London: [51.5074, -0.1278], 'New York': [40.7128, -74.006],
+            Mumbai: [19.076, 72.8777], Karachi: [24.8607, 67.0011], Riyadh: [24.7136, 46.6753],
+            'Kuala Lumpur': [3.139, 101.6869], 'Hong Kong': [22.3193, 114.1694], Lagos: [6.5244, 3.3792],
+            Nairobi: [-1.2921, 36.8219], Toronto: [43.6532, -79.3832], Sydney: [-33.8688, 151.2093],
+            Frankfurt: [50.1109, 8.6821], Istanbul: [41.0082, 28.9784], Doha: [25.2854, 51.531],
+        };
+        const corridors: [string, string, string, number][] = [
+            ['Dhaka', 'Dubai', 'hundi', 150], ['Dhaka', 'Riyadh', 'hundi', 110], ['Dhaka', 'Kuala Lumpur', 'hundi', 60],
+            ['Chattogram', 'Singapore', 'wire', 45], ['Dubai', 'London', 'wire', 95], ['Dubai', 'Istanbul', 'crypto', 38],
+            ['Mumbai', 'Dubai', 'hundi', 70], ['Karachi', 'Dubai', 'hundi', 48], ['Singapore', 'Hong Kong', 'wire', 42],
+            ['Hong Kong', 'London', 'wire', 30], ['London', 'New York', 'wire', 33], ['New York', 'Toronto', 'wire', 25],
+            ['Lagos', 'London', 'crypto', 28], ['Nairobi', 'Dubai', 'crypto', 22], ['Doha', 'Frankfurt', 'wire', 18],
+            ['Istanbul', 'Frankfurt', 'cash', 15], ['Kuala Lumpur', 'Sydney', 'wire', 12], ['Dhaka', 'Singapore', 'crypto', 20],
+            ['Frankfurt', 'London', 'wire', 10], ['Dubai', 'Doha', 'cash', 8], ['Mumbai', 'Singapore', 'wire', 9],
+            ['Riyadh', 'Istanbul', 'cash', 6], ['Toronto', 'Sydney', 'crypto', 4], ['Nairobi', 'Lagos', 'cash', 3],
+        ];
+        const rows: Record<string, unknown>[] = [];
+        for (const [from, to, channel, legs] of corridors) {
+            for (let l = 0; l < legs; l++) {
+                rows.push({
+                    id: `mc-${rows.length}`, from_city: from, from_lat: c[from][0], from_lon: c[from][1],
+                    to_city: to, to_lat: c[to][0], to_lon: c[to][1], channel,
+                    moved_at: new Date(Date.UTC(2026, 5, 1 + Math.floor(rand() * 7), Math.floor(rand() * 24), Math.floor(rand() * 59))).toISOString(),
+                });
+            }
+        }
+        for (let b = 0; b < 5; b++) {
+            rows.push({ id: `mc-bad-${b}`, from_city: 'Dhaka', from_lat: 23.8103, from_lon: 90.4125, to_city: 'Unknown', to_lat: '', to_lon: '', channel: 'wire', moved_at: '2026-06-05T12:00:00Z' });
+        }
+        return rows;
+    })(),
+
+    // CS4 — Fleet breadcrumbs: 6 trucks × 24 h of 15-minute GPS pings between Bangladeshi
+    // depots (≈580 rows). Trucks 2 and 5 take unscheduled ~1 h roadside stops (dwells);
+    // every truck returns to its home depot (frequent locations).
+    fleet_breadcrumbs: (() => {
+        const rand = lcg(44);
+        const depots: Record<string, [number, number]> = {
+            'Depot Dhaka': [23.8103, 90.4125], 'Depot Comilla': [23.4607, 91.1809],
+            'Depot Jessore': [23.1667, 89.2089], 'Depot Bogra': [24.8465, 89.3773],
+        };
+        const names = Object.keys(depots);
+        const rows: Record<string, unknown>[] = [];
+        for (let t = 0; t < 6; t++) {
+            const truck = `TRK-${String(t + 1).padStart(2, '0')}`;
+            const home = depots[names[t % names.length]];
+            const away = depots[names[(t + 1) % names.length]];
+            // schedule (minutes): home 0-120 · drive 120-360 · away 360-600 · [stop 600-660 for
+            // trucks 2/5] · drive back ...-900 · home 900-1440
+            const stop: [number, number] = [home[0] * 0.45 + away[0] * 0.55, home[1] * 0.45 + away[1] * 0.55];
+            const hasStop = t === 1 || t === 4;
+            for (let min = 0; min < 1440; min += 15) {
+                let lat: number, lon: number, status = 'moving';
+                const lerp = (a: [number, number], b: [number, number], f: number): [number, number] =>
+                    [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+                if (min < 120) { [lat, lon] = home; status = 'idle'; }
+                else if (min < 360) { [lat, lon] = lerp(home, away, (min - 120) / 240); }
+                else if (min < 600) { [lat, lon] = away; status = 'idle'; }
+                else if (hasStop && min < 660) { [lat, lon] = stop; status = 'idle'; }
+                else if (min < 900) { [lat, lon] = lerp(away, home, (min - (hasStop ? 660 : 600)) / (hasStop ? 240 : 300)); }
+                else { [lat, lon] = home; status = 'idle'; }
+                rows.push({
+                    id: `fb-${rows.length}`, truck, status,
+                    lat: lat + (rand() - 0.5) * 0.0006, lon: lon + (rand() - 0.5) * 0.0006,
+                    ping_time: new Date(Date.UTC(2026, 5, 5, 0, min)).toISOString(),
+                });
+            }
+        }
+        return rows;
+    })(),
+
+    // CS5 — Border roamers: 12 devices oscillating across the Benapole–Petrapole border strip
+    // over 3 days (~720 rows); staged same-time same-spot meetings at the crossing points
+    // (co-location) and dense revisits (heatmap hotspots).
+    border_roamers: (() => {
+        const rand = lcg(55);
+        const crossings: [number, number][] = [[23.0435, 88.8940], [23.0821, 88.9152], [23.0119, 88.8731]];
+        const rows: Record<string, unknown>[] = [];
+        for (let d = 0; d < 12; d++) {
+            const imei = `IMEI-B${String(d + 1).padStart(2, '0')}`;
+            for (let e = 0; e < 58; e++) {
+                const cross = crossings[Math.floor(rand() * crossings.length)];
+                const west = rand() > 0.5; // which side of the line this sighting falls on
+                const lat = cross[0] + (rand() - 0.5) * 0.02;
+                const lon = cross[1] + (west ? -1 : 1) * (0.002 + rand() * 0.03);
+                rows.push({
+                    id: `br-${rows.length}`, imei, side: lon < cross[1] ? 'india' : 'bangladesh', lat, lon,
+                    seen_at: new Date(Date.UTC(2026, 5, 6 + Math.floor(e / 20), Math.floor((e % 20) * 1.2), Math.floor(rand() * 59))).toISOString(),
+                });
+            }
+        }
+        // Staged meetings: pairs at the same crossing within minutes (found by co-location).
+        const meet = (a: string, b: string, ci: number, day: number, h: number): void => {
+            const [lat, lon] = crossings[ci];
+            rows.push({ id: `br-${rows.length}`, imei: a, side: 'bangladesh', lat: lat + 0.0002, lon: lon + 0.001, seen_at: new Date(Date.UTC(2026, 5, day, h, 10)).toISOString() });
+            rows.push({ id: `br-${rows.length}`, imei: b, side: 'bangladesh', lat: lat + 0.0003, lon: lon + 0.0012, seen_at: new Date(Date.UTC(2026, 5, day, h, 25)).toISOString() });
+        };
+        meet('IMEI-B01', 'IMEI-B07', 0, 6, 9);
+        meet('IMEI-B01', 'IMEI-B07', 0, 7, 9);
+        meet('IMEI-B01', 'IMEI-B07', 0, 8, 9);
+        meet('IMEI-B03', 'IMEI-B11', 1, 7, 15);
+        meet('IMEI-B03', 'IMEI-B11', 1, 8, 15);
+        return rows;
+    })(),
 };
+
+/** Deterministic LCG so the case-study data is identical on every build (no Math.random). */
+function lcg(seed: number): () => number {
+    let s = seed >>> 0;
+    return () => {
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+        return s / 4294967296;
+    };
+}
 
 export const SAMPLE_SOURCE_NAMES = Object.keys(SAMPLE_SOURCES);

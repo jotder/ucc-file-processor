@@ -90,6 +90,13 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
 - [`superpower/backend-backlog.md`](superpower/backend-backlog.md) — **consolidated backend backlog**: the
   one closed `ComponentStore.WRITABLE_TYPES` enum blocking Widget-Library M2, Matrices, and (partly) Job
   templates — sequencing + current-state facts, not started.
+- [`superpower/geo-map-analysis-plan.md`](superpower/geo-map-analysis-plan.md) — **Geo Map Analysis studio**:
+  revised MoSCoW + phased plan (offline MapLibre basemap, GeoSource seam, shared investigation lib).
+  **Phases 0–3a shipped** (mock-first); review sheet
+  [`superpower/reviews/geo-map-studio.md`](superpower/reviews/geo-map-studio.md).
+- [`superpower/geo-map-case-studies.md`](superpower/geo-map-case-studies.md) — **CS1–CS5 case-study pack**:
+  five boundary-pushing seeded investigation scenarios (point-cap stress, impossible travel, weighted
+  corridors, fleet dwells, border co-location) with pinned spec invariants. **Shipped.**
 
 ## Strategy & roadmap (stakeholder-facing)
 
