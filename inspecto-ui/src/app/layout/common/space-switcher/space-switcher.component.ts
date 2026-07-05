@@ -30,7 +30,8 @@ import { Space, SpacesService } from 'app/inspecto/api';
                 aria-label="Switch space"
             >
                 <mat-icon class="icon-size-5" svgIcon="heroicons_outline:square-3-stack-3d"></mat-icon>
-                <span class="ml-2 max-w-40 truncate">{{ label() }}</span>
+                <!-- label collapses to the icon on phones so the header row fits 375px (Wave 5 P2) -->
+                <span class="ml-2 hidden max-w-40 truncate sm:inline">{{ label() }}</span>
                 <mat-icon class="icon-size-5" svgIcon="heroicons_outline:chevron-down"></mat-icon>
             </button>
             <mat-menu #menu="matMenu">

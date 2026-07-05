@@ -25,7 +25,8 @@ import { Lens, LensService } from 'app/inspecto/api';
             aria-label="Switch lens"
         >
             <mat-icon class="icon-size-5" [svgIcon]="iconFor(lens.currentLens())"></mat-icon>
-            <span class="ml-2">{{ labelFor(lens.currentLens()) }}</span>
+            <!-- label collapses to the icon on phones so the header row fits 375px (Wave 5 P2) -->
+            <span class="ml-2 hidden sm:inline">{{ labelFor(lens.currentLens()) }}</span>
             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:chevron-down"></mat-icon>
         </button>
         <mat-menu #menu="matMenu">

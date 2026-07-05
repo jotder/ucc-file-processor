@@ -50,12 +50,24 @@ Genuine project-UI gaps (vendored/template excluded). `[ ]` = todo, `[x]` = spec
 ### Canvas host
 - [x] `pipelines/pipeline-editor-graph.component` (G6 host — `rebuild()` stubbed, shell + emits tested)
 
-## P2 — responsive sweep (375px mobile · 768px tablet)
-Preview-driven per route; catch body horizontal overflow, clipped toolbars, unusable tables. `[ ]` todo.
-Routes: dashboard · events · alerts · incidents/cases · audit · diagnoses · runs · pipelines · components ·
-sources · kpi-reports · requirements · reconciliation · connections · expectations · decision-rules · jobs ·
-enrichment · catalog · processing-status · studio (datasets/widgets/dashboards/link-analysis) · config ·
-spaces · assist · settings/models · settings/icons · notification-center · design.
+## P2 — responsive sweep (375px mobile · 768px tablet) — DONE 2026-07-05
+Preview-driven: every route SPA-navigated at both breakpoints, `body.scrollWidth` vs viewport measured,
+top unclipped offender identified per failure. **32 routes checked · all green after fixes.**
+
+**Findings & fixes (all template-only):**
+1. **App-wide (every route): header toolbar overflow at 375px** (body 471px) — the `ml-auto` cluster
+   (lens-switcher · space-switcher · bell · search · user) didn't fit. Fix: the lens/space switcher text
+   labels collapse to icons below `sm:` (`hidden sm:inline`); both buttons already carry `aria-label`s.
+2. **Rigid page-header rows** (`flex items-center justify-between`, no wrap): requirements ·
+   reconciliation · connections (list) · expectations · spaces · studio/dashboards · connection-workbench —
+   actions clusters pushed the body to 391–595px. Fix: `flex-wrap` + `gap-y-3` on the header row AND on the
+   action cluster (three panes needed both — the cluster itself was >375px).
+3. **Event-ticker rows** (dashboard `Recent events`, object-detail `Related events`): fixed `w-44`/`w-24`
+   spans + message in a no-wrap row. Fix: `flex-wrap` + `min-w-0` on the message span.
+
+At 768px all 32 routes were already clean (no tablet-specific defects). ag-Grid tables scroll within
+their own container (by design, not a violation). Visual proof: /expectations at 375px — header wraps,
+switchers icon-only, grid self-scrolls.
 
 ## P3 — /design gallery + icon/model-settings sweep
 - [ ] `/design`: add the new shared-host primitives from this stretch (GraphView `[layout]` picker; note the

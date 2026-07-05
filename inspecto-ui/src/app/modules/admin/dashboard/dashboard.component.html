@@ -117,11 +117,11 @@
                 </div>
                 <div class="flex flex-col divide-y divide-gray-100 dark:divide-gray-800">
                     @for (e of recentEvents; track e.eventId) {
-                        <div class="flex items-center gap-3 py-2 text-sm">
+                        <div class="flex flex-wrap items-center gap-x-3 py-2 text-sm">
                             <span class="text-secondary w-24 shrink-0 tabular-nums">{{ fmtTime(e.ts) }}</span>
                             <inspecto-status-badge [value]="e.level" />
                             <span class="text-secondary w-44 shrink-0 truncate font-mono text-xs">{{ e.type }}</span>
-                            <span class="truncate">{{ e.message || e.pipeline || '—' }}</span>
+                            <span class="min-w-0 truncate">{{ e.message || e.pipeline || '—' }}</span>
                         </div>
                     }
                 </div>
