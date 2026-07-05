@@ -1,7 +1,30 @@
-# Review sheet — Geo Map Analysis Studio (Phase 1 MVP)
+# Review sheet — Geo Map Analysis Studio (Phases 1–2)
 
-**Route:** `/studio/geo-map` · **Plan:** [`../geo-map-analysis-plan.md`](../geo-map-analysis-plan.md) §Phase 0–1
+**Route:** `/studio/geo-map` · **Plan:** [`../geo-map-analysis-plan.md`](../geo-map-analysis-plan.md) §Phase 0–2
 · **Reviewed:** 2026-07-05 · **Status:** ✅ shipped (mock-first, like Link Analysis MVP)
+
+## Phase 2 addendum (routes & time — completes the MUST scope)
+
+- **`od-routes` GeoSource**: origin/destination column mapping → endpoint points + routes
+  deduplicated per (origin, destination, kind) with summed weight; broken legs skip + count.
+- **Route rendering**: great-circle arcs (slerp) with along-line `>` direction glyphs (bundled
+  0-255 glyph range — no sprite needed), kind-coloured, weight → line width, click → detail with
+  great-circle distance + movement count.
+- **Heatmap mode**: MapLibre native heatmap over an unclustered twin source; toolbar toggle;
+  persisted with saved views.
+- **Time**: `timeExtent` drives a MatSlider range (start/end thumbs) filtering points AND routes;
+  untimed elements always survive.
+- **Region filter**: "filter to view" captures the viewport bbox (`withinBBox`).
+- **Saved views** now capture camera (center/zoom) + display mode; loading restores both.
+- **Seeds**: `money_moves` O/D sample (repeat legs fold to weight, one broken leg) +
+  "Example — Remittance corridors".
+- **Verification**: GAUNTLET green — build PASS, `test:ci` **830 passed / 0 failed / 5 skipped**
+  (11 new tests; the projection spec caught a real slerp-epsilon bug in `greatCircleArc`). Live:
+  corridors view loads via the saved-views menu (summary `money_moves: from_lat/from_lon →
+  to_lat/to_lon`), time slider renders with labelled thumbs, skipped-leg banner shows, and pixel
+  sampling confirms both display modes paint (markers/routes 600 saturated px → heatmap 1208).
+- **Flake note**: one unrelated first-run failure (`dashboard.kind.spec.ts`, kind-registry
+  isolation — second manifestation of the tracked `task_a7ab593f` flake class); green on re-run.
 
 ## What shipped
 

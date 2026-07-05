@@ -60,13 +60,27 @@
                     <mat-icon svgIcon="heroicons_outline:viewfinder-circle"></mat-icon>
                 </button>
 
+                <button mat-icon-button (click)="toggleHeatmap()"
+                        [color]="displayMode() === 'heatmap' ? 'primary' : undefined"
+                        matTooltip="Heatmap"
+                        [attr.aria-label]="displayMode() === 'heatmap' ? 'Switch back to markers' : 'Switch to the density heatmap'">
+                    <mat-icon svgIcon="heroicons_outline:fire"></mat-icon>
+                </button>
+
+                <button mat-icon-button (click)="filterToView()"
+                        [color]="viewBox() ? 'primary' : undefined"
+                        matTooltip="Filter to view"
+                        [attr.aria-label]="'Keep only the points in the current viewport' + (viewBox() ? ' (region filter active)' : '')">
+                    <mat-icon svgIcon="heroicons_outline:scissors"></mat-icon>
+                </button>
+
                 <button mat-icon-button (click)="dataOpen.set(!dataOpen())"
                         [color]="dataOpen() ? 'primary' : undefined"
                         matTooltip="Data" aria-label="Toggle the data panel">
                     <mat-icon svgIcon="heroicons_outline:table-cells"></mat-icon>
                 </button>
 
-                @if (search() || kindFilter().length || selectedId()) {
+                @if (search() || kindFilter().length || selectedId() || timeRange() || viewBox()) {
                     <button mat-icon-button (click)="clearInvestigation()" matTooltip="Clear search & filters" aria-label="Clear search and filters">
                         <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
                     </button>
@@ -151,6 +165,14 @@
             <form [formGroup]="queryForm" (ngSubmit)="run()"
                   class="bg-card flex flex-wrap items-start gap-3 rounded-2xl p-4 shadow" aria-label="Geo query">
                 <mat-form-field subscriptSizing="dynamic" class="w-56">
+                    <mat-label>Source</mat-label>
+                    <mat-select [value]="sourceId()" (valueChange)="sourceId.set($event)" aria-label="Geo source">
+                        @for (s of sources; track s.id) {
+                            <mat-option [value]="s.id">{{ s.label }}</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic" class="w-56">
                     <mat-label>Dataset</mat-label>
                     <mat-select formControlName="datasetId">
                         @for (d of datasets(); track d.id) {
@@ -161,37 +183,84 @@
                         <mat-error>Pick a dataset.</mat-error>
                     }
                 </mat-form-field>
-                <mat-form-field subscriptSizing="dynamic" class="w-44">
-                    <mat-label>Latitude column</mat-label>
-                    <mat-select formControlName="latCol">
-                        @for (c of datasetColumns(); track c) {
-                            <mat-option [value]="c">{{ c }}</mat-option>
-                        }
-                    </mat-select>
-                    @if (queryForm.controls.latCol.hasError('required') && queryForm.controls.latCol.touched) {
-                        <mat-error>Required.</mat-error>
-                    }
-                </mat-form-field>
-                <mat-form-field subscriptSizing="dynamic" class="w-44">
-                    <mat-label>Longitude column</mat-label>
-                    <mat-select formControlName="lonCol">
-                        @for (c of datasetColumns(); track c) {
-                            <mat-option [value]="c">{{ c }}</mat-option>
-                        }
-                    </mat-select>
-                    @if (queryForm.controls.lonCol.hasError('required') && queryForm.controls.lonCol.touched) {
-                        <mat-error>Required.</mat-error>
-                    }
-                </mat-form-field>
-                <mat-form-field subscriptSizing="dynamic" class="w-44">
-                    <mat-label>Entity column (optional)</mat-label>
-                    <mat-select formControlName="entityCol">
-                        <mat-option value="">—</mat-option>
-                        @for (c of datasetColumns(); track c) {
-                            <mat-option [value]="c">{{ c }}</mat-option>
-                        }
-                    </mat-select>
-                </mat-form-field>
+                @if (sourceId() === 'dataset') {
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Latitude column</mat-label>
+                        <mat-select formControlName="latCol">
+                            @for (c of datasetColumns(); track c) {
+                                <mat-option [value]="c">{{ c }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Longitude column</mat-label>
+                        <mat-select formControlName="lonCol">
+                            @for (c of datasetColumns(); track c) {
+                                <mat-option [value]="c">{{ c }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Entity column (optional)</mat-label>
+                        <mat-select formControlName="entityCol">
+                            <mat-option value="">—</mat-option>
+                            @for (c of datasetColumns(); track c) {
+                                <mat-option [value]="c">{{ c }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                } @else {
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Origin latitude</mat-label>
+                        <mat-select formControlName="fromLatCol">
+                            @for (c of datasetColumns(); track c) {
+                                <mat-option [value]="c">{{ c }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Origin longitude</mat-label>
+                        <mat-select formControlName="fromLonCol">
+                            @for (c of datasetColumns(); track c) {
+                                <mat-option [value]="c">{{ c }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Destination latitude</mat-label>
+                        <mat-select formControlName="toLatCol">
+                            @for (c of datasetColumns(); track c) {
+                                <mat-option [value]="c">{{ c }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Destination longitude</mat-label>
+                        <mat-select formControlName="toLonCol">
+                            @for (c of datasetColumns(); track c) {
+                                <mat-option [value]="c">{{ c }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Origin name (optional)</mat-label>
+                        <mat-select formControlName="fromCol">
+                            <mat-option value="">—</mat-option>
+                            @for (c of datasetColumns(); track c) {
+                                <mat-option [value]="c">{{ c }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic" class="w-44">
+                        <mat-label>Destination name (optional)</mat-label>
+                        <mat-select formControlName="toCol">
+                            <mat-option value="">—</mat-option>
+                            @for (c of datasetColumns(); track c) {
+                                <mat-option [value]="c">{{ c }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                }
                 <mat-form-field subscriptSizing="dynamic" class="w-44">
                     <mat-label>Type column (optional)</mat-label>
                     <mat-select formControlName="kindCol">
@@ -217,11 +286,28 @@
             </form>
         }
 
+        <!-- ══ timeline (only when the data carries time) ══ -->
+        @if (extent(); as ext) {
+            <div class="bg-card flex flex-wrap items-center gap-3 rounded-2xl px-4 py-1 shadow">
+                <mat-icon class="icon-size-4" svgIcon="heroicons_outline:clock"></mat-icon>
+                <span class="text-secondary whitespace-nowrap text-xs">
+                    {{ timeLabel(timeRange()?.[0] ?? ext[0]) }} — {{ timeLabel(timeRange()?.[1] ?? ext[1]) }}
+                </span>
+                <mat-slider class="min-w-40 flex-auto" [min]="ext[0]" [max]="ext[1]" [step]="60000" discrete [displayWith]="timeLabel">
+                    <input matSliderStartThumb aria-label="Time filter start"
+                           [value]="timeRange()?.[0] ?? ext[0]" (valueChange)="setTimeFrom($event)" />
+                    <input matSliderEndThumb aria-label="Time filter end"
+                           [value]="timeRange()?.[1] ?? ext[1]" (valueChange)="setTimeTo($event)" />
+                </mat-slider>
+            </div>
+        }
+
         <!-- ══ the map ══ -->
         @if (loading()) {
             <inspecto-skeleton height="24rem" />
         } @else if (displayed(); as d) {
-            <inspecto-map-view [data]="d" [emphasis]="emphasis()" [fill]="true" (pointClick)="onPointClick($event)" />
+            <inspecto-map-view [data]="d" [emphasis]="emphasis()" [display]="displayMode()" [camera]="loadCamera"
+                               [fill]="true" (pointClick)="onPointClick($event)" (routeClick)="onRouteClick($event)" />
             <p class="sr-only" role="status">
                 Map showing {{ d.points.length }} points{{ search() ? ' matching the search' : '' }}.
             </p>

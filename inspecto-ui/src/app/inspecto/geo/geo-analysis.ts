@@ -36,6 +36,46 @@ export function formatDistance(meters: number): string {
     return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
+/**
+ * Great-circle arc between two coordinates as [lon, lat] steps (inclusive ends) — spherical
+ * linear interpolation, so long routes bow correctly instead of cutting straight across.
+ */
+export function greatCircleArc(
+    aLat: number, aLon: number, bLat: number, bLon: number, steps = 32,
+): [number, number][] {
+    const φ1 = rad(aLat), λ1 = rad(aLon), φ2 = rad(bLat), λ2 = rad(bLon);
+    const toVec = (φ: number, λ: number): [number, number, number] =>
+        [Math.cos(φ) * Math.cos(λ), Math.cos(φ) * Math.sin(λ), Math.sin(φ)];
+    const [x1, y1, z1] = toVec(φ1, λ1);
+    const [x2, y2, z2] = toVec(φ2, λ2);
+    const ω = Math.acos(Math.min(1, Math.max(-1, x1 * x2 + y1 * y2 + z1 * z2)));
+    // acos() noise near identical points is ~1e-8 — short-circuit well above it (1e-6 rad ≈ 6 m).
+    if (ω < 1e-6) return [[aLon, aLat], [bLon, bLat]];
+    const out: [number, number][] = [];
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps;
+        const A = Math.sin((1 - t) * ω) / Math.sin(ω);
+        const B = Math.sin(t * ω) / Math.sin(ω);
+        const x = A * x1 + B * x2, y = A * y1 + B * y2, z = A * z1 + B * z2;
+        out.push([
+            (Math.atan2(y, x) * 180) / Math.PI,
+            (Math.atan2(z, Math.sqrt(x * x + y * y)) * 180) / Math.PI,
+        ]);
+    }
+    return out;
+}
+
+/** The [min, max] epoch-millis extent of the timed points/routes, or `null` when nothing is timed. */
+export function timeExtent(data: GeoData): [number, number] | null {
+    let min = Infinity, max = -Infinity;
+    for (const t of [...data.points, ...data.routes].map((x) => x.time)) {
+        if (t === undefined) continue;
+        if (t < min) min = t;
+        if (t > max) max = t;
+    }
+    return min === Infinity ? null : [min, max];
+}
+
 /** A [west, south, east, north] bounding box in degrees. */
 export type GeoBBox = [number, number, number, number];
 

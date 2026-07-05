@@ -26,6 +26,16 @@ const GEO: ProjectedGeo = {
     skipped: 2,
 };
 
+const ROUTES_GEO: ProjectedGeo = {
+    points: [
+        { id: 'ep:Dhaka', lat: 23.81, lon: 90.41, kind: 'place', label: 'Dhaka', time: 100 },
+        { id: 'ep:Dubai', lat: 25.2, lon: 55.27, kind: 'place', label: 'Dubai', time: 200 },
+    ],
+    routes: [{ id: 'r1', from: 'ep:Dhaka', to: 'ep:Dubai', kind: 'hundi', label: 'hundi · 2', weight: 2, time: 150 }],
+    truncated: false,
+    skipped: 0,
+};
+
 function create(opts: { fail?: boolean; views?: GeoMapView[] } = {}) {
     const queried: unknown[] = [];
     const fakeSource: GeoSource = {
@@ -36,13 +46,21 @@ function create(opts: { fail?: boolean; views?: GeoMapView[] } = {}) {
             return opts.fail ? Promise.reject(new Error('bad mapping')) : Promise.resolve(GEO);
         },
     };
+    const fakeRouteSource: GeoSource = {
+        id: 'od-routes',
+        label: 'Routes (origin → destination)',
+        query: (q) => {
+            queried.push(q);
+            return Promise.resolve(ROUTES_GEO);
+        },
+    };
     const save = vi.fn((v: GeoMapView) => of(v));
     TestBed.configureTestingModule({
         imports: [GeoMapComponent],
         providers: [
             provideNoopAnimations(),
             provideRouter([]),
-            { provide: GeoSourcesService, useValue: { sources: [fakeSource] } },
+            { provide: GeoSourcesService, useValue: { sources: [fakeSource, fakeRouteSource] } },
             { provide: DatasetsService, useValue: { list: () => of([DS]) } },
             { provide: GeoMapService, useValue: { list: () => of(opts.views ?? []), save } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
@@ -100,6 +118,47 @@ describe('GeoMapComponent', () => {
         const c = fixture.componentInstance;
         expect(c.geo()).toBeNull();
         expect(c.loadError()).toBe('bad mapping');
+    });
+
+    it('runs the od-routes source: weighted routes, time extent, and the timeline filter', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.sourceId.set('od-routes');
+        c.queryForm.patchValue({ datasetId: 'towers-ds', fromLatCol: 'fa', fromLonCol: 'fo', toLatCol: 'ta', toLonCol: 'to' });
+        await c.run();
+        expect(c.geo()?.routes).toHaveLength(1);
+        expect(c.querySummary()).toContain('→');
+        expect(c.extent()).toEqual([100, 200]);
+
+        c.setTimeTo(120); // window [100, 120] keeps Dhaka, drops Dubai and the route
+        expect(c.displayed()?.points.map((p) => p.label)).toEqual(['Dhaka']);
+        expect(c.displayed()?.routes).toHaveLength(0);
+        c.clearInvestigation();
+        expect(c.timeRange()).toBeNull();
+        expect(c.displayed()?.routes).toHaveLength(1);
+    });
+
+    it('captures display mode with a saved view and restores a route view', async () => {
+        const routeView: GeoMapView = {
+            id: 'corridors', name: 'Corridors', sourceId: 'od-routes', display: 'heatmap',
+            query: { routes: { datasetId: 'towers-ds', fromLatCol: 'fa', fromLonCol: 'fo', toLatCol: 'ta', toLonCol: 'to', kindCol: 'ch' } },
+        };
+        const { fixture, save } = create({ views: [routeView] });
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        await runQuery(fixture);
+        c.displayMode.set('heatmap');
+        c.saveForm.patchValue({ name: 'Heat view' });
+        await c.saveView();
+        expect(save).toHaveBeenCalledOnce();
+        expect(save.mock.calls[0][0].display).toBe('heatmap');
+
+        await c.loadView(routeView);
+        expect(c.sourceId()).toBe('od-routes');
+        expect(c.displayMode()).toBe('heatmap');
+        expect(c.queryForm.getRawValue().kindCol).toBe('ch');
+        expect(c.geo()?.routes).toHaveLength(1);
     });
 
     it('saves the current run as a view (unique name enforced) and loads it back', async () => {

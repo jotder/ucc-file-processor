@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { GeoData, GeoPoint, GeoProjection, GeoQuery, GeoSource, validCoordinate } from 'app/inspecto/geo';
+import {
+    GeoData, GeoPoint, GeoProjection, GeoQuery, GeoRoute, GeoSource, RouteProjection, validCoordinate,
+} from 'app/inspecto/geo';
 import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.service';
 import { datasetRows } from 'app/modules/admin/studio/link-analysis/entity-projection';
 
@@ -78,6 +80,63 @@ function parseTime(v: unknown): number | undefined {
     return undefined;
 }
 
+/**
+ * Pure rows→routes fold (Phase 2): each row is one origin→destination movement. Endpoints fold
+ * into named points (by `fromCol`/`toCol`, else rounded coordinates); rows fold into routes
+ * deduplicated per (origin, destination, kind) with a summed `weight`. Rows with an invalid
+ * coordinate on either end are skipped and counted.
+ */
+export function projectRoutes(rows: Record<string, unknown>[], p: RouteProjection): ProjectedGeo | GeoProjectionError {
+    if (!p.fromLatCol || !p.fromLonCol || !p.toLatCol || !p.toLonCol) {
+        return { error: 'The mapping needs origin and destination latitude/longitude columns.' };
+    }
+    for (const col of [p.fromLatCol, p.fromLonCol, p.toLatCol, p.toLonCol, p.fromCol, p.toCol, p.kindCol, p.timeCol]) {
+        if (col && rows.length && !(col in rows[0])) return { error: `Column '${col}' is not in the dataset.` };
+    }
+
+    const coord = (v: unknown): number => (v === null || v === undefined || v === '' ? NaN : Number(v));
+    const points = new Map<string, GeoPoint>();
+    const routes = new Map<string, GeoRoute>();
+    let truncated = false;
+    let skipped = 0;
+
+    const endpoint = (lat: number, lon: number, name: string, row: Record<string, unknown>): string | null => {
+        const label = name || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+        const id = `ep:${label}`;
+        if (!points.has(id)) {
+            if (points.size >= GEO_POINT_CAP) {
+                truncated = true;
+                return null;
+            }
+            points.set(id, { id, lat, lon, kind: 'place', label, attrs: row });
+        }
+        return id;
+    };
+
+    for (const row of rows) {
+        const aLat = coord(row[p.fromLatCol]), aLon = coord(row[p.fromLonCol]);
+        const bLat = coord(row[p.toLatCol]), bLon = coord(row[p.toLonCol]);
+        if (!validCoordinate(aLat, aLon) || !validCoordinate(bLat, bLon)) {
+            skipped++;
+            continue;
+        }
+        const from = endpoint(aLat, aLon, p.fromCol ? String(row[p.fromCol] ?? '').trim() : '', row);
+        const to = endpoint(bLat, bLon, p.toCol ? String(row[p.toCol] ?? '').trim() : '', row);
+        if (!from || !to) continue;
+        const kind = (p.kindCol ? String(row[p.kindCol] ?? '').trim() : '') || 'route';
+        const time = p.timeCol ? parseTime(row[p.timeCol]) : undefined;
+        const key = `${from}->${to}:${kind}`;
+        const existing = routes.get(key);
+        if (existing) {
+            existing.weight = (existing.weight ?? 1) + 1;
+            existing.label = `${kind} · ${existing.weight}`;
+        } else {
+            routes.set(key, { id: key, from, to, kind, label: kind, weight: 1, time });
+        }
+    }
+    return { points: [...points.values()], routes: [...routes.values()], truncated, skipped };
+}
+
 /** The pluggable source: Dataset (by `projection.datasetId`) → rows → {@link projectPoints}. */
 export class DatasetGeoSource implements GeoSource {
     readonly id = 'dataset' as const;
@@ -93,8 +152,26 @@ export class DatasetGeoSource implements GeoSource {
     }
 }
 
+/** The `od-routes` source: Dataset (by `routes.datasetId`) → rows → {@link projectRoutes}. */
+export class RouteProjectionGeoSource implements GeoSource {
+    readonly id = 'od-routes' as const;
+    readonly label = 'Routes (origin → destination)';
+    constructor(private datasets: DatasetsService) {}
+
+    async query(q: GeoQuery): Promise<ProjectedGeo> {
+        if (!q.routes?.datasetId) throw new Error('The routes source needs a Dataset mapping.');
+        const ds = await firstValueFrom(this.datasets.get(q.routes.datasetId));
+        const out = projectRoutes(datasetRows(ds), q.routes);
+        if (isGeoProjectionError(out)) throw new Error(out.error);
+        return out;
+    }
+}
+
 /** Root factory holding one instance per source, in stable order (mirrors GraphSourcesService). */
 @Injectable({ providedIn: 'root' })
 export class GeoSourcesService {
-    readonly sources: GeoSource[] = [new DatasetGeoSource(inject(DatasetsService))];
+    readonly sources: GeoSource[] = [
+        new DatasetGeoSource(inject(DatasetsService)),
+        new RouteProjectionGeoSource(inject(DatasetsService)),
+    ];
 }

@@ -7,8 +7,11 @@ import type { GeoData } from './geo-types';
  * Geo Map studio feature.
  */
 
-/** The map planes a query can target. MVP: `dataset` (lat/lon projection over a Dataset). */
-export type GeoSourceId = 'dataset';
+/**
+ * The map planes a query can target: `dataset` (lat/lon point projection over a Dataset) and
+ * `od-routes` (origin/destination pair projection → routes, Phase 2).
+ */
+export type GeoSourceId = 'dataset' | 'od-routes';
 
 /**
  * The `dataset` GeoSource mapping: which Dataset columns carry the coordinates and, optionally,
@@ -26,10 +29,38 @@ export interface GeoProjection {
     timeCol?: string;
 }
 
+/**
+ * The `od-routes` GeoSource mapping (Phase 2): each row is one origin→destination movement.
+ * Distinct endpoints fold into points; rows fold into routes deduplicated per
+ * (origin, destination, kind) with a summed weight.
+ */
+export interface RouteProjection {
+    datasetId: string;
+    fromLatCol: string;
+    fromLonCol: string;
+    toLatCol: string;
+    toLonCol: string;
+    /** Columns naming the endpoints (fall back to rounded coordinates). */
+    fromCol?: string;
+    toCol?: string;
+    /** Column whose value kinds the route (drives colour). */
+    kindCol?: string;
+    /** Column carrying the event time (epoch millis or a parseable date string). */
+    timeCol?: string;
+}
+
+/** A camera position captured with a saved Geo View. */
+export interface GeoCamera {
+    center: [number, number];
+    zoom: number;
+}
+
 /** The unified GeoQuery — a source reads only the fields it understands. */
 export interface GeoQuery {
     /** The `dataset` source's column mapping. */
     projection?: GeoProjection;
+    /** The `od-routes` source's column mapping. */
+    routes?: RouteProjection;
 }
 
 /** One pluggable origin of map data. `query()` may hit the backend or derive client-side. */

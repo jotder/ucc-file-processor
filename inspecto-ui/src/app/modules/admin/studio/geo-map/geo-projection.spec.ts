@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GEO_POINT_CAP, isGeoProjectionError, projectPoints } from './geo-projection';
+import { GEO_POINT_CAP, isGeoProjectionError, projectPoints, projectRoutes } from './geo-projection';
 
 const ROWS = [
     { site: 'T1', lat: 23.81, lon: 90.41, type: 'tower', seen: '2026-06-01T10:00:00Z' },
@@ -37,6 +37,31 @@ describe('projectPoints', () => {
         if (isGeoProjectionError(out)) throw new Error(out.error);
         expect(out.points[0].kind).toBe('point');
         expect(out.points[0].label).toBeUndefined();
+    });
+
+    it('folds O/D rows into endpoint points + weighted routes, skipping broken legs', () => {
+        const legs = [
+            { fa: 23.81, fo: 90.41, ta: 25.2, to: 55.27, from: 'Dhaka', to_c: 'Dubai', ch: 'hundi', at: '2026-06-02T09:30:00Z' },
+            { fa: 23.81, fo: 90.41, ta: 25.2, to: 55.27, from: 'Dhaka', to_c: 'Dubai', ch: 'hundi', at: '2026-06-02T11:30:00Z' },
+            { fa: 25.2, fo: 55.27, ta: 51.5, to: -0.13, from: 'Dubai', to_c: 'London', ch: 'wire', at: '2026-06-02T12:30:00Z' },
+            { fa: 23.81, fo: 90.41, ta: null, to: null, from: 'Dhaka', to_c: 'Nowhere', ch: 'wire', at: '' },
+        ];
+        const out = projectRoutes(legs as unknown as Record<string, unknown>[], {
+            datasetId: 'x', fromLatCol: 'fa', fromLonCol: 'fo', toLatCol: 'ta', toLonCol: 'to',
+            fromCol: 'from', toCol: 'to_c', kindCol: 'ch', timeCol: 'at',
+        });
+        if (isGeoProjectionError(out)) throw new Error(out.error);
+        expect(out.points.map((p) => p.label).sort()).toEqual(['Dhaka', 'Dubai', 'London']);
+        expect(out.routes).toHaveLength(2);
+        const dhkDxb = out.routes.find((r) => r.kind === 'hundi')!;
+        expect(dhkDxb.weight).toBe(2); // folded repeat leg
+        expect(dhkDxb.label).toBe('hundi · 2');
+        expect(out.skipped).toBe(1);
+    });
+
+    it('rejects a route mapping without both coordinate pairs', () => {
+        const out = projectRoutes([], { datasetId: 'x', fromLatCol: 'a', fromLonCol: 'b', toLatCol: '', toLonCol: 'd' });
+        expect(isGeoProjectionError(out) && out.error).toMatch(/origin and destination/);
     });
 
     it('truncates at the point cap and says so', () => {

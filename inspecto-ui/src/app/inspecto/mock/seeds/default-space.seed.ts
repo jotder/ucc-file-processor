@@ -98,6 +98,38 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
         measures: [],
         viz: null,
     });
+    putComponent(store, space, 'dataset', 'money_moves', {
+        name: 'money_moves',
+        kind: 'virtual',
+        sourceName: 'money_moves',
+        query: { projection: '*', where: { kind: 'group', op: 'AND', items: [] }, sqlOverride: null },
+        physicalRef: null,
+        columns: [
+            { name: 'id', type: 'string', role: 'dimension' },
+            { name: 'from_city', type: 'string', role: 'dimension' },
+            { name: 'from_lat', type: 'number', role: 'dimension' },
+            { name: 'from_lon', type: 'number', role: 'dimension' },
+            { name: 'to_city', type: 'string', role: 'dimension' },
+            { name: 'to_lat', type: 'number', role: 'dimension' },
+            { name: 'to_lon', type: 'number', role: 'dimension' },
+            { name: 'channel', type: 'string', role: 'dimension' },
+            { name: 'moved_at', type: 'date', role: 'temporal' },
+        ],
+        measures: [],
+        viz: null,
+    });
+    putComponent(store, space, 'geo-map-view', 'remittance-corridors', {
+        name: 'Example — Remittance corridors',
+        description: 'Origin→destination money movements folding into weighted routes — click a corridor for its distance.',
+        sourceId: 'od-routes',
+        query: {
+            routes: {
+                datasetId: 'money_moves', fromLatCol: 'from_lat', fromLonCol: 'from_lon',
+                toLatCol: 'to_lat', toLonCol: 'to_lon', fromCol: 'from_city', toCol: 'to_city',
+                kindCol: 'channel', timeCol: 'moved_at',
+            },
+        },
+    });
     putComponent(store, space, 'geo-map-view', 'dhaka-network', {
         name: 'Example — Dhaka cell network',
         description: 'A tower grid, a hopping device and a roaming trail — try the type filter and click a point.',

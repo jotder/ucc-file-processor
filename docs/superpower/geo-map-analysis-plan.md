@@ -194,6 +194,15 @@ responsive at 375/768. **Gate: GAUNTLET + live SMOKE, review sheet under `docs/s
 `RouteProjectionGeoSource` (O/D pairs → great-circle routes, arrows, weight, curved parallels).
 Radius/bbox nearby search + heatmap/density layer (`geo-analysis` binning). Time filter + timeline
 slider filtering points/routes. Region filter. Distance readout in detail sheet.
+> **DONE 2026-07-05** — shipped: `od-routes` GeoSource (O/D fold → endpoint points + weighted
+> routes, `projectRoutes`), great-circle arcs (`greatCircleArc`, slerp) with along-line `>` arrows,
+> MapLibre native heatmap mode (unclustered twin source, toolbar toggle), time filter via a
+> MatSlider range over `timeExtent`, region filter = "filter to view" (viewport bbox), route detail
+> with great-circle distance + folded movement count, camera + display mode captured in saved
+> views. Seeded `money_moves` + "Example — Remittance corridors". Deviations: curved *parallel*
+> route separation and radius-circle search UI deferred to Phase 3 (arcs make parallel overlap
+> rare; nearby is in the point detail). GAUNTLET 830/0/5; live-verified incl. pixel proof of both
+> display modes.
 
 ### Phase 3 — Geo intelligence (SHOULD)
 Measure/draw tools; polygon selection; stay-points, frequent locations, movement clustering,

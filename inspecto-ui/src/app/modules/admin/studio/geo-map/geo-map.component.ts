@@ -9,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
@@ -18,14 +19,22 @@ import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import {
+    GeoBBox,
+    GeoCamera,
+    GeoData,
+    GeoDisplayMode,
     GeoEmphasis,
     GeoPoint,
     GeoQuery,
+    GeoSourceId,
     MapViewComponent,
     filterByKinds,
+    filterByTime,
     formatDistance,
     haversineMeters,
     searchPoints,
+    timeExtent,
+    withinBBox,
 } from 'app/inspecto/geo';
 import {
     ElementDetailDialog,
@@ -62,7 +71,7 @@ interface PointRow {
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         DecimalPipe, ReactiveFormsModule, MatButtonModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule,
-        MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatTooltipModule,
+        MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatSliderModule, MatTooltipModule,
         InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, MapViewComponent,
         DataTableComponent,
     ],
@@ -82,17 +91,26 @@ export class GeoMapComponent implements OnInit {
     readonly sources = this.geoSources.sources;
 
     // ── query builder ──
+    readonly sourceId = signal<GeoSourceId>('dataset');
     readonly datasets = signal<Dataset[]>([]);
     readonly datasetColumns = signal<string[]>([]);
     /** Full query form vs its collapsed summary (auto-collapses after a run). */
     readonly queryOpen = signal(true);
+    // Column presence is validated by the projection folds (typed errors → the banner), so only
+    // the dataset itself is form-required — the fields differ per source.
     readonly queryForm = this.fb.nonNullable.group({
         datasetId: ['', Validators.required],
-        latCol: ['', Validators.required],
-        lonCol: ['', Validators.required],
+        latCol: [''],
+        lonCol: [''],
         entityCol: [''],
         kindCol: [''],
         timeCol: [''],
+        fromLatCol: [''],
+        fromLonCol: [''],
+        toLatCol: [''],
+        toLonCol: [''],
+        fromCol: [''],
+        toCol: [''],
     });
 
     // ── result state ──
@@ -106,18 +124,39 @@ export class GeoMapComponent implements OnInit {
     readonly kindFilter = signal<string[]>([]);
     readonly selectedId = signal<string | null>(null);
     readonly dataOpen = signal(false);
+    /** Markers vs density heatmap (persisted with a saved view). */
+    readonly displayMode = signal<GeoDisplayMode>('markers');
+    /** Time window [from, to] in epoch millis; `null` = no time filter. */
+    readonly timeRange = signal<[number, number] | null>(null);
+    /** Region filter (the "filter to view" viewport box); `null` = everywhere. */
+    readonly viewBox = signal<GeoBBox | null>(null);
+
+    /** The [min, max] time extent of the loaded data (the slider's rail); `null` = untimed data. */
+    readonly extent = computed<[number, number] | null>(() => {
+        const g = this.geo();
+        return g ? timeExtent(g) : null;
+    });
 
     /** All point kinds present in the result (the filter menu's options). */
     readonly pointKinds = computed<string[]>(() =>
         [...new Set((this.geo()?.points ?? []).map((p) => p.kind))].sort(),
     );
 
-    /** The kind-filtered subset actually on the canvas. */
-    readonly displayed = computed(() => {
+    /** The kind/time/region-filtered subset actually on the canvas. */
+    readonly displayed = computed<GeoData | null>(() => {
         const g = this.geo();
         if (!g) return null;
         const kinds = this.kindFilter();
-        return filterByKinds(g, kinds.length ? kinds : null);
+        let d: GeoData = filterByKinds(g, kinds.length ? kinds : null);
+        const t = this.timeRange();
+        if (t) d = filterByTime(d, t[0], t[1]);
+        const box = this.viewBox();
+        if (box) {
+            const points = withinBBox(d.points, box);
+            const keep = new Set(points.map((p) => p.id));
+            d = { points, routes: d.routes.filter((r) => keep.has(r.from) && keep.has(r.to)) };
+        }
+        return d;
     });
 
     /** Search/selection highlight: matching points full-strength, the rest dimmed. */
@@ -173,11 +212,32 @@ export class GeoMapComponent implements OnInit {
             entityCol: '',
             kindCol: '',
             timeCol: guess(/time|date/i),
+            fromLatCol: guess(/(from|orig|src).*lat/i),
+            fromLonCol: guess(/(from|orig|src).*(lon|lng)/i),
+            toLatCol: guess(/(to|dest|dst).*lat/i),
+            toLonCol: guess(/(to|dest|dst).*(lon|lng)/i),
+            fromCol: '',
+            toCol: '',
         });
     }
 
     private currentQuery(): GeoQuery {
         const f = this.queryForm.getRawValue();
+        if (this.sourceId() === 'od-routes') {
+            return {
+                routes: {
+                    datasetId: f.datasetId,
+                    fromLatCol: f.fromLatCol,
+                    fromLonCol: f.fromLonCol,
+                    toLatCol: f.toLatCol,
+                    toLonCol: f.toLonCol,
+                    fromCol: f.fromCol || undefined,
+                    toCol: f.toCol || undefined,
+                    kindCol: f.kindCol || undefined,
+                    timeCol: f.timeCol || undefined,
+                },
+            };
+        }
         return {
             projection: {
                 datasetId: f.datasetId,
@@ -200,7 +260,8 @@ export class GeoMapComponent implements OnInit {
         this.loadError.set('');
         this.clearInvestigation();
         try {
-            const out = await this.sources[0].query(query);
+            const source = this.sources.find((s) => s.id === this.sourceId()) ?? this.sources[0];
+            const out = await source.query(query);
             this.geo.set(out as ProjectedGeo);
             this.lastRun.set(query);
             this.queryOpen.set(false);
@@ -214,13 +275,18 @@ export class GeoMapComponent implements OnInit {
 
     /** The collapsed-query summary line (dataset + mapping). */
     readonly querySummary = computed<string>(() => {
-        const q = this.lastRun()?.projection;
+        const run = this.lastRun();
+        const dsName = (id: string): string => this.datasets().find((d) => d.id === id)?.name ?? id;
+        if (run?.routes) {
+            const r = run.routes;
+            return `${dsName(r.datasetId)}: ${r.fromLatCol}/${r.fromLonCol} → ${r.toLatCol}/${r.toLonCol}`;
+        }
+        const q = run?.projection;
         if (!q) return '';
-        const ds = this.datasets().find((d) => d.id === q.datasetId);
         const extras = [q.entityCol && `entity ${q.entityCol}`, q.kindCol && `kind ${q.kindCol}`, q.timeCol && `time ${q.timeCol}`]
             .filter(Boolean)
             .join(' · ');
-        return `${ds?.name ?? q.datasetId}: ${q.latCol}/${q.lonCol}${extras ? ' · ' + extras : ''}`;
+        return `${dsName(q.datasetId)}: ${q.latCol}/${q.lonCol}${extras ? ' · ' + extras : ''}`;
     });
 
     // ── investigation ──
@@ -243,10 +309,38 @@ export class GeoMapComponent implements OnInit {
         this.search.set('');
         this.kindFilter.set([]);
         this.selectedId.set(null);
+        this.timeRange.set(null);
+        this.viewBox.set(null);
     }
 
     fit(): void {
         this.mapView?.fitToData();
+    }
+
+    toggleHeatmap(): void {
+        this.displayMode.set(this.displayMode() === 'heatmap' ? 'markers' : 'heatmap');
+    }
+
+    /** Region filter: keep only what the current viewport shows. */
+    filterToView(): void {
+        const b = this.mapView?.getViewBounds();
+        if (b) this.viewBox.set(b);
+    }
+
+    /** Time-slider thumbs (epoch millis). */
+    setTimeFrom(v: number): void {
+        const ext = this.extent();
+        if (ext) this.timeRange.set([v, this.timeRange()?.[1] ?? ext[1]]);
+    }
+
+    setTimeTo(v: number): void {
+        const ext = this.extent();
+        if (ext) this.timeRange.set([this.timeRange()?.[0] ?? ext[0], v]);
+    }
+
+    /** Short date-time label for the slider readout. */
+    timeLabel(t: number): string {
+        return new Date(t).toISOString().slice(0, 16).replace('T', ' ');
     }
 
     /** Canvas or data-row click → full details (attributes + the 3 nearest points). */
@@ -274,6 +368,29 @@ export class GeoMapComponent implements OnInit {
             .afterClosed()
             .subscribe((result: ElementDetailResult) => {
                 if (result === 'focus') this.mapView?.flyTo(id);
+            });
+    }
+
+    /** Route click → details with great-circle distance and folded movement count. */
+    onRouteClick(id: string): void {
+        const d = this.displayed();
+        const r = d?.routes.find((x) => x.id === id);
+        if (!d || !r) return;
+        const a = d.points.find((p) => p.id === r.from);
+        const b = d.points.find((p) => p.id === r.to);
+        if (!a || !b) return;
+        const rows: ElementDetailRow[] = [
+            { label: 'From', value: a.label ?? a.id },
+            { label: 'To', value: b.label ?? b.id },
+            { label: 'Distance', value: formatDistance(haversineMeters(a.lat, a.lon, b.lat, b.lon)) },
+            { label: 'Movements', value: String(r.weight ?? 1) },
+        ];
+        if (r.time !== undefined) rows.push({ label: 'Time', value: new Date(r.time).toISOString() });
+        this.dialog
+            .open(ElementDetailDialog, { data: { title: r.label ?? r.kind, subtitle: r.kind, rows }, width: '26rem' })
+            .afterClosed()
+            .subscribe((result: ElementDetailResult) => {
+                if (result === 'focus') this.mapView?.flyTo(r.from);
             });
     }
 
@@ -305,8 +422,10 @@ export class GeoMapComponent implements OnInit {
             id: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
             name: name.trim(),
             description: description.trim() || undefined,
-            sourceId: 'dataset',
+            sourceId: this.sourceId(),
             query,
+            display: this.displayMode(),
+            camera: this.mapView?.getCamera() ?? undefined,
         };
         this.saving.set(true);
         try {
@@ -323,18 +442,41 @@ export class GeoMapComponent implements OnInit {
     }
 
     async loadView(view: GeoMapView): Promise<void> {
+        this.sourceId.set(view.sourceId);
+        this.displayMode.set(view.display ?? 'markers');
+        this.loadCamera = view.camera ?? null;
         const p = view.query.projection;
-        if (!p) return;
-        this.queryForm.patchValue({ datasetId: p.datasetId });
-        this.queryForm.patchValue({
-            latCol: p.latCol,
-            lonCol: p.lonCol,
-            entityCol: p.entityCol ?? '',
-            kindCol: p.kindCol ?? '',
-            timeCol: p.timeCol ?? '',
-        });
+        const r = view.query.routes;
+        if (p) {
+            this.queryForm.patchValue({ datasetId: p.datasetId });
+            this.queryForm.patchValue({
+                latCol: p.latCol,
+                lonCol: p.lonCol,
+                entityCol: p.entityCol ?? '',
+                kindCol: p.kindCol ?? '',
+                timeCol: p.timeCol ?? '',
+            });
+        } else if (r) {
+            this.queryForm.patchValue({ datasetId: r.datasetId });
+            this.queryForm.patchValue({
+                fromLatCol: r.fromLatCol,
+                fromLonCol: r.fromLonCol,
+                toLatCol: r.toLatCol,
+                toLonCol: r.toLonCol,
+                fromCol: r.fromCol ?? '',
+                toCol: r.toCol ?? '',
+                kindCol: r.kindCol ?? '',
+                timeCol: r.timeCol ?? '',
+            });
+        } else {
+            return;
+        }
         await this.run();
+        if (view.camera) this.mapView?.setCamera(view.camera);
     }
+
+    /** A loaded view's saved camera — consumed by the map host on its next mount. */
+    loadCamera: GeoCamera | null = null;
 
     // ── export ──
     exportPng(): void {

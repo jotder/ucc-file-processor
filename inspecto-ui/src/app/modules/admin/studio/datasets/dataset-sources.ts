@@ -173,6 +173,29 @@ export const SAMPLE_SOURCES: Record<string, Record<string, unknown>[]> = {
         add('Tower BAD-2', 'tower', 123.45, 90.4, 8);
         return rows;
     })(),
+
+    // Geo Map Analysis routes example: origin→destination remittance legs between cities
+    // (repeat legs fold into weighted routes; one leg has a broken destination → skipped).
+    money_moves: (() => {
+        const cities: Record<string, [number, number]> = {
+            Dhaka: [23.8103, 90.4125], Chattogram: [22.3569, 91.7832], Sylhet: [24.8949, 91.8687],
+            Dubai: [25.2048, 55.2708], Singapore: [1.3521, 103.8198], London: [51.5074, -0.1278],
+        };
+        const legs: [string, string, string, number][] = [
+            ['Dhaka', 'Dubai', 'hundi', 9], ['Dhaka', 'Dubai', 'hundi', 11], ['Dhaka', 'Dubai', 'hundi', 14],
+            ['Dubai', 'London', 'wire', 12], ['Dubai', 'London', 'wire', 16],
+            ['Chattogram', 'Singapore', 'wire', 10], ['Singapore', 'London', 'wire', 15],
+            ['Sylhet', 'Dhaka', 'cash', 8], ['Sylhet', 'Dhaka', 'cash', 9], ['Dhaka', 'Chattogram', 'cash', 10],
+        ];
+        const rows: Record<string, unknown>[] = legs.map(([from, to, channel, hour], i) => ({
+            id: `m-${i + 1}`,
+            from_city: from, from_lat: cities[from][0], from_lon: cities[from][1],
+            to_city: to, to_lat: cities[to][0], to_lon: cities[to][1],
+            channel, moved_at: `2026-06-02T${String(hour).padStart(2, '0')}:30:00Z`,
+        }));
+        rows.push({ id: 'm-bad', from_city: 'Dhaka', from_lat: 23.8103, from_lon: 90.4125, to_city: 'Nowhere', to_lat: null, to_lon: null, channel: 'wire', moved_at: '2026-06-02T20:30:00Z' });
+        return rows;
+    })(),
 };
 
 export const SAMPLE_SOURCE_NAMES = Object.keys(SAMPLE_SOURCES);

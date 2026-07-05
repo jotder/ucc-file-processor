@@ -5,10 +5,12 @@ import {
     filterByKinds,
     filterByTime,
     formatDistance,
+    greatCircleArc,
     gridDensity,
     haversineMeters,
     nearby,
     searchPoints,
+    timeExtent,
     validCoordinate,
     withinBBox,
 } from './geo-analysis';
@@ -94,6 +96,23 @@ describe('geo-analysis', () => {
         expect(cells[0].count).toBe(2);
         expect(cells[0].pointIds).toEqual(['dhk', 'dhk2']);
         expect(cells).toHaveLength(3);
+    });
+
+    it('interpolates great-circle arcs through the midpoint', () => {
+        const arc = greatCircleArc(23.8103, 90.4125, 51.5074, -0.1278, 16);
+        expect(arc).toHaveLength(17);
+        expect(arc[0][0]).toBeCloseTo(90.4125, 4);
+        expect(arc[16][1]).toBeCloseTo(51.5074, 4);
+        // A Dhaka→London great circle bows well north of the straight-line midpoint (~37.7°).
+        const midLat = arc[8][1];
+        expect(midLat).toBeGreaterThan(44);
+        // Degenerate zero-length arc: just the two (identical) ends.
+        expect(greatCircleArc(10, 10, 10, 10)).toEqual([[10, 10], [10, 10]]);
+    });
+
+    it('computes the time extent across points and routes', () => {
+        expect(timeExtent(DATA)).toEqual([100, 300]);
+        expect(timeExtent({ points: [pt('x', 0, 0)], routes: [] })).toBeNull();
     });
 
     it('clusters co-located points, excluding singletons', () => {

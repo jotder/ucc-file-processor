@@ -19,6 +19,8 @@ import type { FeatureCollection, Point } from 'geojson';
 import { Protocol } from 'pmtiles';
 import { basemapStyle, mapPalette } from 'app/inspecto/theme/map-tokens';
 import { ICON_COLOR_SWATCHES } from 'app/inspecto/theme/chart-tokens';
+import { greatCircleArc } from './geo-analysis';
+import { GeoCamera } from './geo-source';
 import { GeoData } from './geo-types';
 
 /** Register the pmtiles:// protocol once (customer vector-tile archives, Phase 4 seam). */
@@ -30,16 +32,25 @@ function ensurePmtilesProtocol(): void {
     }
 }
 
-/** An analysis/search overlay: listed points render full-strength, everything else dims. */
+/** An analysis/search overlay: listed points/routes render full-strength, everything else dims. */
 export interface GeoEmphasis {
     pointIds: string[];
+    routeIds?: string[];
 }
 
+/** How the data plane renders: individual markers (clustered) or a density heatmap. */
+export type GeoDisplayMode = 'markers' | 'heatmap';
+
 const POINTS_SOURCE = 'inspecto-points';
+const POINTS_RAW_SOURCE = 'inspecto-points-raw'; // unclustered twin feeding the heatmap
 const POINTS_LAYER = 'inspecto-points-circles';
 const CLUSTERS_LAYER = 'inspecto-points-clusters';
 const CLUSTER_COUNT_LAYER = 'inspecto-points-cluster-counts';
 const LABELS_LAYER = 'inspecto-points-labels';
+const HEATMAP_LAYER = 'inspecto-points-heatmap';
+const ROUTES_SOURCE = 'inspecto-routes';
+const ROUTES_LAYER = 'inspecto-routes-lines';
+const ROUTE_ARROWS_LAYER = 'inspecto-routes-arrows';
 
 /**
  * Read-only MapLibre GL host for Geo Map Analysis — the map analog of `GraphViewComponent`
@@ -62,9 +73,14 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
     @Input({ required: true }) data: GeoData | null = null;
     /** Highlight overlay (search/analysis results); `null` = all full-strength. */
     @Input() emphasis: GeoEmphasis | null = null;
+    /** Markers (clustered) or a density heatmap over the same points. */
+    @Input() display: GeoDisplayMode = 'markers';
+    /** Initial camera (a saved view's); `null` = fit to data on load. */
+    @Input() camera: GeoCamera | null = null;
     /** Fill the remaining space of a flex-column parent instead of the fixed 62vh page band. */
     @Input() fill = false;
     @Output() pointClick = new EventEmitter<string>();
+    @Output() routeClick = new EventEmitter<string>();
 
     @ViewChild('host') private hostEl!: ElementRef<HTMLDivElement>;
     private map: MlMap | null = null;
@@ -130,6 +146,24 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         this.map.easeTo({ center: [p.lon, p.lat], zoom: Math.max(this.map.getZoom(), 10), duration: 400 });
     }
 
+    /** Jump to a saved view's camera (also applied automatically on mount via `[camera]`). */
+    setCamera(camera: GeoCamera): void {
+        this.map?.jumpTo({ center: camera.center, zoom: camera.zoom });
+    }
+
+    /** The current camera (captured with a saved view), or `null` before the first render. */
+    getCamera(): GeoCamera | null {
+        if (!this.map) return null;
+        const c = this.map.getCenter();
+        return { center: [c.lng, c.lat], zoom: this.map.getZoom() };
+    }
+
+    /** The current viewport as [west, south, east, north] (the studio's filter-to-view). */
+    getViewBounds(): [number, number, number, number] | null {
+        const b = this.map?.getBounds();
+        return b ? [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()] : null;
+    }
+
     /** Stable kind → swatch colour for the current data (shared with the studio's legend). */
     kindColors(): Map<string, string> {
         const kinds = [...new Set((this.data?.points ?? []).map((p) => p.kind))].sort();
@@ -178,7 +212,8 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
             map.addControl(new maplibregl.ScaleControl({}), 'bottom-left');
             map.on('load', () => {
                 this.addDataLayers(map);
-                this.fitToData();
+                if (this.camera) map.jumpTo({ center: this.camera.center, zoom: this.camera.zoom });
+                else this.fitToData();
             });
             map.on('click', POINTS_LAYER, (e: MapLayerMouseEvent) => {
                 const id = e.features?.[0]?.properties?.['id'];
@@ -191,7 +226,11 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                 const zoom = await src.getClusterExpansionZoom(Number(f.properties?.['cluster_id']));
                 map.easeTo({ center: (f.geometry as Point).coordinates as [number, number], zoom });
             });
-            for (const layer of [POINTS_LAYER, CLUSTERS_LAYER]) {
+            map.on('click', ROUTES_LAYER, (e: MapLayerMouseEvent) => {
+                const id = e.features?.[0]?.properties?.['id'];
+                if (id != null) this.zone.run(() => this.routeClick.emit(String(id)));
+            });
+            for (const layer of [POINTS_LAYER, CLUSTERS_LAYER, ROUTES_LAYER]) {
                 map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
                 map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
             }
@@ -219,6 +258,35 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
         };
     }
 
+    /** Routes as great-circle LineStrings between their endpoint points. */
+    private routesGeoJson(): FeatureCollection {
+        const byId = new Map((this.data?.points ?? []).map((p) => [p.id, p]));
+        const colors = this.kindColors();
+        const em = this.emphasis?.routeIds ? new Set(this.emphasis.routeIds) : null;
+        const kinds = [...new Set((this.data?.routes ?? []).map((r) => r.kind))].sort();
+        const kindColor = new Map(kinds.map((k, i) => [k, ICON_COLOR_SWATCHES[(colors.size + i) % ICON_COLOR_SWATCHES.length]]));
+        return {
+            type: 'FeatureCollection',
+            features: (this.data?.routes ?? []).flatMap((r) => {
+                const a = byId.get(r.from);
+                const b = byId.get(r.to);
+                if (!a || !b) return [];
+                return [{
+                    type: 'Feature' as const,
+                    geometry: { type: 'LineString' as const, coordinates: greatCircleArc(a.lat, a.lon, b.lat, b.lon) },
+                    properties: {
+                        id: r.id,
+                        kind: r.kind,
+                        label: r.label ?? r.kind,
+                        color: kindColor.get(r.kind),
+                        weight: r.weight ?? 1,
+                        em: em ? (em.has(r.id) ? 1 : -1) : 0,
+                    },
+                }];
+            }),
+        };
+    }
+
     private addDataLayers(map: MlMap): void {
         const palette = mapPalette(this.dark);
         map.addSource(POINTS_SOURCE, {
@@ -227,6 +295,49 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
             cluster: true,
             clusterRadius: 42,
             clusterMaxZoom: 14,
+        });
+        map.addSource(POINTS_RAW_SOURCE, { type: 'geojson', data: this.pointsGeoJson() });
+        map.addSource(ROUTES_SOURCE, { type: 'geojson', data: this.routesGeoJson() });
+        // Routes render under the point markers.
+        map.addLayer({
+            id: ROUTES_LAYER,
+            type: 'line',
+            source: ROUTES_SOURCE,
+            layout: { 'line-cap': 'round' },
+            paint: {
+                'line-color': ['coalesce', ['get', 'color'], palette.point],
+                'line-width': ['min', 8, ['+', 1, ['log2', ['+', ['get', 'weight'], 1]]]],
+                'line-opacity': ['case', ['==', ['get', 'em'], -1], 0.15, 0.8],
+            },
+        });
+        map.addLayer({
+            id: ROUTE_ARROWS_LAYER,
+            type: 'symbol',
+            source: ROUTES_SOURCE,
+            layout: {
+                'symbol-placement': 'line',
+                'symbol-spacing': 120,
+                // '>' is in the bundled 0-255 glyph range; keep-upright off so it points along the line.
+                'text-field': '>',
+                'text-font': ['Noto Sans Regular'],
+                'text-size': 14,
+                'text-keep-upright': false,
+                'text-allow-overlap': true,
+            },
+            paint: {
+                'text-color': ['coalesce', ['get', 'color'], palette.point],
+                'text-opacity': ['case', ['==', ['get', 'em'], -1], 0.15, 0.9],
+            },
+        });
+        map.addLayer({
+            id: HEATMAP_LAYER,
+            type: 'heatmap',
+            source: POINTS_RAW_SOURCE,
+            layout: { visibility: this.display === 'heatmap' ? 'visible' : 'none' },
+            paint: {
+                'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 2, 12, 12, 28],
+                'heatmap-opacity': 0.75,
+            },
         });
         map.addLayer({
             id: CLUSTERS_LAYER,
@@ -288,11 +399,27 @@ export class MapViewComponent implements AfterViewInit, OnChanges, OnDestroy {
                 'text-opacity': ['case', ['==', ['get', 'em'], -1], 0.35, 1],
             },
         });
+        this.applyDisplayMode();
     }
 
     private applyData(): void {
-        const src = this.map?.getSource(POINTS_SOURCE) as GeoJSONSource | undefined;
-        if (src) src.setData(this.pointsGeoJson());
+        const points = this.pointsGeoJson();
+        for (const id of [POINTS_SOURCE, POINTS_RAW_SOURCE]) {
+            (this.map?.getSource(id) as GeoJSONSource | undefined)?.setData(points);
+        }
+        (this.map?.getSource(ROUTES_SOURCE) as GeoJSONSource | undefined)?.setData(this.routesGeoJson());
+        this.applyDisplayMode();
+    }
+
+    /** Heatmap swaps in for the marker/cluster layers; routes stay visible in both modes. */
+    private applyDisplayMode(): void {
+        const map = this.map;
+        if (!map?.getLayer(HEATMAP_LAYER)) return;
+        const heat = this.display === 'heatmap';
+        map.setLayoutProperty(HEATMAP_LAYER, 'visibility', heat ? 'visible' : 'none');
+        for (const id of [POINTS_LAYER, CLUSTERS_LAYER, CLUSTER_COUNT_LAYER, LABELS_LAYER]) {
+            map.setLayoutProperty(id, 'visibility', heat ? 'none' : 'visible');
+        }
     }
 
     private applyScheme(): void {
