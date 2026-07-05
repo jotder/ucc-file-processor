@@ -52,7 +52,7 @@ import {
     GraphViewComponent,
     baseEdgeKind,
 } from 'app/modules/admin/catalog/graph-view.component';
-import { ElementDetailDialog, ElementDetailResult } from './element-detail.dialog';
+import { ElementDetailDialog, ElementDetailResult } from 'app/inspecto/investigation';
 import { Dataset } from 'app/modules/admin/studio/datasets/dataset-types';
 import { DatasetsService } from 'app/modules/admin/studio/datasets/datasets.service';
 import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-sources';

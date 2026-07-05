@@ -284,5 +284,24 @@
                 </div>
             </div>
         </section>
+
+        <!-- ── Map host (MapLibre GL) ───────────────────────────────────────────────────── -->
+        <section>
+            <h2 class="mb-3 text-xl font-semibold">Map host (MapLibre GL)</h2>
+            <p class="text-secondary mb-4 text-sm">
+                <code>inspecto/geo/map-view.component</code> — the Geo Map Analysis analog of the
+                read-only graph host: fully <b>offline</b> basemap (slimmed Natural Earth GeoJSON +
+                bundled glyphs under <code>assets/basemap/</code>, no tile server), scheme-aware via
+                <code>theme/map-tokens.ts</code> (the map's <code>chart-tokens</code>), pan/zoom,
+                scale bar, fit-to-data, PNG export. Data plane: <code>GeoData</code> points render
+                as circles; <code>(pointClick)</code> emits the point id. A
+                <code>pmtiles://</code> protocol is pre-registered for customer vector-tile
+                archives (Phase 4).
+            </p>
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <inspecto-map-view [data]="mapDemo" />
+            </div>
+            <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.mapView }}</code></pre>
+        </section>
     </div>
 </div>

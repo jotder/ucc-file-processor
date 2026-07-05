@@ -29,6 +29,7 @@ import {
 } from 'app/inspecto/grid';
 import { QuerySource } from 'app/inspecto/query';
 import { DataTableComponent, DataTableTier } from 'app/inspecto/data-table';
+import { GeoData, MapViewComponent } from 'app/inspecto/geo';
 
 interface DemoRow {
     pipeline: string;
@@ -61,6 +62,7 @@ interface DemoRow {
         InspectoSchemaFormComponent,
         InspectoSkeletonComponent,
         DataTableComponent,
+        MapViewComponent,
     ],
     templateUrl: './design-system.component.html',
 })
@@ -161,6 +163,17 @@ export class DesignSystemComponent {
         })),
     };
 
+    // ── Map host (MapLibre GL, offline basemap) ──────────────────────────────────────────────
+    readonly mapDemo: GeoData = {
+        points: [
+            { id: 'dhk', lat: 23.8103, lon: 90.4125, kind: 'tower', label: 'Dhaka' },
+            { id: 'sin', lat: 1.3521, lon: 103.8198, kind: 'tower', label: 'Singapore' },
+            { id: 'lon', lat: 51.5074, lon: -0.1278, kind: 'device', label: 'London' },
+            { id: 'nyc', lat: 40.7128, lon: -74.006, kind: 'device', label: 'New York' },
+        ],
+        routes: [],
+    };
+
     // ── Snippets (copy-paste) ────────────────────────────────────────────────────────────────
     readonly snippets = {
         badge: `<inspecto-status-badge [value]="event.level" />\n// in an ag-Grid cellRenderer:\ncellRenderer: (p) => statusBadgeHtml(p.value)`,
@@ -171,6 +184,7 @@ export class DesignSystemComponent {
         form: `form = this.fb.group({\n  id: ['', [Validators.required, Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)]],\n});\nsubmit() {\n  if (this.form.invalid) { this.form.markAllAsTouched(); return; }\n  // ...\n}`,
         schemaForm: `// declare the attributes once (tier: required | optional | advanced)\nconst SPECS: AttributeSpec[] = [\n  { key: 'name', label: 'Source id', type: 'identifier', tier: 'required' },\n  { key: 'host', label: 'Host', type: 'string', tier: 'required',\n    dependsOn: { key: 'protocol', equals: 'sftp' } },\n  { key: 'parallel_fetch', label: 'Parallel fetch', type: 'number', tier: 'advanced', default: 4 },\n];\n\n<inspecto-schema-form #sf [specs]="specs" [initial]="existingConfig" />\n// on submit: if (!sf.validate()) return;  const config = sf.value();`,
         dataTable: `<!-- one component, four tiers; logic lives in inspecto/data-table/{core,sql} + inspecto/query -->\n<!-- standard: icon toolbar (columns · search · export) -->\n<!-- pro: + a CodeMirror SQL editor (runs offline via AlaSQL) + filter builder -->\n<!-- proMax: + "save as rule" (parameterized :fieldValue template) -->\n<inspecto-data-table\n  [tier]="'pro'"                 // 'mini' | 'standard' | 'pro' | 'proMax'\n  [rows]="rows"\n  [columns]="columnDefs"         // optional; omitted ⇒ one column per row key\n  [rowActions]="actions"\n  sourceName="cdr"\n  (rowClick)="open($event)"\n  (ruleSaved)="onRuleSaved($event)" />  // pro max`,
+        mapView: `<!-- offline MapLibre host (bundled Natural Earth basemap, no network) -->\n<inspecto-map-view\n  [data]="geoData"          // GeoData { points, routes }; null ⇒ unmounted (show an empty state)\n  [fill]="true"             // grow into a flex column (default: 62vh page band)\n  (pointClick)="open($event)" />\n// colours live in theme/map-tokens.ts (the map's chart-tokens analog)`,
     };
     copy(text: string): void {
         navigator.clipboard?.writeText(text).then(

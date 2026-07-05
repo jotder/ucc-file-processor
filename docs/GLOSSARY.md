@@ -333,6 +333,29 @@ pick a **GraphSource** + query, render via the shared G6 host, analyze (paths, n
 communities). A saved investigation is a **Link-Analysis View** (Component kind `link-analysis-view`); when
 its source is `entity-projection` it is a **Widget** (a Graph Visualization Type bound to a Dataset).
 
+### Geo (Geo Map Analysis) *(added 2026-07-05 — plan: [`superpower/geo-map-analysis-plan.md`](superpower/geo-map-analysis-plan.md))*
+
+**Geo Map Analysis Studio** — The Builder-lens Studio pane (`/studio/geo-map`, Phase 1) for geographic
+investigation: pick a **GeoSource** + **GeoQuery**, render on the offline MapLibre host, investigate (search,
+nearby, heatmap, time filter). The *where* sibling of the Link Analysis Studio's *who-connects-to-whom*.
+
+**GeoSource** — Where a map's points/routes come from — the geo seam parallel to **GraphSource** (one map
+renderer + one query seam + many sources). First source: `dataset` (lat/lon column projection over a Dataset).
+
+**GeoQuery** — A GeoSource's saved query configuration: Dataset + location/entity/kind/time column mapping +
+filters. Parallel to a GraphSource query. ⛔ not *"map config"* / *"geo filter"*.
+
+**GeoPoint / GeoRoute** — The generic map-rendering primitives (`GeoData {points, routes}`, WGS84), the geo
+analog of Node/Edge. A **GeoPoint** is a located entity occurrence; a **GeoRoute** is a relationship drawn
+between two GeoPoints. ⛔ never *marker/pin* (rendering artifacts, not domain words) in model/API names.
+
+**Geo View** — A saved geo investigation (Component kind `geo-map-view`): GeoSource id + GeoQuery + display
+options + camera. Parallel to **Link-Analysis View**.
+
+**Layer** *(geo only)* — A toggleable stratum of the map display: the offline **basemap** layers, the data
+plane (points/routes), and overlays (heatmap; Phase 3 boundaries/custom GeoJSON). ⛔ don't reuse *Layer* for
+non-map stacking concepts.
+
 ### Resolved collisions (do not regress)
 - **`USES` → `CONSUMES`** in the **Lineage** graph (Report→KPI), so it no longer collides with the **component**
   graph's `uses` (composite→part). Two planes, two words.

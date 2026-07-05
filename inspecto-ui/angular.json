@@ -52,7 +52,8 @@
                             "src/@gamma/styles/main.scss",
                             "src/styles/styles.scss",
                             "src/styles/tailwind.scss",
-                            "node_modules/ngx-toastr/toastr.css"
+                            "node_modules/ngx-toastr/toastr.css",
+                            "node_modules/maplibre-gl/dist/maplibre-gl.css"
                         ],
                         "scripts": []
                     },

@@ -1,7 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { describe, expect, it } from 'vitest';
+import { of } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
+import { GammaConfigService } from '@gamma/services/config';
 import { INSPECTO_GRID_DARK, InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { DesignSystemComponent } from './design-system.component';
@@ -13,6 +15,8 @@ async function create() {
             provideNoopAnimations(),
             { provide: InspectoGridThemeService, useValue: { theme: () => INSPECTO_GRID_DARK } },
             { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined, warning: () => undefined, info: () => undefined } },
+            // the embedded map host tracks the colour scheme
+            { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
         ],
     });
     await TestBed.compileComponents(); // the embedded data-table has a @defer block

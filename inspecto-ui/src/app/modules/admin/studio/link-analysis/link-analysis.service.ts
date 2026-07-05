@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { Observable } from 'rxjs';
 import { ComponentsService } from 'app/inspecto/api';
 import { GraphSourceId, GraphSourceQuery } from 'app/inspecto/graph';
+import { SavedViewStore } from 'app/inspecto/investigation';
 import { GraphDisplayOptions, GraphLayoutId } from 'app/modules/admin/catalog/graph-view.component';
 
 /**
@@ -21,23 +22,24 @@ export interface LinkAnalysisView {
     layout?: GraphLayoutId;
 }
 
-/** View store — mirrors `widgets.service` / `datasets.service` over the components seam. */
+/** View store — a thin kind/codec binding over the shared {@link SavedViewStore}. */
 @Injectable({ providedIn: 'root' })
 export class LinkAnalysisService {
-    private components = inject(ComponentsService);
+    private store = new SavedViewStore<LinkAnalysisView>(inject(ComponentsService), 'link-analysis-view', {
+        toContent,
+        fromContent,
+    });
 
     list(): Observable<LinkAnalysisView[]> {
-        return this.components.list('link-analysis-view').pipe(map((defs) => defs.map((d) => fromContent(d.name, d.content))));
+        return this.store.list();
     }
 
     save(view: LinkAnalysisView): Observable<LinkAnalysisView> {
-        return this.components
-            .create('link-analysis-view', { id: view.id, ...toContent(view) })
-            .pipe(map(() => view));
+        return this.store.save(view);
     }
 
     remove(id: string): Observable<unknown> {
-        return this.components.remove('link-analysis-view', id);
+        return this.store.remove(id);
     }
 }
 

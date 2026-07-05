@@ -26,6 +26,7 @@ const ROOTS = ['src/app/inspecto', 'src/app/modules/admin'];
 // banner, and the app-wide connectivity banner. Everything else consumes them.
 const ALLOWLIST = new Set([
     'src/app/inspecto/theme/chart-tokens.ts',
+    'src/app/inspecto/theme/map-tokens.ts',
     'src/app/inspecto/components/status-badge.component.ts',
     'src/app/inspecto/components/alert.component.ts',
     'src/app/inspecto/components/connectivity-banner.component.ts',

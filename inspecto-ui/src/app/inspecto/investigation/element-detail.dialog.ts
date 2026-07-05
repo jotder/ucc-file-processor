@@ -23,8 +23,9 @@ export interface ElementDetailData {
 export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | undefined;
 
 /**
- * **Element detail popup** (Link Analysis): full details of a clicked node or link, plus
- * focus-on-canvas and collapse/expand-branch actions. Pure presentational — the pane owns the data.
+ * **Element detail popup** (investigation studios — Link Analysis, Geo Map Analysis): full details
+ * of a clicked element (node/link/point/route), plus focus-on-canvas and, for graphs,
+ * collapse/expand-branch actions. Pure presentational — the pane owns the data.
  */
 @Component({
     selector: 'inspecto-element-detail-dialog',
