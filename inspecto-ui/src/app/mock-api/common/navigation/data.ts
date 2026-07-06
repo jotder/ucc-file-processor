@@ -93,6 +93,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
         type    : 'collapsable',
         icon    : 'heroicons_outline:cog-8-tooth',
         children: [
+            { id: 'menus',          title: 'Menus',          type: 'basic', icon: 'heroicons_outline:bars-3',                 link: '/settings/menus' },
             { id: 'config',         title: 'Config',         type: 'basic', icon: 'heroicons_outline:adjustments-horizontal', link: '/config' },
             { id: 'notification-center', title: 'Notifications', type: 'basic', icon: 'heroicons_outline:bell',               link: '/notification-center' },
             { id: 'spaces',         title: 'Spaces',         type: 'basic', icon: 'heroicons_outline:square-3-stack-3d',      link: '/spaces' },

@@ -39,8 +39,8 @@ describe('MenuItemHostComponent', () => {
         expect(f.nativeElement.textContent).toContain('Nothing linked');
     });
 
-    it('resolves a leaf binding from the route param (no render — child hosts are live-only)', () => {
+    it('resolves the node from the route param (no render — child hosts are live-only)', () => {
         const f = configure({ id: 'n1', title: 'Cost', binding: { kind: 'widget', componentId: 'cost_by_tariff' } });
-        expect(f.componentInstance.binding()).toEqual({ kind: 'widget', componentId: 'cost_by_tariff' });
+        expect(f.componentInstance.node()?.binding).toEqual({ kind: 'widget', componentId: 'cost_by_tariff' });
     });
 });
