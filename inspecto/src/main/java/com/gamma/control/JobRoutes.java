@@ -2,8 +2,12 @@ package com.gamma.control;
 
 import com.gamma.pipeline.exec.DbProvenanceStore;
 import com.gamma.job.DbJobRunStore;
+import com.gamma.job.JobRun;
 import com.gamma.job.JobService;
+import com.sun.net.httpserver.HttpExchange;
 
+import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -23,17 +27,47 @@ final class JobRoutes implements RouteModule {
         api.get("/jobs/metrics", (e, m) -> jobRunStore(api).metrics(ApiContext.query(e, "job")));
         api.get("/jobs/runs", (e, m) -> jobRunStore(api).recentRuns(ApiContext.parseIntOr(ApiContext.query(e, "limit"), 50), ApiContext.query(e, "job")));
         api.get("/jobs/failures", (e, m) -> jobRunStore(api).failureTrend(ApiContext.parseIntOr(ApiContext.query(e, "days"), 30)));
+        // W5 async: poll one run by id (the id returned by the 202 trigger below). Single-segment after
+        // /jobs/runs/, so it never collides with the exact /jobs/runs or the /jobs/{name}/runs history route.
+        api.get("/jobs/runs/([^/]+)", (e, m) -> runById(api, ApiContext.name(m)));
         api.get("/jobs/([^/]+)/runs", (e, m) -> jobs(api).runsFor(ApiContext.name(m)));
-        api.post("/jobs/([^/]+)/trigger", (e, m) -> {
-            if (!jobs(api).trigger(ApiContext.name(m), ApiContext.query(e, "actor")))   // optional ?actor= attributes the manual fire (T32)
-                throw new ApiException(404, "no job named '" + ApiContext.name(m) + "'");
-            return Map.of("job", ApiContext.name(m), "status", "triggered");
-        });
+        api.post("/jobs/([^/]+)/trigger", (e, m) -> triggerJob(api, e, ApiContext.name(m)));
 
         // ── data-plane provenance (T22, §11): per-(node, relationship) record counts of a past flow run,
         // for painting quantities onto the PipelineGraph edges (Sankey). 404 unless -Dprovenance.backend is set. ──
         api.get("/provenance", (e, m) -> provenanceData(api, ApiContext.query(e, "flow"), ApiContext.query(e, "batch")));
         api.get("/provenance/batches", (e, m) -> provenanceBatches(api, ApiContext.query(e, "flow"), ApiContext.query(e, "limit")));
+    }
+
+    /**
+     * {@code POST /jobs/{name}/trigger} — fire a job (async; jobs already run off the request thread). On the
+     * v1 surface returns {@code 202} + {@code {runId,...}} + a {@code Location} to poll; the legacy surface keeps
+     * its unchanged {@code 200 {job,status:"triggered"}} body. 404 if no such job.
+     */
+    private Object triggerJob(ApiContext api, HttpExchange e, String name) throws IOException {
+        String runId = jobs(api).triggerRun(name, ApiContext.query(e, "actor"))   // optional ?actor= attributes the fire (T32)
+                .orElseThrow(() -> new ApiException(404, "no job named '" + name + "'"));
+        if (ApiContext.v1(e)) {
+            e.getResponseHeaders().set("Location", "/api/v1/jobs/runs/" + runId);
+            return ApiContext.respondJson(e, 202, Map.of("runId", runId, "job", name, "status", "running"));
+        }
+        return Map.of("job", name, "status", "triggered");
+    }
+
+    /** {@code GET /jobs/runs/{runId}} — poll one run's status (W5); 404 once evicted or unknown. */
+    private Object runById(ApiContext api, String runId) {
+        JobRun r = jobs(api).runById(runId).orElseThrow(() -> new ApiException(404, "no run '" + runId + "'"));
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("runId", r.runId());
+        m.put("job", r.job());
+        m.put("type", r.type());
+        m.put("trigger", r.trigger());
+        m.put("status", r.status());
+        m.put("startedAt", r.startTime());
+        m.put("finishedAt", r.endTime());
+        m.put("durationMs", r.durationMs());
+        m.put("message", r.message());
+        return m;
     }
 
     /**

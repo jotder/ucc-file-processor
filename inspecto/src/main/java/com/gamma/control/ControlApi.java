@@ -84,7 +84,8 @@ import java.util.regex.Pattern;
  *   GET  /runs/{name}/report[?from=&to=] batch-audit report for one pipeline         [v2.8.0]
  *   GET  /jobs                                list config-driven jobs + last/next run      [v2.8.0]
  *   GET  /jobs/{name}/runs                    recent run history for a job                 [v2.8.0]
- *   POST /jobs/{name}/trigger                 run a job once now                           [v2.8.0]
+ *   POST /jobs/{name}/trigger                 run a job once now (v1: 202 + runId + Location)  [v2.8.0]
+ *   GET  /jobs/runs/{runId}                   poll one job run's status (RUNNING → terminal)   [v4.8.0]
  *   GET  /enrichment                          list Stage-2 enrichment jobs + last run      [v2.9.0]
  *   GET  /enrichment/{job}/runs               enrichment run-audit rows                    [v2.9.0]
  *   GET  /enrichment/{job}/lineage[?runId=]   enrichment output lineage rows               [v2.9.0]
@@ -96,6 +97,7 @@ import java.util.regex.Pattern;
  *   GET  /config/spec/{type}                  declarative spec for a config type           [v3.2.0]
  *   POST /assist/{intent}                     run an assist skill (e.g. explain-entity)    [v3.3.0]
  *   POST /config/write                        body {type,config,subdir?,overwrite?} — persist a config [v4.1.0]
+ *   POST /queries/{id}/run                     run a persisted query ($-params resolved, Result Set contract) [v4.8.0]
  *   GET  /events[?limit=]                     recent events, newest-first (live tail)       [v4.2.0]
  *   GET  /events/search[?level=&type=&pipeline=&correlationId=&q=&from=&to=&limit=&offset=] filtered events [v4.2.0]
  *   GET  /events/{id}                         one event by id                               [v4.2.0]
@@ -176,6 +178,9 @@ public final class ControlApi implements AutoCloseable, ApiContext {
      * 503). Made absolute + normalised so the write path-jail ({@code startsWith}) is meaningful.
      */
     private final Path writeRoot;
+
+    /** Per-instance {@code Idempotency-Key} replay cache for retryable writes (W5). */
+    private final Idempotency.Store idempotency = new Idempotency.Store();
 
     /**
      * Control plane over a single running service — wrapped as the {@code default} space. The long-standing
@@ -284,6 +289,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 new RunRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new PipelineRoutes(), new ComponentRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
+                new QueryRoutes(),
                 new JobRoutes(), new LineageRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
                 new NotificationRoutes(),
                 new AssistRoutes()))
@@ -327,6 +333,21 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             if (corsOrigin != null && "OPTIONS".equals(method)) {
                 ex.sendResponseHeaders(204, -1);
                 return;
+            }
+            // Idempotency-Key (W5): a keyed write whose response is already cached replays it verbatim,
+            // skipping the handler entirely — so a retried trigger/create does not run twice. Keyed on the
+            // raw request path so /api/v1 and legacy surfaces don't share entries. A miss marks the exchange
+            // so ApiContext.respondJson captures the first response.
+            String idemKey = Idempotency.keyFor(ex, method, ex.getRequestURI().getPath());
+            if (idemKey != null) {
+                Idempotency.Entry hit = idempotency.get(idemKey);
+                if (hit != null) {
+                    Idempotency.replay(ex, hit);
+                    AuditTrail.record(ex, method, path, hit.status());
+                    return;
+                }
+                ex.setAttribute(ApiContext.ATTR_IDEMPOTENCY_STORE, idempotency);
+                ex.setAttribute(ApiContext.ATTR_IDEMPOTENCY_KEY, idemKey);
             }
             // Per-space request seam: a "/spaces/{id}/<rest>" path binds this request to that space and is then
             // matched as "/<rest>" against the unchanged route table — so RouteModules never see the prefix. An
@@ -496,6 +517,12 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     public Path writeRoot() {
         Path spaceConfig = currentContext().root().config();
         return spaceConfig != null ? spaceConfig : writeRoot;
+    }
+
+    @Override
+    public Path dataRoot() {
+        String dir = currentContext().root().dataDir();
+        return (dir == null || dir.isBlank()) ? null : Path.of(dir);
     }
 
     // Route registration. The core (Personal edition) is auth-free — every route is open.

@@ -38,6 +38,10 @@ interface ApiContext {
     String ATTR_SELF_PATH      = "inspecto.selfPath";
     /** A specific {@link ErrorCodes} value chosen by the throwing site (else derived from status). */
     String ATTR_ERROR_CODE     = "inspecto.errorCode";
+    /** The active {@link Idempotency.Store} for this exchange (present only for a keyed write). */
+    String ATTR_IDEMPOTENCY_STORE = "inspecto.idempotency.store";
+    /** The idempotency cache key for this exchange (present only for a keyed write). */
+    String ATTR_IDEMPOTENCY_KEY   = "inspecto.idempotency.key";
 
     /** JSON bodies at or above this size are gzipped when the client sent {@code Accept-Encoding: gzip}. */
     int GZIP_MIN_BYTES = 1024;
@@ -72,6 +76,10 @@ interface ApiContext {
 
     /** The configured write root, or {@code null} when filesystem writes are disabled. */
     Path writeRoot();
+
+    /** The bound space's data directory (where partition stores live), or {@code null} if unavailable.
+     *  Used by query execution to resolve a dataset's {@code physicalRef} to its at-rest Parquet (W4). */
+    Path dataRoot();
 
     /** The acting identity for the audit trail. Auth-free core has no session, so the actor defaults to
      *  {@code appUser}; an edition's security module supplies the real principal via {@code X-Actor}. */
@@ -142,6 +150,7 @@ interface ApiContext {
         Object payload = v1(ex) ? Envelope.shape(ex, status, body) : body;
         byte[] bytes = JSON.writeValueAsBytes(payload);
         ex.getResponseHeaders().set("Content-Type", "application/json");
+        Idempotency.capture(ex, status, bytes);   // cache the pre-compression body for a keyed-write replay (W5)
         bytes = maybeGzip(ex, bytes);
         ex.sendResponseHeaders(status, bytes.length);
         ex.getResponseBody().write(bytes);

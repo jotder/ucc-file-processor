@@ -80,6 +80,36 @@ class JobServiceTest {
     }
 
     @Test
+    void triggerRunSurfacesRunIdAndPollByIdTracksLifecycle(@TempDir Path dir) throws Exception {
+        // W5: triggerRun returns the runId synchronously; runById polls it RUNNING → terminal.
+        JobConfig hb = maintenance("hb", null, null, Map.of("task", "heartbeat"));
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(hb), new BatchEventBus(), s, null, dir.resolve("audit").toString())) {
+            js.start();
+            var runId = js.triggerRun("hb", null);
+            assertTrue(runId.isPresent(), "a known job returns its runId");
+            assertTrue(js.runById(runId.get()).isPresent(), "pollable immediately (RUNNING or already done)");
+            JobRun done = await(() -> {
+                JobRun r = js.runById(runId.get()).orElse(null);
+                return r != null && !"RUNNING".equals(r.status()) ? r : null;
+            });
+            assertEquals("SUCCESS", done.status());
+            assertEquals(runId.get(), done.runId());
+            assertNotNull(done.endTime(), "a finished run has an end time");
+        }
+    }
+
+    @Test
+    void triggerRunAndPollAreEmptyForUnknown(@TempDir Path dir) throws Exception {
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(), new BatchEventBus(), s, null, dir.resolve("audit").toString())) {
+            js.start();
+            assertTrue(js.triggerRun("ghost", null).isEmpty(), "no such job → no runId");
+            assertTrue(js.runById("nope-1").isEmpty(), "unknown runId → empty");
+        }
+    }
+
+    @Test
     void cleanupDeletesFilesOlderThanRetention(@TempDir Path dir) throws Exception {
         Path target = dir.resolve("target");
         Files.createDirectories(target);

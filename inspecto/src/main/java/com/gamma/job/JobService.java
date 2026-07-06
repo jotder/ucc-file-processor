@@ -94,6 +94,17 @@ public final class JobService implements AutoCloseable {
      *  deletion fence (T32) so a delete that races an active flow-job reader/writer surfaces a conflict. */
     private final Set<String> runningFlows = ConcurrentHashMap.newKeySet();
 
+    /** Live + recently-finished runs by {@code runId}, so {@code GET /jobs/runs/{runId}} can poll a manual
+     *  fire (W5). A run is registered {@code RUNNING} at submit and replaced with its terminal
+     *  {@link JobRun} on completion. Bounded LRU (oldest evicted) — the durable history stays in the ledger. */
+    private static final int LIVE_RUN_CAP = 1000;
+    private final Map<String, JobRun> liveRuns = java.util.Collections.synchronizedMap(
+            new java.util.LinkedHashMap<String, JobRun>(64, 0.75f, false) {
+                @Override protected boolean removeEldestEntry(Map.Entry<String, JobRun> eldest) {
+                    return size() > LIVE_RUN_CAP;
+                }
+            });
+
     /** A job's identity + state for the Control API listing. */
     public record JobView(String name, String type, String cron, String onPipeline,
                           boolean enabled, String lastStatus, String lastRunTime, String nextFire) {}
@@ -224,31 +235,56 @@ public final class JobService implements AutoCloseable {
      * ({@code schedule}, {@code event:<pipeline>}, {@code catch-up}). Returns false if no such (enabled) job.
      */
     public boolean trigger(String name, String actor) {
-        if (!jobs.containsKey(name)) return false;
-        submit(name, actor == null || actor.isBlank() ? "manual" : "manual:" + actor.trim());
-        return true;
+        return triggerRun(name, actor).isPresent();
+    }
+
+    /**
+     * Run a job once by name and return its {@code runId} (W5) so an async HTTP caller can poll
+     * {@link #runById}. Empty if no such (enabled) job. Attribution matches {@link #trigger(String, String)}.
+     */
+    public Optional<String> triggerRun(String name, String actor) {
+        if (!jobs.containsKey(name)) return Optional.empty();
+        String runId = newRunId(name);
+        submitRun(runId, name, actor == null || actor.isBlank() ? "manual" : "manual:" + actor.trim());
+        return Optional.of(runId);
+    }
+
+    /** A live or recently-finished run by its id, for polling; empty once evicted past the LRU cap. */
+    public Optional<JobRun> runById(String runId) {
+        return runId == null ? Optional.empty() : Optional.ofNullable(liveRuns.get(runId));
+    }
+
+    private String newRunId(String name) {
+        return name.toLowerCase().replace(' ', '_') + "-"
+                + LocalDateTime.now().format(RUN_TS) + "-" + seq.incrementAndGet();
     }
 
     private void submit(String name, String trigger) {
+        if (jobs.containsKey(name)) submitRun(newRunId(name), name, trigger);
+    }
+
+    /** Register the run as {@code RUNNING} and execute it off the caller's thread (runId minted by the caller). */
+    private void submitRun(String runId, String name, String trigger) {
+        Job job = jobs.get(name);
+        if (job == null) return;
+        String start = LocalDateTime.now().format(TS);
+        liveRuns.put(runId, new JobRun(runId, name, job.type().name(), trigger, start, null, "RUNNING", 0L, null));
         // The default space runs with no MDC (it is the fallback namespace everywhere); a named space sets it so
         // this job run's events/metrics/acquisition route to that space. Fresh per-task virtual thread → clear after.
         boolean scoped = !EventLog.DEFAULT_SPACE_ID.equals(spaceId);
         workers.submit(() -> {
             if (scoped) MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
             try {
-                runJob(name, trigger);
+                runJob(runId, name, trigger, start);
             } finally {
                 if (scoped) MDC.remove(EventLog.SPACE_MDC_KEY);
             }
         });
     }
 
-    private void runJob(String name, String trigger) {
+    private void runJob(String runId, String name, String trigger, String start) {
         Job job = jobs.get(name);
         if (job == null) return;
-        String runId = name.toLowerCase().replace(' ', '_') + "-"
-                + LocalDateTime.now().format(RUN_TS) + "-" + seq.incrementAndGet();
-        String start = LocalDateTime.now().format(TS);
         runner.runExclusiveOrSkip(name, () -> {
             fenceDelete(name);   // T25: surface a conflict if a declared delete races an active reader/writer
             String flowId = trackFlowStart(job, name);   // T32: mark a flow job's stores active for the fence
@@ -264,7 +300,7 @@ public final class JobService implements AutoCloseable {
             }
             JobRun run = new JobRun(runId, name, job.type().name(), trigger, start,
                     LocalDateTime.now().format(TS), res.status(), res.durationMs(), res.message());
-            ledger.record(run);
+            record(run);
             MetricRegistry.global().inc("inspecto_jobs_total", "Config-driven job executions",
                     Map.of("job", name, "type", job.type().name(), "status", res.status()));
             MetricRegistry.global().observe("inspecto_job_duration_seconds", "Job wall time",
@@ -272,8 +308,14 @@ public final class JobService implements AutoCloseable {
             log.info("[JOB] {} ({}) {} in {}ms — {}",
                     name, trigger, res.status(), res.durationMs(), res.message());
         }, () ->   // a previous run is still in flight — don't overlap
-            ledger.record(new JobRun(runId, name, job.type().name(), trigger, start,
+            record(new JobRun(runId, name, job.type().name(), trigger, start,
                     LocalDateTime.now().format(TS), "SKIPPED", 0L, "previous run still in flight")));
+    }
+
+    /** Record a terminal run to both the durable ledger and the live-run registry (so a poll sees the result). */
+    private void record(JobRun run) {
+        ledger.record(run);
+        liveRuns.put(run.runId(), run);
     }
 
     /** The DuckDB job-run projection for reporting (T27), or empty when no backend is configured. */
