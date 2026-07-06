@@ -1,9 +1,9 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { SpacesService } from 'app/inspecto/api';
+import { loadMenuTrees, saveMenuTrees } from './menu-persist';
 import { MenuStore } from './menu-store';
 import { emptyTree, MenuNode, MenuTree } from './menu-types';
 
-const KEY = 'inspecto.menuTree.v1';
 const DEFAULT_SPACE = 'default';
 
 /**
@@ -34,19 +34,10 @@ export class MenuService {
     }
 
     private load(): Record<string, MenuTree> {
-        try {
-            const raw = localStorage.getItem(KEY);
-            return raw ? (JSON.parse(raw) as Record<string, MenuTree>) : {};
-        } catch {
-            return {};
-        }
+        return loadMenuTrees();
     }
     private persist(next: Record<string, MenuTree>): void {
         this.store.set(next);
-        try {
-            localStorage.setItem(KEY, JSON.stringify(next));
-        } catch {
-            /* quota exceeded / storage disabled — keep the in-memory copy */
-        }
+        saveMenuTrees(next);
     }
 }

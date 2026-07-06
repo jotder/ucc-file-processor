@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { GammaNavigationItem } from '@gamma/components/navigation';
 import { GammaMockApiService } from '@gamma/lib/mock-api';
+import { loadMenuTrees, menuTreeToNav } from 'app/inspecto/menu';
 import {
     compactNavigation,
     defaultNavigation,
@@ -73,14 +74,24 @@ export class NavigationMockApi {
                 });
             });
 
+            // Merge the user's per-space Menu tree (Menu Builder) as top-level siblings of the platform
+            // groups. Read fresh on every fetch, so re-fetching after an edit refreshes the sidebar.
+            const space =
+                (typeof localStorage !== 'undefined' && localStorage.getItem('inspecto.currentSpace')) ||
+                'default';
+            const tree = loadMenuTrees()[space];
+            const custom = tree ? menuTreeToNav(tree.nodes) : [];
+            const withCustom = (nav: GammaNavigationItem[]): GammaNavigationItem[] =>
+                custom.length ? [...cloneDeep(custom), ...nav] : nav;
+
             // Return the response
             return [
                 200,
                 {
-                    compact: cloneDeep(this._compactNavigation),
-                    default: cloneDeep(this._defaultNavigation),
-                    futuristic: cloneDeep(this._futuristicNavigation),
-                    horizontal: cloneDeep(this._horizontalNavigation),
+                    compact: withCustom(cloneDeep(this._compactNavigation)),
+                    default: withCustom(cloneDeep(this._defaultNavigation)),
+                    futuristic: withCustom(cloneDeep(this._futuristicNavigation)),
+                    horizontal: withCustom(cloneDeep(this._horizontalNavigation)),
                 },
             ];
         });
