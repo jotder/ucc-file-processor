@@ -151,6 +151,15 @@ export class DesignSystemComponent {
     // ── Data table (tiered: mini / standard / pro / pro max) ─────────────────────────────────
     readonly dtTiers: DataTableTier[] = ['mini', 'standard', 'pro', 'proMax'];
     readonly dtTier = signal<DataTableTier>('standard');
+    /** Explicit columns incl. a badge `cellRenderer` — verifies it renders on first paint AND survives the
+     *  pro-tier SQL re-run (regression: badge cells used to come up empty). */
+    readonly cdrColumns: ColDef[] = [
+        { field: 'msisdn', headerName: 'MSISDN', flex: 1 },
+        { field: 'cell_id', headerName: 'Cell', width: 130 },
+        { field: 'duration_s', headerName: 'Duration (s)', width: 130 },
+        { field: 'tariff', headerName: 'Tariff', width: 130, cellRenderer: (p: { value: string }) => statusBadgeHtml(p.value) },
+        { field: 'start_time', headerName: 'Start', flex: 1 },
+    ];
     readonly querySource: QuerySource = {
         name: 'cdr_sample',
         rows: Array.from({ length: 40 }, (_, i) => ({

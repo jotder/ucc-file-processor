@@ -112,9 +112,15 @@ src/app/
   `@lezer/highlight`. Don't re-roll a bare `<ag-grid-angular>` host or a second SQL engine.
 - **ag-Grid internals** (used inside the data-table, rarely direct): `app/inspecto/grid`
   (`INSPECTO_DEFAULT_COL_DEF`, `actionsColumn`, `fmtDateTime`, `InspectoGridThemeService`, `noRowsOverlay`).
-  Bind `(firstDataRendered)` AND `(rowDataUpdated)` → `refreshActions($event)` or action icons don't render.
-  **Gotcha:** static `rowData` present at first render also skips **string-returning** cell renderers — force
-  `api.refreshCells({force:true,columns:[…]})`.
+  Bind `(firstDataRendered)` AND `(rowDataUpdated)` → `refreshActionsCells($event)` (actions column) or
+  `refreshAllCells($event)` (every column) or the cells never materialize.
+  **Gotcha:** ag-grid-angular 35 skips cell-renderer materialization on the *initial* render — not just the
+  actions component but **any `cellRenderer`** (incl. string-returning ones like the `statusBadgeHtml`
+  severity/level/status badges), which stay empty until the next data change. `refreshActionsCells` only
+  force-refreshes `['actions']`; use **`refreshAllCells`** (`api.refreshCells({force:true})`) on grids with
+  non-actions renderers. **The shared `<inspecto-data-table>` already binds `refreshAllCells`**, so every
+  host's badge columns render regardless of tier (and survive the pro-tier AlaSQL re-run — `resultColumns()`
+  reuses the host's explicit `ColDef` for matching fields) — bare direct hosts must do this themselves.
 - **G6 graph hosts — two patterns.** *Read-only* (`catalog/graph-view.component`) rebuilds the `Graph` on every
   data/scheme change — fine for static views. *Interactive editing* (`flows/flow-editor-graph.component`, T32) keeps a
   **persistent** `Graph` and mutates it in place (`add/remove/updateNodeData` + `draw()`), rebuilding only when the

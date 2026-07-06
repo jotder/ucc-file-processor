@@ -14,7 +14,7 @@ import {
     InspectoGridThemeService,
     InspectoRowAction,
     noRowsOverlay,
-    refreshActionsCells,
+    refreshAllCells,
 } from 'app/inspecto/grid';
 import {
     ColumnMeta,
@@ -203,7 +203,7 @@ export class DataTableComponent {
         const result = this.proResult();
         let base: ColDef[];
         if (result != null) {
-            base = result.length ? autoColumns(result) : [];
+            base = result.length ? this.resultColumns(result) : [];
         } else {
             const all = this.columns() ?? this.allFields().map((f) => ({ field: f }) as ColDef);
             const sel = this.chosen();
@@ -211,6 +211,21 @@ export class DataTableComponent {
         }
         return acts.length ? [...base, actionsColumn(acts)] : base;
     });
+
+    /**
+     * Columns for a SQL-run result: one per result key, reusing the host's explicit `ColDef`
+     * (`cellRenderer` / `valueFormatter` / `headerName` / width …) whenever a result field matches an
+     * explicit column, so badges and formatters survive the re-materialization. Result-only fields
+     * (aggregates, aliases) fall back to a bare column keyed by name.
+     */
+    private resultColumns(rows: Record<string, unknown>[]): ColDef[] {
+        const explicit = this.columns();
+        if (!explicit) return autoColumns(rows);
+        const byField = new Map(
+            explicit.filter((c) => c.field != null).map((c) => [String(c.field), c] as const),
+        );
+        return Object.keys(rows[0]).map((k) => byField.get(k) ?? ({ field: k } as ColDef));
+    }
 
     readonly noRows = computed(() => noRowsOverlay(this.noRowsTitle(), this.noRowsHint()));
 
@@ -278,6 +293,9 @@ export class DataTableComponent {
     }
 
     refresh(e: { api: GridApi }): void {
-        refreshActionsCells(e);
+        // Force-refresh every column (not just `actions`): ag-grid-angular 35 skips cell-renderer
+        // materialization on the initial render, which otherwise leaves `statusBadgeHtml` badge
+        // columns (severity / level / status …) empty until the next data change.
+        refreshAllCells(e);
     }
 }

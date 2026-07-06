@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { describe, expect, it } from 'vitest';
+import { ColDef, ICellRendererParams } from 'ag-grid-community';
+import { describe, expect, it, vi } from 'vitest';
 import { INSPECTO_GRID_DARK, InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { DataTableComponent, DataTableTier } from './data-table.component';
@@ -79,6 +80,52 @@ describe('DataTableComponent', () => {
         f.componentRef.setInput('exportable', true);
         f.detectChanges();
         expect(f.componentInstance.showExport()).toBe(true);
+    });
+
+    it('preserves explicit cellRenderer / valueFormatter / headerName across a SQL run', async () => {
+        // Regression: a badge `cellRenderer` (e.g. statusBadgeHtml) must survive the pro-tier AlaSQL
+        // re-materialization instead of being rebuilt as a bare column and rendering an empty cell.
+        const badge = (p: ICellRendererParams) => `<span>${p.value}</span>`;
+        const fmtWhen = (p: { value: unknown }) => `t:${p.value}`;
+        const columns: ColDef[] = [
+            { field: 'severity', headerName: 'Severity', cellRenderer: badge },
+            { field: 'epochMillis', headerName: 'When', valueFormatter: fmtWhen },
+        ];
+        const f = await create('pro');
+        f.componentRef.setInput('columns', columns);
+        f.detectChanges();
+        const c = f.componentInstance;
+
+        // Simulate a successful Run whose result carries the two mapped fields + one result-only field.
+        c.proResult.set([{ severity: 'critical', epochMillis: 1, extra: 'x' }]);
+        f.detectChanges();
+
+        const cols = c.gridColumns();
+        const sev = cols.find((x) => x.field === 'severity')!;
+        const when = cols.find((x) => x.field === 'epochMillis')!;
+        const extra = cols.find((x) => x.field === 'extra')!;
+        expect(sev.cellRenderer).toBe(badge); // badge renderer preserved
+        expect(when.valueFormatter).toBe(fmtWhen);
+        expect(when.headerName).toBe('When');
+        expect(extra.cellRenderer).toBeUndefined(); // result-only field falls back to a bare column
+    });
+
+    it('refresh() force-refreshes every column so non-actions cell renderers materialize', async () => {
+        // Regression: refresh must not scope to `['actions']` — a badge cellRenderer column would then
+        // stay empty on ag-grid's initial render (the bug on /alerts, /events, …).
+        vi.useFakeTimers();
+        try {
+            const c = (await create('pro')).componentInstance;
+            const refreshCells = vi.fn();
+            c.refresh({ api: { isDestroyed: () => false, refreshCells } as never });
+            vi.runAllTimers();
+            expect(refreshCells).toHaveBeenCalledTimes(1);
+            const arg = refreshCells.mock.calls[0][0];
+            expect(arg.force).toBe(true);
+            expect(arg.columns).toBeUndefined(); // all columns, not just 'actions'
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('has no a11y violations (standard)', async () => {

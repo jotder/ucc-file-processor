@@ -159,6 +159,20 @@ export function refreshActionsCells(e: { api: GridApi }): void {
     });
 }
 
+/**
+ * Like {@link refreshActionsCells} but for the *whole* grid: the same initial-render skip also drops
+ * plain `cellRenderer` columns (e.g. the `statusBadgeHtml` severity/level badges), which stay empty
+ * because {@link refreshActionsCells} only re-materializes the `actions` column. Force-refreshing every
+ * column brings them all up. Bind on grids whose columns carry non-actions cell renderers — the shared
+ * `<inspecto-data-table>` does this so any host's badge columns render regardless of tier.
+ */
+export function refreshAllCells(e: { api: GridApi }): void {
+    setTimeout(() => {
+        if (e.api.isDestroyed()) return;
+        e.api.refreshCells({ force: true });
+    });
+}
+
 /** Derive simple columns from the keys of loose-map rows (audit rows etc.). */
 export function autoColumns(rows: Record<string, unknown>[]): ColDef[] {
     return rows.length ? Object.keys(rows[0]).map((k) => ({ field: k })) : [];

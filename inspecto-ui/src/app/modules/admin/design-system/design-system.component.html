@@ -243,7 +243,7 @@
                 </mat-button-toggle-group>
             </div>
             <div class="bg-card rounded-2xl p-6 shadow">
-                <inspecto-data-table [tier]="dtTier()" [rows]="querySource.rows" sourceName="cdr_sample" exportName="cdr_sample" />
+                <inspecto-data-table [tier]="dtTier()" [rows]="querySource.rows" [columns]="cdrColumns" sourceName="cdr_sample" exportName="cdr_sample" />
             </div>
             <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.dataTable }}</code></pre>
         </section>
