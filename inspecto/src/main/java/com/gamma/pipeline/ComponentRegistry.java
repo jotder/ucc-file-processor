@@ -49,7 +49,8 @@ public final class ComponentRegistry {
             "sinks", "sink",             // new: extracted Output settings
             "datasets", "dataset",       // W3: Studio metadata kinds now persist (ComponentStore.WRITABLE_TYPES)
             "widgets", "widget",
-            "dashboards", "dashboard");
+            "dashboards", "dashboard",
+            "queries", "query");         // W4: the query kind — POST /queries/{id}/run
 
     /** The on-disk sub-directory (plural) for a component {@code type} (e.g. {@code grammar} → {@code grammars}). */
     public static Optional<String> dirForType(String type) {

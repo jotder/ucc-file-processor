@@ -39,7 +39,7 @@ public final class ComponentStore {
      * all waited on this one set); each has a matching registry dir in {@link ComponentRegistry#TYPE_BY_DIR}.
      */
     public static final Set<String> WRITABLE_TYPES =
-            Set.of("grammar", "schema", "transform", "sink", "dataset", "widget", "dashboard");
+            Set.of("grammar", "schema", "transform", "sink", "dataset", "widget", "dashboard", "query");
 
     private static final String TOON = ".toon";
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");

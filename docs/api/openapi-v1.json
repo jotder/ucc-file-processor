@@ -303,6 +303,62 @@
           "503": { "$ref": "#/components/responses/WriteDisabled" }
         }
       }
+    },
+    "/queries/{id}/run": {
+      "post": {
+        "tags": ["Query & Results"],
+        "summary": "Run a persisted query",
+        "description": "Executes a query component's SQL against its dataset in a DuckDB sandbox (W4, design §6.2): server-side $-parameter resolution (built-ins + declared defaults + caller overrides), SqlGuard safety gate, dataset→relation resolution, and the full Result Set contract. Results are transactional and never cached (no ETag). Only type:sql runs server-side today; structured queries compile to SQL client-side.",
+        "operationId": "runQuery",
+        "parameters": [ { "$ref": "#/components/parameters/QueryId" } ],
+        "requestBody": { "required": false, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QueryRunRequest" } } } },
+        "responses": {
+          "200": { "description": "The query result.", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/QueryRunResult" } } }
+          ] } } } },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/WriteDisabled" }
+        }
+      }
+    },
+    "/jobs/{name}/trigger": {
+      "post": {
+        "tags": ["Execution & Scheduling"],
+        "summary": "Trigger a job (async)",
+        "description": "Fires a job off the request thread and returns 202 + the runId + a Location to poll (design §7 / §10 W5). Accepts an Idempotency-Key so a retried trigger returns the same runId without a second run. The legacy unversioned route keeps its 200 {job,status:'triggered'} body.",
+        "operationId": "triggerJob",
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "actor", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Attributes the manual fire (recorded as manual:<actor>)." },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "202": { "description": "Accepted; the run is executing.", "headers": { "Location": { "schema": { "type": "string" }, "description": "Poll URL for the run." } }, "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "type": "object", "required": ["runId", "job", "status"], "properties": { "runId": { "type": "string" }, "job": { "type": "string" }, "status": { "type": "string" } } } } }
+          ] } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/jobs/runs/{runId}": {
+      "get": {
+        "tags": ["Execution & Scheduling"],
+        "summary": "Poll one run by id",
+        "description": "The status of a run started by POST /jobs/{name}/trigger (W5): RUNNING until the job finishes, then a terminal status. 404 once evicted from the bounded live-run registry (durable history stays at /jobs/{name}/runs).",
+        "operationId": "getRun",
+        "x-probe": { "path": "/api/v1/jobs/runs/__contract_probe_absent__", "status": 404 },
+        "parameters": [ { "name": "runId", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": {
+          "200": { "description": "The run.", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/JobRun" } } }
+          ] } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
     }
   },
   "components": {
@@ -312,7 +368,9 @@
       "ComponentType": { "name": "type", "in": "path", "required": true, "schema": { "type": "string", "enum": ["grammar", "schema", "transform", "sink", "dataset", "widget", "dashboard"] }, "description": "Writable component type (W3 widened the set with dataset/widget/dashboard)." },
       "ComponentId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "description": "Immutable component id." },
       "IfNoneMatch": { "name": "If-None-Match", "in": "header", "required": false, "schema": { "type": "string" }, "description": "Conditional GET: when it holds the current ETag the server returns 304." },
-      "IfMatch": { "name": "If-Match", "in": "header", "required": false, "schema": { "type": "string" }, "description": "Optimistic-lock precondition on a write: a stale tag yields 409 CONFLICT_STALE_VERSION." }
+      "IfMatch": { "name": "If-Match", "in": "header", "required": false, "schema": { "type": "string" }, "description": "Optimistic-lock precondition on a write: a stale tag yields 409 CONFLICT_STALE_VERSION." },
+      "QueryId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "description": "Immutable query component id." },
+      "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": false, "schema": { "type": "string" }, "description": "Dedupe a retryable write: a repeat with the same key replays the first response (with Idempotency-Replayed: true) instead of re-running. ~10 min TTL. Applies to any POST/PUT/DELETE." }
     },
     "headers": {
       "Correlation-ID": { "schema": { "type": "string" }, "description": "The request's correlation id (issued or echoed). Present on every response, legacy surface included." }
@@ -541,6 +599,63 @@
             "authenticated": { "type": "boolean" }, "actor": { "type": "string" },
             "capabilities": { "type": "array", "items": { "type": "string" } }
           } }
+        }
+      },
+      "QueryRunRequest": {
+        "type": "object",
+        "description": "Run-time inputs for POST /queries/{id}/run (all optional).",
+        "properties": {
+          "parameters": { "type": "object", "description": "Caller values for the query's declared $-parameters (name → value), overriding declared defaults." },
+          "limit": { "type": "integer", "default": 500, "description": "Max rows (clamped to 10000)." },
+          "offset": { "type": "integer", "default": 0 },
+          "projection": { "type": "array", "items": { "type": "string" }, "description": "Output column subset (identifier-validated)." },
+          "sort": { "type": "array", "items": { "type": "object", "properties": { "field": { "type": "string" }, "dir": { "type": "string", "enum": ["asc", "desc"] } } } }
+        }
+      },
+      "ResultColumn": {
+        "type": "object",
+        "required": ["name", "type", "role"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["number", "string", "date", "boolean"] },
+          "role": { "type": "string", "enum": ["dimension", "measure", "temporal"] },
+          "cardinality": { "type": ["integer", "null"], "description": "Distinct-value count (dimensions only)." }
+        }
+      },
+      "ResultSet": {
+        "type": "object",
+        "required": ["columns", "rowCount"],
+        "properties": {
+          "columns": { "type": "array", "items": { "$ref": "#/components/schemas/ResultColumn" } },
+          "rowCount": { "type": "integer" }
+        }
+      },
+      "QueryRunResult": {
+        "type": "object",
+        "description": "The Result Set contract (design §6.2): rows never travel alone — they come with a typed descriptor, statistics, candidate renderings and export options.",
+        "required": ["resultSet", "rows", "statistics", "renderings", "exportOptions"],
+        "properties": {
+          "resultSet": { "$ref": "#/components/schemas/ResultSet" },
+          "rows": { "type": "array", "items": { "type": "object" } },
+          "statistics": { "type": "object", "properties": { "rowCount": { "type": "integer" }, "elapsedMs": { "type": "integer" }, "truncated": { "type": "boolean" } } },
+          "renderings": { "type": "array", "items": { "type": "string" }, "description": "Coarse server-side candidates (table/kpi/line-chart/bar-chart/heatmap); the UI's recommend() refines." },
+          "exportOptions": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "JobRun": {
+        "type": "object",
+        "description": "One job execution (W5): live (RUNNING) or terminal.",
+        "required": ["runId", "job", "status"],
+        "properties": {
+          "runId": { "type": "string" },
+          "job": { "type": "string" },
+          "type": { "type": "string" },
+          "trigger": { "type": "string", "description": "manual[:actor] | schedule | event:<pipeline> | catch-up." },
+          "status": { "type": "string", "description": "RUNNING, then terminal SUCCESS / FAILED / SKIPPED." },
+          "startedAt": { "type": ["string", "null"] },
+          "finishedAt": { "type": ["string", "null"] },
+          "durationMs": { "type": "integer" },
+          "message": { "type": ["string", "null"] }
         }
       }
     },

@@ -446,10 +446,19 @@ byte-for-byte unchanged.
   enumerations, space list, session stub (backend-owned metadata only; the SPA merges its own kind/viz/param
   registries). Folds the per-type `/config/spec/{type}` calls together.
 - **Config:** `POST /validate`, `GET /config/spec/{type}`, `POST /config/write` *(503)*.
+- **Query (v4.8.0):** `POST /queries/{id}/run` *(503 if no write root; 404 unknown query/dataset; 422 non-sql /
+  SqlGuard violation / DuckDB error)* — runs a persisted `query` component against its dataset in a DuckDB
+  sandbox with server-side `$`-parameter resolution + caller overrides, returning the Result Set contract
+  (typed columns + roles + cardinality, rows, statistics, candidate renderings, export options). Query/dataset
+  authoring reuses `/components/{query|dataset}/{id}`. Read-path only (not Matrices materialization).
 - **Pipelines:** `GET /pipelines`, `POST /pipelines` *(503)*, `POST /pipelines/{n}/trigger|pause|resume|reprocess`,
   `GET /pipelines/{n}/commits|batches|files|lineage|quarantine|pending|report`, `POST /trigger` (all).
 - **Status/report:** `GET /status`, `GET /report`.
-- **Jobs:** `GET /jobs`, `GET /jobs/metrics|runs|failures`, `GET /jobs/{n}/runs`, `POST /jobs/{n}/trigger`.
+- **Jobs:** `GET /jobs`, `GET /jobs/metrics|runs|failures`, `GET /jobs/{n}/runs`, `POST /jobs/{n}/trigger`
+  *(v4.8.0: on `/api/v1` returns **202 + {runId} + Location**; legacy stays 200)*, `GET /jobs/runs/{runId}`
+  *(poll a run — RUNNING then terminal; 404 once evicted)*.
+- **Idempotency (v4.8.0):** any `POST/PUT/DELETE` may carry an `Idempotency-Key` header; a retry with the same
+  key replays the first response (`Idempotency-Replayed: true`) instead of re-running (per-instance, ~10 min TTL).
 - **Enrichment:** `GET /enrichment`, `GET /enrichment/{job}/runs|lineage|report`.
 - **Sources:** `GET /sources` (incl. current DB watermark).
 - **Connections:** `GET /connections`, `GET /connections/{id}`, `POST /connections/{id}/test`,
