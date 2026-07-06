@@ -97,6 +97,8 @@ export const appRoutes: Route[] = [
             { path: 'settings/map', loadChildren: () => import('app/modules/admin/map-settings/map-settings.routes') },
             { path: 'settings/transfer', loadChildren: () => import('app/modules/admin/transfer/transfer.routes') },
             { path: 'notification-center', loadChildren: () => import('app/modules/admin/notification-center/notification-center.routes') },
+            // Menu Builder: the dynamic host every custom menu leaf links to (`/w/<nodeId>`).
+            { path: 'w/:nodeId', loadComponent: () => import('app/modules/admin/menu/menu-item-host.component').then((m) => m.MenuItemHostComponent) },
             // The old standalone prefs pane moved into the center as a tab (C4).
             { path: 'settings/notifications', redirectTo: 'notification-center' },
         ]

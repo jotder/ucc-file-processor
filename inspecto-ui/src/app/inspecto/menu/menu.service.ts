@@ -25,6 +25,11 @@ export class MenuService {
     readonly tree = computed<MenuTree>(() => this.store()[this.spaceKey()] ?? emptyTree(this.spaceKey()));
     readonly nodes = computed<MenuNode[]>(() => this.tree().nodes);
 
+    /** Find a node anywhere in the active Space's tree (e.g. the dynamic host resolving `/w/:nodeId`). */
+    find(id: string): MenuNode | undefined {
+        return new MenuStore(this.tree()).find(id);
+    }
+
     /** Apply pure ops against the active Space's tree and persist. Returns whatever `fn` returns. */
     mutate<T>(fn: (s: MenuStore) => T): T {
         const s = new MenuStore(this.tree());
