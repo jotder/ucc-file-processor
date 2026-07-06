@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { Route } from '@angular/router';
 import { initialDataResolver } from 'app/app.resolvers';
-import { Lens, LensService } from 'app/inspecto/api';
+import { authGuard, Lens, LensService } from 'app/inspecto/api';
 import { LayoutComponent } from 'app/layout/layout.component';
 
 /** The default landing route per persona lens (W4 — plan §1's per-lens home page). Each target is the
@@ -28,6 +28,12 @@ export const appRoutes: Route[] = [
     // Default landing route — per-lens home page (W4).
     { path: '', pathMatch: 'full', redirectTo: lensHomeRedirect },
 
+    // Standard-edition OIDC guest routes (W6d) — shown only when authMode==='oidc' and there's no live
+    // session (authGuard bounces here). No app shell, no guard. On Personal/offline these are simply
+    // never navigated to. sign-in kicks off Auth-Code+PKCE; auth/callback redeems the returned code.
+    { path: 'sign-in', loadComponent: () => import('app/modules/admin/session/sign-in.component').then((m) => m.SignInComponent) },
+    { path: 'auth/callback', loadComponent: () => import('app/modules/admin/session/callback.component').then((m) => m.CallbackComponent) },
+
     // Template OAuth flow, kept for reference (Inspecto uses operator tokens instead):
     // { path: 'signed-in-redirect', pathMatch: 'full', redirectTo: 'dashboard' },
     // {
@@ -53,11 +59,13 @@ export const appRoutes: Route[] = [
     //     ]
     // },
 
-    // Inspecto inspector routes. The backend ControlApi is fully open (no auth) — the app is
-    // single-user with no login, no token, and no route guard.
+    // Inspecto inspector routes. Personal/core edition is auth-free (authGuard is a pass-through there);
+    // the Standard edition (authMode==='oidc') gates entry on a live OIDC session, redirecting to
+    // /sign-in when absent (W6d). Session state is resolved by SessionService.init before routing.
     {
         path: '',
         component: LayoutComponent,
+        canActivate: [authGuard],
         resolve: {
             initialData: initialDataResolver
         },

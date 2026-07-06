@@ -177,10 +177,24 @@ src/app/
 - Service per resource in `inspecto/api/`, `@Injectable({providedIn:'root'})`, `private http = inject(HttpClient)`,
   return `Observable<T>`. Build URLs with `apiUrl('/path')`, query with `toParams({…})` (both `api-base.ts`).
   Declare interfaces inline. **Export from the `index.ts` barrel** (`import { X } from 'app/inspecto/api'`).
-- **No auth in the core / Personal edition** (removed 2026-06-16): there is no `authInterceptor`, `TokenStore`,
-  `InspectoAuthService`, route guard, or `/connect` screen — requests carry no bearer and the app boots straight
-  to `/dashboard`. Don't reintroduce per-screen auth or `canControl`/`canAssist` gating. (Standard/Enterprise
-  editions re-add auth out-of-band via the security module + an `Authenticator` SPI — not in this tree.)
+- **Personal edition stays auth-free; the Standard edition adds an opt-in session layer (W6d, 2026-07-07).**
+  The core is still auth-free by default — no per-screen auth, no `canControl`/`canAssist` gating, no bearer, no
+  route guard *effect* on Personal. **Do NOT hand-roll per-screen auth or bring back the old `/connect` token
+  screen / vendored `modules/auth/` template.** What exists now is a single edition-switch driven by
+  `GET /bootstrap` `features.authMode`: `SessionService` (`inspecto/api`, mirrors `SpacesService` — signals
+  `authMode`/`authenticated`/`capabilities` + in-memory access token; `token()`; `loginRequired()`), the
+  `authInterceptor` (attaches the bearer + does one silent `/auth/refresh` on 401 — **a pass-through unless
+  `authMode()==='oidc'`**), and the `authGuard` on the shell route (**returns `true` unchanged unless
+  `loginRequired()`**). The flow is **backend-mediated (BFF)**: the SPA never holds a refresh token — it does
+  Auth-Code+PKCE (`inspecto/api/pkce.ts`), then the backend `/auth/exchange|refresh|logout` routes keep the
+  refresh token in an httpOnly cookie and return only a short-lived access token (in memory). Guest screens:
+  `modules/admin/session/{sign-in,callback}.component`. **The offline switch (binding constraint): keep it
+  working with no backend** — the mock `auth.handler` answers `/bootstrap` as Personal by default
+  (`environment.mockAuthMode:'none'` → no login, boots straight to the app, byte-for-byte as before); set
+  `mockAuthMode:'oidc'` (or `localStorage['inspecto.mockAuthMode']='oidc'`) to exercise the whole sign-in UX
+  offline (the mock mints fake tokens, `auth.mock=true` skips the real IAM redirect). Real deployments read
+  `bootstrap.auth` (or fall back to `environment.oidc`) for the authorize URL + public client id (no secret —
+  public PKCE client). `/bootstrap` + `/auth` are server-global (exempt in `spaceInterceptor`).
 - **Downloads** (CSV/blob) go through `HttpClient` (responseType `blob`/`text`) + an object
   URL — a plain `<a href>` to the API skips the token and 401s.
 - **Live tail / polling** uses `visibleInterval(ms)` (pauses when the tab is hidden); unsubscribe in

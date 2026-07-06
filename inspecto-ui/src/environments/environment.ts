@@ -40,6 +40,15 @@ export const environment = {
     // notifications, catalog, diagnoses, config) so the full UI works with no backend at all.
     // Gates the demo handler in the unified mock store (inspecto/mock/).
     mockDemo: true,
+    // W6d edition switch (offline): 'none' → the mock /bootstrap reports Personal, so the app boots
+    // with NO login (byte-for-byte as before). Flip to 'oidc' (or localStorage['inspecto.mockAuthMode'])
+    // to exercise the whole Standard sign-in UX offline against the mock (auth.handler mints fake tokens).
+    mockAuthMode: 'none' as 'none' | 'oidc',
+    // Real Standard-deployment OIDC config (public PKCE client — no secret). Left blank in dev because
+    // offline mock mode supplies its own auth block (auth.mock=true). A real deployment sets the IAM's
+    // authorize endpoint + the SPA's public client id here; the SessionService reads bootstrap.auth first
+    // and falls back to this.
+    oidc: { authorizeUrl: '', clientId: '', scopes: 'openid profile roles', mock: false },
     apiVersion: '/api/v1',
     basePath: '/',
     authVersion:"/oauth",

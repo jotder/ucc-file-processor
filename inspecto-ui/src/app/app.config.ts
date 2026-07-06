@@ -21,6 +21,8 @@ import { TranslocoHttpLoader } from './core/transloco/transloco.http-loader';
 import { AUTH_HTTP_CLIENT } from './modules/auth/auth-http-client.token';
 import { errorInterceptor as inspectoErrorInterceptor } from './inspecto/api/error.interceptor';
 import { spaceInterceptor } from './inspecto/api/space.interceptor';
+import { authInterceptor } from './inspecto/api/auth.interceptor';
+import { SessionService } from './inspecto/api/session.service';
 import { mockApiInterceptor } from './inspecto/mock';
 
 export const appConfig: ApplicationConfig = {
@@ -28,15 +30,15 @@ export const appConfig: ApplicationConfig = {
         // Zone.js change detection (explicit opt-in for Angular 21)
         provideZoneChangeDetection({ eventCoalescing: true }),
 
-        // Main HttpClient — ControlApi is fully open (no auth). The space interceptor runs first to
-        // scope each call to the active space (rewrites /api/<path> → /api/spaces/<id>/<path>), then the
-        // error/connectivity tracker observes the result. No bearer token is attached, no 401 handling.
+        // Main HttpClient. The Personal/core edition is auth-free; the Standard edition adds OIDC via
+        // the authInterceptor (W6d), which is a no-op unless SessionService.authMode === 'oidc'. Order:
+        // mock (offline, short-circuits first) → space scope rewrite → auth bearer/refresh → error tracker.
         provideHttpClient(
             // mockApiInterceptor is THE unified mock backend (inspecto/mock/): a persistent, per-space
-            // MockStore behind framework-free domain handlers (demo, connections, components, pipelines,
-            // ops, jobs — plan W1) plus the liveness simulator. It runs before the space rewrite;
-            // per-domain environment.mock* flags gate each handler.
-            withInterceptors([mockApiInterceptor, spaceInterceptor, inspectoErrorInterceptor])
+            // MockStore behind framework-free domain handlers (auth/bootstrap, demo, connections,
+            // components, pipelines, ops, jobs) plus the liveness simulator. It runs before the space
+            // rewrite; per-domain environment.mock* flags gate each handler.
+            withInterceptors([mockApiInterceptor, spaceInterceptor, authInterceptor, inspectoErrorInterceptor])
         ),
 
         // Interceptor-free HttpClient for the vendored template AuthService only.
@@ -103,6 +105,10 @@ export const appConfig: ApplicationConfig = {
 
             return firstValueFrom(translocoService.load(defaultLang));
         }),
+        // Read GET /bootstrap once to learn the edition's authMode and (under OIDC) resume a session
+        // from the refresh cookie, before routing runs. Never rejects — a Personal/offline backend just
+        // reports authMode:'none' and this is a no-op, so the auth-free boot path is unchanged (W6d).
+        provideAppInitializer(() => inject(SessionService).init()),
 
         // Gamma
         // provideAuth(),

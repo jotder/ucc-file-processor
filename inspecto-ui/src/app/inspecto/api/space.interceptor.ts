@@ -8,7 +8,7 @@ import { SpacesService } from './spaces.service';
  * NOT be space-prefixed. The `/spaces` group also covers `/spaces/_meta` and every per-space
  * `/spaces/{id}/…` call (export/import/datasources) — those already carry their space id explicitly.
  */
-const SERVER_GLOBAL = ['/health', '/ready', '/metrics', '/spaces'];
+const SERVER_GLOBAL = ['/health', '/ready', '/metrics', '/spaces', '/bootstrap', '/auth'];
 
 /**
  * Scopes every feature API call to the active space by rewriting `/api/<path>` →

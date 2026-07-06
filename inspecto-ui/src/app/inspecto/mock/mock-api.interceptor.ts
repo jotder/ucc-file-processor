@@ -5,6 +5,7 @@ import { delay, mergeMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { SpacesService } from '../api/spaces.service';
 import { assistHandler } from './handlers/assist.handler';
+import { authHandler } from './handlers/auth.handler';
 import { componentsHandler } from './handlers/components.handler';
 import { connectionsHandler } from './handlers/connections.handler';
 import { demoHandler } from './handlers/demo.handler';
@@ -42,6 +43,7 @@ registerIntegrityRules(mockStore);
 const flags = environment as MockFlags;
 // Order preserves the old interceptor-chain precedence: demo → connections → components/pipelines → ops → jobs.
 const HANDLERS: MockHandler[] = [
+    authHandler(flags), // server-global /bootstrap + /auth/* (W6d edition switch) — ahead of everything
     spacesHandler(flags), // server-global /spaces — ahead of the per-space domains
     demoHandler(flags),
     connectionsHandler(flags),
