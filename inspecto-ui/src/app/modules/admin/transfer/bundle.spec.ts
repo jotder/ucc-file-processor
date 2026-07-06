@@ -54,6 +54,26 @@ describe('refsOf', () => {
     });
 });
 
+describe('job transport (R2)', () => {
+    const JOB = item('job', 'enrich_roaming', { name: 'enrich_roaming', type: 'enrich', cron: null, onPipeline: 'mediation_backbone' });
+
+    it("a job's pipeline trigger maps onto the bundle's authored-pipeline kind", () => {
+        expect(refsOf(JOB)).toEqual([{ kind: 'authored-pipeline', id: 'mediation_backbone' }]);
+    });
+
+    it('jobs sort after pipelines (their referenced kind) in a bundle', () => {
+        const bundle = buildBundle([JOB, PIPELINE], null);
+        expect(bundle.items.map((i) => i.kind)).toEqual(['authored-pipeline', 'job']);
+    });
+
+    it('with dependencies, exporting a job pulls the pipeline it triggers on', () => {
+        const pipeline = item('authored-pipeline', 'mediation_backbone', { name: 'mediation_backbone', nodes: [], edges: [] });
+        const { items, missing } = withDependencies([JOB], [JOB, pipeline]);
+        expect(missing).toEqual([]);
+        expect(items.map((i) => i.id).sort()).toEqual(['enrich_roaming', 'mediation_backbone']);
+    });
+});
+
 describe('withDependencies', () => {
     it('expands a dashboard to its full transitive closure (widgets → view → dataset)', () => {
         const { items, missing } = withDependencies([DASHBOARD], ALL);

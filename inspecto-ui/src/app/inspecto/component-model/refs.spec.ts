@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     dashboardRefs,
     investigationViewRefs,
+    jobRefs,
     parseUseRef,
     pipelineRefs,
     refsForComponent,
@@ -48,6 +49,13 @@ describe('structural derivations', () => {
         expect(investigationViewRefs({ query: { routes: { datasetId: 'money_moves' } } })).toEqual([
             { kind: 'dataset', id: 'money_moves', rel: 'projects', via: 'routes' },
         ]);
+    });
+
+    it('job: triggers on its upstream pipeline; cron/manual jobs reference nothing (R2)', () => {
+        expect(jobRefs({ name: 'enrich_roaming', type: 'enrich', cron: null, onPipeline: 'cdr_ingest' })).toEqual([
+            { kind: 'pipeline', id: 'cdr_ingest', rel: 'triggers', via: 'onPipeline' },
+        ]);
+        expect(jobRefs({ name: 'daily', type: 'report', cron: '0 30 6 * * *', onPipeline: null })).toEqual([]);
     });
 
     it('pipeline: binds every node use ref, anchored on the node id', () => {

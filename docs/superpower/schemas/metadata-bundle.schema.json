@@ -54,7 +54,8 @@
         "geo-map-view",
         "widget",
         "dashboard",
-        "authored-pipeline"
+        "authored-pipeline",
+        "job"
       ]
     },
     "ref": {
@@ -66,9 +67,9 @@
         "kind": { "$ref": "#/$defs/kind" },
         "id": { "type": "string", "minLength": 1 },
         "rel": {
-          "description": "Edge semantics: binds (config references, e.g. widget→dataset, pipeline-node→grammar/connection), tiles (dashboard→widget), renders (view-bound widget→saved view), projects (saved view→dataset), loads (dataset→physical store).",
+          "description": "Edge semantics: binds (config references, e.g. widget→dataset, pipeline-node→grammar/connection), tiles (dashboard→widget), renders (view-bound widget→saved view), projects (saved view→dataset), triggers (job→pipeline event trigger), loads (dataset→physical store).",
           "type": "string",
-          "enum": ["binds", "tiles", "renders", "projects", "loads"]
+          "enum": ["binds", "tiles", "renders", "projects", "triggers", "loads"]
         },
         "resolution": {
           "description": "included = the referent travels in this bundle's items; external = must already exist on the target.",

@@ -6,7 +6,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import type { ColDef } from 'ag-grid-community';
-import { PipelinesService } from 'app/inspecto/api';
+import { JobsService, PipelinesService } from 'app/inspecto/api';
 import { Component as ModelComponent, Part, deriveComponentGraph, refsForComponent } from 'app/inspecto/component-model';
 import { G6GraphData } from 'app/inspecto/graph';
 import { DataTableComponent } from 'app/inspecto/data-table';
@@ -60,6 +60,7 @@ const EDITOR_PATH: Record<string, string> = {
 export class RegistryComponent implements OnInit {
     private provider = inject(ComponentsDataProvider);
     private flows = inject(PipelinesService);
+    private jobs = inject(JobsService);
 
     readonly components = signal<ModelComponent[]>([]);
     readonly loading = signal(false);
@@ -100,9 +101,10 @@ export class RegistryComponent implements OnInit {
     async load(): Promise<void> {
         this.loading.set(true);
         this.selectedId.set(null);
-        const [compResults, pipelines] = await Promise.all([
+        const [compResults, pipelines, jobs] = await Promise.all([
             Promise.allSettled(REGISTRY_KINDS.map((k) => this.provider.list(k))),
             this.loadPipelines(),
+            this.loadJobs(),
         ]);
         const comps: ModelComponent[] = [];
         for (const r of compResults) {
@@ -110,9 +112,22 @@ export class RegistryComponent implements OnInit {
                 comps.push(...r.value.map((c) => ({ ...c, parts: refParts(c.kind, c.config as Record<string, unknown>) })));
             }
         }
-        comps.push(...pipelines);
+        comps.push(...pipelines, ...jobs);
         this.components.set(comps);
         this.loading.set(false);
+    }
+
+    /** Load jobs as `job` components (own store, like pipelines) — their `triggers` edge joins the graph (R2). */
+    private async loadJobs(): Promise<ModelComponent[]> {
+        try {
+            const jobs = await firstValueFrom(this.jobs.list());
+            return jobs.map((j) => {
+                const config = j as unknown as Record<string, unknown>;
+                return { kind: 'job', id: j.name, name: j.name, config, parts: refParts('job', config) };
+            });
+        } catch {
+            return [];
+        }
     }
 
     /** Load authored flows as `pipeline` components, with parts derived from each node's `use=<kind>/<id>` ref. */
@@ -143,6 +158,7 @@ export class RegistryComponent implements OnInit {
     /** The in-app editor route for a component, or null when its kind has no editor yet. */
     editorLink(c: ModelComponent): string[] | null {
         if (c.kind === 'pipeline') return ['/pipelines']; // the Pipelines editor page
+        if (c.kind === 'job') return ['/jobs']; // the Jobs pane (dialog-based editing, no /:id route)
         const path = EDITOR_PATH[c.kind];
         return path ? [path, c.id] : null;
     }

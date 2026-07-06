@@ -2,6 +2,7 @@ import type { ComponentDef } from '../api/components.service';
 import { refsForComponent } from '../component-model';
 import { componentCollection } from './handlers/components.handler';
 import { CONNECTIONS_COLL } from './handlers/connections.handler';
+import { JOBS_COLL } from './handlers/jobs.handler';
 import { PIPELINES_COLL } from './handlers/pipelines.handler';
 import { MockStore } from './mock-store';
 
@@ -18,13 +19,22 @@ const COMPONENT_KINDS = [
 
 /** Map a derived ref's target kind onto the store collection that holds it. */
 function collectionOf(kind: string): string {
-    return kind === 'connection' ? CONNECTIONS_COLL : componentCollection(kind);
+    if (kind === 'connection') return CONNECTIONS_COLL;
+    if (kind === 'pipeline' || kind === 'authored-pipeline') return PIPELINES_COLL;
+    if (kind === 'job') return JOBS_COLL;
+    return componentCollection(kind);
 }
 
 export function registerIntegrityRules(store: MockStore): void {
     store.addRefRule({
         from: PIPELINES_COLL,
         refs: (e) => refsForComponent('pipeline', e as Record<string, unknown>).map((r) => ({ collection: collectionOf(r.kind), id: r.id })),
+    });
+
+    // A job's `triggers` edge protects the pipeline it listens to (R2).
+    store.addRefRule({
+        from: JOBS_COLL,
+        refs: (e) => refsForComponent('job', e as Record<string, unknown>).map((r) => ({ collection: collectionOf(r.kind), id: r.id })),
     });
 
     for (const kind of COMPONENT_KINDS) {

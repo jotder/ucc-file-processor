@@ -3,7 +3,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastrService } from 'ngx-toastr';
-import { ComponentsService, ConnectionsService, LensService, PipelinesService, SpacesService } from 'app/inspecto/api';
+import { ComponentsService, ConnectionsService, JobsService, LensService, PipelinesService, SpacesService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { buildBundle, planImport } from './bundle';
 import { TransferComponent } from './transfer.component';
@@ -12,6 +12,7 @@ const DATASET_DEF = { type: 'dataset', name: 'cdr_sample', ref: 'dataset/cdr_sam
 const WIDGET_DEF = { type: 'widget', name: 'cost_by_tariff', ref: 'widget/cost_by_tariff', content: { vizType: 'bar', datasetId: 'cdr_sample', controls: {} } };
 const PIPELINE = { name: 'cdr_ingest', active: true, nodes: [{ id: 'c', type: 'collector.file', use: 'connections/cdr_sftp_prod' }], edges: [] };
 const CONNECTION = { id: 'cdr_sftp_prod', connector: 'sftp' };
+const JOB = { name: 'enrich_roaming', type: 'enrich', cron: null, onPipeline: 'cdr_ingest', enabled: true, catchUp: false, params: {}, lastStatus: 'SUCCESS' };
 
 function create(opts: { canAuthor?: boolean; failCreate?: boolean } = {}) {
     const create = opts.failCreate
@@ -34,6 +35,15 @@ function create(opts: { canAuthor?: boolean; failCreate?: boolean } = {}) {
                     replaceAuthored: vi.fn(() => of({})),
                 },
             },
+            {
+                provide: JobsService,
+                useValue: {
+                    list: () => of([{ name: 'enrich_roaming' }]),
+                    get: () => of(JOB),
+                    create: vi.fn(() => of({})),
+                    update: vi.fn(() => of({})),
+                },
+            },
             { provide: SpacesService, useValue: { currentSpaceId: () => 'staging' } },
             { provide: LensService, useValue: { canAuthorWorkbench: () => opts.canAuthor !== false } },
             { provide: ToastrService, useValue: { success: vi.fn(), warning: vi.fn(), error: vi.fn() } },
@@ -44,10 +54,14 @@ function create(opts: { canAuthor?: boolean; failCreate?: boolean } = {}) {
 }
 
 describe('TransferComponent', () => {
-    it('loads every artifact family into export groups (components + connections + pipelines)', () => {
+    it('loads every artifact family into export groups (components + connections + pipelines + jobs)', () => {
         const { fixture, c } = create();
         fixture.detectChanges();
-        expect(c.groups().map((g) => g.kind)).toEqual(['connection', 'dataset', 'widget', 'authored-pipeline']);
+        expect(c.groups().map((g) => g.kind)).toEqual(['connection', 'dataset', 'widget', 'authored-pipeline', 'job']);
+        // A job's transportable content is the upsert shape — runtime state never travels.
+        const job = c.allItems().find((i) => i.kind === 'job')!;
+        expect(job.content['onPipeline']).toBe('cdr_ingest');
+        expect(job.content['lastStatus']).toBeUndefined();
     });
 
     it('exports the selection expanded to its dependency closure', async () => {

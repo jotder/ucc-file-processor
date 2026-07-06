@@ -24,7 +24,8 @@ One JSON file (`inspecto-bundle-<space>-<stamp>.json`):
 
 Kinds (import applies them in this order, referenced kinds first): `connection`, `grammar`,
 `schema`, `transform`, `sink`, `dataset` *(metadata: columns/roles/measures/query — no rows)*,
-`link-analysis-view`, `geo-map-view`, `widget`, `dashboard`, `authored-pipeline`.
+`link-analysis-view`, `geo-map-view`, `widget`, `dashboard`, `authored-pipeline`, `job`
+*(R2 — the upsert shape; runtime state like last status/run never travels)*.
 
 `content` is the artifact's complete config — a widget's channel mapping + options, a Geo view's
 query + display mode + camera, a pipeline's lossless node/edge graph — so an imported viz

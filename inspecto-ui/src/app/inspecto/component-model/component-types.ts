@@ -36,9 +36,10 @@ export interface ComponentRef {
  * Edge semantics of the metadata network (living-operational-system.md §2): `binds` = config
  * references another component (widget→dataset, pipeline-node→grammar/connection) · `tiles` =
  * dashboard→widget placement · `renders` = view-bound widget→saved view · `projects` = saved
- * view→dataset · `loads` = dataset→physical store (reserved; no producer yet).
+ * view→dataset · `triggers` = job→pipeline event trigger (the Signal network's first lineage edge)
+ * · `loads` = dataset→physical store (reserved; no producer yet).
  */
-export type RefRel = 'binds' | 'tiles' | 'renders' | 'projects' | 'loads';
+export type RefRel = 'binds' | 'tiles' | 'renders' | 'projects' | 'triggers' | 'loads';
 
 /**
  * One outgoing lineage edge derivable from a component's config — THE unit of the metadata
@@ -53,17 +54,19 @@ export interface Ref {
 }
 
 /**
- * Which composition strategy a kind authors. Only the variants a real kind consumes are defined; `schedule`
- * (job) is added when that kind lands (see the adoption plan's STOP). `layout` arrived with P2 (dashboard).
+ * Which composition strategy a kind authors. Only the variants a real kind consumes are defined; `layout`
+ * arrived with P2 (dashboard), `schedule` with R2 (job — the trigger/scheduler made first-class as the
+ * job's wiring rather than separate kinds; living-operational-system.md §5).
  */
-export type WiringStrategy = 'none' | 'graph' | 'mapping' | 'layout';
+export type WiringStrategy = 'none' | 'graph' | 'mapping' | 'layout' | 'schedule';
 
 /** Kind-specific topology over a composite's parts. */
 export type Wiring =
     | { strategy: 'none' }
     | { strategy: 'graph'; nodes: WiringNode[]; edges: WiringEdge[] } // pipeline / flow DAG
     | { strategy: 'mapping'; channels: Record<string, string> } // chart field → channel
-    | { strategy: 'layout'; tiles: LayoutTile[] }; // dashboard grid
+    | { strategy: 'layout'; tiles: LayoutTile[] } // dashboard grid
+    | { strategy: 'schedule'; cron?: string; on?: string }; // job trigger: a cron, an upstream pipeline event, or neither (manual)
 
 export interface WiringNode {
     partId: string;

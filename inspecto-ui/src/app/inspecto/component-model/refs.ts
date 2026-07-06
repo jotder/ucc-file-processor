@@ -51,6 +51,13 @@ export function investigationViewRefs(config: Record<string, unknown>): Ref[] {
     return refs;
 }
 
+/** A job triggers on an upstream pipeline's events (`onPipeline`). `params` stay opaque until the R3
+ *  parameter namespace gives them declarable references. */
+export function jobRefs(config: Record<string, unknown>): Ref[] {
+    const onPipeline = config['onPipeline'] as string | undefined | null;
+    return onPipeline ? [{ kind: 'pipeline', id: onPipeline, rel: 'triggers', via: 'onPipeline' }] : [];
+}
+
 /** A pipeline's nodes bind registry components / connections via `use:` — anchored on the node id. */
 export function pipelineRefs(config: Record<string, unknown>): Ref[] {
     const nodes = (config['nodes'] as { id?: string; use?: string }[] | undefined) ?? [];
@@ -68,6 +75,7 @@ const STRUCTURAL: Record<string, (config: Record<string, unknown>) => Ref[]> = {
     'link-analysis-view': investigationViewRefs,
     pipeline: pipelineRefs,
     'authored-pipeline': pipelineRefs,
+    job: jobRefs,
 };
 
 /**

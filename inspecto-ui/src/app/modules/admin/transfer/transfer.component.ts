@@ -14,12 +14,14 @@ import {
     ComponentsService,
     ConnectionProfile,
     ConnectionsService,
+    JobsService,
     LensService,
     PipelinesService,
     SpacesService,
     apiErrorMessage,
 } from 'app/inspecto/api';
 import type { AuthoredPipeline } from 'app/inspecto/api/pipelines.service';
+import type { JobDetail, JobUpsert } from 'app/inspecto/api/jobs.service';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
@@ -42,8 +44,14 @@ interface Row extends ImportRow {
 }
 
 const COMPONENT_KINDS = BUNDLE_KINDS.map((k) => k.kind).filter(
-    (k): k is Extract<BundleKind, ComponentType> => k !== 'connection' && k !== 'authored-pipeline',
+    (k): k is Extract<BundleKind, ComponentType> => k !== 'connection' && k !== 'authored-pipeline' && k !== 'job',
 );
+
+/** A job's transportable metadata — the upsert shape; runtime state (last status/run/next fire) never travels. */
+function jobContent(job: JobDetail): Record<string, unknown> {
+    const { name, type, cron, onPipeline, enabled, catchUp, params } = job;
+    return { name, type, cron: cron ?? null, onPipeline: onPipeline ?? null, enabled, catchUp, params };
+}
 
 /**
  * Settings **Import & Export** — cross-instance Metadata Bundles (staging → production promotion).
@@ -75,6 +83,7 @@ export class TransferComponent implements OnInit {
     private components = inject(ComponentsService);
     private connections = inject(ConnectionsService);
     private pipelines = inject(PipelinesService);
+    private jobs = inject(JobsService);
     private spaces = inject(SpacesService);
     private toastr = inject(ToastrService);
     readonly lens = inject(LensService);
@@ -121,16 +130,26 @@ export class TransferComponent implements OnInit {
                 map((list) => list.map((p) => p.name)),
                 catchError(() => of([] as string[])),
             ),
+            jobNames: this.jobs.list().pipe(
+                map((list) => list.map((j) => j.name)),
+                catchError(() => of([] as string[])),
+            ),
         })
             .pipe(
                 concatMap((res) => {
                     const raws = (res.pipelineNames as string[]).map((name) =>
                         this.pipelines.authoredRaw(name).pipe(catchError(() => of(null))),
                     );
-                    return (raws.length ? forkJoin(raws) : of([])).pipe(map((pipelines) => ({ res, pipelines })));
+                    const jobDetails = (res.jobNames as string[]).map((name) =>
+                        this.jobs.get(name).pipe(catchError(() => of(null))),
+                    );
+                    return forkJoin({
+                        pipelines: raws.length ? forkJoin(raws) : of([] as (AuthoredPipeline | null)[]),
+                        jobs: jobDetails.length ? forkJoin(jobDetails) : of([] as (JobDetail | null)[]),
+                    }).pipe(map(({ pipelines, jobs }) => ({ res, pipelines, jobs })));
                 }),
             )
-            .subscribe(({ res, pipelines }) => {
+            .subscribe(({ res, pipelines, jobs }) => {
                 const items: BundleItem[] = [];
                 for (const kind of COMPONENT_KINDS) {
                     for (const def of res[kind] as { name: string; content: Record<string, unknown> }[]) {
@@ -142,6 +161,9 @@ export class TransferComponent implements OnInit {
                 }
                 for (const p of pipelines) {
                     if (p) items.push({ kind: 'authored-pipeline', id: p.name, content: p as unknown as Record<string, unknown> });
+                }
+                for (const j of jobs) {
+                    if (j) items.push({ kind: 'job', id: j.name, content: jobContent(j) });
                 }
                 this.allItems.set(items);
                 this.loading.set(false);
@@ -284,6 +306,10 @@ export class TransferComponent implements OnInit {
         if (kind === 'authored-pipeline') {
             const pipeline = { ...(content as unknown as AuthoredPipeline), name: id };
             return overwrite ? this.pipelines.replaceAuthored(id, pipeline) : this.pipelines.createAuthored(pipeline);
+        }
+        if (kind === 'job') {
+            const job = { ...(content as unknown as JobUpsert), name: id };
+            return overwrite ? this.jobs.update(id, job) : this.jobs.create(job);
         }
         return overwrite ? this.components.update(kind, id, content) : this.components.create(kind, { id, ...content });
     }

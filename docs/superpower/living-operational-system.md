@@ -81,9 +81,17 @@ same registry with a config shape + `deriveRefs` + (where composite) wiring — 
   consumers rewired: reuse-graph, bundle closure, mock delete-protection (dashboards→widgets,
   widgets→views/datasets, views→datasets now actually guarded). Edge vocabulary:
   `binds · tiles · renders · projects · loads`.
-- **R2 — Kind coverage:** register `job`, `scheduler`, `trigger` (execution metadata: inputs,
-  outputs, parameters, dependencies, engine, retry policy, emitted signals, produced datasets) —
-  wiring strategy `schedule` (already reserved in the model). Bundle kinds extend for free.
+- **R2 — Kind coverage — ✅ SHIPPED 2026-07-06:** the `job` ComponentKind
+  (`modules/admin/jobs/job.kind.ts`) with the **`schedule` wiring** (`{cron?, on?}`) and the new
+  **`triggers`** lineage rel (job → the pipeline whose events fire it) — the Signal network's first
+  first-class edge. **Decision:** scheduler/trigger are NOT separate kinds — cron/event are
+  mutually exclusive job fields with no second consumer; the schedule *wiring* is the trigger made
+  first-class ("no abstraction without a second consumer"). Jobs joined the reuse-graph, the
+  Metadata Bundle (runtime state — last status/run — never travels), and delete protection
+  (deleting a pipeline a job triggers on now 409s; the pipelines mock handler gained the
+  referential check it lacked). Declared-but-unmodeled execution metadata (retry policy, emitted
+  signals, produced datasets) lands with R4's signal contract; `params` references land with R3's
+  parameter namespace.
 - **R3 — Query kind + Parameters + ResultSet descriptor** (§4). Editors: query editor reuses the
   data-table pro SQL surface; parameter chips in Widget Builder.
 - **R4 — Signal envelope:** one shape — `{ signalId, type, at, source: Ref, correlationId,

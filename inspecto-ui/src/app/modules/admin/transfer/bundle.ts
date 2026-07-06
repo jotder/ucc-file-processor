@@ -10,13 +10,15 @@ import { refsForComponent } from 'app/inspecto/component-model';
  * (`docs/superpower/metadata-bundle.md`; spec: `bundle.spec.ts`).
  */
 
-/** Everything a bundle can carry: the Studio/registry component kinds + the two non-component stores. */
+/** Everything a bundle can carry: the Studio/registry component kinds + the three non-component stores. */
 export type BundleKind =
     | Extract<ComponentType, 'grammar' | 'schema' | 'transform' | 'sink' | 'dataset' | 'widget' | 'dashboard' | 'link-analysis-view' | 'geo-map-view'>
     | 'connection'
-    | 'authored-pipeline';
+    | 'authored-pipeline'
+    | 'job';
 
-/** Import order: referenced kinds before their referencers, so a fresh instance renders everything. */
+/** Import order: referenced kinds before their referencers, so a fresh instance renders everything
+ *  (jobs come last — they trigger on pipelines). */
 export const BUNDLE_KINDS: { kind: BundleKind; label: string }[] = [
     { kind: 'connection', label: 'Connections' },
     { kind: 'grammar', label: 'Grammars' },
@@ -29,6 +31,7 @@ export const BUNDLE_KINDS: { kind: BundleKind; label: string }[] = [
     { kind: 'widget', label: 'Widgets' },
     { kind: 'dashboard', label: 'Dashboards' },
     { kind: 'authored-pipeline', label: 'Pipelines' },
+    { kind: 'job', label: 'Jobs' },
 ];
 
 export const BUNDLE_FORMAT = 'inspecto-metadata-bundle';
@@ -85,11 +88,12 @@ export function parseBundle(text: string): { bundle?: MetadataBundle; errors: st
 }
 
 /** The artifacts an item references — what "include dependencies" pulls into the export. Delegates to
- *  the R1 metadata-network derivation (`refsForComponent`); refs to kinds a bundle can't carry are dropped. */
+ *  the R1 metadata-network derivation (`refsForComponent`); the model's `pipeline` kind maps onto the
+ *  bundle's `authored-pipeline` store name; refs to kinds a bundle can't carry are dropped. */
 export function refsOf(item: BundleItem): { kind: BundleKind; id: string }[] {
     return refsForComponent(item.kind, item.content)
-        .filter((r) => KNOWN_KINDS.has(r.kind as BundleKind))
-        .map((r) => ({ kind: r.kind as BundleKind, id: r.id }));
+        .map((r) => ({ kind: (r.kind === 'pipeline' ? 'authored-pipeline' : r.kind) as BundleKind, id: r.id }))
+        .filter((r) => KNOWN_KINDS.has(r.kind));
 }
 
 const key = (kind: BundleKind, id: string): string => `${kind}/${id}`;

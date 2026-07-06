@@ -11,7 +11,7 @@ import type {
 } from '../../api/pipelines.service';
 import type { IconMap } from '../../api/icon-map.service';
 import { MockFlags } from '../mock-flags';
-import { json, match, MockHandler, MockRequest } from '../mock-http';
+import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
 
 /**
@@ -95,6 +95,12 @@ export function pipelinesHandler(flags: MockFlags): MockHandler {
             return json(store.put(space, PIPELINES_COLL, key, { ...(req.body as AuthoredPipeline), name: key }));
         }
         if (method === 'DELETE' && (m = match(url, AUTHORED_ID))) {
+            // Referential integrity (R2) — e.g. a job triggering on this pipeline blocks the delete.
+            const refs = store.referencesTo(space, PIPELINES_COLL, m[1]);
+            if (refs.length) {
+                const by = refs.map((r) => `${r.collection.replace('component:', '')}/${r.id}`).join(', ');
+                return error(409, `pipeline "${m[1]}" is still referenced by: ${by}`);
+            }
             store.delete(space, PIPELINES_COLL, m[1]);
             return json({ deleted: true });
         }
