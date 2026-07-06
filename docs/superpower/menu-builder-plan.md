@@ -111,6 +111,21 @@ iteration (D1).
 Ship UI-only → **master-only** (per release-workflow; inspecto-ui is a master-line feature —
 `4.x` has no inspecto-ui). Commit per slice; push only on explicit ask.
 
+## 5a. Invariant — the builder only edits custom menus (never the platform nav)
+
+There are **two trees**, joined only at display time:
+
+- **Platform nav** (Pipelines / Runs / Studio / Settings / …) — static in `data.ts`, **read-only**. Never
+  loaded into, editable, reorderable, or deletable through the Menu Builder.
+- **Custom menus** (Revenue / FMS / TopX / leaves) — the per-Space `MenuService` tree, fully CRUD in the
+  builder.
+
+The builder holds a handle on the custom tree **only**, so platform items are immutable *by
+construction* (not by a permission check). The nav mock merges custom groups as top-level siblings of the
+Platform group for **display**; that merge is one-directional (platform side is never written back).
+`menuTreeToNav` namespaces custom ids as `menu-…` so they can never alias a platform id. (O1 — *who* may
+curate the custom tree — is the separate lens/RBAC question in §4.6.)
+
 ## 6. Guardrails
 - **No new deps** (CDK drag-drop is already transitively present via Material — verify in M4).
 - Reuse the existing nav seam + render seams; no second nav interceptor, no re-rolled grid.
