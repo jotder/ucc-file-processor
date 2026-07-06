@@ -23,6 +23,7 @@ import {
 } from 'app/inspecto/viz';
 import { VizRenderComponent } from 'app/inspecto/viz/viz-render.component';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
 import { SAMPLE_SOURCES } from '../datasets/dataset-sources';
@@ -51,6 +52,7 @@ import './widget.kind'; // ensure the widget kind + viz plugins are registered
         InspectoAlertComponent,
         VizRenderComponent,
         ExploreControlsComponent,
+        TransferMenuComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './explore.component.html',
@@ -65,6 +67,11 @@ export class ExploreComponent implements OnInit {
 
     /** Route param — the widget id to edit; absent on the `new` route. */
     @Input() id?: string;
+
+    /** This saved widget as a transfer reference — export is offered only in edit mode. */
+    get transferItems(): { kind: 'widget'; id: string }[] {
+        return this.id ? [{ kind: 'widget', id: this.id }] : [];
+    }
 
     readonly datasets = signal<Dataset[]>([]);
     readonly existingWidgetIds = signal<string[]>([]);

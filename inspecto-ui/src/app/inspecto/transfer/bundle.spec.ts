@@ -8,8 +8,11 @@ import {
     parseBundle,
     planImport,
     refsOf,
+    resolveRequires,
+    targetIndex,
     withDependencies,
 } from './bundle';
+import { hashContent } from './content-hash';
 
 const item = (kind: BundleKind, id: string, content: Record<string, unknown> = {}): BundleItem => ({ kind, id, content });
 
@@ -118,10 +121,11 @@ describe('withDependencies', () => {
 });
 
 describe('buildBundle / parseBundle round-trip', () => {
-    it('round-trips losslessly, sorted referenced-kinds-first', () => {
+    it('round-trips losslessly, sorted referenced-kinds-first, at v2', () => {
         const bundle = buildBundle([DASHBOARD, MAP_WIDGET, GEO_VIEW, DATASET, PIPELINE, GRAMMAR, CONNECTION], 'default');
         expect(bundle.format).toBe(BUNDLE_FORMAT);
         expect(bundle.version).toBe(BUNDLE_VERSION);
+        expect(BUNDLE_VERSION).toBe(2);
         expect(bundle.items.map((i) => i.kind)).toEqual([
             'connection', 'grammar', 'dataset', 'geo-map-view', 'widget', 'dashboard', 'authored-pipeline',
         ]);
@@ -141,16 +145,61 @@ describe('buildBundle / parseBundle round-trip', () => {
         const bad = `{"format":"${BUNDLE_FORMAT}","version":1,"items":[{"kind":"nope","id":"x","content":{}}]}`;
         expect(parseBundle(bad).errors[0]).toContain('unknown kind');
     });
+
+    it('accepts a v1 file (no refs/provenance/requires)', () => {
+        const v1 = `{"format":"${BUNDLE_FORMAT}","version":1,"exportedAt":"t","sourceSpace":null,"items":[{"kind":"dataset","id":"x","content":{"name":"x"}}]}`;
+        const { bundle, errors } = parseBundle(v1);
+        expect(errors).toEqual([]);
+        expect(bundle!.items[0].refs).toBeUndefined();
+    });
 });
 
-describe('planImport', () => {
+describe('bundle v2 — self-describing subgraph (R6)', () => {
+    it('marks each ref included when the referent travels, external otherwise; provenance carries the hash', () => {
+        // whole closure → every ref is "included"
+        const whole = buildBundle([DASHBOARD, MAP_WIDGET, BAR_WIDGET, GEO_VIEW, CDR_DATASET, DATASET], 'staging');
+        const dash = whole.items.find((i) => i.id === 'overview')!;
+        expect(dash.refs).toEqual([
+            { kind: 'widget', id: 'dhaka_network_map', rel: 'tiles', resolution: 'included' },
+            { kind: 'widget', id: 'cost_by_tariff', rel: 'tiles', resolution: 'included' },
+        ]);
+        expect(dash.provenance).toMatchObject({ sourceSpace: 'staging', contentHash: hashContent(dash.content) });
+        expect(whole.requires).toEqual([]); // fully self-contained
+
+        // widget alone → its dataset is external, and surfaces in top-level requires
+        const alone = buildBundle([BAR_WIDGET], 'staging');
+        expect(alone.items[0].refs).toEqual([{ kind: 'dataset', id: 'cdr_sample', rel: 'binds', resolution: 'external' }]);
+        expect(alone.requires).toEqual([{ kind: 'dataset', id: 'cdr_sample', rel: 'binds', resolution: 'external' }]);
+    });
+});
+
+describe('planImport (fit-check + drift)', () => {
     it('defaults new items to import and existing ones to skip (user opts into overwrite)', () => {
         const bundle = buildBundle([DATASET, CDR_DATASET, MAP_WIDGET], null);
-        const rows = planImport(bundle, new Map([['dataset', new Set(['cell_sites'])]]));
-        expect(rows.map((r) => [r.item.id, r.exists, r.action])).toEqual([
-            ['cdr_sample', false, 'import'],
-            ['cell_sites', true, 'skip'],
-            ['dhaka_network_map', false, 'import'],
+        const target = targetIndex([DATASET]); // only cell_sites exists on target, identical
+        const rows = planImport(bundle, target);
+        expect(rows.map((r) => [r.item.id, r.exists, r.drifted, r.action])).toEqual([
+            ['cdr_sample', false, false, 'import'],
+            ['cell_sites', true, false, 'skip'],
+            ['dhaka_network_map', false, false, 'import'],
         ]);
+    });
+
+    it('flags an existing item whose content differs as drifted (idempotent when identical)', () => {
+        const bundle = buildBundle([CDR_DATASET], null);
+        const identical = planImport(bundle, targetIndex([CDR_DATASET]))[0];
+        expect([identical.exists, identical.drifted]).toEqual([true, false]);
+        const drifted = planImport(bundle, targetIndex([item('dataset', 'cdr_sample', { name: 'cdr_sample', columns: ['extra'] })]))[0];
+        expect([drifted.exists, drifted.drifted]).toEqual([true, true]);
+    });
+});
+
+describe('resolveRequires', () => {
+    it('classifies external refs satisfied when present on target, missing otherwise', () => {
+        const bundle = buildBundle([BAR_WIDGET], null); // requires dataset/cdr_sample
+        expect(resolveRequires(bundle, targetIndex([CDR_DATASET]))).toEqual([
+            { ref: { kind: 'dataset', id: 'cdr_sample', rel: 'binds', resolution: 'external' }, status: 'satisfied' },
+        ]);
+        expect(resolveRequires(bundle, targetIndex([])).map((r) => r.status)).toEqual(['missing']);
     });
 });

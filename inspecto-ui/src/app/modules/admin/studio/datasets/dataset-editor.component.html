@@ -10,6 +10,7 @@
             {{ editing() ? 'Edit dataset' : 'New dataset' }}
         </h1>
         <div class="flex items-center gap-2">
+            <inspecto-transfer-menu [items]="transferItems" [allowedKinds]="['dataset']" label="Import / export dataset" />
             <button mat-button routerLink="/catalog/datasets">Cancel</button>
             <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
                 @if (saving()) { <mat-spinner diameter="16" class="mr-2"></mat-spinner> }

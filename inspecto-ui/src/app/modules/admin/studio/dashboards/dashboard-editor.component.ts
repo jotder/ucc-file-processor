@@ -14,6 +14,7 @@ import { getViz } from 'app/inspecto/viz';
 import { Condition, ColumnMeta, ConditionGroup, QueryConditionGroupComponent, emptyGroup, evaluateRows } from 'app/inspecto/query';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { DrillEvent } from '../widgets/widget-host.component';
 import { Widget } from '../widgets/widget-types';
 import { WidgetsService } from '../widgets/widgets.service';
@@ -59,6 +60,7 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
         DashboardTileComponent,
         DashboardFilterBarComponent,
         DashboardDrillDrawerComponent,
+        TransferMenuComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './dashboard-editor.component.html',
@@ -74,6 +76,11 @@ export class DashboardEditorComponent implements OnInit {
 
     /** Route param — the dashboard id to edit; absent on the `new` route. */
     @Input() id?: string;
+
+    /** This saved dashboard as a transfer reference — export is offered only in edit mode. */
+    get transferItems(): { kind: 'dashboard'; id: string }[] {
+        return this.id ? [{ kind: 'dashboard', id: this.id }] : [];
+    }
 
     readonly widgets = signal<Widget[]>([]);
     readonly datasets = signal<Dataset[]>([]);

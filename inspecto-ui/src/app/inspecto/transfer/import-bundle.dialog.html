@@ -1,0 +1,130 @@
+<h2 mat-dialog-title>{{ data.title || 'Import metadata bundle' }}</h2>
+
+<mat-dialog-content class="flex min-w-0 flex-col gap-4">
+    @if (loading()) {
+        <div class="flex items-center gap-3 py-6"><mat-spinner diameter="24"></mat-spinner><span class="text-secondary">Reading this instance…</span></div>
+    } @else {
+        <div class="flex flex-wrap items-center gap-3">
+            <button type="button" mat-stroked-button (click)="picker.click()">
+                <mat-icon svgIcon="heroicons_outline:arrow-up-tray"></mat-icon>
+                <span class="ml-1">Choose bundle (.json)</span>
+            </button>
+            <span class="text-secondary truncate">{{ fileName() || 'No file selected' }}</span>
+            <input #picker type="file" accept=".json,application/json" class="hidden" aria-label="Bundle file (.json)" (change)="onFile($event)" />
+        </div>
+
+        @if (parseErrors().length) {
+            <inspecto-alert variant="error" title="This file is not a valid metadata bundle">
+                @for (e of parseErrors(); track e) { <div>{{ e }}</div> }
+            </inspecto-alert>
+        }
+
+        @if (rows().length) {
+            @if (missingRequires().length) {
+                <inspecto-alert variant="warning" title="Missing dependencies on this instance">
+                    These referenced artifacts are not in the bundle and don't exist here — imported items will render
+                    with ghost references until they arrive:
+                    <div class="mt-1 font-mono text-xs">
+                        @for (r of missingRequires(); track r.ref.kind + '/' + r.ref.id) { <div>{{ kindLabel(r.ref.kind) }} / {{ r.ref.id }}</div> }
+                    </div>
+                </inspecto-alert>
+            }
+
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="text-secondary text-sm">
+                    {{ rows().length }} artifact(s) — {{ rows().length - existingCount() }} new,
+                    {{ existingCount() }} already here@if (driftedCount()) { ({{ driftedCount() }} drifted) }
+                </span>
+                @if (existingCount()) {
+                    <button type="button" mat-stroked-button (click)="overwriteAllExisting()">Overwrite all existing</button>
+                    <button type="button" mat-stroked-button (click)="skipAllExisting()">Skip all existing</button>
+                }
+            </div>
+
+            @if (bundleHasConnections()) {
+                <inspecto-alert variant="info">
+                    Connections carry masked secrets (<code>***</code> / <code>${{ '{' }}ENV:…{{ '}' }}</code> references) —
+                    after import, provide the environment values or re-enter secrets on this instance.
+                </inspecto-alert>
+            }
+
+            @if (!lens.canAuthorWorkbench()) {
+                <inspecto-alert variant="warning">The current lens is read-only — switch to a Builder lens to apply an import.</inspecto-alert>
+            }
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-secondary border-b text-left">
+                            <th scope="col" class="py-2 pr-4">Kind</th>
+                            <th scope="col" class="py-2 pr-4">Id</th>
+                            <th scope="col" class="py-2 pr-4">On this instance</th>
+                            <th scope="col" class="py-2 pr-4">Action</th>
+                            <th scope="col" class="py-2">Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (r of rows(); track r.item.kind + '/' + r.item.id) {
+                            <tr class="border-b">
+                                <td class="py-1.5 pr-4">{{ kindLabel(r.item.kind) }}</td>
+                                <td class="py-1.5 pr-4 font-mono">{{ r.item.id }}</td>
+                                <td class="py-1.5 pr-4">
+                                    @if (r.drifted) {
+                                        <inspecto-status-badge value="WARNING" label="Drifted" />
+                                    } @else if (r.exists) {
+                                        <inspecto-status-badge value="INFO" label="Identical" />
+                                    } @else {
+                                        <inspecto-status-badge value="OK" label="New" />
+                                    }
+                                </td>
+                                <td class="py-1.5 pr-4">
+                                    <mat-form-field subscriptSizing="dynamic" class="w-36">
+                                        <mat-select
+                                            [value]="r.action"
+                                            (selectionChange)="setAction(r, $event.value)"
+                                            [disabled]="applying()"
+                                            [aria-label]="'Action for ' + r.item.id"
+                                        >
+                                            @if (r.exists) {
+                                                <mat-option value="skip">Skip</mat-option>
+                                                <mat-option value="overwrite">Overwrite</mat-option>
+                                            } @else {
+                                                <mat-option value="import">Import</mat-option>
+                                                <mat-option value="skip">Skip</mat-option>
+                                            }
+                                        </mat-select>
+                                    </mat-form-field>
+                                </td>
+                                <td class="py-1.5">
+                                    @if (r.result) {
+                                        <inspecto-status-badge [value]="r.result === 'failed' ? 'ERROR' : 'OK'" [label]="r.result" />
+                                        @if (r.message) { <span class="text-secondary ml-2 text-xs">{{ r.message }}</span> }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        } @else if (!parseErrors().length) {
+            <inspecto-empty-state
+                icon="heroicons_outline:arrow-up-tray"
+                title="No bundle loaded"
+                message="Choose a bundle exported from another Inspecto instance to preview what it contains."
+            />
+        }
+    }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+    <button mat-button (click)="close()">Close</button>
+    <button
+        mat-flat-button
+        color="primary"
+        [disabled]="applying() || !actionableCount() || !lens.canAuthorWorkbench()"
+        (click)="apply()"
+    >
+        @if (applying()) { <mat-spinner diameter="18" class="mr-2"></mat-spinner> }
+        <span>Apply import ({{ actionableCount() }})</span>
+    </button>
+</mat-dialog-actions>

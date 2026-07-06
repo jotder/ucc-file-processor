@@ -7,6 +7,7 @@
     <div class="flex items-center justify-between">
         <h1 class="text-3xl font-extrabold leading-tight tracking-tight">{{ editing() ? 'Edit widget' : 'Widget Builder' }}</h1>
         <div class="flex items-center gap-2">
+            <inspecto-transfer-menu [items]="transferItems" [allowedKinds]="['widget']" label="Import / export widget" />
             <button mat-icon-button (click)="openOptions()" [disabled]="viewBound() || !dataset() || !plugin()" matTooltip="Advanced options" aria-label="Advanced options">
                 <mat-icon svgIcon="heroicons_outline:cog"></mat-icon>
             </button>

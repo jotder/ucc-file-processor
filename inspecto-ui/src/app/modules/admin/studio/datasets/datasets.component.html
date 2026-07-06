@@ -12,6 +12,7 @@
             @if (loading()) {
                 <mat-spinner diameter="24"></mat-spinner>
             }
+            <inspecto-transfer-menu [items]="transferItems()" [allowedKinds]="['dataset']" (changed)="load()" label="Import / export datasets" />
             <button mat-icon-button (click)="load()" [disabled]="loading()" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>

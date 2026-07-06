@@ -19,6 +19,7 @@ import { InspectoAlertComponent } from 'app/inspecto/components/alert.component'
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
+import { TransferMenuComponent } from 'app/inspecto/transfer';
 import {
     GeoBBox,
     GeoCamera,
@@ -94,7 +95,7 @@ interface PointRow {
         DecimalPipe, ReactiveFormsModule, MatButtonModule, MatButtonToggleModule, MatCheckboxModule, MatDialogModule,
         MatFormFieldModule, MatIconModule, MatInputModule, MatMenuModule, MatSelectModule, MatSliderModule, MatTooltipModule,
         InspectoAlertComponent, InspectoEmptyStateComponent, InspectoSkeletonComponent, MapViewComponent,
-        DataTableComponent,
+        DataTableComponent, TransferMenuComponent,
     ],
     templateUrl: './geo-map.component.html',
 })
@@ -332,6 +333,9 @@ export class GeoMapComponent implements OnInit, OnDestroy {
     // ── saved views ──
     readonly views = signal<GeoMapView[]>([]);
     readonly saving = signal(false);
+
+    /** The saved Geo Map views as transfer references — what the export/import menu offers. */
+    readonly transferItems = computed(() => this.views().map((v) => ({ kind: 'geo-map-view' as const, id: v.id })));
     readonly saveForm = this.fb.nonNullable.group({
         name: ['', [Validators.required, uniqueNameValidator(() => this.views().map((v) => v.name))]],
         description: [''],
@@ -342,6 +346,11 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         this.viewsService.list().subscribe({ next: (v) => this.views.set(v), error: () => undefined });
         this.geoSettings.get().subscribe({ next: (s) => this.tileServerUrl.set(s.tileServerUrl), error: () => undefined });
         this.queryForm.controls.datasetId.valueChanges.subscribe((id) => this.onDatasetPicked(id));
+    }
+
+    /** Re-fetch the saved views (after an import brought some in). */
+    reloadViews(): void {
+        this.viewsService.list().subscribe({ next: (v) => this.views.set(v), error: () => undefined });
     }
 
     /** Offer the picked Dataset's columns and preselect obvious coordinate columns by name. */

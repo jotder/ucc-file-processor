@@ -48,8 +48,18 @@ Management, Financial Auditing, Link Analysis. *(Added Wave 0, 2026-07-02.)*
 moving definitions between Inspecto instances (staging → production): dataset metadata, Widgets, Dashboards,
 saved Link-Analysis/Geo-Map views, Pipelines, and their registry pieces (grammars/schemas/transforms/sinks/
 connections, secrets masked). Import previews new-vs-existing per artifact with a per-item overwrite/skip
-choice. UI: Settings → *Import & Export*. Distinct from the whole-space zip bundle and from **Space
-Template**. *(Added 2026-07-06; `docs/superpower/metadata-bundle.md`.)*
+choice. UI: Settings → *Import & Export*, plus a reusable export/import menu on every editor, studio
+saved-view toolbar and library list. Distinct from the whole-space zip bundle and from **Space Template**.
+*(Added 2026-07-06; `docs/superpower/metadata-bundle.md`.)*
+
+**Bundle v2 / self-describing subgraph** — A Metadata Bundle that carries its own lineage and origin so the
+target can validate it without re-deriving refs: each item's outgoing **refs** (marked `included` if the
+referent travels, `external` if it must already exist), its **provenance** (source space, export time, and a
+SHA-256 **contentHash** of the config), and the bundle's top-level **requires** (the deduped external refs —
+its contract with the target). The import **fit-check** classifies each item *new / exists / drifted*
+(contentHash ≠ target's ⇒ **drift**; identical ⇒ idempotent) and each require *satisfied / missing*. v1 files
+still import. *(Added 2026-07-06 R6; `docs/superpower/transportability-plan.md`,
+`docs/superpower/metadata-network-design.md` §4.)*
 
 ---
 

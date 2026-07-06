@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ToastrService } from 'ngx-toastr';
 import { ComponentsService, ConnectionsService, DecisionRulesService, JobsService, LensService, PipelinesService, SpacesService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
-import { buildBundle, planImport } from './bundle';
+import { buildBundle, planImport, targetIndex } from 'app/inspecto/transfer';
 import { TransferComponent } from './transfer.component';
 
 const DATASET_DEF = { type: 'dataset', name: 'cdr_sample', ref: 'dataset/cdr_sample', content: { name: 'cdr_sample' } };
@@ -96,7 +96,7 @@ describe('TransferComponent', () => {
             ],
             'staging',
         );
-        c.rows.set(planImport(bundle, new Map([['dataset', new Set(['cdr_sample'])]])));
+        c.rows.set(planImport(bundle, targetIndex([{ kind: 'dataset', id: 'cdr_sample', content: { name: 'cdr_sample' } }])));
         c.overwriteAllExisting();
         c.apply();
         expect(createSpy).toHaveBeenCalledWith('dataset', { id: 'new_ds', name: 'new_ds' });
@@ -109,7 +109,7 @@ describe('TransferComponent', () => {
         const { fixture, c, updateSpy } = create();
         fixture.detectChanges();
         const bundle = buildBundle([{ kind: 'dataset', id: 'cdr_sample', content: {} }], null);
-        c.rows.set(planImport(bundle, new Map([['dataset', new Set(['cdr_sample'])]])));
+        c.rows.set(planImport(bundle, targetIndex([{ kind: 'dataset', id: 'cdr_sample', content: {} }])));
         c.apply();
         expect(updateSpy).not.toHaveBeenCalled();
         expect(c.actionableCount()).toBe(0);

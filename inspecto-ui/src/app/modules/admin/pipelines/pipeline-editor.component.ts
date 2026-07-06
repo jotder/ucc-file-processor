@@ -34,6 +34,7 @@ import {
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import { PipelineEditorGraphComponent } from './pipeline-editor-graph.component';
 import { PipelineInspectorComponent } from './pipeline-inspector.component';
@@ -99,6 +100,7 @@ import {
         PipelineInspectorComponent,
         PipelinePaletteComponent,
         InspectoEmptyStateComponent,
+        TransferMenuComponent,
     ],
     templateUrl: './pipeline-editor.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -122,6 +124,12 @@ export class PipelineEditorComponent implements OnInit {
     readonly iconMap = signal<IconMap>({});
     readonly selectedId = signal<string | null>(null);
     readonly model = signal<AuthoredPipeline | null>(null);
+
+    /** The selected pipeline as a transfer reference — what the export/import menu offers. */
+    readonly transferItems = computed(() => {
+        const id = this.selectedId();
+        return id ? [{ kind: 'authored-pipeline' as const, id }] : [];
+    });
     readonly paletteGroups = signal<NodeTypeGroup[]>([]);
     private readonly typeCat = signal<Map<string, string>>(new Map());
 

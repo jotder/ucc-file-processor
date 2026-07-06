@@ -110,6 +110,8 @@
                 }
             </mat-menu>
 
+            <inspecto-transfer-menu [items]="transferItems()" [allowedKinds]="['link-analysis-view']" (changed)="reloadViews()" label="Import / export saved views" />
+
             <!-- save view — needs a rendered graph -->
             <button mat-icon-button #saveTrigger="matMenuTrigger" [matMenuTriggerFor]="saveMenu" [disabled]="!graph()"
                     matTooltip="Save view" aria-label="Save the current view">

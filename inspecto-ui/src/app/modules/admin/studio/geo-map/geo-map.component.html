@@ -228,6 +228,8 @@
                 }
             </mat-menu>
 
+            <inspecto-transfer-menu [items]="transferItems()" [allowedKinds]="['geo-map-view']" (changed)="reloadViews()" label="Import / export saved views" />
+
             <!-- save view — needs a rendered map -->
             <button mat-icon-button #saveTrigger="matMenuTrigger" [matMenuTriggerFor]="saveMenu" [disabled]="!geo()"
                     matTooltip="Save view" aria-label="Save the current view">

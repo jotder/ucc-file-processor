@@ -17,6 +17,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PipelineCombined, PipelineNode, PipelinesService, IconMap, IconMapService } from 'app/inspecto/api';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { GraphViewComponent } from 'app/modules/admin/catalog/graph-view.component';
 import { G6GraphData } from 'app/modules/admin/catalog/catalog-graph';
 import { PipelineEditorComponent } from './pipeline-editor.component';
@@ -52,6 +53,7 @@ export type PipelinesViewMode = 'combined' | 'editor';
         GraphViewComponent,
         InspectoEmptyStateComponent,
         PipelineEditorComponent,
+        TransferMenuComponent,
     ],
     templateUrl: './pipelines.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -95,6 +97,9 @@ export class PipelinesComponent implements OnInit {
         const names = (this.combined()?.flows ?? []).map((f) => f.name);
         return q ? names.filter((n) => n.toLowerCase().includes(q)) : names;
     });
+
+    /** Every pipeline in the topology as transfer references — what the export/import menu offers. */
+    readonly transferItems = computed(() => (this.combined()?.flows ?? []).map((f) => ({ kind: 'authored-pipeline' as const, id: f.name })));
 
     readonly nodeDisplayLabel = nodeDisplayLabel;
     readonly categoryColor = categoryColor;

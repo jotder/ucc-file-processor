@@ -6,6 +6,7 @@
         </div>
         <div class="flex items-center gap-3">
             @if (loading()) { <mat-spinner diameter="24"></mat-spinner> }
+            <inspecto-transfer-menu [items]="transferItems()" [allowedKinds]="['widget']" (changed)="load()" label="Import / export widgets" />
             <button mat-icon-button (click)="load()" [disabled]="loading()" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>

@@ -10,6 +10,7 @@ import { apiErrorMessage } from 'app/inspecto/api';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { AddToDashboardDialog, AddToDashboardResult } from './add-to-dashboard.dialog';
 import { Widget } from './widget-types';
 import { WidgetsService } from './widgets.service';
@@ -37,6 +38,7 @@ import { DashboardsService } from '../dashboards/dashboards.service';
         InspectoEmptyStateComponent,
         StatusBadgeComponent,
         WidgetHostComponent,
+        TransferMenuComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './widgets.component.html',
@@ -60,6 +62,9 @@ export class WidgetsComponent implements OnInit {
     readonly activeType = signal<string | null>(null);
 
     readonly datasetsById = computed(() => new Map(this.datasets().map((d) => [d.id, d])));
+
+    /** The filtered widgets as transfer references — what the export/import menu offers. */
+    readonly transferItems = computed(() => this.visibleWidgets().map((w) => ({ kind: 'widget' as const, id: w.id })));
 
     /** Every tag across all widgets, for the filter chip row. */
     readonly allTags = computed(() => [...new Set(this.widgets().flatMap((w) => w.tags ?? []))].sort());

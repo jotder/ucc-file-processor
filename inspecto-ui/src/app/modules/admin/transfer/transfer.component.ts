@@ -6,25 +6,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
-import { Observable, forkJoin, from, of } from 'rxjs';
+import { from, of } from 'rxjs';
 import { catchError, concatMap, map, toArray } from 'rxjs/operators';
 import { ToastrService } from 'ngx-toastr';
-import {
-    ComponentType,
-    ComponentsService,
-    ConnectionProfile,
-    ConnectionsService,
-    DecisionRule,
-    DecisionRulesService,
-    DecisionRuleUpsert,
-    JobsService,
-    LensService,
-    PipelinesService,
-    SpacesService,
-    apiErrorMessage,
-} from 'app/inspecto/api';
-import type { AuthoredPipeline } from 'app/inspecto/api/pipelines.service';
-import type { JobDetail, JobUpsert } from 'app/inspecto/api/jobs.service';
+import { LensService, apiErrorMessage } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
@@ -32,13 +17,14 @@ import {
     BUNDLE_KINDS,
     BundleItem,
     BundleKind,
+    BundleTransferService,
     ImportRow,
     MetadataBundle,
-    buildBundle,
+    TargetIndex,
     parseBundle,
     planImport,
-    withDependencies,
-} from './bundle';
+    targetIndex,
+} from 'app/inspecto/transfer';
 
 /** An import-preview row + its post-apply outcome. */
 interface Row extends ImportRow {
@@ -46,30 +32,14 @@ interface Row extends ImportRow {
     message?: string;
 }
 
-const COMPONENT_KINDS = BUNDLE_KINDS.map((k) => k.kind).filter(
-    (k): k is Extract<BundleKind, ComponentType> =>
-        k !== 'connection' && k !== 'authored-pipeline' && k !== 'job' && k !== 'decision-rule',
-);
-
-/** A job's transportable metadata — the upsert shape; runtime state (last status/run/next fire) never travels. */
-function jobContent(job: JobDetail): Record<string, unknown> {
-    const { name, type, cron, onPipeline, enabled, catchUp, params } = job;
-    return { name, type, cron: cron ?? null, onPipeline: onPipeline ?? null, enabled, catchUp, params };
-}
-
-/** A decision rule's transportable metadata (the upsert shape) — runtime `lastSimulation`/timestamps never travel. */
-function decisionRuleContent(rule: DecisionRule): Record<string, unknown> {
-    const { name, description, targetType, target, when, consequences, priority, enabled } = rule;
-    return { name, description: description ?? '', targetType, target, when, consequences, priority, enabled };
-}
-
 /**
  * Settings **Import & Export** — cross-instance Metadata Bundles (staging → production promotion).
  * Export: pick artifacts (datasets/widgets/dashboards/saved views/pipelines/registry pieces),
  * optionally expanded to their dependency closure, downloaded as one JSON bundle — **metadata only,
- * never data rows**. Import: upload a bundle, preview new-vs-existing per artifact, choose
- * overwrite/skip per item (datasets especially), apply in reference order. Pure logic in
- * `bundle.ts`; format doc: `docs/superpower/metadata-bundle.md`.
+ * never data rows**. Import: upload a bundle, preview new-vs-existing (and drifted) per artifact,
+ * choose overwrite/skip per item, apply in reference order. Load/write/export are single-sourced in
+ * {@link BundleTransferService} (shared with the per-surface `<inspecto-transfer-menu>`); pure format
+ * logic in `inspecto/transfer/bundle.ts`; doc: `docs/superpower/metadata-bundle.md`.
  */
 @Component({
     selector: 'app-transfer',
@@ -90,12 +60,7 @@ function decisionRuleContent(rule: DecisionRule): Record<string, unknown> {
     templateUrl: './transfer.component.html',
 })
 export class TransferComponent implements OnInit {
-    private components = inject(ComponentsService);
-    private connections = inject(ConnectionsService);
-    private pipelines = inject(PipelinesService);
-    private jobs = inject(JobsService);
-    private decisionRules = inject(DecisionRulesService);
-    private spaces = inject(SpacesService);
+    private transfer = inject(BundleTransferService);
     private toastr = inject(ToastrService);
     readonly lens = inject(LensService);
 
@@ -131,58 +96,10 @@ export class TransferComponent implements OnInit {
     /** Load every exportable artifact (component kinds + connections + lossless pipelines). */
     load(): void {
         this.loading.set(true);
-        const componentLists = Object.fromEntries(
-            COMPONENT_KINDS.map((kind) => [kind, this.components.list(kind).pipe(catchError(() => of([])))]),
-        );
-        forkJoin({
-            ...componentLists,
-            connection: this.connections.list().pipe(catchError(() => of([]))),
-            pipelineNames: this.pipelines.authoredList().pipe(
-                map((list) => list.map((p) => p.name)),
-                catchError(() => of([] as string[])),
-            ),
-            jobNames: this.jobs.list().pipe(
-                map((list) => list.map((j) => j.name)),
-                catchError(() => of([] as string[])),
-            ),
-            decisionRules: this.decisionRules.list().pipe(catchError(() => of([] as DecisionRule[]))),
-        })
-            .pipe(
-                concatMap((res) => {
-                    const raws = (res.pipelineNames as string[]).map((name) =>
-                        this.pipelines.authoredRaw(name).pipe(catchError(() => of(null))),
-                    );
-                    const jobDetails = (res.jobNames as string[]).map((name) =>
-                        this.jobs.get(name).pipe(catchError(() => of(null))),
-                    );
-                    return forkJoin({
-                        pipelines: raws.length ? forkJoin(raws) : of([] as (AuthoredPipeline | null)[]),
-                        jobs: jobDetails.length ? forkJoin(jobDetails) : of([] as (JobDetail | null)[]),
-                    }).pipe(map(({ pipelines, jobs }) => ({ res, pipelines, jobs })));
-                }),
-            )
-            .subscribe(({ res, pipelines, jobs }) => {
-                const items: BundleItem[] = [];
-                for (const kind of COMPONENT_KINDS) {
-                    for (const def of res[kind] as { name: string; content: Record<string, unknown> }[]) {
-                        items.push({ kind, id: def.name, content: def.content });
-                    }
-                }
-                for (const c of res.connection as ConnectionProfile[]) {
-                    items.push({ kind: 'connection', id: c.id, content: c as unknown as Record<string, unknown> });
-                }
-                for (const p of pipelines) {
-                    if (p) items.push({ kind: 'authored-pipeline', id: p.name, content: p as unknown as Record<string, unknown> });
-                }
-                for (const j of jobs) {
-                    if (j) items.push({ kind: 'job', id: j.name, content: jobContent(j) });
-                }
-                for (const r of res.decisionRules as DecisionRule[]) {
-                    items.push({ kind: 'decision-rule', id: r.name, content: decisionRuleContent(r) });
-                }
-                this.allItems.set(items);
-                this.loading.set(false);
-            });
+        this.transfer.loadAll().subscribe((items) => {
+            this.allItems.set(items);
+            this.loading.set(false);
+        });
     }
 
     // ── export ──
@@ -223,24 +140,11 @@ export class TransferComponent implements OnInit {
         const all = this.allItems();
         const selected = all.filter((i) => this.isSelected(i));
         if (!selected.length) return;
-        let items = selected;
-        let missing: string[] = [];
-        if (this.includeDeps()) ({ items, missing } = withDependencies(selected, all));
-        const space = this.spaces.currentSpaceId();
-        const bundle = buildBundle(items, space);
-        const stamp = bundle.exportedAt.slice(0, 16).replace(/[:T]/g, '-');
-        this.download(`inspecto-bundle-${space ?? 'default'}-${stamp}.json`, JSON.stringify(bundle, null, 2));
-        this.toastr.success(`Exported ${items.length} artifact(s)${items.length > selected.length ? ` (${items.length - selected.length} pulled in as dependencies)` : ''}`);
+        const { bundle, missing } = this.transfer.buildExport(selected, all, this.includeDeps());
+        this.transfer.download(bundle);
+        const extra = bundle.items.length - selected.length;
+        this.toastr.success(`Exported ${bundle.items.length} artifact(s)${extra > 0 ? ` (${extra} pulled in as dependencies)` : ''}`);
         if (missing.length) this.toastr.warning(`Unresolved references left out: ${missing.join(', ')}`);
-    }
-
-    private download(name: string, text: string): void {
-        const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = name;
-        link.click();
-        URL.revokeObjectURL(url);
     }
 
     // ── import ──
@@ -255,16 +159,11 @@ export class TransferComponent implements OnInit {
         const { bundle, errors } = parseBundle(await file.text());
         this.parseErrors.set(errors);
         this.bundle.set(bundle ?? null);
-        this.rows.set(bundle ? planImport(bundle, this.existingIds()) : []);
+        this.rows.set(bundle ? planImport(bundle, this.targetIndex()) : []);
     }
 
-    private existingIds(): Map<BundleKind, Set<string>> {
-        const m = new Map<BundleKind, Set<string>>();
-        for (const i of this.allItems()) {
-            if (!m.has(i.kind)) m.set(i.kind, new Set());
-            m.get(i.kind)!.add(i.id);
-        }
-        return m;
+    private targetIndex(): TargetIndex {
+        return targetIndex(this.allItems());
     }
 
     setAction(row: Row, action: Row['action']): void {
@@ -288,7 +187,7 @@ export class TransferComponent implements OnInit {
         from(work)
             .pipe(
                 concatMap((row) =>
-                    this.write(row).pipe(
+                    this.transfer.write(row.item, row.action === 'overwrite').pipe(
                         map(() => ({ row, result: (row.action === 'overwrite' ? 'overwritten' : 'imported') as Row['result'] })),
                         catchError((err) => of({ row, result: 'failed' as Row['result'], message: apiErrorMessage(err, 'Write failed.') })),
                     ),
@@ -309,28 +208,6 @@ export class TransferComponent implements OnInit {
                 else this.toastr.success(`Imported ${outcomes.length} artifact(s)`);
                 this.load(); // refresh target ids so a re-run of the preview reflects the writes
             });
-    }
-
-    private write(row: Row): Observable<unknown> {
-        const { kind, id, content } = row.item;
-        const overwrite = row.action === 'overwrite';
-        if (kind === 'connection') {
-            const profile = { ...(content as unknown as ConnectionProfile), id };
-            return overwrite ? this.connections.update(id, profile) : this.connections.create(profile);
-        }
-        if (kind === 'authored-pipeline') {
-            const pipeline = { ...(content as unknown as AuthoredPipeline), name: id };
-            return overwrite ? this.pipelines.replaceAuthored(id, pipeline) : this.pipelines.createAuthored(pipeline);
-        }
-        if (kind === 'job') {
-            const job = { ...(content as unknown as JobUpsert), name: id };
-            return overwrite ? this.jobs.update(id, job) : this.jobs.create(job);
-        }
-        if (kind === 'decision-rule') {
-            const rule = { ...(content as unknown as DecisionRuleUpsert), name: id };
-            return overwrite ? this.decisionRules.update(id, rule) : this.decisionRules.create(rule);
-        }
-        return overwrite ? this.components.update(kind, id, content) : this.components.create(kind, { id, ...content });
     }
 
     kindLabel(kind: BundleKind): string {

@@ -81,6 +81,11 @@ vocabulary, `docs/COMPONENT_GRAPH.md` becomes its spec.
 
 ## 3. Where import/export lives (recommendation)
 
+> **✅ SHIPPED 2026-07-06 (R6):** the import dialog was extracted into the shared `ImportBundleDialog` and a
+> reusable `<inspecto-transfer-menu>` (both in `inspecto/transfer/`) is now on every editor, studio saved-view
+> toolbar and library list — alongside the Settings promotion workbench. Editor import reuses the same
+> preview-and-apply dialog (deliberate: no bespoke "load as draft" — see [`transportability-plan.md`](transportability-plan.md) §3).
+
 Same envelope everywhere — a "single export" is just a 1-item bundle, so there is **one format,
 three surfaces**:
 
@@ -98,6 +103,10 @@ everything-across-kinds stays in Settings. The import *dialog* (preview + per-it
 should be extracted from the Transfer pane into a shared component so all three surfaces reuse it.
 
 ## 4. Bundle format v2 — lineage & provenance made explicit
+
+> **✅ SHIPPED 2026-07-06 (R6)** — implemented in `inspecto/transfer/bundle.ts` + `content-hash.ts`; the
+> import fit-check, the shared `ImportBundleDialog`, and the per-surface `<inspecto-transfer-menu>` are live
+> (plan: [`transportability-plan.md`](transportability-plan.md)). The proposal below is kept for rationale.
 
 v1 (shipped) carries `{kind, id, content}` and *re-derives* dependencies on both sides. v2 makes the
 subgraph **self-describing**, so the target can fit-check a bundle without knowing how to derive

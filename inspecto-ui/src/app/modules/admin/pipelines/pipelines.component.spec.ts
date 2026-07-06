@@ -1,9 +1,13 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Observable, of, throwError } from 'rxjs';
-import { describe, expect, it } from 'vitest';
-import { PipelineCombined, PipelineNodeType, PipelinesService } from 'app/inspecto/api';
+import { ToastrService } from 'ngx-toastr';
+import { describe, expect, it, vi } from 'vitest';
+import { LensService, PipelineCombined, PipelineNodeType, PipelinesService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
+import { BundleTransferService } from 'app/inspecto/transfer';
 import { PipelinesComponent } from './pipelines.component';
 
 const COMBINED: PipelineCombined = {
@@ -29,7 +33,15 @@ function build(combined$: Observable<PipelineCombined> = of(COMBINED)) {
     } as unknown as PipelinesService;
     TestBed.configureTestingModule({
         imports: [PipelinesComponent],
-        providers: [provideNoopAnimations(), { provide: PipelinesService, useValue: stub }],
+        providers: [
+            provideNoopAnimations(),
+            { provide: PipelinesService, useValue: stub },
+            // The wired <inspecto-transfer-menu> injects these when the template renders.
+            { provide: ToastrService, useValue: { success: vi.fn(), warning: vi.fn(), error: vi.fn() } },
+            { provide: MatDialog, useValue: { open: vi.fn() } },
+            { provide: LensService, useValue: { canAuthorWorkbench: signal(true) } },
+            { provide: BundleTransferService, useValue: { loadAll: () => of([]), buildExport: () => ({ bundle: { items: [] }, missing: [] }), download: vi.fn(), write: () => of({}) } },
+        ],
     });
     return TestBed.createComponent(PipelinesComponent);
 }

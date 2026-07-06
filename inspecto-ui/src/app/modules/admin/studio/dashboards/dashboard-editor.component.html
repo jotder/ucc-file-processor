@@ -17,6 +17,7 @@
                     <mat-error>A dashboard with this id already exists.</mat-error>
                 }
             </mat-form-field>
+            <inspecto-transfer-menu [items]="transferItems" [allowedKinds]="['dashboard']" label="Import / export dashboard" />
             <button type="button" mat-stroked-button (click)="exportPngs()" [disabled]="!tiles().length">
                 <mat-icon class="icon-size-4 mr-1" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
                 <span>Export PNGs</span>

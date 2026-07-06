@@ -128,9 +128,20 @@ same registry with a config shape + `deriveRefs` + (where composite) wiring — 
   *same* `Consequence[]`, and **Propose with AI** opens the Decision Rule form pre-filled for the human to review
   and save (approval = the consequence gate) — architecture unchanged. Seed: `quarantine_high_cost` gains
   platform consequences.
-- **R6 — Transportability everywhere — 📋 PLANNED:** bundle v2 (refs+provenance) implemented; per-editor and
-  per-library import/export surfaces (placement per metadata-network-design §3); every new kind is
-  transportable by construction.
+- **R6 — Transportability everywhere — ✅ SHIPPED 2026-07-06** (plan `docs/superpower/transportability-plan.md`):
+  **Metadata Bundle v2** (`inspecto/transfer/bundle.ts`) makes the subgraph self-describing — `items[].refs`
+  (each `included`/`external`), `items[].provenance` (source space + time + SHA-256 `contentHash`, via a pure
+  sync `content-hash.ts`), and top-level `requires` (the bundle's contract with the target). The import
+  **fit-check** classifies each item new / exists / **drifted** (content hash ≠ target's, so identical
+  re-promotion is visibly idempotent) and resolves `requires` satisfied/missing. v1 files still import. **One
+  format, three surfaces:** the load/write/export path is single-sourced in `BundleTransferService`, the
+  preview+apply is the shared `ImportBundleDialog`, and a reusable `<inspecto-transfer-menu>` is dropped into
+  every editor (Widget/Dashboard/Pipeline/dataset builders), studio saved-view toolbar (Geo/Link) and
+  library list (Viz Library, Pipelines, Datasets) — export (with/without deps) + import everywhere — alongside
+  the Settings promotion workbench. Every kind added by R2–R5 was already transportable by construction, so
+  jobs/queries/decision-rules travel with no extra work. **Deliberate cut:** editor import uses the same
+  preview-and-apply dialog (writes through each kind's normal validator) rather than a bespoke "load as editor
+  draft"; `requires` classify satisfied/missing only (drift is per-item).
 
 Sequencing rationale: R1 is the spine (everything else derives edges from it); R2/R3 widen the
 metadata; R4 gives the organism its nerves; R5 its brain; R6 makes any subgraph portable.

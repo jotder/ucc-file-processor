@@ -21,6 +21,7 @@
                 <mat-button-toggle value="editor">Edit</mat-button-toggle>
             </mat-button-toggle-group>
             @if (mode() === 'combined') {
+                <inspecto-transfer-menu [items]="transferItems()" [allowedKinds]="['authored-pipeline']" (changed)="load()" label="Import / export pipelines" />
                 <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh pipelines">
                     <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
                 </button>

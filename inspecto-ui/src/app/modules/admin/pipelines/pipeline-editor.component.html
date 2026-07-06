@@ -50,6 +50,7 @@
                     matTooltip="Validate" aria-label="Validate">
                 <mat-icon svgIcon="heroicons_outline:shield-check"></mat-icon>
             </button>
+            <inspecto-transfer-menu [items]="transferItems()" [allowedKinds]="['authored-pipeline']" (changed)="load()" label="Import / export pipeline" />
             @if (isActive()) {
                 <button mat-icon-button [disabled]="activating()" (click)="deactivate()"
                         matTooltip="Deactivate" aria-label="Deactivate">

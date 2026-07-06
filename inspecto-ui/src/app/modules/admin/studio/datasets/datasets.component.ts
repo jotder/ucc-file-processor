@@ -10,6 +10,7 @@ import { InspectoAlertComponent } from 'app/inspecto/components/alert.component'
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { Dataset } from './dataset-types';
 import { DatasetsService } from './datasets.service';
 
@@ -30,6 +31,7 @@ import { DatasetsService } from './datasets.service';
         InspectoAlertComponent,
         InspectoEmptyStateComponent,
         StatusBadgeComponent,
+        TransferMenuComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './datasets.component.html',
@@ -50,6 +52,9 @@ export class DatasetsComponent implements OnInit {
         if (!q) return all;
         return all.filter((d) => [d.id, d.kind, d.sourceName].join(' ').toLowerCase().includes(q));
     });
+
+    /** The filtered datasets as transfer references — what the export/import menu offers. */
+    readonly transferItems = computed(() => this.visibleDatasets().map((d) => ({ kind: 'dataset' as const, id: d.id })));
 
     ngOnInit(): void {
         this.load();

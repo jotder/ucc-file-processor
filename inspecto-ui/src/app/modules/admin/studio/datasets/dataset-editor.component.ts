@@ -11,6 +11,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { ColumnMeta, QueryChange, QueryModel, QueryPanelComponent, QuerySource, inferColumns } from 'app/inspecto/query';
 import { DatasetColumnsComponent } from './dataset-columns.component';
 import { DatasetMeasuresComponent } from './dataset-measures.component';
@@ -48,6 +49,7 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
         QueryPanelComponent,
         DatasetColumnsComponent,
         DatasetMeasuresComponent,
+        TransferMenuComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './dataset-editor.component.html',
@@ -61,6 +63,11 @@ export class DatasetEditorComponent implements OnInit {
 
     /** Route param — the dataset id to edit; absent on the `new` route (create mode). */
     @Input() id?: string;
+
+    /** This saved dataset as a transfer reference — export is offered only in edit mode. */
+    get transferItems(): { kind: 'dataset'; id: string }[] {
+        return this.id ? [{ kind: 'dataset', id: this.id }] : [];
+    }
 
     readonly kinds = KINDS;
     readonly sourceNames = SAMPLE_SOURCE_NAMES;
