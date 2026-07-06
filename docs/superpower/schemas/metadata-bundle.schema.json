@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inspecto.gammanalytics.com/schemas/metadata-bundle.schema.json",
+  "title": "Inspecto Metadata Bundle",
+  "description": "Cross-instance transfer of Inspecto configuration (never data rows): a serialized, self-describing subgraph of the Component metadata network. v1 items carry {kind,id,content}; v2 adds explicit lineage (refs) and provenance so the target can fit-check the bundle without re-deriving relationships.",
+  "type": "object",
+  "required": ["format", "version", "exportedAt", "sourceSpace", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "inspecto-metadata-bundle" },
+    "version": {
+      "description": "Envelope version. 1 = shipped minimal form; 2 = adds refs/provenance/requires.",
+      "type": "integer",
+      "enum": [1, 2]
+    },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "sourceSpace": {
+      "description": "The exporting space id, or null in single-tenant mode.",
+      "type": ["string", "null"]
+    },
+    "provenance": {
+      "description": "v2: where this bundle came from (audit trail on the target).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "instance": { "type": "string", "description": "Origin instance identifier (host/base URL or a configured instance name)." },
+        "exportedBy": { "type": "string", "description": "Operator identity, when the origin instance has one." },
+        "description": { "type": "string", "description": "Free-text purpose, e.g. 'fraud pack v3 for prod'." }
+      }
+    },
+    "requires": {
+      "description": "v2: aggregated EXTERNAL references — the bundle's contract with the target. Every entry must already exist on the target (import preview classifies satisfied / missing / drifted).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/ref" }
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/item" }
+    }
+  },
+  "$defs": {
+    "kind": {
+      "description": "The artifact families a bundle can carry. Import applies them in this order (referenced kinds first).",
+      "type": "string",
+      "enum": [
+        "connection",
+        "grammar",
+        "schema",
+        "transform",
+        "sink",
+        "dataset",
+        "link-analysis-view",
+        "geo-map-view",
+        "widget",
+        "dashboard",
+        "authored-pipeline"
+      ]
+    },
+    "ref": {
+      "description": "One lineage edge endpoint: a typed reference to another Component.",
+      "type": "object",
+      "required": ["kind", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "#/$defs/kind" },
+        "id": { "type": "string", "minLength": 1 },
+        "rel": {
+          "description": "Edge semantics: binds (config references, e.g. widget→dataset, pipeline-node→grammar/connection), tiles (dashboard→widget), renders (view-bound widget→saved view), projects (saved view→dataset), loads (dataset→physical store).",
+          "type": "string",
+          "enum": ["binds", "tiles", "renders", "projects", "loads"]
+        },
+        "resolution": {
+          "description": "included = the referent travels in this bundle's items; external = must already exist on the target.",
+          "type": "string",
+          "enum": ["included", "external"]
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "required": ["kind", "id", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "#/$defs/kind" },
+        "id": { "type": "string", "minLength": 1 },
+        "content": {
+          "description": "The artifact's complete config map, verbatim from the origin — a widget's channel mapping + options, a Geo view's query + display + camera, a pipeline's lossless node/edge graph, a dataset's metadata (columns/roles/measures/query — never rows). Opaque to the envelope: each kind's editor/validator owns the shape; connections are secret-masked ('***' / '${ENV:…}').",
+          "type": "object"
+        },
+        "refs": {
+          "description": "v2: this item's outgoing lineage edges (derived by the origin's ComponentKind.deriveRefs). Lets the target fit-check without knowing how to derive refs for this kind.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ref" }
+        },
+        "provenance": {
+          "description": "v2: per-item origin facts, enabling drift detection and idempotent re-promotion.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sourceSpace": { "type": ["string", "null"] },
+            "exportedAt": { "type": "string", "format": "date-time" },
+            "contentHash": {
+              "description": "sha256:<hex> over the canonical JSON (sorted keys, no whitespace) of `content`.",
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "originVersion": { "type": "string", "description": "The origin store's version/etag for this artifact, when it has one." }
+          }
+        }
+      }
+    }
+  }
+}

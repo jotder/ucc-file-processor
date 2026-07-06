@@ -1,0 +1,99 @@
+{
+  "format": "inspecto-metadata-bundle",
+  "version": 2,
+  "exportedAt": "2026-07-06T09:45:00.000Z",
+  "sourceSpace": "staging",
+  "provenance": {
+    "instance": "https://staging.inspecto.gamma.local",
+    "exportedBy": "rahul@gammanalytics.com",
+    "description": "Investigation dashboard promoted with its full dependency closure (widgets → saved views → dataset metadata). Everything resolves inside the bundle except the physical store behind the datasets."
+  },
+  "requires": [],
+  "items": [
+    {
+      "kind": "dataset",
+      "id": "cell_sites",
+      "content": {
+        "name": "cell_sites",
+        "kind": "virtual",
+        "sourceName": "cell_sites",
+        "query": { "projection": "*", "where": { "kind": "group", "op": "AND", "items": [] }, "sqlOverride": null },
+        "physicalRef": null,
+        "columns": [
+          { "name": "site", "type": "string", "role": "dimension" },
+          { "name": "site_type", "type": "string", "role": "dimension" },
+          { "name": "lat", "type": "number", "role": "dimension" },
+          { "name": "lon", "type": "number", "role": "dimension" },
+          { "name": "seen_time", "type": "date", "role": "temporal" }
+        ],
+        "measures": []
+      },
+      "refs": [],
+      "provenance": {
+        "sourceSpace": "staging",
+        "exportedAt": "2026-07-06T09:45:00.000Z",
+        "contentHash": "sha256:1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f809"
+      }
+    },
+    {
+      "kind": "geo-map-view",
+      "id": "dhaka-network",
+      "content": {
+        "name": "Example — Dhaka cell network",
+        "sourceId": "dataset",
+        "query": {
+          "projection": { "datasetId": "cell_sites", "latCol": "lat", "lonCol": "lon", "entityCol": "site", "kindCol": "site_type", "timeCol": "seen_time" }
+        },
+        "display": "markers",
+        "camera": { "center": [90.4125, 23.8103], "zoom": 11 },
+        "notes": [{ "text": "Tower grid anomaly zone", "lngLat": [90.40, 23.79] }]
+      },
+      "refs": [
+        { "kind": "dataset", "id": "cell_sites", "rel": "projects", "resolution": "included" }
+      ],
+      "provenance": {
+        "sourceSpace": "staging",
+        "exportedAt": "2026-07-06T09:45:00.000Z",
+        "contentHash": "sha256:2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a"
+      }
+    },
+    {
+      "kind": "widget",
+      "id": "dhaka_network_map",
+      "content": {
+        "name": "dhaka_network_map",
+        "datasetId": "",
+        "vizType": "geo-map",
+        "controls": {},
+        "viewId": "dhaka-network",
+        "description": "The Dhaka cell-network Geo View as a dashboard tile."
+      },
+      "refs": [
+        { "kind": "geo-map-view", "id": "dhaka-network", "rel": "renders", "resolution": "included" }
+      ],
+      "provenance": {
+        "sourceSpace": "staging",
+        "exportedAt": "2026-07-06T09:45:00.000Z",
+        "contentHash": "sha256:3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b"
+      }
+    },
+    {
+      "kind": "dashboard",
+      "id": "investigation_overview",
+      "content": {
+        "name": "investigation_overview",
+        "tiles": [{ "widgetId": "dhaka_network_map", "span": 2 }],
+        "filter": null,
+        "exposedFields": []
+      },
+      "refs": [
+        { "kind": "widget", "id": "dhaka_network_map", "rel": "tiles", "resolution": "included" }
+      ],
+      "provenance": {
+        "sourceSpace": "staging",
+        "exportedAt": "2026-07-06T09:45:00.000Z",
+        "contentHash": "sha256:4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c"
+      }
+    }
+  ]
+}

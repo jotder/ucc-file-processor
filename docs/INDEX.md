@@ -105,7 +105,12 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
   (Settings → Import & Export): cross-instance, metadata-only transfer of datasets/widgets/dashboards/
   saved views/pipelines + registry pieces, with dependency closure on export and per-item
   overwrite/skip on import. **Shipped** (mock-first; backend endpoints pending the ComponentStore
-  enum widening). 
+  enum widening).
+- [`superpower/metadata-network-design.md`](superpower/metadata-network-design.md) — **Metadata network
+  deep-dive (discussion draft)**: configuration-graph audit (4 duplicated ref-derivation sites, the
+  delete-protection gaps), the `deriveRefs` consolidation rework (R1), per-surface import/export
+  placement, and the **bundle v2 envelope** (explicit lineage `refs` + `provenance`/hashes) — with
+  JSON Schema + samples under `superpower/schemas/`.
 
 ## Strategy & roadmap (stakeholder-facing)
 

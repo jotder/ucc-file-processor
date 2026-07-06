@@ -1,0 +1,38 @@
+{
+  "format": "inspecto-metadata-bundle",
+  "version": 2,
+  "exportedAt": "2026-07-06T09:30:00.000Z",
+  "sourceSpace": "staging",
+  "provenance": {
+    "instance": "https://staging.inspecto.gamma.local",
+    "description": "Single-widget export from the Widget Builder page (deps left external)"
+  },
+  "requires": [
+    { "kind": "dataset", "id": "cdr_sample", "rel": "binds", "resolution": "external" }
+  ],
+  "items": [
+    {
+      "kind": "widget",
+      "id": "cost_by_tariff",
+      "content": {
+        "name": "cost_by_tariff",
+        "datasetId": "cdr_sample",
+        "vizType": "bar",
+        "controls": {
+          "x": [{ "field": "tariff" }],
+          "y": [{ "field": "cost_usd", "agg": "sum" }]
+        },
+        "description": "Total cost per tariff from the CDR sample.",
+        "options": { "title": "Cost by tariff", "palette": "categorical", "legend": false }
+      },
+      "refs": [
+        { "kind": "dataset", "id": "cdr_sample", "rel": "binds", "resolution": "external" }
+      ],
+      "provenance": {
+        "sourceSpace": "staging",
+        "exportedAt": "2026-07-06T09:30:00.000Z",
+        "contentHash": "sha256:5f1e9b0c4a7d2e8f6b3a1c9d0e7f4a2b8c6d5e3f1a0b9c8d7e6f5a4b3c2d1e0f"
+      }
+    }
+  ]
+}
