@@ -14,7 +14,7 @@ The assist surface is an SPI in the core, implemented by the optional [agent mod
 * **SPI** — `AssistAgent` (`inspecto/src/main/java/com/gamma/assist/spi/AssistAgent.java`), discovered via
   `ServiceLoader`. When no provider is present the assist routes degrade gracefully.
 * **Implementation** — `UccAssistAgent` (`inspecto-agent/src/main/java/com/gamma/agent/UccAssistAgent.java`)
-  on `agent-kernel` 1.0.0, registering seven **read-only / draft-only** skills: `DiagnoseAndAlertSkill`,
+  on the vendored kernel layer (`com.gamma.agent.kernel.*`, ex agent-kernel — discontinued; eoiagent supplies model transport), registering seven **read-only / draft-only** skills: `DiagnoseAndAlertSkill`,
   `ExplainEntitySkill`, `KpiToSqlSkill`, `NlToScheduleSkill`, `ReportNarrativeSkill`, `ReportSqlSkill`,
   `SuggestConfigSkill`. Dispatch runs `SyncOrchestrator` → `CapabilityRegistry` → skill →
   `UccConfidenceEstimator`, then either surfaces the result or `EscalationRung.Abstain` (**abstain-only** — no

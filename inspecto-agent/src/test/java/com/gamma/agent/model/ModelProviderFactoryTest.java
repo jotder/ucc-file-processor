@@ -1,7 +1,7 @@
 package com.gamma.agent.model;
 
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.model.ModelTier;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.kernel.model.ModelTier;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

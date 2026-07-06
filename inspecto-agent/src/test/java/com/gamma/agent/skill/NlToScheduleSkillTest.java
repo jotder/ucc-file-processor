@@ -2,12 +2,12 @@ package com.gamma.agent.skill;
 
 import com.gamma.agent.AgentTestConfigs;
 import com.gamma.agent.model.FakeModelProvider;
-import com.gamma.agentkernel.agent.AgentRequest;
-import com.gamma.agentkernel.agent.AgentResult;
-import com.gamma.agentkernel.model.ModelRequest;
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.model.ModelTier;
-import com.gamma.agentkernel.retrieve.DocRetriever;
+import com.gamma.agent.kernel.agent.AgentRequest;
+import com.gamma.agent.kernel.agent.AgentResult;
+import com.gamma.agent.kernel.model.ModelRequest;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.kernel.model.ModelTier;
+import com.gamma.agent.kernel.retrieve.DocRetriever;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
 import com.gamma.config.io.ConfigCodec;

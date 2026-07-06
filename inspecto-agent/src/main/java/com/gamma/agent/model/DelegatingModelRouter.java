@@ -1,8 +1,8 @@
 package com.gamma.agent.model;
 
-import com.gamma.agentkernel.model.ModelProvider;
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.model.ModelTier;
+import com.gamma.agent.kernel.model.ModelProvider;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.kernel.model.ModelTier;
 
 /**
  * A {@link ModelRouter} with a hot-swappable delegate (v4.1) — the seam that makes

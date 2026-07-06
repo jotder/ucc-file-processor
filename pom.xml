@@ -55,10 +55,12 @@
     <properties>
         <!-- Target JDK 24. Uses `release` so the build cannot accidentally rely on a newer JDK's API
              than the target. NOTE: the lean ETL core (file-processor) runs on JDK 24 cleanly. The
-             optional file-processor-agent module depends on agent-kernel 1.0.0, whose bytecode is
-             Java 25 (class-file v69) — those classes cannot LOAD on a JDK 24 runtime
-             (UnsupportedClassVersionError). The agent module therefore requires a JDK 25+ runtime
-             until the kernel is rebuilt for 24; see inspecto-agent/docs/AGENT_KERNEL_U0_U1_PLAN.md §2.1. -->
+             optional file-processor-agent module depends on eoiagent (agent-kernel's replacement,
+             2026-07-07 — the kernel is discontinued and its reasoning layer is vendored in-tree at
+             release=24), whose bytecode is Java 25 (class-file v69) — those classes cannot LOAD on
+             a JDK 24 runtime (UnsupportedClassVersionError). The agent modules therefore require a
+             JDK 25+ runtime (the bundled JDK 26 qualifies); see
+             docs/superpower/agent-kernel-replacement-plan.md. -->
         <maven.compiler.release>24</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.10.2</junit.version>

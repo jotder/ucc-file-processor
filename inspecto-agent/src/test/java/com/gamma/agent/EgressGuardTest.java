@@ -1,6 +1,6 @@
 package com.gamma.agent;
 
-import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
+import com.gamma.agent.model.OllamaModelProvider;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;

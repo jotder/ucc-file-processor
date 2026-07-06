@@ -1,15 +1,15 @@
 package com.gamma.agent;
 
-import com.gamma.agentkernel.agent.AgentContext;
-import com.gamma.agentkernel.agent.AgentRequest;
-import com.gamma.agentkernel.agent.AgentResult;
-import com.gamma.agentkernel.reason.ConfidenceEstimator;
-import com.gamma.agentkernel.tool.CredibilityTier;
-import com.gamma.agentkernel.tool.Evidence;
+import com.gamma.agent.kernel.agent.AgentContext;
+import com.gamma.agent.kernel.agent.AgentRequest;
+import com.gamma.agent.kernel.agent.AgentResult;
+import com.gamma.agent.kernel.reason.ConfidenceEstimator;
+import com.gamma.agent.kernel.tool.CredibilityTier;
+import com.gamma.agent.kernel.tool.Evidence;
 
 /**
  * UCC's {@link ConfidenceEstimator} (U1.5): composes the deterministic signals UCC already produces
- * into a single confidence in {@code [0, 1]}, which the {@link com.gamma.agentkernel.reason.EscalationPolicy}
+ * into a single confidence in {@code [0, 1]}, which the {@link com.gamma.agent.kernel.reason.EscalationPolicy}
  * compares against the capability's {@code confidenceThreshold} to decide whether to surface the
  * result or abstain.
  *

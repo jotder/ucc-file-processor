@@ -1,31 +1,31 @@
 package com.gamma.agent.hosted;
 
+import com.gamma.agent.model.EoiGatewayModelProvider;
 import com.gamma.agent.model.ProviderSettings;
-import com.gamma.agentkernel.error.ModelError;
-import com.gamma.agentkernel.model.ModelProvider;
-import com.gamma.agentkernel.model.ModelRequest;
-import com.gamma.agentkernel.model.ModelResponse;
-import com.gamma.agentkernel.model.ModelTier;
+import com.gamma.agent.kernel.error.ModelError;
+import com.gamma.agent.kernel.model.ModelProvider;
+import com.gamma.agent.kernel.model.ModelRequest;
+import com.gamma.agent.kernel.model.ModelResponse;
+import com.gamma.agent.kernel.model.ModelTier;
+import com.eoiagent.model.Lc4jChatGateway;
+import com.eoiagent.model.LlmGateway;
+import com.eoiagent.model.ModelInfo;
 
-import dev.langchain4j.data.message.ChatMessage;
-import dev.langchain4j.data.message.SystemMessage;
-import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.anthropic.AnthropicChatModel;
 import dev.langchain4j.model.chat.ChatModel;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
-import dev.langchain4j.model.output.TokenUsage;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * One LangChain4j-backed hosted {@link ModelProvider} (v4.1): binds a single provider id +
- * {@link ModelTier}/model from {@link ProviderSettings}. Anthropic, OpenAI, and Gemini use their
- * first-party LangChain4j modules; Grok and the llama.cpp server ride the OpenAI-compatible client
- * with a custom base URL.
+ * One hosted {@link ModelProvider} (v4.1): binds a single provider id + {@link ModelTier}/model from
+ * {@link ProviderSettings}. Anthropic, OpenAI, and Gemini use their first-party LangChain4j modules;
+ * Grok and the llama.cpp server ride the OpenAI-compatible client with a custom base URL. This class
+ * now only <em>builds</em> the lc4j chat model (keeping the per-request timeout); request/response
+ * mapping and the JSON system-prompt constraint moved into the shared eoiagent bridge
+ * ({@link EoiGatewayModelProvider} over {@link Lc4jChatGateway}) when agent-kernel was replaced
+ * (2026-07-07).
  *
  * <h3>Lazy &amp; abstain-safe</h3>
  * The chat model is built on first {@code generate} only — never in the constructor — so merely
@@ -37,23 +37,24 @@ public final class LangChain4jChatProvider implements ModelProvider {
     private final String providerId;
     private final ProviderSettings settings;
     private final String apiKey;
-    private final ModelTier tier;
     private final String modelName;
-
-    private volatile ChatModel chatModel;
+    private final EoiGatewayModelProvider delegate;
 
     public LangChain4jChatProvider(String providerId, ProviderSettings settings, String apiKey,
                                    ModelTier tier) {
         this.providerId = providerId;
         this.settings = settings;
         this.apiKey = apiKey;
-        this.tier = tier;
         this.modelName = settings.model(tier);
+        // No JSON gateway: hosted providers keep the uniform system-prompt JSON constraint.
+        this.delegate = new EoiGatewayModelProvider(
+                providerId + ":" + modelName + " (" + tier + ")", this::available,
+                this::gateway, null);
     }
 
     @Override
     public String name() {
-        return providerId + ":" + modelName + " (" + tier + ")";
+        return delegate.name();
     }
 
     @Override
@@ -65,28 +66,7 @@ public final class LangChain4jChatProvider implements ModelProvider {
 
     @Override
     public ModelResponse generate(ModelRequest request) {
-        if (!available()) {
-            throw new ModelError(providerId + " provider not available for tier " + tier
-                    + " (no model mapped, or no API key resolved)");
-        }
-        try {
-            List<ChatMessage> messages = new ArrayList<>(2);
-            String system = request.system();
-            if (request.jsonFormat()) {
-                // Uniform JSON constraint across providers (matches the kernel's Gemini provider).
-                String json = "Respond with valid JSON only, no prose or code fences.";
-                system = (system == null || system.isBlank()) ? json : system + "\n\n" + json;
-            }
-            if (system != null && !system.isBlank()) messages.add(SystemMessage.from(system));
-            messages.add(UserMessage.from(request.prompt()));
-            ChatResponse response = chatModel().chat(messages);
-            return new ModelResponse(response.aiMessage().text(),
-                    tokens(response.tokenUsage(), true), tokens(response.tokenUsage(), false));
-        } catch (ModelError e) {
-            throw e;
-        } catch (RuntimeException e) {
-            throw new ModelError(providerId + " generation failed for tier " + tier, e);
-        }
+        return delegate.generate(request);
     }
 
     /** The llama.cpp server takes no key — only a reachable OpenAI-compatible base URL. */
@@ -99,20 +79,9 @@ public final class LangChain4jChatProvider implements ModelProvider {
                 : ProviderSettings.defaultBaseUrl(providerId);
     }
 
-    private static int tokens(TokenUsage usage, boolean input) {
-        if (usage == null) return -1;
-        Integer v = input ? usage.inputTokenCount() : usage.outputTokenCount();
-        return v == null ? -1 : v;
-    }
-
-    private ChatModel chatModel() {
-        ChatModel m = chatModel;
-        if (m == null) {
-            synchronized (this) {
-                if ((m = chatModel) == null) m = chatModel = build();
-            }
-        }
-        return m;
+    private LlmGateway gateway() {
+        return new Lc4jChatGateway(build(), null,
+                new ModelInfo(providerId, modelName, settings.local()));
     }
 
     private ChatModel build() {

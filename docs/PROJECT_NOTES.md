@@ -27,11 +27,13 @@ Module dirs were renamed 2026-06-12; **artifactIds were NOT renamed** (hence dir
 |---|---|---|
 | `inspecto/` | engine + control plane (lean core) | `file-processor` / `file-processor.jar` |
 | `inspecto-connectors/` | remote connectors (SFTP/FTP/FTPS/DB), all network deps | `file-processor-connectors` |
-| `inspecto-agent/` | optional AI assist skills (on `agent-kernel`) | `file-processor-agent` |
+| `inspecto-agent/` | optional AI assist skills (vendored kernel layer + eoiagent transport) | `file-processor-agent` |
 | `inspecto-agent-hosted/` | hosted model providers (omitted from air-gapped builds) | `file-processor-agent-hosted` |
 | `inspecto-ui/` | Angular SPA (gamma/Fuse template), serves from the engine | — (npm; dev :4204) |
 
-Consumes `agent-kernel` 1.0.0 (1.1.0 available; bump optional, Abstain-only ⇒ no behavior change).
+agent-kernel is GONE (discontinued upstream, replaced 2026-07-07): its reasoning layer is vendored at
+`inspecto-agent … com/gamma/agent/kernel/**`; model transport is **eoiagent** (`com.eoiagent:*:0.1.0-SNAPSHOT`,
+local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-kernel-replacement-plan.md`.
 
 ---
 
@@ -204,7 +206,8 @@ touching `inspecto-ui/`.** Highlights (full detail there):
 
 ## 7. Related sandboxes (separate repos — pointers only)
 
-- **agent-kernel** (`C:/sandbox/agent-kernel`) — reusable agent lib; **1.1.0 released**; Inspecto on 1.0.0.
+- **agent-kernel** (`C:/sandbox/agent-kernel`) — DISCONTINUED; Inspecto vendored its reasoning layer 2026-07-07.
+- **eoiagent** (`C:/sandbox/agent-brainstorm`) — agent platform; Inspecto's model transport since 2026-07-07 (0.1.0-SNAPSHOT).
 - **CVVE** (`C:/sandbox/agentic-doc-validation`) — kernel's 3rd consumer; first real `HumanHandoff` driver.
 
 (Detailed progress for these lives in the per-user agent memory, not in this repo — they are different projects.)

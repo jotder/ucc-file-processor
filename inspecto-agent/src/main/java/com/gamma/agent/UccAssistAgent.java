@@ -3,24 +3,24 @@ package com.gamma.agent;
 import com.gamma.agent.diagnose.DiagnosisStore;
 import com.gamma.agent.diagnose.FailureReactor;
 import com.gamma.agent.diagnose.ModelDiagnoser;
-import com.gamma.agentkernel.agent.AgentRequest;
-import com.gamma.agentkernel.agent.AgentResult;
-import com.gamma.agentkernel.agent.CapabilityRegistry;
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.observe.AgentCompleted;
-import com.gamma.agentkernel.observe.AuditSink;
-import com.gamma.agentkernel.orchestrate.SyncOrchestrator;
+import com.gamma.agent.kernel.agent.AgentRequest;
+import com.gamma.agent.kernel.agent.AgentResult;
+import com.gamma.agent.kernel.agent.CapabilityRegistry;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.kernel.observe.AgentCompleted;
+import com.gamma.agent.kernel.observe.AuditSink;
+import com.gamma.agent.kernel.orchestrate.SyncOrchestrator;
 import com.gamma.agent.model.AssistModelSettings;
 import com.gamma.agent.model.DelegatingModelRouter;
 import com.gamma.agent.model.ModelProviderFactory;
 import com.gamma.agent.model.ProviderSettings;
-import com.gamma.agentkernel.model.ModelProvider;
-import com.gamma.agentkernel.model.ModelRequest;
-import com.gamma.agentkernel.model.ModelTier;
-import com.gamma.agentkernel.reason.ConfidenceEstimator;
-import com.gamma.agentkernel.reason.EscalationPolicy;
-import com.gamma.agentkernel.reason.EscalationRung;
-import com.gamma.agentkernel.retrieve.DocRetriever;
+import com.gamma.agent.kernel.model.ModelProvider;
+import com.gamma.agent.kernel.model.ModelRequest;
+import com.gamma.agent.kernel.model.ModelTier;
+import com.gamma.agent.kernel.reason.ConfidenceEstimator;
+import com.gamma.agent.kernel.reason.EscalationPolicy;
+import com.gamma.agent.kernel.reason.EscalationRung;
+import com.gamma.agent.kernel.retrieve.DocRetriever;
 import com.gamma.agent.skill.UccAgentContext;
 import com.gamma.agent.skill.DiagnoseAndAlertSkill;
 import com.gamma.agent.skill.ExplainEntitySkill;
@@ -48,7 +48,7 @@ import java.util.Set;
  * service's read-only handles in {@link #init} (into a {@link UccAgentContext}), builds the
  * {@link CapabilityRegistry}, and dispatches {@code POST /assist/{intent}} calls through the shared
  * {@link SyncOrchestrator} (R1): it resolves the matching
- * {@link com.gamma.agentkernel.agent.Capability}, runs it under an {@link EscalationPolicy} — attempt →
+ * {@link com.gamma.agent.kernel.agent.Capability}, runs it under an {@link EscalationPolicy} — attempt →
  * {@link UccConfidenceEstimator estimate confidence} → surface if it clears the capability's
  * threshold, else {@link EscalationRung.Abstain abstain} (UNAVAILABLE) rather than ship a
  * low-confidence guess — and emits one keys-only {@link AgentCompleted} to the {@link AuditSink}

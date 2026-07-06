@@ -47,7 +47,7 @@ SPI; editions are build flavors, never branches (see [`EDITIONS.md`](EDITIONS.md
 | Dir | artifactId | Role |
 |---|---|---|
 | `inspecto/` | `file-processor` | Lean engine + control plane. No network/AI deps. The fat JAR. |
-| `inspecto-agent/` | `file-processor-agent` | Assist skills (failure diagnosis etc.) on `agent-kernel`. Optional. |
+| `inspecto-agent/` | `file-processor-agent` | Assist skills (failure diagnosis etc.); vendored kernel layer + eoiagent model transport. Optional. |
 | `inspecto-agent-hosted/` | `file-processor-agent-hosted` | Hosted model providers (langchain4j). Optional. |
 | `inspecto-connectors/` | `file-processor-connectors` | SFTP/FTP/FTPS/DB-export connectors. ServiceLoader-discovered; optional. |
 | `inspecto-ui/` | (npm) | Angular SPA (served as static files by the engine when `-Dui.dir` is set). |

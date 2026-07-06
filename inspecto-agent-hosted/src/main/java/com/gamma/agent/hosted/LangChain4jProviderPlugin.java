@@ -2,9 +2,9 @@ package com.gamma.agent.hosted;
 
 import com.gamma.agent.model.HostedProviderPlugin;
 import com.gamma.agent.model.ProviderSettings;
-import com.gamma.agentkernel.model.ModelProvider;
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.model.ModelTier;
+import com.gamma.agent.kernel.model.ModelProvider;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.kernel.model.ModelTier;
 
 import java.util.EnumMap;
 import java.util.Set;

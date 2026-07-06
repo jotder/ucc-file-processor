@@ -1,10 +1,10 @@
 package com.gamma.agent.skill;
 
-import com.gamma.agentkernel.agent.AgentContext;
-import com.gamma.agentkernel.error.AgentError;
-import com.gamma.agentkernel.tool.Tool;
-import com.gamma.agentkernel.tool.ToolResult;
-import com.gamma.agentkernel.tool.ToolSpec;
+import com.gamma.agent.kernel.agent.AgentContext;
+import com.gamma.agent.kernel.error.AgentError;
+import com.gamma.agent.kernel.tool.Tool;
+import com.gamma.agent.kernel.tool.ToolResult;
+import com.gamma.agent.kernel.tool.ToolSpec;
 import com.gamma.config.spec.Finding;
 
 import java.time.Duration;

@@ -1,6 +1,6 @@
 package com.gamma.agent.model;
 
-import com.gamma.agentkernel.model.ModelTier;
+import com.gamma.agent.kernel.model.ModelTier;
 
 import java.io.IOException;
 import java.io.InputStream;

@@ -1,12 +1,12 @@
 package com.gamma.agent.model;
 
-import com.gamma.agentkernel.error.ModelError;
-import com.gamma.agentkernel.model.ModelProvider;
-import com.gamma.agentkernel.model.ModelRequest;
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.model.ModelTier;
-import com.gamma.agentkernel.provider.ollama.ModelProfile;
-import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
+import com.gamma.agent.kernel.error.ModelError;
+import com.gamma.agent.kernel.model.ModelProvider;
+import com.gamma.agent.kernel.model.ModelRequest;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.kernel.model.ModelTier;
+import com.gamma.agent.model.ModelProfile;
+import com.gamma.agent.model.OllamaModelProvider;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

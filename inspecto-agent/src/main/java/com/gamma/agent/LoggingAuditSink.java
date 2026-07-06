@@ -1,8 +1,8 @@
 package com.gamma.agent;
 
-import com.gamma.agentkernel.observe.AgentCompleted;
-import com.gamma.agentkernel.observe.AgentEvent;
-import com.gamma.agentkernel.observe.AuditSink;
+import com.gamma.agent.kernel.observe.AgentCompleted;
+import com.gamma.agent.kernel.observe.AgentEvent;
+import com.gamma.agent.kernel.observe.AuditSink;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

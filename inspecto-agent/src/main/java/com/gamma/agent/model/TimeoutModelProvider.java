@@ -1,9 +1,9 @@
 package com.gamma.agent.model;
 
-import com.gamma.agentkernel.error.ModelError;
-import com.gamma.agentkernel.model.ModelProvider;
-import com.gamma.agentkernel.model.ModelRequest;
-import com.gamma.agentkernel.model.ModelResponse;
+import com.gamma.agent.kernel.error.ModelError;
+import com.gamma.agent.kernel.model.ModelProvider;
+import com.gamma.agent.kernel.model.ModelRequest;
+import com.gamma.agent.kernel.model.ModelResponse;
 
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;

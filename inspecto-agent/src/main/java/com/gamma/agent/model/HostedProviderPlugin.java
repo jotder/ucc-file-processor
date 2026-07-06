@@ -1,6 +1,6 @@
 package com.gamma.agent.model;
 
-import com.gamma.agentkernel.model.ModelRouter;
+import com.gamma.agent.kernel.model.ModelRouter;
 
 import java.util.Set;
 

@@ -1,6 +1,6 @@
 package com.gamma.agent.model;
 
-import com.gamma.agentkernel.model.ModelTier;
+import com.gamma.agent.kernel.model.ModelTier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

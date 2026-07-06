@@ -32,13 +32,15 @@
 
     <properties>
         <!-- All AI/LLM deps are pinned here, in the optional module only. CVE-scan this tree
-             (SBOM) — it never reaches the lean core fat-JAR. -->
-        <langchain4j.version>1.15.1</langchain4j.version>
-        <!-- agent-kernel: the reusable agent core. Consumed ONLY by this module — the lean core
-             (file-processor) takes no kernel dependency. Pinned to the 1.1.0 release (additive over
-             1.0.0 — UCC's Abstain-only usage sees no behavior change). Resolved from local .m2;
-             CI resolves it from GitHub Packages (see ci.yml settings.xml). -->
-        <agentkernel.version>1.1.0</agentkernel.version>
+             (SBOM) — it never reaches the lean core fat-JAR. 1.16.3 matches the version
+             eoiagent-model compiles against (eoiagent BOM). -->
+        <langchain4j.version>1.16.3</langchain4j.version>
+        <!-- eoiagent: the agent platform replacing the DISCONTINUED agent-kernel (2026-07-07,
+             docs/superpower/agent-kernel-replacement-plan.md). The kernel's reasoning layer is
+             vendored in-tree (com.gamma.agent.kernel.*); eoiagent supplies the model transport
+             (LlmGateway/Lc4jChatGateway). SNAPSHOT resolved from local .m2 — built from
+             C:/sandbox/agent-brainstorm; CI needs it published or built (see plan doc §Open items). -->
+        <eoiagent.version>0.1.0-SNAPSHOT</eoiagent.version>
     </properties>
 
     <dependencies>
@@ -48,25 +50,25 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- agent-kernel: ring-1 core + the Ollama provider companion (U1). Kernel types live ONLY
-             in this module, behind the AssistAgent SPI; the lean core never sees them. -->
+        <!-- eoiagent model substrate: LlmGateway port (core) + Lc4jChatGateway transport (model).
+             eoiagent types live ONLY in this module, behind the AssistAgent SPI; the lean core
+             never sees them. langchain4j-open-ai is EXCLUDED so the air-gapped guarantee stays a
+             packaging fact (EgressGuardTest) — the hosted module ships it deliberately. -->
         <dependency>
-            <groupId>com.gamma.agentkernel</groupId>
-            <artifactId>agent-kernel-core</artifactId>
-            <version>${agentkernel.version}</version>
+            <groupId>com.eoiagent</groupId>
+            <artifactId>eoiagent-core</artifactId>
+            <version>${eoiagent.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.gamma.agentkernel</groupId>
-            <artifactId>agent-provider-ollama</artifactId>
-            <version>${agentkernel.version}</version>
-        </dependency>
-
-        <!-- agent-orchestration (R1): the assembled SYNC orchestrator. UCC swaps its hand-rolled
-             resolve→escalate→audit dispatch in UccAssistAgent for this shared ring-2 pipeline. -->
-        <dependency>
-            <groupId>com.gamma.agentkernel</groupId>
-            <artifactId>agent-orchestration</artifactId>
-            <version>${agentkernel.version}</version>
+            <groupId>com.eoiagent</groupId>
+            <artifactId>eoiagent-model</artifactId>
+            <version>${eoiagent.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>dev.langchain4j</groupId>
+                    <artifactId>langchain4j-open-ai</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- LangChain4j + Ollama: local-first model access behind the ModelProvider seam. -->
@@ -88,23 +90,9 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- agent-eval (U1.6): the kernel's golden-eval harness — FakeModelProvider, EvalCase/Expect,
-             EvalCaseLoader, EvalRunner (the jar) + the Evals @TestFactory glue (the test-jar). Test-scope
-             only; never reaches the lean core fat-JAR. The UCC fixtures run the reshaped Capability SPI
-             through this runner, proving the migration preserved observable behavior. -->
-        <dependency>
-            <groupId>com.gamma.agentkernel</groupId>
-            <artifactId>agent-eval</artifactId>
-            <version>${agentkernel.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.gamma.agentkernel</groupId>
-            <artifactId>agent-eval</artifactId>
-            <version>${agentkernel.version}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
+        <!-- The golden-eval harness (FakeModelProvider, EvalCase/Expect, EvalCaseLoader, EvalRunner,
+             Evals @TestFactory glue) is vendored under src/test/java/com/gamma/agent/kernel/eval —
+             formerly the kernel's agent-eval jar + test-jar. Test tree only; never ships. -->
     </dependencies>
 
     <!-- Build config (compiler + surefire native-access flag) is inherited from the parent

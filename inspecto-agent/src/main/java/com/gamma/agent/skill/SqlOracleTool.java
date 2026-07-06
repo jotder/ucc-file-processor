@@ -1,12 +1,12 @@
 package com.gamma.agent.skill;
 
-import com.gamma.agentkernel.agent.AgentContext;
-import com.gamma.agentkernel.error.AgentError;
-import com.gamma.agentkernel.tool.CredibilityTier;
-import com.gamma.agentkernel.tool.Evidence;
-import com.gamma.agentkernel.tool.Tool;
-import com.gamma.agentkernel.tool.ToolResult;
-import com.gamma.agentkernel.tool.ToolSpec;
+import com.gamma.agent.kernel.agent.AgentContext;
+import com.gamma.agent.kernel.error.AgentError;
+import com.gamma.agent.kernel.tool.CredibilityTier;
+import com.gamma.agent.kernel.tool.Evidence;
+import com.gamma.agent.kernel.tool.Tool;
+import com.gamma.agent.kernel.tool.ToolResult;
+import com.gamma.agent.kernel.tool.ToolSpec;
 import com.gamma.sql.SqlOracle;
 import com.gamma.sql.SqlSandboxPolicy;
 

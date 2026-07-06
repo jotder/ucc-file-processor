@@ -28,12 +28,14 @@
     </description>
 
     <properties>
-        <langchain4j.version>1.15.1</langchain4j.version>
+        <!-- Must match the agent module's pin (= what eoiagent-model compiles against). -->
+        <langchain4j.version>1.16.3</langchain4j.version>
     </properties>
 
     <dependencies>
-        <!-- The agent module: HostedProviderPlugin SPI, ProviderSettings, and (transitively) the
-             agent-kernel ModelProvider seam this module implements. -->
+        <!-- The agent module: HostedProviderPlugin SPI, ProviderSettings, the vendored
+             ModelProvider seam this module implements, and (transitively) the eoiagent
+             Lc4jChatGateway transport the providers ride. -->
         <dependency>
             <groupId>com.gamma.inspector</groupId>
             <artifactId>file-processor-agent</artifactId>

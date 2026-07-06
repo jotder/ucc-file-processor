@@ -1,9 +1,9 @@
 package com.gamma.agent;
 
-import com.gamma.agentkernel.agent.AgentResult;
-import com.gamma.agentkernel.observe.AgentCompleted;
-import com.gamma.agentkernel.observe.AgentEvent;
-import com.gamma.agentkernel.observe.AuditSink;
+import com.gamma.agent.kernel.agent.AgentResult;
+import com.gamma.agent.kernel.observe.AgentCompleted;
+import com.gamma.agent.kernel.observe.AgentEvent;
+import com.gamma.agent.kernel.observe.AuditSink;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

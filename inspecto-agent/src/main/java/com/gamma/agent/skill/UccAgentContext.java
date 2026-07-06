@@ -1,12 +1,12 @@
 package com.gamma.agent.skill;
 
-import com.gamma.agentkernel.agent.AgentContext;
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.model.ModelTier;
-import com.gamma.agentkernel.observe.AuditSink;
-import com.gamma.agentkernel.retrieve.DocRetriever;
-import com.gamma.agentkernel.retrieve.Retriever;
-import com.gamma.agentkernel.tool.ToolRegistry;
+import com.gamma.agent.kernel.agent.AgentContext;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.kernel.model.ModelTier;
+import com.gamma.agent.kernel.observe.AuditSink;
+import com.gamma.agent.kernel.retrieve.DocRetriever;
+import com.gamma.agent.kernel.retrieve.Retriever;
+import com.gamma.agent.kernel.tool.ToolRegistry;
 import com.gamma.catalog.ConfigSource;
 import com.gamma.catalog.MetadataGraphService;
 import com.gamma.report.ReportService;

@@ -30,7 +30,7 @@ The directory names were renamed 2026-06-12; the Maven **artifactIds were not** 
 |---|---|---|
 | `inspecto/` | engine + control plane (lean core) | `file-processor` / `file-processor.jar` |
 | `inspecto-connectors/` | remote connectors (SFTP/FTP/FTPS/DB) — all network deps | `file-processor-connectors` |
-| `inspecto-agent/` | optional AI assist skills (on `agent-kernel`) | `file-processor-agent` |
+| `inspecto-agent/` | optional AI assist skills (vendored kernel layer + eoiagent transport) | `file-processor-agent` |
 | `inspecto-agent-hosted/` | hosted model providers (omitted from air-gapped builds) | `file-processor-agent-hosted` |
 | `inspecto-ui/` | Angular SPA (served by the engine) | — (npm) |
 

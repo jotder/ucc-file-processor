@@ -1,15 +1,15 @@
 package com.gamma.agent;
 
-import com.gamma.agentkernel.agent.AgentContext;
-import com.gamma.agentkernel.agent.AgentRequest;
-import com.gamma.agentkernel.agent.AgentResult;
-import com.gamma.agentkernel.agent.Capability;
-import com.gamma.agentkernel.agent.CapabilitySpec;
-import com.gamma.agentkernel.model.ModelTier;
-import com.gamma.agentkernel.reason.EscalationPolicy;
-import com.gamma.agentkernel.reason.EscalationRung;
-import com.gamma.agentkernel.tool.CredibilityTier;
-import com.gamma.agentkernel.tool.Evidence;
+import com.gamma.agent.kernel.agent.AgentContext;
+import com.gamma.agent.kernel.agent.AgentRequest;
+import com.gamma.agent.kernel.agent.AgentResult;
+import com.gamma.agent.kernel.agent.Capability;
+import com.gamma.agent.kernel.agent.CapabilitySpec;
+import com.gamma.agent.kernel.model.ModelTier;
+import com.gamma.agent.kernel.reason.EscalationPolicy;
+import com.gamma.agent.kernel.reason.EscalationRung;
+import com.gamma.agent.kernel.tool.CredibilityTier;
+import com.gamma.agent.kernel.tool.Evidence;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;

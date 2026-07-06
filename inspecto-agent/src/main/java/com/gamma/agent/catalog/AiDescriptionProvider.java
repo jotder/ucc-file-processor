@@ -1,9 +1,9 @@
 package com.gamma.agent.catalog;
 
-import com.gamma.agentkernel.model.ModelProvider;
-import com.gamma.agentkernel.model.ModelRequest;
-import com.gamma.agentkernel.model.ModelTier;
-import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
+import com.gamma.agent.kernel.model.ModelProvider;
+import com.gamma.agent.kernel.model.ModelRequest;
+import com.gamma.agent.kernel.model.ModelTier;
+import com.gamma.agent.model.OllamaModelProvider;
 import com.gamma.catalog.Description;
 import com.gamma.catalog.Provenance;
 import com.gamma.catalog.spi.DescriptionProvider;

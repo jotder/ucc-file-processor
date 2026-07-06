@@ -1,9 +1,9 @@
 package com.gamma.agent;
 
 import com.gamma.agent.model.FakeModelProvider;
-import com.gamma.agentkernel.agent.AgentResult;
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.observe.AgentCompleted;
+import com.gamma.agent.kernel.agent.AgentResult;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.kernel.observe.AgentCompleted;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.etl.BatchEvent;

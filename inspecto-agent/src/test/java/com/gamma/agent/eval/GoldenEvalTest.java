@@ -9,14 +9,14 @@ import com.gamma.agent.skill.ReportNarrativeSkill;
 import com.gamma.agent.skill.ReportSqlSkill;
 import com.gamma.agent.skill.SuggestConfigSkill;
 import com.gamma.agent.skill.UccAgentContext;
-import com.gamma.agentkernel.agent.AgentContext;
-import com.gamma.agentkernel.agent.CapabilityRegistry;
-import com.gamma.agentkernel.eval.EvalCase;
-import com.gamma.agentkernel.eval.EvalCaseLoader;
-import com.gamma.agentkernel.eval.Evals;
-import com.gamma.agentkernel.eval.FakeModelProvider;
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.retrieve.DocRetriever;
+import com.gamma.agent.kernel.agent.AgentContext;
+import com.gamma.agent.kernel.agent.CapabilityRegistry;
+import com.gamma.agent.kernel.eval.EvalCase;
+import com.gamma.agent.kernel.eval.EvalCaseLoader;
+import com.gamma.agent.kernel.eval.Evals;
+import com.gamma.agent.kernel.eval.FakeModelProvider;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.kernel.retrieve.DocRetriever;
 import com.gamma.service.SourceService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -42,7 +42,7 @@ import java.util.stream.Stream;
  * backed by a per-intent canned {@link FakeModelProvider}; each {@code cases-nomodel.json} runs against a
  * context with <em>no</em> available provider ({@code ModelRouter.of(Map.of())}) — the deterministic way
  * to exercise the abstain-when-no-model path (and {@code report-narrative}'s template fallback) now that
- * the kernel fake is always-available. The kernel {@link com.gamma.agentkernel.eval.EvalRunner} dispatches
+ * the kernel fake is always-available. The kernel {@link com.gamma.agent.kernel.eval.EvalRunner} dispatches
  * the capability directly, so {@code minConfidence} pins each capability's self-reported confidence; the
  * estimator/abstain gate stays covered by the {@code UccAssistAgent}-level tests.
  */

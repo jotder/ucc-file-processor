@@ -1,9 +1,9 @@
 package com.gamma.agent.model;
 
-import com.gamma.agentkernel.model.ModelProvider;
-import com.gamma.agentkernel.model.ModelRouter;
-import com.gamma.agentkernel.provider.ollama.ModelProfile;
-import com.gamma.agentkernel.provider.ollama.OllamaModelProvider;
+import com.gamma.agent.kernel.model.ModelProvider;
+import com.gamma.agent.kernel.model.ModelRouter;
+import com.gamma.agent.model.ModelProfile;
+import com.gamma.agent.model.OllamaModelProvider;
 
 import java.time.Duration;
 import java.util.LinkedHashSet;
