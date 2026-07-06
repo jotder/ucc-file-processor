@@ -92,17 +92,17 @@ same registry with a config shape + `deriveRefs` + (where composite) wiring — 
   referential check it lacked). Declared-but-unmodeled execution metadata (retry policy, emitted
   signals, produced datasets) lands with R4's signal contract; `params` references land with R3's
   parameter namespace.
-- **R3 — Query kind + Parameters + ResultSet descriptor** (§4). Editors: query editor reuses the
-  data-table pro SQL surface; parameter chips in Widget Builder.
-- **R4 — Signal envelope:** one shape — `{ signalId, type, at, source: Ref, correlationId,
+- **R3 — Query kind + Parameters + ResultSet descriptor — 📋 PLANNED** (recommended next) (§4).
+  Editors: query editor reuses the data-table pro SQL surface; parameter chips in Widget Builder.
+- **R4 — Signal envelope — 📋 PLANNED:** one shape — `{ signalId, type, at, source: Ref, correlationId,
   severity?, payload }` — emitted by runs/jobs/rules/user actions; Events page becomes the signal
   ledger; alerts/notifications become *consumers* of signals rather than parallel stores.
-- **R5 — Decision network:** unify the three rule kinds on `Condition → Evaluation → Consequence[]`
+- **R5 — Decision network — 📋 PLANNED:** unify the three rule kinds on `Condition → Evaluation → Consequence[]`
   where a **Consequence** is a typed action (`emit-signal · start-job · create-alert · invoke-api ·
   generate-report · trigger-pipeline · render-widget`), executed via the Execution Network. The AI
   Brain then plugs in as a decision engine producing the *same* consequence objects (assist as
   proposer, human approval as a consequence gate) — architecture unchanged, sophistication grows.
-- **R6 — Transportability everywhere:** bundle v2 (refs+provenance) implemented; per-editor and
+- **R6 — Transportability everywhere — 📋 PLANNED:** bundle v2 (refs+provenance) implemented; per-editor and
   per-library import/export surfaces (placement per metadata-network-design §3); every new kind is
   transportable by construction.
 
