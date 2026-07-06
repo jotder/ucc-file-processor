@@ -3,7 +3,7 @@ import type { OperationalObject } from '../../api/objects.service';
 import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
-import { fanOut } from '../notify';
+import { emitSignal } from '../signals';
 import { OPS_OBJECTS_COLL } from './ops.handler';
 
 /**
@@ -130,7 +130,16 @@ function evaluate(store: MockStore, space: string, e: MockExpectation): MockExpe
                 closedAt: 0,
             };
             store.put(space, OPS_OBJECTS_COLL, obj.id, obj);
-            fanOut(store, space, 'EXPECTATION_FAILED', 'OPS', title, description, obj.id);
+            // Emit to the one signal ledger; emitSignal fans out the notification (EXPECTATION_FAILED is a notify type).
+            emitSignal(store, space, {
+                signalId: `expfail-${now}-${e.name}`,
+                type: 'EXPECTATION_FAILED',
+                at: now,
+                source: { kind: 'expectation', id: e.name, rel: 'emits' },
+                correlationId,
+                severity: e.severity?.toUpperCase() === 'CRITICAL' ? 'critical' : 'error',
+                payload: { name: e.name, title, description, incidentId: obj.id, violations },
+            });
         }
     }
     return next;

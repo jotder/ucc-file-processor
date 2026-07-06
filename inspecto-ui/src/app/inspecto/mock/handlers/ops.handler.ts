@@ -2,10 +2,11 @@ import type { AlertRule, FiredAlert } from '../../api/alerts.service';
 import { EVENT_LEVELS, type EventRow } from '../../api/events.service';
 import type { AuditRow, EnrichmentJobView } from '../../api/models';
 import type { ObjectGraph, ObjectLink, ObjectNote, OperationalObject } from '../../api/objects.service';
+import { type Signal, alertToSignal, isAlertSignal, signalToAlert, signalToEvent } from '../../signal/signal';
 import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
-import { fanOut } from '../notify';
+import { emitSignal, SIGNALS_COLL } from '../signals';
 
 /**
  * The operational-intelligence mock domain (events · alerts · objects · enrichment) — the port of
@@ -15,10 +16,8 @@ import { fanOut } from '../notify';
  * User-triggered mutations the old mock let pass (transition/comment) still fall through.
  */
 
-export const EVENTS_COLL = 'event';
 export const EVENT_VIEWS_COLL = 'event-view';
 export const ALERT_RULES_COLL = 'alert-rule';
-export const FIRED_ALERTS_COLL = 'fired-alert';
 export const OPS_OBJECTS_COLL = 'ops-object';
 export const OBJECT_LINKS_COLL = 'object-link';
 export const OBJECT_NOTES_COLL = 'object-note';
@@ -67,10 +66,10 @@ export function opsHandler(flags: MockFlags): MockHandler {
         let m: string[] | null;
 
         if (method === 'GET' && EVENTS_SEARCH.test(url)) {
-            return json(filterEvents(store.list<EventRow>(space, EVENTS_COLL), req.params));
+            return json(filterEvents(projectEvents(store, space), req.params));
         }
         if (method === 'GET' && EVENTS_EXPORT.test(url)) {
-            return json(eventsCsv(filterEvents(store.list<EventRow>(space, EVENTS_COLL), req.params)));
+            return json(eventsCsv(filterEvents(projectEvents(store, space), req.params)));
         }
         if (method === 'GET' && EVENTS_VIEWS.test(url)) return json(store.list(space, EVENT_VIEWS_COLL));
         if (method === 'POST' && EVENTS_VIEWS.test(url)) {
@@ -103,12 +102,12 @@ export function opsHandler(flags: MockFlags): MockHandler {
                 epochMillis: Date.now(),
                 message: `Manual sweep: ${rule.metric} ${rule.comparator} ${rule.threshold} breached (${rule.name})`,
             };
-            store.put(space, FIRED_ALERTS_COLL, `fired-${fired.epochMillis}`, fired);
-            fanOut(store, space, 'ALERT_FIRED', 'OPS', `Alert: ${fired.rule}`, fired.message, fired.rule);
+            // Emit to the one ledger; emitSignal fans out the notification. /alerts reads it back as a FiredAlert.
+            emitSignal(store, space, alertToSignal(fired, `fired-${fired.epochMillis}`));
             return json([fired]);
         }
         if (method === 'GET' && ALERTS.test(url)) {
-            const sorted = store.list<FiredAlert>(space, FIRED_ALERTS_COLL).sort((a, b) => b.epochMillis - a.epochMillis);
+            const sorted = projectAlerts(store, space).sort((a, b) => b.epochMillis - a.epochMillis);
             const limit = Number(req.params['limit']);
             return json(Number.isFinite(limit) && limit > 0 ? sorted.slice(0, limit) : sorted);
         }
@@ -137,7 +136,16 @@ export function opsHandler(flags: MockFlags): MockHandler {
             };
             store.put(space, OPS_OBJECTS_COLL, obj.id, obj);
             if (obj.objectType === 'INCIDENT') {
-                fanOut(store, space, 'INCIDENT_OPENED', 'OPS', `Incident opened: ${obj.title}`, obj.description, obj.id);
+                // Emit an INCIDENT_OPENED signal; emitSignal fans out the notification (was a direct fanOut).
+                emitSignal(store, space, {
+                    signalId: `incident-${now}`,
+                    type: 'INCIDENT_OPENED',
+                    at: now,
+                    source: { kind: 'incident', id: obj.id, rel: 'emits' },
+                    correlationId: obj.correlationId ?? null,
+                    severity: obj.severity?.toUpperCase() === 'CRITICAL' ? 'critical' : 'warn',
+                    payload: { title: obj.title, description: obj.description },
+                });
             }
             return json(obj);
         }
@@ -149,7 +157,18 @@ export function opsHandler(flags: MockFlags): MockHandler {
             if (!status) return error(422, `unknown action "${action}"`);
             const now = Date.now();
             const next = { ...obj, status, updatedAt: now, closedAt: status === 'CLOSED' ? now : obj.closedAt };
-            return json(store.put(space, OPS_OBJECTS_COLL, next.id, next));
+            store.put(space, OPS_OBJECTS_COLL, next.id, next);
+            // A user action is a signal producer too (living-operational-system §5): the operator moved an object.
+            emitSignal(store, space, {
+                signalId: `obj-act-${now}`,
+                type: 'OBJECT_ACTIVITY',
+                at: now,
+                source: { kind: 'user', id: 'operator', rel: 'emits' },
+                correlationId: obj.correlationId ?? next.id,
+                severity: 'info',
+                payload: { message: `${action} → ${status} on ${obj.title}`, objectId: obj.id, objectType: obj.objectType, action, status },
+            });
+            return json(next);
         }
         if (method === 'GET' && (m = match(url, OBJECT_LINKS))) {
             const id = m[1];
@@ -277,6 +296,20 @@ function putNote(
         createdAt: Date.now(),
     };
     return store.put(space, OBJECT_NOTES_COLL, note.id, note);
+}
+
+/** Project the unified Signal ledger onto the `EventRow` view (`/events` read surface, R4). */
+export function projectEvents(store: MockStore, space: string): EventRow[] {
+    return store.list<Signal>(space, SIGNALS_COLL).map(signalToEvent);
+}
+
+/**
+ * Project the ledger's alert **records** onto the `FiredAlert` view (`/alerts` read surface, R4). An
+ * alert record carries a `rule` payload — this excludes bare `ALERT_FIRED` *log* signals (operational
+ * entries that merely mention an alert, no structured fields), which still appear in the Events ledger.
+ */
+export function projectAlerts(store: MockStore, space: string): FiredAlert[] {
+    return store.list<Signal>(space, SIGNALS_COLL).filter((s) => isAlertSignal(s) && s.payload['rule']).map(signalToAlert);
 }
 
 /**

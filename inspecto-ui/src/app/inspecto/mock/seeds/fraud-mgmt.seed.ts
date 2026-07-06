@@ -1,12 +1,13 @@
-import type { AlertRule, FiredAlert } from '../../api/alerts.service';
+import type { AlertRule } from '../../api/alerts.service';
 import type { ConnectionProfile } from '../../api/connections.service';
-import type { EventRow } from '../../api/events.service';
 import type { JobDetail } from '../../api/jobs.service';
 import type { OperationalObject } from '../../api/objects.service';
 import { CONNECTIONS_COLL } from '../handlers/connections.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
-import { ALERT_RULES_COLL, EVENTS_COLL, FIRED_ALERTS_COLL, OPS_OBJECTS_COLL } from '../handlers/ops.handler';
+import { ALERT_RULES_COLL, OPS_OBJECTS_COLL } from '../handlers/ops.handler';
 import { PIPELINES_COLL } from '../handlers/pipelines.handler';
+import { alertToSignal, eventToSignal } from '../../signal/signal';
+import { SIGNALS_COLL } from '../signals';
 import { MockStore } from '../mock-store';
 import { putComponent, seedIconMap } from './seed-utils';
 
@@ -137,10 +138,10 @@ export function seedFraudMgmt(store: MockStore, space: string): void {
     ];
     fmsEvents.forEach(([type, level, message], i) => {
         const ts = now - i * 900_000;
-        store.put<EventRow>(space, EVENTS_COLL, `evt-fms-${i}`, {
+        store.put(space, SIGNALS_COLL, `evt-fms-${i}`, eventToSignal({
             eventId: `evt-fms-${i}`, ts, timestamp: new Date(ts).toISOString(), level, type,
             source: 'engine', pipeline: 'fraud_scoring', correlationId: i < 2 ? 'corr-fms-1' : null, message, attributes: {},
-        });
+        }));
     });
 
     store.put<AlertRule>(space, ALERT_RULES_COLL, 'simbox_velocity', {
@@ -149,11 +150,11 @@ export function seedFraudMgmt(store: MockStore, space: string): void {
     store.put<AlertRule>(space, ALERT_RULES_COLL, 'irsf_spike', {
         name: 'irsf_spike', metric: 'irsf_dest_minutes_pct', comparator: 'gt', threshold: 100, window: '1h', severity: 'WARNING',
     });
-    store.put<FiredAlert>(space, FIRED_ALERTS_COLL, 'alert-fms-1', {
+    store.put(space, SIGNALS_COLL, 'alert-fms-1', alertToSignal({
         rule: 'simbox_velocity', severity: 'CRITICAL', pipeline: 'fraud_scoring', metric: 'long_calls_per_msisdn_15m',
         value: 3, comparator: 'gt', threshold: 2, window: '15m', epochMillis: now - 1_200_000,
         message: '8801700000011: 3 calls over 29 min to LV within 15 minutes',
-    });
+    }, 'alert-fms-1'));
 
     const cases: Array<[string, string, string, string, string]> = [
         ['CASE', 'SIM-box investigation: 8801700000011', 'IN_PROGRESS', 'CRITICAL', 'HIGH'],

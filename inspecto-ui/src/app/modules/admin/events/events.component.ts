@@ -9,7 +9,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ColDef, ICellRendererParams } from 'ag-grid-community';
+import { ColDef } from 'ag-grid-community';
 import { Subscription } from 'rxjs';
 import {
     EVENT_LEVELS,
@@ -22,7 +22,6 @@ import {
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
-import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { ToastrService } from 'ngx-toastr';
@@ -89,14 +88,17 @@ export class EventsComponent implements OnInit, OnDestroy {
     readonly columnDefs: ColDef<EventRow>[] = [
         { headerName: 'Time', width: 180, valueGetter: (p) => p.data?.ts, valueFormatter: (p) => fmtDateTime(p.value) },
         {
-            field: 'level',
-            headerName: 'Level',
-            width: 96,
-            cellRenderer: (p: ICellRendererParams<EventRow>) => statusBadgeHtml(p.value as string),
+            field: 'severity',
+            headerName: 'Severity',
+            width: 110,
+            // The signal's severity (`critical` surfaces distinctly); falls back to the legacy level. A
+            // valueFormatter (not a badge cellRenderer) — the pro-tier grid renders formatters reliably.
+            valueFormatter: (p) => String(p.value ?? p.data?.level ?? '').toUpperCase(),
         },
         { field: 'type', headerName: 'Type', width: 180 },
         { field: 'pipeline', headerName: 'Pipeline', width: 140, valueFormatter: (p) => p.value ?? '—' },
         { field: 'correlationId', headerName: 'Correlation', width: 150, valueFormatter: (p) => p.value ?? '—' },
+        // Since R4 this is the signal's emitting producer (`<kind>/<id>`), e.g. pipeline/cdr_ingest, alert-rule/high_error_rate.
         { field: 'source', headerName: 'Source', flex: 1, minWidth: 160 },
         { field: 'message', headerName: 'Message', flex: 2, minWidth: 220 },
     ];

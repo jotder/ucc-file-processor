@@ -28,7 +28,8 @@ describe('opsHandler', () => {
     it('serves seeded events newest-first and alerts newest-first', () => {
         const store = seededStore();
         const events = handler(req('GET', '/api/events/search'), store)?.body as EventRow[];
-        expect(events.length).toBe(40); // 30 operational + 10 audit-trail entries
+        // R4: /events projects the ONE signal ledger — 30 operational + 10 audit + 12 fired-alert signals.
+        expect(events.length).toBe(52);
         expect(events[0].ts).toBeGreaterThanOrEqual(events[1].ts);
 
         const alerts = handler(req('GET', '/api/alerts'), store)?.body as FiredAlert[];

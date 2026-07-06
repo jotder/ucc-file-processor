@@ -108,9 +108,15 @@ same registry with a config shape + `deriveRefs` + (where composite) wiring — 
   (`WidgetConfig.queryId` → reuse-graph/protection/bundle), query-**driven rendering** through the viz
   pipeline is a follow-on; the SQL surface is a textarea (CodeMirror upgrade deferred). Seed: one shared
   `recent_high_cost` query bound by two widgets.
-- **R4 — Signal envelope — 📋 PLANNED:** one shape — `{ signalId, type, at, source: Ref, correlationId,
-  severity?, payload }` — emitted by runs/jobs/rules/user actions; Events page becomes the signal
-  ledger; alerts/notifications become *consumers* of signals rather than parallel stores.
+- **R4 — Signal envelope — ✅ SHIPPED 2026-07-06** (full store unification, plan
+  `docs/superpower/signal-network-plan.md`): one `Signal { signalId, type, at, source: Ref, correlationId,
+  severity?, payload }` (`inspecto/signal/signal.ts`) written to a single ledger (`SIGNALS_COLL`) via the one
+  `emitSignal()` seam (`inspecto/mock/signals.ts`) — the `event` and `fired-alert` stores are **removed**;
+  `/events` and `/alerts` are now thin **projections** over the ledger, and the Events page is the **Signal
+  Ledger** (source Ref + severity). Producers: simulator runs/jobs, alert firing, failed expectations, operator
+  object transitions — and R5 decision consequences. Notifications fan out as *consumers* of notify-worthy
+  signals. `source` joins the R1 metadata graph via the new `emits` RefRel. Severity ladder
+  (`trace..critical`) unifies `EVENT_LEVELS` + `FiredAlert` severities.
 - **R5 — Decision network — 📋 PLANNED:** unify the three rule kinds on `Condition → Evaluation → Consequence[]`
   where a **Consequence** is a typed action (`emit-signal · start-job · create-alert · invoke-api ·
   generate-report · trigger-pipeline · render-widget`), executed via the Execution Network. The AI

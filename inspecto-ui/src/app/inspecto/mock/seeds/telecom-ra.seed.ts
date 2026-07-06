@@ -1,12 +1,13 @@
-import type { AlertRule, FiredAlert } from '../../api/alerts.service';
+import type { AlertRule } from '../../api/alerts.service';
 import type { ConnectionProfile } from '../../api/connections.service';
-import type { EventRow } from '../../api/events.service';
 import type { JobDetail } from '../../api/jobs.service';
 import type { OperationalObject } from '../../api/objects.service';
 import { CONNECTIONS_COLL } from '../handlers/connections.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
-import { ALERT_RULES_COLL, EVENTS_COLL, FIRED_ALERTS_COLL, OPS_OBJECTS_COLL } from '../handlers/ops.handler';
+import { ALERT_RULES_COLL, OPS_OBJECTS_COLL } from '../handlers/ops.handler';
 import { PIPELINES_COLL } from '../handlers/pipelines.handler';
+import { alertToSignal, eventToSignal } from '../../signal/signal';
+import { SIGNALS_COLL } from '../signals';
 import { MockStore } from '../mock-store';
 import { putComponent, seedIconMap } from './seed-utils';
 
@@ -171,10 +172,10 @@ export function seedTelecomRa(store: MockStore, space: string): void {
     ];
     raEvents.forEach(([type, level, pipeline, message], i) => {
         const ts = now - i * 1_800_000;
-        store.put<EventRow>(space, EVENTS_COLL, `evt-ra-${i}`, {
+        store.put(space, SIGNALS_COLL, `evt-ra-${i}`, eventToSignal({
             eventId: `evt-ra-${i}`, ts, timestamp: new Date(ts).toISOString(), level, type,
             source: 'engine', pipeline, correlationId: i < 3 ? 'corr-ra-1' : null, message, attributes: {},
-        });
+        }));
     });
 
     store.put<AlertRule>(space, ALERT_RULES_COLL, 'billing_delta_pct', {
@@ -183,11 +184,11 @@ export function seedTelecomRa(store: MockStore, space: string): void {
     store.put<AlertRule>(space, ALERT_RULES_COLL, 'quarantine_spike', {
         name: 'quarantine_spike', metric: 'quarantined_files', comparator: 'gt', threshold: 5, window: '1h', severity: 'WARNING',
     });
-    store.put<FiredAlert>(space, FIRED_ALERTS_COLL, 'alert-ra-1', {
+    store.put(space, SIGNALS_COLL, 'alert-ra-1', alertToSignal({
         rule: 'billing_delta_pct', severity: 'CRITICAL', pipeline: 'billing_rated_load', metric: 'billing_delta_pct',
         value: 0.62, comparator: 'gt', threshold: 0.5, window: '1d', epochMillis: now - 5_400_000,
         message: 'Rated/collected revenue delta 0.62% (threshold 0.5%)',
-    });
+    }, 'alert-ra-1'));
 
     const incidents: Array<[string, string, string, string, string]> = [
         ['INCIDENT', 'Revenue delta above threshold on 2026-06-25', 'OPEN', 'CRITICAL', 'HIGH'],

@@ -37,9 +37,11 @@ export interface ComponentRef {
  * references another component (widget→dataset, pipeline-node→grammar/connection) · `tiles` =
  * dashboard→widget placement · `renders` = view-bound widget→saved view · `projects` = saved
  * view→dataset · `triggers` = job→pipeline event trigger (the Signal network's first lineage edge)
- * · `loads` = dataset→physical store (reserved; no producer yet).
+ * · `loads` = dataset→physical store (reserved; no producer yet) · `emits` = the producer that
+ * raised a Signal (`Signal.source`, R4 — the Signal network's runtime edge into the metadata graph)
+ * · `invokes` = a decision Consequence targets a component it acts on (R5).
  */
-export type RefRel = 'binds' | 'tiles' | 'renders' | 'projects' | 'triggers' | 'loads';
+export type RefRel = 'binds' | 'tiles' | 'renders' | 'projects' | 'triggers' | 'loads' | 'emits' | 'invokes';
 
 /**
  * One outgoing lineage edge derivable from a component's config — THE unit of the metadata

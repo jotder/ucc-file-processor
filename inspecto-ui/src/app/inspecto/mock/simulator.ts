@@ -1,12 +1,10 @@
-import type { EventRow } from '../api/events.service';
-import type { FiredAlert } from '../api/alerts.service';
 import type { JobDetail, JobRunLogs } from '../api/jobs.service';
 import type { JobRun } from '../api/models';
-import { EVENTS_COLL, FIRED_ALERTS_COLL } from './handlers/ops.handler';
+import { levelToSeverity } from '../signal/signal';
 import { JOB_RUN_LOGS_COLL, JOB_RUNS_COLL, JOBS_COLL, recordRun } from './handlers/jobs.handler';
 import { MockFlags } from './mock-flags';
 import { MockStore } from './mock-store';
-import { fanOut } from './notify';
+import { emitSignal } from './signals';
 
 /**
  * The liveness simulator (plan W1) — ticks Runs / Events / Alerts so the Ops screens feel real in
@@ -21,9 +19,6 @@ import { fanOut } from './notify';
 export const TICK_MS = 15_000;
 /** RUNNING runs older than this complete on the next tick. */
 const RUN_COMPLETES_AFTER_MS = 90_000;
-/** Cap stored history so the localStorage snapshot doesn't grow unbounded. */
-const MAX_EVENTS = 200;
-const MAX_ALERTS = 50;
 
 const lastTick = new Map<string, number>();
 
@@ -63,38 +58,42 @@ const EVENT_KINDS: Array<{ level: string; type: string }> = [
 function appendEvent(store: MockStore, space: string, now: number, n: number): void {
     const kind = EVENT_KINDS[n % EVENT_KINDS.length];
     const pipeline = PIPELINES[n % PIPELINES.length];
-    const event: EventRow = {
-        eventId: `evt-${now}`,
-        ts: now,
-        timestamp: new Date(now).toISOString(),
-        level: kind.level,
+    emitSignal(store, space, {
+        signalId: `evt-${now}`,
         type: kind.type,
-        source: 'engine',
-        pipeline,
+        at: now,
+        source: { kind: 'pipeline', id: pipeline, rel: 'emits' },
         correlationId: n % 4 === 0 ? 'corr-' + (n % 5) : null,
-        message: `${kind.type} on ${pipeline}`,
-        attributes: { rows: String((n * 137) % 5000), node: 'node-' + (n % 3) },
-    };
-    store.put(space, EVENTS_COLL, event.eventId, event);
-    trim(store, space, EVENTS_COLL, MAX_EVENTS, (e) => (e as EventRow).ts);
+        severity: levelToSeverity(kind.level),
+        payload: {
+            message: `${kind.type} on ${pipeline}`,
+            pipeline,
+            attributes: { rows: String((n * 137) % 5000), node: 'node-' + (n % 3) },
+        },
+    });
 }
 
 function fireAlert(store: MockStore, space: string, now: number, n: number): void {
-    const alert: FiredAlert = {
-        rule: ['high_error_rate', 'rejected_spike', 'slow_batch'][n % 3],
-        severity: ['INFO', 'WARNING', 'CRITICAL'][n % 3],
-        pipeline: PIPELINES[n % PIPELINES.length],
-        metric: ['error_rate', 'rejected_files', 'duration_ms'][n % 3],
-        value: [0.12, 7, 45_000][n % 3] + (n % 10),
-        comparator: 'gt',
-        threshold: [0.1, 5, 30_000][n % 3],
-        window: '15m',
-        epochMillis: now,
-        message: 'threshold exceeded',
-    };
-    store.put(space, FIRED_ALERTS_COLL, `alert-${now}`, alert);
-    trim(store, space, FIRED_ALERTS_COLL, MAX_ALERTS, (a) => (a as FiredAlert).epochMillis);
-    fanOut(store, space, 'ALERT_FIRED', 'OPS', `Alert: ${alert.rule}`, `${alert.metric} on ${alert.pipeline}`, alert.rule);
+    const rule = ['high_error_rate', 'rejected_spike', 'slow_batch'][n % 3];
+    const pipeline = PIPELINES[n % PIPELINES.length];
+    const metric = ['error_rate', 'rejected_files', 'duration_ms'][n % 3];
+    // emitSignal appends to the ledger and fans out the notification (ALERT_FIRED is a notify type).
+    emitSignal(store, space, {
+        signalId: `alert-${now}`,
+        type: 'ALERT_FIRED',
+        at: now,
+        source: { kind: 'alert-rule', id: rule, rel: 'emits' },
+        correlationId: null,
+        severity: (['info', 'warn', 'critical'] as const)[n % 3],
+        payload: {
+            rule, pipeline, metric,
+            value: [0.12, 7, 45_000][n % 3] + (n % 10),
+            comparator: 'gt',
+            threshold: [0.1, 5, 30_000][n % 3],
+            window: '15m',
+            message: 'threshold exceeded',
+        },
+    });
 }
 
 // ── job runs ────────────────────────────────────────────────────────────────
@@ -129,12 +128,4 @@ function startCronRun(store: MockStore, space: string, now: number, n: number): 
     if (store.list<JobRun>(space, JOB_RUNS_COLL).some((r) => r.jobName === job.name && r.status === 'RUNNING')) return;
     recordRun(store, space, job.name, 'CRON', 'RUNNING', now, 0, `Scheduled run of "${job.name}"…`);
     store.put(space, JOBS_COLL, job.name, { ...job, lastStatus: 'RUNNING', lastRunTime: new Date(now).toISOString() });
-}
-
-/** Keep only the newest `max` entities of a collection, by the given timestamp extractor. */
-function trim(store: MockStore, space: string, coll: string, max: number, tsOf: (e: unknown) => number): void {
-    const rows = store.entries<unknown>(space, coll);
-    if (rows.length <= max) return;
-    const oldest = rows.sort(([, a], [, b]) => tsOf(a) - tsOf(b)).slice(0, rows.length - max);
-    for (const [id] of oldest) store.delete(space, coll, id);
 }

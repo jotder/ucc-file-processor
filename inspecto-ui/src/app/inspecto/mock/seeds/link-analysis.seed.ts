@@ -1,11 +1,12 @@
 import type { ConnectionProfile } from '../../api/connections.service';
-import type { EventRow } from '../../api/events.service';
 import type { JobDetail } from '../../api/jobs.service';
 import type { OperationalObject } from '../../api/objects.service';
 import { CONNECTIONS_COLL } from '../handlers/connections.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
-import { EVENTS_COLL, OPS_OBJECTS_COLL } from '../handlers/ops.handler';
+import { OPS_OBJECTS_COLL } from '../handlers/ops.handler';
 import { PIPELINES_COLL } from '../handlers/pipelines.handler';
+import { eventToSignal } from '../../signal/signal';
+import { SIGNALS_COLL } from '../signals';
 import { MockStore } from '../mock-store';
 import { putComponent, seedIconMap } from './seed-utils';
 
@@ -131,10 +132,10 @@ export function seedLinkAnalysis(store: MockStore, space: string): void {
     ];
     laEvents.forEach(([type, level, message], i) => {
         const ts = now - i * 3_600_000;
-        store.put<EventRow>(space, EVENTS_COLL, `evt-la-${i}`, {
+        store.put(space, SIGNALS_COLL, `evt-la-${i}`, eventToSignal({
             eventId: `evt-la-${i}`, ts, timestamp: new Date(ts).toISOString(), level, type,
             source: 'engine', pipeline: 'entity_link_build', correlationId: i === 1 ? 'corr-la-1' : null, message, attributes: {},
-        });
+        }));
     });
 
     store.put<OperationalObject>(space, OPS_OBJECTS_COLL, 'case-la-0', {

@@ -9,13 +9,9 @@ import { DECISION_RULES_COLL, MockDecisionRule } from '../handlers/decision-rule
 import { EXPECTATIONS_COLL, MockExpectation } from '../handlers/expectations.handler';
 import { NOTIFICATIONS_COLL, seedNotifications } from '../handlers/demo.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
-import {
-    ALERT_RULES_COLL,
-    ENRICHMENT_COLL,
-    EVENTS_COLL,
-    FIRED_ALERTS_COLL,
-    OPS_OBJECTS_COLL,
-} from '../handlers/ops.handler';
+import { ALERT_RULES_COLL, ENRICHMENT_COLL, OPS_OBJECTS_COLL } from '../handlers/ops.handler';
+import { alertToSignal, eventToSignal } from '../../signal/signal';
+import { SIGNALS_COLL } from '../signals';
 import { MockStore } from '../mock-store';
 
 /**
@@ -79,7 +75,7 @@ export function seedOperations(store: MockStore, space: string): void {
             message: `${type} on ${pipeline}`,
             attributes: { rows: String((i * 137) % 5000), node: 'node-' + (i % 3) },
         };
-        store.put(space, EVENTS_COLL, event.eventId, event);
+        store.put(space, SIGNALS_COLL, event.eventId, eventToSignal(event));
     }
 
     // ── Audit trail (8 AUDIT + 2 ACCESS_DENIED) — feeds the read-only Audit-log pane ────────────
@@ -119,7 +115,7 @@ export function seedOperations(store: MockStore, space: string): void {
                 user_agent: 'Mozilla/5.0 (inspecto-ui)',
             },
         };
-        store.put(space, EVENTS_COLL, audit.eventId, audit);
+        store.put(space, SIGNALS_COLL, audit.eventId, eventToSignal(audit));
     });
 
     // ── Fired alerts (12) + the rules that fired them ───────────────────────────────────────────
@@ -136,7 +132,7 @@ export function seedOperations(store: MockStore, space: string): void {
             epochMillis: now - i * 900_000,
             message: 'threshold exceeded',
         };
-        store.put(space, FIRED_ALERTS_COLL, `alert-${1000 + i}`, alert);
+        store.put(space, SIGNALS_COLL, `alert-${1000 + i}`, alertToSignal(alert, `alert-${1000 + i}`));
     }
     const rules: AlertRule[] = [
         { name: 'high_error_rate', metric: 'error_rate', comparator: 'gt', threshold: 0.1, window: '15m', severity: 'CRITICAL' },

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { EventRow } from '../api/events.service';
+import type { Signal } from '../signal/signal';
 import type { JobDetail } from '../api/jobs.service';
 import type { JobRun } from '../api/models';
-import { EVENTS_COLL } from './handlers/ops.handler';
+import { SIGNALS_COLL } from './signals';
 import { JOB_RUNS_COLL, JOBS_COLL } from './handlers/jobs.handler';
 import { MockStore } from './mock-store';
 import { seedDefaultSpace } from './seeds/default-space.seed';
@@ -17,14 +17,24 @@ function seededStore(): MockStore {
 }
 
 describe('liveness simulator', () => {
-    it('appends one event per tick', () => {
+    it('appends one event signal per tick', () => {
         const store = seededStore();
-        const before = store.list<EventRow>('default', EVENTS_COLL).length;
-        const now = Date.now();
+        const before = store.list<Signal>('default', SIGNALS_COLL).length;
+        // Choose a tick off the every-5th alert beat so exactly one (event) signal lands.
+        let now = Date.now();
+        while (Math.floor(now / TICK_MS) % 5 === 0) now += TICK_MS;
         simulateTick(store, 'default', FLAGS, now);
-        const events = store.list<EventRow>('default', EVENTS_COLL);
-        expect(events.length).toBe(before + 1);
-        expect(events.some((e) => e.eventId === `evt-${now}`)).toBe(true);
+        const signals = store.list<Signal>('default', SIGNALS_COLL);
+        expect(signals.length).toBe(before + 1);
+        expect(signals.some((s) => s.signalId === `evt-${now}`)).toBe(true);
+    });
+
+    it('fires an alert signal on the every-5th beat', () => {
+        const store = seededStore();
+        // n % 5 === 0 fires an alert alongside the event.
+        const now = Math.ceil(Date.now() / (TICK_MS * 5)) * TICK_MS * 5;
+        simulateTick(store, 'default', { mockOps: true }, now);
+        expect(store.get<Signal>('default', SIGNALS_COLL, `alert-${now}`)?.type).toBe('ALERT_FIRED');
     });
 
     it('completes a stale RUNNING run and updates its job', () => {
@@ -54,17 +64,17 @@ describe('liveness simulator', () => {
         for (const count of runningByJob.values()) expect(count).toBe(1);
     });
 
-    it('trims the event history to its cap', () => {
+    it('trims the signal ledger to its cap', () => {
         const store = seededStore();
         const base = Date.now();
-        for (let i = 0; i < 250; i++) simulateTick(store, 'default', { mockOps: true }, base + i * TICK_MS);
-        expect(store.list('default', EVENTS_COLL).length).toBeLessThanOrEqual(200);
+        for (let i = 0; i < 300; i++) simulateTick(store, 'default', { mockOps: true }, base + i * TICK_MS);
+        expect(store.list('default', SIGNALS_COLL).length).toBeLessThanOrEqual(250);
     });
 
     it('does nothing when both domains are flagged off', () => {
         const store = seededStore();
-        const before = store.list('default', EVENTS_COLL).length;
+        const before = store.list('default', SIGNALS_COLL).length;
         simulateTick(store, 'default', {}, Date.now());
-        expect(store.list('default', EVENTS_COLL).length).toBe(before);
+        expect(store.list('default', SIGNALS_COLL).length).toBe(before);
     });
 });

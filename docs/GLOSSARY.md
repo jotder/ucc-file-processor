@@ -264,17 +264,25 @@ C9 — `superpower/reviews/reconciliation.md`.)*
 
 ## 8. Observability
 
-**Event** — A timestamped record of something that happened (file collected, Run started/finished, error). The
-operational activity stream.
+**Signal** — A lightweight **emitted fact** — it *announces, never decides* (the Signal network,
+living-operational-system §1). One envelope `{ signalId, type, at, source, correlationId, severity?, payload }`
+where `source` is a metadata **Ref** (`rel:'emits'`) to the producer. Every run, job, Alert Rule firing, failed
+Expectation, Decision Consequence and operator action emits one, to a single **signal ledger**. **Event, Alert and
+Notification are *views* over this one ledger, not parallel stores** (unified in R4). ⚠️ §6-proposed → **binding**.
 
-**Metric** — An **observability** time-series signal (throughput, error rate, lag) derived from Events.
+**Event** — A **view** of a Signal on the operational activity stream (file collected, Run started/finished,
+error). The Signal Ledger page (`/events`) renders the ledger newest-first with each signal's source and severity.
+
+**Metric** — An **observability** time-series signal (throughput, error rate, lag) derived from Signals.
 *(Ops sense only; the BI aggregation is a **Measure**.)*
 
 **Alert Rule** — *(see §4)* watches a Metric vs a threshold.
 
-**Alert** — A fired instance of an Alert Rule (severity: info / warning / critical).
+**Alert** — A fired instance of an Alert Rule (severity: info / warning / critical) — the `ALERT_FIRED` **view**
+of the signal ledger.
 
-**Notification** — Delivery of an Alert or Event to a channel (email, webhook). Per-user preferences in Settings.
+**Notification** — Delivery of a Signal to a channel (email, webhook); a **consumer** of the ledger. Per-user
+preferences in Settings.
 
 ---
 

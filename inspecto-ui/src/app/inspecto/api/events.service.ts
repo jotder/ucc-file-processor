@@ -2,12 +2,18 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { apiUrl, toParams } from './api-base';
+import type { Ref } from '../component-model/component-types';
+import type { SignalSeverity } from '../signal/signal';
 
 /**
  * One immutable operational fact from the Operational Intelligence event engine (GET /events*). Mirrors
  * `com.gamma.event.Event#toMap()`: `ts` is epoch millis, `timestamp` the ISO-8601 UTC string, `level` an
  * {@link EVENT_LEVELS} member, `type` a {@link EVENT_TYPES} constant or any custom string, and `attributes`
  * the structured detail bag (never row content). `pipeline`/`correlationId` may be null (service-wide).
+ *
+ * Since R4 the `/events` surface is a **projection** of the unified Signal ledger (`inspecto/signal`), so a
+ * row also carries the signal's `severity` and `sourceRef` (the emitting component). `level` remains the
+ * min-level filter's backward-compatible view of `severity`. Both extras are display-only and optional.
  */
 export interface EventRow {
     eventId: string;
@@ -20,6 +26,8 @@ export interface EventRow {
     correlationId: string | null;
     message: string;
     attributes: Record<string, string>;
+    severity?: SignalSeverity;
+    sourceRef?: Ref;
 }
 
 /** Filter + page over the event store (the `?…` query of GET /events/search); every field is optional. */
