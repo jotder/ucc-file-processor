@@ -8,6 +8,9 @@ import { ControlValues, VizRenderOptions } from 'app/inspecto/viz';
 export interface WidgetConfig {
     /** Empty for view-bound widgets (`viewId` is their binding instead). */
     datasetId: string;
+    /** Query-bound widgets (R3): a saved `query` component supplies the rows instead of the dataset's own
+     *  columns→spec path. The widget's `binds` edge then points at the query (which binds the dataset). */
+    queryId?: string;
     /** The VizPlugin type (`bar`/`line`/`kpi`/…, or the view-bound `geo-map`/`link-analysis`). */
     vizType: string;
     /** The field→channel mapping the plugin compiles to a QuerySpec (empty for view-bound widgets). */
@@ -44,12 +47,13 @@ export function buildWidget(
     datasetId: string,
     vizType: string,
     controls: ControlValues,
-    extra?: Pick<WidgetConfig, 'tags' | 'description' | 'options' | 'viewId'>,
+    extra?: Pick<WidgetConfig, 'tags' | 'description' | 'options' | 'viewId' | 'queryId'>,
 ): Widget {
     return {
         id: name,
         name,
         datasetId,
+        queryId: extra?.queryId,
         vizType,
         controls,
         viewId: extra?.viewId,

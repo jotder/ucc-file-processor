@@ -92,8 +92,22 @@ same registry with a config shape + `deriveRefs` + (where composite) wiring — 
   referential check it lacked). Declared-but-unmodeled execution metadata (retry policy, emitted
   signals, produced datasets) lands with R4's signal contract; `params` references land with R3's
   parameter namespace.
-- **R3 — Query kind + Parameters + ResultSet descriptor — 📋 PLANNED** (recommended next) (§4).
-  Editors: query editor reuses the data-table pro SQL surface; parameter chips in Widget Builder.
+- **R3 — Query kind + Parameters + ResultSet descriptor — ✅ SHIPPED 2026-07-06** (§4). Three parts:
+  (A) the **`query` ComponentKind** (`studio/queries/`) — a typed envelope `{type:'sql'|'structured',
+  datasetId, text|model, parameters[]}` that `binds` its source dataset; a **Query Library** pane
+  (`/studio/queries`) authors + previews it offline (resolve params → AlaSQL → describe). Joined the
+  three R1 consumers (reuse-graph, bundle, delete-protection) and the mock store (Studio kind).
+  (B) the **`$`-parameter namespace** (`inspecto/query/parameters.ts` + `ParameterContextService`) —
+  `$today/$now/$day(-N)/$current_user/$role` + user-declared `$name` defaults, resolved to SQL literals
+  before a run; deliberately never touches `:fieldValue` templates or `${ENV:}` secrets.
+  (C) the **Result Set descriptor** (`inspecto/viz/result-set.ts`) — `describeResultSet(rows)` →
+  columns+roles+cardinality, consumed by BOTH the query preview and the Show-Me recommender
+  (`recommend()` now scores a `ResultSet`; a `VizField[]` is structurally accepted so the widget builder
+  is unchanged). **Deliberate scope cuts** (R2 discipline): query types = sql|structured only
+  (graph/spatial stay in the geo/link views); the widget→query link ships as the **lineage edge**
+  (`WidgetConfig.queryId` → reuse-graph/protection/bundle), query-**driven rendering** through the viz
+  pipeline is a follow-on; the SQL surface is a textarea (CodeMirror upgrade deferred). Seed: one shared
+  `recent_high_cost` query bound by two widgets.
 - **R4 — Signal envelope — 📋 PLANNED:** one shape — `{ signalId, type, at, source: Ref, correlationId,
   severity?, payload }` — emitted by runs/jobs/rules/user actions; Events page becomes the signal
   ledger; alerts/notifications become *consumers* of signals rather than parallel stores.

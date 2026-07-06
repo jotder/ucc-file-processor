@@ -74,6 +74,28 @@ describe('job transport (R2)', () => {
     });
 });
 
+describe('query transport (R3)', () => {
+    const QUERY = item('query', 'recent_high_cost', { name: 'recent_high_cost', type: 'sql', datasetId: 'cdr_sample', text: 'SELECT 1', parameters: [] });
+    const QW = item('widget', 'recent_cost_by_tariff', { vizType: 'bar', datasetId: 'cdr_sample', queryId: 'recent_high_cost', controls: {} });
+
+    it('a query binds its dataset; a query-bound widget binds both query and dataset', () => {
+        expect(refsOf(QUERY)).toEqual([{ kind: 'dataset', id: 'cdr_sample' }]);
+        expect(refsOf(QW)).toEqual([{ kind: 'query', id: 'recent_high_cost' }, { kind: 'dataset', id: 'cdr_sample' }]);
+    });
+
+    it('queries sort after datasets and before widgets in a bundle', () => {
+        expect(buildBundle([QW, QUERY, CDR_DATASET], null).items.map((i) => i.kind)).toEqual(['dataset', 'query', 'widget']);
+    });
+
+    it('with dependencies, exporting a query-bound widget pulls the query and its dataset', () => {
+        const { items, missing } = withDependencies([QW], [QW, QUERY, CDR_DATASET]);
+        expect(missing).toEqual([]);
+        expect(items.map((i) => `${i.kind}/${i.id}`).sort()).toEqual([
+            'dataset/cdr_sample', 'query/recent_high_cost', 'widget/recent_cost_by_tariff',
+        ]);
+    });
+});
+
 describe('withDependencies', () => {
     it('expands a dashboard to its full transitive closure (widgets → view → dataset)', () => {
         const { items, missing } = withDependencies([DASHBOARD], ALL);

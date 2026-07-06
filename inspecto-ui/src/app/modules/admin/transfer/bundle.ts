@@ -12,7 +12,7 @@ import { refsForComponent } from 'app/inspecto/component-model';
 
 /** Everything a bundle can carry: the Studio/registry component kinds + the three non-component stores. */
 export type BundleKind =
-    | Extract<ComponentType, 'grammar' | 'schema' | 'transform' | 'sink' | 'dataset' | 'widget' | 'dashboard' | 'link-analysis-view' | 'geo-map-view'>
+    | Extract<ComponentType, 'grammar' | 'schema' | 'transform' | 'sink' | 'dataset' | 'query' | 'widget' | 'dashboard' | 'link-analysis-view' | 'geo-map-view'>
     | 'connection'
     | 'authored-pipeline'
     | 'job';
@@ -26,6 +26,7 @@ export const BUNDLE_KINDS: { kind: BundleKind; label: string }[] = [
     { kind: 'transform', label: 'Transforms' },
     { kind: 'sink', label: 'Sinks' },
     { kind: 'dataset', label: 'Datasets (metadata)' },
+    { kind: 'query', label: 'Queries' },
     { kind: 'link-analysis-view', label: 'Link Analysis views' },
     { kind: 'geo-map-view', label: 'Geo Map views' },
     { kind: 'widget', label: 'Widgets' },

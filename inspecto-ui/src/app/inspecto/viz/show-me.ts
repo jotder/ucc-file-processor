@@ -1,3 +1,4 @@
+import { ResultColumn, ResultSet } from './result-set';
 import { allViz } from './viz-registry';
 import { ChannelValue, ControlValues, FieldRole, VizField, VizFit, VizPlugin } from './viz-types';
 
@@ -14,12 +15,12 @@ interface FieldCounts {
     maxDimCardinality: number;
 }
 
-function counts(fields: VizField[]): FieldCounts {
-    const dims = fields.filter((f) => f.role === 'dimension');
+function counts(columns: ResultColumn[]): FieldCounts {
+    const dims = columns.filter((f) => f.role === 'dimension');
     return {
         dim: dims.length,
-        measure: fields.filter((f) => f.role === 'measure').length,
-        temporal: fields.filter((f) => f.role === 'temporal').length,
+        measure: columns.filter((f) => f.role === 'measure').length,
+        temporal: columns.filter((f) => f.role === 'temporal').length,
         maxDimCardinality: Math.max(0, ...dims.map((f) => f.cardinality ?? 0)),
     };
 }
@@ -44,10 +45,12 @@ function fitScore(fit: VizFit, c: FieldCounts): number {
     return score;
 }
 
-/** The plugins that fit the field set, best first. View-bound plugins (`meta.viewKind`) are excluded —
- *  they bind a saved investigation view, not fields, so no field set can recommend them. */
-export function recommend(fields: VizField[]): VizPlugin[] {
-    const c = counts(fields);
+/** The plugins that fit the result set, best first. Accepts a full {@link ResultSet} (the query editor's
+ *  described output) or, as a shorthand, a raw column/field list (the widget builder's dataset fields —
+ *  a `VizField[]` is structurally a `ResultColumn[]`). View-bound plugins (`meta.viewKind`) are excluded:
+ *  they bind a saved investigation view, not fields, so no result set can recommend them. */
+export function recommend(input: ResultSet | ResultColumn[] | VizField[]): VizPlugin[] {
+    const c = counts(Array.isArray(input) ? input : input.columns);
     return allViz()
         .filter((p) => !p.meta.viewKind)
         .map((p) => ({ p, score: fitScore(p.meta.fit, c) }))

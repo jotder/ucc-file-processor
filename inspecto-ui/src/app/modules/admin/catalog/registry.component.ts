@@ -18,7 +18,7 @@ import { registerPlatformKinds } from './platform-kinds';
 /** The component-registry kinds the reuse-graph loads (the backend `ComponentType`s). Pipelines are loaded
  *  separately (authored flows via {@link PipelinesService}) since they live in their own store, not `/components`.
  *  The saved investigation views joined with R1 (widget→view→dataset edges now derive). */
-export const REGISTRY_KINDS = ['dataset', 'widget', 'dashboard', 'grammar', 'schema', 'transform', 'sink', 'rule', 'geo-map-view', 'link-analysis-view'];
+export const REGISTRY_KINDS = ['dataset', 'query', 'widget', 'dashboard', 'grammar', 'schema', 'transform', 'sink', 'rule', 'geo-map-view', 'link-analysis-view'];
 
 /** The kinds a pipeline node may bind (mirrors `PIPELINE_KIND.allowedPartKinds`); a node's `use=<kind>/<id>`
  *  ref is turned into a part only for these, so source→connection refs don't clutter the graph. */
@@ -27,6 +27,7 @@ const PIPELINE_REF_KINDS = new Set(['grammar', 'schema', 'transform', 'sink']);
 /** Editors that exist today, for the node-detail "Open" link; kinds without one (atomic registry kinds) get none. */
 const EDITOR_PATH: Record<string, string> = {
     dataset: '/catalog/datasets',
+    query: '/studio/queries',
     widget: '/studio/widgets',
     dashboard: '/studio/dashboards',
 };

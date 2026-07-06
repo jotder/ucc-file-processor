@@ -34,6 +34,7 @@ function toContent(w: Widget): Record<string, unknown> {
     return {
         name: w.name,
         datasetId: w.datasetId,
+        queryId: w.queryId,
         vizType: w.vizType,
         controls: w.controls,
         viewId: w.viewId,
@@ -48,6 +49,7 @@ function fromContent(name: string, content: Record<string, unknown>): Widget {
         id: name,
         name: (content['name'] as string) ?? name,
         datasetId: (content['datasetId'] as string) ?? '',
+        queryId: (content['queryId'] as string) ?? undefined,
         vizType: (content['vizType'] as string) ?? 'bar',
         controls: (content['controls'] as ControlValues) ?? {},
         viewId: (content['viewId'] as string) ?? undefined,

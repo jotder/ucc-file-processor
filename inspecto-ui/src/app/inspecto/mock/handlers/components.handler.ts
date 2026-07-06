@@ -12,7 +12,7 @@ import { MockStore } from '../mock-store';
  * whole family. DELETE now enforces referential integrity (409 + referencers), mirroring the backend.
  */
 
-const STUDIO_KINDS = new Set(['dataset', 'widget', 'dashboard', 'requirement', 'reconciliation', 'link-analysis-view', 'geo-map-view']);
+const STUDIO_KINDS = new Set(['dataset', 'query', 'widget', 'dashboard', 'requirement', 'reconciliation', 'link-analysis-view', 'geo-map-view']);
 
 /** MockStore collection for a component kind. */
 export const componentCollection = (kind: string): string => `component:${kind}`;

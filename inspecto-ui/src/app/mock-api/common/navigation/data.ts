@@ -31,6 +31,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
                 type    : 'collapsable',
                 icon    : 'heroicons_outline:presentation-chart-line',
                 children: [
+                    { id: 'studio-queries',    title: 'Query Library',  type: 'basic', icon: 'heroicons_outline:command-line', link: '/studio/queries' },
                     { id: 'studio-viz-library', title: 'Viz Library',    type: 'basic', icon: 'heroicons_outline:rectangle-stack', link: '/studio/widgets' },
                     { id: 'studio-dashboards', title: 'Dashboard Builder', type: 'basic', icon: 'heroicons_outline:squares-2x2', link: '/studio/dashboards' },
                     { id: 'studio-link-analysis', title: 'Link Analysis', type: 'basic', icon: 'heroicons_outline:share',    link: '/studio/link-analysis' },

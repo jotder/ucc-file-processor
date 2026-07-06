@@ -70,6 +70,9 @@ export class ExploreComponent implements OnInit {
     readonly existingWidgetIds = signal<string[]>([]);
     readonly selectedId = signal<string>('');
     readonly dataset = signal<Dataset | null>(null);
+    /** A saved query this widget is bound to (R3 lineage; preserved across an edit round-trip). Rendering
+     *  still runs the dataset+controls path — query-driven rendering is a follow-on. */
+    readonly boundQueryId = signal<string | undefined>(undefined);
     readonly vizType = signal<string>('');
     readonly controls = signal<ControlValues>({});
     readonly options = signal<WidgetOptions>({});
@@ -185,6 +188,7 @@ export class ExploreComponent implements OnInit {
 
     private seedFromWidget(w: Widget): void {
         this.selectedId.set(w.datasetId);
+        this.boundQueryId.set(w.queryId);
         this.vizType.set(w.vizType);
         this.controls.set(w.controls);
         this.viewId.set(w.viewId ?? '');
@@ -249,6 +253,7 @@ export class ExploreComponent implements OnInit {
                     tags,
                     description,
                     viewId: viewBound ? this.viewId() : undefined,
+                    queryId: viewBound ? undefined : this.boundQueryId(),
                 });
                 this.widgetsApi.save(widget).subscribe({
                     next: () => {

@@ -8,6 +8,7 @@ import { Routes } from '@angular/router';
 export default [
     { path: '', pathMatch: 'full', redirectTo: '/catalog/datasets' },
     { path: 'datasets', redirectTo: '/catalog/datasets' },
+    { path: 'queries', loadChildren: () => import('./queries/queries.routes') },
     { path: 'widgets', loadChildren: () => import('./widgets/widgets.routes') },
     { path: 'dashboards', loadChildren: () => import('./dashboards/dashboards.routes') },
     { path: 'link-analysis', loadChildren: () => import('./link-analysis/link-analysis.routes') },

@@ -22,9 +22,12 @@ export function parseUseRef(use: string | undefined): { kind: string; id: string
     return { kind: prefix === 'connections' ? 'connection' : prefix, id: trimmed.slice(i + 1) };
 }
 
-/** A widget binds a dataset, or (view-bound, by vizType) renders a saved investigation view. */
+/** A widget binds a dataset (or, when query-bound, a saved query), or (view-bound, by vizType) renders a
+ *  saved investigation view. */
 export function widgetRefs(config: Record<string, unknown>): Ref[] {
     const refs: Ref[] = [];
+    const queryId = config['queryId'] as string | undefined;
+    if (queryId) refs.push({ kind: 'query', id: queryId, rel: 'binds', via: 'query' });
     const datasetId = config['datasetId'] as string | undefined;
     if (datasetId) refs.push({ kind: 'dataset', id: datasetId, rel: 'binds', via: 'dataset' });
     const viewId = config['viewId'] as string | undefined;
@@ -58,6 +61,12 @@ export function jobRefs(config: Record<string, unknown>): Ref[] {
     return onPipeline ? [{ kind: 'pipeline', id: onPipeline, rel: 'triggers', via: 'onPipeline' }] : [];
 }
 
+/** A query binds its source dataset (R3) — the `widget → query → dataset` lineage chain's middle edge. */
+export function queryRefs(config: Record<string, unknown>): Ref[] {
+    const datasetId = config['datasetId'] as string | undefined | null;
+    return datasetId ? [{ kind: 'dataset', id: datasetId, rel: 'binds', via: 'dataset' }] : [];
+}
+
 /** A pipeline's nodes bind registry components / connections via `use:` — anchored on the node id. */
 export function pipelineRefs(config: Record<string, unknown>): Ref[] {
     const nodes = (config['nodes'] as { id?: string; use?: string }[] | undefined) ?? [];
@@ -71,6 +80,7 @@ export function pipelineRefs(config: Record<string, unknown>): Ref[] {
 const STRUCTURAL: Record<string, (config: Record<string, unknown>) => Ref[]> = {
     widget: widgetRefs,
     dashboard: dashboardRefs,
+    query: queryRefs,
     'geo-map-view': investigationViewRefs,
     'link-analysis-view': investigationViewRefs,
     pipeline: pipelineRefs,

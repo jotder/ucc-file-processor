@@ -56,6 +56,10 @@ integrity rules (deleting a tiled widget / bound dataset / rendered view now 409
 `component-model/refs.spec.ts` + the new 409 cases in `components.handler.spec.ts`.
 The remainder of this section is the original proposal, kept for rationale.
 
+> **R3 (2026-07-06) extended this graph:** the `query` kind joined with a `binds` edge to its source
+> dataset, and a query-bound `widget` gains a `binds` edge to the query — so the network now carries the
+> `widget → query → dataset` chain (reuse-graph, delete-protection, and bundle closure all traverse it).
+
 Add to `ComponentKind` (in `inspecto/component-model`):
 
 ```ts

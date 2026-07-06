@@ -5,6 +5,7 @@ import {
     jobRefs,
     parseUseRef,
     pipelineRefs,
+    queryRefs,
     refsForComponent,
     widgetRefs,
 } from './refs';
@@ -33,6 +34,20 @@ describe('structural derivations', () => {
         expect(widgetRefs({ datasetId: '', vizType: 'link-analysis', viewId: 'graph-complex' })).toEqual([
             { kind: 'link-analysis-view', id: 'graph-complex', rel: 'renders', via: 'view' },
         ]);
+    });
+
+    it('widget: when query-bound, binds the query as well as the dataset (R3 lineage chain)', () => {
+        expect(widgetRefs({ datasetId: 'cdr_sample', queryId: 'recent_high_cost', vizType: 'bar' })).toEqual([
+            { kind: 'query', id: 'recent_high_cost', rel: 'binds', via: 'query' },
+            { kind: 'dataset', id: 'cdr_sample', rel: 'binds', via: 'dataset' },
+        ]);
+    });
+
+    it('query: binds its source dataset, or nothing when unset (R3)', () => {
+        expect(queryRefs({ type: 'sql', datasetId: 'cdr_sample' })).toEqual([
+            { kind: 'dataset', id: 'cdr_sample', rel: 'binds', via: 'dataset' },
+        ]);
+        expect(queryRefs({ type: 'sql', datasetId: null })).toEqual([]);
     });
 
     it('dashboard: tiles its widgets with stable tile anchors', () => {

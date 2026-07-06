@@ -35,6 +35,37 @@ export function seedDefaultSpace(store: MockStore, space: string): void {
         viz: null,
     });
 
+    // ── Query Library (R3): one reusable query over cdr_sample, with a $day(-7) runtime parameter,
+    //    bound by TWO widgets below — the "one query serves many renderings" thesis + the
+    //    widget→query→dataset lineage chain (reuse-graph, delete-protection, bundle closure) ────────
+    putComponent(store, space, 'query', 'recent_high_cost', {
+        name: 'recent_high_cost',
+        description: 'High-cost CDRs up to today — the $today built-in and the $min_cost parameter resolve at run time.',
+        type: 'sql',
+        datasetId: 'cdr_sample',
+        sourceName: 'cdr',
+        text: 'SELECT tariff, cost_usd, duration_s FROM cdr WHERE cost_usd >= $min_cost AND event_time <= $today ORDER BY cost_usd DESC',
+        parameters: [{ name: 'min_cost', type: 'number', default: '1' }],
+    });
+    // Two renderings backed by the same query (they render via the dataset+controls path today;
+    // the `queryId` binding is the lineage edge — query-driven rendering is a follow-on).
+    putComponent(store, space, 'widget', 'recent_cost_by_tariff', {
+        name: 'recent_cost_by_tariff',
+        datasetId: 'cdr_sample',
+        queryId: 'recent_high_cost',
+        vizType: 'bar',
+        controls: { x: [{ field: 'tariff' }], y: [{ field: 'cost_usd', agg: 'sum' }] },
+        description: 'Recent high-cost total per tariff — bound to the recent_high_cost query.',
+    });
+    putComponent(store, space, 'widget', 'recent_cost_total', {
+        name: 'recent_cost_total',
+        datasetId: 'cdr_sample',
+        queryId: 'recent_high_cost',
+        vizType: 'kpi',
+        controls: { value: [{ field: 'cost_usd', agg: 'sum' }] },
+        description: 'Recent high-cost grand total — bound to the recent_high_cost query.',
+    });
+
     // ── Link Analysis (C5): four example graphs at rising complexity for user testing — each a
     //    link-table dataset (rows in SAMPLE_SOURCES) + a saved view, so /studio/link-analysis
     //    loads them one-click under Saved views ────────────────────────────────────────────────

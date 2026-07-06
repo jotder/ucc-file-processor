@@ -50,6 +50,15 @@ describe('componentsHandler', () => {
         expect(String((datasetDel?.body as { error: string }).error)).toContain('cost_by_tariff');
     });
 
+    it('409s deleting a query a widget binds (R3 widget→query→dataset chain)', () => {
+        const store = seededStore();
+        // Seeded: recent_cost_by_tariff + recent_cost_total both bind the recent_high_cost query.
+        const queryDel = handler(req('DELETE', '/api/components/query/recent_high_cost'), store);
+        expect(queryDel?.status).toBe(409);
+        expect(String((queryDel?.body as { error: string }).error)).toContain('recent_cost_by_tariff');
+        expect(store.get('default', componentCollection('query'), 'recent_high_cost')).toBeDefined();
+    });
+
     it('409s a delete while the component is still referenced', () => {
         const store = seededStore();
         // Seeded pipeline cdr_ingest does not bind grammar/cdr_csv via `use`; wire one that does.

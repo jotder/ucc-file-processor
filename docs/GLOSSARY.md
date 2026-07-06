@@ -207,6 +207,21 @@ model type. ⛔ "Cube" stays a *verb* (the Transform action that produces it), n
 **Store / Storage** — The **physical** backend that holds the Parquet/partition files. Reserve this word for the
 backend only — it is never a Dataset.
 
+**Query** *(added 2026-07-06, R3)* — A first-class, reusable **executable knowledge** Component:
+`{ type (sql \| structured), source Dataset, text \| model, Parameters }`. Lifted out of the artifacts that
+embed it (a Dataset's view SQL, a Widget's channel mapping) so **one Query serves many renderings**. Authored in
+the **Query Library**. ⛔ not a "Report" (a Report is a *scheduled delivery* of rendered output).
+
+**Parameter** *(added 2026-07-06, R3)* — A runtime binding in the **`$`-namespace** (`$today`, `$day(-7)`,
+`$current_user`, `$role`, or a user-declared `$name`) resolved from a **Parameter Context** just before a Query
+runs. ⛔ Never conflate with the two other placeholder namespaces: a `:fieldValue` **rule-template** placeholder,
+or a `${ENV:KEY}` **secret reference** (config-time, server-side).
+
+**Result Set** *(added 2026-07-06, R3)* — The **semantic description of a Query's output**: columns with type +
+analytic role (dimension / measure / temporal) + cardinality. The Presentation Network *matches* candidate
+renderings against it (Show-Me), so the same Result Set can be drawn many ways by metadata alone. (This is the
+"resultset metadata" a Widget binds to in §7.)
+
 ---
 
 ## 7. BI / Visualization
@@ -223,6 +238,9 @@ pane.
 **Viz Library** — The Studio pane listing every saved **Widget** (searchable by text / viz type / tags; each
 card can be viewed standalone, edited in the **Widget Builder**, or placed on a Dashboard). A pane label, not
 a new concept — the items are Widgets.
+
+**Query Library** *(added 2026-07-06, R3)* — The Studio pane (`/studio/queries`) listing every saved **Query**;
+authors SQL + `$`-**Parameters** and previews the **Result Set** offline. A pane label — the items are Queries.
 
 **KPI** — A single-number **Measure** with a target/threshold, rendered as a headline tile (mini → standard →
 max).
