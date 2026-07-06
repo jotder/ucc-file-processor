@@ -1,0 +1,10 @@
+{
+  "data": { "status": "UP" },
+  "metadata": {
+    "timestamp": "2026-07-06T12:00:00.000Z",
+    "durationMs": 1,
+    "apiVersion": "v1"
+  },
+  "links": { "self": "/api/v1/health" },
+  "diagnostics": { "correlationId": "3f9a2c9e-6b1d-4f6a-9c2e-8f1d2b3c4d5e" }
+}

@@ -83,13 +83,7 @@ final class PipelineRoutes implements RouteModule {
     }
 
     private PipelineStore flowStore(ApiContext api) {
-        requireWriteRoot(api);
-        return new PipelineStore(api.writeRoot().resolve("flows"));
-    }
-
-    private void requireWriteRoot(ApiContext api) {
-        if (api.writeRoot() == null)
-            throw new ApiException(503, "connection write disabled: set -Dassist.write.root to enable");
+        return new PipelineStore(WriteGates.requireWriteRoot(api, "pipeline write").resolve("flows"));
     }
 
     /** {@code GET /pipelines/authored} — summaries of every authored flow (empty when no write root). */

@@ -430,9 +430,21 @@ Secrets: `SecretResolver` resolves `SYS:<key>` via `System.getProperty(key)` —
 
 ## 10. Reference — Control API routes (grouped)
 
-Auth-free in the common core. **503 = write-root gated** (set `-Dassist.write.root`).
+Auth-free in the common core. **503 = write-root gated** (set `-Dassist.write.root`; the gate chain
+write-root 503 → unsafe name 422 → path jail 403 → conflict 409 is shared, `control/WriteGates.java`).
+
+**Versioned surface (v4.8.0):** every route below is also served under an `/api/v1/…` prefix with the
+v1 transport contract (`docs/superpower/api-contract-design.md`): responses wrapped in the
+`{data, metadata, links, diagnostics}` envelope, errors as structured objects with machine-readable
+codes (`control/ErrorCodes.java`), gzip negotiated ≥ 1 KiB. Every request (legacy included) gets a
+`Correlation-ID` (caller-supplied or issued), echoed as a response header and inherited by events
+logged during the request. The unversioned routes below are the legacy aliases the SPA still calls —
+byte-for-byte unchanged.
 
 - **Health/metrics:** `GET /health`, `GET /ready`, `GET /metrics` (Prometheus), `GET /metrics/acquisition` (JSON).
+- **Bootstrap (v4.8.0):** `GET /bootstrap` — one ETag'd call: edition + feature flags, all config specs, platform
+  enumerations, space list, session stub (backend-owned metadata only; the SPA merges its own kind/viz/param
+  registries). Folds the per-type `/config/spec/{type}` calls together.
 - **Config:** `POST /validate`, `GET /config/spec/{type}`, `POST /config/write` *(503)*.
 - **Pipelines:** `GET /pipelines`, `POST /pipelines` *(503)*, `POST /pipelines/{n}/trigger|pause|resume|reprocess`,
   `GET /pipelines/{n}/commits|batches|files|lineage|quarantine|pending|report`, `POST /trigger` (all).
@@ -451,8 +463,10 @@ Auth-free in the common core. **503 = write-root gated** (set `-Dassist.write.ro
   `POST /pipelines/authored` *(503)*, `GET /pipelines/authored/{n}` (structural projection), `GET /pipelines/authored/{n}/raw`
   (lossless authored map incl. node config — for the editor), `PUT/DELETE /pipelines/authored/{n}` *(503)*,
   `POST /pipelines/authored/{n}/nodes|edges|dry-run` *(503)*.
-- **Components:** `GET /components/{type}[/{id}]`, `POST/PUT/DELETE` *(503; DELETE 409 if referenced)*,
-  `POST /components/{transform|grammar|schema|sink}/{id}/test` *(503)*.
+- **Components:** `GET /components/{type}[/{id}]` *(single-GET carries a strong `ETag`=content hash; `If-None-Match`→304)*,
+  `POST/PUT/DELETE` *(503; PUT honours `If-Match`→409 `CONFLICT_STALE_VERSION`; DELETE 409 if referenced)*,
+  `POST /components/{transform|grammar|schema|sink}/{id}/test` *(503)*. Writable types (v4.8.0): grammar, schema,
+  transform, sink, **dataset, widget, dashboard**.
 - **Catalog:** `GET /catalog`, `/catalog/kpis`, `/catalog/graph`, `/catalog/tables/{id}`.
 - **Assist:** `GET /assist/diagnoses|settings|metrics`, `POST /assist/settings|settings/test|{intent}` (503 if absent).
 

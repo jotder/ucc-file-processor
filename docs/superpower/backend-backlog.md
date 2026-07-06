@@ -8,9 +8,18 @@
 
 ## The shared seam
 
-`com.gamma.pipeline.ComponentStore.java:36`:
+> **✅ WIDENED 2026-07-06 (API-contract W3).** `WRITABLE_TYPES` now includes `dataset`/`widget`/`dashboard`
+> and `ComponentRegistry.TYPE_BY_DIR` gained matching `datasets/`/`widgets/`/`dashboards/` dirs — the single
+> change below is **done**. Verified no external special-casing of the closed set (`WRITABLE_TYPES` is read
+> only inside `ComponentStore`; `isComponentType` is unused). Persistence, ETag/versioning and CRUD for the
+> new kinds now work through the same `/components/{type}/{id}` routes. **Still open below:** the
+> `QuerySpec→DuckDB` exec endpoint (W4), Matrices (net-new materialization), and job templates — the
+> *storage* blocker is cleared; those remain their own work.
+
+`com.gamma.pipeline.ComponentStore.java:36` (now widened):
 ```java
-public static final Set<String> WRITABLE_TYPES = Set.of("grammar", "schema", "transform", "sink");
+public static final Set<String> WRITABLE_TYPES =
+        Set.of("grammar", "schema", "transform", "sink", "dataset", "widget", "dashboard");
 ```
 Enforced in `validateType()` (`ComponentStore.java:93-97`), called from `write()`/`list()`/`get()`
 (`:74,54,60`) and reached via `ComponentRoutes.java:47`. `dataset` / `widget` / `dashboard` are **not** in

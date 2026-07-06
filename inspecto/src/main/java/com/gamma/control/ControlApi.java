@@ -49,10 +49,20 @@ import java.util.regex.Pattern;
  * {@code /ready}, {@code /metrics} (and the future {@code /spaces} CRUD group) stay un-prefixed and server-global;
  * an un-prefixed API path resolves the {@code default} (or sole) space, so single-space callers are unaffected.
  *
+ * <h3>Versioned API (v1) — v4.8.0</h3>
+ * The same route table is additionally served under {@code /api/v1/…} with the v1 transport
+ * contract (docs/superpower/api-contract-design.md): responses wrapped in the
+ * {@code {data, metadata, links, diagnostics}} envelope ({@link Envelope}), errors as structured
+ * objects with machine-readable codes ({@link ErrorCodes}), a per-request {@code Correlation-ID}
+ * (issued when absent; echoed on every response, legacy included), and gzip content negotiation.
+ * Unversioned routes are byte-for-byte unchanged (the SPA still calls them via the plain
+ * {@code /api} alias) and are frozen as legacy aliases until the UI migrates to v1.
+ *
  * <h3>Routes</h3>
  * <pre>
  *   GET  /health                              liveness (open)
  *   GET  /ready                               readiness (open)
+ *   GET  /bootstrap                           platform bootstrap: edition/features/config-specs/enums/spaces/session (ETag'd) [v4.8.0]
  *   GET  /spaces                              list hosted spaces (manifests)               [v4.7.0]
  *   POST /spaces                              body {id,display_name?,description?} — create + boot a space [v4.7.0]
  *   DELETE /spaces/{id}[?purge=true]          deregister + drain a space; purge also deletes its files [v4.7.0]
@@ -110,6 +120,9 @@ import java.util.regex.Pattern;
  *   GET  /connections                         reusable connection profiles (secret-masked)  [v4.2.0]
  *   GET  /connections/{id}                    one connection profile (secret-masked)        [v4.2.0]
  *   POST /connections/{id}/test               TCP-reachability + secret-resolution test     [v4.2.0]
+ *   POST /connections                         body {id,connector,…} — create (write-root gated); 409 if id exists [v4.2.0]
+ *   PUT  /connections/{id}                    replace a profile (masked secrets preserved); 404 if unknown [v4.2.0]
+ *   DELETE /connections/{id}                  remove a profile; 404 if unknown, 409 if in use by a pipeline [v4.2.0]
  * </pre>
  *
  * <p>The {@code /catalog*}, {@code /config/spec/*} and {@code /assist/*} routes require the
@@ -266,6 +279,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
+                new BootstrapRoutes(),
                 new SpaceRoutes(), new DataSourceRoutes(),
                 new RunRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new PipelineRoutes(), new ComponentRoutes(),
@@ -281,11 +295,30 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private void dispatch(HttpExchange ex) throws IOException {
         String path   = ex.getRequestURI().getPath();
         String method = ex.getRequestMethod();
+        // Correlation (v1 contract, applied to EVERY request — v4.8.0): honour a caller-supplied
+        // Correlation-ID, else issue one; echo it as a response header, carry it on the exchange for
+        // the v1 envelope/error bodies, and put it on the SLF4J MDC so events bridged during this
+        // request (EventStoreAppender reads mdc "correlationId") tie back to the request. Engine-typed
+        // events keep their own explicit correlation (batch/run ids) — the builder value wins there.
+        String cid = ex.getRequestHeaders().getFirst("Correlation-ID");
+        cid = (cid == null || cid.isBlank()) ? java.util.UUID.randomUUID().toString() : cid.trim();
+        ex.setAttribute(ApiContext.ATTR_CORRELATION_ID, cid);
+        ex.getResponseHeaders().set("Correlation-ID", cid);
+        MDC.put("correlationId", cid);
+        // Versioned-API seam (v4.8.0): "/api/v1/…" marks this exchange for the v1 transport contract
+        // (Envelope + structured errors, docs/superpower/api-contract-design.md) and is matched against
+        // the same route table. Checked before the plain "/api" strip ("/api/v1/…" also starts with it).
+        if (path.equals("/api/v1") || path.startsWith("/api/v1/")) {
+            ex.setAttribute(ApiContext.ATTR_V1, Boolean.TRUE);
+            ex.setAttribute(ApiContext.ATTR_START_NANOS, System.nanoTime());
+            ex.setAttribute(ApiContext.ATTR_SELF_PATH, path);
+            path = path.length() == 7 ? "/" : path.substring(7);
+        }
         // Accept an optional "/api" prefix so a single SPA build works in both deployment modes:
         // behind the ng-serve dev proxy (which rewrites "/api" → "") and when served same-origin by
         // ControlApi itself (no proxy). The Angular app addresses every route as "/api/...", so strip
         // the prefix here before route matching. Static assets never carry "/api", so they're untouched.
-        if (path.startsWith("/api/")) path = path.substring(4);
+        else if (path.startsWith("/api/")) path = path.substring(4);
         else if (path.equals("/api")) path = "/";
         if (corsOrigin != null) applyCors(ex);     // rides every response written below
         boolean spaceBound = false;
@@ -333,11 +366,13 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             if (!"GET".equals(method)) AuditTrail.accessDenied(ex, method, path, status);
             respond(ex, status, Map.of("error", pathMatched ? "method not allowed" : "not found"));
         } catch (ApiException ae) {
+            if (ae.errorCode != null) ex.setAttribute(ApiContext.ATTR_ERROR_CODE, ae.errorCode);
             respond(ex, ae.status, Map.of("error", ae.getMessage()));
         } catch (Exception e) {
             log.error("{} {} failed", method, path, e);
             respond(ex, 500, Map.of("error", String.valueOf(e.getMessage())));
         } finally {
+            MDC.remove("correlationId");
             if (spaceBound) MDC.remove(EventLog.SPACE_MDC_KEY);
             ex.close();
         }
@@ -364,7 +399,8 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         var h = ex.getResponseHeaders();
         h.set("Access-Control-Allow-Origin", corsOrigin);
         h.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-        h.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Token");
+        h.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Token, Correlation-ID");
+        h.set("Access-Control-Expose-Headers", "Correlation-ID");
         h.set("Access-Control-Max-Age", "600");
         if (!"*".equals(corsOrigin)) h.set("Vary", "Origin");
     }

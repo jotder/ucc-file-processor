@@ -1,0 +1,566 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Inspecto Control API — v1",
+    "version": "1.0.0",
+    "description": "The v1 business-contract surface of the Inspecto control plane (design: docs/superpower/api-contract-design.md; transport spine: W1, shipped 2026-07-06). Contract policy: ADDITIVE ONLY within v1 — never remove or rename a field; deprecations are announced via metadata.warnings with a sunset date. Every response uses the Envelope (success) or ErrorResponse (non-2xx) shape; every request/response carries a Correlation-ID header (issued by the server when the caller sends none). The entire legacy route table (121 routes) is also served under /api/v1 as-built; this document grows per bounded context (see tags) as each context's DTO contract is formalized (worklog W3+). Paths documented here are the as-built exemplars that the contract test (inspecto/src/test/java/com/gamma/control/ApiContractTest.java) pins against the live server. Vendor extension x-probe {path, status} marks a GET operation the contract test executes live."
+  },
+  "servers": [
+    { "url": "/api/v1", "description": "Versioned surface (v1 envelope + structured errors). Personal edition: plain HTTP, localhost. Standard edition: HTTPS behind the WSO2 gateway with OIDC (Keycloak/IAM) — same contract." }
+  ],
+  "tags": [
+    { "name": "Session & Identity", "description": "GET /session (whoami + capabilities). AuthN itself is the IAM's — the app never hosts login. Lands with W6." },
+    { "name": "Platform & Spaces", "description": "Space CRUD/import + platform bootstrap (W3)." },
+    { "name": "Metadata & Catalog", "description": "Catalog, metadata graph, component CRUD by kind, config specs + validation." },
+    { "name": "Acquisition", "description": "Connections (secret-masked, always) and Sources." },
+    { "name": "Pipelines", "description": "Pipeline CRUD, dry-run/execution plan, pause/resume, data-plane reads." },
+    { "name": "Execution & Scheduling", "description": "Jobs and Runs (one execution of an Executable). Async 202+Run pattern lands with W5." },
+    { "name": "Data", "description": "Datasets, lineage, provenance." },
+    { "name": "Quality & Decisions", "description": "Expectations, Alert Rules, Decision Rules, Reconciliations — never bare 'rule'." },
+    { "name": "Signals & Notifications", "description": "The one signal ledger (R4 envelope; see Signal schema) with /alerts and /events as projections; notification feed + preferences." },
+    { "name": "Query & Results", "description": "Queries as resources: POST /queries/{id}/run with server-side $-parameter resolution and the Result Set contract (W4)." },
+    { "name": "Presentation", "description": "Widgets, Dashboards, and the one declarative dashboard-configuration payload." },
+    { "name": "Investigation", "description": "Link-analysis/geo-map saved views, Incidents, Cases." },
+    { "name": "Assist", "description": "AI assist intents; 503 CAPABILITY_UNAVAILABLE when the optional module is absent." },
+    { "name": "Transfer & Promotion", "description": "Metadata Bundle v2 export / fit-check / import." },
+    { "name": "Audit & Compliance", "description": "Actor-attributed audit trail (actor from JWT under Standard)." }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Platform & Spaces"],
+        "summary": "Liveness",
+        "operationId": "getHealth",
+        "x-probe": { "path": "/api/v1/health", "status": 200 },
+        "responses": {
+          "200": {
+            "description": "Service is up.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "$ref": "#/components/schemas/Health" } } }
+            ] } } }
+          }
+        }
+      }
+    },
+    "/spaces": {
+      "get": {
+        "tags": ["Platform & Spaces"],
+        "summary": "List hosted Spaces",
+        "operationId": "listSpaces",
+        "x-probe": { "path": "/api/v1/spaces", "status": 200 },
+        "responses": {
+          "200": {
+            "description": "Manifests of every hosted Space, sorted by id.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/SpaceManifest" } } } }
+            ] } } }
+          }
+        }
+      }
+    },
+    "/config/spec/{type}": {
+      "get": {
+        "tags": ["Metadata & Catalog"],
+        "summary": "Declarative spec for a config type",
+        "description": "The metadata that drives form rendering and validation for one config type (metadata-first, guideline 4/14). Folds into the bootstrap payload with W3.",
+        "operationId": "getConfigSpec",
+        "x-probe": { "path": "/api/v1/config/spec/pipeline", "status": 200 },
+        "parameters": [ { "name": "type", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Config type (e.g. pipeline, job, schema, enrichment, meta)." } ],
+        "responses": {
+          "200": {
+            "description": "The spec (field descriptors, groups, validation). Shape tightens with the W3 metadata contract.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "type": "object", "description": "ConfigSpec — as-built shape, formalized in W3." } } }
+            ] } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/validate": {
+      "post": {
+        "tags": ["Metadata & Catalog"],
+        "summary": "Validate a config file or draft",
+        "operationId": "validateConfig",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object",
+          "description": "Either {configPath} (a file on the server) or {type, config} (an unsaved draft map); optional {safety:true} adds the hard-fail safety gate.",
+          "properties": {
+            "configPath": { "type": "string" },
+            "type": { "type": "string" },
+            "config": { "type": "object" },
+            "safety": { "type": "boolean" }
+          }
+        } } } },
+        "responses": {
+          "200": {
+            "description": "Validation outcome — findings, never an HTTP error for a merely-invalid draft.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "$ref": "#/components/schemas/ValidationResult" } } }
+            ] } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/config/write": {
+      "post": {
+        "tags": ["Metadata & Catalog"],
+        "summary": "Persist a validated config draft",
+        "description": "The exemplar of the shared fail-closed write-gate chain (WriteGates): write-root 503 CONTROL_PLANE_READ_ONLY → malformed body 400 → unsafe name 422 → path jail 403 → overwrite conflict 409 → atomic write.",
+        "operationId": "writeConfig",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object",
+          "required": ["type", "config"],
+          "properties": {
+            "type": { "type": "string" },
+            "config": { "type": "object" },
+            "subdir": { "type": "string", "description": "Optional subdirectory under the write root (must stay inside — path jail)." },
+            "overwrite": { "type": "boolean", "default": false }
+          }
+        } } } },
+        "responses": {
+          "200": {
+            "description": "Written atomically under the write root.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "$ref": "#/components/schemas/ConfigWriteResult" } } }
+            ] } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/PathJail" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/WriteDisabled" }
+        }
+      }
+    },
+    "/connections": {
+      "get": {
+        "tags": ["Acquisition"],
+        "summary": "List Connection profiles",
+        "operationId": "listConnections",
+        "x-probe": { "path": "/api/v1/connections", "status": 200 },
+        "responses": {
+          "200": {
+            "description": "All Connection profiles. Secrets are ALWAYS masked ('***') on the wire — the mask sentinel round-trips on update to preserve stored references.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "type": "array", "items": { "$ref": "#/components/schemas/ConnectionProfile" } } } }
+            ] } } }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Acquisition"],
+        "summary": "Create a Connection profile",
+        "operationId": "createConnection",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConnectionProfile" } } } },
+        "responses": {
+          "200": { "description": "Created (secret-masked view).", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/ConnectionProfile" } } }
+          ] } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/WriteDisabled" }
+        }
+      }
+    },
+    "/connections/{id}": {
+      "get": {
+        "tags": ["Acquisition"],
+        "summary": "One Connection profile",
+        "operationId": "getConnection",
+        "x-probe": { "path": "/api/v1/connections/__contract_probe_absent__", "status": 404 },
+        "parameters": [ { "$ref": "#/components/parameters/ConnectionId" } ],
+        "responses": {
+          "200": { "description": "The profile (secret-masked).", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/ConnectionProfile" } } }
+          ] } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Acquisition"],
+        "summary": "Replace a Connection profile",
+        "description": "Masked secret sentinels ('***') in the body preserve the stored secret references.",
+        "operationId": "updateConnection",
+        "parameters": [ { "$ref": "#/components/parameters/ConnectionId" } ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConnectionProfile" } } } },
+        "responses": {
+          "200": { "description": "Replaced (secret-masked view).", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/ConnectionProfile" } } }
+          ] } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/WriteDisabled" }
+        }
+      },
+      "delete": {
+        "tags": ["Acquisition"],
+        "summary": "Delete a Connection profile",
+        "operationId": "deleteConnection",
+        "parameters": [ { "$ref": "#/components/parameters/ConnectionId" } ],
+        "responses": {
+          "200": { "description": "Removed (in-memory registration and on-disk file).", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "type": "object", "required": ["id", "deleted"], "properties": {
+              "id": { "type": "string" }, "deleted": { "type": "boolean" }, "fileRemoved": { "type": "boolean" }
+            } } } }
+          ] } } } },
+          "403": { "$ref": "#/components/responses/PathJail" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/WriteDisabled" }
+        }
+      }
+    },
+    "/connections/{id}/test": {
+      "post": {
+        "tags": ["Acquisition"],
+        "summary": "Test a Connection's reachability",
+        "description": "TCP reachability + secret resolution — a business capability, not CRUD.",
+        "operationId": "testConnection",
+        "parameters": [ { "$ref": "#/components/parameters/ConnectionId" } ],
+        "responses": {
+          "200": { "description": "Test outcome (reachable/latency/secret-resolution detail).", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "type": "object", "description": "ConnectionTester result — as-built shape, formalized with the Acquisition context." } } }
+          ] } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/bootstrap": {
+      "get": {
+        "tags": ["Platform & Spaces"],
+        "summary": "Platform bootstrap — everything the backend owns to start the UI",
+        "description": "One cached, ETag'd call folding edition + feature flags, every config spec, the platform enumerations, the Space list and a session stub (design §6.1) — replacing today's N× config-spec + /spaces round-trips. The ComponentKind / Visualization-Type / $-parameter registries and theme stay compile-time in the SPA (documented boundary — the backend has no authority over them). If-None-Match yields 304.",
+        "operationId": "getBootstrap",
+        "x-probe": { "path": "/api/v1/bootstrap", "status": 200 },
+        "parameters": [ { "$ref": "#/components/parameters/IfNoneMatch" } ],
+        "responses": {
+          "200": { "description": "The bootstrap aggregate.", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/Bootstrap" } } }
+          ] } } } },
+          "304": { "$ref": "#/components/responses/NotModified" }
+        }
+      }
+    },
+    "/components/{type}/{id}": {
+      "get": {
+        "tags": ["Metadata & Catalog"],
+        "summary": "One registry component",
+        "description": "A versioned metadata resource (W3): the response carries a strong ETag = the content hash; a matching If-None-Match yields 304.",
+        "operationId": "getComponent",
+        "x-probe": { "path": "/api/v1/components/schema/__contract_probe_absent__", "status": 404 },
+        "parameters": [
+          { "$ref": "#/components/parameters/ComponentType" },
+          { "$ref": "#/components/parameters/ComponentId" },
+          { "$ref": "#/components/parameters/IfNoneMatch" }
+        ],
+        "responses": {
+          "200": { "description": "The component (identity + version metadata + content).", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/Component" } } }
+          ] } } } },
+          "304": { "$ref": "#/components/responses/NotModified" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Metadata & Catalog"],
+        "summary": "Replace a registry component",
+        "description": "Optimistic locking (W3): an If-Match precondition against the current content hash yields 409 CONFLICT_STALE_VERSION on a stale write. The new ETag rides the 200 response.",
+        "operationId": "updateComponent",
+        "parameters": [
+          { "$ref": "#/components/parameters/ComponentType" },
+          { "$ref": "#/components/parameters/ComponentId" },
+          { "$ref": "#/components/parameters/IfMatch" }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "description": "The component config (the routing-only 'id' key is ignored)." } } } },
+        "responses": {
+          "200": { "description": "Replaced.", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/Component" } } }
+          ] } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/StaleVersion" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "503": { "$ref": "#/components/responses/WriteDisabled" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "ConnectionId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "description": "Immutable Connection id (guideline 17: ids never change)." },
+      "CorrelationId": { "name": "Correlation-ID", "in": "header", "required": false, "schema": { "type": "string" }, "description": "Caller-supplied correlation id; the server issues one when absent and always echoes it as a response header. Propagates to events logged during the request." },
+      "ComponentType": { "name": "type", "in": "path", "required": true, "schema": { "type": "string", "enum": ["grammar", "schema", "transform", "sink", "dataset", "widget", "dashboard"] }, "description": "Writable component type (W3 widened the set with dataset/widget/dashboard)." },
+      "ComponentId": { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "description": "Immutable component id." },
+      "IfNoneMatch": { "name": "If-None-Match", "in": "header", "required": false, "schema": { "type": "string" }, "description": "Conditional GET: when it holds the current ETag the server returns 304." },
+      "IfMatch": { "name": "If-Match", "in": "header", "required": false, "schema": { "type": "string" }, "description": "Optimistic-lock precondition on a write: a stale tag yields 409 CONFLICT_STALE_VERSION." }
+    },
+    "headers": {
+      "Correlation-ID": { "schema": { "type": "string" }, "description": "The request's correlation id (issued or echoed). Present on every response, legacy surface included." }
+    },
+    "schemas": {
+      "Envelope": {
+        "type": "object",
+        "description": "The v1 success envelope (design §4). 'permissions' (per-resource capability verbs) joins with the W6 security module — additive.",
+        "required": ["data", "metadata", "diagnostics"],
+        "properties": {
+          "data": { "description": "The operation's result DTO (object or array)." },
+          "metadata": { "$ref": "#/components/schemas/EnvelopeMetadata" },
+          "links": { "$ref": "#/components/schemas/Links" },
+          "diagnostics": { "$ref": "#/components/schemas/Diagnostics" }
+        }
+      },
+      "EnvelopeMetadata": {
+        "type": "object",
+        "required": ["timestamp", "apiVersion"],
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time" },
+          "durationMs": { "type": "integer", "description": "Server-side handling time." },
+          "apiVersion": { "type": "string", "const": "v1" },
+          "etag": { "type": "string", "description": "Strong ETag of the resource (= its config contentHash) — lands with W3." },
+          "pagination": { "$ref": "#/components/schemas/Pagination" },
+          "warnings": { "type": "array", "items": { "type": "object", "properties": {
+            "code": { "type": "string" }, "message": { "type": "string" }, "sunset": { "type": "string", "format": "date" }
+          } }, "description": "Deprecation and advisory notices (contract-evolution channel, guideline 33)." }
+        }
+      },
+      "Links": {
+        "type": "object",
+        "description": "Hypermedia (guideline 12). 'related' is derived from the R1 refs graph (ComponentKind.deriveRefs), never hand-authored — lands with W3.",
+        "properties": {
+          "self": { "type": "string" },
+          "related": { "type": "array", "items": { "$ref": "#/components/schemas/RelatedLink" } }
+        }
+      },
+      "RelatedLink": {
+        "type": "object",
+        "required": ["rel", "kind", "href"],
+        "properties": {
+          "rel": { "type": "string", "description": "A RefRel edge: binds · tiles · renders · projects · loads · triggers · emits · invokes (additive)." },
+          "kind": { "type": "string" },
+          "href": { "type": "string" }
+        }
+      },
+      "Diagnostics": {
+        "type": "object",
+        "required": ["correlationId"],
+        "properties": { "correlationId": { "type": "string" } }
+      },
+      "Pagination": {
+        "type": "object",
+        "description": "Uniform pagination metadata (design §7); cursor preferred over offset. Adopted per-context from W3.",
+        "properties": {
+          "cursor": { "type": ["string", "null"] },
+          "nextCursor": { "type": ["string", "null"] },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["error"],
+        "properties": { "error": { "$ref": "#/components/schemas/ErrorObject" } }
+      },
+      "ErrorObject": {
+        "type": "object",
+        "description": "The structured v1 error (design §5). 'technicalMessage', 'suggestedAction' and 'documentation' are additive per-route enrichments.",
+        "required": ["errorCode", "message", "recoverable", "correlationId"],
+        "properties": {
+          "errorCode": { "$ref": "#/components/schemas/ErrorCode" },
+          "message": { "type": "string", "description": "User-facing." },
+          "technicalMessage": { "type": "string", "description": "Operator-facing." },
+          "recoverable": { "type": "boolean" },
+          "suggestedAction": { "type": "string" },
+          "documentation": { "type": "string" },
+          "correlationId": { "type": "string" },
+          "details": { "type": "object", "description": "Route-specific payload, e.g. the 422 findings ({findings: Finding[]})." }
+        }
+      },
+      "ErrorCode": {
+        "type": "string",
+        "description": "Machine-readable code catalog — kept in lockstep with com.gamma.control.ErrorCodes (pinned by ApiContractTest). PERMISSION_DENIED/UNAUTHENTICATED/THROTTLED join with W6/the gateway.",
+        "enum": [
+          "MALFORMED_REQUEST",
+          "NOT_FOUND",
+          "METHOD_NOT_ALLOWED",
+          "PATH_JAIL_VIOLATION",
+          "CONFLICT",
+          "CONFLICT_STALE_VERSION",
+          "CONFIG_VALIDATION_FAILED",
+          "INTERNAL",
+          "CONTROL_PLANE_READ_ONLY",
+          "CAPABILITY_UNAVAILABLE"
+        ]
+      },
+      "Finding": {
+        "type": "object",
+        "required": ["severity", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["ERROR", "WARNING", "INFO"] },
+          "field": { "type": "string", "description": "Dotted config path the finding anchors to (e.g. processing.schema_file)." },
+          "message": { "type": "string" }
+        }
+      },
+      "Signal": {
+        "type": "object",
+        "description": "One emitted operational fact — the unit of the Signal network (R4; GLOSSARY §8). Events, Alerts and Notifications are projections/consumers of the one signal ledger, never parallel stores. Serves the Signals & Notifications context (streamed as SSE events on /signals/stream when that context lands).",
+        "required": ["signalId", "type", "at", "source", "severity", "payload"],
+        "properties": {
+          "signalId": { "type": "string" },
+          "type": { "type": "string", "description": "e.g. RUN_STARTED, ALERT_FIRED, EXPECTATION_FAILED, CONSEQUENCE_EXECUTED." },
+          "at": { "type": "integer", "description": "Epoch milliseconds." },
+          "source": { "$ref": "#/components/schemas/Ref" },
+          "correlationId": { "type": ["string", "null"], "description": "Ties the signal to the request/run/batch that produced it." },
+          "severity": { "type": "string", "enum": ["trace", "debug", "info", "warn", "error", "critical"] },
+          "payload": { "type": "object", "description": "Structured detail bag — never row content." }
+        }
+      },
+      "Ref": {
+        "type": "object",
+        "description": "A typed metadata-graph edge (R1: component-model refs).",
+        "required": ["kind", "id", "rel"],
+        "properties": {
+          "kind": { "type": "string" },
+          "id": { "type": "string" },
+          "rel": { "type": "string", "description": "binds · tiles · renders · projects · loads · triggers · emits · invokes (additive)." },
+          "via": { "type": "string" }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": ["status"],
+        "properties": { "status": { "type": "string", "const": "UP" } }
+      },
+      "SpaceManifest": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "displayName": { "type": ["string", "null"] },
+          "description": { "type": ["string", "null"] },
+          "createdAt": { "type": ["string", "null"] }
+        }
+      },
+      "ValidationResult": {
+        "type": "object",
+        "required": ["findings", "clean"],
+        "properties": {
+          "pipeline": { "type": "string", "description": "Present when validating a saved file." },
+          "type": { "type": "string", "description": "Present when validating a draft." },
+          "warnings": { "type": "array", "items": { "type": "string" }, "description": "Legacy string form (file validation only)." },
+          "findings": { "type": "array", "items": { "$ref": "#/components/schemas/Finding" } },
+          "safetyChecked": { "type": "boolean" },
+          "clean": { "type": "boolean" }
+        }
+      },
+      "ConfigWriteResult": {
+        "type": "object",
+        "required": ["type", "written", "path", "name"],
+        "properties": {
+          "type": { "type": "string" },
+          "written": { "type": "boolean" },
+          "path": { "type": "string", "description": "Relative to the write root." },
+          "name": { "type": "string" },
+          "bytes": { "type": "integer" },
+          "overwritten": { "type": "boolean" },
+          "findings": { "type": "array", "items": { "$ref": "#/components/schemas/Finding" }, "description": "Warnings only — errors would have 422'd." }
+        }
+      },
+      "ConnectionProfile": {
+        "type": "object",
+        "description": "Secret-masked wire shape (ConnectionProfile.toMap). Secrets are '${ENV:…}' references at rest and '***' on the wire; the '***' sentinel on write preserves the stored reference.",
+        "required": ["id", "connector"],
+        "properties": {
+          "id": { "type": "string" },
+          "connector": { "type": "string", "description": "e.g. sftp, ftp, database, local." },
+          "host": { "type": "string" },
+          "port": { "type": "integer" },
+          "database": { "type": "string" },
+          "basePath": { "type": "string" },
+          "username": { "type": "string" },
+          "password": { "type": "string", "description": "Always the mask ('***') on the wire." },
+          "options": { "type": "object", "description": "Connector options; secret-looking keys are masked." },
+          "tunnel": { "type": "object", "properties": {
+            "host": { "type": "string" }, "port": { "type": "integer" },
+            "username": { "type": "string" }, "password": { "type": "string", "description": "Masked." }
+          } }
+        }
+      },
+      "Component": {
+        "type": "object",
+        "description": "A registry component: identity + W3 version metadata + its config content.",
+        "required": ["type", "name", "ref", "contentHash", "content"],
+        "properties": {
+          "type": { "type": "string" },
+          "name": { "type": "string" },
+          "ref": { "type": "string", "description": "The use: reference, '<type>/<name>'." },
+          "contentHash": { "type": "string", "description": "SHA-256 of the canonical content (= the ETag payload; matches the UI bundle-v2 hash)." },
+          "created": { "type": ["string", "null"], "format": "date-time" },
+          "modified": { "type": ["string", "null"], "format": "date-time" },
+          "content": { "type": "object", "description": "The component's config (name stamped to match the id)." }
+        }
+      },
+      "Bootstrap": {
+        "type": "object",
+        "description": "The platform bootstrap aggregate — backend-owned only; the frontend registries (ComponentKind/VizType/$-params/theme) are excluded by design and merged client-side.",
+        "required": ["edition", "features", "configSpecs", "enumerations", "spaces", "session"],
+        "properties": {
+          "edition": { "type": "string", "enum": ["personal", "standard"] },
+          "features": { "type": "object", "properties": {
+            "authoring": { "type": "boolean" }, "multiSpace": { "type": "boolean" }, "authMode": { "type": "string" }
+          } },
+          "configSpecs": { "type": "object", "description": "type → ConfigSpec, one entry per ConfigSpecs.TYPES." },
+          "enumerations": { "type": "object", "properties": {
+            "severities": { "type": "array", "items": { "type": "string" } },
+            "attributeTypes": { "type": "array", "items": { "type": "string" } },
+            "outputFormats": { "type": "array", "items": { "type": "string" } }
+          } },
+          "spaces": { "type": "array", "items": { "type": "object", "properties": {
+            "id": { "type": "string" }, "displayName": { "type": ["string", "null"] }
+          } } },
+          "session": { "type": "object", "required": ["authenticated"], "properties": {
+            "authenticated": { "type": "boolean" }, "actor": { "type": "string" },
+            "capabilities": { "type": "array", "items": { "type": "string" } }
+          } }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": { "description": "Malformed request (MALFORMED_REQUEST).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "NotFound": { "description": "Unknown resource (NOT_FOUND).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "PathJail": { "description": "A resolved path escapes the write root (PATH_JAIL_VIOLATION). Under Standard, 403 also carries PERMISSION_DENIED for authorization denials.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "Conflict": { "description": "Resource conflict — duplicate id, in-use referent, or overwrite refused (CONFLICT).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "ValidationFailed": { "description": "Spec/safety validation failed (CONFIG_VALIDATION_FAILED); error.details carries the findings.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "WriteDisabled": { "description": "Config writes are disabled — -Dassist.write.root unset (CONTROL_PLANE_READ_ONLY).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "NotModified": { "description": "Resource unchanged since the client's cached copy (If-None-Match matched the current ETag) — 304, no body." },
+      "StaleVersion": { "description": "An If-Match write precondition failed — the resource changed since it was read (CONFLICT_STALE_VERSION); re-read and retry.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+    },
+    "securitySchemes": {
+      "oidc": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Standard/Enterprise editions only (W6): IAM-issued JWT validated by the resource server (issuer/audience/expiry via JWKS); authorization derived from claims → Roles → Capabilities. The Personal edition serves the same contract auth-free on localhost. No operation declares a security requirement until W6 lands."
+      }
+    }
+  }
+}

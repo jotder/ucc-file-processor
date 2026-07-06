@@ -28,9 +28,9 @@ final class ComponentRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/components/([^/]+)", (e, m) -> componentList(api, ApiContext.name(m)));
-        api.get("/components/([^/]+)/([^/]+)", (e, m) -> componentById(api, ApiContext.name(m), ApiContext.param(m, 2)));
-        api.post("/components/([^/]+)", (e, m) -> createComponent(api, ApiContext.name(m), api.body(e)));
-        api.put("/components/([^/]+)/([^/]+)", (e, m) -> updateComponent(api, ApiContext.name(m), ApiContext.param(m, 2), api.body(e)));
+        api.get("/components/([^/]+)/([^/]+)", (e, m) -> componentById(api, e, ApiContext.name(m), ApiContext.param(m, 2)));
+        api.post("/components/([^/]+)", (e, m) -> createComponent(api, e, ApiContext.name(m), api.body(e)));
+        api.put("/components/([^/]+)/([^/]+)", (e, m) -> updateComponent(api, e, ApiContext.name(m), ApiContext.param(m, 2), api.body(e)));
         api.delete("/components/([^/]+)/([^/]+)", (e, m) -> deleteComponent(api, ApiContext.name(m), ApiContext.param(m, 2)));
         // T18 dry-run/test: preview a component over a sample through the production logic (scratch-only).
         api.post("/components/transform/([^/]+)/test", (e, m) -> previewTransform(api, ApiContext.name(m), api.body(e)));
@@ -45,23 +45,33 @@ final class ComponentRoutes implements RouteModule {
     }
 
     private ComponentStore componentStore(ApiContext api) {
-        requireWriteRoot(api);
-        return new ComponentStore(api.writeRoot().resolve("registry"));
+        return new ComponentStore(WriteGates.requireWriteRoot(api, "component write").resolve("registry"));
     }
 
-    private void requireWriteRoot(ApiContext api) {
-        if (api.writeRoot() == null)
-            throw new ApiException(503, "connection write disabled: set -Dassist.write.root to enable");
-    }
-
-    /** The JSON shape for one component: identity + parsed content. */
+    /** The JSON shape for one component: identity + version metadata (W3: contentHash/created/modified) + content. */
     private static Map<String, Object> componentDoc(ComponentRegistry.Component c) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("type", c.type());
         m.put("name", c.name());
         m.put("ref", c.ref());
+        m.put("contentHash", ContentHash.of(c.content()));   // = the ETag / optimistic-lock token
+        addFileTimes(m, c.path());                           // created/modified from filesystem attrs
         m.put("content", c.content());
         return m;
+    }
+
+    /** Add ISO-8601 {@code created}/{@code modified} from the file's attributes ({@code null} if unavailable). */
+    private static void addFileTimes(Map<String, Object> m, Path p) {
+        String created = null, modified = null;
+        try {
+            var attrs = java.nio.file.Files.readAttributes(p, java.nio.file.attribute.BasicFileAttributes.class);
+            created = attrs.creationTime().toInstant().toString();
+            modified = attrs.lastModifiedTime().toInstant().toString();
+        } catch (IOException | UnsupportedOperationException ignored) {
+            // filesystem without creation time, or a transient read error — timestamps are best-effort
+        }
+        m.put("created", created);
+        m.put("modified", modified);
     }
 
     /** {@code GET /components/{type}} — list components of a type (empty when no registry/write root). */
@@ -75,8 +85,11 @@ final class ComponentRoutes implements RouteModule {
         }
     }
 
-    /** {@code GET /components/{type}/{id}} — one component; 404 if absent. */
-    private Object componentById(ApiContext api, String type, String id) {
+    /**
+     * {@code GET /components/{type}/{id}} — one component; 404 if absent. Carries a strong {@code ETag}
+     * (= the content hash); a matching {@code If-None-Match} yields {@code 304} (W3 caching).
+     */
+    private Object componentById(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String type, String id) throws IOException {
         Path root = componentRootOrNull(api);
         ComponentRegistry.Component c;
         try {
@@ -85,25 +98,43 @@ final class ComponentRoutes implements RouteModule {
             throw new ApiException(400, e.getMessage());
         }
         if (c == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        String etag = ETags.of(ContentHash.of(c.content()));
+        if (ETags.isFresh(ex, etag)) return ETags.notModified(ex, etag);
+        ETags.set(ex, etag);
         return componentDoc(c);
     }
 
     /** {@code POST /components/{type}} — create a component (id from body {@code id}/{@code name}); 409 if it exists. */
-    private Object createComponent(ApiContext api, String type, Map<String, Object> body) throws IOException {
+    private Object createComponent(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String type, Map<String, Object> body) throws IOException {
         ComponentStore store = componentStore(api);
         String id = ApiContext.str(body, "id");
         if (id == null || id.isBlank()) id = ApiContext.str(body, "name");
         if (id == null || id.isBlank()) throw new ApiException(400, "body must include 'id' (or 'name')");
         if (componentExists(store, type, id))
             throw new ApiException(409, type + " component '" + id + "' already exists (use PUT to update)");
-        return writeComponent(store, type, id, body);
+        return writeComponent(store, ex, type, id, body);
     }
 
-    /** {@code PUT /components/{type}/{id}} — create or replace a component; 404 if absent. */
-    private Object updateComponent(ApiContext api, String type, String id, Map<String, Object> body) throws IOException {
+    /**
+     * {@code PUT /components/{type}/{id}} — replace a component; 404 if absent. Honours an optional
+     * {@code If-Match} precondition against the current content hash → {@code 409 CONFLICT_STALE_VERSION}
+     * on a stale write (W3 optimistic locking).
+     */
+    private Object updateComponent(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String type, String id, Map<String, Object> body) throws IOException {
         ComponentStore store = componentStore(api);
-        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
-        return writeComponent(store, type, id, body);
+        ComponentRegistry.Component current = existing(store, type, id);
+        if (current == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        ETags.requireMatch(ex, ETags.of(ContentHash.of(current.content())));
+        return writeComponent(store, ex, type, id, body);
+    }
+
+    /** The current component or {@code null}; maps a bad type to the standard 400. */
+    private static ComponentRegistry.Component existing(ComponentStore store, String type, String id) {
+        try {
+            return store.get(type, id).orElse(null);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        }
     }
 
     /** {@code DELETE /components/{type}/{id}} — safe-delete; 404 if absent, 409 if a flow references it. */
@@ -226,13 +257,15 @@ final class ComponentRoutes implements RouteModule {
         }
     }
 
-    /** Write a component: the body is the content (the routing-only {@code id} key is stripped); 422 on bad input. */
-    private Object writeComponent(ComponentStore store, String type, String id, Map<String, Object> body) throws IOException {
+    /** Write a component: the body is the content (the routing-only {@code id} key is stripped); 422 on bad input.
+     *  The written resource's new {@code ETag} rides the response so a client can chain a conditional update. */
+    private Object writeComponent(ComponentStore store, com.sun.net.httpserver.HttpExchange ex, String type, String id, Map<String, Object> body) throws IOException {
         Map<String, Object> content = new LinkedHashMap<>(body);
         content.remove("id");   // routing key, not content (the store stamps name=id)
         try {
             ComponentRegistry.Component c = store.write(type, id, content);
             log.info("[COMPONENT-WRITE] wrote {}", c.ref());
+            ETags.set(ex, ETags.of(ContentHash.of(c.content())));
             return componentDoc(c);
         } catch (IllegalArgumentException e) {
             throw new ApiException(422, e.getMessage());

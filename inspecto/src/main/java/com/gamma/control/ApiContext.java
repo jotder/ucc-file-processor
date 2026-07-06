@@ -27,6 +27,32 @@ interface ApiContext {
     /** Shared response serialiser (default mapper; same output as the dispatcher's JSON writer). */
     ObjectMapper JSON = new ObjectMapper();
 
+    // ── per-exchange attributes set by ControlApi.dispatch (v1 transport spine, v4.8.0) ─────────
+    /** Marks a request that arrived under {@code /api/v1} — responses get the {@link Envelope}. */
+    String ATTR_V1             = "inspecto.v1";
+    /** The request's correlation id (caller-supplied {@code Correlation-ID} header, or issued). */
+    String ATTR_CORRELATION_ID = "inspecto.correlationId";
+    /** {@code System.nanoTime()} at dispatch start (v1 {@code metadata.durationMs}). */
+    String ATTR_START_NANOS    = "inspecto.startNanos";
+    /** The original request path incl. the {@code /api/v1} prefix (v1 {@code links.self}). */
+    String ATTR_SELF_PATH      = "inspecto.selfPath";
+    /** A specific {@link ErrorCodes} value chosen by the throwing site (else derived from status). */
+    String ATTR_ERROR_CODE     = "inspecto.errorCode";
+
+    /** JSON bodies at or above this size are gzipped when the client sent {@code Accept-Encoding: gzip}. */
+    int GZIP_MIN_BYTES = 1024;
+
+    /** True when this request arrived under the {@code /api/v1} prefix (v1 envelope semantics). */
+    static boolean v1(HttpExchange ex) {
+        return Boolean.TRUE.equals(ex.getAttribute(ATTR_V1));
+    }
+
+    /** The request's correlation id (set by dispatch on every request), or {@code null} pre-dispatch. */
+    static String correlationId(HttpExchange ex) {
+        Object v = ex.getAttribute(ATTR_CORRELATION_ID);
+        return v == null ? null : v.toString();
+    }
+
     void get(String pattern, Handler h);
 
     void post(String pattern, Handler h);
@@ -109,13 +135,31 @@ interface ApiContext {
         }
     }
 
-    /** Write {@code body} as JSON with an explicit status (e.g. a 422 with a findings payload); returns {@link #HANDLED}. */
+    /** Write {@code body} as JSON with an explicit status (e.g. a 422 with a findings payload); returns
+     *  {@link #HANDLED}. A {@code /api/v1} request gets the {@link Envelope} shaping (legacy bodies are
+     *  byte-for-byte unchanged); bodies ≥ {@link #GZIP_MIN_BYTES} are gzipped when the client accepts it. */
     static Object respondJson(HttpExchange ex, int status, Object body) throws IOException {
-        byte[] bytes = JSON.writeValueAsBytes(body);
+        Object payload = v1(ex) ? Envelope.shape(ex, status, body) : body;
+        byte[] bytes = JSON.writeValueAsBytes(payload);
         ex.getResponseHeaders().set("Content-Type", "application/json");
+        bytes = maybeGzip(ex, bytes);
         ex.sendResponseHeaders(status, bytes.length);
         ex.getResponseBody().write(bytes);
         return HANDLED;
+    }
+
+    /** Gzip {@code bytes} (setting {@code Content-Encoding}) when large enough and the client
+     *  negotiated it via {@code Accept-Encoding: gzip}; otherwise return them untouched. */
+    private static byte[] maybeGzip(HttpExchange ex, byte[] bytes) throws IOException {
+        if (bytes.length < GZIP_MIN_BYTES) return bytes;
+        String accept = ex.getRequestHeaders().getFirst("Accept-Encoding");
+        if (accept == null || !accept.toLowerCase(java.util.Locale.ROOT).contains("gzip")) return bytes;
+        var out = new java.io.ByteArrayOutputStream(Math.max(64, bytes.length / 4));
+        try (var gz = new java.util.zip.GZIPOutputStream(out)) {
+            gz.write(bytes);
+        }
+        ex.getResponseHeaders().set("Content-Encoding", "gzip");
+        return out.toByteArray();
     }
 
     /** Write {@code text} with an explicit {@code Content-Type} (e.g. {@code text/csv}); returns {@link #HANDLED}. */

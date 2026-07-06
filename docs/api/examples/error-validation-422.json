@@ -1,0 +1,19 @@
+{
+  "error": {
+    "errorCode": "CONFIG_VALIDATION_FAILED",
+    "message": "config has ERROR-level findings; not written",
+    "recoverable": true,
+    "correlationId": "3f9a2c9e-6b1d-4f6a-9c2e-8f1d2b3c4d5e",
+    "details": {
+      "type": "pipeline",
+      "written": false,
+      "findings": [
+        {
+          "severity": "ERROR",
+          "field": "processing.ingester",
+          "message": "a plugin ingester requires processing.schemas segments"
+        }
+      ]
+    }
+  }
+}

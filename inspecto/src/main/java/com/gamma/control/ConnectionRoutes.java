@@ -54,11 +54,11 @@ final class ConnectionRoutes implements RouteModule {
 
     /** {@code POST /connections} — create a new connection profile (write-root gated); 409 if the id exists. */
     private Object createConnection(ApiContext api, Map<String, Object> body) throws IOException {
-        requireWriteRoot(api);
+        WriteGates.requireWriteRoot(api, "connection write");
         String id = ApiContext.str(body, "id");
         if (id == null) throw new ApiException(400, "body must include 'id'");
-        if (api.service().connection(id).isPresent())
-            throw new ApiException(409, "connection '" + id + "' already exists (use PUT to update)");
+        WriteGates.conflictIf(api.service().connection(id).isPresent(),
+                "connection '" + id + "' already exists (use PUT to update)");
         ConnectionProfile p = connectionFromBody(id, body, null);
         persistConnection(api, p);
         return p.toMap();
@@ -66,7 +66,7 @@ final class ConnectionRoutes implements RouteModule {
 
     /** {@code PUT /connections/{id}} — replace a profile (masked secrets preserved); 404 if unknown. */
     private Object updateConnection(ApiContext api, String id, Map<String, Object> body) throws IOException {
-        requireWriteRoot(api);
+        WriteGates.requireWriteRoot(api, "connection write");
         ConnectionProfile existing = api.service().connection(id)
                 .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
         ConnectionProfile p = connectionFromBody(id, body, existing);
@@ -76,30 +76,21 @@ final class ConnectionRoutes implements RouteModule {
 
     /** {@code DELETE /connections/{id}} — remove a profile; 404 if unknown, 409 if a pipeline source uses it. */
     private Object deleteConnection(ApiContext api, String id) throws IOException {
-        requireWriteRoot(api);
+        WriteGates.requireWriteRoot(api, "connection write");
         if (api.service().connection(id).isEmpty())
             throw new ApiException(404, "no connection profile '" + id + "'");
-        if (api.service().connectionInUse(id))
-            throw new ApiException(409, "connection '" + id + "' is in use by a pipeline source");
+        WriteGates.conflictIf(api.service().connectionInUse(id),
+                "connection '" + id + "' is in use by a pipeline source");
         boolean removed = Files.deleteIfExists(connectionFile(api, id));
         api.service().unregisterConnection(id);
         return Map.of("id", id, "deleted", true, "fileRemoved", removed);
     }
 
-    private void requireWriteRoot(ApiContext api) {
-        if (api.writeRoot() == null)
-            throw new ApiException(503, "connection write disabled: set -Dassist.write.root to enable");
-    }
-
     /** The jailed {@code <id>_connection.toon} path under the write root; 422 on an unsafe id, 403 on escape. */
     private Path connectionFile(ApiContext api, String id) {
-        String safe = id.trim();
-        if (safe.contains("..") || !safe.matches("[A-Za-z0-9][A-Za-z0-9._-]*"))
-            throw new ApiException(422, "unsafe connection id '" + id + "' (allowed: letters, digits, '.', '_', '-')");
+        String safe = WriteGates.safeName(id, "connection id");
         Path root = api.writeRoot();
-        Path target = root.resolve(safe + "_connection.toon").normalize();
-        if (!target.startsWith(root)) throw new ApiException(403, "resolved path escapes the write root");
-        return target;
+        return WriteGates.jail(root, root.resolve(safe + "_connection.toon"), "resolved path");
     }
 
     /**

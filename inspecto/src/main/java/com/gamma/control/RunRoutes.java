@@ -105,17 +105,14 @@ final class RunRoutes implements RouteModule {
      * {@link SourceService.PipelineView} is returned.
      */
     private Object createPipeline(ApiContext api, HttpExchange ex, Map<String, Object> body) throws IOException {
-        Path writeRoot = api.writeRoot();
-        if (writeRoot == null)
-            throw new ApiException(503, "pipeline registration disabled: set -Dassist.write.root to enable");
+        Path writeRoot = WriteGates.requireWriteRoot(api, "pipeline registration");
         String configPath = ApiContext.str(body, "configPath");
         if (configPath == null || configPath.isBlank())
             throw new ApiException(400, "body must include 'configPath'");
 
         Path candidate = Path.of(configPath.trim());
-        Path resolved = (candidate.isAbsolute() ? candidate : writeRoot.resolve(candidate)).normalize();
-        if (!resolved.startsWith(writeRoot))
-            throw new ApiException(403, "configPath escapes the write root");
+        Path resolved = WriteGates.jail(writeRoot,
+                candidate.isAbsolute() ? candidate : writeRoot.resolve(candidate), "configPath");
         if (!Files.isRegularFile(resolved))
             throw new ApiException(404, "no config file at "
                     + writeRoot.relativize(resolved).toString().replace('\\', '/'));

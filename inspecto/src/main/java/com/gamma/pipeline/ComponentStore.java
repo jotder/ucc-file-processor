@@ -32,8 +32,14 @@ import java.util.regex.Pattern;
 @PublicApi(since = "4.3.0")
 public final class ComponentStore {
 
-    /** Component types managed here. {@code connection} is excluded — it has its own secret-aware CRUD. */
-    public static final Set<String> WRITABLE_TYPES = Set.of("grammar", "schema", "transform", "sink");
+    /**
+     * Component types managed here. {@code connection} is excluded — it has its own secret-aware CRUD.
+     * Widened (W3, 2026-07-06) with the Studio metadata kinds {@code dataset}/{@code widget}/{@code dashboard}
+     * so they persist for real instead of being Angular-mock-only (unblocks the backend-backlog items that
+     * all waited on this one set); each has a matching registry dir in {@link ComponentRegistry#TYPE_BY_DIR}.
+     */
+    public static final Set<String> WRITABLE_TYPES =
+            Set.of("grammar", "schema", "transform", "sink", "dataset", "widget", "dashboard");
 
     private static final String TOON = ".toon";
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");

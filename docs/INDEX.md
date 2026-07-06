@@ -54,7 +54,11 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
 - [`plugins.md`](plugins.md) — plugin ingester (segment demux) + execution modes.
 - [`performance.md`](performance.md) — benchmarks & tuning. *(Figures re-measured at v3.9.0 — re-verify before
   quoting.)*
-- [`api-stability.md`](api-stability.md) — API stability / compatibility policy.
+- [`api-stability.md`](api-stability.md) — API stability / compatibility policy (Java embedding API).
+- [`api/`](api/README.md) — **machine-readable v1 HTTP contract**: `openapi-v1.json` (envelope, error-code
+  catalog, Signal, exemplar paths) + canonical `examples/`, enforced by `ApiContractTest` against
+  `ErrorCodes.java` and the live server. Authoring workflow in its README; design in
+  [`superpower/api-contract-design.md`](superpower/api-contract-design.md).
 
 ## Architecture & design
 
@@ -116,6 +120,13 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
   (Data / Signal / Decision / Execution / Metadata / Presentation / Security) over one Component
   metamodel; Everything-is-Metadata coverage map; Queries/Parameters/Result-Sets;
   rework roadmap **R1 (shipped) → R6**; proposed vocabulary pending GLOSSARY adoption.
+- [`superpower/api-contract-design.md`](superpower/api-contract-design.md) — **API Contracts v1 (design,
+  2026-07-06)**: the Control API redesigned as stable, versioned business contracts — `/api/v1` + bounded
+  contexts, response envelope + error-code catalog, bootstrap/metadata-first, capability-based per-resource
+  permissions, query/Result-Set wire contract, ETag = `contentHash`, 202+Run async, and the WSO2/Keycloak
+  gateway split for Standard. Point-by-point map of the product owner's 33 API guidelines + the
+  W1–W7 Standard-edition implementation worklog. **Design only — no code shipped.** HTTP counterpart of
+  [`api-stability.md`](api-stability.md).
 
 ## Strategy & roadmap (stakeholder-facing)
 

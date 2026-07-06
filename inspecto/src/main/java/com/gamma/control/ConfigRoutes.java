@@ -91,9 +91,7 @@ final class ConfigRoutes implements RouteModule {
     }
 
     private Object writeConfig(ApiContext api, HttpExchange ex, Map<String, Object> body) throws IOException {
-        Path writeRoot = api.writeRoot();
-        if (writeRoot == null)
-            throw new ApiException(503, "config write disabled: set -Dassist.write.root to enable");
+        Path writeRoot = WriteGates.requireWriteRoot(api, "config write");
 
         String type = ApiContext.str(body, "type");
         Object cfgObj = body.get("config");
@@ -120,10 +118,7 @@ final class ConfigRoutes implements RouteModule {
         String rawName = dottedString(draft, idField);
         if (rawName == null || rawName.isBlank())
             throw new ApiException(422, "config is missing its identity field '" + idField + "'");
-        String fileName = rawName.trim();
-        if (fileName.contains("..") || !fileName.matches("[A-Za-z0-9][A-Za-z0-9._-]*"))
-            throw new ApiException(422,
-                    "unsafe config name '" + rawName + "' (allowed: letters, digits, '.', '_', '-')");
+        String fileName = WriteGates.safeName(rawName, "config name");
 
         // Resolve under the write root; an optional subdir must stay inside it (path jail).
         Path dir = writeRoot;
@@ -131,17 +126,15 @@ final class ConfigRoutes implements RouteModule {
         if (subdir != null && !subdir.isBlank()) {
             Path sub = Path.of(subdir.trim());
             if (sub.isAbsolute()) throw new ApiException(400, "subdir must be relative");
-            dir = writeRoot.resolve(sub).normalize();
-            if (!dir.startsWith(writeRoot)) throw new ApiException(403, "subdir escapes the write root");
+            dir = WriteGates.jail(writeRoot, writeRoot.resolve(sub), "subdir");
         }
-        Path target = dir.resolve(fileName + ".toon").normalize();
-        if (!target.startsWith(writeRoot)) throw new ApiException(403, "resolved path escapes the write root");
+        Path target = WriteGates.jail(writeRoot, dir.resolve(fileName + ".toon"), "resolved path");
 
         boolean exists = Files.exists(target);
         boolean overwrite = "true".equalsIgnoreCase(String.valueOf(body.get("overwrite")));
-        if (exists && !overwrite)
-            throw new ApiException(409, "file exists: " + writeRoot.relativize(target).toString().replace('\\', '/')
-                    + " (pass overwrite:true to replace)");
+        WriteGates.conflictIf(exists && !overwrite,
+                "file exists: " + writeRoot.relativize(target).toString().replace('\\', '/')
+                        + " (pass overwrite:true to replace)");
 
         // Encode and write atomically: a partial/concurrent reader never sees a half-written file.
         byte[] bytes = ConfigCodec.toToon(draft).getBytes(StandardCharsets.UTF_8);

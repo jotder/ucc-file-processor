@@ -46,7 +46,10 @@ public final class ComponentRegistry {
             "grammars", "grammar",
             "schemas", "schema",
             "transforms", "transform",   // new: extracted DataTransformer settings
-            "sinks", "sink");            // new: extracted Output settings
+            "sinks", "sink",             // new: extracted Output settings
+            "datasets", "dataset",       // W3: Studio metadata kinds now persist (ComponentStore.WRITABLE_TYPES)
+            "widgets", "widget",
+            "dashboards", "dashboard");
 
     /** The on-disk sub-directory (plural) for a component {@code type} (e.g. {@code grammar} → {@code grammars}). */
     public static Optional<String> dirForType(String type) {
