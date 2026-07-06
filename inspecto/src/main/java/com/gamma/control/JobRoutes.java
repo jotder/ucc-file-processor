@@ -31,7 +31,8 @@ final class JobRoutes implements RouteModule {
         // /jobs/runs/, so it never collides with the exact /jobs/runs or the /jobs/{name}/runs history route.
         api.get("/jobs/runs/([^/]+)", (e, m) -> runById(api, ApiContext.name(m)));
         api.get("/jobs/([^/]+)/runs", (e, m) -> jobs(api).runsFor(ApiContext.name(m)));
-        api.post("/jobs/([^/]+)/trigger", (e, m) -> triggerJob(api, e, ApiContext.name(m)));
+        // Requires canOperateRuns (W6; a no-op on Personal — no Subject is ever attached there).
+        api.post("/jobs/([^/]+)/trigger", ApiContext.withCapability("canOperateRuns", (e, m) -> triggerJob(api, e, ApiContext.name(m))));
 
         // ── data-plane provenance (T22, §11): per-(node, relationship) record counts of a past flow run,
         // for painting quantities onto the PipelineGraph edges (Sankey). 404 unless -Dprovenance.backend is set. ──

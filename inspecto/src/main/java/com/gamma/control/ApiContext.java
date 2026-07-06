@@ -42,6 +42,10 @@ interface ApiContext {
     String ATTR_IDEMPOTENCY_STORE = "inspecto.idempotency.store";
     /** The idempotency cache key for this exchange (present only for a keyed write). */
     String ATTR_IDEMPOTENCY_KEY   = "inspecto.idempotency.key";
+    /** The authenticated {@link Subject} (W6), set by {@link ControlApi#dispatch} once an
+     *  {@link Authenticator} validates the request; absent on Personal edition (no Authenticator present)
+     *  and on the public bootstrap/health surface. */
+    String ATTR_SUBJECT           = "inspecto.subject";
 
     /** JSON bodies at or above this size are gzipped when the client sent {@code Accept-Encoding: gzip}. */
     int GZIP_MIN_BYTES = 1024;
@@ -55,6 +59,31 @@ interface ApiContext {
     static String correlationId(HttpExchange ex) {
         Object v = ex.getAttribute(ATTR_CORRELATION_ID);
         return v == null ? null : v.toString();
+    }
+
+    /** The authenticated {@link Subject}, when {@link ControlApi#dispatch} resolved one for this request
+     *  (W6: Standard edition, security module present). Empty on Personal edition. */
+    static java.util.Optional<Subject> subject(HttpExchange ex) {
+        return ex.getAttribute(ATTR_SUBJECT) instanceof Subject s ? java.util.Optional.of(s) : java.util.Optional.empty();
+    }
+
+    /** AuthZ gate (W6): when a {@link Subject} is attached (Standard edition, authenticated request) it
+     *  must carry {@code capability}, else {@code 403 PERMISSION_DENIED}. A no-op on Personal edition — no
+     *  {@link Authenticator} is ever present there, so no {@link Subject} is ever attached and every route
+     *  stays open, unchanged. */
+    static void requireCapability(HttpExchange ex, String capability) {
+        if (ex.getAttribute(ATTR_SUBJECT) instanceof Subject s && !s.capabilities().contains(capability))
+            throw new ApiException(403, ErrorCodes.PERMISSION_DENIED, "missing capability '" + capability + "'");
+    }
+
+    /** Wrap {@code h} so it first runs the {@link #requireCapability} gate for {@code capability} — the
+     *  one-line opt-in a write route uses to declare "this action needs X" (W6, guideline 13: capability
+     *  verbs, never roles). Route registration otherwise unchanged. */
+    static Handler withCapability(String capability, Handler h) {
+        return (ex, m) -> {
+            requireCapability(ex, capability);
+            return h.handle(ex, m);
+        };
     }
 
     void get(String pattern, Handler h);
@@ -81,9 +110,12 @@ interface ApiContext {
      *  Used by query execution to resolve a dataset's {@code physicalRef} to its at-rest Parquet (W4). */
     Path dataRoot();
 
-    /** The acting identity for the audit trail. Auth-free core has no session, so the actor defaults to
-     *  {@code appUser}; an edition's security module supplies the real principal via {@code X-Actor}. */
+    /** The acting identity for the audit trail. When the security module authenticated this request
+     *  (W6), the resolved {@link Subject}'s id is authoritative. Otherwise (Personal edition, or a public
+     *  route no {@link Authenticator} ran on) the actor is the caller-supplied {@code X-Actor} header,
+     *  defaulting to {@code appUser} — the historic auth-free behaviour, unchanged. */
     static String actor(HttpExchange ex) {
+        if (ex.getAttribute(ATTR_SUBJECT) instanceof Subject s) return s.id();
         String a = ex.getRequestHeaders().getFirst("X-Actor");
         return (a == null || a.isBlank()) ? "appUser" : a.trim();
     }

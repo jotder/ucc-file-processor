@@ -37,6 +37,21 @@
         <module>inspecto-connectors</module>
     </modules>
 
+    <!--
+        Edition assembly (docs/EDITIONS.md): inspecto-security (W6 — the Authenticator SPI's OIDC
+        implementation) is Standard-edition-only. It is NOT in the default <modules> above, so a
+        routine "mvn -o clean test" (Personal) never compiles/tests it and never resolves its new
+        Nimbus JOSE+JWT dependency. Build it explicitly with "mvn -o clean test -Pedition-standard".
+    -->
+    <profiles>
+        <profile>
+            <id>edition-standard</id>
+            <modules>
+                <module>inspecto-security</module>
+            </modules>
+        </profile>
+    </profiles>
+
     <properties>
         <!-- Target JDK 24. Uses `release` so the build cannot accidentally rely on a newer JDK's API
              than the target. NOTE: the lean ETL core (file-processor) runs on JDK 24 cleanly. The

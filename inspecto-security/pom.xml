@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>file-processor-security</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Inspecto — security module (Standard edition, optional)</name>
+    <description>
+        OPTIONAL Standard-edition Authenticator (W6, docs/EDITIONS.md "Security direction"): an OIDC
+        resource server that validates IAM-issued (Keycloak/WSO2/Okta/Entra) JWTs via Nimbus JOSE+JWT
+        + JWKS and resolves claims -> Roles -> Capabilities (docs/superpower/rbac-groundwork.md).
+        Discovered by the core's ServiceLoader seam (com.gamma.control.Authenticator) -- dropping THIS
+        jar on the classpath (+ -Dauth.oidc.issuer / -Dauth.oidc.jwksUri) is what turns authentication
+        on. The Personal edition never bundles it and stays auth-free -- exactly how inspecto-connectors
+        and inspecto-agent-hosted isolate their own optional dependencies from the lean core. Only built
+        as part of the reactor under the "edition-standard" profile (see the parent pom's profile-scoped
+        &lt;modules&gt;), so a routine "mvn -o clean test" (Personal) never touches this module at all.
+    </description>
+
+    <properties>
+        <nimbus-jose-jwt.version>10.9.1</nimbus-jose-jwt.version>
+    </properties>
+
+    <dependencies>
+        <!-- The core: the Authenticator SPI + Subject. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- JOSE/JWT signature verification + JWKS (Apache 2.0). Confined to this module. -->
+        <dependency>
+            <groupId>com.nimbusds</groupId>
+            <artifactId>nimbus-jose-jwt</artifactId>
+            <version>${nimbus-jose-jwt.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

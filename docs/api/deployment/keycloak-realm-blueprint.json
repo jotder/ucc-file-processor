@@ -1,0 +1,71 @@
+{
+  "_comment": "ILLUSTRATIVE STARTING POINT (docs/api/deployment/README.md) — a partial Keycloak realm export. Import via the admin console (Realm settings > Action > Partial import) or `kcadm.sh create realms -f this-file.json`, then fill in real users/LDAP federation. Role names below are exactly what inspecto-security's RoleMapper (rbac-groundwork.md §3) understands.",
+
+  "realm": "inspecto",
+  "enabled": true,
+  "sslRequired": "external",
+
+  "roles": {
+    "realm": [
+      { "name": "business", "description": "Read-only + Requirements/Reconciliation authoring." },
+      { "name": "pipeline-developer", "description": "canAuthorWorkbench: Connections/Pipelines/Jobs create-edit-delete, pipeline canvas." },
+      { "name": "operations", "description": "canOperateRuns: Runs trigger/pause/resume/reprocess." },
+      { "name": "power", "description": "Union of canAuthorWorkbench + canOperateRuns." },
+      { "name": "admin", "description": "User admin, external-system onboarding (grants beyond the current 3 named capabilities — rbac-groundwork.md §4 open Q1, not yet enforced server-side)." },
+      { "name": "super", "description": "All grants — canAuthorWorkbench + canOperateRuns + canTriageRequirements." }
+    ]
+  },
+
+  "clients": [
+    {
+      "_comment": "Public SPA client — Authorization Code + PKCE, no client secret (a browser app cannot keep one).",
+      "clientId": "inspecto-spa",
+      "name": "Inspecto SPA",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "https://inspecto.internal/*",
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [
+        "https://inspecto.internal",
+        "http://localhost:4200"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://inspecto.internal/*"
+      },
+      "defaultClientScopes": ["openid", "profile", "roles"],
+      "protocolMappers": [
+        {
+          "_comment": "Flattens realm roles into a top-level 'roles' claim (RoleMapper's default `-Dauth.oidc.rolesClaim`). Keycloak's own realm_access.roles nesting is also read as a fallback, so this mapper is convenience, not a hard requirement.",
+          "name": "realm-roles-flat",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "roles",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "userinfo.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "_comment": "The OAuth2 audience the backend checks via -Dauth.oidc.audience=inspecto-api. Not a login client itself — inspecto-spa's tokens carry this audience via an audience mapper (add one on inspecto-spa in a real realm, or use this clientId as the intended audience directly, per Keycloak's client-scope/audience conventions for the deployment at hand).",
+      "clientId": "inspecto-api",
+      "name": "Inspecto Control Plane (resource server audience)",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": true,
+      "protocol": "openid-connect"
+    }
+  ]
+}

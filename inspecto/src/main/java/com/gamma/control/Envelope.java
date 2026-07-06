@@ -11,8 +11,14 @@ import java.util.Map;
  * diagnostics}} — or, for a non-2xx status, into the structured v1 error object
  * {@code {error: {errorCode, message, recoverable, correlationId, details?}}}. Applied only when
  * the request arrived under {@code /api/v1} (dispatch sets {@link ApiContext#ATTR_V1}); legacy
- * (unversioned) responses stay byte-for-byte unchanged. The {@code permissions} envelope block
- * joins with the security module (worklog W6). Contract: docs/superpower/api-contract-design.md §4–5.
+ * (unversioned) responses stay byte-for-byte unchanged. {@code permissions} carries the authenticated
+ * {@link Subject}'s resolved capability grants (W6) and is present only when the security module
+ * attached one (Standard edition, authenticated request); absent on Personal / anonymous requests.
+ * <b>Stated deviation:</b> this is the subject's session-wide grants, not yet the full per-resource ∩
+ * resource-state refinement design §8 describes (e.g. no {@code execute} on an already-disabled job) —
+ * that needs per-context resource logic and is a follow-on; the UI already treats capability signals
+ * identically to today's Lens honor system, so no UI change is needed for this slice. Contract:
+ * docs/superpower/api-contract-design.md §4–5, §8.
  */
 final class Envelope {
     private Envelope() {}
@@ -33,6 +39,7 @@ final class Envelope {
         envelope.put("metadata", metadata);
         if (ex.getAttribute(ApiContext.ATTR_SELF_PATH) instanceof String self)
             envelope.put("links", Map.of("self", self));
+        ApiContext.subject(ex).ifPresent(s -> envelope.put("permissions", java.util.List.copyOf(s.capabilities())));
         envelope.put("diagnostics", Map.of("correlationId", String.valueOf(ApiContext.correlationId(ex))));
         return envelope;
     }

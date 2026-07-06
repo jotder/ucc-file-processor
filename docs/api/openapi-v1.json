@@ -359,6 +359,55 @@
           "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
+    },
+    "/auth/exchange": {
+      "post": {
+        "tags": ["Session & Identity"],
+        "summary": "Redeem an OIDC authorization code (backend-mediated session)",
+        "description": "W6d: the SPA completes Authorization Code + PKCE in the browser, then posts the one-time code here. The backend redeems it against the IAM's token endpoint server-to-server and keeps the refresh token in an httpOnly + SameSite=Strict cookie (inspecto_rt) the page's JavaScript can never read — only the short-lived access token is returned. Public route (a caller redeeming a code has no Bearer token yet); cross-site calls are rejected when -Dauth.origin (or -Dcontrol.cors) is configured. 503 on Personal (no session broker).",
+        "operationId": "exchangeAuthorizationCode",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthExchangeRequest" } } } },
+        "responses": {
+          "200": { "description": "Session established; the refresh cookie rides Set-Cookie.", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/AuthSession" } } }
+          ] } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "503": { "$ref": "#/components/responses/SessionUnavailable" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Session & Identity"],
+        "summary": "Mint a fresh access token from the session cookie",
+        "description": "Reads the httpOnly refresh cookie, redeems it at the IAM, rotates the cookie, and returns the new access token. A rejected (expired/revoked) session is a 401 with the cookie cleared. 503 on Personal.",
+        "operationId": "refreshSession",
+        "responses": {
+          "200": { "description": "Fresh access token; the rotated refresh cookie rides Set-Cookie.", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "$ref": "#/components/schemas/AuthSession" } } }
+          ] } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "503": { "$ref": "#/components/responses/SessionUnavailable" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Session & Identity"],
+        "summary": "End the session",
+        "description": "Best-effort revocation of the refresh token at the IAM, then clears the session cookie. Idempotent — succeeds with or without a live session. 503 on Personal.",
+        "operationId": "logout",
+        "responses": {
+          "200": { "description": "Session ended; the cleared cookie rides Set-Cookie.", "content": { "application/json": { "schema": { "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "properties": { "data": { "type": "object", "required": ["loggedOut"], "properties": { "loggedOut": { "type": "boolean" } } } } }
+          ] } } } },
+          "503": { "$ref": "#/components/responses/SessionUnavailable" }
+        }
+      }
     }
   },
   "components": {
@@ -376,6 +425,25 @@
       "Correlation-ID": { "schema": { "type": "string" }, "description": "The request's correlation id (issued or echoed). Present on every response, legacy surface included." }
     },
     "schemas": {
+      "AuthExchangeRequest": {
+        "type": "object",
+        "description": "The browser-side PKCE artifacts (W6d). The code is one-time; the verifier proves this client started the flow; the redirectUri must equal the one used on the authorize request.",
+        "required": ["code", "codeVerifier", "redirectUri"],
+        "properties": {
+          "code": { "type": "string" },
+          "codeVerifier": { "type": "string" },
+          "redirectUri": { "type": "string" }
+        }
+      },
+      "AuthSession": {
+        "type": "object",
+        "description": "The browser-visible half of the session: the short-lived access token only. The refresh token stays in the httpOnly inspecto_rt cookie and never appears in a body.",
+        "required": ["accessToken", "expiresIn"],
+        "properties": {
+          "accessToken": { "type": "string" },
+          "expiresIn": { "type": "integer", "description": "Access-token lifetime in seconds." }
+        }
+      },
       "Envelope": {
         "type": "object",
         "description": "The v1 success envelope (design §4). 'permissions' (per-resource capability verbs) joins with the W6 security module — additive.",
@@ -384,6 +452,7 @@
           "data": { "description": "The operation's result DTO (object or array)." },
           "metadata": { "$ref": "#/components/schemas/EnvelopeMetadata" },
           "links": { "$ref": "#/components/schemas/Links" },
+          "permissions": { "type": "array", "items": { "type": "string" }, "description": "The authenticated subject's resolved capability grants (W6, guideline 13 — verbs, never roles). Present only when the security module attached a Subject (Standard edition, authenticated request); absent on Personal / anonymous requests." },
           "diagnostics": { "$ref": "#/components/schemas/Diagnostics" }
         }
       },
@@ -455,7 +524,7 @@
       },
       "ErrorCode": {
         "type": "string",
-        "description": "Machine-readable code catalog — kept in lockstep with com.gamma.control.ErrorCodes (pinned by ApiContractTest). PERMISSION_DENIED/UNAUTHENTICATED/THROTTLED join with W6/the gateway.",
+        "description": "Machine-readable code catalog — kept in lockstep with com.gamma.control.ErrorCodes (pinned by ApiContractTest). THROTTLED is gateway-only (WSO2), never emitted by the backend, so it is not listed here.",
         "enum": [
           "MALFORMED_REQUEST",
           "NOT_FOUND",
@@ -466,7 +535,9 @@
           "CONFIG_VALIDATION_FAILED",
           "INTERNAL",
           "CONTROL_PLANE_READ_ONLY",
-          "CAPABILITY_UNAVAILABLE"
+          "CAPABILITY_UNAVAILABLE",
+          "UNAUTHENTICATED",
+          "PERMISSION_DENIED"
         ]
       },
       "Finding": {
@@ -667,7 +738,9 @@
       "ValidationFailed": { "description": "Spec/safety validation failed (CONFIG_VALIDATION_FAILED); error.details carries the findings.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
       "WriteDisabled": { "description": "Config writes are disabled — -Dassist.write.root unset (CONTROL_PLANE_READ_ONLY).", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
       "NotModified": { "description": "Resource unchanged since the client's cached copy (If-None-Match matched the current ETag) — 304, no body." },
-      "StaleVersion": { "description": "An If-Match write precondition failed — the resource changed since it was read (CONFLICT_STALE_VERSION); re-read and retry.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+      "StaleVersion": { "description": "An If-Match write precondition failed — the resource changed since it was read (CONFLICT_STALE_VERSION); re-read and retry.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "Unauthenticated": { "description": "Missing or invalid credentials (UNAUTHENTICATED) — Standard edition only; Personal never emits it.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "SessionUnavailable": { "description": "No session broker on this edition (CAPABILITY_UNAVAILABLE) — the /auth/* routes are live only when the Standard security module is bundled.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
     },
     "securitySchemes": {
       "oidc": {

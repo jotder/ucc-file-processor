@@ -21,12 +21,17 @@ final class ErrorCodes {
     static final String CONTROL_PLANE_READ_ONLY  = "CONTROL_PLANE_READ_ONLY";
     /** 503 — an optional module (e.g. the assist agent) is not on the classpath. */
     static final String CAPABILITY_UNAVAILABLE   = "CAPABILITY_UNAVAILABLE";
+    /** 401 — missing/invalid credentials (Standard edition; the security module, W6). */
+    static final String UNAUTHENTICATED          = "UNAUTHENTICATED";
+    /** 403 — an authenticated subject lacks the capability a route requires (Standard edition, W6). */
+    static final String PERMISSION_DENIED        = "PERMISSION_DENIED";
 
     /** The contract's default code for a status ({@code errorCode} is never absent on a v1 error). */
     static String defaultFor(int status) {
         return switch (status) {
             case 400 -> MALFORMED_REQUEST;
-            case 403 -> PATH_JAIL_VIOLATION;   // the core's only 403; the security module adds PERMISSION_DENIED
+            case 401 -> UNAUTHENTICATED;
+            case 403 -> PATH_JAIL_VIOLATION;   // the core's structural 403; the security module also throws PERMISSION_DENIED explicitly
             case 404 -> NOT_FOUND;
             case 405 -> METHOD_NOT_ALLOWED;
             case 409 -> CONFLICT;

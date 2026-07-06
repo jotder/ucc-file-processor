@@ -26,10 +26,11 @@ final class ConnectionRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/connections", (e, m) -> connectionList(api));
-        api.post("/connections", (e, m) -> createConnection(api, api.body(e)));
+        // Writes require canAuthorWorkbench (W6; a no-op on Personal — no Subject is ever attached there).
+        api.post("/connections", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> createConnection(api, api.body(e))));
         api.post("/connections/([^/]+)/test", (e, m) -> testConnection(api, ApiContext.name(m)));
-        api.put("/connections/([^/]+)", (e, m) -> updateConnection(api, ApiContext.name(m), api.body(e)));
-        api.delete("/connections/([^/]+)", (e, m) -> deleteConnection(api, ApiContext.name(m)));
+        api.put("/connections/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> updateConnection(api, ApiContext.name(m), api.body(e))));
+        api.delete("/connections/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> deleteConnection(api, ApiContext.name(m))));
         api.get("/connections/([^/]+)", (e, m) -> connectionById(api, ApiContext.name(m)));
     }
 

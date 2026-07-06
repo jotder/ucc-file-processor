@@ -1,0 +1,71 @@
+# WSO2 API Manager project descriptor (apictl-importable: `apictl import-api -f .` from a directory
+# containing this as `api.yaml` plus `Definitions/swagger.yaml` = a copy of ../openapi-v1.json).
+#
+# ILLUSTRATIVE STARTING POINT (docs/api/deployment/README.md) — adapt names/hosts/policies to the
+# real deployment; exact field support varies across WSO2 API Manager versions. The gateway is
+# transport-only (api-contract-design.md §8): routing, throttling, CORS, and an OAuth2 pre-check.
+# It never re-validates business rules — that stays backend-only.
+
+id:
+  apiName: Inspecto Control Plane
+  version: v1
+  providerName: admin
+
+name: Inspecto Control Plane
+context: /inspecto
+version: v1
+provider: admin
+lifeCycleStatus: PUBLISHED
+
+# The OpenAPI 3.1 contract this API is generated from (docs/api/openapi-v1.json). Import as
+# Definitions/swagger.yaml alongside this file so apictl derives operations from it directly,
+# rather than duplicating every path/method here.
+type: HTTP
+
+endpointConfig:
+  endpoint_type: http
+  production_endpoints:
+    url: https://inspecto-backend.internal:8443/api/v1
+  sandbox_endpoints:
+    url: https://inspecto-backend-staging.internal:8443/api/v1
+
+# AuthN at the edge: WSO2 validates the same Keycloak-issued OAuth2/OIDC token (fast pre-check —
+# introspection or local JWT validation) before proxying upstream. The backend re-validates
+# independently (defense in depth, §8) — a gateway bypass or misconfiguration never grants access.
+securityScheme:
+  - oauth2
+
+# WSO2 enforces throttling/rate limiting; the backend does not (§8 table — "Rate limiting / IP
+# filtering / analytics: gateway only"). Tiers are illustrative — size per real traffic.
+policies:
+  - Unlimited
+  - Bronze
+  - Silver
+  - Gold
+
+# Dev/CORS is a `-Dcontrol.cors` flag on the backend for local development only; in Standard,
+# production CORS policy belongs at the gateway (§8), not the app.
+corsConfiguration:
+  corsConfigurationEnabled: true
+  accessControlAllowOrigins:
+    - https://inspecto.internal
+  accessControlAllowCredentials: true
+  accessControlAllowHeaders:
+    - Authorization
+    - Content-Type
+    - Correlation-ID
+    - Idempotency-Key
+    - If-Match
+    - If-None-Match
+  accessControlAllowMethods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+
+# Every response already carries Correlation-ID (v1 contract) end-to-end; WSO2's own request-id
+# header can be mapped to it in an API-level mediation policy if gateway-side tracing is wanted —
+# not required, since the backend issues one when absent.
+additionalProperties:
+  correlationIdHeader: Correlation-ID

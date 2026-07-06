@@ -45,7 +45,8 @@ final class ConfigRoutes implements RouteModule {
             return spec;
         });
         api.post("/validate", (e, m) -> validate(api.body(e)));
-        api.post("/config/write", (e, m) -> writeConfig(api, e, api.body(e)));
+        // Requires canAuthorWorkbench (W6; a no-op on Personal — no Subject is ever attached there).
+        api.post("/config/write", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> writeConfig(api, e, api.body(e))));
     }
 
     private Object validate(Map<String, Object> body) throws IOException {

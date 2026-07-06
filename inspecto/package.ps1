@@ -1,7 +1,15 @@
 # package.ps1 — Build and bundle file-processor for remote server deployment.
 #
 # Usage (run from inside inspecto/ or from the sandbox root):
-#   powershell -ExecutionPolicy Bypass -File inspecto\package.ps1 [-NoBuild]
+#   powershell -ExecutionPolicy Bypass -File inspecto\package.ps1 [-NoBuild] [-Edition Standard]
+#
+# -Edition Standard (default: Personal) additionally builds inspecto-security (W6, the OIDC
+# Authenticator SPI implementation) and bundles it as file-processor-security.jar; serve.sh/
+# serve.bat auto-detect its presence, add it to the classpath, and turn on -Dauth.mode=oidc
+# (issuer/JWKS/audience from AUTH_OIDC_* env vars — never baked into the bundle). NOTE: the
+# embedded jlink runtime's module set (below) was derived from the Personal-only jar via jdeps;
+# it has not been re-verified against inspecto-security's transitive deps (Nimbus JOSE+JWT) — a
+# Standard bundle should pass -NoRuntime and supply system Java 24+ until that is confirmed.
 #
 # Output:
 #   file-processor-deploy.zip  (in the sandbox root, alongside inbox/ and database/)
@@ -15,7 +23,12 @@
 param(
     [switch]$NoBuild,   # skip mvn build; use existing JAR in target/
     [switch]$NoUi,      # skip the Angular UI build/bundle (inspecto-ui/ is optional)
-    [switch]$NoRuntime  # skip embedding a trimmed Java runtime (target server must then provide Java 24+)
+    [switch]$NoRuntime, # skip embedding a trimmed Java runtime (target server must then provide Java 24+)
+    # Editions are build flavors (docs/EDITIONS.md), never branches. 'Standard' additionally builds
+    # and bundles inspecto-security (W6, the Authenticator SPI's OIDC implementation) alongside the
+    # core jar; serve.sh/serve.bat auto-detect its presence and wire -Dauth.mode=oidc from env vars.
+    [ValidateSet('Personal', 'Standard')]
+    [string]$Edition = 'Personal'
 )
 
 Set-StrictMode -Version Latest
@@ -68,6 +81,26 @@ if (-not $jarSrc -or -not (Test-Path $jarSrc)) {
     throw "JAR not found matching $targetDir\file-processor-*.jar.  Run without -NoBuild or build manually first."
 }
 
+# ── step 1c: Standard edition — build inspecto-security (W6, OIDC Authenticator SPI impl) ──────
+# A separate optional module (docs/EDITIONS.md), NOT in the default reactor <modules> — only built
+# when this profile is requested, from the repo root (it is a sibling of inspecto/, not a submodule).
+$securityJarSrc = $null
+if ($Edition -eq 'Standard') {
+    if (-not $NoBuild) {
+        Write-Host "Building inspecto-security (Standard edition — OIDC Authenticator)..." -ForegroundColor Cyan
+        Push-Location $sandboxRoot
+        & mvn clean package -Pedition-standard -pl inspecto-security -am -DskipTests -q
+        if ($LASTEXITCODE -ne 0) { throw "mvn build of inspecto-security failed" }
+        Pop-Location
+    }
+    $securityTargetDir = Join-Path $sandboxRoot 'inspecto-security\target'
+    $securityJarSrc = Get-ChildItem -Path $securityTargetDir -Filter 'file-processor-security-*.jar' -ErrorAction SilentlyContinue |
+                       Select-Object -First 1 -ExpandProperty FullName
+    if (-not $securityJarSrc -or -not (Test-Path $securityJarSrc)) {
+        throw "Standard edition requested but no JAR found matching $securityTargetDir\file-processor-security-*.jar."
+    }
+}
+
 # ── step 2: create bundle directory ───────────────────────────────────────────
 Write-Host "Assembling bundle at $bundleDir ..." -ForegroundColor Cyan
 if (Test-Path $bundleDir) {
@@ -81,6 +114,10 @@ if (Test-Path $bundleDir) {
 
 # ── step 3: copy JAR (canonical name for deployment) ──────────────────────────
 Copy-Item $jarSrc "$bundleDir\file-processor.jar"
+if ($securityJarSrc) {
+    Copy-Item $securityJarSrc "$bundleDir\file-processor-security.jar"
+    Write-Host "Bundled Standard-edition security module → file-processor-security.jar" -ForegroundColor Green
+}
 
 # ── step 3b: copy the built UI dist → bundle/ui (served by ControlApi via -Dui.dir=./ui) ──
 # Angular emits to ui/dist/<app>[/browser]; locate the folder that actually holds index.html.
@@ -247,9 +284,28 @@ JAVA_OPTS=(--enable-native-access=ALL-UNNAMED "-Dcontrol.port=${PORT}" "-Dspaces
 [ -n "${CONTROL_TOKEN:-}" ] && JAVA_OPTS+=("-Dcontrol.token=${CONTROL_TOKEN}")
 [ -n "${ASSIST_TOKEN:-}" ]  && JAVA_OPTS+=("-Dassist.read.token=${ASSIST_TOKEN}")
 [ -n "${CORS_ORIGIN:-}" ]   && JAVA_OPTS+=("-Dcontrol.cors=${CORS_ORIGIN}")
+[ -n "${HTTPS_KEYSTORE:-}" ]          && JAVA_OPTS+=("-Dhttps.keystore=${HTTPS_KEYSTORE}")
+[ -n "${HTTPS_KEYSTORE_PASSWORD:-}" ] && JAVA_OPTS+=("-Dhttps.keystore.password=${HTTPS_KEYSTORE_PASSWORD}")
+# Edition auto-detects from the bundle (W6, docs/EDITIONS.md): file-processor-security.jar present
+# ⇒ Standard — put it on the classpath and turn on OIDC (issuer/JWKS/audience from env, never baked
+# into the bundle). Absent ⇒ Personal, byte-for-byte the historic auth-free classpath/flags.
+CP="file-processor.jar"
+EDITION="Personal"
+if [ -f file-processor-security.jar ]; then
+    CP="file-processor.jar:file-processor-security.jar"
+    EDITION="Standard"
+    JAVA_OPTS+=("-Dauth.mode=oidc")
+    [ -n "${AUTH_OIDC_ISSUER:-}" ]    && JAVA_OPTS+=("-Dauth.oidc.issuer=${AUTH_OIDC_ISSUER}")
+    [ -n "${AUTH_OIDC_JWKS_URI:-}" ]  && JAVA_OPTS+=("-Dauth.oidc.jwksUri=${AUTH_OIDC_JWKS_URI}")
+    [ -n "${AUTH_OIDC_AUDIENCE:-}" ]  && JAVA_OPTS+=("-Dauth.oidc.audience=${AUTH_OIDC_AUDIENCE}")
+    [ -n "${AUTH_OIDC_CLIENT_ID:-}" ] && JAVA_OPTS+=("-Dauth.oidc.clientId=${AUTH_OIDC_CLIENT_ID}")
+    # Confidential-client secret (optional; W6d BFF): pass a SecretResolver REFERENCE, not the value —
+    # the backend expands ${ENV:...} at use, so the secret never appears on the process command line.
+    [ -n "${AUTH_OIDC_CLIENT_SECRET:-}" ] && JAVA_OPTS+=('-Dauth.oidc.clientSecret=${ENV:AUTH_OIDC_CLIENT_SECRET}')
+fi
 JAVA="java"; [ -x "runtime/bin/java" ] && JAVA="runtime/bin/java"
-echo "[serve.sh] ControlApi on :${PORT}  (spaces: ./${SPACES_ROOT}, UI: $([ -d ui ] && echo ./ui || echo none))"
-exec "$JAVA" "${JAVA_OPTS[@]}" -cp file-processor.jar com.gamma.control.ControlApi
+echo "[serve.sh] ControlApi on :${PORT}  (spaces: ./${SPACES_ROOT}, UI: $([ -d ui ] && echo ./ui || echo none), edition: ${EDITION})"
+exec "$JAVA" "${JAVA_OPTS[@]}" -cp "$CP" com.gamma.control.ControlApi
 '@ | Set-Content -Path "$bundleDir\serve.sh" -NoNewline
 
 $serveBatContent = @'
@@ -266,10 +322,28 @@ if exist ui set "OPTS=%OPTS% -Dui.dir=./ui"
 if not "%CONTROL_TOKEN%"=="" set "OPTS=%OPTS% -Dcontrol.token=%CONTROL_TOKEN%"
 if not "%ASSIST_TOKEN%"=="" set "OPTS=%OPTS% -Dassist.read.token=%ASSIST_TOKEN%"
 if not "%CORS_ORIGIN%"=="" set "OPTS=%OPTS% -Dcontrol.cors=%CORS_ORIGIN%"
+if not "%HTTPS_KEYSTORE%"=="" set "OPTS=%OPTS% -Dhttps.keystore=%HTTPS_KEYSTORE%"
+if not "%HTTPS_KEYSTORE_PASSWORD%"=="" set "OPTS=%OPTS% -Dhttps.keystore.password=%HTTPS_KEYSTORE_PASSWORD%"
+rem Edition auto-detects from the bundle (W6, docs/EDITIONS.md): file-processor-security.jar present
+rem => Standard - put it on the classpath and turn on OIDC (issuer/JWKS/audience from env). Absent
+rem => Personal, byte-for-byte the historic auth-free classpath/flags.
+set "CP=file-processor.jar"
+set "EDITION=Personal"
+if exist file-processor-security.jar (
+    set "CP=file-processor.jar;file-processor-security.jar"
+    set "EDITION=Standard"
+    set "OPTS=%OPTS% -Dauth.mode=oidc"
+    if not "%AUTH_OIDC_ISSUER%"=="" set "OPTS=%OPTS% -Dauth.oidc.issuer=%AUTH_OIDC_ISSUER%"
+    if not "%AUTH_OIDC_JWKS_URI%"=="" set "OPTS=%OPTS% -Dauth.oidc.jwksUri=%AUTH_OIDC_JWKS_URI%"
+    if not "%AUTH_OIDC_AUDIENCE%"=="" set "OPTS=%OPTS% -Dauth.oidc.audience=%AUTH_OIDC_AUDIENCE%"
+    if not "%AUTH_OIDC_CLIENT_ID%"=="" set "OPTS=%OPTS% -Dauth.oidc.clientId=%AUTH_OIDC_CLIENT_ID%"
+    rem Confidential-client secret (optional; W6d BFF): pass a SecretResolver REFERENCE, not the value.
+    if not "%AUTH_OIDC_CLIENT_SECRET%"=="" set "OPTS=%OPTS% -Dauth.oidc.clientSecret=${ENV:AUTH_OIDC_CLIENT_SECRET}"
+)
 set "JAVA=java"
 if exist "runtime\bin\java.exe" set "JAVA=runtime\bin\java.exe"
-echo [serve.bat] ControlApi on :%PORT%  (spaces: .\%SPACES_ROOT%)
-"%JAVA%" %OPTS% -cp file-processor.jar com.gamma.control.ControlApi
+echo [serve.bat] ControlApi on :%PORT%  (spaces: .\%SPACES_ROOT%, edition: %EDITION%)
+"%JAVA%" %OPTS% -cp %CP% com.gamma.control.ControlApi
 '@
 [System.IO.File]::WriteAllText(
     "$bundleDir\serve.bat",

@@ -34,17 +34,19 @@ final class RunRoutes implements RouteModule {
     public void register(ApiContext api) {
         api.get("/runs", (e, m) -> api.service().pipelines());
         // Register a new pipeline from a config on disk under the write root (control scope).
-        api.post("/runs", (e, m) -> createPipeline(api, e, api.body(e)));
-        api.post("/runs/([^/]+)/trigger", (e, m) ->
-                api.service().runPipeline(ApiContext.name(m)).orElseThrow(() -> notFound(ApiContext.name(m))));
-        api.post("/runs/([^/]+)/pause", (e, m) -> {
+        // Registration is a workbench-authoring action (W6: canAuthorWorkbench); trigger/pause/resume/
+        // reprocess below are operational (canOperateRuns) — both a no-op on Personal (rbac-groundwork.md §2).
+        api.post("/runs", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> createPipeline(api, e, api.body(e))));
+        api.post("/runs/([^/]+)/trigger", ApiContext.withCapability("canOperateRuns", (e, m) ->
+                api.service().runPipeline(ApiContext.name(m)).orElseThrow(() -> notFound(ApiContext.name(m)))));
+        api.post("/runs/([^/]+)/pause", ApiContext.withCapability("canOperateRuns", (e, m) -> {
             if (!api.service().pause(ApiContext.name(m))) throw notFound(ApiContext.name(m));
             return Map.of("pipeline", ApiContext.name(m), "paused", true);
-        });
-        api.post("/runs/([^/]+)/resume", (e, m) -> {
+        }));
+        api.post("/runs/([^/]+)/resume", ApiContext.withCapability("canOperateRuns", (e, m) -> {
             if (!api.service().resume(ApiContext.name(m))) throw notFound(ApiContext.name(m));
             return Map.of("pipeline", ApiContext.name(m), "paused", false);
-        });
+        }));
 
         api.get("/runs/([^/]+)/commits",    (e, m) -> api.service().statusStore().committedBatches(cfg(api, m)));
         api.get("/runs/([^/]+)/batches",    (e, m) -> api.service().statusStore().batches(cfg(api, m)));
@@ -56,15 +58,15 @@ final class RunRoutes implements RouteModule {
         api.get("/runs/([^/]+)/pending",    (e, m) ->
                 api.service().inboxStatus(ApiContext.name(m)).orElseThrow(() -> notFound(ApiContext.name(m))));
 
-        api.post("/runs/([^/]+)/reprocess", (e, m) -> {
+        api.post("/runs/([^/]+)/reprocess", ApiContext.withCapability("canOperateRuns", (e, m) -> {
             var path = api.service().pathFor(ApiContext.name(m)).orElseThrow(() -> notFound(ApiContext.name(m)));
             String batchId = ApiContext.str(api.body(e), "batchId");
             if (batchId == null) throw new ApiException(400, "body must include 'batchId'");
             ReprocessCommand.run(path.toString(), batchId);
             return Map.of("pipeline", ApiContext.name(m), "batchId", batchId, "status", "reprocessed");
-        });
+        }));
 
-        api.post("/trigger", (e, m) -> api.service().runAllOnce());
+        api.post("/trigger", ApiContext.withCapability("canOperateRuns", (e, m) -> api.service().runAllOnce()));
 
         // ── v2.8.0: aggregated reports (status snapshot + batch-audit rollup) ──
         // v2.10.0: ?from=&to= scope the rollup to a date range (inclusive; date or datetime).

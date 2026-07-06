@@ -45,9 +45,16 @@ ControlApi route is open and the SPA boots straight to the dashboard with no log
 
 Authentication is no longer a core concern — it becomes an **edition** concern. The
 Standard/Enterprise editions re-introduce it out-of-band (see below) behind an `Authenticator`
-SPI seam (to be added in the `inspecto-security` module), so the engine keeps no auth code and
-fixes/features land once in common. This realigns the code with the model already described
-here: editions add modules; they are never branches.
+SPI seam, so the engine keeps no auth code and fixes/features land once in common. This realigns
+the code with the model already described here: editions add modules; they are never branches.
+
+**Status (2026-07-06, W6):** the `Authenticator` SPI (`com.gamma.control.Authenticator`/`Subject`)
+and the AuthN/AuthZ gate in `ControlApi.dispatch` are shipped in the core (edition-neutral — a no-op
+when no implementation is on the classpath). The `inspecto-security` module ships the Standard
+implementation (`OidcAuthenticator`, Nimbus JOSE+JWT + JWKS) and is reactor-gated behind the
+`edition-standard` Maven profile, so it is never built or resolved by a routine Personal build.
+`package.ps1 -Edition Standard` builds and bundles it; see `docs/superpower/api-contract-design.md`
+§10 W6 for the full slice and `docs/api/deployment/` for WSO2/Keycloak blueprints.
 
 ## Security direction (Standard)
 

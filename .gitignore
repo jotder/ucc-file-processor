@@ -49,6 +49,8 @@
 /inspecto/error_log.csv*
 /inspecto/status_unknown.csv*
 /inspecto-agent-hosted/target/
+/inspecto-connectors/target/
+/inspecto-security/target/
 
 # Editor-local config (VS Code)
 /.vscode/

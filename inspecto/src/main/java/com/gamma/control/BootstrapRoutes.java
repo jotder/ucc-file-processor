@@ -21,9 +21,12 @@ import java.util.Map;
  * Type registry, the {@code $}-parameter definitions and theme/icons are compile-time constants in
  * the SPA, <em>not</em> backend config — the backend has no authority over them and does not ship
  * them (that would invent a sync problem); the UI merges them client-side. Session
- * {@code capabilities} are a stub until the security module (W6) derives them from the authenticated
- * subject's role grants. The response is space-agnostic; a per-space bootstrap (dataset descriptors,
- * lookup values, per-Lens navigation) is a follow-on once those become backend-owned.
+ * {@code capabilities} come from the authenticated {@link Subject}'s resolved grants (W6); the
+ * auth-free core has no {@code Subject} (no {@link Authenticator} is ever present there), so
+ * {@code authenticated} stays {@code false} and {@code capabilities} empty — Personal edition,
+ * unchanged. {@code /bootstrap} itself stays public even on Standard (it is how the SPA discovers it
+ * needs to start the OIDC redirect). The response is space-agnostic; a per-space bootstrap (dataset
+ * descriptors, lookup values, per-Lens navigation) is a follow-on once those become backend-owned.
  */
 final class BootstrapRoutes implements RouteModule {
 
@@ -91,12 +94,14 @@ final class BootstrapRoutes implements RouteModule {
         return m;
     }
 
-    /** Auth-free core: an honor-system session. W6 flips {@code authenticated} and fills {@code capabilities}. */
+    /** {@code authenticated}/{@code capabilities} reflect the {@link Subject} the security module resolved
+     *  for this request (W6); absent on Personal edition, where this is still the honor-system stub. */
     private static Map<String, Object> session(HttpExchange ex) {
         Map<String, Object> s = new LinkedHashMap<>();
-        s.put("authenticated", false);
+        var subject = ApiContext.subject(ex);
+        s.put("authenticated", subject.isPresent());
         s.put("actor", ApiContext.actor(ex));
-        s.put("capabilities", List.of());
+        s.put("capabilities", subject.map(sub -> List.copyOf(sub.capabilities())).orElse(List.of()));
         return s;
     }
 }

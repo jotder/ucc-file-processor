@@ -36,13 +36,14 @@ final class PipelineRoutes implements RouteModule {
         api.get("/pipelines/node-types", (e, m) -> PipelineProjection.catalog());
         api.get("/pipelines/combined", (e, m) -> combinedFlows(api));
         api.get("/pipelines/authored", (e, m) -> authoredFlowList(api));
-        api.post("/pipelines/authored", (e, m) -> createFlow(api, api.body(e)));
+        // Writes require canAuthorWorkbench (W6; a no-op on Personal — no Subject is ever attached there).
+        api.post("/pipelines/authored", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> createFlow(api, api.body(e))));
         api.get("/pipelines/authored/([^/]+)", (e, m) -> authoredFlow(api, ApiContext.name(m)));
         api.get("/pipelines/authored/([^/]+)/raw", (e, m) -> authoredFlowRaw(api, ApiContext.name(m)));
-        api.put("/pipelines/authored/([^/]+)", (e, m) -> updateFlow(api, ApiContext.name(m), api.body(e)));
-        api.delete("/pipelines/authored/([^/]+)", (e, m) -> deleteFlow(api, ApiContext.name(m)));
-        api.post("/pipelines/authored/([^/]+)/nodes", (e, m) -> addFlowNode(api, ApiContext.name(m), api.body(e)));
-        api.post("/pipelines/authored/([^/]+)/edges", (e, m) -> addFlowEdge(api, ApiContext.name(m), api.body(e)));
+        api.put("/pipelines/authored/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> updateFlow(api, ApiContext.name(m), api.body(e))));
+        api.delete("/pipelines/authored/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> deleteFlow(api, ApiContext.name(m))));
+        api.post("/pipelines/authored/([^/]+)/nodes", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> addFlowNode(api, ApiContext.name(m), api.body(e))));
+        api.post("/pipelines/authored/([^/]+)/edges", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> addFlowEdge(api, ApiContext.name(m), api.body(e))));
         api.post("/pipelines/authored/([^/]+)/dry-run", (e, m) -> dryRunFlow(api, ApiContext.name(m), api.body(e)));
         api.get("/pipelines/([^/]+)/graph", (e, m) -> graphForPipeline(api, ApiContext.name(m)));
     }

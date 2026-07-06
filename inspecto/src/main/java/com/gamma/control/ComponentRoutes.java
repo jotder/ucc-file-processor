@@ -29,9 +29,10 @@ final class ComponentRoutes implements RouteModule {
     public void register(ApiContext api) {
         api.get("/components/([^/]+)", (e, m) -> componentList(api, ApiContext.name(m)));
         api.get("/components/([^/]+)/([^/]+)", (e, m) -> componentById(api, e, ApiContext.name(m), ApiContext.param(m, 2)));
-        api.post("/components/([^/]+)", (e, m) -> createComponent(api, e, ApiContext.name(m), api.body(e)));
-        api.put("/components/([^/]+)/([^/]+)", (e, m) -> updateComponent(api, e, ApiContext.name(m), ApiContext.param(m, 2), api.body(e)));
-        api.delete("/components/([^/]+)/([^/]+)", (e, m) -> deleteComponent(api, ApiContext.name(m), ApiContext.param(m, 2)));
+        // Writes require canAuthorWorkbench (W6; a no-op on Personal — no Subject is ever attached there).
+        api.post("/components/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> createComponent(api, e, ApiContext.name(m), api.body(e))));
+        api.put("/components/([^/]+)/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> updateComponent(api, e, ApiContext.name(m), ApiContext.param(m, 2), api.body(e))));
+        api.delete("/components/([^/]+)/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> deleteComponent(api, ApiContext.name(m), ApiContext.param(m, 2))));
         // T18 dry-run/test: preview a component over a sample through the production logic (scratch-only).
         api.post("/components/transform/([^/]+)/test", (e, m) -> previewTransform(api, ApiContext.name(m), api.body(e)));
         api.post("/components/grammar/([^/]+)/test", (e, m) -> previewGrammar(api, ApiContext.name(m), api.body(e)));

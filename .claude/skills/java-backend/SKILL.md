@@ -46,6 +46,7 @@ years. Do not reach for a framework; this design is intentional (see [docs/EDITI
 | `inspecto-agent/` | `file-processor-agent` | Assist skills on `agent-kernel` (7-skill catalog). |
 | `inspecto-agent-hosted/` | `file-processor-agent-hosted` | Hosted model providers (langchain4j). |
 | `inspecto-connectors/` | `file-processor-connectors` | **Optional** SFTP/FTP connectors, ServiceLoader-discovered. |
+| `inspecto-security/` | `file-processor-security` | **Optional, Standard-edition only** (W6): `Authenticator` SPI impl (OIDC/Nimbus JWKS). Reactor-gated behind the `edition-standard` Maven profile — `mvn -o clean test` (no profile) never builds it. |
 
 ## Key packages (`inspecto/src/main/java/com/gamma/`)
 

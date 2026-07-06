@@ -10,6 +10,8 @@ import com.gamma.service.SpaceId;
 import com.gamma.service.SpaceManager;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpsConfigurator;
+import com.sun.net.httpserver.HttpsServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -33,12 +35,14 @@ import java.util.regex.Pattern;
  * resume pipelines, query runs/batches/files/lineage/quarantine via the
  * {@link com.gamma.service.StatusStore}, reprocess a batch, and validate a config.
  *
- * <h3>Authentication</h3>
- * The core (Personal edition) is <b>auth-free</b> — every route is open. The bearer-token
- * scopes that earlier versions enforced inline have been removed; authentication and
- * authorization are now an <em>edition</em> concern. The Standard / Enterprise editions
- * re-introduce them out-of-band via the security module (OIDC resource-server validating
- * IAM-issued JWTs + RBAC/ABAC), without the core engine carrying any auth code. See
+ * <h3>Authentication (W6)</h3>
+ * The core (Personal edition) is <b>auth-free</b> — every route is open, exactly as before. Authentication
+ * and authorization are an <em>edition</em> concern: {@link #dispatch} looks up an {@link Authenticator}
+ * via {@link Authenticators} (a {@code ServiceLoader} seam); when the Standard edition's
+ * {@code inspecto-security} module is absent, the lookup is empty and nothing is enforced. When it is
+ * present, every route outside the health/bootstrap probe surface requires a valid credential
+ * ({@code 401 UNAUTHENTICATED} on failure); write routes additionally declare a required capability via
+ * {@link ApiContext#withCapability} ({@code 403 PERMISSION_DENIED} on a missing grant). See
  * {@code docs/EDITIONS.md}.
  *
  * <h3>Per-space routing</h3>
@@ -63,6 +67,9 @@ import java.util.regex.Pattern;
  *   GET  /health                              liveness (open)
  *   GET  /ready                               readiness (open)
  *   GET  /bootstrap                           platform bootstrap: edition/features/config-specs/enums/spaces/session (ETag'd) [v4.8.0]
+ *   POST /auth/exchange                       redeem an OIDC code (PKCE) → access token + httpOnly refresh cookie [v4.8.0, 503 on Personal]
+ *   POST /auth/refresh                        mint a fresh access token from the refresh cookie      [v4.8.0, 503 on Personal]
+ *   POST /auth/logout                         revoke (best-effort) + clear the session cookie        [v4.8.0, 503 on Personal]
  *   GET  /spaces                              list hosted spaces (manifests)               [v4.7.0]
  *   POST /spaces                              body {id,display_name?,description?} — create + boot a space [v4.7.0]
  *   DELETE /spaces/{id}[?purge=true]          deregister + drain a space; purge also deletes its files [v4.7.0]
@@ -148,6 +155,9 @@ import java.util.regex.Pattern;
  *       {@code PUBLIC} fallback for any {@code GET} that matches no API route. A request for a file
  *       that exists is served with its MIME type; an extensionless path (an SPA deep link) falls back
  *       to {@code index.html}. API paths that match a route keep returning JSON (incl. JSON 404s).</li>
+ *   <li><b>HTTPS (W6)</b> — set {@code -Dhttps.keystore=<PKCS12 path>} (+
+ *       {@code -Dhttps.keystore.password=<pw>}) to serve over TLS 1.3 instead of plain HTTP. Unset
+ *       (the default) ⇒ plain HTTP, byte-for-byte unchanged (Personal edition).</li>
  * </ul>
  */
 @PublicApi(since = "2.4.0")
@@ -163,6 +173,16 @@ public final class ControlApi implements AutoCloseable, ApiContext {
      * they stay server-global for the {@code SpaceRoutes} CRUD group.
      */
     private static final Pattern SPACE_PREFIX = Pattern.compile("^/spaces/([a-z0-9][a-z0-9-]{0,62})(/.*)$");
+
+    /** Routes that stay open even when the Standard edition's security module is active (W6): liveness/
+     *  readiness/metrics probes carry no credentials; {@code /bootstrap} is how the SPA discovers it
+     *  needs to start the OIDC redirect in the first place (its own {@code session.authenticated} reports
+     *  {@code false} rather than 401); and the {@code /auth/*} session routes (W6d) run <em>before</em> a
+     *  Bearer token exists — their credential is the code being redeemed or the {@code httpOnly} refresh
+     *  cookie. Everything else requires a valid {@link Authenticator} result. */
+    private static final java.util.Set<String> PUBLIC_PATHS = java.util.Set.of(
+            "/health", "/ready", "/metrics", "/bootstrap",
+            "/auth/exchange", "/auth/refresh", "/auth/logout");
 
     private final HttpServer http;
     private final SpaceManager spaces;
@@ -208,18 +228,52 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         this.uiDir   = blank(ui) ? null : Path.of(ui.trim()).toAbsolutePath().normalize();
         String wr    = System.getProperty("assist.write.root");
         this.writeRoot = blank(wr) ? null : Path.of(wr.trim()).toAbsolutePath().normalize();
-        this.http    = HttpServer.create(new InetSocketAddress(port), 0);
+        this.http    = createServer(port);
         this.http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         registerRoutes();
         this.http.createContext("/", this::dispatch);
+        // Fail-closed at the edge (W6): resolve the edition's Authenticator now, not on the first
+        // request, so a misconfigured Standard deployment (e.g. missing -Dauth.oidc.jwksUri, which the
+        // security module's no-arg constructor rejects) fails to boot instead of silently accepting
+        // traffic. A no-op on Personal — the lookup just resolves empty.
+        Authenticators.active();
+    }
+
+    /**
+     * Plain HTTP by default (Personal edition, unchanged). Set {@code -Dhttps.keystore=<PKCS12 path>}
+     * (+ {@code -Dhttps.keystore.password=<pw>}) to serve over TLS 1.3 instead (Standard edition,
+     * docs/EDITIONS.md); pure JDK ({@link HttpsServer} + {@code javax.net.ssl}), no new dependency.
+     */
+    private static HttpServer createServer(int port) throws IOException {
+        String keystore = System.getProperty("https.keystore");
+        if (blank(keystore)) return HttpServer.create(new InetSocketAddress(port), 0);
+        char[] password = System.getProperty("https.keystore.password", "").toCharArray();
+        try (var in = Files.newInputStream(Path.of(keystore.trim()))) {
+            java.security.KeyStore ks = java.security.KeyStore.getInstance("PKCS12");
+            ks.load(in, password);
+            javax.net.ssl.KeyManagerFactory kmf =
+                    javax.net.ssl.KeyManagerFactory.getInstance(javax.net.ssl.KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(ks, password);
+            javax.net.ssl.SSLContext ssl = javax.net.ssl.SSLContext.getInstance("TLSv1.3");
+            ssl.init(kmf.getKeyManagers(), null, null);
+            HttpsServer https = HttpsServer.create(new InetSocketAddress(port), 0);
+            https.setHttpsConfigurator(new HttpsConfigurator(ssl));
+            return https;
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IOException("failed to configure HTTPS from -Dhttps.keystore=" + keystore, e);
+        }
     }
 
     public int port() { return http.getAddress().getPort(); }
 
     public void start() {
         http.start();
-        log.info("ControlApi started on port {} (no authentication — Personal/core edition). "
-                + "Authorization is added by the Standard/Enterprise security module.", port());
+        if (Authenticators.active().isPresent())
+            log.info("ControlApi started on port {} (Standard edition — authentication enforced via {})",
+                    port(), Authenticators.active().get().getClass().getName());
+        else
+            log.info("ControlApi started on port {} (no authentication — Personal/core edition). "
+                    + "Authorization is added by the Standard/Enterprise security module.", port());
     }
 
     private static boolean blank(String s) { return s == null || s.isBlank(); }
@@ -284,7 +338,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
         // Feature route modules extracted from this class (see RouteModule); each owns its own routes + docs.
         for (RouteModule module : List.of(
-                new BootstrapRoutes(),
+                new BootstrapRoutes(), new AuthRoutes(),
                 new SpaceRoutes(), new DataSourceRoutes(),
                 new RunRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new PipelineRoutes(), new ComponentRoutes(),
@@ -374,6 +428,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 if (!m.matches()) continue;
                 pathMatched = true;
                 if (!r.method.equals(method)) continue;
+                authenticate(ex, path);
                 Object result = r.handler.handle(ex, m);
                 if (result != HANDLED) respond(ex, 200, result);
                 AuditTrail.record(ex, method, path, 200);   // audit successful state-changing requests
@@ -397,6 +452,23 @@ public final class ControlApi implements AutoCloseable, ApiContext {
             if (spaceBound) MDC.remove(EventLog.SPACE_MDC_KEY);
             ex.close();
         }
+    }
+
+    /** AuthN gate (W6): a no-op when no {@link Authenticator} is on the classpath (Personal edition —
+     *  {@link Authenticators#active()} is empty), so Personal behaviour is byte-for-byte unchanged. When
+     *  the Standard edition's security module is present, a {@link #PUBLIC_PATHS} route (bootstrap/health)
+     *  authenticates <em>optionally</em> — a Subject is attached when credentials resolve one (so
+     *  {@code /bootstrap} reports the real session for an already-logged-in caller), but missing/invalid
+     *  credentials there is not an error. Every other route requires a valid credential; a miss is
+     *  {@code 401 UNAUTHENTICATED}. On success the resolved {@link Subject} is attached to the exchange
+     *  for {@link ApiContext#actor}, {@code requireCapability} and the v1 envelope's {@code permissions}. */
+    private void authenticate(HttpExchange ex, String path) {
+        boolean required = !PUBLIC_PATHS.contains(path);
+        Authenticators.active().ifPresent(a -> {
+            java.util.Optional<Subject> subject = a.authenticate(ex);
+            if (subject.isPresent()) ex.setAttribute(ApiContext.ATTR_SUBJECT, subject.get());
+            else if (required) throw new ApiException(401, ErrorCodes.UNAUTHENTICATED, "authentication required");
+        });
     }
 
     private void respond(HttpExchange ex, int status, Object body) throws IOException {
