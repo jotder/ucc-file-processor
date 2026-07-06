@@ -44,6 +44,13 @@ Dashboards, Rules, optional seed data) that instantiates a new **Space**. Type�
 Type; the Space created from it is the Instance. Shipped verticals: Telecom Revenue Assurance, Fraud
 Management, Financial Auditing, Link Analysis. *(Added Wave 0, 2026-07-02.)*
 
+**Metadata Bundle** — A selective, artifact-level export file (**configuration only, never data rows**) for
+moving definitions between Inspecto instances (staging → production): dataset metadata, Widgets, Dashboards,
+saved Link-Analysis/Geo-Map views, Pipelines, and their registry pieces (grammars/schemas/transforms/sinks/
+connections, secrets masked). Import previews new-vs-existing per artifact with a per-item overwrite/skip
+choice. UI: Settings → *Import & Export*. Distinct from the whole-space zip bundle and from **Space
+Template**. *(Added 2026-07-06; `docs/superpower/metadata-bundle.md`.)*
+
 ---
 
 ## 1-A. Personas & Surfaces

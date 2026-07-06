@@ -98,6 +98,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
             { id: 'model-settings', title: 'Model Settings', type: 'basic', icon: 'heroicons_outline:cpu-chip',               link: '/settings/models' },
             { id: 'icon-settings',  title: 'Processor Icons', type: 'basic', icon: 'heroicons_outline:paint-brush',           link: '/settings/icons' },
             { id: 'map-settings',   title: 'Map Settings',   type: 'basic', icon: 'heroicons_outline:map',                    link: '/settings/map' },
+            { id: 'transfer',       title: 'Import & Export', type: 'basic', icon: 'heroicons_outline:arrow-up-tray',         link: '/settings/transfer' },
             { id: 'design-system',  title: 'Design System',  type: 'basic', icon: 'heroicons_outline:swatch',                 link: '/design' }
         ]
     },

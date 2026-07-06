@@ -101,6 +101,11 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
   case-study pack**: five boundary-pushing seeded authored pipelines (canvas scale, clone-mode streaming,
   disconnected legs, full parser-format gauntlet, dead-letter torture) + data sources and reusable
   grammars, with pinned spec invariants. **Shipped.**
+- [`superpower/metadata-bundle.md`](superpower/metadata-bundle.md) — **Metadata Bundle export/import**
+  (Settings → Import & Export): cross-instance, metadata-only transfer of datasets/widgets/dashboards/
+  saved views/pipelines + registry pieces, with dependency closure on export and per-item
+  overwrite/skip on import. **Shipped** (mock-first; backend endpoints pending the ComponentStore
+  enum widening). 
 
 ## Strategy & roadmap (stakeholder-facing)
 

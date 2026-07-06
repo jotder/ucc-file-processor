@@ -1,0 +1,178 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <div class="flex flex-wrap items-center justify-between gap-y-3">
+        <div>
+            <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Import &amp; Export</h1>
+            <div class="text-secondary mt-1">
+                Move configuration between Inspecto instances as a Metadata Bundle — datasets, widgets, dashboards,
+                saved views, pipelines and their registry pieces. Metadata only, never data rows.
+            </div>
+        </div>
+        @if (loading()) { <mat-spinner diameter="24"></mat-spinner> }
+    </div>
+
+    <mat-tab-group class="mt-4" animationDuration="0ms">
+        <!-- ── Export ─────────────────────────────────────────────────────────────────── -->
+        <mat-tab label="Export">
+            <div class="mt-4 flex flex-col gap-4">
+                <div class="flex flex-wrap items-center gap-4">
+                    <button mat-flat-button color="primary" [disabled]="!selectedCount() || loading()" (click)="exportBundle()">
+                        <mat-icon svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+                        <span class="ml-2">Export {{ selectedCount() || '' }} selected</span>
+                    </button>
+                    <mat-checkbox [checked]="includeDeps()" (change)="includeDeps.set($event.checked)">
+                        Include dependencies (referenced datasets, views, widgets, grammars, connections)
+                    </mat-checkbox>
+                </div>
+
+                @if (!loading() && !groups().length) {
+                    <inspecto-empty-state
+                        icon="heroicons_outline:archive-box"
+                        title="Nothing to export"
+                        message="This instance has no exportable artifacts yet."
+                    />
+                }
+
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                    @for (g of groups(); track g.kind) {
+                        <div class="bg-card rounded-2xl p-4 shadow">
+                            <div class="flex items-center justify-between">
+                                <div class="font-semibold">{{ g.label }} <span class="text-secondary text-sm">({{ g.items.length }})</span></div>
+                                <mat-checkbox
+                                    [checked]="kindAllSelected(g.kind)"
+                                    (change)="toggleKind(g.kind)"
+                                    [aria-label]="'Select all ' + g.label"
+                                >All</mat-checkbox>
+                            </div>
+                            <div class="mt-2 flex max-h-48 flex-col gap-1 overflow-y-auto">
+                                @for (i of g.items; track i.id) {
+                                    <mat-checkbox [checked]="isSelected(i)" (change)="toggleItem(i)">
+                                        <span class="font-mono text-sm">{{ i.id }}</span>
+                                    </mat-checkbox>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </mat-tab>
+
+        <!-- ── Import ─────────────────────────────────────────────────────────────────── -->
+        <mat-tab label="Import">
+            <div class="mt-4 flex flex-col gap-4">
+                <div class="flex flex-wrap items-center gap-3">
+                    <button type="button" mat-stroked-button (click)="picker.click()">
+                        <mat-icon svgIcon="heroicons_outline:arrow-up-tray"></mat-icon>
+                        <span class="ml-1">Choose bundle (.json)</span>
+                    </button>
+                    <span class="text-secondary truncate">{{ fileName() || 'No file selected' }}</span>
+                    <input #picker type="file" accept=".json,application/json" class="hidden" aria-label="Bundle file (.json)" (change)="onFile($event)" />
+                </div>
+
+                @if (parseErrors().length) {
+                    <inspecto-alert variant="error" title="This file is not a valid metadata bundle">
+                        @for (e of parseErrors(); track e) { <div>{{ e }}</div> }
+                    </inspecto-alert>
+                }
+
+                @if (rows().length) {
+                    <div class="flex flex-wrap items-center gap-3">
+                        <span class="text-secondary text-sm">
+                            {{ rows().length }} artifact(s) — {{ rows().length - existingCount() }} new,
+                            {{ existingCount() }} already on this instance
+                        </span>
+                        @if (existingCount()) {
+                            <button type="button" mat-stroked-button (click)="overwriteAllExisting()">Overwrite all existing</button>
+                            <button type="button" mat-stroked-button (click)="skipAllExisting()">Skip all existing</button>
+                        }
+                    </div>
+
+                    @if (bundleHasConnections()) {
+                        <inspecto-alert variant="info">
+                            Connections carry masked secrets (<code>***</code> / <code>${{ '{' }}ENV:…{{ '}' }}</code> references) —
+                            after import, provide the environment values or re-enter secrets on this instance.
+                        </inspecto-alert>
+                    }
+
+                    @if (!lens.canAuthorWorkbench()) {
+                        <inspecto-alert variant="warning">
+                            The current lens is read-only — switch to a Builder lens to apply an import.
+                        </inspecto-alert>
+                    }
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="text-secondary border-b text-left">
+                                    <th scope="col" class="py-2 pr-4">Kind</th>
+                                    <th scope="col" class="py-2 pr-4">Id</th>
+                                    <th scope="col" class="py-2 pr-4">On this instance</th>
+                                    <th scope="col" class="py-2 pr-4">Action</th>
+                                    <th scope="col" class="py-2">Result</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (r of rows(); track r.item.kind + '/' + r.item.id) {
+                                    <tr class="border-b">
+                                        <td class="py-1.5 pr-4">{{ kindLabel(r.item.kind) }}</td>
+                                        <td class="py-1.5 pr-4 font-mono">{{ r.item.id }}</td>
+                                        <td class="py-1.5 pr-4">
+                                            <inspecto-status-badge [value]="r.exists ? 'WARNING' : 'OK'" [label]="r.exists ? 'Exists' : 'New'" />
+                                        </td>
+                                        <td class="py-1.5 pr-4">
+                                            <mat-form-field subscriptSizing="dynamic" class="w-36">
+                                                <mat-select
+                                                    [value]="r.action"
+                                                    (selectionChange)="setAction(r, $event.value)"
+                                                    [disabled]="applying()"
+                                                    [aria-label]="'Action for ' + r.item.id"
+                                                >
+                                                    @if (r.exists) {
+                                                        <mat-option value="skip">Skip</mat-option>
+                                                        <mat-option value="overwrite">Overwrite</mat-option>
+                                                    } @else {
+                                                        <mat-option value="import">Import</mat-option>
+                                                        <mat-option value="skip">Skip</mat-option>
+                                                    }
+                                                </mat-select>
+                                            </mat-form-field>
+                                        </td>
+                                        <td class="py-1.5">
+                                            @if (r.result) {
+                                                <inspecto-status-badge
+                                                    [value]="r.result === 'failed' ? 'ERROR' : 'OK'"
+                                                    [label]="r.result"
+                                                />
+                                                @if (r.message) { <span class="text-secondary ml-2 text-xs">{{ r.message }}</span> }
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div>
+                        <button
+                            mat-flat-button
+                            color="primary"
+                            [disabled]="applying() || !actionableCount() || !lens.canAuthorWorkbench()"
+                            (click)="apply()"
+                        >
+                            @if (applying()) { <mat-spinner diameter="18" class="mr-2"></mat-spinner> }
+                            <span>Apply import ({{ actionableCount() }})</span>
+                        </button>
+                        @if (applied()) {
+                            <span class="text-secondary ml-3 text-sm">Done — imported artifacts are live (see Viz Library, Dashboard Builder, Pipelines).</span>
+                        }
+                    </div>
+                } @else if (!parseErrors().length) {
+                    <inspecto-empty-state
+                        icon="heroicons_outline:arrow-up-tray"
+                        title="No bundle loaded"
+                        message="Choose a bundle exported from another Inspecto instance to preview what it contains."
+                    />
+                }
+            </div>
+        </mat-tab>
+    </mat-tab-group>
+</div>
