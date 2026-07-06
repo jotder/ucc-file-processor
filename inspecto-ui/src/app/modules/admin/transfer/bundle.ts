@@ -15,10 +15,11 @@ export type BundleKind =
     | Extract<ComponentType, 'grammar' | 'schema' | 'transform' | 'sink' | 'dataset' | 'query' | 'widget' | 'dashboard' | 'link-analysis-view' | 'geo-map-view'>
     | 'connection'
     | 'authored-pipeline'
-    | 'job';
+    | 'job'
+    | 'decision-rule';
 
 /** Import order: referenced kinds before their referencers, so a fresh instance renders everything
- *  (jobs come last — they trigger on pipelines). */
+ *  (jobs then decision rules come last — they trigger on / invoke pipelines, jobs and widgets). */
 export const BUNDLE_KINDS: { kind: BundleKind; label: string }[] = [
     { kind: 'connection', label: 'Connections' },
     { kind: 'grammar', label: 'Grammars' },
@@ -33,6 +34,7 @@ export const BUNDLE_KINDS: { kind: BundleKind; label: string }[] = [
     { kind: 'dashboard', label: 'Dashboards' },
     { kind: 'authored-pipeline', label: 'Pipelines' },
     { kind: 'job', label: 'Jobs' },
+    { kind: 'decision-rule', label: 'Decision Rules' },
 ];
 
 export const BUNDLE_FORMAT = 'inspecto-metadata-bundle';

@@ -117,11 +117,17 @@ same registry with a config shape + `deriveRefs` + (where composite) wiring — 
   object transitions — and R5 decision consequences. Notifications fan out as *consumers* of notify-worthy
   signals. `source` joins the R1 metadata graph via the new `emits` RefRel. Severity ladder
   (`trace..critical`) unifies `EVENT_LEVELS` + `FiredAlert` severities.
-- **R5 — Decision network — 📋 PLANNED:** unify the three rule kinds on `Condition → Evaluation → Consequence[]`
-  where a **Consequence** is a typed action (`emit-signal · start-job · create-alert · invoke-api ·
-  generate-report · trigger-pipeline · render-widget`), executed via the Execution Network. The AI
-  Brain then plugs in as a decision engine producing the *same* consequence objects (assist as
-  proposer, human approval as a consequence gate) — architecture unchanged, sophistication grows.
+- **R5 — Decision network — ✅ SHIPPED 2026-07-06** (plan `docs/superpower/decision-network-plan.md`): the typed
+  **`Consequence`** (`inspecto/decision/consequence.ts`) unifies the rule kinds' actions (routing +
+  `emit-signal · create-alert · start-job · trigger-pipeline · render-widget · generate-report · invoke-api`).
+  **`decision-rule`** is a first-class ComponentKind — `deriveRefs` `binds` its target + `invokes` its
+  consequence targets (new `invokes` RefRel), joining the reuse-graph, Metadata Bundle and delete-protection
+  (own-store, like jobs). Execution seam `inspecto/mock/decision.ts` + `POST /decision-rules/{name}/apply` runs
+  the platform consequences — `emit-signal` / `create-alert` write into R4's ledger (the R4↔R5 link); a pane
+  **Apply** action drives it. The **AI Assist plugs in as a decision engine**: `propose-decision` returns the
+  *same* `Consequence[]`, and **Propose with AI** opens the Decision Rule form pre-filled for the human to review
+  and save (approval = the consequence gate) — architecture unchanged. Seed: `quarantine_high_cost` gains
+  platform consequences.
 - **R6 — Transportability everywhere — 📋 PLANNED:** bundle v2 (refs+provenance) implemented; per-editor and
   per-library import/export surfaces (placement per metadata-network-design §3); every new kind is
   transportable by construction.

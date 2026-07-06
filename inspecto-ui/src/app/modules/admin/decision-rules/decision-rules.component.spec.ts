@@ -5,7 +5,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
-import { DecisionRule, DecisionRulesService, LensService } from 'app/inspecto/api';
+import { AssistService, DecisionRule, DecisionRulesService, LensService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -49,6 +49,7 @@ async function create(opts: { rows?: DecisionRule[]; canAuthor?: boolean; api?: 
         providers: [
             provideNoopAnimations(),
             { provide: DecisionRulesService, useValue: api },
+            { provide: AssistService, useValue: { run: vi.fn(() => of({ data: { consequences: [] } })) } },
             { provide: MatDialog, useValue: { open: vi.fn() } },
             { provide: ToastrService, useValue: toastr },
             { provide: InspectoConfirmService, useValue: {} },
@@ -93,6 +94,6 @@ describe('DecisionRulesComponent', () => {
     it('summarizes when-clauses and consequences for the grid', () => {
         expect(summarizeWhen(RULE.when)).toBe('cost_usd > 100 AND duration_s < 60');
         expect(summarizeWhen({ kind: 'group', op: 'AND', items: [] })).toBe('always');
-        expect(summarizeConsequences(RULE)).toBe('quarantine→possible fraud pattern · tag→high_risk');
+        expect(summarizeConsequences(RULE)).toBe('Quarantine (possible fraud pattern) · Tag "high_risk"');
     });
 });

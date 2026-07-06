@@ -248,6 +248,10 @@ export function seedOperations(store: MockStore, space: string): void {
             consequences: [
                 { action: 'quarantine', destination: 'possible fraud pattern' },
                 { action: 'tag', destination: 'high_risk' },
+                // R5 platform consequences — Apply writes these into the Signal Ledger; start-job adds an `invokes` edge.
+                { action: 'emit-signal', params: { type: 'FRAUD_REVIEW', severity: 'warn', message: 'High-cost short call flagged for review' } },
+                { action: 'create-alert', params: { rule: 'high_cost_review', metric: 'cost_usd', severity: 'warn' } },
+                { action: 'start-job', target: { kind: 'job', id: 'daily_summary_report' } },
             ],
             lastSimulation: null, createdAt: min(-490), updatedAt: min(-490),
             demoMatched: 7, demoTotal: 1000,

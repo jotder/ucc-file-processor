@@ -138,7 +138,15 @@ referential). Borrowed from the Great Expectations model.
 **Alert Rule** — Watches an observability **Metric** against a threshold and fires an **Alert** when crossed.
 
 **Decision Rule** — A **business-logic / routing** rule that transforms or routes records (e.g. send event-type
-X to sink Y). Drools-style.
+X to sink Y). Drools-style. Unified in R5 on `Condition → Evaluation → Consequence[]`; a first-class Component
+kind (`decision-rule`).
+
+**Consequence** — A **typed action a Decision Engine produces** (`route · tag · quarantine · drop · emit-signal ·
+create-alert · start-job · trigger-pipeline · render-widget · generate-report · invoke-api`), executed via the
+Execution / Signal networks. A consequence that targets a component `invokes` it (lineage edge). ⚠️ §6-proposed → **binding** (R5).
+
+**Decision Engine** — Anything that turns conditions/signals into **Consequences**: the rule kinds today, the AI
+**Assist** next (it *proposes* Consequences; a human approves — the approval is the consequence gate). ⚠️ §6-proposed → **binding** (R5).
 
 ---
 

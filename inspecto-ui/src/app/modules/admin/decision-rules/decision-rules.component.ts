@@ -3,15 +3,17 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, DecisionRule, DecisionRulesService, LensService } from 'app/inspecto/api';
+import { apiErrorMessage, AssistService, DecisionRule, DecisionRulesService, LensService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { Condition, ConditionGroup } from 'app/inspecto/query/query-types';
+import { type Consequence, describeConsequence } from 'app/inspecto/decision';
 import { DecisionRuleFormData, DecisionRuleFormDialog, DecisionRuleFormResult } from './decision-rule-form.dialog';
 
 /** One-line human summary of a condition tree, e.g. `tariff startsWith EMEA_ AND cost_usd > 100`. */
@@ -29,9 +31,9 @@ function summarizeCondition(c: Condition): string {
     return `${c.field} ${c.operator} ${c.value ?? ''}`.trim();
 }
 
-/** One-line summary of a rule's consequences, e.g. `route→emea · tag→high_risk`. */
+/** One-line summary of a rule's consequences, e.g. `Route to emea · Tag "high_risk" · Emit signal REVIEW`. */
 export function summarizeConsequences(r: DecisionRule): string {
-    return r.consequences.map((c) => (c.destination ? `${c.action}→${c.destination}` : c.action)).join(' · ');
+    return r.consequences.map(describeConsequence).join(' · ');
 }
 
 /**
@@ -47,6 +49,7 @@ export function summarizeConsequences(r: DecisionRule): string {
         MatButtonModule,
         MatIconModule,
         MatProgressSpinnerModule,
+        MatTooltipModule,
         DataTableComponent,
         InspectoEmptyStateComponent,
     ],
@@ -55,6 +58,7 @@ export function summarizeConsequences(r: DecisionRule): string {
 })
 export class DecisionRulesComponent implements OnInit {
     private api = inject(DecisionRulesService);
+    private assist = inject(AssistService);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
@@ -104,6 +108,7 @@ export class DecisionRulesComponent implements OnInit {
         if (!this.lens.canAuthorWorkbench()) return ops;
         return [
             ...ops,
+            { icon: 'heroicons_outline:bolt', hint: 'Apply consequences', onClick: (r) => this.apply(r) },
             { icon: 'heroicons_outline:pencil-square', hint: 'Edit', onClick: (r) => this.edit(r) },
             { icon: 'heroicons_outline:trash', hint: 'Delete', onClick: (r) => this.remove(r) },
         ];
@@ -140,6 +145,44 @@ export class DecisionRulesComponent implements OnInit {
             });
     }
 
+    /**
+     * Assist as a **decision engine** (R5): the AI proposes {@link Consequence}s; we open the Decision
+     * Rule form pre-filled with them so the human reviews and saves — approval is the consequence gate.
+     */
+    proposeWithAi(): void {
+        this.assist
+            .run('propose-decision', {
+                screenContext: { pane: 'decision-rules' },
+                userText: 'Propose a decision rule for high-cost fraud review',
+            })
+            .subscribe({
+                next: (res) => {
+                    const consequences = (res.data?.['consequences'] as Consequence[] | undefined) ?? [];
+                    if (!consequences.length) {
+                        this.toastr.warning('The assistant returned no consequences to propose.');
+                        return;
+                    }
+                    const prefill: Partial<DecisionRule> = {
+                        targetType: 'pipeline', target: 'cdr_ingest', consequences, description: res.answer,
+                    };
+                    const data: DecisionRuleFormData = { existingNames: this.rows.map((r) => r.name), prefill };
+                    this.dialog
+                        .open(DecisionRuleFormDialog, { data, width: '760px', maxHeight: '88vh' })
+                        .afterClosed()
+                        .subscribe((r?: DecisionRuleFormResult) => {
+                            if (r?.saved) {
+                                this.toastr.success(`Decision rule "${r.saved.name}" created from the AI proposal`);
+                                this.load();
+                            }
+                        });
+                },
+                error: (e) =>
+                    this.toastr.error(
+                        e?.status === 503 ? 'Assist agent is not available (agent absent).' : 'Could not get a proposal.',
+                    ),
+            });
+    }
+
     edit(rule: DecisionRule): void {
         const data: DecisionRuleFormData = { rule };
         this.dialog
@@ -162,6 +205,17 @@ export class DecisionRulesComponent implements OnInit {
                 this.toastr.info(`"${res.name}" would match ${s.matched} of ${s.total} record(s).`);
             },
             error: (err) => this.toastr.error(apiErrorMessage(err, `Could not simulate "${rule.name}".`)),
+        });
+    }
+
+    /** Execute the rule's consequences (R5) — emit-signal / create-alert land on the Signal Ledger. */
+    apply(rule: DecisionRule): void {
+        this.api.apply(rule.name).subscribe({
+            next: (res) => {
+                const ran = res.executed.filter((e) => e.status === 'executed').length;
+                this.toastr.success(`Applied "${res.rule}": ${ran} consequence(s) executed — see the Signal Ledger.`);
+            },
+            error: (err) => this.toastr.error(apiErrorMessage(err, `Could not apply "${rule.name}".`)),
         });
     }
 

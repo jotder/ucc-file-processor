@@ -1,4 +1,5 @@
 import type { DecisionRule, DecisionSimulation } from '../../api/decision-rules.service';
+import { executeConsequences } from '../decision';
 import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
@@ -23,6 +24,7 @@ export interface MockDecisionRule extends DecisionRule {
 const LIST = /\/decision-rules$/;
 const ONE = /\/decision-rules\/([^/]+)$/;
 const SIMULATE = /\/decision-rules\/([^/]+)\/simulate$/;
+const APPLY = /\/decision-rules\/([^/]+)\/apply$/;
 
 export function decisionRulesHandler(flags: MockFlags): MockHandler {
     return (req: MockRequest, store: MockStore) => {
@@ -47,6 +49,13 @@ export function decisionRulesHandler(flags: MockFlags): MockHandler {
             };
             const next: MockDecisionRule = { ...rule, lastSimulation: sim, updatedAt: sim.checkedAt };
             return json(store.put(space, DECISION_RULES_COLL, next.name, next));
+        }
+        if (method === 'POST' && (m = match(url, APPLY))) {
+            // Execute the rule's consequences through the Execution/Signal networks (R5): emit-signal /
+            // create-alert write into the one ledger. Returns what ran, for the pane + ledger proof.
+            const rule = store.get<MockDecisionRule>(space, DECISION_RULES_COLL, m[1]);
+            if (!rule) return error(404, `decision rule ${m[1]} not found`);
+            return json({ rule: rule.name, executed: executeConsequences(store, space, rule) });
         }
         if (method === 'POST' && LIST.test(url)) {
             const b = (req.body ?? {}) as Partial<MockDecisionRule>;
@@ -85,6 +94,8 @@ function normalize(b: Partial<MockDecisionRule>): Omit<MockDecisionRule, 'name' 
         consequences: (b.consequences ?? []).map((c) => ({
             action: c.action,
             destination: c.destination ?? null,
+            ...(c.target ? { target: c.target } : {}),
+            ...(c.params ? { params: c.params } : {}),
         })),
         priority: Number.isFinite(b.priority) ? Number(b.priority) : 100,
         enabled: b.enabled !== false,

@@ -4,8 +4,9 @@
         <div>
             <h1 class="text-3xl font-extrabold leading-none tracking-tight">Decision Rules</h1>
             <div class="text-secondary mt-1.5">
-                Business routing rules over Pipeline and Job records — when records match, route them to a
-                branch, tag, quarantine or drop them. Simulate any rule as a dry run.
+                Condition → Consequence rules over Pipeline and Job records — when records match, route/tag/
+                quarantine/drop them, or run a platform action (emit a signal, raise an alert, start a job).
+                Simulate any rule as a dry run, or Apply to execute its consequences.
             </div>
         </div>
         <div class="flex items-center gap-3">
@@ -16,6 +17,10 @@
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>
             @if (lens.canAuthorWorkbench()) {
+                <button mat-stroked-button (click)="proposeWithAi()" matTooltip="Let the assistant propose a rule you review and save">
+                    <mat-icon svgIcon="heroicons_outline:sparkles"></mat-icon>
+                    <span class="ml-2">Propose with AI</span>
+                </button>
                 <button mat-flat-button color="primary" (click)="newRule()">
                     <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
                     <span class="ml-2">New decision rule</span>

@@ -313,7 +313,9 @@ export interface AssistResult {
   data: Record<string, unknown>;
 }
 
-/** The seven assist skills exposed at POST /assist/{intent}. */
+/** The assist skills exposed at POST /assist/{intent}. `propose-decision` (R5) makes the Assist a
+ *  **decision engine**: it returns proposed {@link Consequence}s in `data.consequences`, which a human
+ *  reviews and saves as a Decision Rule (approval = the consequence gate). */
 export const ASSIST_INTENTS = [
   'explain-entity',
   'nl-to-schedule',
@@ -322,6 +324,7 @@ export const ASSIST_INTENTS = [
   'diagnose-and-alert',
   'report-sql',
   'report-narrative',
+  'propose-decision',
 ] as const;
 export type AssistIntent = (typeof ASSIST_INTENTS)[number];
 

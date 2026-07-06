@@ -2,6 +2,7 @@ import type { ComponentDef } from '../api/components.service';
 import { refsForComponent } from '../component-model';
 import { componentCollection } from './handlers/components.handler';
 import { CONNECTIONS_COLL } from './handlers/connections.handler';
+import { DECISION_RULES_COLL } from './handlers/decision-rules.handler';
 import { JOBS_COLL } from './handlers/jobs.handler';
 import { PIPELINES_COLL } from './handlers/pipelines.handler';
 import { MockStore } from './mock-store';
@@ -35,6 +36,13 @@ export function registerIntegrityRules(store: MockStore): void {
     store.addRefRule({
         from: JOBS_COLL,
         refs: (e) => refsForComponent('job', e as Record<string, unknown>).map((r) => ({ collection: collectionOf(r.kind), id: r.id })),
+    });
+
+    // A decision rule's `binds` (target) + `invokes` (platform-consequence target) edges protect the
+    // pipeline/job/widget it acts on (R5): deleting an invoked job/pipeline/widget 409s.
+    store.addRefRule({
+        from: DECISION_RULES_COLL,
+        refs: (e) => refsForComponent('decision-rule', e as Record<string, unknown>).map((r) => ({ collection: collectionOf(r.kind), id: r.id })),
     });
 
     for (const kind of COMPONENT_KINDS) {

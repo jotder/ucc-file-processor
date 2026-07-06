@@ -4,8 +4,9 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ToastrService } from 'ngx-toastr';
 import { describe, expect, it } from 'vitest';
 import { DecisionRule, DecisionRulesService } from 'app/inspecto/api';
+import { consequenceInputSpec } from 'app/inspecto/decision';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
-import { DecisionRuleFormData, DecisionRuleFormDialog, destinationSpec } from './decision-rule-form.dialog';
+import { DecisionRuleFormData, DecisionRuleFormDialog } from './decision-rule-form.dialog';
 
 const RULE: DecisionRule = {
     name: 'route_emea_traffic',
@@ -51,19 +52,19 @@ describe('DecisionRuleFormDialog', () => {
         await expectNoA11yViolations(fixture.nativeElement);
     });
 
-    it('destination requiredness follows the action (route/tag require, quarantine optional, drop none)', () => {
-        expect(destinationSpec('route')).toEqual({ show: true, label: 'Branch', required: true });
-        expect(destinationSpec('tag').required).toBe(true);
-        expect(destinationSpec('quarantine').required).toBe(false);
-        expect(destinationSpec('drop').show).toBe(false);
+    it('detail requiredness follows the action (route/tag require, quarantine optional, drop none)', () => {
+        expect(consequenceInputSpec('route')).toMatchObject({ show: true, label: 'Branch', required: true });
+        expect(consequenceInputSpec('tag').required).toBe(true);
+        expect(consequenceInputSpec('quarantine').required).toBe(false);
+        expect(consequenceInputSpec('drop').show).toBe(false);
 
         const fixture = create({});
         const c = fixture.componentInstance;
         const g = c.consequencesArray.at(0);
         expect(g.get('action')!.value).toBe('route');
-        expect(g.get('destination')!.hasError('required')).toBe(true); // route needs a branch
+        expect(g.get('detail')!.hasError('required')).toBe(true); // route needs a branch
         g.get('action')!.setValue('drop');
-        expect(g.get('destination')!.hasError('required')).toBe(false); // drop has no destination
+        expect(g.get('detail')!.hasError('required')).toBe(false); // drop has no destination
     });
 
     it('edit mode locks the id, clones the when-tree, and loads the consequences', () => {
@@ -71,7 +72,7 @@ describe('DecisionRuleFormDialog', () => {
         const c = fixture.componentInstance;
         expect(c.schemaForm.form.get('name')!.disabled).toBe(true);
         expect(c.consequencesArray.length).toBe(1);
-        expect(c.consequencesArray.at(0).get('destination')!.value).toBe('emea');
+        expect(c.consequencesArray.at(0).get('detail')!.value).toBe('emea');
         // the condition editor mutates in place — editing must not touch the original rule object
         c.when.items.push({ kind: 'condition', field: 'cost_usd', operator: '>', value: '5' });
         expect(RULE.when.items.length).toBe(1);

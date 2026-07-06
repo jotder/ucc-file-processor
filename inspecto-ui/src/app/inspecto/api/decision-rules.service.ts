@@ -2,17 +2,16 @@ import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ConditionGroup } from '../query/query-types';
+import type { Consequence, ExecutedConsequence } from '../decision/consequence';
 import { apiUrl } from './api-base';
 
-/** What a matching record is subjected to (docs/GLOSSARY.md — Decision Rule, Drools-style routing). */
+// R5: consequences are the unified, typed {@link Consequence} (routing actions + platform actions). The
+// old names are kept as aliases so existing editor/handler call sites compile unchanged.
+export type { Consequence } from '../decision/consequence';
+/** @deprecated The routing subset (route/tag/quarantine/drop) — the full action set is `ConsequenceType`. */
 export type DecisionConsequenceAction = 'route' | 'tag' | 'quarantine' | 'drop';
-
-/** One consequence a rule applies to matching records; a rule may stack several. */
-export interface DecisionConsequence {
-    action: DecisionConsequenceAction;
-    /** route ⇒ the named branch (`route:<destination>` edge); tag ⇒ the tag value; quarantine ⇒ optional reason. */
-    destination?: string | null;
-}
+/** @deprecated Alias — a rule now stacks unified {@link Consequence}s. */
+export type DecisionConsequence = Consequence;
 
 /** Outcome of the latest dry-run simulation of one Decision Rule. */
 export interface DecisionSimulation {
@@ -32,7 +31,7 @@ export interface DecisionRule {
     targetType: 'pipeline' | 'job';
     target: string;
     when: ConditionGroup;
-    consequences: DecisionConsequence[];
+    consequences: Consequence[];
     /** Lower fires first when several rules target the same records. */
     priority: number;
     enabled: boolean;
@@ -42,6 +41,12 @@ export interface DecisionRule {
 }
 
 export type DecisionRuleUpsert = Omit<DecisionRule, 'lastSimulation' | 'createdAt' | 'updatedAt'>;
+
+/** Result of executing a rule's consequences (POST /decision-rules/{name}/apply) — R5. */
+export interface DecisionApplyResult {
+    rule: string;
+    executed: ExecutedConsequence[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class DecisionRulesService {
@@ -66,5 +71,11 @@ export class DecisionRulesService {
     /** Dry-run: how many of the target's records the when-clause would match (no side effects). */
     simulate(name: string): Observable<DecisionRule> {
         return this.http.post<DecisionRule>(apiUrl(`/decision-rules/${encodeURIComponent(name)}/simulate`), {});
+    }
+
+    /** Execute the rule's consequences through the Execution/Signal networks (R5) — emit-signal / create-alert
+     *  land on the Signal Ledger. Returns what ran. */
+    apply(name: string): Observable<DecisionApplyResult> {
+        return this.http.post<DecisionApplyResult>(apiUrl(`/decision-rules/${encodeURIComponent(name)}/apply`), {});
     }
 }

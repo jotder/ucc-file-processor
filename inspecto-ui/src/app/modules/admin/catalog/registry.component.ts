@@ -6,7 +6,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import type { ColDef } from 'ag-grid-community';
-import { JobsService, PipelinesService } from 'app/inspecto/api';
+import { DecisionRulesService, JobsService, PipelinesService } from 'app/inspecto/api';
 import { Component as ModelComponent, Part, deriveComponentGraph, refsForComponent } from 'app/inspecto/component-model';
 import { G6GraphData } from 'app/inspecto/graph';
 import { DataTableComponent } from 'app/inspecto/data-table';
@@ -62,6 +62,7 @@ export class RegistryComponent implements OnInit {
     private provider = inject(ComponentsDataProvider);
     private flows = inject(PipelinesService);
     private jobs = inject(JobsService);
+    private decisionRules = inject(DecisionRulesService);
 
     readonly components = signal<ModelComponent[]>([]);
     readonly loading = signal(false);
@@ -102,10 +103,11 @@ export class RegistryComponent implements OnInit {
     async load(): Promise<void> {
         this.loading.set(true);
         this.selectedId.set(null);
-        const [compResults, pipelines, jobs] = await Promise.all([
+        const [compResults, pipelines, jobs, decisionRules] = await Promise.all([
             Promise.allSettled(REGISTRY_KINDS.map((k) => this.provider.list(k))),
             this.loadPipelines(),
             this.loadJobs(),
+            this.loadDecisionRules(),
         ]);
         const comps: ModelComponent[] = [];
         for (const r of compResults) {
@@ -113,9 +115,23 @@ export class RegistryComponent implements OnInit {
                 comps.push(...r.value.map((c) => ({ ...c, parts: refParts(c.kind, c.config as Record<string, unknown>) })));
             }
         }
-        comps.push(...pipelines, ...jobs);
+        comps.push(...pipelines, ...jobs, ...decisionRules);
         this.components.set(comps);
         this.loading.set(false);
+    }
+
+    /** Load decision rules as `decision-rule` components (own store, R5) — their `binds` (target) + `invokes`
+     *  (platform-consequence target) edges join the graph. */
+    private async loadDecisionRules(): Promise<ModelComponent[]> {
+        try {
+            const rules = await firstValueFrom(this.decisionRules.list());
+            return rules.map((r) => {
+                const config = r as unknown as Record<string, unknown>;
+                return { kind: 'decision-rule', id: r.name, name: r.name, config, parts: refParts('decision-rule', config) };
+            });
+        } catch {
+            return [];
+        }
     }
 
     /** Load jobs as `job` components (own store, like pipelines) — their `triggers` edge joins the graph (R2). */
@@ -160,6 +176,7 @@ export class RegistryComponent implements OnInit {
     editorLink(c: ModelComponent): string[] | null {
         if (c.kind === 'pipeline') return ['/pipelines']; // the Pipelines editor page
         if (c.kind === 'job') return ['/jobs']; // the Jobs pane (dialog-based editing, no /:id route)
+        if (c.kind === 'decision-rule') return ['/decision-rules']; // the Decision Rules pane (dialog-based editing)
         const path = EDITOR_PATH[c.kind];
         return path ? [path, c.id] : null;
     }

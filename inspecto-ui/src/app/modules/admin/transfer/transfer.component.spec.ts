@@ -3,7 +3,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastrService } from 'ngx-toastr';
-import { ComponentsService, ConnectionsService, JobsService, LensService, PipelinesService, SpacesService } from 'app/inspecto/api';
+import { ComponentsService, ConnectionsService, DecisionRulesService, JobsService, LensService, PipelinesService, SpacesService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { buildBundle, planImport } from './bundle';
 import { TransferComponent } from './transfer.component';
@@ -44,6 +44,7 @@ function create(opts: { canAuthor?: boolean; failCreate?: boolean } = {}) {
                     update: vi.fn(() => of({})),
                 },
             },
+            { provide: DecisionRulesService, useValue: { list: () => of([]), create: vi.fn(() => of({})), update: vi.fn(() => of({})) } },
             { provide: SpacesService, useValue: { currentSpaceId: () => 'staging' } },
             { provide: LensService, useValue: { canAuthorWorkbench: () => opts.canAuthor !== false } },
             { provide: ToastrService, useValue: { success: vi.fn(), warning: vi.fn(), error: vi.fn() } },

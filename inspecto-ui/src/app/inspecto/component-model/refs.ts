@@ -67,6 +67,26 @@ export function queryRefs(config: Record<string, unknown>): Ref[] {
     return datasetId ? [{ kind: 'dataset', id: datasetId, rel: 'binds', via: 'dataset' }] : [];
 }
 
+/**
+ * A decision rule (R5) `binds` its target pipeline/job and `invokes` the components its platform
+ * consequences act on (start-job → job, trigger-pipeline → pipeline, render-widget → widget). Read as
+ * plain maps (no feature import) so this stays a leaf like the other derivations.
+ */
+export function decisionRuleRefs(config: Record<string, unknown>): Ref[] {
+    const refs: Ref[] = [];
+    const targetType = config['targetType'] as string | undefined;
+    const target = config['target'] as string | undefined;
+    if (target && (targetType === 'pipeline' || targetType === 'job')) {
+        refs.push({ kind: targetType, id: target, rel: 'binds', via: 'target' });
+    }
+    const consequences = (config['consequences'] as { action?: string; target?: { kind?: string; id?: string } }[] | undefined) ?? [];
+    consequences.forEach((c, i) => {
+        const t = c?.target;
+        if (t?.id && t?.kind) refs.push({ kind: t.kind, id: t.id, rel: 'invokes', via: `consequence${i}` });
+    });
+    return refs;
+}
+
 /** A pipeline's nodes bind registry components / connections via `use:` — anchored on the node id. */
 export function pipelineRefs(config: Record<string, unknown>): Ref[] {
     const nodes = (config['nodes'] as { id?: string; use?: string }[] | undefined) ?? [];
@@ -86,6 +106,7 @@ const STRUCTURAL: Record<string, (config: Record<string, unknown>) => Ref[]> = {
     pipeline: pipelineRefs,
     'authored-pipeline': pipelineRefs,
     job: jobRefs,
+    'decision-rule': decisionRuleRefs,
 };
 
 /**

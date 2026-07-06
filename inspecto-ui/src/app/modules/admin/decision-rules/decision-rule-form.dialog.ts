@@ -8,25 +8,31 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
+import { apiErrorMessage, DecisionRule, DecisionRulesService, DecisionRuleUpsert } from 'app/inspecto/api';
 import {
-    apiErrorMessage,
-    DecisionConsequence,
-    DecisionConsequenceAction,
-    DecisionRule,
-    DecisionRulesService,
-    DecisionRuleUpsert,
-} from 'app/inspecto/api';
+    type Consequence,
+    type ConsequenceInputSpec,
+    type ConsequenceType,
+    CONSEQUENCE_LABELS,
+    PLATFORM_ACTIONS,
+    ROUTING_ACTIONS,
+    buildConsequence,
+    consequenceDetail,
+    consequenceInputSpec,
+} from 'app/inspecto/decision';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
 import { QueryConditionGroupComponent } from 'app/inspecto/query/query-condition-group.component';
 import { ColumnMeta, ConditionGroup, emptyGroup } from 'app/inspecto/query/query-types';
 import { DECISION_RULE_ATTRIBUTES } from './decision-rule-attributes';
 
-/** Dialog input: an existing rule ⇒ edit; absent ⇒ create. */
+/** Dialog input: an existing rule ⇒ edit; absent ⇒ create (optionally pre-filled from an AI proposal). */
 export interface DecisionRuleFormData {
     rule?: DecisionRule;
     /** Ids already in use — on create the name control rejects a duplicate inline (product-wide rule). */
     existingNames?: string[];
+    /** Create-mode seed (R5) — an AI-proposed draft the human reviews and saves (the approval gate). */
+    prefill?: Partial<DecisionRule>;
 }
 export interface DecisionRuleFormResult {
     saved?: DecisionRule;
@@ -49,22 +55,11 @@ const RECORD_COLUMNS: ColumnMeta[] = [
     { name: 'event_time', type: 'date' },
 ];
 
-const ACTIONS: { value: DecisionConsequenceAction; label: string }[] = [
-    { value: 'route', label: 'Route to branch' },
-    { value: 'tag', label: 'Tag record' },
-    { value: 'quarantine', label: 'Quarantine' },
-    { value: 'drop', label: 'Drop' },
-];
-
-/** Whether an action's destination field applies, and what to call it. */
-export function destinationSpec(action: DecisionConsequenceAction): { show: boolean; label: string; required: boolean } {
-    switch (action) {
-        case 'route': return { show: true, label: 'Branch', required: true };
-        case 'tag': return { show: true, label: 'Tag value', required: true };
-        case 'quarantine': return { show: true, label: 'Reason (optional)', required: false };
-        case 'drop': return { show: false, label: '', required: false };
-    }
-}
+/** The action select: the routing actions first, then the R5 platform actions. */
+const ACTIONS: { value: ConsequenceType; label: string }[] = [...ROUTING_ACTIONS, ...PLATFORM_ACTIONS].map((a) => ({
+    value: a,
+    label: CONSEQUENCE_LABELS[a],
+}));
 
 /**
  * Create / edit a Decision Rule (C3) — scalars via `<inspecto-schema-form>`
@@ -118,12 +113,12 @@ export function destinationSpec(action: DecisionConsequenceAction): { show: bool
                                     }
                                 </mat-select>
                             </mat-form-field>
-                            @if (destSpec(i); as d) {
+                            @if (inputSpec(i); as d) {
                                 @if (d.show) {
                                     <mat-form-field class="gamma-mat-dense flex-auto" subscriptSizing="dynamic">
                                         <mat-label>{{ d.label }}</mat-label>
-                                        <input matInput formControlName="destination" />
-                                        @if (g.get('destination')?.hasError('required')) {
+                                        <input matInput formControlName="detail" />
+                                        @if (g.get('detail')?.hasError('required')) {
                                             <mat-error>Required for this action.</mat-error>
                                         }
                                     </mat-form-field>
@@ -170,18 +165,26 @@ export class DecisionRuleFormDialog implements AfterViewInit {
     readonly actions = ACTIONS;
 
     /** Deep-cloned on edit — the condition editor mutates the bound group in place. */
-    readonly when: ConditionGroup = this.data.rule ? structuredClone(this.data.rule.when) : emptyGroup('AND');
+    readonly when: ConditionGroup = this.data.rule
+        ? structuredClone(this.data.rule.when)
+        : this.data.prefill?.when
+          ? structuredClone(this.data.prefill.when)
+          : emptyGroup('AND');
 
-    readonly initialValue: Record<string, unknown> | undefined = this.data.rule
-        ? {
-              name: this.data.rule.name,
-              description: this.data.rule.description ?? '',
-              targetType: this.data.rule.targetType,
-              target: this.data.rule.target,
-              priority: this.data.rule.priority,
-              enabled: this.data.rule.enabled,
-          }
-        : undefined;
+    readonly initialValue: Record<string, unknown> | undefined = this.buildInitial();
+
+    private buildInitial(): Record<string, unknown> | undefined {
+        const src = this.data.rule ?? this.data.prefill;
+        if (!src) return undefined;
+        return {
+            name: this.data.rule?.name ?? '',
+            description: src.description ?? '',
+            targetType: src.targetType ?? 'pipeline',
+            target: src.target ?? '',
+            priority: src.priority ?? 100,
+            enabled: src.enabled ?? true,
+        };
+    }
 
     readonly consequencesForm = this.fb.group({ consequences: this.fb.array<FormGroup>([]) });
 
@@ -190,7 +193,7 @@ export class DecisionRuleFormDialog implements AfterViewInit {
     }
 
     constructor() {
-        const existing = this.data.rule?.consequences ?? [];
+        const existing = this.data.rule?.consequences ?? this.data.prefill?.consequences ?? [];
         if (existing.length) for (const c of existing) this.addConsequence(c);
         else this.addConsequence();
     }
@@ -211,21 +214,21 @@ export class DecisionRuleFormDialog implements AfterViewInit {
         return this.when.items.length === 0;
     }
 
-    destSpec(i: number): { show: boolean; label: string; required: boolean } {
-        return destinationSpec(this.consequencesArray.at(i).get('action')?.value as DecisionConsequenceAction);
+    inputSpec(i: number): ConsequenceInputSpec {
+        return consequenceInputSpec(this.consequencesArray.at(i).get('action')?.value as ConsequenceType);
     }
 
-    addConsequence(c?: DecisionConsequence): void {
+    addConsequence(c?: Consequence): void {
         const g = this.fb.group({
             action: [c?.action ?? 'route'],
-            destination: [c?.destination ?? ''],
+            detail: [c ? consequenceDetail(c) : ''],
         });
-        // Destination requiredness follows the action (route/tag require one, quarantine optional, drop none).
+        // The detail field's requiredness follows the action (route/tag/target/param require one; quarantine optional; drop none).
         const applyRequired = (): void => {
-            const d = destinationSpec(g.get('action')!.value as DecisionConsequenceAction);
-            const dest = g.get('destination')!;
-            dest.setValidators(d.required ? [Validators.required] : []);
-            dest.updateValueAndValidity({ emitEvent: false });
+            const spec = consequenceInputSpec(g.get('action')!.value as ConsequenceType);
+            const detail = g.get('detail')!;
+            detail.setValidators(spec.required ? [Validators.required] : []);
+            detail.updateValueAndValidity({ emitEvent: false });
         };
         g.get('action')!.valueChanges.subscribe(applyRequired);
         applyRequired();
@@ -250,12 +253,9 @@ export class DecisionRuleFormDialog implements AfterViewInit {
             priority?: number;
             enabled?: boolean;
         };
-        const consequences: DecisionConsequence[] = this.consequencesArray.controls.map((g) => {
-            const action = g.get('action')!.value as DecisionConsequenceAction;
-            const d = destinationSpec(action);
-            const raw = String(g.get('destination')!.value ?? '').trim();
-            return { action, destination: d.show && raw ? raw : null };
-        });
+        const consequences: Consequence[] = this.consequencesArray.controls.map((g) =>
+            buildConsequence(g.get('action')!.value as ConsequenceType, String(g.get('detail')!.value ?? '')),
+        );
         const body: DecisionRuleUpsert = {
             name: this.isEdit ? this.data.rule!.name : String(v.name ?? '').trim(),
             description: String(v.description ?? '').trim(),

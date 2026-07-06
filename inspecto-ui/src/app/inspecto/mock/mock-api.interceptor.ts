@@ -4,6 +4,7 @@ import { of, throwError, timer } from 'rxjs';
 import { delay, mergeMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { SpacesService } from '../api/spaces.service';
+import { assistHandler } from './handlers/assist.handler';
 import { componentsHandler } from './handlers/components.handler';
 import { connectionsHandler } from './handlers/connections.handler';
 import { demoHandler } from './handlers/demo.handler';
@@ -50,6 +51,7 @@ const HANDLERS: MockHandler[] = [
     expectationsHandler(flags),
     decisionRulesHandler(flags),
     jobsHandler(flags),
+    assistHandler(flags),
     settingsHandler(flags),
 ];
 

@@ -14,6 +14,9 @@ import {
     ComponentsService,
     ConnectionProfile,
     ConnectionsService,
+    DecisionRule,
+    DecisionRulesService,
+    DecisionRuleUpsert,
     JobsService,
     LensService,
     PipelinesService,
@@ -44,13 +47,20 @@ interface Row extends ImportRow {
 }
 
 const COMPONENT_KINDS = BUNDLE_KINDS.map((k) => k.kind).filter(
-    (k): k is Extract<BundleKind, ComponentType> => k !== 'connection' && k !== 'authored-pipeline' && k !== 'job',
+    (k): k is Extract<BundleKind, ComponentType> =>
+        k !== 'connection' && k !== 'authored-pipeline' && k !== 'job' && k !== 'decision-rule',
 );
 
 /** A job's transportable metadata — the upsert shape; runtime state (last status/run/next fire) never travels. */
 function jobContent(job: JobDetail): Record<string, unknown> {
     const { name, type, cron, onPipeline, enabled, catchUp, params } = job;
     return { name, type, cron: cron ?? null, onPipeline: onPipeline ?? null, enabled, catchUp, params };
+}
+
+/** A decision rule's transportable metadata (the upsert shape) — runtime `lastSimulation`/timestamps never travel. */
+function decisionRuleContent(rule: DecisionRule): Record<string, unknown> {
+    const { name, description, targetType, target, when, consequences, priority, enabled } = rule;
+    return { name, description: description ?? '', targetType, target, when, consequences, priority, enabled };
 }
 
 /**
@@ -84,6 +94,7 @@ export class TransferComponent implements OnInit {
     private connections = inject(ConnectionsService);
     private pipelines = inject(PipelinesService);
     private jobs = inject(JobsService);
+    private decisionRules = inject(DecisionRulesService);
     private spaces = inject(SpacesService);
     private toastr = inject(ToastrService);
     readonly lens = inject(LensService);
@@ -134,6 +145,7 @@ export class TransferComponent implements OnInit {
                 map((list) => list.map((j) => j.name)),
                 catchError(() => of([] as string[])),
             ),
+            decisionRules: this.decisionRules.list().pipe(catchError(() => of([] as DecisionRule[]))),
         })
             .pipe(
                 concatMap((res) => {
@@ -164,6 +176,9 @@ export class TransferComponent implements OnInit {
                 }
                 for (const j of jobs) {
                     if (j) items.push({ kind: 'job', id: j.name, content: jobContent(j) });
+                }
+                for (const r of res.decisionRules as DecisionRule[]) {
+                    items.push({ kind: 'decision-rule', id: r.name, content: decisionRuleContent(r) });
                 }
                 this.allItems.set(items);
                 this.loading.set(false);
@@ -310,6 +325,10 @@ export class TransferComponent implements OnInit {
         if (kind === 'job') {
             const job = { ...(content as unknown as JobUpsert), name: id };
             return overwrite ? this.jobs.update(id, job) : this.jobs.create(job);
+        }
+        if (kind === 'decision-rule') {
+            const rule = { ...(content as unknown as DecisionRuleUpsert), name: id };
+            return overwrite ? this.decisionRules.update(id, rule) : this.decisionRules.create(rule);
         }
         return overwrite ? this.components.update(kind, id, content) : this.components.create(kind, { id, ...content });
     }
