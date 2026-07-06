@@ -1,6 +1,7 @@
 # Menu Builder — user-curated navigation for business users
 
-**Status:** DRAFT — awaiting user sign-off (2026-07-06)
+**Status:** M1–M4 **SHIPPED & PUSHED** to `origin/master` (2026-07-06, `2f5c6e2`→`b47e8e7`). Feature is
+usable end-to-end. **M5 and the real backend endpoint are deferred to BACKLOG** (user decision 2026-07-06).
 **Owner track:** frontend / space-builder line
 **Related:** `frontend-review-and-completion-plan.md` (D1 one-console), `component-model-adoption-plan.md`
 (menu-placement = shared-per-space), `GLOSSARY.md` (Space / Widget / Dashboard / Report).
@@ -95,8 +96,8 @@ menus) is ungated. *Open point O1 below.*
 Freeze the wire shape now so the real endpoint is a drop-in:
 `GET /nav/menus → MenuTree` · `PUT /nav/menus (MenuTree) → MenuTree`, space-scoped by the existing
 `spaceInterceptor`. Mock implements it against MockStore; the real Java `ControlApi` route (per the
-`endpoint` skill, fail-closed gate order, ConfigCodec) is a later backend slice — **not** in this
-iteration (D1).
+`endpoint` skill, fail-closed gate order, ConfigCodec) is **BACKLOG** (deferred 2026-07-06) — the frozen
+shape above means it drops in without UI changes when picked up.
 
 ## 5. Phasing (each slice independently verifiable)
 
@@ -106,7 +107,7 @@ iteration (D1).
 | **M2** | Nav mock API merges the Menu tree; sidebar shows custom groups; `refresh()` updates live | Seed a tree → groups appear in sidebar; edit → refresh reflects |
 | **M3** | `w/:nodeId` route + `MenuItemHostComponent` renders bound dashboard/widget/view | Click a leaf → the artifact renders; broken binding → empty state |
 | **M4** | Builder pane (tree editor + component picker + search/sort) under Settings | Build `Revenue › TopX › top usages` end-to-end in preview |
-| **M5** | Favorites + look-and-feel polish + a11y + `/design` note + seeded example (Revenue/FMS) | GAUNTLET green + live smoke |
+| **M5** _(BACKLOG)_ | Favorites + look-and-feel polish + a11y + `/design` note + seeded example (Revenue/FMS) | deferred |
 
 Ship UI-only → **master-only** (per release-workflow; inspecto-ui is a master-line feature —
 `4.x` has no inspecto-ui). Commit per slice; push only on explicit ask.
