@@ -1,5 +1,5 @@
 import type { AttributeSpec } from './attribute-spec';
-import { Part, Wiring, WiringStrategy } from './component-types';
+import { Part, Ref, Wiring, WiringStrategy } from './component-types';
 
 /** A finding from a kind's config validation — returned (never thrown) so the UI can surface them all at once. */
 export interface ConfigFinding {
@@ -35,6 +35,13 @@ export interface ComponentKind<C = Record<string, unknown>> {
     attributes?: AttributeSpec[];
     /** WIRING seam — derive the typed Wiring from parts (pure). Atomic kinds omit it / return `{strategy:'none'}`. */
     deriveWiring?(parts: Part[], config: C): Wiring;
+    /**
+     * REFS seam (R1, living-operational-system.md §5) — the config's outgoing lineage edges. THE single
+     * source for the reuse-graph, delete protection, bundle closure and import fit-checks. Consumers go
+     * through `refsForComponent()` (refs.ts), which falls back to the structural derivations for kinds
+     * registered lazily or not at all.
+     */
+    deriveRefs?(config: C): Ref[];
     /** AUTHORING seam — names the Angular editor to mount (resolved by a host token map; never imported here). */
     authoring?: { editorKey: string };
     /** EXEC seam — names the runtime binding (offline AlaSQL now / backend later). */

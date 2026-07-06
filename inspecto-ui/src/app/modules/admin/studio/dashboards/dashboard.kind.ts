@@ -1,4 +1,4 @@
-import { ComponentKind, ConfigFinding, Part, Wiring, getKind, registerKind } from 'app/inspecto/component-model';
+import { ComponentKind, ConfigFinding, Part, Ref, Wiring, dashboardRefs, getKind, registerKind } from 'app/inspecto/component-model';
 import { DashboardConfig } from './dashboard-types';
 
 /**
@@ -20,12 +20,16 @@ export const DASHBOARD_KIND: ComponentKind<DashboardConfig> = {
         strategy: 'layout',
         tiles: config.tiles.map((t, i) => ({ partId: `tile${i}`, w: t.span })),
     }),
+    deriveRefs: (config: DashboardConfig): Ref[] => dashboardRefs(config as unknown as Record<string, unknown>),
     authoring: { editorKey: 'dashboard' },
 };
 
-/** The dashboard's parts: one widget reference per tile (the composition the reuse-graph reads). */
+/** The dashboard's parts: one widget reference per tile — the R1 ref derivation, lifted to Parts. */
 export function dashboardParts(config: DashboardConfig): Part[] {
-    return config.tiles.map((t, i) => ({ partId: `tile${i}`, ref: { kind: 'widget', id: t.widgetId } }));
+    return dashboardRefs(config as unknown as Record<string, unknown>).map((r) => ({
+        partId: r.via ?? r.id,
+        ref: { kind: r.kind, id: r.id },
+    }));
 }
 
 /** Tiny hand-written validator: a dashboard needs at least one tile, and every tile names a widget. */

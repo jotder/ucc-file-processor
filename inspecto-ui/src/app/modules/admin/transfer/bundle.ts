@@ -1,4 +1,5 @@
 import { ComponentType } from 'app/inspecto/api';
+import { refsForComponent } from 'app/inspecto/component-model';
 
 /**
  * Metadata Bundle — the cross-instance transfer format (staging → production promotion). A bundle
@@ -83,47 +84,12 @@ export function parseBundle(text: string): { bundle?: MetadataBundle; errors: st
     return errors.length ? { errors } : { bundle: b as MetadataBundle, errors: [] };
 }
 
-/** The artifacts an item references — what "include dependencies" pulls into the export. */
+/** The artifacts an item references — what "include dependencies" pulls into the export. Delegates to
+ *  the R1 metadata-network derivation (`refsForComponent`); refs to kinds a bundle can't carry are dropped. */
 export function refsOf(item: BundleItem): { kind: BundleKind; id: string }[] {
-    const c = item.content;
-    const refs: { kind: BundleKind; id: string }[] = [];
-    switch (item.kind) {
-        case 'widget': {
-            const datasetId = c['datasetId'] as string | undefined;
-            if (datasetId) refs.push({ kind: 'dataset', id: datasetId });
-            const viewId = c['viewId'] as string | undefined;
-            const vizType = c['vizType'] as string | undefined;
-            if (viewId && vizType === 'geo-map') refs.push({ kind: 'geo-map-view', id: viewId });
-            if (viewId && vizType === 'link-analysis') refs.push({ kind: 'link-analysis-view', id: viewId });
-            break;
-        }
-        case 'dashboard': {
-            for (const t of (c['tiles'] as { widgetId?: string }[] | undefined) ?? []) {
-                if (t?.widgetId) refs.push({ kind: 'widget', id: t.widgetId });
-            }
-            break;
-        }
-        case 'geo-map-view':
-        case 'link-analysis-view': {
-            const q = (c['query'] as Record<string, Record<string, unknown>> | undefined) ?? {};
-            for (const part of Object.values(q)) {
-                const datasetId = part?.['datasetId'] as string | undefined;
-                if (datasetId) refs.push({ kind: 'dataset', id: datasetId });
-            }
-            break;
-        }
-        case 'authored-pipeline': {
-            const useKind: Record<string, BundleKind> = {
-                connections: 'connection', grammar: 'grammar', schema: 'schema', transform: 'transform', sink: 'sink',
-            };
-            for (const n of (c['nodes'] as { use?: string }[] | undefined) ?? []) {
-                const [prefix, id] = (n?.use ?? '').split('/');
-                if (prefix && id && useKind[prefix]) refs.push({ kind: useKind[prefix], id });
-            }
-            break;
-        }
-    }
-    return refs;
+    return refsForComponent(item.kind, item.content)
+        .filter((r) => KNOWN_KINDS.has(r.kind as BundleKind))
+        .map((r) => ({ kind: r.kind as BundleKind, id: r.id }));
 }
 
 const key = (kind: BundleKind, id: string): string => `${kind}/${id}`;

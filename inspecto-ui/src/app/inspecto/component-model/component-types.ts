@@ -33,6 +33,26 @@ export interface ComponentRef {
 }
 
 /**
+ * Edge semantics of the metadata network (living-operational-system.md §2): `binds` = config
+ * references another component (widget→dataset, pipeline-node→grammar/connection) · `tiles` =
+ * dashboard→widget placement · `renders` = view-bound widget→saved view · `projects` = saved
+ * view→dataset · `loads` = dataset→physical store (reserved; no producer yet).
+ */
+export type RefRel = 'binds' | 'tiles' | 'renders' | 'projects' | 'loads';
+
+/**
+ * One outgoing lineage edge derivable from a component's config — THE unit of the metadata
+ * network. `via` anchors the edge locally (a flow node id, `tile3`, `dataset`) so consumers that
+ * need part identity (reuse-graph, wiring) keep stable ids; graph-only consumers ignore it.
+ */
+export interface Ref {
+    kind: string;
+    id: string;
+    rel: RefRel;
+    via?: string;
+}
+
+/**
  * Which composition strategy a kind authors. Only the variants a real kind consumes are defined; `schedule`
  * (job) is added when that kind lands (see the adoption plan's STOP). `layout` arrived with P2 (dashboard).
  */

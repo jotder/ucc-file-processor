@@ -38,6 +38,18 @@ describe('componentsHandler', () => {
         expect(handler(req('GET', '/api/components/grammar/tsv'), store)?.body).toBeNull();
     });
 
+    it('409s deleting a widget a dashboard tiles, and a dataset a widget binds (R1 generic rules)', () => {
+        const store = seededStore();
+        // Seeded: dashboard investigation_overview tiles cost_by_tariff, which binds dataset cdr_sample.
+        const widgetDel = handler(req('DELETE', '/api/components/widget/cost_by_tariff'), store);
+        expect(widgetDel?.status).toBe(409);
+        expect(String((widgetDel?.body as { error: string }).error)).toContain('investigation_overview');
+
+        const datasetDel = handler(req('DELETE', '/api/components/dataset/cdr_sample'), store);
+        expect(datasetDel?.status).toBe(409);
+        expect(String((datasetDel?.body as { error: string }).error)).toContain('cost_by_tariff');
+    });
+
     it('409s a delete while the component is still referenced', () => {
         const store = seededStore();
         // Seeded pipeline cdr_ingest does not bind grammar/cdr_csv via `use`; wire one that does.

@@ -1,4 +1,4 @@
-import { ComponentKind, ConfigFinding, Part, Wiring, getKind, registerKind } from 'app/inspecto/component-model';
+import { ComponentKind, ConfigFinding, Part, Ref, Wiring, getKind, registerKind, widgetRefs } from 'app/inspecto/component-model';
 import { getViz, getVizComponentLoader, registerVizComponent } from 'app/inspecto/viz';
 // Side-effect: ensure the built-in VizPlugins are registered (the widget kind's sub-types).
 import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
@@ -37,6 +37,7 @@ export const WIDGET_KIND: ComponentKind<WidgetConfig> = {
         strategy: 'mapping',
         channels: channelMap(config.controls),
     }),
+    deriveRefs: (config: WidgetConfig): Ref[] => widgetRefs(config as unknown as Record<string, unknown>),
     authoring: { editorKey: 'widget' },
     exec: { runnerKey: 'viz' },
 };

@@ -1,5 +1,5 @@
 import type { ComponentDef } from '../api/components.service';
-import type { AuthoredPipeline } from '../api/pipelines.service';
+import { refsForComponent } from '../component-model';
 import { componentCollection } from './handlers/components.handler';
 import { CONNECTIONS_COLL } from './handlers/connections.handler';
 import { PIPELINES_COLL } from './handlers/pipelines.handler';
@@ -7,44 +7,34 @@ import { MockStore } from './mock-store';
 
 /**
  * Referential-integrity rules for the mock store — the mock analogue of the backend's 409-on-delete.
- * Conventions load-bearing today; panes add their own rules as their review (R6) wires them:
- *
- * 1. An authored pipeline node's `use: '<kind>/<id>'` binding references a registry component —
- *    or a connection profile (`use: 'connections/<id>'`), which blocks deleting an in-use connection.
- * 2. A component-model composite's `content.parts[].ref {kind, id}` references its child components
- *    (dashboards → widgets, widgets → inline/named datasets, …).
+ * R1 (living-operational-system.md §5): every rule is the ONE metadata-network derivation
+ * (`refsForComponent`) mapped onto store collections — deleting a dataset a widget binds, a view a
+ * widget renders, a widget a dashboard tiles, or a connection/grammar a pipeline node binds, all 409
+ * with the referencers listed. No per-kind rules to keep in sync anymore.
  */
-const COMPONENT_KINDS = ['grammar', 'schema', 'transform', 'sink', 'dataset', 'widget', 'dashboard'];
+const COMPONENT_KINDS = [
+    'grammar', 'schema', 'transform', 'sink', 'dataset', 'widget', 'dashboard', 'geo-map-view', 'link-analysis-view',
+];
+
+/** Map a derived ref's target kind onto the store collection that holds it. */
+function collectionOf(kind: string): string {
+    return kind === 'connection' ? CONNECTIONS_COLL : componentCollection(kind);
+}
 
 export function registerIntegrityRules(store: MockStore): void {
     store.addRefRule({
         from: PIPELINES_COLL,
-        refs: (e) => {
-            const p = e as AuthoredPipeline;
-            return (p.nodes ?? []).flatMap((n) => {
-                if (!n.use) return [];
-                const slash = n.use.indexOf('/');
-                if (slash <= 0) return [];
-                const kind = n.use.slice(0, slash);
-                const id = n.use.slice(slash + 1);
-                if (!id) return [];
-                if (kind === 'connections') return [{ collection: CONNECTIONS_COLL, id }];
-                return COMPONENT_KINDS.includes(kind) ? [{ collection: componentCollection(kind), id }] : [];
-            });
-        },
+        refs: (e) => refsForComponent('pipeline', e as Record<string, unknown>).map((r) => ({ collection: collectionOf(r.kind), id: r.id })),
     });
 
     for (const kind of COMPONENT_KINDS) {
         store.addRefRule({
             from: componentCollection(kind),
-            refs: (e) => {
-                const content = (e as ComponentDef).content as
-                    | { parts?: Array<{ ref?: { kind?: string; id?: string } }> }
-                    | undefined;
-                return (content?.parts ?? []).flatMap((p) =>
-                    p.ref?.kind && p.ref.id ? [{ collection: componentCollection(p.ref.kind), id: p.ref.id }] : [],
-                );
-            },
+            refs: (e) =>
+                refsForComponent(kind, ((e as ComponentDef).content ?? {}) as Record<string, unknown>).map((r) => ({
+                    collection: collectionOf(r.kind),
+                    id: r.id,
+                })),
         });
     }
 }

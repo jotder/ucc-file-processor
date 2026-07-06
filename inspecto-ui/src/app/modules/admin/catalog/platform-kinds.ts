@@ -1,5 +1,5 @@
 import { AuthoredPipeline } from 'app/inspecto/api';
-import { ComponentKind, Part, Wiring, getKind, registerKind } from 'app/inspecto/component-model';
+import { ComponentKind, Part, Ref, Wiring, getKind, pipelineRefs, registerKind } from 'app/inspecto/component-model';
 
 /**
  * P2 of the component-model adoption plan: register the platform's **existing** kinds on the unified registry
@@ -45,6 +45,7 @@ export const PIPELINE_KIND: ComponentKind<AuthoredPipeline> = {
         nodes: parts.map((p) => ({ partId: p.partId })),
         edges: (flow?.edges ?? []).map((e) => ({ from: e.from, to: e.to, rel: e.rel })),
     }),
+    deriveRefs: (flow: AuthoredPipeline): Ref[] => pipelineRefs(flow as unknown as Record<string, unknown>),
     authoring: { editorKey: 'pipeline' },
     exec: { runnerKey: 'pipeline' },
 };

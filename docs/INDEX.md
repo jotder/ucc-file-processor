@@ -107,10 +107,15 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
   overwrite/skip on import. **Shipped** (mock-first; backend endpoints pending the ComponentStore
   enum widening).
 - [`superpower/metadata-network-design.md`](superpower/metadata-network-design.md) — **Metadata network
-  deep-dive (discussion draft)**: configuration-graph audit (4 duplicated ref-derivation sites, the
-  delete-protection gaps), the `deriveRefs` consolidation rework (R1), per-surface import/export
+  deep-dive**: configuration-graph audit (4 duplicated ref-derivation sites, the delete-protection
+  gaps), the `deriveRefs` consolidation (**R1 shipped 2026-07-06**), per-surface import/export
   placement, and the **bundle v2 envelope** (explicit lineage `refs` + `provenance`/hashes) — with
   JSON Schema + samples under `superpower/schemas/`.
+- [`superpower/living-operational-system.md`](superpower/living-operational-system.md) — **ARCHITECTURE
+  NORTH-STAR (2026-07-06)**: the platform as a living operational organism — seven networks
+  (Data / Signal / Decision / Execution / Metadata / Presentation / Security) over one Component
+  metamodel; Everything-is-Metadata coverage map; Queries/Parameters/Result-Sets;
+  rework roadmap **R1 (shipped) → R6**; proposed vocabulary pending GLOSSARY adoption.
 
 ## Strategy & roadmap (stakeholder-facing)
 

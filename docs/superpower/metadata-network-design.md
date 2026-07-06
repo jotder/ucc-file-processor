@@ -46,7 +46,15 @@ living in the wrong layer.
 **Verdict: rework is warranted, and it is small.** The seam is already named in the code
 ("A `deriveParts` ComponentKind seam could formalize this later" — `registry.component.ts:172`).
 
-### Proposed rework (R1): one derivation, four consumers
+### Rework R1: one derivation, four consumers — ✅ SHIPPED 2026-07-06
+
+Implemented as `inspecto/component-model/refs.ts` (`Ref {kind,id,rel,via}` + structural
+derivations + `refsForComponent`), the `ComponentKind.deriveRefs` seam (adopted by widget /
+dashboard / pipeline kinds), and all four consumers rewired: reuse-graph (now draws widget→view
+and view→dataset edges; saved-view kinds joined `REGISTRY_KINDS`), bundle closure, and the mock
+integrity rules (deleting a tiled widget / bound dataset / rendered view now 409s). Invariants:
+`component-model/refs.spec.ts` + the new 409 cases in `components.handler.spec.ts`.
+The remainder of this section is the original proposal, kept for rationale.
 
 Add to `ComponentKind` (in `inspecto/component-model`):
 
