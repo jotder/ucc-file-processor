@@ -6,25 +6,64 @@
     class="dark bg-gray-900 print:hidden"
     [mode]="isScreenSmall ? 'over' : 'side'"
     [name]="'mainNavigation'"
-    [navigation]="navigation.default"
+    [navigation]="displayedNavigation"
     [opened]="!isScreenSmall"
 >
     <!-- Navigation header hook -->
     <ng-container gammaVerticalNavigationContentHeader>
-        <!-- Logo -->
-        <div class="flex h-20 items-center p-6 pb-0">
-            <!-- Light version -->
-            <img
-                class="w-30 dark:hidden"
-                [src]="branding.logoUrl()"
-                alt="Logo image"
-            />
-            <!-- Dark version -->
-            <img
-                class="hidden w-30 dark:flex"
-                [src]="branding.logoUrl()"
-                alt="Logo image"
-            />
+        <!-- Logo + caption + menu search -->
+        <div class="flex flex-col p-6 pb-0">
+            <!-- Logo -->
+            <div class="flex items-center">
+                <!-- Light version -->
+                <img
+                    class="w-30 dark:hidden"
+                    [src]="branding.logoUrl()"
+                    alt="Logo image"
+                />
+                <!-- Dark version -->
+                <img
+                    class="hidden w-30 dark:flex"
+                    [src]="branding.logoUrl()"
+                    alt="Logo image"
+                />
+            </div>
+
+            <!-- Caption -->
+            <p class="mt-1.5 text-base italic text-primary-300">{{ branding.caption() }}</p>
+
+            <!-- Menu search box (pure client-side filter of the nav tree) -->
+            <div class="relative mt-4">
+                <mat-icon
+                    class="icon-size-5 pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"
+                    [svgIcon]="'heroicons_outline:magnifying-glass'"
+                ></mat-icon>
+                <input
+                    #navSearchInput
+                    type="text"
+                    role="searchbox"
+                    aria-label="Search menu items"
+                    placeholder="Search menu…"
+                    class="w-full rounded-md bg-gray-800 py-2 pl-9 pr-9 text-sm text-gray-100 placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    [value]="navSearchQuery"
+                    (input)="onNavSearch(navSearchInput.value)"
+                    (keydown.escape)="clearNavSearch()"
+                    (keydown.enter)="goToFirstResult()"
+                />
+                @if (navSearchActive) {
+                    <button
+                        type="button"
+                        class="absolute right-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                        aria-label="Clear menu search"
+                        (click)="clearNavSearch()"
+                    >
+                        <mat-icon class="icon-size-5" [svgIcon]="'heroicons_outline:x-mark'"></mat-icon>
+                    </button>
+                }
+            </div>
+            @if (navSearchActive && displayedNavigation.length === 0) {
+                <p class="mt-2 text-sm text-gray-400">No matching menus.</p>
+            }
         </div>
     </ng-container>
 </gamma-vertical-navigation>

@@ -113,6 +113,9 @@ export const appRoutes: Route[] = [
             { path: 'w/:nodeId', loadComponent: () => import('app/modules/admin/menu/menu-item-host.component').then((m) => m.MenuItemHostComponent) },
             // The old standalone prefs pane moved into the center as a tab (C4).
             { path: 'settings/notifications', redirectTo: 'notification-center' },
+            // Settings landing: every config option as expandable drawers (registered AFTER the
+            // specific settings/* routes so those match first).
+            { path: 'settings', loadChildren: () => import('app/modules/admin/settings/settings.routes') },
         ]
     }
 ];

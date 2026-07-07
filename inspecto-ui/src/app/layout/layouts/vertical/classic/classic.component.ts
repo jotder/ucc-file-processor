@@ -4,9 +4,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
 import { GammaLoadingBarComponent } from '@gamma/components/loading-bar';
 import {
+    GammaNavigationItem,
     GammaNavigationService,
     GammaVerticalNavigationComponent,
 } from '@gamma/components/navigation';
+import { flattenNavForSearch } from 'app/layout/layouts/vertical/classic/nav-search.util';
 import { GammaMediaWatcherService } from '@gamma/services/media-watcher';
 import { NavigationService } from 'app/core/navigation/navigation.service';
 import { Navigation } from 'app/core/navigation/navigation.types';
@@ -45,8 +47,12 @@ import { Subject, takeUntil } from 'rxjs';
 export class ClassicLayoutComponent implements OnInit, OnDestroy {
     isScreenSmall: boolean;
     navigation: Navigation;
+    /** Navigation actually rendered in the sidebar — the full tree, or flattened search results. */
+    displayedNavigation: GammaNavigationItem[] = [];
+    /** Sidebar menu search query (client-side filter of the nav tree). */
+    navSearchQuery = '';
     private _unsubscribeAll: Subject<any> = new Subject<any>();
-    /** Active-space branding (logo / footer), falling back to the shipped defaults. */
+    /** Active-space branding (logo / caption / footer), falling back to the shipped defaults. */
     protected readonly branding = inject(BrandingService);
 
 
@@ -85,6 +91,7 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
             .pipe(takeUntil(this._unsubscribeAll))
             .subscribe((navigation: Navigation) => {
                 this.navigation = navigation;
+                this._applyNavSearch();
             });
 
         // Subscribe to media changes
@@ -125,5 +132,55 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
             // Toggle the opened status
             navigation.toggle();
         }
+    }
+
+    /**
+     * Whether the menu search is actively filtering (non-empty query).
+     */
+    get navSearchActive(): boolean {
+        return this.navSearchQuery.trim().length > 0;
+    }
+
+    /**
+     * Handle a keystroke in the menu search box — re-filter the navigation live.
+     *
+     * @param query
+     */
+    onNavSearch(query: string): void {
+        this.navSearchQuery = query;
+        this._applyNavSearch();
+    }
+
+    /**
+     * Clear the menu search and restore the full navigation tree.
+     */
+    clearNavSearch(): void {
+        this.navSearchQuery = '';
+        this._applyNavSearch();
+    }
+
+    /**
+     * Navigate to the first search result (Enter key), then clear the search.
+     */
+    goToFirstResult(): void {
+        const first = this.displayedNavigation[0];
+
+        if (this.navSearchActive && first?.link) {
+            this._router.navigateByUrl(first.link);
+            this.clearNavSearch();
+        }
+    }
+
+    /**
+     * Recompute the rendered navigation: flattened search results while filtering, otherwise the
+     * full tree. A new array reference is assigned so the OnPush vertical-navigation re-renders.
+     *
+     * @private
+     */
+    private _applyNavSearch(): void {
+        const full = this.navigation?.default ?? [];
+        this.displayedNavigation = this.navSearchActive
+            ? flattenNavForSearch(full, this.navSearchQuery)
+            : full;
     }
 }

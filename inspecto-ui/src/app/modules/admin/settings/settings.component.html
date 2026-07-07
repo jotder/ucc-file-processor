@@ -1,0 +1,29 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <!-- Header -->
+    <div>
+        <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Settings</h1>
+        <div class="text-secondary mt-1">
+            Every platform configuration option, grouped into drawers. Open a drawer to configure it.
+        </div>
+    </div>
+
+    <!-- Drawers -->
+    <mat-accordion class="mt-6 block max-w-320" [multi]="true">
+        @for (drawer of drawers; track drawer.id) {
+            <mat-expansion-panel>
+                <mat-expansion-panel-header>
+                    <mat-panel-title class="flex items-center gap-3">
+                        <mat-icon class="icon-size-5 text-hint" [svgIcon]="drawer.icon"></mat-icon>
+                        <span class="font-medium">{{ drawer.title }}</span>
+                    </mat-panel-title>
+                    <mat-panel-description>{{ drawer.description }}</mat-panel-description>
+                </mat-expansion-panel-header>
+
+                <!-- Lazily instantiate the option's component only when its drawer is first opened -->
+                <ng-template matExpansionPanelContent>
+                    <ng-container [ngComponentOutlet]="drawer.component"></ng-container>
+                </ng-template>
+            </mat-expansion-panel>
+        }
+    </mat-accordion>
+</div>
