@@ -2,7 +2,7 @@
 
 > **Status (2026-06-15): the framework is built — Phases A–F shipped on `4.x`.** This document is the original
 > *requirement*; the as-built design + phase log live in
-> [`docs/outdated-doc/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md`](outdated-doc/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md),
+> [`docs/archived-documents/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md`](archived-documents/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md),
 > and the operator-facing config/runbook are in
 > [`configuration.md`](configuration.md#data-acquisition--the-source-block) and
 > [`integrations.md`](integrations.md#remote-source-connectors-sftp--ftp).

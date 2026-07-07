@@ -77,7 +77,7 @@ Three freshness classes, two delivery mechanisms — **RAG for knowledge, typed 
 
 | Class | Feed | Source of truth | Delivery |
 |---|---|---|---|
-| Static | Product docs, runbooks, ADRs, **OKF bundles** (91 structured files — built for this), **GLOSSARY** (canonical terms + banned synonyms), example catalog | `docs/`, `inspecto-ui/docs/okf/`, `docs/okf-backend/`, `inspecto/examples/` | `KnowledgeSource[]` → `DocumentIngestor` at pack bootstrap; citations mandatory |
+| Static | Product docs, runbooks, ADRs, the **consolidated OKF bundle** (~100 structured files — built for this), **GLOSSARY** (canonical terms + banned synonyms), example catalog | `docs/`, `docs/okf/` (frontend + backend + agentic sections), `inspecto/examples/` | `KnowledgeSource[]` → `DocumentIngestor` at pack bootstrap; citations mandatory |
 | Slow-changing | Metadata network: catalog entities + descriptions (`MetadataGraphService`), Component reuse graph (P3 `inspecto/graph`), schemas + Expectations, Source/connection profiles (secrets NEVER — refs only), Measures, Datasets, Pipeline configs, schedules | ComponentStore, catalog, `ConnectionRegistry` | typed **ContextProviders** + a `graph_neighbors` tool; re-ingest summaries on change events |
 | Live | `StatusStore`, batch/job runs (W5), alerts + Incidents, quarantine, acquisition ledger, Prometheus metrics, scheduler state, `DiagnosisStore` | ops stores | **tools only** (§3), fetched at question time |
 

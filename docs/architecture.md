@@ -1,18 +1,22 @@
 # Architecture & Design
 
-> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
+> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](INDEX.md).
 
 ## Design Philosophy & Scope
 
-> **Scope note (v3.0).** This page describes **Stage-1**: the M..N multiplexer ingest
-> engine (`com.gamma.etl` + `com.gamma.inspector`). The platform has since grown a
-> **Stage-2 enrichment engine** (`com.gamma.enrich`, shipped across the 2.x line) that
-> deliberately *does* the joins and aggregation listed below as Stage-1 non-goals — on the
-> Hive-partitioned Parquet output, orchestrated by the service/control plane. The non-goals
-> below are **still correct for Stage-1** (they are what keep each batch embarrassingly
-> parallel and crash-isolated); they are no longer platform-wide. The two-stage shape is
-> mapped in [v3-architecture.md](outdated-doc/v3-architecture.md); Stage-2's design is in
-> [v2-plan.md](outdated-doc/v2-plan.md). "Do it downstream" now has a first-class, in-platform answer.
+> **Scope note (updated 2026-07-07).** This page describes **Stage-1**: the M..N multiplexer ingest
+> engine (`com.gamma.etl` + `com.gamma.inspector`) — still the heart of the data plane, and still
+> accurate below. Around it the platform has since grown, in order: the **Stage-2 enrichment engine**
+> (`com.gamma.enrich`, 2.x) which deliberately *does* the joins/aggregations listed below as Stage-1
+> non-goals; the **service + control plane** (`SourceService` + `ControlApi` — Jobs, Signals/events,
+> Metrics, audit, and since 4.8 the versioned **`/api/v1`** contract); **authored Pipelines**
+> (`com.gamma.pipeline` — DAGs of Steps run as `type: pipeline` Jobs); **multi-space tenancy**
+> (`spaces/<id>/…`); the **Component metamodel** + derived registry; **editions** as build flavors
+> (Personal/Standard/Enterprise; `inspecto-security` for Standard); and the optional **assist agent**
+> (vendored kernel + eoiagent model transport). The whole-platform map lives in the
+> [OKF knowledge bundle](okf/index.md); the authored-Pipeline design in
+> [`flow-graph-design.md`](flow-graph-design.md). The non-goals below are **still correct for
+> Stage-1** — they are what keep each batch embarrassingly parallel and crash-isolated.
 
 This is a deliberately small ETL engine built around one idea: an **M..N
 multiplexer**. A batch of **M** input files is demultiplexed and routed into
@@ -84,7 +88,7 @@ Since the 2.x line, that downstream answer is **first-class and in-platform**: t
 views and runs exactly these joins/aggregations as its own `transform` SQL, idempotently and
 incrementally (event- or schedule-driven), under the same service/control plane. So "do it
 downstream" no longer means "leave the platform" — Stage-1 stays a clean multiplexer, and
-Stage-2 owns the cross-record work. See [v3-architecture.md](outdated-doc/v3-architecture.md) for the
+Stage-2 owns the cross-record work. See [v3-architecture.md](archived-documents/v3-architecture.md) for the
 two-stage map.
 
 ### Format-specific configuration
@@ -220,51 +224,35 @@ com.gamma
 - **`OutputFormat`** — enum-as-strategy owning each format's extension, COPY token, and compression rule, used by `PartitionWriter`.
 - **`StatusStore`** (`FileStatusStore` / `DbStatusStore`) and the **`BatchEventBus`** (`Consumer<BatchEvent>` observers) — pluggable audit backend and commit-event fan-out.
 
-These keep the data path lean while making formats, ingest paths, transforms, and audit sinks independently extensible and testable. See [design-notes → D7](outdated-doc/design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390).
+These keep the data path lean while making formats, ingest paths, transforms, and audit sinks independently extensible and testable. See [design-notes → D7](archived-documents/design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390).
 
 ---
 
 ## Directory Layout
 
+Since multi-space (4.x), everything an installation owns lives under a **Space** directory
+(`-Dspaces.root`, default `./spaces`); single-space installs use the `default` Space. Legacy flat
+layouts are migrated once via `com.gamma.service.SpaceMigrator` — there is no flat fallback.
+
 ```
-sandbox-root/                ← working directory for local runs
-  inspecto/
-    config/
-      <data_source>/
-        adj_gen.toon               ← generation profile (hand-authored)
-        <data_source>_schema.toon     ← field definitions + mapping rules
-        <data_source>_pipeline.toon   ← runtime settings (dirs, threads, format)
-        test_pipeline.toon         ← lightweight CSV test pipeline
-    src/                     ← Java source
-    target/
-      file-processor-<version>.jar   ← fat JAR (built by mvn package)
-    pom.xml
-    package.ps1              ← builds + bundles a deployment zip
-    README.md
-  inbox/
-    <data_source>/              ← drop input files here (date sub-folders created by utilities)
-  database/
-    <data_source>/              ← partitioned Parquet output
-  backup/
-    <data_source>/              ← original source files archived after processing
-  temp/
-    <data_source>/              ← scratch: tar extraction, the per-batch DuckDB temp DB + spill,
-                                  and large-file chunks (auto-cleaned). Override via
-                                  processing.duckdb.temp_directory; never the system /tmp.
-  errors/
-    <data_source>/              ← per-file error CSVs (rows rejected during ingest)
-  quarantine/
-    <data_source>/              ← files quarantined by SourceProcessor (wrong-schema / unreadable)
-  markers/
-    <data_source>/              ← .processed sentinel files (mirrors inbox tree; auto-pruned by retention_days)
-  status/
-    <data_source>/              ← per-run audit CSVs: <data_source>_etl_status_<timestamp>.csv
-  logs/
-    <data_source>/              ← per-run log files: <data_source>_etl_log_<timestamp>.log
-  warehouse_setup.sql        ← pg_duckdb warehouse schema, views, and RBAC (run once on server)
+sandbox-root/                       ← working directory for local runs (the JVM CWD)
+  spaces/                           ← -Dspaces.root; one directory per Space
+    <space-id>/
+      space.toon                    ← Space manifest
+      config/<data_source>/         ← *_gen.toon, *_schema.toon, *_pipeline.toon (+ grammars, jobs, alerts)
+      data/…                        ← the per-pipeline dirs.* trees: inbox, partitioned Parquet
+                                      output (Tables), backup, errors, quarantine, markers,
+                                      status, temp scratch, logs
+      audit/                        ← batch/file audit ledgers
+      duckdb/                       ← per-Space DuckDB state
+      flows/                        ← authored Pipeline definitions (storage dir name is historical)
+  warehouse_setup.sql               ← pg_duckdb warehouse schema, views (run once on server)
 ```
 
-All `dirs.*` paths in pipeline configs are relative to the **sandbox root** (the JVM working directory).
+⚠️ **All `dirs.*` paths in pipeline configs resolve against the JVM working directory, not the Space
+root** — write them bundle-root-relative (`spaces/<id>/config/…`, `spaces/<id>/data/…`). Only the
+Space *discovery* layer (`-Dspaces.root`, `SpaceRoot`) is Space-relative; `SpaceMigrator` cannot
+rewrite absolute or author-relative paths for the same reason.
 
 ---
 

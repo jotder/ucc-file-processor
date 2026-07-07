@@ -8,9 +8,13 @@
 > (`QueryPanelComponent`: projection + nested AND/OR filter + generated SQL + one-way Advanced-SQL override +
 > live in-browser preview). Fully offline; embedded in the `/design` gallery, the parser **parsed-output**
 > viewer, and the **events / alerts / cases / enrichment** surfaces (offline via `ops-mock.interceptor`,
-> `environment.mockOps`). NOT yet built: rule **save/templates/parameters**, the aggregation **builder**
-> (measures/dimensions — agg functions reach via the Advanced SQL panel only), and real server-side SQL
-> execution.
+> `environment.mockOps`). NOT yet built: rule **save/templates**, and the aggregation **builder**
+> (measures/dimensions — agg functions reach via the Advanced SQL panel only).
+> **Since shipped elsewhere (2026-07-06/07):** real server-side SQL execution now exists via the v1
+> query catalog (`POST /queries/{id}/run` on DuckDB, with `$`-Parameters + a Result Set descriptor —
+> R3/W4); `query` is a writable Component kind; and **Decision Rules** shipped as the `decision-rule`
+> kind (R5). This design stays the north star for the *builder UX* — wire it to those seams rather
+> than re-building them.
 
 ## 1. Vision
 

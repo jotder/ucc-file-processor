@@ -2,7 +2,7 @@
 
 > **Status: IMPLEMENTED (design authored 2026-06-16; shipped 2026-06-18/19+).** The graph IR, lift, validator,
 > executor, and component registry described below are live — see [`flow-live-execution-plan.md`](flow-live-execution-plan.md)
-> for the runtime and the [`okf-backend/flow-graph/`](okf-backend/flow-graph/index.md) bundle for the as-built reference.
+> for the runtime and the [`okf/backend/pipeline-graph/`](okf/backend/pipeline-graph/index.md) bundle for the as-built reference.
 > This document is the agreed design for re-modelling
 > the Inspecto "pipeline" as an explicit, NiFi-style **graph of typed processor nodes** wired by data and control
 > edges, authored from reusable, referenced components and visualised/edited from the UI. It supersedes the

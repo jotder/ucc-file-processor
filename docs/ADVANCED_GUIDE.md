@@ -27,7 +27,7 @@ section in the *same* change:
 
 Keep reference sections as **tables** (scannable under pressure). Prefer correcting an existing row over
 appending. When a behaviour is removed, delete its row — never leave stale entries. Line refs (`File.java:NN`)
-drift; treat them as hints, confirm against code. **Last verified against code: 2026-06-18.**
+drift; treat them as hints, confirm against code. **Last verified against code: 2026-07-07.**
 
 ---
 
@@ -586,4 +586,4 @@ are computed at scrape time by `MetricsService`'s collector. Confirm the service
 
 ---
 
-*Living document — keep it current (see §0). Last verified against code: 2026-06-18.*
+*Living document — keep it current (see §0). Last verified against code: 2026-07-07.*

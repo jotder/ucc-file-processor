@@ -47,7 +47,8 @@ in shifts under one account; no per-user commits/branches/PRs; all Claude setup 
    generic entries promoted to committed `settings.json` (npx vitest/ng, curl localhost, WebSearch,
    preview_start); deleted 71KB `settings.local.json.bak`; removed stale `workflows/milestone-verify.js`.
 6. **Profile hygiene**: 13 project-related plan files moved from `~/.claude/plans/` →
-   `docs/superpower/plans-archive/`; memory index updated (macros memory now points at repo skills).
+   `docs/superpower/plans-archive/` (since 2026-07-07: `docs/archived-documents/plans-archive/`);
+   memory index updated (macros memory now points at repo skills).
 7. Removed leftover worktree `angry-golick-0a3ae8`.
 
 ## Pending (needs a human)

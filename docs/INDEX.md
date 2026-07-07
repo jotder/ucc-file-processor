@@ -1,7 +1,7 @@
 # Documentation Index
 
 > The curated map of **current** Inspecto docs. Anything not listed here has been archived under
-> [`outdated-doc/`](outdated-doc/) (historical plans, superseded designs, point-in-time snapshots) — kept for
+> [`archived-documents/`](archived-documents/) (historical plans, superseded designs, point-in-time snapshots) — kept for
 > provenance, not maintained. When you add or retire a doc, update this index in the same change.
 
 ---
@@ -15,25 +15,44 @@
 
 ## Durable project knowledge
 
+- [`USER_GUIDE.md`](USER_GUIDE.md) — **end-user guide** to the web app: getting around (navigation, menu
+  search, Spaces/Lens), every screen (Business, Operations, Platform → Workbench/Studio/Catalog, Settings,
+  Assistant), and the shared UI elements. Written in canonical `GLOSSARY.md` vocabulary.
+  ⚠️ Audit 2026-07-07: [`superpower/reviews/user-guide-audit.md`](superpower/reviews/user-guide-audit.md) —
+  guide vs glossary vs shipped UI: 4 factual errors, 3 orphan Business panes (KPI & Reports / Requirements /
+  Reconciliation, also missing from nav), conflicting **Report** definitions, Alert-Rule authoring hole;
+  prioritized P0–P2 fix list. **P0 + most P1/P2 landed 2026-07-07** (correctness fixes, Business nav
+  group + guide §2, Report=scheduled-delivery, Alert-Rule authoring pane, ELT lifecycle + persona intro,
+  `/overview` rename, `tools/check-vocabulary.mjs` CI guard); still open: KPI-authoring/Measure-reuse
+  docs, quarantine remediation, C8/C9/C11 de-jargon, Matrix tense.
 - [`PROJECT_NOTES.md`](PROJECT_NOTES.md) — consolidated cross-cutting knowledge that isn't obvious from code
   or git: key decisions (editions/auth), cross-cutting gotchas (TOON schema, DuckDB keywords, sync-bus
   deadlock, …), engine seams & perf, inspecto-ui conventions, and a pointer map to the authoritative docs.
   Consolidated from per-user agent memory 2026-06-19; keep current as durable facts change.
 - [`FEATURE_INVENTORY.md`](FEATURE_INVENTORY.md) — advanced reference: every user-facing feature's TOON
   shape + where it's defined, the existing examples, how the release bundle is assembled, runnability
-  constraints, and the worked-example build plan. Point-in-time snapshot (2026-06-20). Pairs with the
-  runnable suite in [`../inspecto/examples/`](../inspecto/examples).
+  constraints, and the worked-example build plan. Point-in-time snapshot (2026-06-20, with a 2026-07-07
+  addendum listing what shipped since). Pairs with the runnable suite in
+  [`../inspecto/examples/`](../inspecto/examples).
+- [`REQUIREMENTS.md`](REQUIREMENTS.md) — **current requirements-of-record**: the full platform
+  requirement set (UI + backend + agentic) with a reconciled **MoSCoW analysis**, edition mapping,
+  NFRs, sequencing, and risks (compiled 2026-07-07; reconciles the 2026-07-02 feature matrix with the
+  shipped W1–W7 + R1–R6 work).
 
-## Engineering knowledge bundles (OKF)
+## Engineering knowledge bundle (OKF, consolidated)
 
-Structured, agent- and human-readable [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
-bundles — one concept per file, cross-linked, and indexed by graphify. They **summarize and link** the deep
-topic docs (each concept cites its authoritative doc); they don't replace them.
+The **one** structured, agent- and human-readable [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+bundle — one concept per file, cross-linked, indexed by graphify. Concepts **summarize and link** the deep
+topic docs (each cites its authoritative doc); they don't replace them. *(Consolidated 2026-07-07 from
+`docs/okf-backend/` + `inspecto-ui/docs/okf/`.)*
 
-- [`okf-backend/`](okf-backend/index.md) — the Java backend: engine, acquisition, control plane, flow-graph,
-  components, config, editions, agent, build/run, gotchas.
-- [`../inspecto-ui/docs/okf/`](../inspecto-ui/docs/okf/index.md) — the Angular frontend: architecture,
-  conventions, design system, the 21 feature screens, API services.
+- [`okf/`](okf/index.md) — the master index, with three sections:
+  - [`okf/frontend/`](okf/frontend/index.md) — the Angular console: architecture, conventions (incl. the
+    `/api/v1` flip), design system, the ~35 feature screens (Studio, Geo Map, Link Analysis, …), services.
+  - [`okf/backend/`](okf/backend/index.md) — the Java backend: engine, acquisition, control plane +
+    `/api/v1` contract, pipeline-graph, components, config, editions & security, agent, build/run, gotchas.
+  - [`okf/agentic/`](okf/agentic/index.md) — **eoiagent** (the embeddable agent framework, separate repo)
+    distilled: overview, architecture, governance, ADR log, and the Inspecto integration seam.
 
 ## Production investigation (the hub)
 
@@ -48,7 +67,6 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
   with ADVANCED_GUIDE §3–5; ADVANCED_GUIDE is authoritative for internals.)*
 - [`troubleshooting.md`](troubleshooting.md) — focused fixes (DuckDB/pg_duckdb view quirks, partition extraction).
 - [`integrations.md`](integrations.md) — warehouse query layer (pg_duckdb), remote connectors, external systems.
-- [`operator-console.md`](operator-console.md) — the operator console / UI panes.
 - [`parsing-options-reference.md`](parsing-options-reference.md) — parsing options reference
   (+ [`Parsing Options Reference.pdf`](Parsing%20Options%20Reference.pdf)).
 - [`plugins.md`](plugins.md) — plugin ingester (segment demux) + execution modes.
@@ -62,12 +80,12 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
 
 ## Architecture & design
 
-- [`architecture.md`](architecture.md) — Stage-1 M..N multiplexer + Stage-2 enrichment overview. *(Review: framed
-  pre-flow-engine; for the flow model see flow-graph-design + ADVANCED_GUIDE §5.3.)*
+- [`architecture.md`](architecture.md) — Stage-1 M..N multiplexer + Stage-2 enrichment overview, with the
+  current platform scope map + multi-space directory layout *(reframed 2026-07-07)*.
 - [`flow-graph-design.md`](flow-graph-design.md) — pipeline-as-graph design (IR, lift, validator, executor,
   component registry, T-checklist). **Active.**
-- [`flow-live-execution-plan.md`](flow-live-execution-plan.md) — live execution of authored flows as `JobType.FLOW`
-  (T32). **Active.**
+- [`flow-live-execution-plan.md`](flow-live-execution-plan.md) — live execution of authored Pipelines as
+  `JobType.PIPELINE` (T32). **Active.**
 - [`data_acquisition_framework.md`](data_acquisition_framework.md) — acquisition requirement + as-built pointer
   (Phases A–F shipped on `4.x`).
 - [`delimited-grammar-design.md`](delimited-grammar-design.md) — delimited-grammar parsing design.
@@ -93,7 +111,11 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
   templates) are backend-gated, see [`superpower/backend-backlog.md`](superpower/backend-backlog.md).
 - [`superpower/backend-backlog.md`](superpower/backend-backlog.md) — **consolidated backend backlog**: the
   one closed `ComponentStore.WRITABLE_TYPES` enum blocking Widget-Library M2, Matrices, and (partly) Job
-  templates — sequencing + current-state facts, not started.
+  templates, plus the Alert-Rule write endpoints (§4) — sequencing + current-state facts, not started.
+- [`superpower/alert-rule-authoring-plan.md`](superpower/alert-rule-authoring-plan.md) — **Alert-Rule
+  authoring pane** (audit C3): schema-form dialog + rules CRUD on the Alerts pane, `canAuthorAlertRules`
+  capability, mock-first contract mirroring `/decision-rules`. **UI shipped 2026-07-07**; backend writes
+  are backlog §4.
 - [`superpower/geo-map-analysis-plan.md`](superpower/geo-map-analysis-plan.md) — **Geo Map Analysis studio**:
   revised MoSCoW + phased plan (offline MapLibre basemap, GeoSource seam, shared investigation lib).
   **Phases 0–3a shipped** (mock-first); review sheet
@@ -130,6 +152,9 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
 
 ## Strategy & roadmap (stakeholder-facing)
 
+- [`stakeholders/`](stakeholders/README.md) — **the audience-targeted document set** (2026-07-07):
+  executive brief, product capabilities, technical architecture, operations guide — with a per-audience
+  reading map. Start here when handing material to a stakeholder.
 - [`roadmap/STAKEHOLDER_OVERVIEW.md`](roadmap/STAKEHOLDER_OVERVIEW.md) — high-level platform overview & strategy for a
   mixed exec/technical audience (vision, capability inventory, editions, maturity, roadmap). **Active.**
 - [`roadmap/ROADMAP.md`](roadmap/ROADMAP.md) — forward plan (Now/Next/Later horizons, themes, sequencing, success
@@ -149,10 +174,9 @@ topic docs (each concept cites its authoritative doc); they don't replace them.
 ## Plans
 
 - The **consolidated stakeholder snapshot** is **archived** (frozen 2026-06-13) under
-  [`outdated-doc/consolidated-2026-06-13/`](outdated-doc/consolidated-2026-06-13/README.md). Its live
-  equivalents: the per-topic docs above, the stakeholder narrative in
-  [`roadmap/STAKEHOLDER_OVERVIEW.md`](roadmap/STAKEHOLDER_OVERVIEW.md), and the OKF bundles (above).
-- [`assist-agent-improvement-plan.md`](assist-agent-improvement-plan.md) — assist-agent improvement plan (active).
+  [`archived-documents/consolidated-2026-06-13/`](archived-documents/consolidated-2026-06-13/README.md). Its live
+  equivalents: the per-topic docs above, the stakeholder set in [`stakeholders/`](stakeholders/README.md),
+  and the consolidated OKF bundle (above).
 
 ## Task-specific topics (load as needed)
 
@@ -162,12 +186,17 @@ Add topic files in `docs/learnings/` and list them here.
 
 ## Archive
 
-[`outdated-doc/`](outdated-doc/) holds superseded/historical material, not maintained:
+[`archived-documents/`](archived-documents/) holds **all** superseded/historical material, not maintained
+*(renamed from `outdated-doc/` 2026-07-07; `superpower/plans-archive/` now lives inside it too)*:
 `v2-*` / `v3-*` planning, `refactor-blueprint-v4`, `design-notes`, `design_analysis`,
-`test-coverage`, `ticketing_systems_requirement`, the `superpowers/` specs+plans, and the
-`consolidated-2026-06-13/` stakeholder snapshot. Move a doc back up and add it
-to this index if it becomes current again.
+`test-coverage`, `ticketing_systems_requirement`, the `superpowers/` specs+plans, the
+`consolidated-2026-06-13/` stakeholder snapshot, and — archived in the 2026-07-07 reconciliation —
+`operator-console.md` (superseded by `USER_GUIDE.md`), `flow-authoring-design.md` (superseded by the
+shipped Pipeline editor + component model), `assist-agent-improvement-plan.md` (completed 2026-06-12;
+kernel references pre-date eoiagent), `ui-components.md` + `devextreme-migration-plan.md` (superseded
+by the OKF frontend section; the migration plan's Option C shipped as the vendored shell). Move a doc
+back up and add it to this index if it becomes current again.
 
 ---
 
-**Last Updated**: 2026-07-01
+**Last Updated**: 2026-07-07

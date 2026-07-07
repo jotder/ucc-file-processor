@@ -17,7 +17,8 @@
 
 ## 1. Identity & module map
 
-**Inspecto** (formerly *UCC File Processor*; repo `C:/sandbox/ucc-file-processor`). Java 25+ (built on 26) / Maven
+**Inspecto** (formerly *UCC File Processor*; repo `C:/sandbox/ucc-file-processor`). Java (core bytecode
+`release=24`; agent modules need a **JDK 25+ runtime**; built & bundled on **JDK 26**) / Maven
 multi-module · embedded **DuckDB** · **TOON** config · OpenCSV. Mainline = `master`; current release line
 = `4.x`. Editions = build flavors (see below), **never branches**.
 
@@ -52,7 +53,8 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
 | Perf benchmarks & tuning | [`performance.md`](performance.md) |
 | Strategy / roadmap / stakeholder decks | [`roadmap/`](roadmap/) |
 | Curated index of all current docs | [`INDEX.md`](INDEX.md) |
-| Engineering knowledge bundles (OKF; cross-linked, graphify-indexed) | [`okf-backend/`](okf-backend/index.md) (backend) · [`../inspecto-ui/docs/okf/`](../inspecto-ui/docs/okf/index.md) (frontend) |
+| Engineering knowledge bundle (OKF, consolidated 2026-07-07; graphify-indexed) | [`okf/`](okf/index.md) — sections [`frontend/`](okf/frontend/index.md) · [`backend/`](okf/backend/index.md) · [`agentic/`](okf/agentic/index.md) |
+| Requirements-of-record + MoSCoW · stakeholder set | [`REQUIREMENTS.md`](REQUIREMENTS.md) · [`stakeholders/`](stakeholders/README.md) |
 
 ---
 
@@ -64,9 +66,11 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
   at build. Rationale: branches would force perpetual cross-line cherry-picking. → [`EDITIONS.md`](EDITIONS.md).
 - **All auth removed from `master`/common core (2026-06-16).** Personal is genuinely auth-free (every
   ControlApi route open; SPA boots to `/dashboard`; no token paste/guards). Standard re-adds auth out-of-band
-  via the (not-yet-built) `inspecto-security` module behind an `Authenticator` SPI — OIDC resource-server
-  (Nimbus+JWKS) + RBAC/ABAC; Angular uses OIDC Auth-Code+PKCE. **The `-Dassist.write.root` 503 write-gate is
-  SEPARATE from auth and stays.**
+  via the **`inspecto-security` module (BUILT, W6 2026-07-06** — `OidcAuthenticator` Nimbus+JWKS, `RoleMapper`,
+  `KeycloakTokenRelay`; reactor-gated behind the `edition-standard` profile) behind the
+  `Authenticator`/`Subject`/`TokenRelay` SPIs (`com.gamma.control`), plus HTTPS (`HttpsServer`) and the BFF
+  `/auth/exchange|refresh|logout` routes; Angular uses OIDC Auth-Code+PKCE driven by `bootstrap.features.authMode`
+  (no-op on Personal). **The `-Dassist.write.root` 503 write-gate is SEPARATE from auth and stays.**
 - **Keep the core lean.** All network deps live in `inspecto-connectors`; hosted-AI SDKs in
   `inspecto-agent-hosted` (physically absent from air-gapped builds). The zero-new-dep rule was retired
   2026-06-13 (logback replaced slf4j-simple, user-approved) — still no gratuitous deps.
@@ -153,8 +157,10 @@ Angular 21 · Material/Tailwind · ag-Grid 35 · Chart.js · AntV G6 5. **Read t
 touching `inspecto-ui/`.** Highlights (full detail there):
 
 - **API clients** in `src/app/inspecto/api/` (barrel `index.ts`): `@Injectable({providedIn:'root'})`,
-  `inject(HttpClient)`, `apiUrl('/path')` + `toParams({...})` from `api-base.ts`; interfaces inline in the
-  service. **App is auth-free** — no interceptor/guard/token; only `errorInterceptor` (no 401 branch).
+  `inject(HttpClient)`, `apiUrl('/path')` (→ **`/api/v1`** since W7) + `toParams({...})` from `api-base.ts`;
+  interfaces inline in the service. Interceptor chain: first-position `v1Interceptor` (shape-guarded envelope
+  unwrap), `spaceInterceptor` (space id **after** `/v1`), `errorInterceptor`, and `auth.interceptor` — the
+  auth flow is a **no-op on Personal** (OIDC only when `bootstrap.features.authMode` says so, W6d).
 - **Feature panes** in `src/app/modules/admin/<feature>/`, **signals + OnPush**. A pane can be reused across
   routes via `ActivatedRoute.snapshot.data` (Cases/Issues = one `ObjectsComponent`).
 - **Second "lens" on a pane = `mat-button-toggle-group`, NOT a new nav item** (Flows `flow|combined`, Jobs
@@ -173,6 +179,13 @@ touching `inspecto-ui/`.** Highlights (full detail there):
   `scrollLeft` before asserting in preview.
 - **`@if/@else` + `mat-icon` button ⇒ NG8011** (icon won't project). Keep always-on icon buttons outside the
   branch, or make the branch's only root the button.
+- **TestBed `{provide: MatDialog, useValue: …}` is silently shadowed** on any pane that imports
+  `DataTableComponent` (or anything else importing `MatDialogModule`): the standalone component's
+  *standalone injector* re-provides the real `MatDialog` closer than the testing module, so the pane
+  injects the real service and `open()` explodes in jsdom (`undefined.push` in material dialog.ts).
+  Fix: after `createComponent`, `vi.spyOn(componentInstance['dialog'], 'open').mockReturnValue(...)` —
+  spy on the instance the component actually got (see `alerts.component.spec.ts`). Several older specs
+  carry the dead-weight provider without noticing because they never call through `open`.
 - **Authenticated file download** — go through `HttpClient` (`responseType:'text'|'blob'`) + `Blob` +
   `createObjectURL` + transient `<a download>`; a plain anchor `href` doesn't carry headers.
 - **Live tail** — `visibleInterval(ms)` (`api/auto-refresh.ts`, pauses on hidden tab); hold/resubscribe/unsub;

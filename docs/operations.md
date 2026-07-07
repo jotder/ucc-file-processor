@@ -304,11 +304,24 @@ Chains form naturally — set `on_pipeline` to an upstream enrichment's `name` a
 
 ```bash
 java -cp file-processor.jar com.gamma.control.ControlApi \
-     -Dcontrol.port=8080 -Dcontrol.token=secret \
+     -Dcontrol.port=8080 \
      -Dservice.poll.seconds=60 config/
 ```
 
-A bearer token guards every route except the public `/health`, `/ready`, and `/metrics` (present it as `Authorization: Bearer <token>` or `X-Api-Token`). **As of v3.0 the API is fail-closed and scoped** — there is no open-by-default mode. Routes carry a scope; current control routes require the `CONTROL` scope (`-Dcontrol.token`). If a scope has no token configured, its routes return `401` (locked) rather than running open. Scopes are hierarchical — `CONTROL` satisfies everything; `assist.write` satisfies `assist.read`. The `assist.read` scope (`-Dassist.read.token`) backs the read-only `/catalog*`, `/config/spec/*` and `/assist/*` routes; `assist.write` (`-Dassist.write.token`) backs `POST /config/write`. Token comparison is constant-time.
+**Auth model (editions realignment, 2026-06-16).** The common core is **auth-free**: on the Personal
+edition every route is open — no token, guard, or login (the old `CONTROL`/`assist.*` token scopes were
+removed). The **Standard** edition re-adds authentication out-of-band via the `Authenticator` / `Subject` /
+`TokenRelay` SPIs (`com.gamma.control`), implemented by the `inspecto-security` module (OIDC resource
+server, HTTPS, BFF `/auth/*` routes) — see [`EDITIONS.md`](EDITIONS.md). Separate from auth and always on:
+**write routes are fail-closed** behind the `-Dassist.write.root` gate (`503` when unset).
+
+**Versioned contract.** Every route below is also served under the versioned **`/api/v1`** prefix with a
+response envelope, an error-code catalog, ETag/`If-Match` concurrency on components, `GET /bootstrap`,
+`POST /queries/{id}/run`, and **async** job/pipeline triggers (`202` + `runId` + poll, `Idempotency-Key`
+replay). The legacy unversioned routes remain byte-for-byte compatible until a soak-gated sunset. The
+authoritative surface is [`ADVANCED_GUIDE.md`](ADVANCED_GUIDE.md) §Control API and the OpenAPI contract
+[`api/openapi-v1.json`](api/openapi-v1.json). With multi-space enabled, routes may be prefixed
+`/spaces/{id}/…`.
 
 | Method & path | Purpose |
 |---|---|
@@ -341,13 +354,13 @@ A bearer token guards every route except the public `/health`, `/ready`, and `/m
 | `POST /config/write` | body `{type, config, subdir?, overwrite?}` — persist a validated draft as `.toon` under `-Dassist.write.root` (`assist.write` scope; v4.1) |
 
 ```bash
-curl -s -H "Authorization: Bearer secret" localhost:8080/pipelines
-curl -s -X POST -H "Authorization: Bearer secret" localhost:8080/pipelines/adjustment_etl/trigger
+curl -s localhost:8080/pipelines
+curl -s -X POST localhost:8080/pipelines/adjustment_etl/trigger
 ```
 
 **Authoring → save → register (v4.1).** With `-Dassist.write.root=<dir>` set, a validated config
-draft can be persisted (`POST /config/write`, `assist.write` scope) and then registered as a live
-pipeline (`POST /pipelines`, `CONTROL` scope) without a restart — the running service picks it up
+draft can be persisted (`POST /config/write`) and then registered as a live
+pipeline (`POST /pipelines`) without a restart — the running service picks it up
 on the next poll cycle. Both routes are fail-closed: unset write root ⇒ `503`; paths are jailed
 under the root; drafts with ERROR-level findings (spec or hard-fail safety validator) ⇒ `422`;
 an existing file ⇒ `409` unless `overwrite:true`. Registration is in-memory — keep the write root
@@ -359,7 +372,7 @@ Angular SPA as static files, so one process hosts both the API and the UI (v4.1)
 - `-Dui.dir=<path>` — serve a built SPA bundle (the folder containing `index.html`). Unknown
   **GET** paths with no file extension fall back to `index.html` (SPA deep links), while unmatched
   **API** paths still return JSON `404` — routes always win over the static fallback. Static assets
-  are PUBLIC (no token) so the shell loads before the operator connects. A path-traversal guard
+  are served without restriction so the shell loads before the operator connects. A path-traversal guard
   confines reads under the root.
 - `-Dcontrol.cors=<origin>` (e.g. `http://localhost:4204`, or `*`) — enable CORS headers + `OPTIONS`
   preflight, for a separately-hosted dev SPA. Omit for prod (same-origin needs no CORS).
@@ -367,12 +380,12 @@ Angular SPA as static files, so one process hosts both the API and the UI (v4.1)
 Both flags are **off by default**: unset, the control plane behaves exactly as a headless API. The
 deploy bundle's `serve.sh` / `serve.bat` wire these up automatically (`-Dui.dir=./ui` when a `ui/`
 folder is present; `CORS_ORIGIN` env → `-Dcontrol.cors`). See the
-[Operator Console guide](operator-console.md) for the full UI walkthrough.
+[User Guide](USER_GUIDE.md) for the full UI walkthrough.
 
 ```bash
-# bundle root — serve API + UI on :8080, reading tokens from the environment
-CONTROL_TOKEN=secret ASSIST_TOKEN=secret bash serve.sh        # Linux/Mac
-set CONTROL_TOKEN=secret && serve.bat                         # Windows
+# bundle root — serve API + UI on :8080
+bash serve.sh        # Linux/Mac
+serve.bat            # Windows
 # then open http://localhost:8080/
 ```
 

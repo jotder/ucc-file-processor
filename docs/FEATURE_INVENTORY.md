@@ -11,6 +11,16 @@
 > against current code** before relying on a specific line. The authoritative living docs are
 > [`configuration.md`](configuration.md) (all TOON keys), [`parsing-options-reference.md`](parsing-options-reference.md)
 > (frontend status), and [`ADVANCED_GUIDE.md`](ADVANCED_GUIDE.md) (runtime flags, events, metrics, Control API).
+>
+> **Shipped after this snapshot (2026-07-07 addendum)** — not yet folded into the tables below: the
+> versioned **`/api/v1`** contract (envelope, error-code catalog, ETag/`contentHash`, `GET /bootstrap`,
+> query catalog `POST /queries/{id}/run` + Result Set, async job/pipeline runs `202`+`runId`,
+> `Idempotency-Key`); the **`inspecto-security`** module (Standard-edition OIDC/HTTPS/BFF); the
+> **agent-kernel → eoiagent** replacement (vendored kernel layer + `com.eoiagent` model transport);
+> component-model persistence (writable `dataset`/`widget`/`dashboard`/`query` kinds); **Studio**
+> (Query Library / Viz Library / Dashboard Builder), **Link Analysis** and **Geo Map Analysis**
+> studios; the **Decision Rule** kind + **Signal** ledger (R4/R5); **Metadata Bundle** import/export.
+> Current status lives in [`REQUIREMENTS.md`](REQUIREMENTS.md) §3 and the OKF bundle.
 
 ---
 
@@ -85,7 +95,7 @@
 
 ### F — Jobs (`*_job.toon`)
 
-Types: `enrich`, `report`, `maintenance`, `flow` (`JobConfig.load()`).
+Types: `enrich`, `report`, `maintenance`, `pipeline` (`JobConfig.load()` — enum `JobType.PIPELINE`).
 
 | Feature | TOON skeleton | Doc |
 |---|---|---|
@@ -94,7 +104,7 @@ Types: `enrich`, `report`, `maintenance`, `flow` (`JobConfig.load()`).
 | Maintenance (cleanup, cron+event) | `job: { name: …, type: maintenance, cron: …, task: cleanup, retention_days: 30 }` | `JobConfigTest` |
 | Report job (`enabled: false`) | `job: { name: …, type: report, enabled: false, scope: status }` | `JobConfigTest` |
 | `catch_up: true` (missed-fire recovery) | `job: { …, cron: "0 * * * *", catch_up: true }` | `JobServiceTest` |
-| Flow job (`type: pipeline`) | `job: { name: …, type: pipeline, flow: cdr_flow, on_pipeline: events }` | `ADVANCED_GUIDE §5.3` |
+| Pipeline job (`type: pipeline`) | `job: { name: …, type: pipeline, flow: cdr_flow, on_pipeline: events }` | `ADVANCED_GUIDE §5.3` |
 | Manual trigger only | `job: { name: …, type: report, enabled: true }` → `POST /jobs/{n}/trigger` | `ADVANCED_GUIDE §5.4` |
 
 > **Gotcha:** `on_pipeline:` matches the **lowercased** pipeline name (`BatchEvent.pipeline()`).
