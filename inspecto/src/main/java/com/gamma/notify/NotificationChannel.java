@@ -20,4 +20,12 @@ public interface NotificationChannel {
 
     /** Deliver one notification over this channel. May throw; the caller isolates failures. */
     void deliver(Notification n) throws Exception;
+
+    /**
+     * Whether this channel has the configuration it needs to deliver (e.g. an SMTP host or webhook URL).
+     * {@link NotificationService} skips unconfigured channels at discovery, so a registered-but-unconfigured
+     * channel is inert rather than a per-notification failure. Defaults to {@code true} for channels that
+     * need no configuration.
+     */
+    default boolean configured() { return true; }
 }

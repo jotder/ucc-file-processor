@@ -31,6 +31,7 @@
         <sshj.version>0.39.0</sshj.version>
         <commons-net.version>3.6</commons-net.version>
         <postgresql.version>42.7.4</postgresql.version>
+        <javax-mail.version>1.6.2</javax-mail.version>
         <!-- test-only embedded servers -->
         <sshd.version>2.12.1</sshd.version>
         <ftpserver.version>1.2.0</ftpserver.version>
@@ -64,6 +65,14 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>${postgresql.version}</version>
+        </dependency>
+
+        <!-- SMTP client (CDDL/GPLv2+CE) for the email notification channel (SmtpEmailChannel) —
+             network delivery deps stay out of the lean core per the SBOM rule. Confined to this module. -->
+        <dependency>
+            <groupId>com.sun.mail</groupId>
+            <artifactId>javax.mail</artifactId>
+            <version>${javax-mail.version}</version>
         </dependency>
 
         <!-- ── test: embedded servers so the real clients are exercised end-to-end ── -->

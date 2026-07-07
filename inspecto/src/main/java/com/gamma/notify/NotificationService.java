@@ -66,7 +66,10 @@ public final class NotificationService implements AutoCloseable {
 
     private static List<NotificationChannel> discoverChannels() {
         List<NotificationChannel> found = new ArrayList<>();
-        ServiceLoader.load(NotificationChannel.class).forEach(found::add);
+        for (NotificationChannel ch : ServiceLoader.load(NotificationChannel.class)) {
+            if (ch.configured()) found.add(ch);
+            else log.debug("notification channel {} registered but not configured — skipped", ch.id());
+        }
         return found;
     }
 

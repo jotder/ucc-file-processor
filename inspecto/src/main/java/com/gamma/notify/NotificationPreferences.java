@@ -24,9 +24,11 @@ public final class NotificationPreferences {
     public static final String IN_APP = "inApp";
     /** External email channel — delivered only when an edition supplies a {@link NotificationChannel}. */
     public static final String EMAIL = "email";
+    /** External webhook channel — delivered only when {@code notify.webhook.url} is configured. */
+    public static final String WEBHOOK = "webhook";
 
     /** Channels shown as columns in the grid (stable order). */
-    private static final List<String> CHANNELS = List.of(IN_APP, EMAIL);
+    private static final List<String> CHANNELS = List.of(IN_APP, EMAIL, WEBHOOK);
 
     /** category id → (channel id → enabled). Critical categories are not stored here (always-on). */
     private final Map<String, Map<String, Boolean>> byCategory = new ConcurrentHashMap<>();
@@ -37,6 +39,7 @@ public final class NotificationPreferences {
             Map<String, Boolean> ch = new ConcurrentHashMap<>();
             ch.put(IN_APP, c.available());   // default in-app on for categories that actually fire
             ch.put(EMAIL, false);            // email off by default (and no core channel to deliver it)
+            ch.put(WEBHOOK, false);          // webhook off by default (enabled per category once configured)
             byCategory.put(c.id(), ch);
         }
     }

@@ -79,6 +79,23 @@ class NotificationServiceTest {
     }
 
     @Test
+    void alertFiredEventProducesOpsNotification() {
+        NotificationStore store = new InMemoryNotificationStore();
+        NotificationService svc = new NotificationService(store, NotificationRules.defaults(),
+                new NotificationPreferences());
+
+        svc.onEvent(Event.builder(EventType.ALERT_FIRED).pipeline("orders")
+                .message("reject_rate 0.4 breached threshold 0.1")
+                .attr("rule", "reject-rate-high").attr("severity", "critical").build());
+        svc.close();
+
+        List<Notification> feed = store.recent(10);
+        assertEquals(1, feed.size(), "a fired Alert Rule reaches the Notification Center");
+        assertEquals("Alert: reject-rate-high", feed.get(0).title());
+        assertEquals("ops", feed.get(0).category());
+    }
+
+    @Test
     void externalChannelReceivesEnabledDelivery() {
         NotificationStore store = new InMemoryNotificationStore();
         NotificationPreferences prefs = new NotificationPreferences();
