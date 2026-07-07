@@ -266,8 +266,13 @@ max).
 **Measure** — A BI aggregation (SUM, AVG, COUNT, …) over a Dataset. *(This is the BI sense of "metric"; ⛔ do not
 call it a "Metric" — that word is reserved for observability.)*
 
-**Report** — An **operational** report (run health, freshness, SLA — the *KPI & Reports* page). Kept distinct
-from analytical **Dashboards** built in Studio.
+**Report** — A **scheduled delivery of rendered output**: a Dashboard (or other rendering) exported on a
+**Trigger** to a channel / recipient list in a chosen format (CSV / PDF / PNG), authored on the *KPI &
+Reports* page and executed as a **Job**. The Dashboard is the *thing delivered*; the Report is the *delivery*.
+⛔ not an analytical **Dashboard** (Studio), and ⛔ not the run-health / freshness / SLA view — that is an
+**Operations** surface (Overview / Processing Status), not a Report. *(Definition locked with the product
+owner 2026-07-07: the earlier "operational report" sense is retired; matches §6-B's Query note and the
+shipped C6 scheduled-export Job.)*
 
 **Reconciliation** — A comparison between two **Datasets** on matching keys (optionally with tolerances) that
 produces **Breaks**. The core Revenue-Assurance / Financial-Audit workload. *(Added Wave 0, 2026-07-02.)*

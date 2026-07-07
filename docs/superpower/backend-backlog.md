@@ -80,6 +80,19 @@ parameterization concept exists** (grep for "template" in `JobConfig.java`/`JobS
 3. `JobService` gains "instantiate a job from a template" alongside today's direct `JobConfig` authoring
    (additive — existing individually-authored jobs keep working unchanged).
 
+## 4. Alert-Rule write endpoints (from `alert-rule-authoring-plan.md`, audit C3)
+
+**Current state:** `GET /alerts` / `GET /alerts/rules` / `POST /alerts/evaluate` exist; rules are armed
+by hand-saving a `*_alert.toon` next to the pipeline configs (the engine hot-loads them). The UI
+authoring pane (Alerts → Alert Rules, shipped 2026-07-07) is **mock-served**: a live server answers
+503 on writes and the form shows the writes-disabled banner.
+
+**Shape of the work:** `ControlApi` POST `/alerts/rules` + PUT/DELETE `/alerts/rules/{name}` per the
+`endpoint` skill's fail-closed gate order (write-root 503 → validate 422 → path jail 403 → duplicate
+409 → act atomically), writing/deleting the `*_alert.toon` via `ConfigCodec`. Contract already fixed
+by the UI + mock (name immutable on PUT; 409 duplicate; 404 absent). Small — one route class + the
+mandatory real-HTTP test.
+
 ## Sequencing recommendation
 
 1. Widen `ComponentStore.WRITABLE_TYPES` (+ registry dirs) — unblocks Widget-Library M2 and half of Matrices.
