@@ -19,7 +19,10 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ConfigCodecTest {
 
-    private static final Path CONFIG = Path.of("config");
+    // The shipped, committed sample configs live under the module's examples/ tree (runnable feature
+    // examples). The old target — config/ — was a gitignored scratch dir: present on a dev box but
+    // absent in CI, so the walk threw NoSuchFileException there (and round-tripped scratch files locally).
+    private static final Path CONFIG = Path.of("examples");
 
     @Test
     void everyShippedConfigRoundTripsToStrictCanonicalForm() throws Exception {
