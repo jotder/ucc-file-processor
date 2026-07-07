@@ -37,11 +37,34 @@ public final class DbJobRunStore implements AutoCloseable {
     private static final String T_RUNS = "inspecto_job_runs";
 
     private final Connection conn;
+    /**
+     * True when the connection is PostgreSQL. Percentiles are the one non-portable bit of SQL here:
+     * DuckDB spells them {@code quantile_cont(col, p)} while PostgreSQL uses the SQL-standard ordered-set
+     * aggregate {@code percentile_cont(p) WITHIN GROUP (ORDER BY col)}. Detected once at construction.
+     */
+    private final boolean postgres;
 
     /** Wrap an already-open JDBC connection; the schema is created if absent. Takes ownership (closed in {@link #close()}). */
     public DbJobRunStore(Connection conn) {
         this.conn = conn;
+        this.postgres = detectPostgres(conn);
         initSchema();
+    }
+
+    private static boolean detectPostgres(Connection conn) {
+        try {
+            String product = conn.getMetaData().getDatabaseProductName();
+            return product != null && product.toLowerCase().contains("postgresql");
+        } catch (SQLException e) {
+            return false; // default to the bundled DuckDB dialect
+        }
+    }
+
+    /** Dialect-correct continuous-percentile expression for {@code duration_ms}, aliased to {@code alias}. */
+    private String percentile(double p, String alias) {
+        return postgres
+                ? "percentile_cont(" + p + ") WITHIN GROUP (ORDER BY duration_ms) " + alias
+                : "quantile_cont(duration_ms, " + p + ") " + alias;
     }
 
     /**
@@ -92,8 +115,8 @@ public final class DbJobRunStore implements AutoCloseable {
         String sql = "SELECT count(*) total,"
                 + " count(*) FILTER (WHERE status='SUCCESS') success,"
                 + " count(*) FILTER (WHERE status<>'SUCCESS') failed,"
-                + " quantile_cont(duration_ms, 0.5) p50,"
-                + " quantile_cont(duration_ms, 0.95) p95,"
+                + " " + percentile(0.5, "p50") + ","
+                + " " + percentile(0.95, "p95") + ","
                 + " avg(duration_ms) mean"
                 + " FROM " + T_RUNS + (filtered ? " WHERE job = ?" : "");
         Map<String, Object> m = new LinkedHashMap<>();

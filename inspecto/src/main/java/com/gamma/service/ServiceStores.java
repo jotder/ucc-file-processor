@@ -42,9 +42,17 @@ final class ServiceStores {
         return flows == null ? null : new PipelineStore(flows);
     }
 
+    /**
+     * Job-run reporting DB, gated by {@code -Djobs.backend}: {@code duckdb} (the bundled default engine,
+     * URL from {@code -Djobs.db.url} / the space default), {@code postgres}/{@code postgresql} (resolves the
+     * same {@code jobs.db.url} property but expects a {@code jdbc:postgresql://…} URL with the PG driver on
+     * the classpath — see inspecto-connectors), or a raw {@code jdbc:} URL. Any other value ⇒ {@code null} ⇒
+     * job reporting off and {@code /jobs/metrics} 404s. Percentile SQL is dialect-aware (see {@link DbJobRunStore}).
+     */
     static DbJobRunStore openJobRunStore(SpaceRoot root) {
         String backend = System.getProperty("jobs.backend", "none").trim().toLowerCase();
-        if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
+        boolean pg = "postgres".equals(backend) || "postgresql".equals(backend);
+        if (!"duckdb".equals(backend) && !pg && !backend.startsWith("jdbc:")) return null;
         String url = backend.startsWith("jdbc:")
                 ? backend
                 : System.getProperty("jobs.db.url", root.jobRunDbUrl());
@@ -57,13 +65,16 @@ final class ServiceStores {
     }
 
     /**
-     * Data-plane provenance store for PIPELINE jobs (T21), gated by {@code -Dprovenance.backend=duckdb} (or a full
-     * {@code jdbc:} URL); default off ⇒ {@code null} ⇒ flow runs record no per-edge counts and {@code /provenance}
-     * 404s. Mirrors {@link #openJobRunStore(SpaceRoot)}.
+     * Data-plane provenance store for PIPELINE jobs (T21), gated by {@code -Dprovenance.backend}: {@code duckdb}
+     * (the bundled default engine), {@code postgres}/{@code postgresql} (resolves {@code -Dprovenance.db.url},
+     * which must be a {@code jdbc:postgresql://…} URL with the PG driver on the classpath), or a raw {@code jdbc:}
+     * URL. Any other value ⇒ {@code null} ⇒ flow runs record no per-edge counts and {@code /provenance} 404s.
+     * Mirrors {@link #openJobRunStore(SpaceRoot)}.
      */
     static com.gamma.pipeline.exec.DbProvenanceStore openProvenanceStore(SpaceRoot root) {
         String backend = System.getProperty("provenance.backend", "none").trim().toLowerCase();
-        if (!"duckdb".equals(backend) && !backend.startsWith("jdbc:")) return null;
+        boolean pg = "postgres".equals(backend) || "postgresql".equals(backend);
+        if (!"duckdb".equals(backend) && !pg && !backend.startsWith("jdbc:")) return null;
         String url = backend.startsWith("jdbc:")
                 ? backend
                 : System.getProperty("provenance.db.url", root.provenanceDbUrl());

@@ -94,6 +94,51 @@
             <version>5.10.2</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- DAT-6: embedded PostgreSQL to prove the JDBC state stores really run on Postgres.
+             TEST SCOPE ONLY — must never leak into the shipped fat-JAR / SBOM; the lean core
+             runtime stays JDBC-driver-free by design (the PG driver ships in inspecto-connectors).
+             Exclusions keep OFFLINE resolution clean: the default binaries version (14.10.1) and
+             commons-codec 1.15 are NOT cached, and flyway/liquibase/junit4/mockito/slf4j-simple are
+             unwanted, so we strip them and pin the cached windows-amd64 16.4.0 binary, commons-codec
+             1.18.0 and postgresql 42.7.4 explicitly. -->
+        <dependency>
+            <groupId>io.zonky.test</groupId>
+            <artifactId>embedded-postgres</artifactId>
+            <version>2.0.7</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></exclusion>
+                <exclusion><groupId>org.liquibase</groupId><artifactId>liquibase-core</artifactId></exclusion>
+                <exclusion><groupId>junit</groupId><artifactId>junit</artifactId></exclusion>
+                <exclusion><groupId>org.mockito</groupId><artifactId>mockito-core</artifactId></exclusion>
+                <exclusion><groupId>org.slf4j</groupId><artifactId>slf4j-simple</artifactId></exclusion>
+                <exclusion><groupId>commons-codec</groupId><artifactId>commons-codec</artifactId></exclusion>
+                <exclusion><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId></exclusion>
+                <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-windows-amd64</artifactId></exclusion>
+                <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-darwin-amd64</artifactId></exclusion>
+                <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-linux-amd64</artifactId></exclusion>
+                <exclusion><groupId>io.zonky.test.postgres</groupId><artifactId>embedded-postgres-binaries-linux-amd64-alpine</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>io.zonky.test.postgres</groupId>
+            <artifactId>embedded-postgres-binaries-windows-amd64</artifactId>
+            <version>16.4.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.18.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.4</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

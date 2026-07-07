@@ -669,3 +669,38 @@ Multiple date/timestamp formats are tried left-to-right via `COALESCE`. Common O
 
 ---
 
+## Optional Postgres state store (DAT-6)
+
+Six operational-state stores persist through plain JDBC and default to the **bundled DuckDB** engine (a
+local file per space, zero extra dependency). Each can instead point at **PostgreSQL** for a shared /
+distributed, multi-writer deployment — one Postgres can back several Inspecto nodes, whereas a file-based
+DuckDB holds a single-writer lock. The engine is chosen per store by process-global `-D` flags:
+
+| Store | Backend toggle | URL property | Purpose |
+|---|---|---|---|
+| Status projection | `-Dstatus.backend=db` | `-Dstatus.db.url` | queryable projection of the run audit |
+| Operational objects | `-Dobjects.backend=db` | `-Dobjects.db.url` | mutable alerts/incidents/cases |
+| Object links | `-Dobjects.backend=db` | `-Dobjects.links.db.url` | correlation graph (append-only) |
+| Object notes | `-Dobjects.backend=db` | `-Dobjects.notes.db.url` | evidence / comments (append-only) |
+| Job runs | `-Djobs.backend=postgres` (or `duckdb`) | `-Djobs.db.url` | job-execution reporting (success rate, p50/p95) |
+| Flow provenance | `-Dprovenance.backend=postgres` (or `duckdb`) | `-Dprovenance.db.url` | per-edge record counts (T21) |
+
+To use Postgres, give the URL property a `jdbc:postgresql://host:port/db` value and set the store's
+backend flag. `objects/links/notes/status` accept any `jdbc:` URL directly on their URL property; `jobs`
+and `provenance` additionally accept the case-insensitive aliases `postgres`/`postgresql` on their
+`*.backend` flag (which then read the matching `*.db.url`), alongside the pre-existing `duckdb` and raw
+`jdbc:` forms. Credentials are `-D<store>.db.user` / `-D<store>.db.password` (or embed them in the URL) —
+`objects.db.user`/`.password` are shared by the objects/links/notes trio.
+
+**Driver on the classpath.** The PostgreSQL JDBC driver is **not** bundled in the lean core (SBOM stays
+minimal by design); it ships in **inspecto-connectors**. Put that module on the runtime classpath for a
+Postgres backend — a `jdbc:postgresql://…` URL with no driver present fails closed with a clear message
+and the store degrades to its in-memory / off default.
+
+**Dialect note.** The SQL is otherwise engine-neutral; the one exception is the job-metrics percentiles.
+`DbJobRunStore` detects the engine once at connect (`DatabaseMetaData`) and emits the correct continuous
+percentile per dialect — DuckDB `quantile_cont(col, p)` vs PostgreSQL `percentile_cont(p) WITHIN GROUP
+(ORDER BY col)` — so p50/p95 are correct on both.
+
+---
+
