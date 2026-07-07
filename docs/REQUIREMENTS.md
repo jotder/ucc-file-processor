@@ -88,14 +88,14 @@ AI-driven autonomy without redesign.
 | ING-2 | Format frontends: delimited grammar, fixed-width (text+binary), plugin `StreamingFileIngester` SPI (binary/multi-segment) | Must | SHIPPED | All |
 | ING-3 | Compressed input streaming (gzip/bz2/zip) | Must | SHIPPED | All |
 | ING-4 | Schema casting + reject routing (quarantine semantics: unreadable / mismatch / sink-flush fail) | Must | SHIPPED | All |
-| ING-5 | Unified `parsing:` config block + **JSON/NDJSON** + **text/regex** frontends | **Must** | PLANNED | All |
+| ING-5 | Unified `parsing:` config block + **JSON/NDJSON** + **text/regex** frontends | **Must** | SHIPPED (2026-07-07; `parsing:` aliases `csv_settings`/`processing.ingester`; LDIF block-records stay PROPOSED) | All |
 | ING-6 | **Expectation** engine: data-quality rules validating records against a Schema (non-null, range, regex, referential) | **Must** | MOCK-FIRST (UI pane exists; engine pending) | All |
 
 ### 3.3 Pipelines & orchestration (PIP) — backend + UI Workbench
 
 | ID | Requirement | MoSCoW | Status | Edition |
 |---|---|---|---|---|
-| PIP-1 | Authored **Pipeline** DAGs (Steps: Parser/Transform/Enrichment/Sink, embedded Job, sub-Pipeline) with author-time validation, visual editor | Must | PARTIAL (shipped mainline; **live e2e verification with a real seeded `type: pipeline` job still pending**) | All |
+| PIP-1 | Authored **Pipeline** DAGs (Steps: Parser/Transform/Enrichment/Sink, embedded Job, sub-Pipeline) with author-time validation, visual editor | Must | SHIPPED (live e2e verified 2026-07-07 — `examples/06-serve/pipeline-job`, manual + `on_pipeline` triggers) | All |
 | PIP-2 | Medallion ELT: raw → clean partitioned Tables → Derived Tables (bronze→silver→gold) | Must | SHIPPED | All |
 | PIP-3 | Incremental event-driven processing: on-pipeline commit Triggers, watermarks, cron + catch-up | Must | SHIPPED | All |
 | PIP-4 | **Scheduler** + **Jobs** (atomic Executables; Run ⊇ Batch ⊇ File status hierarchy) | Must | SHIPPED | All |
@@ -153,7 +153,7 @@ AI-driven autonomy without redesign.
 |---|---|---|---|---|
 | INC-1 | **Alert Rules** watch Metrics; fired **Alerts** with severity | Must | SHIPPED | All |
 | INC-2 | **Alert → Incident → Case** lifecycle, object-link graph, SLA, comments | Must | SHIPPED | All |
-| INC-3 | **Notification** delivery channels (email/webhook) + per-user preferences | **Must** | PARTIAL (Notification Center + preferences shipped; channel delivery completion pending) | All |
+| INC-3 | **Notification** delivery channels (email/webhook) + per-user preferences | **Must** | SHIPPED (2026-07-07: webhook channel in core, SMTP in connectors, `notify.*` sysprops, `ALERT_FIRED` rule; preferences remain single-global until the auth module adds users) | All |
 | INC-4 | Incident workflow depth: queues, escalation, watchers | Should | PLANNED | All |
 | INC-5 | **Diagnosis**: AI-assisted RCA of a failing Run/Source producing an Incident | Should | SHIPPED | All |
 
@@ -246,7 +246,7 @@ AI-driven autonomy without redesign.
 | PKG-1 | One fat JAR + jlink runtime; per-edition bundles via `package.ps1 -Edition` | Must | SHIPPED | All |
 | PKG-2 | Lean SBOM: framework-free core, network deps isolated in `inspecto-connectors` | Must | SHIPPED | All |
 | PKG-3 | Runnable, self-contained example suite (`inspecto/examples/`) | Should | SHIPPED | All |
-| PKG-4 | Verify the Standard bundle's jlink module set against Nimbus (until then: run Standard with `-NoRuntime`) | **Must (S)** | OPEN | S |
+| PKG-4 | Verify the Standard bundle's jlink module set against Nimbus (until then: run Standard with `-NoRuntime`) | **Must (S)** | SHIPPED (verified 2026-07-07: jdeps + Nimbus probe + boot on the exact 12-module jlink image; `package.ps1` note updated) | S |
 
 ---
 
@@ -276,15 +276,17 @@ Studio persistence · component metamodel + R1–R6 rework · multi-space · `/a
 
 ### MUST (remaining — the release-gating set)
 
-1. **ACQ-4** Object-storage & network-share connectors (S3/GCS/Azure/MinIO, NFS/SMB).
-2. **ING-5** Unified `parsing:` block + JSON/NDJSON + text/regex frontends.
-3. **ING-6** Expectation engine (the data-quality third of the Rules triad).
-4. **INC-3** Notification channel delivery completion (email/webhook).
-5. **SEC-7** Standard-edition hardening: X-Actor rejection, per-resource permissions, Requirements
+1. **ACQ-4** Object-storage & network-share connectors (S3/GCS/Azure/MinIO, NFS/SMB) — *blocked
+   offline: SDKs absent from the local Maven cache; needs a one-time online dependency fetch.*
+2. **ING-6** Expectation engine (the data-quality third of the Rules triad) — *unblocked: its ING-5
+   prerequisite shipped 2026-07-07.*
+3. **SEC-7** Standard-edition hardening: X-Actor rejection, per-resource permissions, Requirements
    triage route, data-scoped grants.
-6. **PKG-4** Standard bundle jlink/Nimbus verification.
-7. **PIP-1 caveat** Live end-to-end verification of authored Pipelines with real seeded data.
-8. **EOI-7** eoiagent `0.1.0` release + published artifacts (un-pin Inspecto from a moving SNAPSHOT).
+4. **EOI-7** eoiagent `0.1.0` release + published artifacts (un-pin Inspecto from a moving SNAPSHOT).
+
+*Closed 2026-07-07: ING-5 (unified parsing + json/text_regex frontends), INC-3 (webhook + SMTP
+delivery channels), PKG-4 (jlink/Nimbus verified), PIP-1 caveat (live e2e via
+`examples/06-serve/pipeline-job`).*
 
 ### SHOULD
 
@@ -336,9 +338,9 @@ Studio persistence · component metamodel + R1–R6 rework · multi-space · `/a
 
 | # | Risk / question | Mitigation / owner signal |
 |---|---|---|
-| R1 | Authored-Pipeline go-live verified only against synthetic data | Run a representative seeded `type: pipeline` job pre-release (PIP-1) |
+| R1 | ~~Authored-Pipeline go-live verified only against synthetic data~~ **RESOLVED 2026-07-07** — live seeded `type: pipeline` run verified (`examples/06-serve/pipeline-job`) | — |
 | R2 | eoiagent SNAPSHOT churn (moving dependency) | EOI-7: cut 0.1.0, pin jars; CI already builds from source |
-| R3 | Standard jlink runtime unverified vs Nimbus | PKG-4; ship `-NoRuntime` until verified |
+| R3 | ~~Standard jlink runtime unverified vs Nimbus~~ **RESOLVED 2026-07-07** — module set verified sufficient (PKG-4) | — |
 | R4 | Per-resource permissions & X-Actor rejection incomplete on Standard | SEC-7 before first Standard customer |
 | R5 | Provenance conservation checks unproven on live data | OPS-5 live verification alongside R1's seeded run |
 | R6 | Structured (non-SQL) Queries still client-compiled | DAT-3 follow-on; server 422 today is explicit, not silent |

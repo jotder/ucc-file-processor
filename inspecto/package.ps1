@@ -6,10 +6,12 @@
 # -Edition Standard (default: Personal) additionally builds inspecto-security (W6, the OIDC
 # Authenticator SPI implementation) and bundles it as file-processor-security.jar; serve.sh/
 # serve.bat auto-detect its presence, add it to the classpath, and turn on -Dauth.mode=oidc
-# (issuer/JWKS/audience from AUTH_OIDC_* env vars — never baked into the bundle). NOTE: the
-# embedded jlink runtime's module set (below) was derived from the Personal-only jar via jdeps;
-# it has not been re-verified against inspecto-security's transitive deps (Nimbus JOSE+JWT) — a
-# Standard bundle should pass -NoRuntime and supply system Java 24+ until that is confirmed.
+# (issuer/JWKS/audience from AUTH_OIDC_* env vars — never baked into the bundle). The embedded
+# jlink runtime's module set (below) is VERIFIED sufficient for inspecto-security too (PKG-4,
+# 2026-07-07): jdeps on file-processor-security.jar + Nimbus JOSE+JWT 10.9.1 needs nothing beyond
+# java.base/java.sql/java.net.http/jdk.httpserver, and RS256/ES256 resolve via SunRsaSign/SunEC
+# (jdk.crypto.ec) on a jlink image built from exactly this list — Standard bundles may embed the
+# runtime; -NoRuntime remains available for Linux targets (jlink output is OS-specific).
 #
 # Output:
 #   file-processor-deploy.zip  (in the sandbox root, alongside inbox/ and database/)
