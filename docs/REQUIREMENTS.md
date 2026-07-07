@@ -164,7 +164,7 @@ AI-driven autonomy without redesign.
 | SPC-1 | Isolated **Spaces** (config/data/audit/duckdb per Space), CRUD without restart, one-time migrator | Must | SHIPPED | All |
 | SPC-2 | Whole-Space zip export/import with dry-run preview | Must | SHIPPED | All |
 | SPC-3 | **Space Templates** (vertical blueprints: Telecom RA, Fraud, Financial Audit, Link Analysis) | Should | SHIPPED (UI seed packs) | All |
-| SPC-4 | **Metadata Bundle v2**: selective config-only transfer with lineage refs, provenance/contentHash, `requires`, drift fit-check | Should | MOCK-FIRST (backend endpoints pending) | All |
+| SPC-4 | **Metadata Bundle v2**: selective config-only transfer with lineage refs, provenance/contentHash, `requires`, drift fit-check | Should | SHIPPED (2026-07-07: `BundleRoutes` export/preview/import over the `ComponentStore` kinds — real content+contentHash, drift fit-check, idempotent import; connection/pipeline/job/view kinds deferred to their own stores) | All |
 | SPC-5 | Per-tenant ABAC | Could | PLANNED | E |
 
 ### 3.10 Component metamodel & Catalog (MET)
@@ -291,7 +291,7 @@ delivery channels), PKG-4 (jlink/Nimbus verified), PIP-1 caveat (live e2e via
 ### SHOULD
 
 - **INV-1** Link Analysis backend (Entity Projection over real Datasets). ·
-  **SPC-4** Metadata Bundle backend endpoints. · **DAT-4** Matrix materialization. ·
+  **DAT-4** Matrix materialization. ·
   **BI-4** Scheduled reports/export delivery. · **DAT-5** Calculated columns. ·
   **INC-4** Incident workflow depth. · **ACQ-5** Streaming consumer *(offline-blocked: `kafka-clients`
   not cached)*. · **ACQ-7** etag/version dedup. · **PIP-7** Maintenance job library. ·
@@ -301,7 +301,9 @@ delivery channels), PKG-4 (jlink/Nimbus verified), PIP-1 caveat (live e2e via
 
 *Closed 2026-07-07: **DAT-6** Postgres state store (all 6 JDBC stores verified vs real Postgres) ·
 **SEC-8** secrets (file + JCEKS keystore scopes; Vault still deferred) · **UI-8** Settings drawer
-(landed by the parallel session, commits `7e06463`/`12ead9c`).*
+(landed by the parallel session, commits `7e06463`/`12ead9c`) · **SPC-4** Metadata Bundle v2 backend
+(`BundleRoutes` export/preview/import over the `ComponentStore` kinds; connection/pipeline/job/view
+kinds deferred to their own stores).*
 
 ### COULD
 

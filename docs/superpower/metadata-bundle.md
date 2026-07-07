@@ -34,6 +34,29 @@ backend's `.toon` component content; a backend-served TOON export can reuse this
 1:1 when the ControlApi grows bundle endpoints (see `backend-backlog.md` — the closed
 `ComponentStore.WRITABLE_TYPES` enum is the same blocker).
 
+## Backend endpoints (SPC-4, shipped 2026-07-07)
+
+`BundleRoutes` (`com.gamma.control`) serves the v2 envelope for the `ComponentStore.WRITABLE_TYPES`
+kinds (grammar/schema/transform/sink/dataset/query/widget/dashboard). The UI keeps closure + ref +
+`requires` derivation (instance-independent); the backend is the authority the mock can't be — real
+content, real `contentHash`, a real fit-check, real persistence:
+
+- **`POST /bundle/export`** — body `{items:[{kind,id,refs?}], provenance?, sourceSpace?, requires?}` →
+  `{bundle:<v2 envelope>, missing:[…]}`. Each item carries real `content` + `provenance.contentHash`
+  (`sha256:` over the stored form); requested items absent here are reported under `missing`. An
+  unsupported kind is a `422` (the honest boundary), not a silent omission.
+- **`POST /bundle/preview`** — body = an envelope → read-only fit-check: per item
+  `new | unchanged | drifted | unsupported` (hash of the incoming content, normalized to the stored
+  form, vs the target's current hash), and each top-level `requires` entry `satisfied | missing`. No writes.
+- **`POST /bundle/import`** — body `{bundle, actions?}` → sequential upsert in dependency order
+  (referenced kinds first), gated on `canAuthorWorkbench` then the write-root 503. Existing defaults to
+  skip (opt into `overwrite` per item); identical content is `unchanged` (idempotent re-promotion);
+  per-item `imported | overwritten | skipped | unchanged | failed`, batch never aborts.
+
+**Not yet server-side:** `connection` (secret-aware CRUD), `authored-pipeline`, `job`, and the
+saved-view kinds live in their own stores — promote them via the UI mock path or the whole-space zip
+(SPC-2) until a later slice teaches `BundleRoutes` their stores.
+
 ## Export
 
 Pick artifacts per kind (all/none + per item). **Include dependencies** (default on) expands the
