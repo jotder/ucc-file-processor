@@ -151,6 +151,28 @@ class ControlApiAuthV1Test {
         }
     }
 
+    @Test
+    void xActorHeaderIsRejectedOnStandard(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        // SEC-7(a): with an Authenticator active (Standard), a client-supplied X-Actor is a spoof → 403,
+        // even alongside valid credentials — the actor must come from the authenticated Subject.
+        Authenticators.forTest(FAKE);
+        try (Ctx c = open(cfg, root)) {
+            HttpResponse<String> r = get(c.port, "/api/v1/components/grammar",
+                    "Authorization", "Bearer valid", "X-Actor", "mallory");
+            assertEquals(403, r.statusCode(), r.body());
+            assertEquals("PERMISSION_DENIED", JSON.readTree(r.body()).get("error").get("errorCode").asText());
+        }
+    }
+
+    @Test
+    void xActorHeaderStillHonouredOnPersonal(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        // No Authenticator (Personal): X-Actor stays the historic actor mechanism — the reject never fires.
+        try (Ctx c = open(cfg, root)) {
+            HttpResponse<String> r = get(c.port, "/api/v1/components/grammar", "X-Actor", "alice");
+            assertEquals(200, r.statusCode(), r.body());
+        }
+    }
+
     private static List<String> streamText(JsonNode array) {
         List<String> out = new java.util.ArrayList<>();
         array.forEach(n -> out.add(n.asText()));

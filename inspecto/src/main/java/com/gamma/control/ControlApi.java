@@ -469,6 +469,13 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private void authenticate(HttpExchange ex, String path) {
         boolean required = !PUBLIC_PATHS.contains(path);
         Authenticators.active().ifPresent(a -> {
+            // SEC-7(a): on Standard the acting identity is authoritative from the authenticated Subject; a
+            // client-supplied X-Actor header is an attempted actor spoof and is rejected outright. (Personal
+            // has no Authenticator, so this branch never runs there and X-Actor stays the historic actor.)
+            String spoof = ex.getRequestHeaders().getFirst("X-Actor");
+            if (spoof != null && !spoof.isBlank())
+                throw new ApiException(403, ErrorCodes.PERMISSION_DENIED,
+                        "X-Actor is not accepted on this edition; the actor is taken from the authenticated session");
             java.util.Optional<Subject> subject = a.authenticate(ex);
             if (subject.isPresent()) ex.setAttribute(ApiContext.ATTR_SUBJECT, subject.get());
             else if (required) throw new ApiException(401, ErrorCodes.UNAUTHENTICATED, "authentication required");

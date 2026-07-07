@@ -199,7 +199,7 @@ AI-driven autonomy without redesign.
 | SEC-4 | HTTPS via pure-JDK `HttpsServer` + keystore | Must (S) | SHIPPED | S/E |
 | SEC-5 | BFF session: refresh token never reaches the browser (httpOnly cookie, SameSite=Strict + Origin CSRF) | Must (S) | SHIPPED (W6d) | S/E |
 | SEC-6 | UI OIDC login driven by `bootstrap.features.authMode`; offline/Personal = no-op | Must (S) | SHIPPED (W6d/W7) | S/E |
-| SEC-7 | RBAC/ABAC hardening: reject X-Actor on Standard, **per-resource** `permissions[]`, `canTriageRequirements` backend route, data-scoped grants | **Must (S)** | PARTIAL | S/E |
+| SEC-7 | RBAC/ABAC hardening: reject X-Actor on Standard, **per-resource** `permissions[]`, `canTriageRequirements` backend route, data-scoped grants | **Must (S)** | PARTIAL (2026-07-07: **X-Actor now rejected outright when an `Authenticator` is active** (Standard) — the actor is authoritative from the Subject; Personal unchanged. Remaining: per-resource `permissions[]` (needs a design note), `canTriageRequirements` route (entangled with UI-6's missing requirements backend + a capability-model decision), data-scoped grants (deferred per `rbac-groundwork.md` §4)) | S/E |
 | SEC-8 | Secrets: env/file/keystore; Vault option future | Should | PARTIAL (2026-07-07: `SecretResolver` now does `${ENV}`/`${SYS}`/`${FILE}`/`${KEYSTORE:alias}` (JCEKS, pure-JDK); Vault scope deferred — client not in the lean core) | S/E |
 | SEC-9 | Write-root gate (`-Dassist.write.root` → 503 fail-closed) — separate from auth, always on | Must | SHIPPED | All |
 
@@ -278,8 +278,9 @@ Studio persistence · component metamodel + R1–R6 rework · multi-space · `/a
 
 1. **ACQ-4** Object-storage & network-share connectors (S3/GCS/Azure/MinIO, NFS/SMB) — *blocked
    offline: SDKs absent from the local Maven cache; needs a one-time online dependency fetch.*
-2. **SEC-7** Standard-edition hardening: X-Actor rejection, per-resource permissions, Requirements
-   triage route, data-scoped grants.
+2. **SEC-7** Standard-edition hardening — *X-Actor rejection SHIPPED 2026-07-07; remaining: per-resource
+   permissions (design note), `canTriageRequirements` route (needs UI-6 requirements backend + a
+   capability-model call), data-scoped grants (deferred per `rbac-groundwork.md`).*
 3. **EOI-7** eoiagent `0.1.0` release + published artifacts (un-pin Inspecto from a moving SNAPSHOT).
 
 *Closed 2026-07-07: ING-5 (unified parsing + json/text_regex frontends), **ING-6** (Expectation engine:
