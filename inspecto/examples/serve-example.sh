@@ -48,6 +48,9 @@ PIPE="$(ls "$DIR"/*_pipeline.toon 2>/dev/null | head -1 || true)"
 cd "$DIR"
 [ "$CLEAN" = 1 ] && rm -rf out || true
 mkdir -p out/inbox out/database out/backup out/temp out/errors out/quarantine out/markers out/status out/logs out/write
+# Optional write/ dir: seeded into out/write (the engine's -Dassist.write.root) before boot, so
+# examples can ship pre-authored write-root artifacts (e.g. flows/<id>.toon for type:pipeline jobs).
+[ -d write ] && cp -r write/* out/write/ 2>/dev/null || true
 BASE="http://localhost:$PORT"
 SRV_PID=""
 cleanup(){ if [ -n "$SRV_PID" ] && kill -0 "$SRV_PID" 2>/dev/null; then kill "$SRV_PID" 2>/dev/null || true; echo "Server stopped."; fi; }

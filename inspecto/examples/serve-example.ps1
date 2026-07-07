@@ -64,6 +64,9 @@ try {
     foreach ($d in 'inbox','database','backup','temp','errors','quarantine','markers','status','logs','write') {
         New-Item -ItemType Directory -Force -Path (Join-Path 'out' $d) | Out-Null
     }
+    # Optional write/ dir: seeded into out/write (the engine's -Dassist.write.root) before boot, so
+    # examples can ship pre-authored write-root artifacts (e.g. flows/<id>.toon for type:pipeline jobs).
+    if (Test-Path 'write') { Copy-Item -Recurse -Force 'write\*' 'out\write\' -ErrorAction SilentlyContinue }
     $logOut = Join-Path 'out\logs' 'serve.out.log'
     $logErr = Join-Path 'out\logs' 'serve.err.log'
     $jargs = @(

@@ -1,0 +1,6 @@
+job:
+  name: sales_rollup
+  type: pipeline
+  flow: sales_rollup_flow
+  data_dir: out
+  on_pipeline: sales_pipeline

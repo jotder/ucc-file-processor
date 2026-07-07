@@ -1,0 +1,28 @@
+# Per-example Control API probes for serve-example.{ps1,sh}.
+# One endpoint path per line; blank lines and lines starting with '#' are ignored.
+#
+# This example demonstrates a `type: pipeline` JOB — an authored flow (Pipeline DAG) run as a
+# scheduled/event-driven Job (PipelineJobRunner). It is the live end-to-end proof for the
+# authored-Pipeline execution path (docs/REQUIREMENTS.md PIP-1).
+#
+# Pieces:
+#   sales_pipeline.toon         ingest pipeline — lands seeded SALES CSVs as partitioned Parquet
+#                               under out/database/ (this is the flow's source_store).
+#   write/flows/sales_rollup_flow.toon
+#                               the authored flow (created via POST /pipelines/authored, persisted
+#                               by PipelineStore): acquisition(source_store=database)
+#                               --data--> transform.filter(AMOUNT >= 50) --data--> sink.persistent(store=rollup).
+#                               The harness seeds write/ into out/write (the engine's write root) at boot.
+#   rollup_job.toon             job: type: pipeline, flow: sales_rollup_flow, on_pipeline: sales_pipeline —
+#                               fires automatically when SALES_PIPELINE commits the seeded batch.
+#
+# Expected evidence after the run:
+#   /jobs shows sales_rollup type PIPELINE with lastStatus SUCCESS; /jobs/sales_rollup/runs shows the
+#   run record ("1 file(s), 1 row(s) → store(s) [rollup]" — the filter passes 1 of the 2 seeded rows).
+#   On disk: out/rollup/sales_rollup_out.parquet plus the branch-commit log
+#   out/jobs_audit/sales_rollup_flow_branch_commit_<batchId>.csv (idempotent multi-branch commit).
+#   The job can also be fired manually: POST /jobs/sales_rollup/trigger.
+/jobs
+/jobs/sales_rollup/runs
+/pipelines/authored
+/pipelines/authored/sales_rollup_flow
