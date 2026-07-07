@@ -150,6 +150,8 @@ public final class PipelineLift {
         c.put("csv", cfg.csv());                 // the whole CsvSettings record (delimiter/skips/formats/…)
         c.put("chunking", cfg.chunking());
         if (cfg.fixedWidth() != null) c.put("fixedwidth", cfg.fixedWidth());
+        if (cfg.json() != null) c.put("json", cfg.json());
+        if (cfg.textRegex() != null) c.put("text_regex", cfg.textRegex());
         PipelineConfig.Schemas s = cfg.schemas();
         if (s.selector() != null && s.selector().hasSchemas()) {
             c.put("selector", s.selector());     // carries column-count/file_pattern priority (G3)

@@ -162,11 +162,14 @@ With `read_text` + `string_split(content,'\n')` + `UNNEST` you get one row per p
 
 ---
 
-## 5. The proposed comprehensive `parsing:` grammar `[PROPOSED]`
+## 5. The comprehensive `parsing:` grammar `[LIVE]`
 
-A single `parsing:` block per source selects a **frontend** and its options. It generalizes today's
-`csv_settings` (which remains the `delimited` frontend) and is designed so the existing
-`raw.fields[]` / `mapping.rules[]` / `partitions[]` backend is reused verbatim.
+A single top-level `parsing:` block per pipeline selects a **frontend** and its options. It
+generalizes today's `csv_settings` (which remains the `delimited` frontend — `parsing.delimited`
+and `processing.csv_settings` are aliases, `parsing:` keys win) and reuses the existing
+`raw.fields[]` / `mapping.rules[]` / `partitions[]` backend verbatim. `parsing.plugin` likewise
+aliases `processing.ingester`/`segments`/`ingester_config`. A config with no `parsing:` block
+parses exactly as before. An unknown `parsing.frontend` is rejected at load.
 
 ```yaml
 parsing:
@@ -226,12 +229,15 @@ parsing:
       record_tag: "0xA1"
 ```
 
-**Mapping to reality:** `frontend: delimited`, `frontend: plugin`, and **`frontend: fixedwidth`** are
-**implemented** (delimited = today's `csv_settings`; plugin = `processing.ingester`/`segments`;
-fixed-width text = the native `read_csv`+`substring` path, with binary handled by the shipped
-`com.gamma.ingester.FixedWidthRecordIngester` plugin — see §6.3); `json` and `text_regex` are the
-remaining work, each a thin frontend that produces VARCHAR rows for the existing backend.
-See §7 for the build order.
+**Mapping to reality:** all five frontends are **implemented**: `delimited` (= today's
+`csv_settings`), `plugin` (= `processing.ingester`/`segments`), `fixedwidth` (native
+`read_csv`+`substring`; binary via the shipped `com.gamma.ingester.FixedWidthRecordIngester`
+plugin — §6.3), `json` (`read_ndjson`/`read_json`, selectors = top-level JSON keys — §6.4), and
+`text_regex` (`read_csv` 1-col + `regexp_extract` named groups, selectors = group names — §6.5).
+Not yet implemented within them: `json.records_path` other than `"$"`, `text_regex.record_split`
+`"\n\n"` (blank-line block records, e.g. LDIF entries), and the §8 step-1 extra delimited knobs
+(`quote`/`escape`/`comment`/`skip_junk` renames). Each unsupported knob is rejected at load with a
+clear message.
 
 ---
 
@@ -288,20 +294,26 @@ No native DuckDB fixed-width reader, so the engine carves slices itself. Two rou
   `encoding`, `trim`, and `fields[]{name,start,length}`. It reads N-byte records and `emit()`s byte
   slices; see [plugins.md](plugins.md#fixed-length-binary-records-fixedwidthrecordingester).
 
-### 6.4 JSON / NDJSON `[NATIVE]`
+### 6.4 JSON / NDJSON `[LIVE]`
 ```yaml
 parsing:
   frontend: json
-  json: { format: newline, columns: { id: BIGINT, event_ts: TIMESTAMP, body: JSON } }
-# mapping.rules[] then uses EXPR: json_extract_string(body,'$.user.id'), etc.
+  json: { format: newline }        # newline (NDJSON, default) | array | auto
+# raw.fields[].selector = the top-level JSON key; every field lands VARCHAR and is typed by the
+# schema exactly like a CSV column. Nested values: select the wrapping key, then carve with an
+# EXPR mapping rule: json_extract_string(body,'$.user.id'), etc.
 ```
+Malformed NDJSON lines are dropped (`json_valid` filter) — routed away from the output without
+failing the batch (they carry no `store_rejects` entry, so they do not land in the errors CSV).
+Explicit `json.columns` typing is unnecessary (the engine lands VARCHAR and types at transform);
+`records_path` other than `"$"` is rejected.
 
-### 6.5 XML `[PLUGIN]` (or `text_regex` for *flat* XML)
+### 6.5 XML `[PLUGIN]` (or `text_regex` `[LIVE]` for *flat* XML)
 DuckDB has no core XML reader. For flat, one-element-per-line XML, `text_regex` with
 `regexp_extract` works. For real nested XML, write a `StreamingFileIngester` around a StAX/SAX
 streaming parser and `emit()` per element — streaming (not DOM) keeps memory bounded on large files.
 
-### 6.6 LDIF `[PROPOSED via text_regex]`
+### 6.6 LDIF `[PROPOSED via text_regex]` — needs `record_split: "\n\n"`, not yet implemented
 LDIF = blank-line-separated entries; within an entry, `attr: value` lines (and `attr:: base64`).
 ```yaml
 parsing:
@@ -356,10 +368,10 @@ modes") keeps TB-scale binaries within bounded memory.
 | Dirty/“total chaos” text | `delimited` (Java path, null_strings) | yes | `[LIVE]` partial |
 | Fixed-width text | `fixedwidth` → `read_csv`(1 col)+substring | via read_csv | `[LIVE]` |
 | Fixed-length binary | `plugin` (`FixedWidthRecordIngester`) | no | `[LIVE]` (shipped ingester) |
-| JSON / NDJSON | `json` → `read_json`/`read_ndjson` | yes | `[NATIVE]`/`[PROPOSED]` |
-| Flat XML / key-value | `text_regex` | via read_text | `[PROPOSED]` |
+| JSON / NDJSON | `json` → `read_json`/`read_ndjson` | yes | `[LIVE]` |
+| Flat XML / key-value | `text_regex` | via read_csv(1-col) | `[LIVE]` |
 | Nested XML | `plugin` (StAX streaming) | no | `[PLUGIN]` |
-| LDIF | `text_regex` (or `plugin` if folded/base64) | via read_text | `[PROPOSED]` |
+| LDIF | `text_regex` (or `plugin` if folded/base64) | via read_csv(1-col) | `[PROPOSED]` (needs `"\n\n"` split) |
 | ASN.1 / BER-TLV CDR | `plugin` (your ASN.1 parser) | no | `[PLUGIN]` |
 | Proprietary binary | `plugin` | no | `[PLUGIN]` |
 
@@ -378,12 +390,15 @@ Smallest-to-largest, each independently shippable and behavior-preserving for ex
 2. **`fixedwidth` frontend** — ✅ **shipped.** A `buildReadSpec` branch compiles `fields[]` offsets to
    the `read_csv`(1-col)+`substring` SQL in §6.3 (text, reusing the whole CSV streaming/union/chunk
    path) and a byte-slicer (`FixedWidthRecordIngester`, binary). No new dependency.
-3. **`json` frontend** — wrap `read_json`/`read_ndjson` as a frontend; lean on `EXPR` mapping rules
-   (`json_extract`) for nesting. No new dependency.
-4. **`text_regex` frontend** — `read_text` + `string_split` + `regexp_extract` with named groups;
-   covers LDIF and flat XML. Document the fold/base64 caveats; escalate to `[PLUGIN]` when violated.
-5. **Adopt the unified `parsing:` block** — make `csv_settings` an alias for `parsing.delimited` and
-   `processing.ingester`/`segments` an alias for `parsing.plugin`, so existing toons keep working.
+3. **`json` frontend** — ✅ **shipped.** `read_ndjson`/`read_json` wrapped as a frontend; selectors
+   are top-level JSON keys, everything lands VARCHAR; lean on `EXPR` mapping rules (`json_extract`)
+   for nesting. No new dependency.
+4. **`text_regex` frontend** — ✅ **shipped** (line records). `read_csv`(1-col, the streaming form
+   §6.3 uses) + `regexp_extract` with named groups; selectors are group names; covers flat XML and
+   `attr: value` logs. Blank-line block records (`record_split: "\n\n"`, LDIF entries) are NOT yet
+   implemented — rejected at load; escalate to `[PLUGIN]` (also for folding/base64).
+5. **Adopt the unified `parsing:` block** — ✅ **shipped.** `csv_settings` = `parsing.delimited`,
+   `processing.ingester`/`segments` = `parsing.plugin`; existing toons keep working unchanged.
 
 Each step reuses `mapping.rules[]` + `partitions[]` + lineage/audit unchanged — the whole point of
 the frontend/backend split.

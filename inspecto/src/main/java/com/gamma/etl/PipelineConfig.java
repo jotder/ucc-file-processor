@@ -183,6 +183,51 @@ public final class PipelineConfig {
     }
 
     /**
+     * JSON / NDJSON parsing frontend (additive, 4.8). Non-null only when the resolved parsing
+     * settings set {@code frontend: json}; {@code null} otherwise (so every existing pipeline is
+     * unaffected).
+     *
+     * <p>The frontend compiles to DuckDB {@code read_ndjson} ({@code format: newline}, the default)
+     * or {@code read_json} ({@code format: array | auto}). Each schema field lands as a VARCHAR
+     * column keyed by {@code raw.fields[].selector} — for this frontend the selector is the
+     * <b>top-level JSON key</b>, not a column index — so the typing/mapping/partition/lineage
+     * backend runs unchanged. Nested values: select the wrapping key and carve with an {@code EXPR}
+     * mapping rule ({@code json_extract_string(...)}).
+     *
+     * @param format      {@code newline} (NDJSON, one object per line) | {@code array} | {@code auto}
+     * @param recordsPath JSONPath to the record array; only {@code "$"} (the default) is supported
+     */
+    @PublicApi(since = "4.8.0")
+    public record Json(String format, String recordsPath) {
+        /** Whether the input is newline-delimited (one JSON object per physical line). */
+        public boolean newlineDelimited() { return "newline".equals(format); }
+    }
+
+    /**
+     * Text/regex parsing frontend (additive, 4.8). Non-null only when the resolved parsing settings
+     * set {@code frontend: text_regex}; {@code null} otherwise.
+     *
+     * <p>Each physical line is read intact as a single VARCHAR column (the fixed-width
+     * {@code read_csv} single-column trick), lines matching {@code pattern} are kept, and each
+     * named capture group becomes a VARCHAR column. A schema field's {@code raw.fields[].selector}
+     * names the capture group that feeds it, so the typing/mapping/partition/lineage backend runs
+     * unchanged. Non-matching lines are dropped (like fixed-width short lines).
+     *
+     * @param recordSplit record separator; only {@code "\n"} (one record per line, the default) is
+     *                    supported — blank-line block records ({@code "\n\n"}, e.g. LDIF entries)
+     *                    are not yet implemented and are rejected at load
+     * @param pattern     the RE2 regex with at least one named capture group, normalised to the
+     *                    {@code (?P<name>...)} spelling DuckDB accepts
+     * @param groupNames  the named capture groups in declaration order (⇒ DuckDB name_list order)
+     */
+    @PublicApi(since = "4.8.0")
+    public record TextRegex(String recordSplit, String pattern, List<String> groupNames) {
+        public TextRegex {
+            groupNames = List.copyOf(groupNames);
+        }
+    }
+
+    /**
      * Data-acquisition source binding (Data Acquisition roadmap Phase A; additive). <b>Never null</b> — a
      * pipeline with no {@code source:} block defaults to the local filesystem reading {@code dirs.poll} with
      * {@code includes = [processing.file_pattern]}, no excludes and unbounded depth: exactly the legacy scan.
@@ -438,6 +483,8 @@ public final class PipelineConfig {
     private final DuckDbSettings duckdb;
     private final Chunking       chunking;
     private final FixedWidth     fixedWidth;
+    private final Json           json;
+    private final TextRegex      textRegex;
     private final Source         source;
 
     /**
@@ -486,6 +533,10 @@ public final class PipelineConfig {
     public Chunking       chunking() { return chunking; }
     /** Fixed-width frontend config, or {@code null} for the default delimited frontend. */
     public FixedWidth     fixedWidth() { return fixedWidth; }
+    /** JSON/NDJSON frontend config, or {@code null} unless {@code frontend: json}. */
+    public Json           json()       { return json; }
+    /** Text/regex frontend config, or {@code null} unless {@code frontend: text_regex}. */
+    public TextRegex      textRegex()  { return textRegex; }
     /** Data-acquisition source binding; never null (defaults to local-FS over {@code dirs.poll}). */
     public Source         source()     { return source; }
     /** Whether this pipeline is activated for execution ({@code active:}, default {@code false}). */
@@ -525,6 +576,8 @@ public final class PipelineConfig {
         this.duckdb   = new DuckDbSettings(b.duckMemoryLimit, b.duckTempDirectory, b.duckMaxTempSize);
         this.chunking = new Chunking(b.chunkMaxFileBytes, b.chunkTargetBytes);
         this.fixedWidth = b.fixedWidth;
+        this.json = b.json;
+        this.textRegex = b.textRegex;
         this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
                 b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection, b.sourceDuplicate,
                 b.sourceGuarantee, b.sourceGapDetection,
@@ -566,6 +619,8 @@ public final class PipelineConfig {
         this.duckdb = src.duckdb;
         this.chunking = src.chunking;
         this.fixedWidth = src.fixedWidth;
+        this.json = src.json;
+        this.textRegex = src.textRegex;
         this.source = src.source;
         this.statusDirToPrepare = src.statusDirToPrepare;
         this.active = src.active;
@@ -688,6 +743,8 @@ public final class PipelineConfig {
         List<String> excludeRegex    = new ArrayList<>();
         int          filterTargetColumn = 0;
         FixedWidth   fixedWidth;          // null ⇒ delimited frontend (the default)
+        Json         json;                // null unless frontend: json
+        TextRegex    textRegex;           // null unless frontend: text_regex
         String       sourceId;
         String       sourceConnector = "local";
         List<String> sourceIncludes  = new ArrayList<>();

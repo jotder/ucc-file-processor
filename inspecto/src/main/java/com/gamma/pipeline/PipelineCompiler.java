@@ -172,6 +172,28 @@ public final class PipelineCompiler {
             csvMap.put("fixedwidth", fixedWidthToMap(fw));
         }
 
+        // json frontend: augments csv_settings (additive — same shape as fixed-width)
+        if (parser.cfg("json") instanceof PipelineConfig.Json j) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> csvMap = (Map<String, Object>)
+                    proc.computeIfAbsent("csv_settings", k -> new LinkedHashMap<String, Object>());
+            csvMap.put("frontend", "json");
+            Map<String, Object> jm = new LinkedHashMap<>();
+            jm.put("format", j.format());
+            csvMap.put("json", jm);
+        }
+
+        // text_regex frontend: augments csv_settings (additive — same shape as fixed-width)
+        if (parser.cfg("text_regex") instanceof PipelineConfig.TextRegex tr) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> csvMap = (Map<String, Object>)
+                    proc.computeIfAbsent("csv_settings", k -> new LinkedHashMap<String, Object>());
+            csvMap.put("frontend", "text_regex");
+            Map<String, Object> tm = new LinkedHashMap<>();
+            tm.put("pattern", tr.pattern());
+            csvMap.put("text_regex", tm);
+        }
+
         raw.put("processing", proc);
         return raw;
     }

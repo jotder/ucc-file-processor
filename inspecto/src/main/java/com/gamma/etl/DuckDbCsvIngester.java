@@ -13,6 +13,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -84,6 +85,8 @@ public final class DuckDbCsvIngester {
         // Fixed-width TEXT is parsed natively (read_csv + substring) only — the Java parser has no
         // fixed-width path, so it is always native regardless of the engine knob.
         if (cfg.fixedWidth() != null && !cfg.fixedWidth().binary()) return true;
+        // json / text_regex frontends are native-only too (read_json / read_csv+regexp_extract).
+        if (cfg.json() != null || cfg.textRegex() != null) return true;
         return switch (cfg.csv().engine() == null ? "auto" : cfg.csv().engine().toLowerCase()) {
             case "duckdb" -> true;
             case "java"   -> false;
@@ -103,6 +106,7 @@ public final class DuckDbCsvIngester {
      */
     public static boolean decideNative(Batch batch, PipelineConfig cfg) {
         if (cfg.fixedWidth() != null && !cfg.fixedWidth().binary()) return true;   // fixed-width text: native-only
+        if (cfg.json() != null || cfg.textRegex() != null) return true;           // json / text_regex: native-only
         String engine = cfg.csv().engine() == null ? "auto" : cfg.csv().engine().toLowerCase();
         if (engine.equals("java"))   return false;
         if (engine.equals("duckdb")) return true;
@@ -191,6 +195,10 @@ public final class DuckDbCsvIngester {
     private static ReadSpec buildReadSpec(File file, Map<String, Object> schemaConfig, PipelineConfig cfg) {
         if (cfg.fixedWidth() != null && !cfg.fixedWidth().binary())
             return buildFixedWidthReadSpec(file, schemaConfig, cfg);
+        if (cfg.json() != null)
+            return buildJsonReadSpec(file, schemaConfig, cfg);
+        if (cfg.textRegex() != null)
+            return buildTextRegexReadSpec(file, schemaConfig, cfg);
 
         ParserSpec spec = ParserSpec.fromSchema(schemaConfig);
         List<Map<String, Object>> fields = spec.fields();
@@ -291,6 +299,140 @@ public final class DuckDbCsvIngester {
                 + " WHERE length(\"line\") >= " + fw.minRecordLength() + ") AS fw";
 
         return new ReadSpec(proj.toString(), readCsv);
+    }
+
+    /**
+     * Build the JSON/NDJSON read spec. Each schema field lands as a VARCHAR column keyed by
+     * {@code raw.fields[].selector} — for this frontend the selector is the top-level JSON key, not
+     * a column index — so {@link DataTransformer} / {@code PartitionWriter} / lineage run unchanged.
+     *
+     * <p>{@code format: newline} (NDJSON, the default) reads each physical line intact via the
+     * single-column {@code read_csv} form (streaming, gz-aware), keeps only {@code json_valid}
+     * lines — a malformed line is routed away from the output instead of failing the batch (it has
+     * no {@code store_rejects} entry, so it does not land in the errors CSV) — and carves each key
+     * with {@code json_extract_string}. {@code format: array | auto} delegates to DuckDB
+     * {@code read_json} with an explicit all-VARCHAR {@code columns} map (a malformed document
+     * fails the file as unreadable, per JSON-array semantics).
+     */
+    private static ReadSpec buildJsonReadSpec(File file, Map<String, Object> schemaConfig,
+                                              PipelineConfig cfg) {
+        PipelineConfig.Json j = cfg.json();
+        List<Map<String, Object>> fields = rawFields(schemaConfig);
+        String filePath = file.getAbsolutePath().replace("\\", "/");
+
+        if (j.newlineDelimited()) {
+            int skipLines = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
+            // json_extract_string("line", '$."key"') AS "name", ...
+            StringBuilder proj = new StringBuilder();
+            for (int i = 0; i < fields.size(); i++) {
+                if (i > 0) proj.append(", ");
+                proj.append("json_extract_string(\"line\", '$.\"")
+                    .append(escapeSql(String.valueOf(fields.get(i).get("selector"))))
+                    .append("\"') AS \"").append(fields.get(i).get("name")).append('"');
+            }
+            String readCsv = "(SELECT \"line\" FROM read_csv('" + escapeSql(filePath) + "'"
+                    + ", columns={'line':'VARCHAR'}"
+                    + ", delim='', quote='', escape=''"
+                    + ", header=false"
+                    + ", skip=" + skipLines
+                    + readOptions(cfg)
+                    + ", ignore_errors=true"
+                    + ", null_padding=true"
+                    + ", auto_detect=false"
+                    + ", store_rejects=true)"
+                    + " WHERE json_valid(\"line\")) AS js";
+            return new ReadSpec(proj.toString(), readCsv);
+        }
+
+        // format: array | auto → DuckDB read_json with an explicit all-VARCHAR columns map.
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        for (Map<String, Object> f : fields) keys.add(String.valueOf(f.get("selector")));
+        StringBuilder cols = new StringBuilder("{");
+        boolean first = true;
+        for (String k : keys) {
+            if (!first) cols.append(", ");
+            first = false;
+            cols.append('\'').append(escapeSql(k)).append("':'VARCHAR'");
+        }
+        cols.append('}');
+
+        StringBuilder proj = new StringBuilder();
+        for (int i = 0; i < fields.size(); i++) {
+            if (i > 0) proj.append(", ");
+            proj.append('"').append(fields.get(i).get("selector")).append("\" AS \"")
+                .append(fields.get(i).get("name")).append('"');
+        }
+
+        StringBuilder rj = new StringBuilder("read_json('");
+        rj.append(escapeSql(filePath)).append('\'')
+          .append(", columns=").append(cols)
+          .append(", format='").append("array".equals(j.format()) ? "array" : "auto").append('\'');
+        if (cfg.csv().inputCompression() != null && !cfg.csv().inputCompression().isBlank())
+            rj.append(", compression='").append(escapeSql(cfg.csv().inputCompression())).append('\'');
+        rj.append(')');
+
+        return new ReadSpec(proj.toString(), rj.toString());
+    }
+
+    /**
+     * Build the text/regex read spec: read each physical line intact as a single VARCHAR column
+     * (the fixed-width single-column {@code read_csv} form — streaming, gz-aware, reject-capturing),
+     * keep the lines matching the pattern, and extract every named capture group with
+     * {@code regexp_extract(..., name_list)}. A schema field's {@code raw.fields[].selector} names
+     * the capture group feeding it, so the projection produces the same named columns the delimited
+     * path does and the backend runs unchanged. Non-matching lines (banners, continuations, blanks)
+     * are dropped by the {@code regexp_matches} filter, exactly as fixed-width drops short lines.
+     */
+    private static ReadSpec buildTextRegexReadSpec(File file, Map<String, Object> schemaConfig,
+                                                   PipelineConfig cfg) {
+        PipelineConfig.TextRegex tr = cfg.textRegex();
+        List<Map<String, Object>> fields = rawFields(schemaConfig);
+
+        int    skipLines = cfg.csv().skipHeaderLines() + (cfg.csv().hasHeader() ? 1 : 0);
+        String filePath  = file.getAbsolutePath().replace("\\", "/");
+        String pat       = escapeSql(tr.pattern());
+
+        // name_list labels capture groups 1..n in declaration order → struct keys = group names.
+        StringBuilder names = new StringBuilder("[");
+        for (int i = 0; i < tr.groupNames().size(); i++) {
+            if (i > 0) names.append(", ");
+            names.append('\'').append(escapeSql(tr.groupNames().get(i))).append('\'');
+        }
+        names.append(']');
+
+        StringBuilder proj = new StringBuilder();
+        for (int i = 0; i < fields.size(); i++) {
+            String sel = String.valueOf(fields.get(i).get("selector"));
+            if (!tr.groupNames().contains(sel))
+                throw new IllegalArgumentException("text_regex: field '" + fields.get(i).get("name")
+                        + "' selector '" + sel + "' has no matching capture group (declared: "
+                        + tr.groupNames() + ")");
+            if (i > 0) proj.append(", ");
+            proj.append("rec['").append(escapeSql(sel)).append("'] AS \"")
+                .append(fields.get(i).get("name")).append('"');
+        }
+
+        String readCsv = "(SELECT regexp_extract(\"line\", '" + pat + "', " + names + ") AS rec"
+                + " FROM read_csv('" + escapeSql(filePath) + "'"
+                + ", columns={'line':'VARCHAR'}"
+                + ", delim='', quote='', escape=''"
+                + ", header=false"
+                + ", skip=" + skipLines
+                + readOptions(cfg)
+                + ", ignore_errors=true"
+                + ", null_padding=true"
+                + ", auto_detect=false"
+                + ", store_rejects=true)"
+                + " WHERE regexp_matches(\"line\", '" + pat + "')) AS tr";
+
+        return new ReadSpec(proj.toString(), readCsv);
+    }
+
+    /** The schema's {@code raw.fields} maps in declared order, selectors kept as raw strings. */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> rawFields(Map<String, Object> schemaConfig) {
+        return (List<Map<String, Object>>)
+                ((Map<String, Object>) schemaConfig.get("raw")).get("fields");
     }
 
     /** Wrap a substring expression in the configured trim function. */

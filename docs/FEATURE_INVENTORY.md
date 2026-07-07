@@ -53,8 +53,9 @@
 | Plugin/segments (multi-event-type, e.g. CALL/SMS) | `processing:` / `  ingester: com.acme.MyIngester` / `  segments: { CALL: …, SMS: … }` | `[LIVE]` `StreamingPluginBatchStrategy` |
 | Multi-schema dispatch (column-count + filename glob) | `processing:` / `  schemas[N]{column_count,file_pattern,schema_file,table}:` | `[LIVE]` `configuration.md` · voucher pipeline |
 | `FILENAME_DATE` transform (date in filename) | `rules[1]{…}: EVENT_DATE,FILENAME\|prefix_,FILENAME_DATE` | `[LIVE]` `TransformCompiler` |
-| JSON / NDJSON frontend | `parsing:` / `  frontend: json` | `[PROPOSED]` — not yet wired |
-| `text_regex` frontend (LDIF, flat XML) | `parsing:` / `  frontend: text_regex` | `[PROPOSED]` — not yet implemented |
+| JSON / NDJSON frontend | `parsing:` / `  frontend: json` / `  json: { format: newline }` | `[LIVE]` `DuckDbCsvIngester` (`read_ndjson`/`read_json`; selectors = JSON keys) |
+| `text_regex` frontend (flat XML, `attr: value` logs) | `parsing:` / `  frontend: text_regex` / `  text_regex: { pattern: "…(?P<name>…)…" }` | `[LIVE]` `DuckDbCsvIngester` (named groups = selectors; `record_split: "\n\n"` blocks NOT yet supported) |
+| Unified `parsing:` block (`delimited`/`plugin` aliases) | `parsing:` / `  frontend: delimited\|fixedwidth\|json\|text_regex\|plugin` | `[LIVE]` `PipelineConfigParser` (aliases `csv_settings` + `processing.ingester`; legacy configs unchanged) |
 
 ### C — Schema & validation
 
@@ -272,7 +273,7 @@ the rest are planned in subsequent phases. Features that can't run offline (remo
 
 - No `*_flow.toon` or `*_rca.toon` example exists in the repo — the shapes live only in tests
   (`ControlApiFlowCrudTest`, `PipelineJobRunnerTest`) or are consumed by APIs without a file fixture.
-- `json` / `text_regex` frontends are `[PROPOSED]` — example configs can be drafted but won't run yet.
+- `json` / `text_regex` frontends are `[LIVE]` — runnable examples can now be added to the suite.
 - No subscriber `.dat` / plugin-binary sample data in the repo — synthesize for those examples.
 - `package.ps1` pre-creates inbox/database dirs only for `adjustment` + `voucher`; the example suite
   sidesteps this by being self-contained (each example owns its `out/`).

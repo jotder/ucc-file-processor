@@ -125,6 +125,13 @@ public final class ConfigValidator {
                     "than trimming them; row counts may differ from the Java parser. Use engine=java " +
                     "or engine=auto if those rows must be retained.");
 
+        // json / text_regex frontends: the index-anchored CSV row filters target physical c<N>
+        // columns that these frontends do not produce — the generated SQL would fail at ingest.
+        if ((cfg.json() != null || cfg.textRegex() != null) && cfg.csv().hasRowFilters())
+            warn(warnings, "include/exclude row filters target delimited c<N> columns and are not " +
+                    "supported by the " + (cfg.json() != null ? "json" : "text_regex") +
+                    " frontend — ingest will fail. Filter via mapping rules instead.");
+
         // Fixed-width frontend: overlapping slices (fields sharing bytes) is almost always a mistake.
         if (cfg.fixedWidth() != null) {
             List<PipelineConfig.FixedWidth.Slice> sorted = new ArrayList<>(cfg.fixedWidth().slices());

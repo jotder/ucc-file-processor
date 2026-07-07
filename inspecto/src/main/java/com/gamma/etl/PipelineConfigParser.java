@@ -161,7 +161,23 @@ final class PipelineConfigParser {
         String grammarRef = blankToNull(proc.get("grammar"));
         if (grammarRef != null) b.referencedFiles.add(Paths.get(grammarRef));
         Map<String, Object> csv = resolveGrammar(proc);
+
+        // ── unified parsing: block (additive, 4.8) ────────────────────────────
+        // A top-level `parsing:` block is the design-of-record grammar (docs/parsing-options-reference.md
+        // §5): `parsing.delimited` aliases today's `processing.csv_settings`, `parsing.plugin` aliases
+        // `processing.ingester`/`segments`/`ingester_config`. Absent ⇒ nothing changes (every existing
+        // config parses byte-for-byte identically). Keys from `parsing:` overlay the legacy blocks.
+        Map<String, Object> parsing = (Map<String, Object>) raw.get("parsing");
+        if (parsing != null) csv = mergeParsing(csv, parsing);
+
+        String frontend = "delimited";
         if (csv != null) {
+            frontend = frontendOf(csv);
+            // json / text_regex inputs have no CSV header; unless the author explicitly set
+            // has_header, don't skip their first record.
+            if ((frontend.equals("json") || frontend.equals("text_regex"))
+                    && !csv.containsKey("has_header"))
+                csv.put("has_header", "false");
             b.delimiter       = opt(csv, "delimiter", ",");
             b.skipHeaderLines = toInt(csv.getOrDefault("skip_header_lines", 0));
             b.skipJunkLines   = toInt(csv.getOrDefault("skip_junk_lines",   0));
@@ -186,6 +202,9 @@ final class PipelineConfigParser {
             b.filterTargetColumn = toInt(csv.getOrDefault("filter_target_column", 0));
             // 4.1 additive: fixed-width frontend (null unless frontend: fixedwidth)
             b.fixedWidth       = parseFixedWidth(csv);
+            // 4.8 additive: json / text_regex frontends (null unless selected)
+            b.json             = parseJson(csv);
+            b.textRegex        = parseTextRegex(csv);
         }
 
         // ── output ────────────────────────────────────────────────────────────
@@ -197,15 +216,24 @@ final class PipelineConfigParser {
         }
 
         // ── plugin ingester + segments ────────────────────────────────────────
-        b.ingesterClass = (String) proc.get("ingester");
-        Object icfg = proc.get("ingester_config");
+        // `parsing.plugin` (frontend: plugin) is the unified alias for the legacy
+        // `processing.ingester`/`segments`/`ingester_config` triple; when present its keys win.
+        Map<String, Object> pluginBlock =
+                (parsing != null && parsing.get("plugin") instanceof Map<?, ?> pm)
+                        ? (Map<String, Object>) pm : null;
+        b.ingesterClass = pluginBlock != null && pluginBlock.get("ingester") != null
+                ? (String) pluginBlock.get("ingester") : (String) proc.get("ingester");
+        Object icfg = pluginBlock != null && pluginBlock.get("ingester_config") != null
+                ? pluginBlock.get("ingester_config") : proc.get("ingester_config");
         if (icfg instanceof Map<?, ?> icfgMap)
             b.ingesterConfig = (Map<String, Object>) icfgMap;
         if (b.ingesterClass != null && !b.ingesterClass.isBlank()) {
-            Object segsRaw = proc.get("segments");
+            Object segsRaw = pluginBlock != null && pluginBlock.get("segments") != null
+                    ? pluginBlock.get("segments") : proc.get("segments");
             if (!(segsRaw instanceof Map<?,?> segsMap) || segsMap.isEmpty())
                 throw new IllegalArgumentException(
-                        "processing.segments must be a non-empty map when processing.ingester is set");
+                        "parsing.plugin.segments (or processing.segments) must be a non-empty map "
+                        + "when a plugin ingester is set");
             b.segmentSchemas = new LinkedHashMap<>();
             for (var entry : ((Map<?,?>) segsRaw).entrySet()) {
                 String key        = (String) entry.getKey();
@@ -220,6 +248,9 @@ final class PipelineConfigParser {
             }
             log.info("[CONFIG] Plugin ingester: {}  segments: {}",
                     b.ingesterClass, b.segmentSchemas.keySet());
+        } else if (frontend.equals("plugin")) {
+            throw new IllegalArgumentException(
+                    "parsing.frontend 'plugin' requires parsing.plugin.ingester (or processing.ingester)");
         }
 
         // ── schemas ───────────────────────────────────────────────────────────
@@ -247,6 +278,7 @@ final class PipelineConfigParser {
                 if (table != null && !table.isBlank())
                     Identifiers.validate(table, "schemas[col=" + colCount + "].table");
                 validateFixedWidthSelectors(b.fixedWidth, schemaCfg, "schemas[col=" + colCount + "]");
+                validateTextRegexSelectors(b.textRegex, schemaCfg, "schemas[col=" + colCount + "]");
 
                 SchemaSelector.register(byCount, byPattern, byTable,
                         colCount, filePattern, schemaCfg, table);
@@ -270,6 +302,7 @@ final class PipelineConfigParser {
                     JToon.decode(Files.readString(Paths.get(schemaPath), StandardCharsets.UTF_8));
             Identifiers.validateSchema(b.singleSchema, "schema_file");
             validateFixedWidthSelectors(b.fixedWidth, b.singleSchema, "schema_file");
+            validateTextRegexSelectors(b.textRegex, b.singleSchema, "schema_file");
         }
 
         // ── source / connector (additive; absent ⇒ implicit LOCAL reading dirs.poll) ──────────────
@@ -554,6 +587,137 @@ final class PipelineConfigParser {
         int minLen = toInt(fw.getOrDefault("min_record_length", 0));
         if (minLen <= 0) minLen = maxEnd;   // default: keep any line that reaches the widest slice
         return new FixedWidth(binary, recordLength, trim, minLen, Collections.unmodifiableList(slices));
+    }
+
+    // ── unified parsing: block + json / text_regex frontends (4.8) ─────────────
+
+    /** The recognised {@code parsing.frontend} values (docs/parsing-options-reference.md §5). */
+    private static final Set<String> FRONTENDS =
+            Set.of("delimited", "fixedwidth", "fixed_width", "json", "text_regex", "plugin");
+
+    /**
+     * Overlay the unified {@code parsing:} block onto the legacy grammar/{@code csv_settings} map
+     * (which may be {@code null}). {@code parsing.delimited} keys land verbatim (it <em>is</em>
+     * {@code csv_settings} under its canonical name); the shared {@code encoding}/{@code compression}
+     * options and the {@code frontend} selector plus its per-frontend sub-block
+     * ({@code fixedwidth}/{@code json}/{@code text_regex}) are copied through under the keys the
+     * downstream parse already reads. Keys from {@code parsing:} win over the legacy block.
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> mergeParsing(Map<String, Object> base,
+                                                    Map<String, Object> parsing) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (base != null) merged.putAll(base);
+        if (parsing.get("delimited") instanceof Map<?, ?> del)
+            merged.putAll((Map<String, Object>) del);
+        for (String key : new String[]{"frontend", "encoding", "compression",
+                                       "fixedwidth", "json", "text_regex"}) {
+            Object v = parsing.get(key);
+            if (v != null) merged.put(key, v);
+        }
+        return merged;
+    }
+
+    /** Resolve + validate the {@code frontend} selector; unknown values are rejected with the list. */
+    private static String frontendOf(Map<String, Object> csv) {
+        String f = String.valueOf(csv.getOrDefault("frontend", "delimited")).trim().toLowerCase();
+        if (!FRONTENDS.contains(f))
+            throw new IllegalArgumentException("Unknown parsing.frontend '" + f
+                    + "' — expected one of: delimited, fixedwidth, json, text_regex, plugin");
+        return f;
+    }
+
+    /**
+     * Parse the optional JSON/NDJSON frontend. Returns {@code null} unless {@code frontend: json};
+     * otherwise builds a {@link PipelineConfig.Json} from the (optional) {@code json:} block.
+     * Hard-fails on an unknown {@code format} or an unsupported {@code records_path}.
+     */
+    @SuppressWarnings("unchecked")
+    private static PipelineConfig.Json parseJson(Map<String, Object> csv) {
+        if (!"json".equals(String.valueOf(csv.getOrDefault("frontend", "delimited")).trim().toLowerCase()))
+            return null;
+        Map<String, Object> j = (csv.get("json") instanceof Map<?, ?> jm)
+                ? (Map<String, Object>) jm : Map.of();
+        String format = opt(j, "format", "newline").trim().toLowerCase();
+        if (!format.equals("newline") && !format.equals("array") && !format.equals("auto"))
+            throw new IllegalArgumentException("json.format must be newline, array or auto (got '"
+                    + format + "')");
+        String recordsPath = opt(j, "records_path", "$").trim();
+        if (!recordsPath.equals("$"))
+            throw new IllegalArgumentException("json.records_path: only '$' (top-level records) is "
+                    + "supported — unwrap nested record arrays upstream or use a plugin ingester");
+        return new PipelineConfig.Json(format, recordsPath);
+    }
+
+    /**
+     * Parse the optional text/regex frontend. Returns {@code null} unless {@code frontend: text_regex};
+     * otherwise builds a {@link PipelineConfig.TextRegex} from the {@code text_regex:} block.
+     * Hard-fails on a missing block/pattern, a pattern that does not compile, a pattern without a
+     * named capture group, or an unsupported {@code record_split}.
+     */
+    @SuppressWarnings("unchecked")
+    private static PipelineConfig.TextRegex parseTextRegex(Map<String, Object> csv) {
+        if (!"text_regex".equals(String.valueOf(csv.getOrDefault("frontend", "delimited")).trim().toLowerCase()))
+            return null;
+        if (!(csv.get("text_regex") instanceof Map<?, ?> trMap))
+            throw new IllegalArgumentException(
+                    "frontend 'text_regex' requires a 'text_regex:' block with a 'pattern'");
+        Map<String, Object> tr = (Map<String, Object>) trMap;
+
+        // Read raw (not via opt): a real "\n\n" is whitespace-only and must not fall back silently.
+        Object rsRaw = tr.get("record_split");
+        String recordSplit = (rsRaw == null || String.valueOf(rsRaw).isEmpty())
+                ? "\n" : String.valueOf(rsRaw);
+        // accept the real newline, the literal two-char "\n" spelling, or the word "line"
+        boolean lineSplit = recordSplit.equals("\n") || recordSplit.equals("\\n")
+                || recordSplit.equalsIgnoreCase("line");
+        if (!lineSplit)
+            throw new IllegalArgumentException("text_regex.record_split: only \"\\n\" (one record per "
+                    + "line) is supported — blank-line block records (e.g. LDIF entries) are not yet "
+                    + "implemented; use a plugin ingester");
+
+        String pattern = blankToNull(tr.get("pattern"));
+        if (pattern == null)
+            throw new IllegalArgumentException("text_regex.pattern is required");
+
+        // Accept both the RE2 (?P<name>...) and Java (?<name>...) spellings. RE2 allows
+        // underscores in group names where Java's engine does not, so validate compilation with
+        // the named groups reduced to plain groups (checks everything else in the pattern), and
+        // extract the names with a scan that allows the RE2 name grammar.
+        String anonymised = pattern.replaceAll("\\(\\?P?<[A-Za-z][A-Za-z0-9_]*>", "(");
+        try {
+            java.util.regex.Pattern.compile(anonymised);
+        } catch (java.util.regex.PatternSyntaxException e) {
+            throw new IllegalArgumentException("text_regex.pattern does not compile: " + e.getMessage(), e);
+        }
+        List<String> groups = new ArrayList<>();
+        java.util.regex.Matcher gm = java.util.regex.Pattern
+                .compile("\\(\\?P?<([A-Za-z][A-Za-z0-9_]*)>").matcher(pattern);
+        while (gm.find()) groups.add(gm.group(1));
+        if (groups.isEmpty())
+            throw new IllegalArgumentException("text_regex.pattern must contain at least one named "
+                    + "capture group, e.g. (?P<key>[A-Z_]+) — group names feed raw.fields[].selector");
+        // Normalise to the RE2 spelling for the generated SQL (DuckDB's regex engine).
+        String sqlPattern = pattern.replaceAll("\\(\\?<(?![=!])", "(?P<");
+        return new PipelineConfig.TextRegex("\n", sqlPattern, groups);
+    }
+
+    /**
+     * For the text/regex frontend, every schema {@code raw.fields[].selector} must name a declared
+     * capture group — fail the load (clear message) if one does not. No-op for other frontends.
+     */
+    @SuppressWarnings("unchecked")
+    private static void validateTextRegexSelectors(PipelineConfig.TextRegex tr,
+                                                   Map<String, Object> schema, String label) {
+        if (tr == null) return;
+        List<Map<String, Object>> fields = (List<Map<String, Object>>)
+                ((Map<String, Object>) schema.get("raw")).get("fields");
+        for (Map<String, Object> f : fields) {
+            String sel = String.valueOf(f.get("selector"));
+            if (!tr.groupNames().contains(sel))
+                throw new IllegalArgumentException(label + ": raw.fields selector '" + sel
+                        + "' has no matching text_regex capture group (declared: " + tr.groupNames() + ")");
+        }
     }
 
     /** Parse the {@code trim} mode; accepts the enum names or {@code true}/{@code false}; default {@code BOTH}. */
