@@ -3,9 +3,9 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
 import { Observable, of, throwError } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
-import { AcquisitionMetrics, AcquisitionMetricsService, RunsService, SourceView, SourcesService } from 'app/inspecto/api';
+import { AcquisitionMetrics, AcquisitionMetricsService, RunResult, RunsService, SourceView, SourcesService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -27,20 +27,24 @@ const METRICS = {
     inspecto_active_connections: metric(3),
 } as unknown as AcquisitionMetrics;
 
+let toastr: { success: ReturnType<typeof vi.fn>; warning: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
+
 function create(
     list: Observable<SourceView[]> = of([SOURCE]),
     metrics: Observable<AcquisitionMetrics> = of(METRICS),
+    runResult: RunResult = { total: 5, failed: 0 },
 ) {
+    toastr = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
     TestBed.configureTestingModule({
         imports: [SourcesComponent],
         providers: [
             provideNoopAnimations(),
             { provide: SourcesService, useValue: { list: () => list } },
             { provide: AcquisitionMetricsService, useValue: { get: () => metrics } },
-            { provide: RunsService, useValue: { trigger: () => of({ status: 'STARTED' }) } },
+            { provide: RunsService, useValue: { trigger: () => of(runResult) } },
             { provide: MatDialog, useValue: {} },
             { provide: InspectoConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
-            { provide: ToastrService, useValue: {} },
+            { provide: ToastrService, useValue: toastr },
             { provide: InspectoGridThemeService, useValue: { theme: () => ({}) } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
         ],
@@ -67,5 +71,19 @@ describe('SourcesComponent', () => {
     it('renders with no a11y violations', async () => {
         const fixture = create();
         await expectNoA11yViolations(fixture.nativeElement);
+    });
+
+    it('trigger toasts the processed/failed counts on success', async () => {
+        const fixture = create();
+        await fixture.componentInstance.trigger(SOURCE);
+        expect(toastr.success).toHaveBeenCalledWith('cdr_ingest: 5 processed, 0 failed');
+        expect(toastr.warning).not.toHaveBeenCalled();
+    });
+
+    it('trigger toasts a warning when some files failed', async () => {
+        const fixture = create(undefined, undefined, { total: 5, failed: 2 });
+        await fixture.componentInstance.trigger(SOURCE);
+        expect(toastr.warning).toHaveBeenCalledWith('cdr_ingest: 5 processed, 2 failed');
+        expect(toastr.success).not.toHaveBeenCalled();
     });
 });
