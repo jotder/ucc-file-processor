@@ -53,11 +53,13 @@ describe('jobsHandler', () => {
         expect(store.list('default', 'job-run').every((r) => (r as JobRun).jobName !== 'nightly_export')).toBe(true);
     });
 
-    it('records a MANUAL run on trigger and reflects it on the job', () => {
+    it('records a MANUAL run on trigger and reflects it on the job (v1: 202 + runId)', () => {
         const store = seededStore();
-        const res = handler(req('POST', '/api/jobs/weekly_billing/trigger'), store)?.body as { job: string; status: string };
-        expect(res).toEqual({ job: 'weekly_billing', status: 'SUCCESS' });
+        const triggered = handler(req('POST', '/api/jobs/weekly_billing/trigger'), store);
+        expect(triggered?.status).toBe(202);
+        const res = triggered?.body as { runId: string };
         const runs = handler(req('GET', '/api/jobs/weekly_billing/runs'), store)?.body as JobRun[];
+        expect(runs[0].runId).toBe(res.runId);
         expect(runs[0].triggerType).toBe('MANUAL'); // newest first
         const logs = handler(req('GET', `/api/jobs/weekly_billing/runs/${runs[0].runId}/logs`), store)?.body as JobRunLogs;
         expect(logs.logs.some((l) => l.message.includes('Manual run'))).toBe(true);

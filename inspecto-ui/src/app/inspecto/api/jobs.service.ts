@@ -93,8 +93,9 @@ export class JobsService {
   runs(name: string): Observable<JobRun[]> {
     return this.http.get<JobRun[]>(apiUrl(`/jobs/${encodeURIComponent(name)}/runs`));
   }
-  trigger(name: string): Observable<{ job: string; status: string }> {
-    return this.http.post<{ job: string; status: string }>(apiUrl(`/jobs/${encodeURIComponent(name)}/trigger`), {});
+  /** v1 async contract (W5): 202 + the submitted run's id; poll `/jobs/runs/{runId}` for status. */
+  trigger(name: string): Observable<{ runId: string }> {
+    return this.http.post<{ runId: string }>(apiUrl(`/jobs/${encodeURIComponent(name)}/trigger`), {});
   }
 
   // ── single job + management (mock-served until the real Java endpoints land — see the plan) ──

@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { LineageService, StoreLineage } from './lineage.service';
 import { environment } from '../../../environments/environment';
 
-const base = environment.apiBaseUrl; // '/api'
+const base = environment.apiBaseUrl + '/v1'; // W7: apiUrl() builds /api/v1 paths
 
 describe('LineageService', () => {
     let svc: LineageService;

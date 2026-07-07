@@ -23,8 +23,12 @@ export const spaceInterceptor: HttpInterceptorFn = (req, next) => {
     const id = inject(SpacesService).currentSpaceId();
     if (!id) return next(req);
 
-    const base = environment.apiBaseUrl; // '/api'
-    if (!req.url.startsWith(base + '/')) return next(req); // not a ControlApi call
+    // W7: apiUrl() builds '/api/v1/…'; the space id goes AFTER the version segment (the backend
+    // strips '/api/v1' at dispatch, then matches '/spaces/{id}/…'). Legacy '/api/…' callers keep
+    // the unversioned rewrite.
+    let base = environment.apiBaseUrl; // '/api'
+    if (req.url.startsWith(base + '/v1/')) base += '/v1';
+    else if (!req.url.startsWith(base + '/')) return next(req); // not a ControlApi call
 
     const rest = req.url.substring(base.length); // e.g. '/pipelines'
     if (SERVER_GLOBAL.some((p) => rest === p || rest.startsWith(p + '/'))) return next(req);

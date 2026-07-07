@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { AssistService, AssistSettings } from './assist.service';
 import { environment } from '../../../environments/environment';
 
-const base = environment.apiBaseUrl;
+const base = environment.apiBaseUrl + '/v1'; // W7: apiUrl() builds /api/v1 paths
 
 describe('AssistService (model settings, v4.1)', () => {
   let svc: AssistService;

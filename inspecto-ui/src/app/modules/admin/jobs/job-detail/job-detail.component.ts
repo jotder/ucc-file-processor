@@ -173,8 +173,9 @@ export class JobDetailComponent implements OnInit, OnDestroy {
         const j = this.job();
         if (!j || !(await this.confirm.confirm(`Run job "${j.name}" now?`, 'Run job'))) return;
         this.api.trigger(j.name).subscribe({
-            next: (r) => {
-                this.toastr.success(`${j.name}: ${r.status}`);
+            // v1 async contract: the trigger returns 202 + runId; the reloaded run list shows the outcome.
+            next: () => {
+                this.toastr.success(`Job "${j.name}" run started.`);
                 this.selectedRunId.set(null);
                 this.load();
             },

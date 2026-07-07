@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { environment } from '../../../environments/environment';
 import { SessionService } from './session.service';
 
-const base = environment.apiBaseUrl;
+const base = environment.apiBaseUrl + '/v1'; // W7: apiUrl() builds /api/v1 paths
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 describe('SessionService (W6d edition switch)', () => {

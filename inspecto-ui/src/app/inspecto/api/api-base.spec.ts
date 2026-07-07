@@ -3,8 +3,8 @@ import { apiUrl, toParams } from './api-base';
 import { environment } from '../../../environments/environment';
 
 describe('apiUrl', () => {
-  it('prefixes the path with the configured base', () => {
-    expect(apiUrl('/pipelines')).toBe(`${environment.apiBaseUrl}/pipelines`);
+  it('prefixes the path with the configured base and the v1 segment (W7)', () => {
+    expect(apiUrl('/pipelines')).toBe(`${environment.apiBaseUrl}/v1/pipelines`);
   });
 });
 

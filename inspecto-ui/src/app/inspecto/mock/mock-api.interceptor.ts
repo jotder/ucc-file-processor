@@ -18,7 +18,7 @@ import { settingsHandler } from './handlers/settings.handler';
 import { spacesHandler } from './handlers/spaces.handler';
 import { registerIntegrityRules } from './integrity';
 import { MockFlags } from './mock-flags';
-import { MockHandler, MockRequest } from './mock-http';
+import { MockHandler, MockRequest, v1ErrorBody, v1SuccessBody } from './mock-http';
 import { MockStore } from './mock-store';
 import { seedDefaultSpace } from './seeds/default-space.seed';
 import { maybeTick } from './simulator';
@@ -66,17 +66,23 @@ export const mockApiInterceptor: HttpInterceptorFn = (req, next) => {
     for (const k of req.params.keys()) params[k] = req.params.get(k) ?? '';
     const mockReq: MockRequest = { method: req.method, url: req.url, body: req.body, params, space };
 
+    // Mirror of the backend's dispatch seam (W7): a `/api/v1` request gets its handler result shaped
+    // into the v1 envelope / ErrorObject at this response edge — handlers keep returning raw DTOs,
+    // exactly like backend route handlers do under `ApiContext.respondJson`.
+    const isV1 = req.url.startsWith(`${environment.apiBaseUrl}/v1/`);
     for (const handle of HANDLERS) {
         const res = handle(mockReq, mockStore);
         if (!res) continue;
         const status = res.status ?? 200;
         if (status >= 400) {
             // Non-2xx must travel the error channel, as a real backend reply would.
+            const error = isV1 ? v1ErrorBody(status, res.body) : res.body;
             return timer(LATENCY_MS).pipe(
-                mergeMap(() => throwError(() => new HttpErrorResponse({ status, error: res.body, url: req.url }))),
+                mergeMap(() => throwError(() => new HttpErrorResponse({ status, error, url: req.url }))),
             );
         }
-        return of(new HttpResponse({ status, body: res.body })).pipe(delay(LATENCY_MS));
+        const body = isV1 ? v1SuccessBody(res.body) : res.body;
+        return of(new HttpResponse({ status, body })).pipe(delay(LATENCY_MS));
     }
     return next(req);
 };

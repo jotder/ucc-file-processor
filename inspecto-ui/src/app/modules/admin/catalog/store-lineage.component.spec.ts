@@ -9,7 +9,7 @@ import { StoreLineage } from 'app/inspecto/api';
 import { environment } from '../../../../environments/environment';
 import { StoreLineageComponent } from './store-lineage.component';
 
-const base = environment.apiBaseUrl;
+const base = environment.apiBaseUrl + '/v1'; // W7: apiUrl() builds /api/v1 paths
 
 const LINEAGE: StoreLineage = {
     store: 'events_raw',

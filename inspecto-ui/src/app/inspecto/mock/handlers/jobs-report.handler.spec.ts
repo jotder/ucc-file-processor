@@ -43,14 +43,15 @@ describe('jobsHandler — scheduled report exports (C6)', () => {
         const store = seededStore();
         handler(req('POST', '/api/jobs', REPORT_JOB), store);
 
-        const result = handler(req('POST', '/api/jobs/daily_cdr_export/trigger'), store)?.body as { status: string };
-        expect(result.status).toBe('SUCCESS');
+        const result = handler(req('POST', '/api/jobs/daily_cdr_export/trigger'), store)?.body as { runId: string };
+        expect(result.runId).toBeTruthy(); // v1 async contract: the trigger answers with the run id
 
         const job = handler(req('GET', '/api/jobs/daily_cdr_export'), store)?.body as JobDetail;
         expect(job.lastStatus).toBe('SUCCESS');
 
         const runs = handler(req('GET', '/api/jobs/daily_cdr_export/runs'), store)?.body as { runId: string }[];
         expect(runs.length).toBe(1);
+        expect(runs[0].runId).toBe(result.runId);
 
         const artifact = handler(req('GET', `/api/jobs/daily_cdr_export/runs/${runs[0].runId}/artifact`), store)?.body as ReportArtifact;
         expect(artifact.mime).toBe('text/csv');
@@ -79,13 +80,15 @@ describe('jobsHandler — scheduled report exports (C6)', () => {
             req('POST', '/api/jobs', { ...REPORT_JOB, name: 'orphaned_export', params: { ...REPORT_JOB.params, dashboardId: 'gone' } }),
             store,
         );
-        const result = handler(req('POST', '/api/jobs/orphaned_export/trigger'), store)?.body as { status: string };
-        expect(result.status).toBe('FAILED');
+        handler(req('POST', '/api/jobs/orphaned_export/trigger'), store);
+        const job = handler(req('GET', '/api/jobs/orphaned_export'), store)?.body as JobDetail;
+        expect(job.lastStatus).toBe('FAILED');
     });
 
     it('a plain (non-report) job trigger is unaffected — no artifact, existing MANUAL/SUCCESS behavior', () => {
         const store = seededStore();
-        const result = handler(req('POST', '/api/jobs/cdr_ingest_daily/trigger'), store)?.body as { status: string };
-        expect(result.status).toBe('SUCCESS');
+        handler(req('POST', '/api/jobs/cdr_ingest_daily/trigger'), store);
+        const job = handler(req('GET', '/api/jobs/cdr_ingest_daily'), store)?.body as JobDetail;
+        expect(job.lastStatus).toBe('SUCCESS');
     });
 });

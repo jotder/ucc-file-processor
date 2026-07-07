@@ -53,6 +53,16 @@ describe('spaceInterceptor', () => {
 
         it('ignores non-API URLs (assets / i18n)', () =>
             expectUrl('./i18n/en.json', './i18n/en.json'));
+
+        // W7: apiUrl() builds '/api/v1/…' — the space id goes AFTER the version segment.
+        it('prefixes a v1 feature call as /v1/spaces/<id>', () =>
+            expectUrl(`${base}/v1/pipelines`, `${base}/v1/spaces/acme/pipelines`));
+
+        it('leaves /v1/bootstrap server-global', () =>
+            expectUrl(`${base}/v1/bootstrap`, `${base}/v1/bootstrap`));
+
+        it('does not double-prefix a v1 per-space endpoint', () =>
+            expectUrl(`${base}/v1/spaces/acme/export`, `${base}/v1/spaces/acme/export`));
     });
 
     describe('with no active space (single-tenant)', () => {

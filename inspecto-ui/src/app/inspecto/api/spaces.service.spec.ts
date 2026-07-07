@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { Space, SpacesService } from './spaces.service';
 import { environment } from '../../../environments/environment';
 
-const base = environment.apiBaseUrl; // '/api'
+const base = environment.apiBaseUrl + '/v1'; // W7: apiUrl() builds /api/v1 paths
 
 const SPACES: Space[] = [
     { id: 'alpha', displayName: 'Alpha', description: '', createdAt: '2026-06-23 10:00:00' },

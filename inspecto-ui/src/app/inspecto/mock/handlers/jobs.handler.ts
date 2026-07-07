@@ -55,7 +55,7 @@ export function jobsHandler(flags: MockFlags): MockHandler {
         }
         if (method === 'GET' && (m = match(url, JOB_RUN_LOGS))) return json(runLogs(store, space, m[2]));
         if (method === 'GET' && (m = match(url, JOB_RUNS))) return json(runsOf(store, space, m[1]));
-        if (method === 'POST' && (m = match(url, JOB_TRIGGER))) return json(trigger(store, space, m[1]));
+        if (method === 'POST' && (m = match(url, JOB_TRIGGER))) return json(trigger(store, space, m[1]), 202);
         if (method === 'POST' && (m = match(url, JOB_TOGGLE))) return json(setEnabled(store, space, m[1], m[2] === 'enable'));
         if (method === 'POST' && (m = match(url, JOB_RESCHEDULE))) {
             return json(reschedule(store, space, m[1], (req.body as { cron?: string })?.cron ?? ''));
@@ -130,16 +130,18 @@ export function recordRun(
     return run;
 }
 
-function trigger(store: MockStore, space: string, name: string): { job: string; status: string } {
+/** v1 async contract (W5): the trigger answers 202 + the submitted run's id (the run itself is
+ *  recorded synchronously here — the mock has no executor to wait on). */
+function trigger(store: MockStore, space: string, name: string): { runId: string } {
     const job = store.get<JobDetail>(space, JOBS_COLL, name);
-    if (!job) return { job: name, status: 'UNKNOWN' };
+    if (!job) return { runId: `run-unknown-${name}` };
     // Only C6 dashboard-export jobs (identified by `params.dashboardId`) get the export treatment —
     // `type: 'report'` predates C6 and also covers other report jobs (e.g. the seeded billing report).
     const run = job.params?.['dashboardId']
         ? runReportExport(store, space, job)
         : recordRun(store, space, name, 'MANUAL', 'SUCCESS', Date.now(), 1_200, `Manual run of "${name}".`);
     store.put(space, JOBS_COLL, name, { ...job, lastStatus: run.status, lastRunTime: run.startTime });
-    return { job: name, status: run.status };
+    return { runId: run.runId };
 }
 
 /**

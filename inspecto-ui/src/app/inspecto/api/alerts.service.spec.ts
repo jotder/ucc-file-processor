@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { AlertsService, FiredAlert } from './alerts.service';
 import { environment } from '../../../environments/environment';
 
-const base = environment.apiBaseUrl;
+const base = environment.apiBaseUrl + '/v1'; // W7: apiUrl() builds /api/v1 paths
 
 describe('AlertsService (alert engine, v4.1 B5)', () => {
   let svc: AlertsService;

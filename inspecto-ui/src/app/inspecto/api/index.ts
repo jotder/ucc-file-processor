@@ -1,5 +1,7 @@
 export * from './models';
 export * from './api-base';
+export * from './v1';
+export * from './v1.interceptor';
 export * from './auto-refresh';
 export * from './error.interceptor';
 export * from './space.interceptor';

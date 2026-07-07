@@ -218,8 +218,9 @@ export class JobsComponent implements OnInit, OnDestroy {
     async trigger(job: JobView): Promise<void> {
         if (!(await this.confirm.confirm(`Run job "${job.name}" now?`, 'Run job'))) return;
         this.api.trigger(job.name).subscribe({
-            next: (r) => {
-                this.toastr.success(`${job.name}: ${r.status}`);
+            // v1 async contract: the trigger returns 202 + runId; the refreshed list shows the outcome.
+            next: () => {
+                this.toastr.success(`Job "${job.name}" run started.`);
                 this.load();
             },
             error: (e) => this.toastr.error(apiErrorMessage(e, `Run failed for ${job.name}`)),

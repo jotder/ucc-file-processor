@@ -6,7 +6,7 @@ import { RunsService } from './runs.service';
 import { InboxStatus } from './models';
 import { environment } from '../../../environments/environment';
 
-const base = environment.apiBaseUrl; // '' in prod, '/api' behind the dev proxy
+const base = environment.apiBaseUrl + '/v1'; // W7: apiUrl() builds /api/v1 paths
 
 describe('RunsService', () => {
   let svc: RunsService;
