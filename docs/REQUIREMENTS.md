@@ -112,7 +112,7 @@ AI-driven autonomy without redesign.
 | DAT-3 | Live query execution `POST /queries/{id}/run` on DuckDB with server-side parameter resolution | Must | PARTIAL (structured queries still compile client-side → server 422; pagination offset-based) | All |
 | DAT-4 | **Matrix** materialization: persisted summary Derived Tables as managed assets | Should | PLANNED (needs a net-new materialization runner) | All |
 | DAT-5 | Row-level calculated columns on Datasets | Should | PLANNED | All |
-| DAT-6 | Optional Postgres state store (swap embedded state) | Should | PLANNED | S/E |
+| DAT-6 | Optional Postgres state store (swap embedded state) | Should | SHIPPED (2026-07-07: all 6 JDBC state stores — jobs/provenance/objects/links/notes/status — verified against real Postgres via embedded-PG test; DuckDB-only `quantile_cont` made dialect-aware; `postgres` backend alias; PG driver on classpath = `inspecto-connectors`) | S/E |
 
 ### 3.5 BI Studio & presentation (BI) — UI + backend
 
@@ -200,7 +200,7 @@ AI-driven autonomy without redesign.
 | SEC-5 | BFF session: refresh token never reaches the browser (httpOnly cookie, SameSite=Strict + Origin CSRF) | Must (S) | SHIPPED (W6d) | S/E |
 | SEC-6 | UI OIDC login driven by `bootstrap.features.authMode`; offline/Personal = no-op | Must (S) | SHIPPED (W6d/W7) | S/E |
 | SEC-7 | RBAC/ABAC hardening: reject X-Actor on Standard, **per-resource** `permissions[]`, `canTriageRequirements` backend route, data-scoped grants | **Must (S)** | PARTIAL | S/E |
-| SEC-8 | Secrets: env/file today; OS-keystore/Vault options | Should | PARTIAL | S/E |
+| SEC-8 | Secrets: env/file/keystore; Vault option future | Should | PARTIAL (2026-07-07: `SecretResolver` now does `${ENV}`/`${SYS}`/`${FILE}`/`${KEYSTORE:alias}` (JCEKS, pure-JDK); Vault scope deferred — client not in the lean core) | S/E |
 | SEC-9 | Write-root gate (`-Dassist.write.root` → 503 fail-closed) — separate from auth, always on | Must | SHIPPED | All |
 
 ### 3.13 Assistant & embedded intelligence (AGT)
@@ -293,11 +293,15 @@ delivery channels), PKG-4 (jlink/Nimbus verified), PIP-1 caveat (live e2e via
 - **INV-1** Link Analysis backend (Entity Projection over real Datasets). ·
   **SPC-4** Metadata Bundle backend endpoints. · **DAT-4** Matrix materialization. ·
   **BI-4** Scheduled reports/export delivery. · **DAT-5** Calculated columns. ·
-  **INC-4** Incident workflow depth. · **ACQ-5** Streaming consumer. · **ACQ-7** etag/version dedup. ·
-  **DAT-6** Postgres state store. · **PIP-7** Maintenance job library. · **MET-4** Stream read-model. ·
-  **SEC-8** Vault/OS-keystore secrets. · **AGT-5** Embedded intelligence P0 (gate: product-owner
-  sign-off). · **UI-6** Requirements triage backend. · **UI-8** Settings drawer (land the in-flight work). ·
+  **INC-4** Incident workflow depth. · **ACQ-5** Streaming consumer *(offline-blocked: `kafka-clients`
+  not cached)*. · **ACQ-7** etag/version dedup. · **PIP-7** Maintenance job library. ·
+  **MET-4** Stream read-model. · **AGT-5** Embedded intelligence P0 (gate: product-owner
+  sign-off). · **UI-6** Requirements triage backend. ·
   **API-5** Legacy route sunset (after soak).
+
+*Closed 2026-07-07: **DAT-6** Postgres state store (all 6 JDBC stores verified vs real Postgres) ·
+**SEC-8** secrets (file + JCEKS keystore scopes; Vault still deferred) · **UI-8** Settings drawer
+(landed by the parallel session, commits `7e06463`/`12ead9c`).*
 
 ### COULD
 
