@@ -162,7 +162,8 @@ export class SourcesComponent implements OnInit {
         if (!(await this.confirm.confirm(`Run pipeline "${source.pipeline}" now?`, 'Run now'))) return;
         this.runs.trigger(source.pipeline).subscribe({
             next: (r) => {
-                this.toastr.success(`${source.pipeline}: ${r.status}`);
+                const msg = `${source.pipeline}: ${r.total} processed, ${r.failed} failed`;
+                r.failed ? this.toastr.warning(msg) : this.toastr.success(msg);
                 this.load();
             },
             error: (e) => this.toastr.error(apiErrorMessage(e, `Run failed for ${source.pipeline}`)),
