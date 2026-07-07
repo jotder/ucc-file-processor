@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Signal } from '../signal/signal';
 import type { JobDetail } from '../api/jobs.service';
 import type { JobRun } from '../api/models';
@@ -17,6 +17,13 @@ function seededStore(): MockStore {
 }
 
 describe('liveness simulator', () => {
+    // Pin the clock: seeds and beat math (n % 4 / n % 5) must not depend on wall-clock time.
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-01-01T12:00:00Z'));
+    });
+    afterEach(() => vi.useRealTimers());
+
     it('appends one event signal per tick', () => {
         const store = seededStore();
         const before = store.list<Signal>('default', SIGNALS_COLL).length;
@@ -43,8 +50,11 @@ describe('liveness simulator', () => {
             .list<JobRun>('default', JOB_RUNS_COLL)
             .find((r) => r.jobName === 'cdr_ingest_daily' && r.status === 'RUNNING')!;
         expect(stale).toBeDefined();
-        // Seeded 5 minutes ago — already past the completion threshold.
-        simulateTick(store, 'default', FLAGS, Date.now());
+        // Seeded 5 minutes ago — already past the completion threshold. Tick off the every-4th
+        // start-run beat, or startCronRun could immediately restart the job it just completed.
+        let now = Date.now();
+        while (Math.floor(now / TICK_MS) % 4 === 0) now += TICK_MS;
+        simulateTick(store, 'default', FLAGS, now);
         const run = store.get<JobRun>('default', JOB_RUNS_COLL, stale.runId)!;
         expect(run.status).toBe('SUCCESS');
         expect(run.endTime).toBeTruthy();

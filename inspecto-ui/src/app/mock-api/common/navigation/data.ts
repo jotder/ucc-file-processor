@@ -1,5 +1,6 @@
 /* eslint-disable */
 import { GammaNavigationItem } from '@gamma/components/navigation';
+import { cloneDeep } from 'lodash-es';
 
 export const defaultNavigation: GammaNavigationItem[] = [
     // Separator above the platform groups. User-defined custom / business menus (Menu Builder) are
@@ -100,7 +101,8 @@ export const defaultNavigation: GammaNavigationItem[] = [
         link : '/assist'
     }
 ];
-// The alternate layouts reuse the same Inspecto navigation.
-export const compactNavigation: GammaNavigationItem[] = defaultNavigation;
-export const futuristicNavigation: GammaNavigationItem[] = defaultNavigation;
-export const horizontalNavigation: GammaNavigationItem[] = defaultNavigation;
+// The alternate layouts reuse the same Inspecto navigation, but each gets its OWN array so the mock's
+// in-place child-fill (api.ts) can't mutate a shared reference and produce duplicate items (NG0955).
+export const compactNavigation: GammaNavigationItem[] = cloneDeep(defaultNavigation);
+export const futuristicNavigation: GammaNavigationItem[] = cloneDeep(defaultNavigation);
+export const horizontalNavigation: GammaNavigationItem[] = cloneDeep(defaultNavigation);

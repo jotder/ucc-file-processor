@@ -10,6 +10,16 @@ import {
 } from 'app/mock-api/common/navigation/data';
 import { cloneDeep } from 'lodash-es';
 
+/**
+ * Keep only the first item per top-level id. Guards the sidebar against duplicate track keys (Angular
+ * NG0955 — "duplicated keys for a given collection"), which render a nav group twice; e.g. a custom Menu
+ * group colliding with a platform group, or an accidental duplicate entry in {@link defaultNavigation}.
+ */
+function dedupeById(items: GammaNavigationItem[]): GammaNavigationItem[] {
+    const seen = new Set<string>();
+    return items.filter((item) => (seen.has(item.id) ? false : (seen.add(item.id), true)));
+}
+
 @Injectable({ providedIn: 'root' })
 export class NavigationMockApi {
     private readonly _compactNavigation: GammaNavigationItem[] =
@@ -82,7 +92,7 @@ export class NavigationMockApi {
             const tree = loadMenuTrees()[space];
             const custom = tree ? menuTreeToNav(tree.nodes) : [];
             const withCustom = (nav: GammaNavigationItem[]): GammaNavigationItem[] =>
-                custom.length ? [...cloneDeep(custom), ...nav] : nav;
+                dedupeById(custom.length ? [...cloneDeep(custom), ...nav] : nav);
 
             // Return the response
             return [
