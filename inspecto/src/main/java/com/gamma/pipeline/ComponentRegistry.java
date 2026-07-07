@@ -41,17 +41,18 @@ public final class ComponentRegistry {
     private static final String TOON = ".toon";
 
     /** On-disk directory (plural) → component type used in {@code use:} (singular). */
-    static final Map<String, String> TYPE_BY_DIR = Map.of(
-            "connections", "connection",
-            "grammars", "grammar",
-            "schemas", "schema",
-            "transforms", "transform",   // new: extracted DataTransformer settings
-            "sinks", "sink",             // new: extracted Output settings
-            "datasets", "dataset",       // W3: Studio metadata kinds now persist (ComponentStore.WRITABLE_TYPES)
-            "widgets", "widget",
-            "dashboards", "dashboard",
-            "queries", "query",          // W4: the query kind — POST /queries/{id}/run
-            "expectations", "expectation");  // ING-6: data-quality Expectations — /expectations*
+    static final Map<String, String> TYPE_BY_DIR = Map.ofEntries(
+            Map.entry("connections", "connection"),
+            Map.entry("grammars", "grammar"),
+            Map.entry("schemas", "schema"),
+            Map.entry("transforms", "transform"),   // new: extracted DataTransformer settings
+            Map.entry("sinks", "sink"),              // new: extracted Output settings
+            Map.entry("datasets", "dataset"),        // W3: Studio metadata kinds now persist (ComponentStore.WRITABLE_TYPES)
+            Map.entry("widgets", "widget"),
+            Map.entry("dashboards", "dashboard"),
+            Map.entry("queries", "query"),           // W4: the query kind — POST /queries/{id}/run
+            Map.entry("expectations", "expectation"),// ING-6: data-quality Expectations — /expectations*
+            Map.entry("requirements", "requirement"));// UI-6/SEC-7(c): Requirements intake — /requirements*
 
     /** The on-disk sub-directory (plural) for a component {@code type} (e.g. {@code grammar} → {@code grammars}). */
     public static Optional<String> dirForType(String type) {

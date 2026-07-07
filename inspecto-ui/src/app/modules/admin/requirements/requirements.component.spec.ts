@@ -16,7 +16,8 @@ interface CreateOptions {
     list?: Requirement[];
     dialogOpen?: ReturnType<typeof vi.fn>;
     create?: ReturnType<typeof vi.fn>;
-    save?: ReturnType<typeof vi.fn>;
+    decide?: ReturnType<typeof vi.fn>;
+    deliver?: ReturnType<typeof vi.fn>;
 }
 
 function create(opts: CreateOptions = {}) {
@@ -30,7 +31,8 @@ function create(opts: CreateOptions = {}) {
                 useValue: {
                     list: () => of(opts.list ?? [REQ]),
                     create: opts.create ?? (() => of(REQ)),
-                    save: opts.save ?? (() => of(REQ)),
+                    decide: opts.decide ?? (() => of(REQ)),
+                    deliver: opts.deliver ?? (() => of(REQ)),
                 },
             },
             { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined } },
@@ -68,12 +70,12 @@ describe('RequirementsComponent', () => {
     });
 
     it('opens the decision dialog and no-ops in the Business (read-only) lens even if the dialog returns a result', () => {
-        const save = vi.fn(() => of(REQ));
+        const decide = vi.fn(() => of(REQ));
         const dialogOpen = vi.fn(() => ({ afterClosed: () => of({ action: 'decide', accept: true }) }));
-        const fixture = create({ save, dialogOpen });
+        const fixture = create({ decide, dialogOpen });
         TestBed.inject(LensService).selectLens('business');
         fixture.componentInstance.openDetail(REQ);
-        expect(save).not.toHaveBeenCalled();
+        expect(decide).not.toHaveBeenCalled();
     });
 
     it('renders with no a11y violations', async () => {

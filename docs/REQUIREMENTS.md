@@ -199,7 +199,7 @@ AI-driven autonomy without redesign.
 | SEC-4 | HTTPS via pure-JDK `HttpsServer` + keystore | Must (S) | SHIPPED | S/E |
 | SEC-5 | BFF session: refresh token never reaches the browser (httpOnly cookie, SameSite=Strict + Origin CSRF) | Must (S) | SHIPPED (W6d) | S/E |
 | SEC-6 | UI OIDC login driven by `bootstrap.features.authMode`; offline/Personal = no-op | Must (S) | SHIPPED (W6d/W7) | S/E |
-| SEC-7 | RBAC/ABAC hardening: reject X-Actor on Standard, **per-resource** `permissions[]`, `canTriageRequirements` backend route, data-scoped grants | **Must (S)** | PARTIAL (2026-07-07: **X-Actor now rejected outright when an `Authenticator` is active** (Standard) — the actor is authoritative from the Subject; Personal unchanged. Remaining: per-resource `permissions[]` (needs a design note), `canTriageRequirements` route (entangled with UI-6's missing requirements backend + a capability-model decision), data-scoped grants (deferred per `rbac-groundwork.md` §4)) | S/E |
+| SEC-7 | RBAC/ABAC hardening: reject X-Actor on Standard, **per-resource** `permissions[]`, `canTriageRequirements` backend route, data-scoped grants | **Must (S)** | PARTIAL (2026-07-07: **X-Actor rejected outright when an `Authenticator` is active** (Standard) — actor authoritative from the Subject; Personal unchanged. **`canTriageRequirements` route** shipped — `RequirementRoutes` `/decision`+`/deliver` gated server-side on the capability while submission stays open (with UI-6). Remaining: per-resource `permissions[]` (needs a design note), data-scoped grants (deferred per `rbac-groundwork.md` §4)) | S/E |
 | SEC-8 | Secrets: env/file/keystore; Vault option future | Should | PARTIAL (2026-07-07: `SecretResolver` now does `${ENV}`/`${SYS}`/`${FILE}`/`${KEYSTORE:alias}` (JCEKS, pure-JDK); Vault scope deferred — client not in the lean core) | S/E |
 | SEC-9 | Write-root gate (`-Dassist.write.root` → 503 fail-closed) — separate from auth, always on | Must | SHIPPED | All |
 
@@ -235,7 +235,7 @@ AI-driven autonomy without redesign.
 | UI-3 | Accessibility: WCAG 2.2 AA, axe-core gate in CI | Must | SHIPPED | All |
 | UI-4 | Offline mock-first operation (one `MockStore`, seed packs, v1-envelope parity) | Must | SHIPPED | All |
 | UI-5 | Responsive sweep (32 routes × 2 breakpoints) | Must | SHIPPED | All |
-| UI-6 | **Requirement** intake: Business submits (KPI/Report/Reconciliation/Rule), Builder triages, delivery recorded | Should | PARTIAL (UI shipped; backend triage route pending) | All |
+| UI-6 | **Requirement** intake: Business submits (KPI/Report/Reconciliation/Rule), Builder triages, delivery recorded | Should | SHIPPED (2026-07-07: `RequirementRoutes` — `/requirements` submit/list + `/requirements/{id}/decision`+`/deliver` over the `requirement` component store; UI moved off generic component CRUD to these routes; offline mock parity) | All |
 | UI-7 | **Reconciliation** + **Breaks** (auto-close on re-match; manual resolutions preserved) | Must | SHIPPED | All |
 | UI-8 | Settings drawer + consolidated admin settings pane | Should | IN-FLIGHT (uncommitted, another session) | All |
 
@@ -278,9 +278,9 @@ Studio persistence · component metamodel + R1–R6 rework · multi-space · `/a
 
 1. **ACQ-4** Object-storage & network-share connectors (S3/GCS/Azure/MinIO, NFS/SMB) — *blocked
    offline: SDKs absent from the local Maven cache; needs a one-time online dependency fetch.*
-2. **SEC-7** Standard-edition hardening — *X-Actor rejection SHIPPED 2026-07-07; remaining: per-resource
-   permissions (design note), `canTriageRequirements` route (needs UI-6 requirements backend + a
-   capability-model call), data-scoped grants (deferred per `rbac-groundwork.md`).*
+2. **SEC-7** Standard-edition hardening — *X-Actor rejection + `canTriageRequirements` route SHIPPED
+   2026-07-07; remaining: per-resource permissions (design note), data-scoped grants (deferred per
+   `rbac-groundwork.md`).*
 3. **EOI-7** eoiagent `0.1.0` release + published artifacts (un-pin Inspecto from a moving SNAPSHOT).
 
 *Closed 2026-07-07: ING-5 (unified parsing + json/text_regex frontends), **ING-6** (Expectation engine:
@@ -296,14 +296,15 @@ caveat (live e2e via `examples/06-serve/pipeline-job`).*
   **INC-4** Incident workflow depth. · **ACQ-5** Streaming consumer *(offline-blocked: `kafka-clients`
   not cached)*. · **ACQ-7** etag/version dedup. · **PIP-7** Maintenance job library. ·
   **MET-4** Stream read-model. · **AGT-5** Embedded intelligence P0 (gate: product-owner
-  sign-off). · **UI-6** Requirements triage backend. ·
+  sign-off). ·
   **API-5** Legacy route sunset (after soak).
 
 *Closed 2026-07-07: **DAT-6** Postgres state store (all 6 JDBC stores verified vs real Postgres) ·
 **SEC-8** secrets (file + JCEKS keystore scopes; Vault still deferred) · **UI-8** Settings drawer
 (landed by the parallel session, commits `7e06463`/`12ead9c`) · **SPC-4** Metadata Bundle v2 backend
 (`BundleRoutes` export/preview/import over the `ComponentStore` kinds; connection/pipeline/job/view
-kinds deferred to their own stores).*
+kinds deferred to their own stores) · **UI-6** Requirements triage backend (`RequirementRoutes` submit/
+decision/deliver + UI on the dedicated routes; shipped alongside SEC-7(c)).*
 
 ### COULD
 

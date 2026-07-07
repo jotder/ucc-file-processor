@@ -9,7 +9,7 @@ import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component'
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
-import { buildRequirement, decideRequirement, deliverRequirement, Requirement, RequirementsService } from 'app/inspecto/requirement';
+import { buildRequirement, Requirement, RequirementsService } from 'app/inspecto/requirement';
 import { RequirementFormDialog, RequirementFormResult } from './requirement-form.dialog';
 import { RequirementDecisionDialog, RequirementDecisionResult } from './requirement-decision.dialog';
 
@@ -93,12 +93,12 @@ export class RequirementsComponent implements OnInit {
             .afterClosed()
             .subscribe((result?: RequirementDecisionResult) => {
                 if (!result || !this.lens.canTriageRequirements()) return;
-                const updated =
+                const updated$ =
                     result.action === 'decide'
-                        ? decideRequirement(r, result.accept, result.note)
-                        : deliverRequirement(r, result.note);
-                this.api.save(updated).subscribe({
-                    next: () => {
+                        ? this.api.decide(r.id, result.accept, result.note)
+                        : this.api.deliver(r.id, result.note);
+                updated$.subscribe({
+                    next: (updated) => {
                         this.toastr.success(`"${r.title}" ${updated.status}`);
                         this.load();
                     },

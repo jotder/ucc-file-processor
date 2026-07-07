@@ -14,6 +14,7 @@ import { expectationsHandler } from './handlers/expectations.handler';
 import { jobsHandler } from './handlers/jobs.handler';
 import { opsHandler } from './handlers/ops.handler';
 import { pipelinesHandler } from './handlers/pipelines.handler';
+import { requirementsHandler } from './handlers/requirements.handler';
 import { settingsHandler } from './handlers/settings.handler';
 import { spacesHandler } from './handlers/spaces.handler';
 import { registerIntegrityRules } from './integrity';
@@ -51,6 +52,7 @@ const HANDLERS: MockHandler[] = [
     pipelinesHandler(flags),
     opsHandler(flags),
     expectationsHandler(flags),
+    requirementsHandler(flags),
     decisionRulesHandler(flags),
     jobsHandler(flags),
     assistHandler(flags),
