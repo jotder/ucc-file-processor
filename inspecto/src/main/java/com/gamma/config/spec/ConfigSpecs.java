@@ -26,7 +26,7 @@ public final class ConfigSpecs {
 
     /** Spec types in canonical order — also the set accepted by {@code GET /config/spec/{type}}. */
     public static final List<String> TYPES =
-            List.of("pipeline", "enrichment", "job", "schema", "meta", "alert");
+            List.of("pipeline", "enrichment", "job", "schema", "meta", "alert", "expectation");
 
     /** The {@link ConfigSpec} for {@code type}, or {@code null} if {@code type} is unknown. */
     public static ConfigSpec forType(String type) {
@@ -40,6 +40,7 @@ public final class ConfigSpecs {
             case "schema"     -> schema();
             case "meta"       -> meta();
             case "alert"      -> alert();
+            case "expectation" -> expectation();
             default           -> null;
         };
     }
@@ -317,6 +318,59 @@ public final class ConfigSpecs {
                         })
         );
         return new ConfigSpec("alert", fields, rules);
+    }
+
+    // ── expectation (ING-6) ──────────────────────────────────────────────────────
+
+    /** The authored data-quality {@code expectation} component evaluated by the Expectation engine. */
+    public static ConfigSpec expectation() {
+        List<FieldSpec> fields = List.of(
+                FieldSpec.required("name", "Expectation name", FieldType.STRING,
+                        "Unique name for the data-quality check."),
+                FieldSpec.of("description", "Description", FieldType.STRING, "What this check asserts."),
+                FieldSpec.enumField("targetType", "Target type", List.of("pipeline", "job"), "pipeline",
+                        "Whether the target's at-rest data comes from a pipeline or a job."),
+                FieldSpec.required("target", "Target", FieldType.STRING,
+                        "Name of the pipeline/job whose at-rest Parquet is scanned."),
+                FieldSpec.required("column", "Column", FieldType.STRING, "The column the check applies to."),
+                FieldSpec.enumField("kind", "Kind",
+                        List.of("non_null", "range", "regex", "referential"), "non_null",
+                        "The data-quality constraint: not-null, numeric range, regex match, or referential lookup."),
+                FieldSpec.of("min", "Min", FieldType.STRING, "Range lower bound (range kind)."),
+                FieldSpec.of("max", "Max", FieldType.STRING, "Range upper bound (range kind)."),
+                FieldSpec.of("pattern", "Pattern", FieldType.STRING, "Regex the value must match (regex kind)."),
+                FieldSpec.of("refDataset", "Reference dataset", FieldType.STRING,
+                        "Lookup relation the value must exist in (referential kind)."),
+                FieldSpec.of("refColumn", "Reference column", FieldType.STRING,
+                        "Column in the reference dataset (referential kind)."),
+                FieldSpec.enumField("severity", "Severity", List.of("MINOR", "MAJOR", "CRITICAL"), "MAJOR",
+                        "Severity of the Incident raised on failure."),
+                FieldSpec.withDefault("enabled", "Enabled", FieldType.BOOL, true,
+                        "Whether evaluate-all includes this expectation.")
+        );
+        List<CrossFieldRule> rules = List.of(
+                new CrossFieldRule(
+                        "range-needs-a-bound",
+                        "A range expectation needs at least one of min/max.",
+                        Severity.ERROR,
+                        List.of("kind", "min", "max"),
+                        raw -> !"range".equalsIgnoreCase(str(raw, "kind"))
+                                || present(raw, "min") || present(raw, "max")),
+                new CrossFieldRule(
+                        "regex-needs-a-pattern",
+                        "A regex expectation needs a pattern.",
+                        Severity.ERROR,
+                        List.of("kind", "pattern"),
+                        raw -> !"regex".equalsIgnoreCase(str(raw, "kind")) || present(raw, "pattern")),
+                new CrossFieldRule(
+                        "referential-needs-ref",
+                        "A referential expectation needs refDataset and refColumn.",
+                        Severity.ERROR,
+                        List.of("kind", "refDataset", "refColumn"),
+                        raw -> !"referential".equalsIgnoreCase(str(raw, "kind"))
+                                || (present(raw, "refDataset") && present(raw, "refColumn")))
+        );
+        return new ConfigSpec("expectation", fields, rules);
     }
 
     // ── schema ──────────────────────────────────────────────────────────────────

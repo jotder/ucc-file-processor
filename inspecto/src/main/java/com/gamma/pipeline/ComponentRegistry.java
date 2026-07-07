@@ -50,7 +50,8 @@ public final class ComponentRegistry {
             "datasets", "dataset",       // W3: Studio metadata kinds now persist (ComponentStore.WRITABLE_TYPES)
             "widgets", "widget",
             "dashboards", "dashboard",
-            "queries", "query");         // W4: the query kind — POST /queries/{id}/run
+            "queries", "query",          // W4: the query kind — POST /queries/{id}/run
+            "expectations", "expectation");  // ING-6: data-quality Expectations — /expectations*
 
     /** The on-disk sub-directory (plural) for a component {@code type} (e.g. {@code grammar} → {@code grammars}). */
     public static Optional<String> dirForType(String type) {

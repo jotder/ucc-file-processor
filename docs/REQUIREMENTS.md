@@ -89,7 +89,7 @@ AI-driven autonomy without redesign.
 | ING-3 | Compressed input streaming (gzip/bz2/zip) | Must | SHIPPED | All |
 | ING-4 | Schema casting + reject routing (quarantine semantics: unreadable / mismatch / sink-flush fail) | Must | SHIPPED | All |
 | ING-5 | Unified `parsing:` config block + **JSON/NDJSON** + **text/regex** frontends | **Must** | SHIPPED (2026-07-07; `parsing:` aliases `csv_settings`/`processing.ingester`; LDIF block-records stay PROPOSED) | All |
-| ING-6 | **Expectation** engine: data-quality rules validating records against a Schema (non-null, range, regex, referential) | **Must** | MOCK-FIRST (UI pane exists; engine pending) | All |
+| ING-6 | **Expectation** engine: data-quality rules validating records against a Schema (non-null, range, regex, referential) | **Must** | SHIPPED (2026-07-07: `com.gamma.expectation` — authored `expectation` components, request-driven evaluation counts violations in the target's at-rest Parquet via a server-built COUNT in a DuckDB sandbox; a FAILED check opens a deduped `expectation:<name>` Incident + emits `EXPECTATION_FAILED` → notifications; `/expectations*` CRUD+evaluate) | All |
 
 ### 3.3 Pipelines & orchestration (PIP) — backend + UI Workbench
 
@@ -278,15 +278,14 @@ Studio persistence · component metamodel + R1–R6 rework · multi-space · `/a
 
 1. **ACQ-4** Object-storage & network-share connectors (S3/GCS/Azure/MinIO, NFS/SMB) — *blocked
    offline: SDKs absent from the local Maven cache; needs a one-time online dependency fetch.*
-2. **ING-6** Expectation engine (the data-quality third of the Rules triad) — *unblocked: its ING-5
-   prerequisite shipped 2026-07-07.*
-3. **SEC-7** Standard-edition hardening: X-Actor rejection, per-resource permissions, Requirements
+2. **SEC-7** Standard-edition hardening: X-Actor rejection, per-resource permissions, Requirements
    triage route, data-scoped grants.
-4. **EOI-7** eoiagent `0.1.0` release + published artifacts (un-pin Inspecto from a moving SNAPSHOT).
+3. **EOI-7** eoiagent `0.1.0` release + published artifacts (un-pin Inspecto from a moving SNAPSHOT).
 
-*Closed 2026-07-07: ING-5 (unified parsing + json/text_regex frontends), INC-3 (webhook + SMTP
-delivery channels), PKG-4 (jlink/Nimbus verified), PIP-1 caveat (live e2e via
-`examples/06-serve/pipeline-job`).*
+*Closed 2026-07-07: ING-5 (unified parsing + json/text_regex frontends), **ING-6** (Expectation engine:
+`com.gamma.expectation` + `/expectations*`, real DuckDB violation counting + deduped-Incident/notify
+consequence chain), INC-3 (webhook + SMTP delivery channels), PKG-4 (jlink/Nimbus verified), PIP-1
+caveat (live e2e via `examples/06-serve/pipeline-job`).*
 
 ### SHOULD
 

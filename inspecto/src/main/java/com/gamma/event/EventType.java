@@ -82,6 +82,8 @@ public final class EventType {
 
     // ── operational-object bridge (Phase 2 ties back to here) ───────────────────────
     public static final String ALERT_FIRED     = "ALERT_FIRED";
+    /** A data-quality {@code Expectation} evaluated with violating records (ING-6) — raises an Incident + notifies. */
+    public static final String EXPECTATION_FAILED = "EXPECTATION_FAILED";
     public static final String CONFIG_VALIDATED = "CONFIG_VALIDATED";
 
     /** A managed object (ALERT/INCIDENT/…) was created in its workflow's initial state (Phase 2). */
