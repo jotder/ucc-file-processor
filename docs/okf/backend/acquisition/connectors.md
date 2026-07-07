@@ -36,8 +36,12 @@ timestamp: 2026-06-28T00:00:00Z
 * Connection profiles are `<name>_connection.toon` (`ConnectionProfile`): `id`, `connector`, `host`, `port`,
   `base_path`, `username`, `password`, an `options` map, and an optional `tunnel` sub-block.
 * **Secrets are never literals** — `SecretResolver` (`com/gamma/acquire/SecretResolver.java`) resolves
-  `${ENV:VAR}` / `${SYS:prop}` / `${NAME}` at connect time, never at load; `isResolvable()` powers the test
-  endpoint without exposing values.
+  `${ENV:VAR}` / `${SYS:prop}` / `${FILE:/path}` / `${KEYSTORE:alias}` / `${NAME}` at connect time, never at
+  load; `isResolvable()` powers the test endpoint without exposing values. `${FILE:…}` reads a mounted secret
+  file (Docker/K8s idiom; one trailing newline stripped). `${KEYSTORE:alias}` reads a `SecretKeyEntry` from a
+  Java KeyStore located by `-Dsecrets.keystore.path` / `-Dsecrets.keystore.type` (default `JCEKS`) /
+  `-Dsecrets.keystore.password` (itself a reference, so the store password need not be in the clear) — the
+  pure-JDK, OS-independent keystore option (SEC-8); a Vault scope is a future addition (client not in the lean core).
 * `ConnectionRegistry` (`com/gamma/acquire/ConnectionRegistry.java`) bridges the service layer (owns the toon
   files) to the static poll-cycle path, keyed per `(spaceId, profileId)`.
 * Control routes: `GET /connections`, `GET /connections/{id}`, `POST /connections/{id}/test` (TCP reachability
