@@ -211,7 +211,7 @@ AI-driven autonomy without redesign.
 | AGT-2 | Pluggable model transport: **eoiagent** gateway bridge + native Ollama provider; hosted providers isolated in `inspecto-agent-hosted` | Must | SHIPPED | All |
 | AGT-3 | Air-gap guarantee: hosted SDKs physically absent from air-gapped builds (`EgressGuardTest` invariant) | Must | SHIPPED | All |
 | AGT-4 | Model Settings pane + per-tier connectivity probes | Should | SHIPPED | All |
-| AGT-5 | **Embedded intelligence** (`inspecto-intelligence` module): ContextBroker grounding, tool belt L0–L3, autonomy ladder (Explain → Draft → Act-with-approval → bounded autonomy) | Should | DESIGN (P0 awaiting product-owner sign-off) | All (L3 = S+, opt-in) |
+| AGT-5 | **Embedded intelligence** (`inspecto-intelligence` module): ContextBroker grounding, tool belt L0–L3, autonomy ladder (Explain → Draft → Act-with-approval → bounded autonomy) | Should | P0 SHIPPED 2026-07-07 (sign-off given); P1–P5 open | All (L3 = S+, opt-in) |
 | AGT-6 | AI behind every screen; multi-step agent graphs | Could | PLANNED | All |
 
 ### 3.14 Agentic framework as a product (EOI) — eoiagent, separate repo
@@ -295,8 +295,7 @@ caveat (live e2e via `examples/06-serve/pipeline-job`).*
   **BI-4** Scheduled reports/export delivery. · **DAT-5** Calculated columns. ·
   **INC-4** Incident workflow depth. · **ACQ-5** Streaming consumer *(offline-blocked: `kafka-clients`
   not cached)*. · **ACQ-7** etag/version dedup. · **PIP-7** Maintenance job library. ·
-  **MET-4** Stream read-model. · **AGT-5** Embedded intelligence P0 (gate: product-owner
-  sign-off). ·
+  **MET-4** Stream read-model. ·
   **API-5** Legacy route sunset (after soak).
 
 *Closed 2026-07-07: **DAT-6** Postgres state store (all 6 JDBC stores verified vs real Postgres) ·
@@ -304,7 +303,12 @@ caveat (live e2e via `examples/06-serve/pipeline-job`).*
 (landed by the parallel session, commits `7e06463`/`12ead9c`) · **SPC-4** Metadata Bundle v2 backend
 (`BundleRoutes` export/preview/import over the `ComponentStore` kinds; connection/pipeline/job/view
 kinds deferred to their own stores) · **UI-6** Requirements triage backend (`RequirementRoutes` submit/
-decision/deliver + UI on the dedicated routes; shipped alongside SEC-7(c)).*
+decision/deliver + UI on the dedicated routes; shipped alongside SEC-7(c)) · **AGT-5 P0** embedded
+intelligence spine (new `inspecto-intelligence` module: `IntelligenceAgent` SPI, `/agent/sessions`
++ `/agent/sessions/{id}/ask` control-plane routes, `InspectoPack` on the eoiagent platform with a
+3-tool read belt + navigation catalog + policy/prompt profiles; QA-only, OFFLINE-only, no RAG corpus
+yet — see `docs/superpower/embedded-intelligence-plan.md` §8 for the documented P0 scope cuts and
+P1–P5 remaining).*
 
 ### COULD
 
@@ -334,8 +338,8 @@ decision/deliver + UI on the dedicated routes; shipped alongside SEC-7(c)).*
    schema surface.
 4. **Backend catch-up for mock-first UI**: INV-1 and SPC-4 ride the now-widened component store; MET-4
    (Streams) and DAT-4 (Matrix materialization) follow — Matrix needs the net-new materialization runner.
-5. **AGT-5 (embedded intelligence P0)** starts only on product-owner sign-off; its transport dependency
-   (eoiagent) is already in place, but **EOI-7** (release pin) should land first.
+5. **AGT-5 (embedded intelligence)** — P0 shipped 2026-07-07 on product-owner sign-off, riding the
+   eoiagent transport already in place; **EOI-7** (release pin) should still land before P1 goes wide.
 6. **API-5 legacy sunset** waits on the `inspecto_legacy_api_requests_total` soak signal — a
    product/policy call, not an engineering one.
 

@@ -222,12 +222,42 @@ Actuation is safe-by-construction (§6); the residual risks are **data egress** 
 
 ## 8. Phased execution (each phase independently shippable + GAUNTLET-gated)
 
-**P0 — Platform + grounding (the spine).** `inspecto-intelligence` module; `InspectoPack` skeleton;
-`PlatformBuilder` boot behind ServiceLoader; sessions + SSE routes; **ContextBroker v1**
-(identity + page + graph neighborhood); read tool belt v1 (catalog/graph/sql/status/events/docs/
-glossary); `support_agent` + `incident_explain` on the deliberative loop.
-*Exit: page-aware Q&A with citations + navigation answers, live off a seeded space; reflex layer
-untouched; golden evals for both skills; CPU-only CI green.*
+**P0 — Platform + grounding (the spine). SHIPPED 2026-07-07 (product-owner sign-off given),
+narrower than the exit criteria below on three points — see scope cuts.** Delivered: new
+`inspecto-intelligence` module (`file-processor-intelligence`); core seam `com.gamma.intelligence.spi.
+IntelligenceAgent` (mirrors `AssistAgent`'s SourceService/ServiceLoader lifecycle) +
+`AgentSessionRequest/Result`, `AgentAskRequest/Result` wire records; `POST /agent/sessions` +
+`POST /agent/sessions/{id}/ask` control-plane routes (`AgentRoutes`, 503 when the module is
+absent); `InspectoPack` (the 8 `ApplicationPack` seams) assembled via `PlatformBuilder` behind
+`InspectoIntelligenceAgent`; `InspectoModelProfile` bridges `AssistModelSettings`/`ProviderSettings`
+so one settings screen configures both agent modules; read tool belt v1 = `glossary_lookup` +
+`docs_search` (both over `docs/`) + `status_get` (live `SourceService.pipelines()`); navigation
+catalog seeded from 6 real `app.routes.ts` top-level routes (NavigationTool auto-registers).
+Tests: `InspectoPackTest`, `InspectoIntelligenceAgentTest` (deterministic `StubLlmGateway`, no
+live-model dependency), `AgentRoutesTest` (real-HTTP, mirrors `ControlApiTest`'s pattern). Reactor
+green (1006/155/4/36/12).
+
+*Scope cuts from the original P0 description (each a deliberate, documented deferral, not an
+oversight):*
+1. **No RAG corpus yet** — `InspectoPack.knowledgeSources()` is empty; grounding comes from the
+   read tool belt instead of ingestion, to avoid standing up the ONNX embedding + ingestion path
+   before it's verified offline-safe in CPU-only CI. `KnowledgeSource`s + the ONNX embedding profile
+   are wired and ready in `InspectoModelProfile`/`InspectoPack` — just not populated.
+2. **QA only, no `incident_explain` yet** — the eoiagent host layer (`DefaultAgentSession.coreRun`)
+   hardcodes `GoalKind.QA` for every `ask()` today; there is no host-level seam yet to select
+   `INVESTIGATION`. `support_agent`-style Q&A + navigation is what P0 actually exercises;
+   `incident_explain` waits on that upstream seam (or a P1 direct-`Orchestrator.run()` path).
+3. **Local models only** — always `DeploymentProfile.OFFLINE`; a hosted-provider companion module
+   (mirroring `inspecto-agent-hosted`) is deferred, consistent with the plan's own edition table
+   (hosted providers are a Standard+ concern, not P0's).
+4. **No SSE streaming route** — only the blocking `ask` shape shipped; `chatStream`/`askStream` exist
+   on the eoiagent ports and are a small follow-up, not re-architecture.
+5. **Navigation catalog is hand-seeded** (6 pages), not derived from `app.routes.ts` automatically.
+
+*Exit (revised for what actually shipped): page-aware Q&A + navigation answers, live off a running
+SourceService, deterministic under `StubLlmGateway`, real under a configured local Ollama; reflex
+layer untouched; CPU-only CI green. Citations-from-a-corpus and `incident_explain` move to P1
+alongside the items below.*
 
 **P1 — Investigation.** `timeline_build`/`diff_batches`/`config_versions_diff`/`anomaly_scan`
 tools; `root_cause_analysis` + `impact_analysis` playbooks; Case Store + `/agent/cases`; event

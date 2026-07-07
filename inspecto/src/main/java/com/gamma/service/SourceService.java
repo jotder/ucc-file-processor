@@ -2,6 +2,7 @@ package com.gamma.service;
 
 import com.gamma.api.PublicApi;
 import com.gamma.assist.spi.AssistAgent;
+import com.gamma.intelligence.spi.IntelligenceAgent;
 import com.gamma.catalog.CatalogOverlay;
 import com.gamma.catalog.ConfigSource;
 import com.gamma.catalog.MetadataGraphService;
@@ -198,6 +199,10 @@ public final class SourceService implements AutoCloseable {
      *  {@link #start()} or registered explicitly with {@link #registerAgent(AssistAgent)};
      *  {@code null} when the {@code file-processor-agent} module is absent. */
     private volatile AssistAgent agent;
+    /** Optional embedded-intelligence agent (AGT-5, P0): the deliberative-session successor to
+     *  {@link #agent}, discovered/registered the same way; {@code null} when the
+     *  {@code file-processor-intelligence} module is absent. */
+    private volatile IntelligenceAgent intelligenceAgent;
     /** Loaded {@code *_meta.toon} semantic models (KPI catalog + domain notes) feeding the catalog. */
     private final List<SemanticModel> semanticModels;
     /** The metadata graph / data catalog (M2): config-derived structure + lazy operational overlay. */
@@ -553,6 +558,29 @@ public final class SourceService implements AutoCloseable {
         return Optional.ofNullable(agent);
     }
 
+    /**
+     * Wire an embedded {@link IntelligenceAgent} (AGT-5, P0) — mirrors {@link #registerAgent}.
+     * Calls {@link IntelligenceAgent#init(SourceService)} immediately, before publishing the
+     * reference. A second registration is ignored with a warning (one agent per service).
+     *
+     * @param a the agent provider; {@code null} is a no-op
+     */
+    public synchronized void registerIntelligenceAgent(IntelligenceAgent a) {
+        if (a == null) return;
+        if (intelligenceAgent != null) {
+            log.warn("Intelligence agent '{}' already registered; ignoring '{}'", intelligenceAgent.name(), a.name());
+            return;
+        }
+        a.init(this);
+        intelligenceAgent = a;
+        log.info("Intelligence agent registered: {}", a.name());
+    }
+
+    /** The embedded intelligence agent, or empty when none is registered/discovered (AGT-5, P0). */
+    public Optional<IntelligenceAgent> intelligenceAgent() {
+        return Optional.ofNullable(intelligenceAgent);
+    }
+
     /** Report recovery state, wire enrichment, then schedule the recurring poll cycle. */
     public void start() {
         // v3.0 (M0): discover an optional embedded assist agent on the classpath and wire it
@@ -560,6 +588,11 @@ public final class SourceService implements AutoCloseable {
         // ServiceLoader provider) or one was already registered explicitly.
         if (agent == null) {
             ServiceLoader.load(AssistAgent.class).findFirst().ifPresent(this::registerAgent);
+        }
+        // AGT-5 (P0): discover an optional embedded intelligence agent, same pattern as the
+        // reflex-layer AssistAgent above; no-op when file-processor-intelligence is absent.
+        if (intelligenceAgent == null) {
+            ServiceLoader.load(IntelligenceAgent.class).findFirst().ifPresent(this::registerIntelligenceAgent);
         }
         for (ConfigRegistry.Entry e : configRegistry.all()) {
             int committed = fileStatus.committedBatches(e.config()).size();   // on-disk truth
@@ -1054,6 +1087,10 @@ public final class SourceService implements AutoCloseable {
         if (agent != null) {                           // release agent resources first
             try { agent.close(); }
             catch (Exception e) { log.warn("Error closing assist agent '{}': {}", agent.name(), e.getMessage()); }
+        }
+        if (intelligenceAgent != null) {
+            try { intelligenceAgent.close(); }
+            catch (Exception e) { log.warn("Error closing intelligence agent '{}': {}", intelligenceAgent.name(), e.getMessage()); }
         }
         if (jobs != null) jobs.close();               // drain in-flight job runs first
         triggerWorkers.close();                        // drain in-flight event-triggered flow runs (T13)

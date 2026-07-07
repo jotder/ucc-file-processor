@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.gamma.inspector</groupId>
+        <artifactId>file-processor-parent</artifactId>
+        <version>4.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>file-processor-intelligence</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Inspecto — Embedded Intelligence (optional)</name>
+    <description>
+        Optional embedded-intelligence agent (AGT-5, P0 — docs/superpower/embedded-intelligence-plan.md).
+        Implements the IntelligenceAgent SPI from the core module and is loaded in-process by
+        SourceService when present on the classpath. The deliberative, multi-turn successor track
+        to inspecto-agent's reflex skills: assembles an eoiagent ApplicationPack (InspectoPack) and
+        exposes it as chat sessions over /agent/sessions.
+
+        ALL agent-platform deps (eoiagent-*, LangChain4j, the Ollama client) live ONLY in this
+        module, so the core fat-JAR stays lean — same air-gap discipline as inspecto-agent.
+    </description>
+
+    <properties>
+        <!-- Same eoiagent line inspecto-agent pins; kept in lockstep deliberately (one SNAPSHOT
+             version for both optional agent modules built from C:/sandbox/agent-brainstorm). -->
+        <langchain4j.version>1.16.3</langchain4j.version>
+        <eoiagent.version>0.1.0-SNAPSHOT</eoiagent.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- Bridges the pack's ModelProfile from the existing assist-settings screen
+             (ProviderSettings/AssistModelSettings) so operators configure one model provider,
+             not two. -->
+        <dependency>
+            <groupId>com.gamma.inspector</groupId>
+            <artifactId>file-processor-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- eoiagent: ApplicationPack SPI (app-api), PlatformBuilder/AgentPlatform (platform),
+             core types (core), and the OpenAI-compatible/Ollama LlmGateway transports (model).
+             langchain4j-open-ai excluded so the air-gapped guarantee stays a packaging fact
+             (EgressGuardTest) — a hosted module would ship it deliberately. -->
+        <dependency>
+            <groupId>com.eoiagent</groupId>
+            <artifactId>eoiagent-core</artifactId>
+            <version>${eoiagent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.eoiagent</groupId>
+            <artifactId>eoiagent-app-api</artifactId>
+            <version>${eoiagent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.eoiagent</groupId>
+            <artifactId>eoiagent-platform</artifactId>
+            <version>${eoiagent.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.eoiagent</groupId>
+            <artifactId>eoiagent-model</artifactId>
+            <version>${eoiagent.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>dev.langchain4j</groupId>
+                    <artifactId>langchain4j-open-ai</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-core</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-ollama</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!-- Build config (compiler + surefire native-access flag) is inherited from the parent
+         POM's <pluginManagement>. No module-specific plugins here. -->
+</project>

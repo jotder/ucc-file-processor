@@ -51,6 +51,7 @@
 /inspecto-agent-hosted/target/
 /inspecto-connectors/target/
 /inspecto-security/target/
+/inspecto-intelligence/target/
 
 # Editor-local config (VS Code)
 /.vscode/
