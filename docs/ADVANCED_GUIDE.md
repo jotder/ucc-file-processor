@@ -438,8 +438,11 @@ v1 transport contract (`docs/superpower/api-contract-design.md`): responses wrap
 `{data, metadata, links, diagnostics}` envelope, errors as structured objects with machine-readable
 codes (`control/ErrorCodes.java`), gzip negotiated ≥ 1 KiB. Every request (legacy included) gets a
 `Correlation-ID` (caller-supplied or issued), echoed as a response header and inherited by events
-logged during the request. The unversioned routes below are the legacy aliases the SPA still calls —
-byte-for-byte unchanged.
+logged during the request. Since W7 the SPA speaks `/api/v1` end-to-end; the unversioned routes below
+remain as **legacy aliases** — byte-for-byte unchanged — for external/older clients. A successful non-v1
+call to a versioned route increments `inspecto_legacy_api_requests_total{route}` (the W7 **sunset
+signal**; infra probes health/ready/metrics excluded), so a deployment can see whether anything still
+depends on them before they are removed — removal stays gated on that soak.
 
 - **Health/metrics:** `GET /health`, `GET /ready`, `GET /metrics` (Prometheus), `GET /metrics/acquisition` (JSON).
 - **Bootstrap (v4.8.0):** `GET /bootstrap` — one ETag'd call: edition + feature flags, all config specs, platform
@@ -451,8 +454,11 @@ byte-for-byte unchanged.
   sandbox with server-side `$`-parameter resolution + caller overrides, returning the Result Set contract
   (typed columns + roles + cardinality, rows, statistics, candidate renderings, export options). Query/dataset
   authoring reuses `/components/{query|dataset}/{id}`. Read-path only (not Matrices materialization).
-- **Pipelines:** `GET /pipelines`, `POST /pipelines` *(503)*, `POST /pipelines/{n}/trigger|pause|resume|reprocess`,
-  `GET /pipelines/{n}/commits|batches|files|lineage|quarantine|pending|report`, `POST /trigger` (all).
+- **Pipelines (ingest runs):** `GET /runs`, `POST /runs` *(503)*, `POST /runs/{n}/trigger`
+  *(v4.8.0: on `/api/v1` returns **202 + {runId} + Location** async; legacy stays 200 + `RunResult`)*,
+  `GET /runs/runs/{runId}` *(poll a run — RUNNING then terminal; 404 once evicted)*,
+  `POST /runs/{n}/pause|resume|reprocess`,
+  `GET /runs/{n}/commits|batches|files|lineage|quarantine|pending|report`, `POST /trigger` (all).
 - **Status/report:** `GET /status`, `GET /report`.
 - **Jobs:** `GET /jobs`, `GET /jobs/metrics|runs|failures`, `GET /jobs/{n}/runs`, `POST /jobs/{n}/trigger`
   *(v4.8.0: on `/api/v1` returns **202 + {runId} + Location**; legacy stays 200)*, `GET /jobs/runs/{runId}`

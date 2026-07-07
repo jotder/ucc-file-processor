@@ -167,6 +167,25 @@ class ControlApiV1Test {
     }
 
     @Test
+    void legacyUsageIsCountedForVersionedRoutesButNotV1OrInfra(@TempDir Path cfg) throws Exception {
+        try (Ctx c = open(cfg, null)) {
+            assertEquals(200, get(c.port, "/runs").statusCode());          // legacy call to a versioned route → counted
+            assertEquals(200, get(c.port, "/api/v1/runs").statusCode());   // v1 surface → NOT counted
+            assertEquals(200, get(c.port, "/health").statusCode());        // infra probe → NOT counted
+
+            String metrics = get(c.port, "/metrics").body();
+            assertTrue(metrics.contains("inspecto_legacy_api_requests_total"),
+                    "the W7 legacy-usage sunset counter is exported");
+            assertTrue(metrics.lines().anyMatch(l ->
+                            l.startsWith("inspecto_legacy_api_requests_total{") && l.contains("/runs")),
+                    "the legacy GET /runs is counted under its route label");
+            assertTrue(metrics.lines().noneMatch(l ->
+                            l.startsWith("inspecto_legacy_api_requests_total{") && l.contains("/health")),
+                    "always-unversioned infra probes are never counted as legacy usage");
+        }
+    }
+
+    @Test
     void gzipNegotiatedOnLargeJsonBodies(@TempDir Path cfg) throws Exception {
         try (Ctx c = open(cfg, null)) {
             HttpResponse<String> plain = get(c.port, "/config/spec/pipeline");

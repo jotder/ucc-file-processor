@@ -432,6 +432,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 Object result = r.handler.handle(ex, m);
                 if (result != HANDLED) respond(ex, 200, result);
                 AuditTrail.record(ex, method, path, 200);   // audit successful state-changing requests
+                recordLegacyUsage(ex, method, path, r);     // W7 sunset signal (non-v1 calls to versioned routes)
                 return;
             }
             // No API route matched the path: a GET may be an SPA asset / deep link (PUBLIC).
@@ -603,6 +604,26 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     @Override public void post(String pattern, Handler h) { routes.add(new Route("POST",   Pattern.compile("^" + pattern + "$"), h)); }
     @Override public void put   (String pattern, Handler h) { routes.add(new Route("PUT",    Pattern.compile("^" + pattern + "$"), h)); }
     @Override public void delete(String pattern, Handler h) { routes.add(new Route("DELETE", Pattern.compile("^" + pattern + "$"), h)); }
+
+    /**
+     * W7 sunset signal: a successful call that matched a versioned business route but did NOT arrive on the
+     * {@code /api/v1} surface is a legacy-alias use. Counted per route (bounded cardinality — the route
+     * pattern) so an operator can see, per real deployment, whether anything still depends on the unversioned
+     * aliases before they are removed (removal stays gated on that soak — api-contract-design.md §10 W7). The
+     * always-unversioned infra probes (health/ready/metrics) are excluded — they have no v1 semantics.
+     */
+    private void recordLegacyUsage(HttpExchange ex, String method, String path, Route r) {
+        if (ApiContext.v1(ex) || isInfraRoute(path)) return;
+        com.gamma.metrics.MetricRegistry.global().inc("inspecto_legacy_api_requests_total",
+                "Calls to the unversioned legacy route aliases (pre-/api/v1) — the W7 sunset signal",
+                Map.of("route", r.pattern.pattern()));
+        log.debug("legacy (non-v1) API call: {} {} — migrate to /api/v1", method, path);
+    }
+
+    private static boolean isInfraRoute(String path) {
+        return path.equals("/health") || path.equals("/ready")
+                || path.equals("/metrics") || path.equals("/metrics/acquisition");
+    }
 
     private record Route(String method, Pattern pattern, Handler handler) {}
 }
