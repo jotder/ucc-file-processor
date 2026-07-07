@@ -89,6 +89,17 @@ describe('spacesHandler', () => {
         expect(handler(req('DELETE', '/api/spaces/default'), store)?.status).toBe(400);
     });
 
+    it('updates a space name/description, 404s the unknown, refuses the default', () => {
+        const store = new MockStore();
+        handler(req('POST', '/api/spaces', { id: 'acme', display_name: 'Acme' }), store);
+        const res = handler(req('PUT', '/api/spaces/acme', { display_name: 'Acme Corp', description: 'renamed' }), store);
+        expect((res?.body as Space).displayName).toBe('Acme Corp');
+        expect((res?.body as Space).description).toBe('renamed');
+        expect((res?.body as Space).id).toBe('acme'); // id immutable
+        expect(handler(req('PUT', '/api/spaces/unknown', { display_name: 'x' }), store)?.status).toBe(404);
+        expect(handler(req('PUT', '/api/spaces/default', { display_name: 'x' }), store)?.status).toBe(400);
+    });
+
     it('404s datasources for an unknown space', () => {
         expect(handler(req('GET', '/api/spaces/nope/datasources'), new MockStore())?.status).toBe(404);
     });

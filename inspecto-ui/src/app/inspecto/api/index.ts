@@ -37,3 +37,4 @@ export * from './notifications.service';
 export * from './expectations.service';
 export * from './decision-rules.service';
 export * from './geo-settings.service';
+export * from './branding.service';

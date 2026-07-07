@@ -66,13 +66,40 @@ export class SpacesComponent implements OnInit {
         return s.id === this.spaces.currentSpaceId();
     }
 
+    /** The default space is fixed — it cannot be edited (branding, name) or removed. */
+    isDefault(s: Space): boolean {
+        return s.id === 'default';
+    }
+
     newSpace(): void {
         this.dialog
-            .open(SpaceFormDialog, { width: '480px' })
+            .open(SpaceFormDialog, { width: '520px', maxHeight: '90vh' })
             .afterClosed()
             .subscribe((created?: Space) => {
                 if (created) this.reload();
             });
+    }
+
+    /** Edit a space's name, description and branding (logo / caption / footer). Not offered for `default`. */
+    editSpace(s: Space): void {
+        this.dialog
+            .open(SpaceFormDialog, { data: { space: s }, width: '520px', maxHeight: '90vh' })
+            .afterClosed()
+            .subscribe((updated?: Space) => {
+                if (updated) this.reload();
+            });
+    }
+
+    /** Make this the single active space. Re-scopes the app, so it hard-reloads (same as the header switcher). */
+    async activate(s: Space): Promise<void> {
+        if (this.isCurrent(s)) return;
+        const go = await this.confirm.confirm(
+            `Activate "${s.displayName || s.id}"? Only one space is active at a time; the app reloads scoped to it.`,
+            'Activate space',
+        );
+        if (!go) return;
+        this.spaces.selectSpace(s.id);
+        window.location.assign('/dashboard');
     }
 
     /** W5: pick a Space Template from the gallery, name the space, and offer to switch into it. */

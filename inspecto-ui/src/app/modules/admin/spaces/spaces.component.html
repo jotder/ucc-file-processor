@@ -74,6 +74,16 @@
                             }
                         </div>
                         <div class="flex items-center gap-1">
+                            @if (!isCurrent(s)) {
+                                <button mat-icon-button (click)="activate(s)" matTooltip="Activate (make current)" aria-label="Activate space">
+                                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:check-circle"></mat-icon>
+                                </button>
+                            }
+                            @if (!isDefault(s)) {
+                                <button mat-icon-button (click)="editSpace(s)" matTooltip="Edit space & branding" aria-label="Edit space">
+                                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                                </button>
+                            }
                             <button mat-icon-button (click)="toggleDataSources(s)"
                                     [matTooltip]="expanded[s.id] ? 'Hide data sources' : 'Show data sources'"
                                     [attr.aria-label]="expanded[s.id] ? 'Hide data sources' : 'Show data sources'"

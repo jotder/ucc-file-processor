@@ -148,6 +148,11 @@ export class SpacesService {
         return this.http.post<Space>(apiUrl('/spaces'), req);
     }
 
+    /** Update a space's display name / description (the id/folder is immutable). 400 for `default`, 404 unknown. */
+    update(id: string, patch: { display_name?: string; description?: string }): Observable<Space> {
+        return this.http.put<Space>(apiUrl(`/spaces/${encodeURIComponent(id)}`), patch);
+    }
+
     /** The Space-Template catalog (blueprint bundles "New space from template" instantiates). */
     templates(): Observable<SpaceTemplateInfo[]> {
         return this.http.get<SpaceTemplateInfo[]>(apiUrl('/spaces/templates'));

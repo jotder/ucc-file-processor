@@ -44,6 +44,7 @@ export function spacesHandler(flags: MockFlags): MockHandler {
             return json(store.list<Space>(SERVER_SPACE, SPACES_COLL).sort((a, b) => a.id.localeCompare(b.id)));
         }
         if (method === 'POST' && SPACES.test(url)) return createSpace(store, req.body);
+        if (method === 'PUT' && (m = match(url, SPACE_ONE))) return updateSpace(store, m[1], req.body);
         if (method === 'GET' && (m = match(url, SPACE_DS))) {
             if (!store.has(SERVER_SPACE, SPACES_COLL, m[1])) return error(404, `Unknown space "${m[1]}".`);
             return json(store.list<AuthoredPipeline>(m[1], PIPELINES_COLL).map((p) => p.name));
@@ -72,6 +73,21 @@ function createSpace(store: MockStore, body: unknown) {
     // A template seeds its full blueprint; an empty space is marked seeded so the default pack
     // doesn't land in it on first use (the point of "New space" is a blank slate).
     store.ensureSeeded(id, template ? template.seed : () => undefined);
+    return json(space);
+}
+
+/** PUT /spaces/{id} — update a space's display name / description (the id/folder is immutable). */
+function updateSpace(store: MockStore, id: string, body: unknown) {
+    if (id === 'default') return error(400, 'The default space cannot be edited.');
+    const existing = store.get<Space>(SERVER_SPACE, SPACES_COLL, id);
+    if (!existing) return error(404, `Unknown space "${id}".`);
+    const b = (body ?? {}) as { display_name?: string; description?: string };
+    const space: Space = {
+        ...existing,
+        displayName: b.display_name?.trim() || existing.id,
+        description: b.description?.trim() ?? existing.description,
+    };
+    store.put(SERVER_SPACE, SPACES_COLL, id, space);
     return json(space);
 }
 

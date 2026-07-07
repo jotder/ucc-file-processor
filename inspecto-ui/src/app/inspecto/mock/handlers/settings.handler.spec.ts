@@ -25,6 +25,31 @@ describe('settingsHandler', () => {
         expect(handle(req('GET', '/settings/geo'), store)?.body).toEqual({ id: 'geo', tileServerUrl: null });
     });
 
+    it('GET /settings/branding returns all-null defaults before any save', () => {
+        const res = settingsHandler(flags)(req('GET', '/settings/branding'), new MockStore());
+        expect(res?.body).toEqual({ id: 'branding', logoDataUrl: null, caption: null, footerText: null });
+    });
+
+    it('PUT round-trips branding and blanks fold to null', () => {
+        const store = new MockStore();
+        const handle = settingsHandler(flags);
+        handle(req('PUT', '/settings/branding', { logoDataUrl: 'data:x', caption: 'Hi', footerText: '  ' }), store);
+        expect(handle(req('GET', '/settings/branding'), store)?.body).toEqual({
+            id: 'branding', logoDataUrl: 'data:x', caption: 'Hi', footerText: null,
+        });
+    });
+
+    it('scopes branding to the space id in the URL, not just the active space', () => {
+        const store = new MockStore();
+        const handle = settingsHandler(flags);
+        // active space is 's1' (req.space); write to space 'beta' explicitly
+        handle(req('PUT', '/api/v1/spaces/beta/settings/branding', { caption: 'Beta brand' }), store);
+        // 's1' (active, plain path) is untouched
+        expect(handle(req('GET', '/settings/branding'), store)?.body).toMatchObject({ caption: null });
+        // 'beta' carries its own doc
+        expect(handle(req('GET', '/api/v1/spaces/beta/settings/branding'), store)?.body).toMatchObject({ caption: 'Beta brand' });
+    });
+
     it('stays out of the way when the studio mock is off', () => {
         const res = settingsHandler({ mockStudio: false } as MockFlags)(req('GET', '/settings/geo'), new MockStore());
         expect(res).toBeUndefined();

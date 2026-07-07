@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewEncapsulation, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
@@ -18,7 +18,7 @@ import { NotificationBellComponent } from 'app/layout/common/notifications/notif
 import { SearchComponent } from 'app/layout/common/search/search.component';
 import { SpaceSwitcherComponent } from 'app/layout/common/space-switcher/space-switcher.component';
 import { UserComponent } from 'app/layout/common/user/user.component';
-import { environment } from 'environments/environment';
+import { BrandingService } from 'app/inspecto/api';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -46,8 +46,8 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
     isScreenSmall: boolean;
     navigation: Navigation;
     private _unsubscribeAll: Subject<any> = new Subject<any>();
-    logoUrl = environment.appLogo;
-    footerText = environment.footerText;
+    /** Active-space branding (logo / footer), falling back to the shipped defaults. */
+    protected readonly branding = inject(BrandingService);
 
 
     /**

@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewEncapsulation, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
@@ -13,6 +13,7 @@ import { Navigation } from 'app/core/navigation/navigation.types';
 
 import { SearchComponent } from 'app/layout/common/search/search.component';
 import { UserComponent } from 'app/layout/common/user/user.component';
+import { BrandingService } from 'app/inspecto/api';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -33,6 +34,8 @@ export class DenseLayoutComponent implements OnInit, OnDestroy {
     isScreenSmall: boolean;
     navigation: Navigation;
     navigationAppearance: 'default' | 'dense' = 'dense';
+    /** Active-space branding — the dense header shows the logo only. */
+    protected readonly branding = inject(BrandingService);
     private _unsubscribeAll: Subject<any> = new Subject<any>();
 
     /**
