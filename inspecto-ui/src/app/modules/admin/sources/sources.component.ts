@@ -161,9 +161,9 @@ export class SourcesComponent implements OnInit {
     async trigger(source: SourceView): Promise<void> {
         if (!(await this.confirm.confirm(`Run pipeline "${source.pipeline}" now?`, 'Run now'))) return;
         this.runs.trigger(source.pipeline).subscribe({
-            next: (r) => {
-                const msg = `${source.pipeline}: ${r.total} processed, ${r.failed} failed`;
-                r.failed ? this.toastr.warning(msg) : this.toastr.success(msg);
+            // v1 async contract (W5b): the trigger returns 202 + runId; the refreshed list shows the outcome.
+            next: () => {
+                this.toastr.success(`Pipeline "${source.pipeline}" run started.`);
                 this.load();
             },
             error: (e) => this.toastr.error(apiErrorMessage(e, `Run failed for ${source.pipeline}`)),

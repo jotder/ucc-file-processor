@@ -133,4 +133,55 @@ class ControlApiAsyncV1Test {
             assertEquals(404, get(c.port, "/api/v1/jobs/runs/does-not-exist").statusCode());
         }
     }
+
+    // ── async pipeline trigger + poll (W5b) ──────────────────────────────────────────
+
+    @Test
+    void pipelineTriggerIsAcceptedWithRunIdAndPollable(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root, List.of())) {   // Ctx writes one pipeline; take its registered id
+            String pipe = c.svc.pipelines().get(0).name();
+            HttpResponse<String> accepted = post(c.port, "/api/v1/runs/" + pipe + "/trigger", null);
+            assertEquals(202, accepted.statusCode(), accepted.body());
+            JsonNode data = JSON.readTree(accepted.body()).get("data");
+            String runId = data.get("runId").asText();
+            assertFalse(runId.isBlank());
+            assertEquals(pipe, data.get("pipeline").asText());
+            assertEquals("running", data.get("status").asText());
+            assertEquals("/api/v1/runs/runs/" + runId, accepted.headers().firstValue("Location").orElse(null));
+
+            // Poll the run to a terminal status.
+            String status = null;
+            long deadline = System.nanoTime() + 10_000_000_000L;
+            while (System.nanoTime() < deadline) {
+                HttpResponse<String> polled = get(c.port, "/api/v1/runs/runs/" + runId);
+                assertEquals(200, polled.statusCode(), polled.body());
+                JsonNode run = JSON.readTree(polled.body()).get("data");
+                assertEquals(runId, run.get("runId").asText());
+                status = run.get("status").asText();
+                if (!"RUNNING".equals(status)) break;
+                Thread.sleep(50);
+            }
+            assertEquals("SUCCESS", status, "the empty-inbox run completes without failures");
+        }
+    }
+
+    @Test
+    void legacyPipelineTriggerResponseIsUnchanged(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root, List.of())) {
+            String pipe = c.svc.pipelines().get(0).name();
+            HttpResponse<String> r = post(c.port, "/runs/" + pipe + "/trigger", null);   // unversioned surface
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode body = JSON.readTree(r.body());
+            assertTrue(body.has("total") && body.has("failed"), "legacy body is the raw RunResult");
+            assertNull(body.get("data"), "legacy surface stays un-enveloped (200, no runId/202)");
+        }
+    }
+
+    @Test
+    void unknownPipelineTriggerIs404(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root, List.of())) {
+            assertEquals(404, post(c.port, "/api/v1/runs/ghost/trigger", null).statusCode());
+            assertEquals(404, get(c.port, "/api/v1/runs/runs/does-not-exist").statusCode());
+        }
+    }
 }

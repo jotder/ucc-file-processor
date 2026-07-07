@@ -55,8 +55,12 @@ class ControlApiAuditTest {
             JsonNode events = json(send(c.port, "GET", "/events?limit=200", null));
             JsonNode audit = null;
             for (JsonNode e : events) {
+                // The default space's event store is process-global (SpaceRoot.legacy()), so /events can carry
+                // pipeline.triggered audits from other integration tests — match this run's own pipeline by id.
+                JsonNode a = e.get("attributes");
                 if ("AUDIT".equals(e.get("type").asText())
-                        && "pipeline.triggered".equals(e.get("attributes").get("action").asText())) {
+                        && "pipeline.triggered".equals(a.get("action").asText())
+                        && c.name.equals(a.path("target_id").asText())) {
                     audit = e;
                 }
             }

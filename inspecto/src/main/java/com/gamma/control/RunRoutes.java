@@ -38,7 +38,10 @@ final class RunRoutes implements RouteModule {
         // reprocess below are operational (canOperateRuns) — both a no-op on Personal (rbac-groundwork.md §2).
         api.post("/runs", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> createPipeline(api, e, api.body(e))));
         api.post("/runs/([^/]+)/trigger", ApiContext.withCapability("canOperateRuns", (e, m) ->
-                api.service().runPipeline(ApiContext.name(m)).orElseThrow(() -> notFound(ApiContext.name(m)))));
+                triggerPipeline(api, e, ApiContext.name(m))));
+        // W5b async: poll one manual run by id (the id returned by the 202 trigger above). Single-segment after
+        // /runs/runs/, so it never collides with the /runs list or the /runs/{name}/<audit> routes.
+        api.get("/runs/runs/([^/]+)", (e, m) -> pipelineRunById(api, ApiContext.name(m)));
         api.post("/runs/([^/]+)/pause", ApiContext.withCapability("canOperateRuns", (e, m) -> {
             if (!api.service().pause(ApiContext.name(m))) throw notFound(ApiContext.name(m));
             return Map.of("pipeline", ApiContext.name(m), "paused", true);
@@ -76,6 +79,37 @@ final class RunRoutes implements RouteModule {
             cfg(api, m);   // 404 if no such pipeline
             return api.service().reports().batchReport(ApiContext.name(m), window(e));
         });
+    }
+
+    /**
+     * {@code POST /runs/{name}/trigger} — fire a pipeline. On the v1 surface returns {@code 202} + {@code {runId,…}}
+     * + a {@code Location} to poll (async, off the ingest lock — mirrors the job trigger); the legacy surface keeps
+     * its unchanged {@code 200} {@link com.gamma.inspector.MultiSourceProcessor.RunResult} body. 404 if no such pipeline.
+     */
+    private Object triggerPipeline(ApiContext api, HttpExchange e, String name) throws IOException {
+        if (ApiContext.v1(e)) {
+            String runId = api.service().triggerRunAsync(name).orElseThrow(() -> notFound(name));
+            e.getResponseHeaders().set("Location", "/api/v1/runs/runs/" + runId);
+            return ApiContext.respondJson(e, 202, Map.of("runId", runId, "pipeline", name, "status", "running"));
+        }
+        return api.service().runPipeline(name).orElseThrow(() -> notFound(name));
+    }
+
+    /** {@code GET /runs/runs/{runId}} — poll one manual pipeline run's status (W5b); 404 once evicted or unknown. */
+    private Object pipelineRunById(ApiContext api, String runId) {
+        SourceService.PipelineRun r = api.service().pipelineRunById(runId)
+                .orElseThrow(() -> new ApiException(404, "no run '" + runId + "'"));
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("runId", r.runId());
+        m.put("pipeline", r.pipeline());
+        m.put("trigger", r.trigger());
+        m.put("status", r.status());
+        m.put("startedAt", r.startedAt());
+        m.put("finishedAt", r.finishedAt());
+        m.put("total", r.total());
+        m.put("failed", r.failed());
+        m.put("message", r.message());
+        return m;
     }
 
     private PipelineConfig cfg(ApiContext api, Matcher m) {

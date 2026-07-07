@@ -354,6 +354,7 @@ const PIPELINE_COMMITS = /\/runs\/([^/]+)\/commits$/;
 const PIPELINE_TRIGGER = /\/runs\/([^/]+)\/trigger$/;
 const PIPELINE_PAUSE = /\/runs\/([^/]+)\/pause$/;
 const PIPELINE_RESUME = /\/runs\/([^/]+)\/resume$/;
+const PIPELINE_RUN_BY_ID = /\/runs\/runs\/([^/]+)$/;
 const NOTIF_LIST = /\/notifications$/;
 const NOTIF_UNREAD = /\/notifications\/unread-count$/;
 const NOTIF_STREAM = /\/notifications\/stream$/;
@@ -405,7 +406,14 @@ export function demoHandler(flags: MockFlags): MockHandler {
             return json(SERVICE_REPORT.pipelines.find((p) => p.pipeline === name) ?? SERVICE_REPORT.pipelines[0]);
         }
         if (method === 'GET' && match(url, PIPELINE_COMMITS)) return json(['batch-1000', 'batch-1001', 'batch-1002']);
-        if (method === 'POST' && match(url, PIPELINE_TRIGGER)) return json({ total: 3, failed: 0, status: 'triggered' });
+        // v1 async contract (W5b): trigger answers 202 + runId (no executor in the mock); the poll returns a
+        // terminal SUCCESS run. Poll route ahead of the trigger match — `/runs/runs/{id}` is single-segment.
+        if (method === 'GET' && (m = match(url, PIPELINE_RUN_BY_ID))) {
+            return json({ runId: m[1], status: 'SUCCESS', total: 3, failed: 0 });
+        }
+        if (method === 'POST' && (m = match(url, PIPELINE_TRIGGER))) {
+            return json({ runId: `run-${Date.now()}-${m[1]}`, pipeline: m[1], status: 'running' }, 202);
+        }
         if (method === 'POST' && (m = match(url, PIPELINE_PAUSE))) return json({ pipeline: m[1], paused: true });
         if (method === 'POST' && (m = match(url, PIPELINE_RESUME))) return json({ pipeline: m[1], paused: false });
 

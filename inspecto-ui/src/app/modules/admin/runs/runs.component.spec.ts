@@ -24,7 +24,7 @@ function create(runs: RunView[] = [RUN]) {
                 provide: RunsService,
                 useValue: {
                     list: () => of(runs),
-                    trigger: () => of(RESULT),
+                    trigger: () => of({ runId: 'run-1' }),   // v1 async contract (W5b): 202 + runId
                     runAll: () => of({ cdr_ingest: RESULT }),
                     pause: () => of({ pipeline: 'cdr_ingest', paused: true }),
                     resume: () => of({ pipeline: 'cdr_ingest', paused: false }),

@@ -5,7 +5,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
-import { AcquisitionMetrics, AcquisitionMetricsService, RunResult, RunsService, SourceView, SourcesService } from 'app/inspecto/api';
+import { AcquisitionMetrics, AcquisitionMetricsService, RunsService, SourceView, SourcesService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -32,7 +32,6 @@ let toastr: { success: ReturnType<typeof vi.fn>; warning: ReturnType<typeof vi.f
 function create(
     list: Observable<SourceView[]> = of([SOURCE]),
     metrics: Observable<AcquisitionMetrics> = of(METRICS),
-    runResult: RunResult = { total: 5, failed: 0 },
 ) {
     toastr = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
     TestBed.configureTestingModule({
@@ -41,7 +40,7 @@ function create(
             provideNoopAnimations(),
             { provide: SourcesService, useValue: { list: () => list } },
             { provide: AcquisitionMetricsService, useValue: { get: () => metrics } },
-            { provide: RunsService, useValue: { trigger: () => of(runResult) } },
+            { provide: RunsService, useValue: { trigger: () => of({ runId: 'run-1' }) } },
             { provide: MatDialog, useValue: {} },
             { provide: InspectoConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
             { provide: ToastrService, useValue: toastr },
@@ -73,17 +72,10 @@ describe('SourcesComponent', () => {
         await expectNoA11yViolations(fixture.nativeElement);
     });
 
-    it('trigger toasts the processed/failed counts on success', async () => {
+    it('trigger toasts that the run started (v1 async contract)', async () => {
         const fixture = create();
         await fixture.componentInstance.trigger(SOURCE);
-        expect(toastr.success).toHaveBeenCalledWith('cdr_ingest: 5 processed, 0 failed');
+        expect(toastr.success).toHaveBeenCalledWith('Pipeline "cdr_ingest" run started.');
         expect(toastr.warning).not.toHaveBeenCalled();
-    });
-
-    it('trigger toasts a warning when some files failed', async () => {
-        const fixture = create(undefined, undefined, { total: 5, failed: 2 });
-        await fixture.componentInstance.trigger(SOURCE);
-        expect(toastr.warning).toHaveBeenCalledWith('cdr_ingest: 5 processed, 2 failed');
-        expect(toastr.success).not.toHaveBeenCalled();
     });
 });

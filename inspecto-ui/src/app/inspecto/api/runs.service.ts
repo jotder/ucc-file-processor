@@ -12,8 +12,10 @@ export class RunsService {
   list(): Observable<RunView[]> {
     return this.http.get<RunView[]>(apiUrl('/runs'));
   }
-  trigger(name: string): Observable<RunResult> {
-    return this.http.post<RunResult>(apiUrl(`/runs/${encodeURIComponent(name)}/trigger`), {});
+  /** v1 async contract (W5b): 202 + the submitted run's id; poll `/runs/runs/{runId}` for status (or just
+   *  refresh the list, which shows the outcome). Mirrors the job trigger. */
+  trigger(name: string): Observable<{ runId: string }> {
+    return this.http.post<{ runId: string }>(apiUrl(`/runs/${encodeURIComponent(name)}/trigger`), {});
   }
   runAll(): Observable<Record<string, RunResult>> {
     return this.http.post<Record<string, RunResult>>(apiUrl('/trigger'), {});

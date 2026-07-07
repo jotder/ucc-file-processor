@@ -45,7 +45,7 @@ describe('RunsService', () => {
 
   it('URL-encodes the pipeline name in the path', () => {
     svc.trigger('a/b name').subscribe();
-    httpMock.expectOne(`${base}/runs/a%2Fb%20name/trigger`).flush({ total: 1, failed: 0 });
+    httpMock.expectOne(`${base}/runs/a%2Fb%20name/trigger`).flush({ runId: 'run-1' });
   });
 
   it('omits an undefined batchId from lineage query params', () => {

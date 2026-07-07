@@ -34,8 +34,10 @@ import org.slf4j.MDC;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +49,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -170,6 +173,23 @@ public final class SourceService implements AutoCloseable {
      *  thread while {@link #runAllOnce} holds {@link #ingestLock}; running a triggered pipeline inline would
      *  deadlock, so — like {@link JobService} — the handler hands off here. */
     private final ExecutorService triggerWorkers = Executors.newVirtualThreadPerTaskExecutor();
+    /** Live + recently-finished manual pipeline runs by {@code runId}, so {@code GET /runs/runs/{runId}} can poll an
+     *  async trigger (W5b). Registered {@code RUNNING} at submit, replaced with the terminal result on completion.
+     *  Bounded LRU (oldest evicted) — mirrors {@link JobService}'s live-run registry. */
+    private static final int LIVE_RUN_CAP = 1000;
+    private static final DateTimeFormatter RUN_ID_TS = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter RUN_AT_TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private final AtomicLong runSeq = new AtomicLong();
+    private final Map<String, PipelineRun> liveRuns = java.util.Collections.synchronizedMap(
+            new java.util.LinkedHashMap<String, PipelineRun>(64, 0.75f, false) {
+                @Override protected boolean removeEldestEntry(Map.Entry<String, PipelineRun> eldest) {
+                    return size() > LIVE_RUN_CAP;
+                }
+            });
+    /** One manual pipeline run's identity + outcome, for the W5b async-trigger poll. {@code total}/{@code failed}
+     *  are the {@link MultiSourceProcessor.RunResult} counts once terminal; {@code -1} while {@code RUNNING}. */
+    public record PipelineRun(String runId, String pipeline, String trigger, String startedAt, String finishedAt,
+                              String status, int total, int failed, String message) {}
     /** Zone for evaluating {@code cron} triggers (mirrors {@link JobService}). */
     private final ZoneId triggerZone = ZoneId.systemDefault();
     /** Epoch the service started — the cron "last fire" baseline before a pipeline has ever run. */
@@ -968,6 +988,43 @@ public final class SourceService implements AutoCloseable {
                 ingestLock.unlock();
             }
         }));
+    }
+
+    /**
+     * Fire a single registered pipeline asynchronously (W5b) and return its {@code runId} so an async HTTP caller
+     * can poll {@link #pipelineRunById}. Empty if no pipeline by that name. The run executes off the caller's thread
+     * on {@link #triggerWorkers} — it acquires {@link #ingestLock} there exactly like the synchronous
+     * {@link #runPipeline}, so the request thread never blocks on the ETL run.
+     */
+    public Optional<String> triggerRunAsync(String pipelineName) {
+        if (pathFor(pipelineName).isEmpty()) return Optional.empty();
+        String runId = newPipelineRunId(pipelineName);
+        String start = LocalDateTime.now().format(RUN_AT_TS);
+        liveRuns.put(runId, new PipelineRun(runId, pipelineName, "manual", start, null, "RUNNING", -1, -1, null));
+        triggerWorkers.submit(() -> {
+            try {
+                MultiSourceProcessor.RunResult res =
+                        runPipeline(pipelineName).orElse(new MultiSourceProcessor.RunResult(0, 0));
+                liveRuns.put(runId, new PipelineRun(runId, pipelineName, "manual", start,
+                        LocalDateTime.now().format(RUN_AT_TS), "SUCCESS", res.total(), res.failed(),
+                        res.failed() + " of " + res.total() + " file(s) failed"));
+            } catch (RuntimeException e) {
+                log.error("Manual pipeline run '{}' ({}) failed", pipelineName, runId, e);
+                liveRuns.put(runId, new PipelineRun(runId, pipelineName, "manual", start,
+                        LocalDateTime.now().format(RUN_AT_TS), "FAILED", 0, 0, String.valueOf(e.getMessage())));
+            }
+        });
+        return Optional.of(runId);
+    }
+
+    /** A live or recently-finished manual pipeline run by id, for polling; empty once evicted past the LRU cap. */
+    public Optional<PipelineRun> pipelineRunById(String runId) {
+        return runId == null ? Optional.empty() : Optional.ofNullable(liveRuns.get(runId));
+    }
+
+    private String newPipelineRunId(String name) {
+        return name.toLowerCase().replace(' ', '_') + "-"
+                + LocalDateTime.now().format(RUN_ID_TS) + "-" + runSeq.incrementAndGet();
     }
 
     /** Pause a pipeline (the poll cycle skips it). Returns false if not registered. */

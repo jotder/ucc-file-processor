@@ -13,7 +13,8 @@ export interface RunView {
   committedBatches: number;
 }
 
-/** Result of POST /runs/{n}/trigger and /trigger (MultiSourceProcessor.RunResult). */
+/** Result of POST /trigger — run-all across pipelines (MultiSourceProcessor.RunResult). Per-pipeline
+ *  /runs/{n}/trigger is async (W5b): it returns {runId}, and the terminal RunResult counts arrive via poll. */
 export interface RunResult {
   total: number;
   failed: number;
