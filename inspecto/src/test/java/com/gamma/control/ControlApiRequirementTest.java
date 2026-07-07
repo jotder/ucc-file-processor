@@ -122,9 +122,20 @@ class ControlApiRequirementTest {
             assertEquals(403, denied.statusCode(), denied.body());
             assertEquals("PERMISSION_DENIED", JSON.readTree(denied.body()).get("error").get("errorCode").asText());
 
-            // a triager (canTriageRequirements) may decide
-            assertEquals(200, send(c.port, "POST", "/api/v1/requirements/r1/decision",
-                    "{\"accept\":true}", "Authorization", "Bearer triager").statusCode());
+            // a triager (canTriageRequirements) may decide; SEC-7(b): the accepted resource still has
+            // a triage verb left (deliver), so the per-resource permissions keep the capability…
+            JsonNode decided = json(send(c.port, "POST", "/api/v1/requirements/r1/decision",
+                    "{\"accept\":true}", "Authorization", "Bearer triager"));
+            assertEquals("accepted", decided.get("data").get("status").asText());
+            assertEquals(1, decided.get("permissions").size());
+            assertEquals("canTriageRequirements", decided.get("permissions").get(0).asText());
+
+            // …and a delivered requirement is terminal → the per-resource permissions are empty.
+            JsonNode delivered = json(send(c.port, "POST", "/api/v1/requirements/r1/deliver",
+                    "{}", "Authorization", "Bearer triager"));
+            assertEquals("delivered", delivered.get("data").get("status").asText());
+            assertEquals(0, delivered.get("permissions").size(),
+                    "terminal state ⇒ no applicable verbs (grants ∩ resource state)");
         }
     }
 

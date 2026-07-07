@@ -46,6 +46,10 @@ interface ApiContext {
      *  {@link Authenticator} validates the request; absent on Personal edition (no Authenticator present)
      *  and on the public bootstrap/health surface. */
     String ATTR_SUBJECT           = "inspecto.subject";
+    /** SEC-7(b): the capability set applicable to the single resource this response carries, declared by
+     *  the route via {@link #resourcePermissions}; {@link Envelope} intersects it with the Subject's
+     *  session grants. Absent ⇒ the envelope keeps the session-wide array (lists, un-migrated routes). */
+    String ATTR_RESOURCE_PERMISSIONS = "inspecto.resourcePermissions";
 
     /** JSON bodies at or above this size are gzipped when the client sent {@code Accept-Encoding: gzip}. */
     int GZIP_MIN_BYTES = 1024;
@@ -74,6 +78,14 @@ interface ApiContext {
     static void requireCapability(HttpExchange ex, String capability) {
         if (ex.getAttribute(ATTR_SUBJECT) instanceof Subject s && !s.capabilities().contains(capability))
             throw new ApiException(403, ErrorCodes.PERMISSION_DENIED, "missing capability '" + capability + "'");
+    }
+
+    /** SEC-7(b): declare the capability set applicable to the single resource this response carries —
+     *  design-of-record `docs/superpower/resource-permissions-design.md`. The v1 envelope then emits
+     *  {@code permissions = subject grants ∩ applicable} (per-resource ∩ resource-state, §8) instead of
+     *  the session-wide array. An affordance signal only — enforcement stays {@link #requireCapability}. */
+    static void resourcePermissions(HttpExchange ex, java.util.Set<String> applicable) {
+        ex.setAttribute(ATTR_RESOURCE_PERMISSIONS, java.util.Set.copyOf(applicable));
     }
 
     /** Wrap {@code h} so it first runs the {@link #requireCapability} gate for {@code capability} — the

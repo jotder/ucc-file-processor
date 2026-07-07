@@ -152,6 +152,27 @@ class ControlApiAuthV1Test {
     }
 
     @Test
+    void singleResourceResponseRefinesPermissionsToTheApplicableSet(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        // SEC-7(b): a single-component GET declares {canAuthorWorkbench}; the envelope emits
+        // grants ∩ applicable — the session's canOperateRuns is not applicable to a registry component.
+        Authenticators.forTest(FAKE);
+        try (Ctx c = open(cfg, root)) {
+            new com.gamma.pipeline.ComponentStore(root.resolve("registry"))
+                    .write("grammar", "g1", java.util.Map.of("delimiter", ","));
+
+            JsonNode one = JSON.readTree(get(c.port, "/api/v1/components/grammar/g1",
+                    "Authorization", "Bearer valid").body());
+            assertEquals(List.of("canAuthorWorkbench"), streamText(one.get("permissions")),
+                    "per-resource ∩ resource-state, not the session-wide set");
+
+            // the list response declares nothing → session-wide array unchanged
+            JsonNode list = JSON.readTree(get(c.port, "/api/v1/components/grammar",
+                    "Authorization", "Bearer valid").body());
+            assertEquals(2, list.get("permissions").size(), "lists keep the session-wide grants");
+        }
+    }
+
+    @Test
     void xActorHeaderIsRejectedOnStandard(@TempDir Path cfg, @TempDir Path root) throws Exception {
         // SEC-7(a): with an Authenticator active (Standard), a client-supplied X-Actor is a spoof → 403,
         // even alongside valid credentials — the actor must come from the authenticated Subject.

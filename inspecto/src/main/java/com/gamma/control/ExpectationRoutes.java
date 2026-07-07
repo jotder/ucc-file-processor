@@ -43,13 +43,20 @@ final class ExpectationRoutes implements RouteModule {
     public void register(ApiContext api) {
         api.get("/expectations", (e, m) -> list(api));
         api.post("/expectations/evaluate", (e, m) -> evaluateAll(api));
-        api.post("/expectations/([^/]+)/evaluate", (e, m) -> evaluateOne(api, ApiContext.name(m)));
+        api.post("/expectations/([^/]+)/evaluate", (e, m) -> single(e, evaluateOne(api, ApiContext.name(m))));
         api.post("/expectations", ApiContext.withCapability("canAuthorWorkbench",
-                (e, m) -> create(api, api.body(e))));
+                (e, m) -> single(e, create(api, api.body(e)))));
         api.put("/expectations/([^/]+)", ApiContext.withCapability("canAuthorWorkbench",
-                (e, m) -> update(api, ApiContext.name(m), api.body(e))));
+                (e, m) -> single(e, update(api, ApiContext.name(m), api.body(e)))));
         api.delete("/expectations/([^/]+)", ApiContext.withCapability("canAuthorWorkbench",
                 (e, m) -> delete(api, ApiContext.name(m))));
+    }
+
+    /** SEC-7(b): an expectation's only verbs are the Workbench-authoring family — declare the
+     *  per-resource applicable set on single-resource responses (design: resource-permissions-design.md). */
+    private static Object single(com.sun.net.httpserver.HttpExchange e, Object result) {
+        ApiContext.resourcePermissions(e, java.util.Set.of("canAuthorWorkbench"));
+        return result;
     }
 
     // ── CRUD ──────────────────────────────────────────────────────────────────────

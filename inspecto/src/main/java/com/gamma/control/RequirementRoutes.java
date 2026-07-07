@@ -36,11 +36,25 @@ final class RequirementRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/requirements", (e, m) -> list(api));
-        api.post("/requirements", (e, m) -> submit(api, api.body(e)));
+        api.post("/requirements", (e, m) -> stamped(e, submit(api, api.body(e))));
         api.post("/requirements/([^/]+)/decision", ApiContext.withCapability("canTriageRequirements",
-                (e, m) -> decide(api, ApiContext.name(m), api.body(e))));
+                (e, m) -> stamped(e, decide(api, ApiContext.name(m), api.body(e)))));
         api.post("/requirements/([^/]+)/deliver", ApiContext.withCapability("canTriageRequirements",
-                (e, m) -> deliver(api, ApiContext.name(m), api.body(e))));
+                (e, m) -> stamped(e, deliver(api, ApiContext.name(m), api.body(e)))));
+    }
+
+    /** SEC-7(b): declare the per-resource applicable set from the requirement's lifecycle state —
+     *  {@code submitted}/{@code accepted} can still be triaged; {@code rejected}/{@code delivered} are
+     *  terminal, so nothing applies. Design: docs/superpower/resource-permissions-design.md. */
+    private static Object stamped(com.sun.net.httpserver.HttpExchange e, Object result) {
+        if (result instanceof Map<?, ?> m) {
+            String status = String.valueOf(m.get("status"));
+            ApiContext.resourcePermissions(e, switch (status) {
+                case "submitted", "accepted" -> Set.of("canTriageRequirements");
+                default -> Set.of();
+            });
+        }
+        return result;
     }
 
     private Object list(ApiContext api) {

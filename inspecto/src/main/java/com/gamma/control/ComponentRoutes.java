@@ -99,6 +99,8 @@ final class ComponentRoutes implements RouteModule {
             throw new ApiException(400, e.getMessage());
         }
         if (c == null) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        // SEC-7(b): the only verbs on a registry component are the Workbench-authoring family.
+        ApiContext.resourcePermissions(ex, java.util.Set.of("canAuthorWorkbench"));
         String etag = ETags.of(ContentHash.of(c.content()));
         if (ETags.isFresh(ex, etag)) return ETags.notModified(ex, etag);
         ETags.set(ex, etag);
