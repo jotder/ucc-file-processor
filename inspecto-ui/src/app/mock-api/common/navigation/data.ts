@@ -2,6 +2,40 @@
 import { GammaNavigationItem } from '@gamma/components/navigation';
 
 export const defaultNavigation: GammaNavigationItem[] = [
+    // Separator above the platform groups. User-defined custom / business menus (Menu Builder) are
+    // prepended above this divider in the navigation mock (see navigation/api.ts), so this line marks
+    // the boundary between custom menus (top) and the built-in platform groups (below).
+    {
+        id  : 'custom-menus-divider',
+        type: 'divider'
+    },
+    {
+        id      : 'business-group',
+        title   : 'Business',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:building-office',
+        children: [
+            { id: 'kpi-reports',    title: 'KPI & Reports',  type: 'basic', icon: 'heroicons_outline:document-chart-bar', link: '/kpi-reports' },
+            { id: 'requirements',   title: 'Requirements',   type: 'basic', icon: 'heroicons_outline:inbox-stack',        link: '/requirements' },
+            { id: 'reconciliation', title: 'Reconciliation', type: 'basic', icon: 'heroicons_outline:scale',              link: '/reconciliation' }
+        ]
+    },
+    {
+        id      : 'operations-group',
+        title   : 'Operations',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:bolt',
+        children: [
+            { id: 'op-overview', title: 'Overview',   type: 'basic', icon: 'heroicons_outline:chart-bar',             link: '/overview' },
+            { id: 'processing-status', title: 'Processing Status', type: 'basic', icon: 'heroicons_outline:signal',   link: '/processing-status' },
+            { id: 'events',      title: 'Events',     type: 'basic', icon: 'heroicons_outline:queue-list',            link: '/events' },
+            { id: 'audit',       title: 'Audit log',  type: 'basic', icon: 'heroicons_outline:shield-check',          link: '/audit' },
+            { id: 'diagnoses',   title: 'Diagnoses',  type: 'basic', icon: 'heroicons_outline:wrench-screwdriver',    link: '/diagnoses' },
+            { id: 'alerts',      title: 'Alerts',     type: 'basic', icon: 'heroicons_outline:bell-alert',            link: '/alerts' },
+            { id: 'incidents',   title: 'Incidents',  type: 'basic', icon: 'heroicons_outline:exclamation-triangle',  link: '/incidents' },
+            { id: 'cases',       title: 'Cases',      type: 'basic', icon: 'heroicons_outline:briefcase',             link: '/cases' }
+        ]
+    },
     {
         id      : 'platform-group',
         title   : 'Platform',
@@ -35,6 +69,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
                     { id: 'studio-viz-library', title: 'Viz Library',    type: 'basic', icon: 'heroicons_outline:rectangle-stack', link: '/studio/widgets' },
                     { id: 'studio-dashboards', title: 'Dashboard Builder', type: 'basic', icon: 'heroicons_outline:squares-2x2', link: '/studio/dashboards' },
                     { id: 'studio-link-analysis', title: 'Link Analysis', type: 'basic', icon: 'heroicons_outline:share',    link: '/studio/link-analysis' },
+                    { id: 'menus',             title: 'Menus',          type: 'basic', icon: 'heroicons_outline:bars-3',    link: '/settings/menus' },
                     { id: 'studio-geo-map',    title: 'Geo Map Analysis', type: 'basic', icon: 'heroicons_outline:globe-alt', link: '/studio/geo-map' },
                 ]
             },
@@ -51,58 +86,11 @@ export const defaultNavigation: GammaNavigationItem[] = [
         ]
     },
     {
-        id      : 'operations-group',
-        title   : 'Operations',
-        type    : 'collapsable',
-        icon    : 'heroicons_outline:bolt',
-        children: [
-            { id: 'op-overview', title: 'Overview',   type: 'basic', icon: 'heroicons_outline:chart-bar',             link: '/dashboard' },
-            { id: 'processing-status', title: 'Processing Status', type: 'basic', icon: 'heroicons_outline:signal',   link: '/processing-status' },
-            { id: 'events',      title: 'Events',     type: 'basic', icon: 'heroicons_outline:queue-list',            link: '/events' },
-            { id: 'audit',       title: 'Audit log',  type: 'basic', icon: 'heroicons_outline:shield-check',          link: '/audit' },
-            { id: 'diagnoses',   title: 'Diagnoses',  type: 'basic', icon: 'heroicons_outline:wrench-screwdriver',    link: '/diagnoses' },
-            { id: 'alerts',      title: 'Alerts',     type: 'basic', icon: 'heroicons_outline:bell-alert',            link: '/alerts' },
-            { id: 'incidents',   title: 'Incidents',  type: 'basic', icon: 'heroicons_outline:exclamation-triangle',  link: '/incidents' },
-            { id: 'cases',       title: 'Cases',      type: 'basic', icon: 'heroicons_outline:briefcase',             link: '/cases' }
-        ]
-    },
-    {
-        id   : 'kpi-reports',
-        title: 'KPI & Reports',
+        id   : 'settings',
+        title: 'Settings',
         type : 'basic',
-        icon : 'heroicons_outline:document-chart-bar',
-        link : '/kpi-reports'
-    },
-    {
-        id   : 'requirements',
-        title: 'Requirements',
-        type : 'basic',
-        icon : 'heroicons_outline:inbox-stack',
-        link : '/requirements'
-    },
-    {
-        id   : 'reconciliation',
-        title: 'Reconciliation',
-        type : 'basic',
-        icon : 'heroicons_outline:scale',
-        link : '/reconciliation'
-    },
-    {
-        id      : 'settings-group',
-        title   : 'Settings',
-        type    : 'collapsable',
-        icon    : 'heroicons_outline:cog-8-tooth',
-        children: [
-            { id: 'menus',          title: 'Menus',          type: 'basic', icon: 'heroicons_outline:bars-3',                 link: '/settings/menus' },
-            { id: 'config',         title: 'Config',         type: 'basic', icon: 'heroicons_outline:adjustments-horizontal', link: '/config' },
-            { id: 'notification-center', title: 'Notifications', type: 'basic', icon: 'heroicons_outline:bell',               link: '/notification-center' },
-            { id: 'spaces',         title: 'Spaces',         type: 'basic', icon: 'heroicons_outline:square-3-stack-3d',      link: '/spaces' },
-            { id: 'model-settings', title: 'Model Settings', type: 'basic', icon: 'heroicons_outline:cpu-chip',               link: '/settings/models' },
-            { id: 'icon-settings',  title: 'Processor Icons', type: 'basic', icon: 'heroicons_outline:paint-brush',           link: '/settings/icons' },
-            { id: 'map-settings',   title: 'Map Settings',   type: 'basic', icon: 'heroicons_outline:map',                    link: '/settings/map' },
-            { id: 'transfer',       title: 'Import & Export', type: 'basic', icon: 'heroicons_outline:arrow-up-tray',         link: '/settings/transfer' },
-            { id: 'design-system',  title: 'Design System',  type: 'basic', icon: 'heroicons_outline:swatch',                 link: '/design' }
-        ]
+        icon : 'heroicons_outline:cog-8-tooth',
+        link : '/settings'
     },
     {
         id   : 'assist',

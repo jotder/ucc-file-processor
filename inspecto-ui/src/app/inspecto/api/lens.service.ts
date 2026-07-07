@@ -58,6 +58,11 @@ export class LensService {
      *  RBAC: Pipeline Developer, Operations, Power/Super. */
     readonly canTriageRequirements = computed(() => !this.readOnly());
 
+    /** May author Alert Rules (create / edit / delete on the Alerts pane — audit C3). A distinct
+     *  question from Workbench authoring: monitoring config is Ops-owned. RBAC: Operations,
+     *  Power/Super. */
+    readonly canAuthorAlertRules = computed(() => !this.readOnly());
+
     /** Set the active lens and persist it across reloads. */
     selectLens(lens: Lens): void {
         this.currentLens.set(lens);

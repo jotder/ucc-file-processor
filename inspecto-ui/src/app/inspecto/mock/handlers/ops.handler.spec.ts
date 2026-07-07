@@ -37,6 +37,28 @@ describe('opsHandler', () => {
         expect(alerts[0].epochMillis).toBeGreaterThanOrEqual(alerts[1].epochMillis);
     });
 
+    it('round-trips alert-rule authoring (create 409-on-duplicate, update name-immutable, delete 404-when-absent)', () => {
+        const store = seededStore();
+        const rule = { name: 'slow_batch_2', metric: 'duration_ms', comparator: 'gt', threshold: 60_000, window: '1h', severity: 'WARNING' };
+
+        expect(handler(req('POST', '/api/alerts/rules', rule), store)?.status).toBe(200);
+        expect(handler(req('POST', '/api/alerts/rules', rule), store)?.status).toBe(409); // duplicate name
+        expect(handler(req('POST', '/api/alerts/rules', { name: 'no_metric' }), store)?.status).toBe(422);
+
+        const updated = handler(
+            req('PUT', '/api/alerts/rules/slow_batch_2', { ...rule, name: 'renamed', threshold: 90_000 }),
+            store,
+        );
+        expect(updated?.status).toBe(200);
+        // The path name wins — the id is immutable.
+        expect((updated?.body as { name: string; threshold: number }).name).toBe('slow_batch_2');
+        expect((updated?.body as { threshold: number }).threshold).toBe(90_000);
+
+        expect(handler(req('DELETE', '/api/alerts/rules/slow_batch_2'), store)?.status).toBe(200);
+        expect(handler(req('DELETE', '/api/alerts/rules/slow_batch_2'), store)?.status).toBe(404);
+        expect(handler(req('PUT', '/api/alerts/rules/never_existed', rule), store)?.status).toBe(404);
+    });
+
     it('round-trips a saved event view through the store', () => {
         const store = seededStore();
         expect(handler(req('GET', '/api/events/views'), store)?.body).toEqual([]);

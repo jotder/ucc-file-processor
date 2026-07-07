@@ -4,9 +4,8 @@
         <div>
             <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Alerts</h1>
             <div class="text-secondary mt-1">
-                Fired alert-rule breaches over the batch ledger. Rules are armed by saving a
-                reviewed <code>*_alert.toon</code> (draft one from the Assistant's
-                diagnose-and-alert skill).
+                Fired alert-rule breaches over the batch ledger — an Alert Rule watches a Metric
+                against a threshold and fires when it crosses.
             </div>
         </div>
         <div class="flex items-center gap-3">
@@ -22,20 +21,6 @@
         </div>
     </div>
 
-    <!-- Armed rules summary -->
-    <div class="text-secondary mt-3 text-sm">
-        @if (rules.length === 0) {
-            No alert rules are armed.
-        } @else {
-            {{ rules.length }} rule(s) armed:
-            @for (r of rules; track r.name) {
-                <span class="mr-2 inline-block rounded bg-gray-200 px-2 py-0.5 font-mono text-xs dark:bg-gray-700">
-                    {{ r.name }} ({{ r.metric }} {{ r.comparator }} {{ r.threshold }} / {{ r.window }})
-                </span>
-            }
-        }
-    </div>
-
     <!-- Fired alerts grid -->
     <div class="mt-4 flex-auto">
         <inspecto-data-table
@@ -47,6 +32,29 @@
             [loading]="loading"
             noRowsTitle="No alerts fired"
             noRowsHint="Breaches of the armed alert rules will appear here."
+        />
+    </div>
+
+    <!-- Armed rules: the authoring section (audit C3) -->
+    <div class="mt-8 flex items-center justify-between">
+        <h2 class="text-xl font-semibold tracking-tight">Alert Rules</h2>
+        @if (lens.canAuthorAlertRules()) {
+            <button mat-flat-button color="primary" (click)="newRule()">
+                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                <span class="ml-2">New rule</span>
+            </button>
+        }
+    </div>
+    <div class="mt-3">
+        <inspecto-data-table
+            tier="mini"
+            sourceName="alert-rules"
+            [rows]="rules"
+            [columns]="ruleColumnDefs"
+            [rowActions]="ruleActions"
+            [autoHeight]="true"
+            noRowsTitle="No alert rules armed"
+            noRowsHint="Create a rule to watch a Metric against a threshold — breaches appear above as Alerts."
         />
     </div>
 </div>

@@ -70,7 +70,10 @@ export const appRoutes: Route[] = [
             initialData: initialDataResolver
         },
         children: [
-            { path: 'dashboard', loadChildren: () => import('app/modules/admin/dashboard/dashboard.routes') },
+            { path: 'overview', loadChildren: () => import('app/modules/admin/dashboard/dashboard.routes') },
+            // Ops Overview moved /dashboard → /overview so it no longer collides with Studio's
+            // /studio/dashboards (audit C2). Redirect keeps old links/bookmarks working.
+            { path: 'dashboard', redirectTo: 'overview', pathMatch: 'full' },
             { path: 'diagnoses', loadChildren: () => import('app/modules/admin/diagnoses/diagnoses.routes') },
             { path: 'events', loadChildren: () => import('app/modules/admin/events/events.routes') },
             { path: 'audit', loadChildren: () => import('app/modules/admin/audit-logs/audit-logs.routes') },

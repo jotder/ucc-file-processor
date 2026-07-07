@@ -28,6 +28,7 @@ const EVENTS_EXPORT = /\/events\/export$/;
 const EVENTS_VIEWS = /\/events\/views$/;
 const EVENT_VIEW_DELETE = /\/events\/views\/([^/]+)\/delete$/;
 const ALERTS_RULES = /\/alerts\/rules$/;
+const ALERTS_RULE_ONE = /\/alerts\/rules\/([^/]+)$/;
 const ALERTS_EVAL = /\/alerts\/evaluate$/;
 const ALERTS = /\/alerts$/;
 const OBJECTS = /\/objects$/;
@@ -86,6 +87,26 @@ export function opsHandler(flags: MockFlags): MockHandler {
             return json({ deleted: m[1] });
         }
         if (method === 'GET' && ALERTS_RULES.test(url)) return json(store.list<AlertRule>(space, ALERT_RULES_COLL));
+        // Rule authoring (audit C3; mirrors /decision-rules). Store-backed so authored rules
+        // survive reload and feed the evaluate sweep below like seeded ones.
+        if (method === 'POST' && ALERTS_RULES.test(url)) {
+            const b = (req.body ?? {}) as Partial<AlertRule>;
+            if (!b.name || !b.metric) return error(422, 'name and metric are required');
+            if (store.has(space, ALERT_RULES_COLL, b.name)) return error(409, `alert rule "${b.name}" already exists`);
+            return json(store.put(space, ALERT_RULES_COLL, b.name, b as AlertRule));
+        }
+        if (method === 'PUT' && (m = match(url, ALERTS_RULE_ONE))) {
+            const name = m[1]; // match() already URI-decodes captures
+            if (!store.has(space, ALERT_RULES_COLL, name)) return error(404, `no alert rule "${name}"`);
+            const b = (req.body ?? {}) as Partial<AlertRule>;
+            return json(store.put(space, ALERT_RULES_COLL, name, { ...b, name } as AlertRule));
+        }
+        if (method === 'DELETE' && (m = match(url, ALERTS_RULE_ONE))) {
+            const name = m[1];
+            if (!store.has(space, ALERT_RULES_COLL, name)) return error(404, `no alert rule "${name}"`);
+            store.delete(space, ALERT_RULES_COLL, name);
+            return json({ deleted: name });
+        }
         if (method === 'POST' && ALERTS_EVAL.test(url)) {
             // Manual sweep: breach the first armed rule so the button visibly does something in mock dev.
             const rule = store.list<AlertRule>(space, ALERT_RULES_COLL)[0];

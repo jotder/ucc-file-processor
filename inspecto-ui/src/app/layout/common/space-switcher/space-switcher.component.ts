@@ -72,6 +72,6 @@ export class SpaceSwitcherComponent implements OnInit {
     switch(s: Space): void {
         if (s.id === this.spaces.currentSpaceId()) return;
         this.spaces.selectSpace(s.id);
-        this.router.navigateByUrl('/dashboard').then(() => window.location.reload());
+        this.router.navigateByUrl('/overview').then(() => window.location.reload());
     }
 }

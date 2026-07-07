@@ -28,6 +28,9 @@ export interface AlertRule {
   onPipeline?: string;
 }
 
+/** Create/update body — the whole rule is authorable; `name` is the identity (immutable on edit). */
+export type AlertRuleUpsert = AlertRule;
+
 /**
  * The core alert execution engine (v4.1, B5; CONTROL scope). Rules are operator-saved
  * *_alert.toon files (drafted by the diagnose-and-alert assist skill); evaluation is
@@ -43,6 +46,20 @@ export class AlertsService {
 
   rules(): Observable<AlertRule[]> {
     return this.http.get<AlertRule[]>(apiUrl('/alerts/rules'));
+  }
+
+  // Rule authoring (audit C3; mirrors /decision-rules). Mock-served today — a live server
+  // without the write endpoints answers 503, which the form surfaces as writes-disabled.
+  createRule(body: AlertRuleUpsert): Observable<AlertRule> {
+    return this.http.post<AlertRule>(apiUrl('/alerts/rules'), body);
+  }
+
+  updateRule(name: string, body: AlertRuleUpsert): Observable<AlertRule> {
+    return this.http.put<AlertRule>(apiUrl(`/alerts/rules/${encodeURIComponent(name)}`), body);
+  }
+
+  removeRule(name: string): Observable<void> {
+    return this.http.delete<void>(apiUrl(`/alerts/rules/${encodeURIComponent(name)}`));
   }
 
   /** Manual evaluation sweep; returns the alerts fired by this pass. */
