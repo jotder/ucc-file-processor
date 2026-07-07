@@ -72,6 +72,7 @@ import java.util.regex.Pattern;
  *   POST /auth/logout                         revoke (best-effort) + clear the session cookie        [v4.8.0, 503 on Personal]
  *   GET  /spaces                              list hosted spaces (manifests)               [v4.7.0]
  *   POST /spaces                              body {id,display_name?,description?} — create + boot a space [v4.7.0]
+ *   PUT  /spaces/{id}                         body {display_name?,description?} — rename/re-describe (not 'default') [v4.10.0]
  *   DELETE /spaces/{id}[?purge=true]          deregister + drain a space; purge also deletes its files [v4.7.0]
  *   GET  /runs                           list pipelines + state
  *   POST /runs                           body {"configPath":"…"} — register a new pipeline   [v4.1.0]
@@ -104,6 +105,8 @@ import java.util.regex.Pattern;
  *   GET  /config/spec/{type}                  declarative spec for a config type           [v3.2.0]
  *   POST /assist/{intent}                     run an assist skill (e.g. explain-entity)    [v3.3.0]
  *   POST /config/write                        body {type,config,subdir?,overwrite?} — persist a config [v4.1.0]
+ *   GET  /settings/branding                   per-space UI branding {logoDataUrl,caption,footerText}  [v4.10.0]
+ *   PUT  /settings/branding                   replace per-space UI branding (write-root gated)         [v4.10.0]
  *   POST /queries/{id}/run                     run a persisted query ($-params resolved, Result Set contract) [v4.8.0]
  *   GET  /events[?limit=]                     recent events, newest-first (live tail)       [v4.2.0]
  *   GET  /events/search[?level=&type=&pipeline=&correlationId=&q=&from=&to=&limit=&offset=] filtered events [v4.2.0]
@@ -345,7 +348,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
                 new QueryRoutes(),
                 new JobRoutes(), new LineageRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
-                new NotificationRoutes(),
+                new NotificationRoutes(), new SettingsRoutes(),
                 new AssistRoutes()))
             module.register(this);
     }

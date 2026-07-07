@@ -25,7 +25,7 @@ public final class SpaceContext implements AutoCloseable {
 
     private final SpaceId id;
     private final SpaceRoot root;
-    private final SpaceManifest manifest;
+    private volatile SpaceManifest manifest;
     private final SourceService service;
 
     SpaceContext(SpaceId id, SpaceRoot root, SpaceManifest manifest, SourceService service) {
@@ -40,6 +40,9 @@ public final class SpaceContext implements AutoCloseable {
     public SpaceRoot root() { return root; }
 
     public SpaceManifest manifest() { return manifest; }
+
+    /** Swap the display metadata after a rename ({@link SpaceManager#update}); id/root/service are unchanged. */
+    void updateManifest(SpaceManifest updated) { this.manifest = updated; }
 
     /** This space's engine + control-plane facade (the existing per-instance {@link SourceService}). */
     public SourceService service() { return service; }

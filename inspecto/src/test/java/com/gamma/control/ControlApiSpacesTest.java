@@ -89,6 +89,28 @@ class ControlApiSpacesTest {
         }
     }
 
+    @Test
+    void updatesSpaceMetadataOverHttp(@TempDir Path root) throws Exception {
+        try (Ctx c = open(root)) {
+            assertEquals(200, send(c.port, "POST", "/spaces", "{\"id\":\"acme\",\"display_name\":\"ACME\"}").statusCode());
+
+            // rename + re-describe (the id/folder is immutable)
+            HttpResponse<String> up = send(c.port, "PUT", "/spaces/acme",
+                    "{\"display_name\":\"ACME Corp\",\"description\":\"renamed\"}");
+            assertEquals(200, up.statusCode(), up.body());
+            assertEquals("acme", json(up).get("id").asText());
+            assertEquals("ACME Corp", json(up).get("displayName").asText());
+            assertEquals("renamed", json(up).get("description").asText());
+
+            // persisted: the list reflects the new name (manifest rewritten on disk)
+            assertEquals("ACME Corp", json(send(c.port, "GET", "/spaces", null)).get(0).get("displayName").asText());
+
+            // unknown → 404; the default space is not editable → 400
+            assertEquals(404, send(c.port, "PUT", "/spaces/ghost", "{\"display_name\":\"x\"}").statusCode());
+            assertEquals(400, send(c.port, "PUT", "/spaces/default", "{\"display_name\":\"x\"}").statusCode());
+        }
+    }
+
     private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (body != null) b.header("Content-Type", "application/json").method(method, BodyPublishers.ofString(body));

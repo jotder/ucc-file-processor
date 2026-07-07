@@ -180,6 +180,30 @@ public final class SpaceManager implements AutoCloseable {
     }
 
     /**
+     * Update a hosted space's display metadata (name + description) in place — rewrite its {@code space.toon} and
+     * swap the in-memory manifest. The id, directory tree and running service are untouched (the id/folder is
+     * immutable). Serialised with {@link #create}/{@link #delete}.
+     *
+     * @return the updated space, or {@code null} when no space with {@code id} is hosted
+     * @throws IllegalStateException when this manager hosts a single space ({@link #single}; no container root)
+     */
+    public SpaceContext update(SpaceId id, String displayName, String description) throws IOException {
+        if (spacesRoot == null)
+            throw new IllegalStateException("This server hosts a single space; set -Dspaces.root to manage many");
+        synchronized (lifecycleLock) {
+            SpaceContext ctx = spaces.get(id);
+            if (ctx == null) return null;
+            String name = (displayName == null || displayName.isBlank()) ? id.value() : displayName.trim();
+            SpaceContext.SpaceManifest updated = new SpaceContext.SpaceManifest(
+                    name, description == null ? "" : description.trim(), ctx.manifest().createdAt());
+            updated.write(spacesRoot.resolve(id.value()).resolve("space.toon"));
+            ctx.updateManifest(updated);
+            log.info("Updated space '{}' display metadata", id.value());
+            return ctx;
+        }
+    }
+
+    /**
      * Remove a hosted space: deregister it first (new requests {@code 404} at once), then drain-and-close its service
      * (the existing {@link SourceService#close()}). When {@code purge} is set, the space's directory tree
      * ({@code config/data/audit/duckdb/flows} + manifest) is then deleted from disk; otherwise the files are left for

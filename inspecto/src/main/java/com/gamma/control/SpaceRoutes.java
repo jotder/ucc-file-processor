@@ -17,6 +17,7 @@ import java.util.Map;
  *   GET    /spaces/_meta           server capabilities: {multiSpace} — true when CRUD is supported [v4.9.0]
  *   POST   /spaces                 body {id, display_name?, description?} — create + boot a space  [v4.7.0]
  *   POST   /spaces/import?id={id}  create + boot a new space seeded from an uploaded bundle zip    [v4.8.0]
+ *   PUT    /spaces/{id}            body {display_name?, description?} — rename/re-describe a space  [v4.10.0]
  *   DELETE /spaces/{id}[?purge=]   deregister + drain a space; ?purge=true also deletes its files  [v4.7.0]
  * </pre>
  *
@@ -51,6 +52,8 @@ final class SpaceRoutes implements RouteModule {
 
         api.post("/spaces/import", (e, m) -> importSpace(api, e));
 
+        api.put("/spaces/([^/]+)", (e, m) -> updateSpace(api, api.body(e), ApiContext.name(m)));
+
         api.delete("/spaces/([^/]+)", (e, m) -> deleteSpace(api, e, ApiContext.name(m)));
     }
 
@@ -82,6 +85,17 @@ final class SpaceRoutes implements RouteModule {
         } catch (IllegalStateException conflict) {   // already exists (single-mode was rejected above)
             throw new ApiException(409, conflict.getMessage());
         }
+    }
+
+    /** Rename / re-describe a space (its id/folder is immutable). The {@code default} space is not editable. */
+    private Object updateSpace(ApiContext api, Map<String, Object> body, String id) throws IOException {
+        requireMultiSpace(api);
+        if (!SpaceId.isValid(id)) throw new ApiException(400, "invalid space id '" + id + "'");
+        if ("default".equals(id)) throw new ApiException(400, "the default space cannot be edited");
+        SpaceContext ctx = api.spaces().update(SpaceId.of(id),
+                ApiContext.str(body, "display_name"), ApiContext.str(body, "description"));
+        if (ctx == null) throw new ApiException(404, "no such space '" + id + "'");
+        return manifest(ctx);
     }
 
     /** Deregister + drain a space; {@code ?purge=true} also deletes its directory tree. */
