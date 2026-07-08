@@ -237,18 +237,43 @@ layouts are migrated once via `com.gamma.service.SpaceMigrator` — there is no 
 
 ```
 sandbox-root/                       ← working directory for local runs (the JVM CWD)
+  packs/                            ← host-wide Job Packs (job-framework §12; -Djobs.packs.dir default)
   spaces/                           ← -Dspaces.root; one directory per Space
+    _shared/                        ← THE EXCHANGE (cross-Space sharing) — reserved, not a Space
     <space-id>/
       space.toon                    ← Space manifest
       config/<data_source>/         ← *_gen.toon, *_schema.toon, *_pipeline.toon (+ grammars, jobs, alerts)
+        share-grants/               ← owner-side Share Grants (cross-Space dataset/widget sharing)
       data/…                        ← the per-pipeline dirs.* trees: inbox, partitioned Parquet
                                       output (Tables), backup, errors, quarantine, markers,
                                       status, temp scratch, logs
       audit/                        ← batch/file audit ledgers
       duckdb/                       ← per-Space DuckDB state
       flows/                        ← authored Pipeline definitions (storage dir name is historical)
+      views/                        ← ViewDefinitions (T32-C)
   warehouse_setup.sql               ← pg_duckdb warehouse schema, views (run once on server)
 ```
+
+**Layout contract (§L0).** The four persistence axes — `config/` (authored definitions), `data/` (the
+data plane), `audit/` (ledgers) and `duckdb/` (embedded-DB state) — must never mix. This is checked at
+Space boot by `com.gamma.service.SpaceLayoutContract` and is **advisory**: every departure emits a
+`LAYOUT_CONTRACT_VIOLATION` WARN event, never a boot failure (matching the warning-and-skipping posture
+of `SpaceManager.discover`). Every new subsystem must declare its home here before landing:
+
+| Subsystem | Home | Axis |
+|---|---|---|
+| Job run logs | `audit/` | audit |
+| Job Run Artifacts DB | `duckdb/` | duckdb |
+| Job Packs (host-wide) | `<install-root>/packs/` | (install scope) |
+| Share Grants (owner-side) | `config/share-grants/` | config |
+| The Exchange (cross-Space) | `spaces/_shared/` | (install scope, reserved) |
+| ViewDefinitions | `views/` | config-adjacent |
+
+Contract rules enforced by the check: canonical subdirs (`data/ audit/ duckdb/`) must exist; no
+embedded-DB file (`*.duckdb`/`*.db`/`*.wal`) may sit outside `duckdb/`; no unrecognised top-level entry
+may appear at the Space root. `_shared/` under `-Dspaces.root` is **not** a Space (discovery admits only
+dirs with a `config/` subtree, so it is skipped) — see
+[storage-layout-and-sharing-plan](superpower/storage-layout-and-sharing-plan.md) §2.
 
 ⚠️ **All `dirs.*` paths in pipeline configs resolve against the JVM working directory, not the Space
 root** — write them bundle-root-relative (`spaces/<id>/config/…`, `spaces/<id>/data/…`). Only the

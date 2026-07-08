@@ -26,6 +26,9 @@ final class SpaceBootstrap {
         SpaceContext.SpaceManifest manifest =
                 SpaceContext.SpaceManifest.read(root.base().resolve("space.toon"), id.value());
 
+        // Advisory storage-layout-contract check (WARN-only; never blocks boot).
+        SpaceLayoutContract.verify(root);
+
         // Discover the space's configs from its own config/ tree; an empty space is allowed (no exit).
         SourceService service = ServiceBootstrap.buildFrom(root, new String[]{root.config().toString()}, false);
 

@@ -33,6 +33,10 @@ public final class EventType {
 
     // ── service / pipeline lifecycle ──────────────────────────────────────────────
     public static final String SERVICE_STARTED     = "SERVICE_STARTED";
+    /** A space's on-disk tree departs from the storage-layout contract (config/data/audit/duckdb axes must
+     *  not mix; canonical subdirs must exist). Emitted at boot as a {@link EventLevel#WARN} advisory — a
+     *  violation is never fatal. The {@code kind} attribute names the rule; {@code path} the offending entry. */
+    public static final String LAYOUT_CONTRACT_VIOLATION = "LAYOUT_CONTRACT_VIOLATION";
     public static final String PIPELINE_REGISTERED = "PIPELINE_REGISTERED";
     public static final String PIPELINE_PAUSED     = "PIPELINE_PAUSED";
     public static final String PIPELINE_RESUMED    = "PIPELINE_RESUMED";
