@@ -14,8 +14,9 @@
 > (`spaces/<id>/…`); the **Component metamodel** + derived registry; **editions** as build flavors
 > (Personal/Standard/Enterprise; `inspecto-security` for Standard); and the optional **assist agent**
 > (vendored kernel + eoiagent model transport). The whole-platform map lives in the
-> [OKF knowledge bundle](okf/index.md); the authored-Pipeline design in
-> [`flow-graph-design.md`](flow-graph-design.md). The non-goals below are **still correct for
+> [OKF knowledge bundle](okf/index.md); the package-level **layer map** (dependency layering, SPI
+> surface, event/config/storage/threading models) in [`architecture-layers.md`](architecture-layers.md);
+> the authored-Pipeline design in [`flow-graph-design.md`](flow-graph-design.md). The non-goals below are **still correct for
 > Stage-1** — they are what keep each batch embarrassingly parallel and crash-isolated.
 
 This is a deliberately small ETL engine built around one idea: an **M..N

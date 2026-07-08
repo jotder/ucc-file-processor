@@ -65,6 +65,12 @@ like the other two items.
 
 ## 3. Phase D — Job templates (trigger-condition-action)
 
+> **2026-07-08:** expanded and superseded by [`../job-framework-design.md`](../job-framework-design.md) —
+> trigger `when:` conditions, parameter declarations, and the descriptor-driven authoring form are specified
+> there (§7, §8.2, §14). This section stays as the minimal-scope framing. Note: `JobTemplate.java`
+> (`*_job_template.toon`, `${param}` authoring-time substitution) has landed since this section's
+> "no template concept exists" snapshot was written.
+
 **Current state:** `com.gamma.job.JobService.java:59` supports scheduling (`CronExpression`, `:90,151,349`),
 manual trigger (`:217,226`), run history (`:361,366`), and space-scoping (`spaceId()`, `:295`) — but every
 job is an individually-authored `JobConfig` (type: ingest/enrich/report/maintenance). **No template or

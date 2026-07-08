@@ -1,0 +1,299 @@
+# Modularization · Optimization · Reuse Plan
+
+**Date:** 2026-07-08 (rev 2 — backend deep-dive incorporated) · **Status:** PROPOSED (analysis-only; no code touched)
+**Scope:** Whole repo — Maven reactor (6 Java modules), Angular SPA (`inspecto-ui/`), build/packaging, repo hygiene.
+**Related plans (not duplicated here):** `component-model-adoption-plan.md` (component metamodel),
+`transportability-plan.md` (bundle portability), `agent-kernel-replacement-plan.md` (eoiagent),
+`embedded-intelligence-plan.md` (inspecto-intelligence charter), `rbac-groundwork.md` (security split).
+This plan covers the *structural* dimension none of those own: reactor boundaries, coupling chokepoints,
+reuse debt, and dead weight.
+
+---
+
+## 1. Findings (evidence base)
+
+### 1.1 Reactor & build
+
+- Parent `pom.xml` (`file-processor-parent` 4.0.0-SNAPSHOT) has **no `<dependencyManagement>`** — every
+  module pins its own literal versions. Duplicated pins: `langchain4j` 1.16.3 (3 modules), `eoiagent`
+  0.1.0-SNAPSHOT (2), JUnit block copy-pasted into all 5 siblings (core hardcodes `5.10.2` instead of
+  the parent's `${junit.version}`), `postgresql` 42.7.4 (2), langchain4j-open-ai exclusion (2).
+- Jacoco `coverage` profile exists **only** in `inspecto` and `inspecto-agent` — the other modules
+  cannot be instrumented in a reactor coverage pass.
+- Dependency graph is a clean hub-and-spoke: every sibling → `file-processor` (core); only
+  `inspecto-agent-hosted` and `inspecto-intelligence` also depend on `file-processor-agent`.
+  `inspecto-security` builds only under `-Pedition-standard` (by design, editions = build flavors).
+  Shade/fat-jar lives only in core (correct).
+
+### 1.2 Backend coupling chokepoints (`inspecto/`)
+
+- **`service/SourceService.java` (1,178 lines)** — the domain-layer god object: pipelines, jobs, events,
+  connections, RCA templates, catalog wiring, enrichment, agent lookup, coalescers (~8 responsibilities).
+- **`control/ControlApi.java` (643 lines)** — HTTP dispatcher *and* manual DI root: lines 344–353 `new`
+  28 route modules in a hardcoded list; also owns TLS, CORS, idempotency, v1 envelope.
+- `control/` imports reach into pipeline(40), config(24), service(18), event(14), query(13), ops(9),
+  catalog(6), etl(4), acquire(3), job(3), … — no facade between HTTP layer and domain.
+- **`inspecto-agent` bypasses its SPI seam**: 180 direct imports of core internals (`catalog` 26,
+  `config` 20, `sql` 7, `etl` 5, `service` 5, …) vs only ~11 through `assist.spi`. It cannot be cut
+  loose without a proper facade.
+- **`inspecto-connectors` is already clean** — depends only on `acquire` (59) + `etl` (6); the
+  `SourceConnectorFactory` SPI is doing its job. Note: connectors reuse `acquire/CircuitBreaker` and
+  `acquire/retry/RetryPolicy`, so any split must ship the whole `acquire` package as the SPI artifact.
+
+### 1.3 What is already healthy (preserve, don't churn)
+
+- Route plumbing centralized: one `ApiException`, `ApiContext.JSON`, `ApiContext.requireCapability/
+  withCapability` — no per-route duplication.
+- Consistent `InMemory*`/`Db*` store-pair convention (acquire ledger, ops object/link/note stores,
+  job runs, status, notifications, events) — deliberate pattern, not accidental duplication.
+- `util/DuckDbUtil` is the single DuckDB access point (~30 call sites). Retry/circuit-breaker single-sited.
+- Existing SPI seams: `SourceConnectorFactory`, `Authenticators`, `TokenRelays`, `assist/spi/AssistAgent`,
+  `catalog/spi/DescriptionProvider`, `intelligence/spi/IntelligenceAgent`, `PipelineNodeTypes`,
+  `notify/NotificationChannel`.
+- UI: all 34+ feature routes lazy; a **respected** central API layer (`inspecto/api/`, ~40 typed
+  services — no feature bypasses it); one shared grid wrapper used by 30 features; signals throughout.
+
+### 1.4 Reuse debt & dead weight
+
+- **UI Fuse-template leftovers (~25,800 lines)**: `src/app/mock-api/` (42 files, superseded by
+  `inspecto/mock/`, still imported in `app.config.ts:17` + `app.component.ts` + layout search),
+  `modules/auth/` (real auth lives in `inspecto/api/`), `modules/commons/` (`security-principal.ts`
+  424 lines, `app.http.service.ts`, …).
+- **UI god components**: `studio/link-analysis/link-analysis.component.ts` (841 lines, 54 signals),
+  `studio/geo-map/geo-map.component.ts` (825 lines, 53 signals) — both mix fetch + state + render.
+- Three metric panes (`dashboard`, `jobs`, `sources`) hand-build Chart.js configs instead of using the
+  design-system `chart.component.ts`; `connections/connection-workbench.component.ts` uses raw
+  `AgGridAngular` instead of `<inspecto-data-table>`.
+- `inspecto/grid/index.ts` registers `AllCommunityModule` — every one of ~30 lazy grid chunks carries
+  all ag-Grid community modules.
+- Root clutter: `file-processor-deploy-old/` (stale Jun-20 bundle), `test-run.log` (410 KB), two
+  mangled `C:Users…build.log` files, `HANDOVER-multi-space.md` (superseded by
+  `SESSION_STATUS.local.md`), tracked `*.iml`, stray `file-processor-deploy/serve-8091.log`.
+
+### 1.5 Structural performance smells
+
+- `SourceService.java:124–172` — four unbounded `ConcurrentHashMap`s (`rcaTemplates`, `connections`,
+  `lastRunAtMs`, `eventCoalescers`), no eviction.
+- `event/EventLog.java:61` — static process-lifetime `SPACES` map; verify `SpaceManager` deregistration
+  wires cleanup.
+- **DuckDB audit (RESOLVED, second pass):** all 10 `DuckDbUtil.openConnection` call sites open a
+  fresh temp-file DB, closed via try-with-resources; no pooling anywhere. On query/BI/preview/dry-run
+  HTTP routes (`QueryRoutes:92`, `BiRoutes:106`, `InvRoutes:77`, `ShareRoutes:127`,
+  `ComponentRoutes:182-230`, `PipelineRoutes:243`) this is **by design** — `SqlSandbox`
+  (`sql/SqlSandbox.java:11-36`) documents open→seal→run→destroy as the untrusted-SQL security
+  boundary. Do NOT pool that path. Per-*run* opens in `PipelineJobRunner:138` / `EnrichmentEngine:82`
+  are the only legitimate reuse candidates, and only if profiling shows open cost matters.
+- Positives: bounded `InMemoryEventStore` ring buffer; real `ScheduledExecutorService` in
+  `service/Scheduler`; no ad-hoc `DriverManager.getConnection` outside `DuckDbUtil`.
+
+### 1.6 Test coverage distribution
+
+| Module | main / test classes | Verdict |
+|---|---|---|
+| inspecto (core) | 342 / 228 | well covered |
+| inspecto-agent | 87 / 34 | moderate |
+| inspecto-connectors | 17 / 8 | moderate (embedded SFTP/FTP servers) |
+| inspecto-security | 3 / 2 | proportionate |
+| inspecto-intelligence | 14 / **2** | near-zero |
+| inspecto-agent-hosted | 2 / **1** | minimal |
+
+### 1.7 Backend deep-dive (second pass, 2026-07-08)
+
+Full layer map, package inventory, SPI table, and pattern inventory now live in
+**`docs/architecture-layers.md`** — this section keeps only what changes the plan.
+
+**Design patterns — used vs missing:**
+- Working: Composition Root (`SourceService` ctor), Facade + Service Locator (`ApiContext`),
+  Strategy (`BatchIngestStrategy`, `OutputFormat`, `TransformCompiler`, `RouteModule`), SPI Registry
+  (8 ServiceLoader seams), Bridge (`EventObjectBridge`), bounded ring buffer (`InMemoryEventStore`).
+- Missing/misapplied: `RouteModule` is a Strategy **not wired as a Registry** (hardcoded
+  `List.of(new …)` of 24 modules at `ControlApi.java:335-355`; interface + impls are
+  *package-private*, which ServiceLoader forbids — making them public is most of the conversion);
+  **no middleware/filter chain** — `ControlApi.dispatch` (359-460) inlines correlation-id, v1
+  versioning, CORS, idempotency, space routing, auth, audit, legacy-metrics in one method;
+  **missing template method** — assist-agent vs intelligence-agent register/lookup/close blocks in
+  `SourceService` (559-596, 603-610, 1125-1132) are copy-pasted (`OptionalAgentSlot<T>` collapses
+  them); `SourceService` itself is the god-object anti-pattern.
+
+**`SourceService` decomposition (method-level, refines M2):** extract in this order —
+`PipelineScheduler` (poll/trigger cluster: 599-789 + 1044-1120; owns `ingestLock`, coalescers,
+`triggerWorkers`, `liveRuns`), `ConnectionRegistryFacade` (479-521), `RcaTemplateRegistry`
+(463-475, trivial), `AgentHost`/`OptionalAgentSlot` (559-610). Two contracts MUST survive
+extraction: (a) the single shared `ingestLock` across all three ingest entry paths — never clone
+it; (b) event subscriptions happen **before `start()`** and `close()`'s hand-sequenced order
+(1122-1151) becomes an explicit ordered shutdown list, not implicit code order.
+
+**Package cycles that block the reactor split (new blocker list for WS-D):**
+- `service ↔ job ↔ pipeline.exec` (3-way; `BatchEventBus` + `CronExpression` live in `service`
+  but are consumed below — move them down a layer, extract job contract types).
+- `service ↔ catalog` (`CatalogOverlay` → `service.StatusStore`; interface belongs lower).
+- `ops ↔ ops.link` / `ops ↔ ops.workflow`, `catalog ↔ catalog.spi` (shared types — relocate).
+
+**SPI surface audit (refines M3):** the future `agent.spi` facade must cover what
+`inspecto-agent` actually imports: catalog graph read/write + `DescriptionProvider` registration,
+config parse/validate (`ConfigCodec`/`ConfigSpecs`/`ConfigSafetyValidator`), sandboxed SQL
+(`SqlOracle`/`SqlSandboxPolicy`), `PipelineConfig`/`BatchEvent`, `CronExpression` + `StatusStore`
++ host registration, `JobConfig`, `ReportService` windows, enrichment audit reads.
+`inspecto-intelligence` additionally needs a **core-owned model-settings bridge** (today it
+compile-depends on inspecto-agent's `AssistModelSettings`/`ProviderSettings`/`ModelTier`) and its
+`RepoPaths` monorepo-filesystem walk must gain a packaged-artifact mode. `inspecto-connectors` and
+`inspecto-security` are already API-jar-clean; none of their 6 seam interfaces carry `@PublicApi`
+yet (only `AssistAgent` and the zero-implementor `PipelineNodeType` do).
+
+**Lifecycle gaps (new):** `SourceService.close()` has no overall shutdown deadline (a hung agent
+close blocks the JVM shutdown hook); `ControlApi.close()` calls `http.stop(0)` — no in-flight
+drain before spaces close under live requests; `SpaceManager.delete` (215-233) calls `ctx.close()`
+uncaught, so a throw leaves the space half-removed.
+
+---
+
+## 2. Target architecture
+
+### 2.1 Guiding constraints (binding)
+
+1. **Framework-free stays** — JDK HttpServer, manual DI, ServiceLoader SPI. No Spring/Quarkus
+   (per `docs/EDITIONS.md` + security-hardening direction).
+2. **One deployable stays** — the fat `file-processor.jar`; modularization is *reactor-internal*,
+   not a microservice split.
+3. **Editions = build flavors, never branches** (`docs/BRANCHING.md`).
+4. Glossary vocabulary is binding across every touched layer (`docs/GLOSSARY.md` §13).
+
+### 2.2 Seams before splits
+
+The module split is *blocked* until two god objects shrink and two seams exist:
+
+1. **`SourceService` decomposition** — split by domain into thin services the host composes
+   (pipeline-service, job-service, connection/RCA registry, event coalescing), leaving `SourceService`
+   a ≤200-line orchestrator.
+2. **`RouteModule` ServiceLoader registration** — replace the hardcoded `List.of(new …)` of 24
+   modules in `ControlApi.registerRoutes` (335–355) with ServiceLoader discovery. Confirmed
+   near-zero-cost: every module is already no-arg constructible, stateless, and pulls deps from
+   `ApiContext` at `register()` time; the only real change is making `RouteModule` + implementors
+   `public` (ServiceLoader requires it) and adding the `META-INF/services` file. Optional route
+   groups then self-register exactly like `Authenticators` already does.
+   2b. **Cycle-breaking moves** (blocker list from §1.7): relocate `BatchEventBus` +
+   `CronExpression` out of `service` to a lower layer; move `StatusStore` below `catalog`; relocate
+   shared types in `ops↔ops.link/workflow` and `catalog↔catalog.spi`.
+3. **`com.gamma.agent.spi` facade** — widen `assist.spi` (or add a sibling) to cover the catalog
+   lookups, config specs, and SQL sandbox access `inspecto-agent` currently takes from core internals,
+   dropping its 180 concrete imports to one thin contract.
+4. **`acquire` as a self-contained SPI package** — it nearly is already; keep retry/circuit-breaker
+   inside it so connectors need exactly one artifact.
+
+### 2.3 Eventual reactor shape (after seams land)
+
+```
+file-processor-parent
+├─ fp-acquire        acquire/ (SourceConnector SPI, ledger, retry, circuit breaker)
+├─ fp-config         config/ (ConfigSpec, ConfigSafetyValidator, ConfigCodec)
+├─ fp-core-etl       etl/, inspector/, pipeline/  → depends on fp-acquire, fp-config
+├─ fp-catalog        catalog/, query/, sql/
+├─ fp-ops            ops/, event/, alert/, notify/
+├─ fp-control        control/ (HTTP; depends on all above; routes via ServiceLoader)
+├─ fp-host           service/ (thin composition root; shade/fat-jar lives here)
+├─ …existing siblings (agent, agent-hosted, connectors, intelligence, security) unchanged
+```
+
+Extraction order: `fp-acquire` → `fp-config` → `fp-catalog`/`fp-ops` → `fp-core-etl` → `fp-control`
+last (it depends on everything). Each step = move packages + fix imports + full reactor
+`mvn -o clean test` green; no behavior change per step. Artifact/deployable output identical throughout.
+
+---
+
+## 3. Workstreams
+
+### WS-A · Build & repo hygiene (independent, do first)
+A1. Parent `<dependencyManagement>` + shared properties (`junit.version` actually used, `langchain4j.version`,
+    `eoiagent.version`, `postgresql.version`); delete per-module literals.
+A2. Move jacoco `coverage` profile to the parent so all modules instrument.
+A3. Delete `file-processor-deploy-old/`, root logs, mangled build-log files, `serve-8091.log`,
+    `HANDOVER-multi-space.md`; untrack `*.iml`; extend `.gitignore`.
+
+### WS-B · UI reuse & dead weight
+B1. Remove Fuse `mock-api/` (rewire `app.config.ts`, `app.component.ts`, layout search to
+    `inspecto/mock/`), then `modules/auth/`, then `modules/commons/` (~25.8k lines).
+B2. Route `dashboard`/`jobs`/`sources` chart panes through the design-system `chart.component.ts`.
+B3. Migrate `connection-workbench` onto `<inspecto-data-table>`.
+B4. Split `link-analysis.component.ts` and `geo-map.component.ts`: extract a data service + presentational
+    children each (per `angular-ui` skill rules).
+B5. Trim ag-Grid `AllCommunityModule` to the module set actually used.
+
+### WS-C · Backend seams (prerequisites for the split)
+C1. `SourceService` decomposition (see §2.2.1) — behavior-preserving, test-guarded.
+C2. `RouteModule` ServiceLoader registration in `ControlApi`.
+C3. `agent.spi` facade; migrate `inspecto-agent` + `inspecto-intelligence` onto it.
+
+### WS-D · Reactor split (only after WS-C)
+D1–D6. Extract modules in the order of §2.3, one per change, reactor green each step.
+
+### WS-E · Optimization & robustness
+E1. Bound/evict the four `SourceService` maps; verify `EventLog.SPACES` cleanup on space removal.
+E2. Audit DuckDB connection lifecycle under `control/` routes; pool or cache per space if per-request.
+E3. Bring `inspecto-intelligence` (14/2) and `inspecto-agent-hosted` (2/1) to baseline test coverage.
+
+---
+
+## 4. MoSCoW analysis (implementation/design aspects)
+
+### MUST (blocking correctness, safety, or all later work)
+
+| # | Item | Why must |
+|---|---|---|
+| M1 | Parent `dependencyManagement` + version properties (A1) | Version drift across 6 poms is a live risk (core already ignores the parent's `junit.version`); prerequisite for adding modules without multiplying the drift. |
+| M2 | `SourceService` decomposition (C1) | 1,178-line god object is the single blocker for every modularization step and the top defect-risk concentration. |
+| M3 | `agent.spi` facade (C3) | 180 concrete imports of core internals make `inspecto-agent`/`-intelligence` unable to evolve independently; the eoiagent migration plan depends on this seam. |
+| M4 | Remove Fuse leftovers (B1) | ~25.8k dead lines *partially wired into the app config* — real bundle weight, security surface, and constant confusion for new shifts. |
+| M5 | Coverage baseline for intelligence + agent-hosted, jacoco in all modules (E3, A2) | Near-zero-tested modules ship in every reactor build; untestable modules can't be refactored safely later. |
+| M6 | Repo hygiene sweep (A3) | Stale 96-MB-scale bundle copy + logs in a shared sandbox; trivially cheap, removes handover noise. |
+
+### SHOULD (high value, not blocking)
+
+| # | Item | Why should |
+|---|---|---|
+| S1 | `RouteModule` ServiceLoader registration (C2) | Lets edition-specific route groups self-register like `Authenticators` already do; small change, unlocks fp-control extraction. |
+| S2 | Split UI god components link-analysis + geo-map (B4) | 800+ lines / 50+ signals each; every studio feature added makes them worse. |
+| S3 | Chart + grid consolidation (B2, B3) | Three hand-rolled Chart.js panes and one raw ag-Grid pane are the only design-system violations left; closes the reuse gap while it's small. |
+| S4 | Bound `SourceService` maps, `EventLog.SPACES` cleanup (E1) | Unbounded process-lifetime growth under space/pipeline churn; cheap fix. |
+| S5 | Extract `fp-acquire` + `fp-config` (D1, D2) | The two packages already clean enough to move; proves the split mechanics with low risk. |
+| S6 | Middleware/filter chain for `ControlApi.dispatch` | Six cross-cutting concerns inlined in one ~100-line method; the chain makes S1's route plugins composable and testable. |
+| S7 | Shutdown robustness: deadline around `SourceService.close()`, drain delay in `ControlApi.close()` (`http.stop(0)` today), try/catch in `SpaceManager.delete` | Hung agent close blocks JVM exit; in-flight requests can hit closed stores; failed delete leaves half-removed space. |
+| S8 | `@PublicApi`-freeze the 6 unmarked SPI interfaces (`Authenticator`, `TokenRelay`, `SourceConnectorFactory`, `DescriptionProvider`, `IntelligenceAgent`, `NotificationChannel`) | connectors/security are already API-jar-clean; annotating freezes the contract before the split multiplies consumers. |
+| S9 | Decouple `inspecto-intelligence` from `inspecto-agent`: core-owned model-settings bridge + packaged-artifact mode for `RepoPaths` | Removes the only sibling-internal compile dep and the monorepo-layout assumption; prerequisite for it ever building against an API jar. |
+
+### COULD (do when adjacent work touches the area)
+
+| # | Item | Why could |
+|---|---|---|
+| C1 | Full reactor split fp-catalog/fp-ops/fp-core-etl/fp-control/fp-host (D3–D6) | Real payoff (build parallelism, enforced boundaries) but only safe after M2/M3/S1; deployable is unchanged, so no user-visible urgency. |
+| C2 | Generic base for `InMemory*`/`Db*` store pairs | Boilerplate reduction only; the convention is consistent and correct today. |
+| C3 | ag-Grid module trimming / shared grid chunk (B5) | Bundle-size win; measure first — all chunks are lazy already. |
+| C4 | BOM (`file-processor-bom`) for external consumers | Only worth it if artifacts are ever consumed outside this reactor. |
+| C5 | `OptionalAgentSlot<T>` template method for the duplicated assist/intelligence agent blocks in `SourceService` | Small dedup; falls out naturally during the M2 decomposition anyway. |
+| C6 | DuckDB connection reuse for `PipelineJobRunner`/`EnrichmentEngine` per-run opens | Only after profiling shows open cost matters; **never** pool the `SqlSandbox` HTTP path — ephemeral-per-request is its security boundary. |
+| C7 | Decide `PipelineNodeType` SPI fate (defined `@PublicApi 4.3.0`, zero implementors, no services file) | Ship a first plugin node type or document it as reserved; dead public API otherwise. |
+
+### WON'T (this cycle — explicit non-goals)
+
+| # | Item | Why won't |
+|---|---|---|
+| W1 | Spring/Quarkus or any DI-framework migration | Binding design tenet: framework-free JDK HttpServer + manual DI + ServiceLoader (EDITIONS.md, security-hardening direction). |
+| W2 | Microservice / multi-deployable split | One fat jar + jlink runtime is the product's transportability story; modularization stays reactor-internal. |
+| W3 | Rewriting the store-pair pattern to an ORM/repository framework | Working, consistent, tested; churn without payoff. |
+| W4 | UI workspace split (Nx/monorepo tooling) | One SPA, healthy lazy-loading; tooling migration cost exceeds any benefit at this size. |
+| W5 | Per-edition branches | Forbidden by BRANCHING.md — editions remain build flavors. |
+
+---
+
+## 5. Sequencing & verification
+
+```
+Phase 0 (hygiene):      A3 → A1 → A2                     · verify: mvn -o clean test green, diff = poms+deletions
+Phase 1 (reuse):        B1 → B2/B3 → M5 tests            · verify: ng lint/test/build green; bundle size drop recorded
+Phase 2 (seams):        C1 → C3 → C2/2b (+ S4, S6-S9)    · verify: full GAUNTLET green after each; no API change
+Phase 3 (split):        D1 → D2 → (D3/D4) → D5 → D6      · verify: reactor green + package.ps1 both editions byte-compatible layout
+Phase 4 (optimize):     S6 audit → E2 fix if confirmed → C3-could · verify: measured before/after
+```
+
+Every phase is independently shippable and behavior-preserving; commits follow `release-workflow`
+(Conventional Commits, master, merge-forward rules). Nothing here touches the uncommitted AGT-5
+hardening work — Phase 0 must start from a clean tree after that lands.
