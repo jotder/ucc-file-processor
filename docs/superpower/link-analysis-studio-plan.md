@@ -135,8 +135,9 @@ truncation flag at cap; missing mapping column ⇒ typed error surfaced (not a t
    `@Input emphasis?: { nodeIds: string[]; edgeIds?: string[]; groups?: Map<string,string> } | null`
    that re-styles (dim non-matches; color by group for communities). No renderer replacement.
 4. Saved views: Component kind `link-analysis-view` (config = source id + `GraphQuery` + mapping) via
-   the existing components/registry seam — mock-only persistence (backend `ComponentStore` enum is
-   closed; known gotcha, same as other new kinds).
+   the existing components/registry seam — ~~mock-only persistence (backend `ComponentStore` enum is
+   closed)~~ **closed 2026-07-08 (INV-1): `link-analysis-view` + `geo-map-view` joined the backend
+   `ComponentStore.WRITABLE_TYPES`; saved views persist server-side with no client change.**
 
 **Verify:** component specs (query→render→analyze flow with mocked sources; a11y — axe clean, labels
 per W4 conventions); live smoke: run dev server, load each of the 4 sources, run each analysis op,
@@ -152,8 +153,11 @@ save/reload a view.
 ## 4. Out of scope (unchanged from design)
 
 - No new renderer, no graph store, no generic query language, no per-record provenance.
-- No backend: entity-projection is client/mock; the real backend projection (DuckDB-side fold) and
-  schema-relationship model remain the open P3 backend work (design doc §7).
+- ~~No backend: entity-projection is client/mock~~ **Closed 2026-07-08 (INV-1): the real backend
+  projection shipped — `POST /inv/projection` (DuckDB-side fold over the query sandbox, heaviest-first
+  + truncation); `EntityProjectionGraphSource` is backend-first with the client sample fold as the
+  offline fallback (the mock answers 501 by design). Still open from design §7: the `attrCols`
+  mapping surface and the schema-relationship model.**
 - No migration of the three existing screens onto their GraphSources (opt-in later).
 - Dashboard placement of saved Link-Analysis Widgets (wire-up is a small follow-on).
 

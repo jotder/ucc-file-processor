@@ -38,6 +38,9 @@
   requirement set (UI + backend + agentic) with a reconciled **MoSCoW analysis**, edition mapping,
   NFRs, sequencing, and risks (compiled 2026-07-07; reconciles the 2026-07-02 feature matrix with the
   shipped W1–W7 + R1–R6 work).
+- [`BACKLOG.md`](BACKLOG.md) — **consolidated backlog index**: every pending/deferred/open item from
+  REQUIREMENTS §5, all `superpower/` plans, flow checklists, review sheets, and live session notes,
+  deduplicated, with pointers to the authoritative source doc for each (compiled 2026-07-08).
 
 ## Engineering knowledge bundle (OKF, consolidated)
 
@@ -86,6 +89,11 @@ topic docs (each cites its authoritative doc); they don't replace them. *(Consol
   component registry, T-checklist). **Active.**
 - [`flow-live-execution-plan.md`](flow-live-execution-plan.md) — live execution of authored Pipelines as
   `JobType.PIPELINE` (T32). **Active.**
+- [`job-framework-design.md`](job-framework-design.md) — **Job Framework**: pluggable Job Types (SPI registry
+  evolving the shipped `com.gamma.job` engine), parameterized Triggers, Signals (§8 envelope, one ledger),
+  Run Artifacts + queryable result metadata, and hot-deployable **Job Packs** — with worked `sql.template` +
+  fraud-pack examples. Subsumes `superpower/backend-backlog.md` §3 (Phase D job templates). **Active (design,
+  2026-07-08 — no implementation yet).**
 - [`data_acquisition_framework.md`](data_acquisition_framework.md) — acquisition requirement + as-built pointer
   (Phases A–F shipped on `4.x`).
 - [`delimited-grammar-design.md`](delimited-grammar-design.md) — delimited-grammar parsing design.

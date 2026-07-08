@@ -1,7 +1,8 @@
 # Inspecto — Platform Requirements & MoSCoW Analysis
 
-> **Status: CURRENT requirements-of-record** · Compiled 2026-07-07 · Reconciled against the shipped code
-> (`master`, W1–W7 API contracts + R1–R6 metadata rework included).
+> **Status: CURRENT requirements-of-record** · Compiled 2026-07-07 · **Re-reconciled 2026-07-08 after the
+> ship-sweep session** (ACQ/PIP/BI/INV/MET closures; every pending item now carries a scope line) ·
+> Reconciled against the shipped code (`master`, W1–W7 API contracts + R1–R6 metadata rework included).
 >
 > This document supersedes the archived requirements snapshot
 > (`archived-documents/consolidated-2026-06-13/02-Product-Requirements.md`) and **reconciles** the planning-time
@@ -75,10 +76,10 @@ AI-driven autonomy without redesign.
 | ACQ-1 | **Connections**: named endpoint+credential definitions (SFTP/FTP/FTPS, database), reused by many Sources | Must | SHIPPED | All |
 | ACQ-2 | **Sources**: configured collection tasks (paths/queries, cadence, filename patterns, dedup policy) bound to one Connection | Must | SHIPPED | All |
 | ACQ-3 | Acquisition framework: ledgers, dedup, watermarks, gap detection, retry (Phases A–F) | Must | SHIPPED | All |
-| ACQ-4 | Object-storage (S3/GCS/Azure/MinIO) + network-share (NFS/SMB) connectors on the connector SPI | **Must** | PLANNED | All |
-| ACQ-5 | Streaming source consumer (e.g. Kafka topic as a Source) | Should | PLANNED | All |
-| ACQ-6 | Push/event-driven file discovery (replace poll where the remote can notify) | Could | PLANNED | All |
-| ACQ-7 | etag/version-aware dedup dimensions | Should | PLANNED | All |
+| ACQ-4 | Object-storage (S3/GCS/Azure/MinIO) + network-share (NFS/SMB) connectors on the connector SPI | **Must** | PARTIAL (2026-07-08: `connector: s3` — SDK-free SigV4 over JDK HttpClient, covers S3/MinIO/GCS-interop, etags feed ACQ-7; NFS/SMB = documented OS-mounted-share pattern, UNC stays jail-rejected by design. Still open: Azure Blob + GCS native APIs) | All |
+| ACQ-5 | Streaming source consumer (e.g. Kafka topic as a Source) | Should | SHIPPED (2026-07-08: `connector: kafka` — a topic drained per scan cycle into virtual slice files on the existing SourceConnector SPI, no core-engine change; `assign()`+`seek()`, no consumer group — the consumed frontier rides the ledger watermark and is persisted only post-commit (at-least-once, DB-export machinery); envelope-NDJSON or raw-value payloads, retention clamp + `max_records` cap, optional SASL PLAIN; kafka-clients 3.9.2 confined to inspecto-connectors, tested offline via in-jar `MockConsumer`, no broker) | All |
+| ACQ-6 | Push/event-driven file discovery (replace poll where the remote can notify) | Could | SHIPPED (2026-07-08: `POST /sources/{id}/notify` — external systems trigger an immediate scan, 202+runId on v1, `canOperateRuns`-gated, audited as `source.notified`; plus `source.discovery: watch` — WatchService push for local/mounted inboxes, debounced, poll loop stays on as backstop) | All |
+| ACQ-7 | etag/version-aware dedup dimensions | Should | SHIPPED (2026-07-08: `source.duplicate.mode: etag` — pre-fetch skip on the connector's listing etag/object version; ledger columns `etag`/`object_version` with in-place migration; degrades to size+mtime when the connector supplies neither) | All |
 
 ### 3.2 Ingestion & parsing (ING) — backend
 
@@ -100,8 +101,8 @@ AI-driven autonomy without redesign.
 | PIP-3 | Incremental event-driven processing: on-pipeline commit Triggers, watermarks, cron + catch-up | Must | SHIPPED | All |
 | PIP-4 | **Scheduler** + **Jobs** (atomic Executables; Run ⊇ Batch ⊇ File status hierarchy) | Must | SHIPPED | All |
 | PIP-5 | Async Run triggers: `202 + runId` + poll, `Idempotency-Key` replay — jobs **and** pipelines | Must | SHIPPED (W5/W5b) | All |
-| PIP-6 | Job templates (reusable parameterized Job definitions) | Could | PLANNED | All |
-| PIP-7 | Maintenance job library (retention, compaction, housekeeping) | Should | PLANNED | All |
+| PIP-6 | Job templates (reusable parameterized Job definitions) | Could | SHIPPED (2026-07-08: `*_job_template.toon` — declared params + defaults, `${param}` substitution; jobs reference `template:` + `params:`, resolved at load so the scheduler sees only plain JobConfigs; instance keys override the template block) | All |
+| PIP-7 | Maintenance job library (retention, compaction, housekeeping) | Should | SHIPPED (2026-07-08: MAINTENANCE tasks now `cleanup` + `ledger_prune` + `db_maintenance` + `compact` — compaction is quiet-window + crash-journal safe, readers are glob-based so it is query-transparent; ⚠ reprocess of a compacted-away batch is unsupported, keep `min_age_days` beyond the reprocess horizon. Curated library at `examples/06-serve/maintenance-library`) | All |
 
 ### 3.4 Data plane: Datasets & Queries (DAT) — backend + Studio
 
@@ -109,9 +110,9 @@ AI-driven autonomy without redesign.
 |---|---|---|---|---|
 | DAT-1 | **Dataset** umbrella (Table / Derived Table / View) over partitioned Parquet, described by Schemas, browsable in the Catalog | Must | SHIPPED | All |
 | DAT-2 | **Query** as a first-class Component (`sql \| structured`) + Query Library + `$`-**Parameters** + **Result Set** descriptor | Must | SHIPPED (R3+W4) | All |
-| DAT-3 | Live query execution `POST /queries/{id}/run` on DuckDB with server-side parameter resolution | Must | PARTIAL (structured queries still compile client-side → server 422; pagination offset-based) | All |
-| DAT-4 | **Matrix** materialization: persisted summary Derived Tables as managed assets | Should | PLANNED (needs a net-new materialization runner) | All |
-| DAT-5 | Row-level calculated columns on Datasets | Should | PLANNED | All |
+| DAT-3 | Live query execution `POST /queries/{id}/run` on DuckDB with server-side parameter resolution | Must | SHIPPED (2026-07-08: the missing server-side *structured* evaluator is BI-7's `POST /bi/query` — spec-based measures/dimensions/filters compiled and executed server-side; `query` components stay `type: sql` and the 422 on `type: structured` remains the honest boundary (no client authors them). Minor caveat: pagination stays offset-based) | All |
+| DAT-4 | **Matrix** materialization: persisted summary Derived Tables as managed assets | Should | PLANNED — **scoped 2026-07-08**: a `materialize` job task on the existing jobs runner (`COPY (spec-compiled SELECT) TO` a partitioned store + register/refresh the `dataset` component), riding the BI-7 compiler + PIP-7's stage-and-atomic-swap discipline; ~1 focused shift, no new subsystem | All |
+| DAT-5 | Row-level calculated columns on Datasets | Should | PLANNED — **scoped 2026-07-08**: the blocker is expression safety, not plumbing (a calculated column is caller SQL *fragments* inside the trusted relation — SqlGuard checks whole statements). Needs a ½-shift design first (validated expression grammar vs. fragment-mode guard), then ~½ shift to wrap `DatasetRelation` | All |
 | DAT-6 | Optional Postgres state store (swap embedded state) | Should | SHIPPED (2026-07-07: all 6 JDBC state stores — jobs/provenance/objects/links/notes/status — verified against real Postgres via embedded-PG test; DuckDB-only `quantile_cont` made dialect-aware; `postgres` backend alias; PG driver on classpath = `inspecto-connectors`) | S/E |
 
 ### 3.5 BI Studio & presentation (BI) — UI + backend
@@ -121,17 +122,17 @@ AI-driven autonomy without redesign.
 | BI-1 | Studio authoring: Datasets, **Widgets** (Visualization Type + Config + Result-Set binding), **Dashboards**; real persistence via the widened component store | Must | SHIPPED (W3 widened `WRITABLE_TYPES`) | All |
 | BI-2 | **VizPlugin** registry of Visualization Types (charts, tables, scatter, funnel, …) | Must | SHIPPED | All |
 | BI-3 | KPI & Reports gallery; dashboard quick-filter bar, drill-through, time grain, PNG export; **Measures** in Explore | Should | SHIPPED | All |
-| BI-4 | Scheduled report/export delivery | Should | PLANNED | S/E |
-| BI-5 | Alerting on **Measures** (BI thresholds raising Alerts) | Could | PLANNED | All |
-| BI-6 | Public/embedded Dashboard sharing | Could | PLANNED | S/E |
-| BI-7 | Semantic / headless BI API | Could | PLANNED | S/E |
-| BI-8 | Widget/Dashboard template marketplace | Could | PLANNED | All |
+| BI-4 | Scheduled report/export delivery | Should | SHIPPED (2026-07-08: REPORT job `out_dir`/`format` renders a timestamped JSON/CSV artifact — new `scope: dataset` exports a headless BI query; `REPORT_READY` event → webhook/SMTP notification. Caveat: SMTP delivers the artifact *path*, not an attachment — the SMTP channel is text-only) | S/E |
+| BI-5 | Alerting on **Measures** (BI thresholds raising Alerts) | Could | SHIPPED (2026-07-08: `*_alert.toon` measure rules — `dataset:` + `measure: agg(field)` evaluated via the headless BI evaluator on every sweep, firing the existing ALERT_FIRED→notification path. v1 = whole-dataset measures, no per-rule filters) | All |
+| BI-6 | Public/embedded Dashboard sharing | Could | PARTIAL (2026-07-08 backend: fail-closed HMAC share tokens — inert without `-Dbi.share.secret`, expiring, tamper=404; `POST /dashboards/{n}/share` → anonymous `GET /public/dashboards/{token}` + a public BI query fenced to the dashboard's own datasets. Open: the embed viewer UI) | S/E |
+| BI-7 | Semantic / headless BI API | Could | SHIPPED (2026-07-08: `POST /bi/query` — spec-based measures/dimensions/filters compiled server-side (the declared backend twin of the UI QuerySpec seam), SqlGuard-checked, sandbox-executed; `GET /bi/datasets`. Open follow-up: swapping the UI viz layer onto it) | S/E |
+| BI-8 | Widget/Dashboard template marketplace | Could | PARTIAL (2026-07-08: curated in-instance template gallery — `GET /bi/templates` + parameterized all-or-nothing `apply` writing real Studio-editable components; cross-space sharing stays `/bundle/*`. Open: gallery/browsing UI, external exchange) | All |
 
 ### 3.6 Investigation studios (INV) — UI + backend
 
 | ID | Requirement | MoSCoW | Status | Edition |
 |---|---|---|---|---|
-| INV-1 | **Link Analysis Studio**: Entity Projection over a Dataset, shared G6 host, 11 layouts, Louvain communities, pattern matching, saved **Link-Analysis Views** | Should | MOCK-FIRST (backend Entity Projection open) | S (edition-added) |
+| INV-1 | **Link Analysis Studio**: Entity Projection over a Dataset, shared G6 host, 11 layouts, Louvain communities, pattern matching, saved **Link-Analysis Views** | Should | SHIPPED (2026-07-08: real backend Entity Projection — `POST /inv/projection`, DuckDB-side fold over the sandbox executor, heaviest-first with truncation; the studio is backend-first with the offline sample fold as fallback; saved views persist server-side — `link-analysis-view`/`geo-map-view` joined `ComponentStore.WRITABLE_TYPES`. Open per design §7: `attrCols` mapping surface + the schema-relationship model) | S (edition-added) |
 | INV-2 | **Geo Map Analysis Studio**: offline MapLibre/PMTiles basemap, GeoSource/GeoQuery, heatmap, od-routes, time slider + playback, intelligence toolbox (co-location/frequent/stay-points), measure/radius/polygon/notes tools, layer manager + GeoJSON overlays, saved **Geo Views** | Should | SHIPPED (UI, metadata-first; DuckDB-spatial backend = Phase 4) | All |
 | INV-3 | **Cases** grouping Incidents; RCA templates; correlation ids end-to-end | Must | SHIPPED | All |
 | INV-4 | Cross-studio bridges (e.g. geo co-location → graph dialog) | Could | SHIPPED | All |
@@ -174,8 +175,8 @@ AI-driven autonomy without redesign.
 | MET-1 | Everything authored is a **Component** `{kind, name, config, parts?, wiring?}`; kind registry declares config schemas | Must | SHIPPED | All |
 | MET-2 | Derived **Registry** reuse graph + Catalog + lineage graph (canonical edge/node kinds, `CONSUMES` etc.) | Must | SHIPPED | All |
 | MET-3 | Single ref derivation (`deriveRefs`) feeding reuse graph, bundles, delete-protection | Must | SHIPPED (R1) | All |
-| MET-4 | **Stream** read-model in the Catalog (browsable data origins; IA reorg Phase B) | Should | PLANNED | All |
-| MET-5 | Draft/published Component version history (W3b) | Could | PLANNED | All |
+| MET-4 | **Stream** read-model in the Catalog (browsable data origins; IA reorg Phase B) | Should | SHIPPED (2026-07-08: `GET /catalog/streams` — every Source as a data-origin catalog node (connector/connection/pipeline/discovery attrs), shaped to the UI `MetadataNode` contract the mock already served; UI needed no change) | All |
+| MET-5 | Draft/published Component version history (W3b) | Could | PLANNED — **scoped 2026-07-08**: keep-N prior copies on `ComponentStore.write` (sibling `.v<N>.toon` files) + `GET /components/{type}/{id}/versions` + restore; ~1 shift, no store migration | All |
 
 ### 3.11 API & integration (API)
 
@@ -267,36 +268,59 @@ AI-driven autonomy without redesign.
 
 ---
 
-## 5. MoSCoW summary — the reconciled backlog (as of 2026-07-07)
+## 5. MoSCoW summary — the reconciled backlog (as of 2026-07-08, post ship-sweep)
+
+> **2026-07-08 ship-sweep:** one session closed ACQ-6/ACQ-7 · PIP-6/PIP-7 · the whole BI section
+> (BI-4/5/7 shipped, BI-6/BI-8 partial) · INV-1 · MET-4 · the DAT-3 caveat · ACQ-4's S3/MinIO/NFS/SMB
+> half — each verified by the full reactor (1,271+ tests). **Everything still pending below carries a
+> concrete scope line (size + blocker + owner), not a bare PLANNED.**
 
 **Delivered baseline (former MUSTs, now shipped):** acquisition framework · Stage-1 ingest · medallion
 ELT · authored Pipelines · scheduler/jobs + async runs · Datasets/Queries + live DuckDB execution ·
 Studio persistence · component metamodel + R1–R6 rework · multi-space · `/api/v1` contract ·
 `inspecto-security` (OIDC/HTTPS/BFF) · UI on v1 with OIDC · Assistant on eoiagent · packaging/editions.
 
-### MUST (remaining — the release-gating set)
+### MUST (remaining — the release-gating set, each scoped)
 
-1. **ACQ-4** Object-storage & network-share connectors (S3/GCS/Azure/MinIO, NFS/SMB) — *blocked
-   offline: SDKs absent from the local Maven cache; needs a one-time online dependency fetch.*
-2. **SEC-7** Standard-edition hardening — *X-Actor rejection + `canTriageRequirements` route +
-   per-resource `permissions[]` SHIPPED 2026-07-07; only data-scoped grants remain (deferred per
-   `rbac-groundwork.md` — a product call, not an engineering gap).*
-3. **EOI-7** eoiagent `0.1.0` release + published artifacts (un-pin Inspecto from a moving SNAPSHOT).
+1. **ACQ-4 residual** (Azure Blob; GCS-native) — *mostly closed 2026-07-08 (S3/MinIO/GCS-interop
+   SDK-free; NFS/SMB = mounted-share pattern).* **Scope:** Azure Blob is hand-rollable like S3
+   (SharedKey = HMAC-SHA256 canonicalization + List/Get Blob XML over JDK HttpClient — same shape as
+   `AwsSigV4`/`S3Connector`, ~1 shift, offline-testable against a stub). GCS-native adds only
+   OAuth2/service-account beyond the already-covered interop mode — **defer until a customer needs
+   non-interop GCS**. Owner: next backend shift (Azure); product (GCS demand call).
+2. **SEC-7 residual** (data-scoped grants) — **blocked on a product decision**, not engineering: the
+   grants model for case-type data scoping (`rbac-groundwork.md` §4). Once decided, ~1 shift over the
+   shipped per-resource `permissions[]` seam. Owner: product, then any backend shift.
+3. **EOI-7** eoiagent `0.1.0` — **two separable halves**: (a) *cut + pin* — bump the version in
+   `C:/sandbox/agent-brainstorm`, `mvn install`, re-pin the three Inspecto poms off the SNAPSHOT
+   (~1–2 h, next shift, unblocks R2); (b) *publish artifacts* — needs a registry decision
+   (internal Nexus? GitHub packages?) — an infra/product call, not code. Owner: (a) next shift; (b) product/infra.
 
 *Closed 2026-07-07: ING-5 (unified parsing + json/text_regex frontends), **ING-6** (Expectation engine:
 `com.gamma.expectation` + `/expectations*`, real DuckDB violation counting + deduped-Incident/notify
 consequence chain), INC-3 (webhook + SMTP delivery channels), PKG-4 (jlink/Nimbus verified), PIP-1
 caveat (live e2e via `examples/06-serve/pipeline-job`).*
 
-### SHOULD
+### SHOULD (remaining — each scoped)
 
-- **INV-1** Link Analysis backend (Entity Projection over real Datasets). ·
-  **DAT-4** Matrix materialization. ·
-  **BI-4** Scheduled reports/export delivery. · **DAT-5** Calculated columns. ·
-  **INC-4** Incident workflow depth. · **ACQ-5** Streaming consumer *(offline-blocked: `kafka-clients`
-  not cached)*. · **ACQ-7** etag/version dedup. · **PIP-7** Maintenance job library. ·
-  **MET-4** Stream read-model. ·
-  **API-5** Legacy route sunset (after soak).
+- **DAT-4** Matrix materialization — *scoped (see §3.4 row): a `materialize` job task riding the BI-7
+  compiler + `COPY TO` + dataset registration; ~1 shift.*
+- **DAT-5** Calculated columns — *scoped: expression-safety design first (½ shift), then ½ shift on
+  `DatasetRelation`.*
+- **INC-4** Incident workflow depth (queues, escalation, watchers) — *blocked on product design: the
+  escalation/queue model is a workflow-semantics decision, not plumbing (the object engine + SLA sweep
+  already exist to build on). Engineering after: ~1–2 shifts. Owner: product first.*
+- **API-5** Legacy route sunset — *pure policy: pick the soak criterion (proposal: 30 consecutive days
+  of `inspecto_legacy_api_requests_total` = 0 on every deployment), then removal is mechanical.
+  Owner: product signs the criterion; any shift executes.*
+- **OPS-5** Provenance conservation on live data — *not code: a verification protocol run (enable on a
+  real feed, soak, compare invariants). Owner: ops, first live deployment.*
+
+*Closed 2026-07-08: **ACQ-7** etag/version dedup · **ACQ-6** push discovery (notify + watch) ·
+**PIP-7** maintenance library (ledger_prune/db_maintenance/compact) · **PIP-6** job templates ·
+**BI-4** scheduled report/export delivery · **INV-1** Link Analysis backend (Entity Projection +
+server-side saved views) · **MET-4** Streams read-model (`GET /catalog/streams`) · **DAT-3** caveat
+(structured evaluation = `/bi/query`).*
 
 *Closed 2026-07-07: **DAT-6** Postgres state store (all 6 JDBC stores verified vs real Postgres) ·
 **SEC-8** secrets (file + JCEKS keystore scopes; Vault still deferred) · **UI-8** Settings drawer
@@ -310,13 +334,25 @@ intelligence spine (new `inspecto-intelligence` module: `IntelligenceAgent` SPI,
 yet — see `docs/superpower/embedded-intelligence-plan.md` §8 for the documented P0 scope cuts and
 P1–P5 remaining).*
 
-### COULD
+### COULD (remaining — each scoped)
 
-- **BI-5** Alerting on Measures · **BI-6** Public/embedded dashboards · **BI-7** Headless BI API ·
-  **BI-8** Template marketplace · **PIP-6** Job templates · **MET-5** Component version history ·
-  **SPC-5** Per-tenant ABAC · **ACQ-6** Push discovery · **AGT-6** AI behind every screen / agent
-  graphs · **INV-4**-style further cross-studio bridges · Enterprise distributed tier (**E1**; XL,
-  demand-gated) · Cross-unit parallelism / Stage-2 streaming.
+- **BI-6 residual** (embed viewer UI) + **BI-8 residual** (gallery UI) — *one combined UI shift: a
+  chromeless `/public/dashboard/:token` viewer consuming the fenced public query endpoint (the first
+  real consumer of the BI-7 swap seam), a Share dialog, and a Studio gallery pane over
+  `GET /bi/templates`. Prereq check (minutes): align the curated templates' widget `kind` ids with
+  the VizPlugin registry. Backends for both are done.*
+- **MET-5** Component version history — *scoped (see §3.10 row): ~1 shift, no migration.*
+- **SPC-5** Per-tenant ABAC — *Enterprise-tier, demand-gated; design rides SEC-7's grants model —
+  do not start before the SEC-7 product decision lands.*
+- **AGT-5 P1–P5** — *phased per `embedded-intelligence-plan.md` §8; P1 should wait on EOI-7(a) so it
+  doesn't build on a moving SNAPSHOT.*
+- **AGT-6** AI behind every screen / agent graphs — *sequenced after AGT-5 P2 (needs the tool belt +
+  autonomy ladder in place); not scoped further on purpose.*
+- **E1** Enterprise distributed tier · Stage-2 streaming — *demand-gated strategy items, unchanged.*
+
+*Closed 2026-07-08: **BI-5** measure alerts · **BI-7** headless BI API · **PIP-6** job templates ·
+**ACQ-6** push discovery; **BI-6**/**BI-8** backends shipped (fail-closed share tokens; curated
+template gallery + apply).*
 
 ### WON'T (this horizon — explicit non-goals)
 
@@ -332,12 +368,12 @@ P1–P5 remaining).*
 ## 6. Sequencing & dependencies
 
 1. **Security-first ordering holds**: SEC-7 + PKG-4 close out the Standard revenue gate that W6 opened.
-2. **Connectors before streaming**: ACQ-4 (object storage) precedes ACQ-5; both ride the existing
-   connector SPI.
+2. **Connectors before streaming**: ACQ-4's object-storage half shipped 2026-07-08 (SDK-free s3);
+   ACQ-5 (Kafka) shipped the same day on the same SPI once `kafka-clients` landed in the cache.
 3. **Parsing unification (ING-5) before Expectation engine (ING-6)** — Expectations bind to the unified
    schema surface.
-4. **Backend catch-up for mock-first UI**: INV-1 and SPC-4 ride the now-widened component store; MET-4
-   (Streams) and DAT-4 (Matrix materialization) follow — Matrix needs the net-new materialization runner.
+4. **Backend catch-up for mock-first UI**: ~~INV-1, SPC-4, MET-4~~ all closed by 2026-07-08; DAT-4
+   (Matrix materialization) is the last of the set — scoped onto the jobs runner, no net-new subsystem.
 5. **AGT-5 (embedded intelligence)** — P0 shipped 2026-07-07 on product-owner sign-off, riding the
    eoiagent transport already in place; **EOI-7** (release pin) should still land before P1 goes wide.
 6. **API-5 legacy sunset** waits on the `inspecto_legacy_api_requests_total` soak signal — a

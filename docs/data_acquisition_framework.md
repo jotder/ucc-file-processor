@@ -23,12 +23,40 @@
 > (`options.host_key`/`known_hosts`/`strict_host_key`), and **FTP/FTPS through an SSH bastion**
 > (`tunnel:` + `options.passive_ports` for the passive data range) — so all of SFTP/FTP/FTPS/DB-export can
 > traverse a bastion.
-> **Still future** (this SPI makes each non-disruptive): object storage (S3/GCS/Azure/MinIO), NFS/SMB/CIFS,
-> and the etag/version watermark dimensions.
+> **Shipped 2026-07-08 (ACQ-4/ACQ-7):** the **`s3` connector** — the S3 REST API spoken directly over the JDK
+> `HttpClient` with in-tree SigV4 signing (**no AWS SDK**; air-gap + SBOM preserved). One connector covers
+> AWS S3, MinIO, and any S3-compatible store (GCS interoperability mode included); path-style addressing.
+> Profile: `host`/`port` = endpoint, `username`/`password` = access/secret key (SecretResolver reference),
+> `base_path: bucket[/prefix]`, `options.region` (default `us-east-1`), `options.protocol: https|http`.
+> Listings carry each object's **ETag onto `RemoteFile.etag`**, so `source.duplicate.mode: etag` skips
+> unchanged objects **before** downloading; listed objects are atomic ⇒ readiness is always READY (no
+> stabilization pass). MOVE/RENAME = CopyObject+DeleteObject; TAG = PutObjectTagging.
+> **NFS/SMB/CIFS = OS-mounted shares** (see §1 note below) — no in-process protocol client, by design.
+> **Also shipped 2026-07-08 (ACQ-6):** push/event-driven discovery — **`POST /sources/{id}/notify`**
+> (an S3 event notification, upload script, or upstream job triggers an immediate scan; v1 answers
+> `202 {runId}` + poll `Location`, gated on `canOperateRuns`, audited as `source.notified`; a spurious
+> notify is harmless — the cycle's dedup/stability decide what ingests) and **`source.discovery: watch`**
+> (JDK `WatchService` on a local/mounted poll root; debounced ~1s via `-Dservice.watch.quiet.millis`;
+> the interval poll loop stays on as the backstop — watch narrows latency, it never carries correctness).
+> **Also shipped 2026-07-08 (ACQ-5):** the **`kafka` connector** — a Kafka topic consumed as a Source. Each
+> scan cycle drains a partition's unconsumed backlog into a **virtual slice file**
+> (`<topic>-p<partition>-<from>-<to>.<ext>`) that flows through the normal batch path — the DB-export
+> virtual-file idiom applied to a stream, so **no core-engine change**. Offsets are **not** a broker consumer
+> group: the connector `assign()`+`seek()`s and the consumed frontier rides the **ledger watermark** (the
+> DB-export machinery), persisted only **after the batch commits** — a crash mid-ingest re-drains the slice
+> rather than skips it (at-least-once). Profile: `host`/`port` (or `options.bootstrap_servers`),
+> `options.topic` (required), optional `username`/`password` for SASL PLAIN
+> (`options.security_protocol`/`sasl_mechanism`), `options.start: earliest|latest` first-run position,
+> `options.max_records` per-partition cap, `options.payload: envelope|raw` (envelope = one JSON object per
+> record; raw = the value verbatim, for CSV-over-Kafka), `options.export_ext`, and `kafka.*` client
+> passthrough. `kafka-clients` (3.9.x, broker-compatible back to 2.1) is confined to `inspecto-connectors`;
+> the tests drive the in-jar `MockConsumer`, so the suite needs no broker.
+> **Still future** (this SPI makes each non-disruptive): Azure Blob (native API), GCS (native API), and a
+> presigned-URL / STS credential mode for s3.
 
 **GOAL:**
 * **The system guarantees that every eligible data source file is collected exactly once (or according to policy), safely, efficiently, and recoverable regardless of where the file resides**
-* **There would be other source connectors like `Kafka`, `DataBase Tables` etc type of sources to create Data Lake House System (future)**
+* **There would be other source connectors (`Kafka` streaming + `DataBase Tables` export shipped; more to come) to create a Data Lake House System**
 
 
 ## 1. Data Source (File) Connectivity
@@ -42,16 +70,27 @@ The system shall support collecting files from multiple source types through a p
   * SFTP
   * SSH/SCP
   * SSH Tunneling and Proxy (future)
-  * SMB/CIFS (future)
-  * NFS (future)
+  * SMB/CIFS — via an **OS-mounted share** (see note)
+  * NFS — via an **OS-mounted share** (see note)
 * **Database export file**
   * Collect exported file from database table (Postgres) using sql template
   * SSH Tunnel and collect exported file from database (Postgres)
 * **Object Storage**
-  * Amazon S3 (future)
-  * Google Cloud Storage (future)
-  * Azure Blob Storage (future)
-  * MinIO (future)
+  * Amazon S3 — `connector: s3` (SDK-free, SigV4 in-tree)
+  * MinIO — `connector: s3` (`options.protocol: http` for a LAN endpoint)
+  * Google Cloud Storage — `connector: s3` in GCS interoperability (HMAC) mode; native API future
+  * Azure Blob Storage (future — different auth/API family)
+* **Streaming**
+  * Apache Kafka topic — `connector: kafka` (drained per cycle into slice files; offsets in the ledger, no consumer group)
+
+> **Network shares (NFS/SMB/CIFS) — the mounted-share pattern.** The engine deliberately has **no**
+> in-process SMB/NFS client, and the config safety validator **rejects UNC paths** (`\\server\share`) at the
+> path jail — that is the security boundary, not a gap. To collect from a share: mount it at the OS level
+> (Windows `net use X: \\server\share /persistent:yes`, Linux `mount -t nfs|cifs … /mnt/share`), add the
+> mount point to the path jail via `-Dassist.safety.roots=<existing roots>;X:\` (a `;`-separated list), and
+> point the source's `dirs.poll` (or `base_path`) at the mounted path. The built-in `local` connector then
+> handles discovery/stability/dedup identically to a local inbox — credentials, reconnection, and caching
+> stay the OS's job, where they are audited and battle-tested.
 * **Grouping Data Source**
   * Has different collection point and file types
   * Tagging
