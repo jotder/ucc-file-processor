@@ -242,10 +242,13 @@ public final class PipelineConfig {
                          List<String> excludes, int recursiveDepth, Stability stability, String connection,
                          Duplicate duplicate, Guarantee guarantee, GapDetection gapDetection,
                          Fetch fetch, Retry retry, CircuitBreaker circuitBreaker, PostActionConfig postAction,
-                         Incremental incremental) {
+                         Incremental incremental, String discovery) {
         public Source {
             includes = List.copyOf(includes);
             excludes = List.copyOf(excludes);
+            // ACQ-6: how new files are noticed — interval "poll" (default) or filesystem-event "watch"
+            // (local sources only; the poll loop stays on as the backstop either way).
+            discovery = (discovery == null || discovery.isBlank()) ? "poll" : discovery.trim().toLowerCase();
             if (stability == null) stability = Stability.DISABLED;
             if (duplicate == null) duplicate = Duplicate.PATH_DEFAULT;
             if (guarantee == null) guarantee = Guarantee.BEST_EFFORT;
@@ -308,8 +311,11 @@ public final class PipelineConfig {
     /**
      * Duplicate-detection + change policy for a source (Data Acquisition roadmap Phase C; additive,
      * {@code source.duplicate:}). {@code mode} selects how a re-seen path is judged — {@code path} (default =
-     * today's {@code MarkerManager} sentinel), {@code metadata} (name+size+mtime), or {@code checksum}
-     * ({@code algorithm} ∈ MD5/SHA256/CRC32, computed at processing time). {@code on_change} chooses what
+     * today's {@code MarkerManager} sentinel), {@code metadata} (name+size+mtime), {@code checksum}
+     * ({@code algorithm} ∈ MD5/SHA256/CRC32, computed at processing time), or {@code etag} (ACQ-7: the
+     * connector-supplied listing etag/object version, falling back to metadata when the connector has neither
+     * — pre-fetch-capable, so an unchanged remote object is skipped without a download). {@code on_change}
+     * chooses what
      * happens when a known path's content changed: {@code ignore}/{@code reprocess}/{@code alert}/
      * {@code archive_old_version}. Parsed into {@link com.gamma.acquire.DuplicatePolicy} enums by the engine.
      *
@@ -581,7 +587,8 @@ public final class PipelineConfig {
         this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
                 b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection, b.sourceDuplicate,
                 b.sourceGuarantee, b.sourceGapDetection,
-                b.sourceFetch, b.sourceRetry, b.sourceCircuitBreaker, b.sourcePostAction, b.sourceIncremental);
+                b.sourceFetch, b.sourceRetry, b.sourceCircuitBreaker, b.sourcePostAction, b.sourceIncremental,
+                b.sourceDiscovery);
         this.statusDirToPrepare = b.statusDirToPrepare;
         this.active = b.active;
         this.trigger = b.trigger;
@@ -760,6 +767,7 @@ public final class PipelineConfig {
         CircuitBreaker  sourceCircuitBreaker = CircuitBreaker.DISABLED;
         PostActionConfig sourcePostAction = PostActionConfig.RETAIN;
         Incremental     sourceIncremental = Incremental.DISABLED;
+        String          sourceDiscovery = "poll";
         String outputFormat  = "CSV";
         String compression;
         Map<String, Object> duckLakeCfg;

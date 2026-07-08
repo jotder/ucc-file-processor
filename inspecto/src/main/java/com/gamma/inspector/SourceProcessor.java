@@ -305,7 +305,9 @@ public class SourceProcessor {
      * cycle and the read-only {@code countPending} scan. <b>CHECKSUM</b> must read the file to hash it; that
      * happens <em>only on the run path</em> ({@code emitSignals}), and the hash is stashed for the post-commit
      * record so the file isn't hashed twice. On {@code countPending} CHECKSUM degrades to a metadata
-     * approximation, so a dashboard poll never hashes.
+     * approximation, so a dashboard poll never hashes. <b>ETAG</b> (ACQ-7) compares the connector's listing
+     * etag/version (free — carried on the {@link RemoteFile}) and degrades to size+mtime when neither side has
+     * one; the listing identity is stashed alongside the checksum for the post-commit record.
      */
     private static List<File> ledgerFilter(PipelineConfig cfg, List<RemoteFile> ready, boolean emitSignals)
             throws java.io.IOException {
@@ -335,15 +337,17 @@ public class SourceProcessor {
                 if (emitSignals) cs = Checksums.of(p, dup.algorithm());
                 else decideMode = DuplicatePolicy.Mode.METADATA;
             }
-            switch (DuplicatePolicy.decide(decideMode, prior, size, mtime, cs)) {
+            switch (DuplicatePolicy.decide(decideMode, prior, size, mtime, cs, rf.etag(), rf.version())) {
                 case NEW -> {
                     if (checksum && emitSignals) AcquisitionLedgers.stashChecksum(p, cs);
+                    if (emitSignals) AcquisitionLedgers.stashListing(p, rf.etag(), rf.version());
                     out.add(p.toFile());
                 }
                 case CHANGED -> {
                     if (emitSignals && DuplicatePolicy.alertsOnChange(onChange)) AcquisitionTelemetry.emitFileChanged(cfg, rf);
                     if (DuplicatePolicy.reprocessOnChange(onChange)) {
                         if (checksum && emitSignals) AcquisitionLedgers.stashChecksum(p, cs);
+                        if (emitSignals) AcquisitionLedgers.stashListing(p, rf.etag(), rf.version());
                         out.add(p.toFile());
                     } else if (emitSignals) {
                         AcquisitionTelemetry.incDuplicatesSkipped(cfg);

@@ -85,6 +85,26 @@ public final class AcquisitionLedgers {
         return file.toAbsolutePath().normalize().toString();
     }
 
+    // ── listing-identity handoff (ACQ-7) ───────────────────────────────────────────
+    // Mirrors the checksum handoff: the connector's listing etag/version live on the RemoteFile, which
+    // BatchProcessor.commit never sees (it works on local Files) — so SourceProcessor stashes them here at
+    // dedup time and the post-commit ledger record picks them up. Same orphan semantics as above.
+
+    /** A stashed listing identity: the connector-supplied {@code etag} and object {@code version} (either nullable). */
+    public record Listing(String etag, String version) {}
+
+    private static final ConcurrentHashMap<String, Listing> PENDING_LISTINGS = new ConcurrentHashMap<>();
+
+    /** Stash the listing etag/version for {@code file}, to be recorded at commit; no-op when both are null. */
+    public static void stashListing(Path file, String etag, String version) {
+        if (etag != null || version != null) PENDING_LISTINGS.put(key(file), new Listing(etag, version));
+    }
+
+    /** Take (and remove) the stashed listing identity for {@code file}, or {@code null} if none was stashed. */
+    public static Listing takeListing(Path file) {
+        return PENDING_LISTINGS.remove(key(file));
+    }
+
     // ── DB-export row-level watermark handoff ──────────────────────────────────────
     // Mirrors the checksum handoff above: a DB-export connector computes the new max watermark while writing its
     // CSV in fetchTo and stashes it here, keyed by the staged file. BatchProcessor.commit takes it AFTER the batch

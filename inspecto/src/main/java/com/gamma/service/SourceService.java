@@ -203,6 +203,9 @@ public final class SourceService implements AutoCloseable {
      *  {@link #agent}, discovered/registered the same way; {@code null} when the
      *  {@code file-processor-intelligence} module is absent. */
     private volatile IntelligenceAgent intelligenceAgent;
+    /** Push discovery for local {@code source.discovery: watch} sources (ACQ-6); {@code null} when no
+     *  source opts in. Started in {@link #start()}, closed first in {@link #close()}. */
+    private SourceWatcher watcher;
     /** Loaded {@code *_meta.toon} semantic models (KPI catalog + domain notes) feeding the catalog. */
     private final List<SemanticModel> semanticModels;
     /** The metadata graph / data catalog (M2): config-derived structure + lazy operational overlay. */
@@ -348,6 +351,17 @@ public final class SourceService implements AutoCloseable {
         this.alerting = alertRules.isEmpty() ? null
                 : new com.gamma.alert.AlertService(alertRules, configSource, this.status, this.objects);
         if (alerting != null) {
+            // BI-5: measure rules evaluate a Dataset measure via the headless BI evaluator. Both roots
+            // resolve lazily — the write root is a -D property, the data root is this space's data dir.
+            alerting.measureProbe(new com.gamma.query.DatasetMeasureProbe(
+                    () -> {
+                        String wr = System.getProperty("assist.write.root");
+                        return (wr == null || wr.isBlank()) ? null : java.nio.file.Path.of(wr);
+                    },
+                    () -> {
+                        String dd = root.dataDir();
+                        return (dd == null || dd.isBlank()) ? null : java.nio.file.Path.of(dd);
+                    })::value);
             bus.subscribe(alerting::onEvent);
             log.info("Alert engine armed with {} rule(s)", alertRules.size());
         }
@@ -617,6 +631,12 @@ public final class SourceService implements AutoCloseable {
         // poll cycle so no commit is missed; flows with no event trigger ignore every event.
         bus.subscribe(this::onUpstreamCommit);
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
+        // ACQ-6 push discovery: filesystem events on local `source.discovery: watch` poll roots trigger an
+        // immediate single-pipeline run (same ingestLock as the loop above, which stays on as the backstop).
+        watcher = SourceWatcher.startFor(configRegistry.all(), name -> {
+            try { runPipeline(name); }
+            catch (RuntimeException ex) { log.warn("Watch-triggered run of '{}' failed: {}", name, ex.getMessage()); }
+        });
         // SLA sweep (Phase 3, v4.4.0): periodically breach overdue, unresolved INCIDENTs — each new breach
         // emits an OBJECT_SLA_BREACH event. Always scheduled (a cheap no-op when there are no incidents);
         // -Dobjects.sla.sweep.seconds sets the cadence (default 60), <=0 disables it.
@@ -967,6 +987,7 @@ public final class SourceService implements AutoCloseable {
             m.put("includes", s.includes());
             m.put("excludes", s.excludes());
             m.put("recursiveDepth", s.recursiveDepth());
+            m.put("discovery", s.discovery());
             m.put("duplicateMode", s.duplicate().mode());
             m.put("duplicateOnChange", s.duplicate().onChange());
             m.put("guarantee", s.guarantee().name());
@@ -982,6 +1003,17 @@ public final class SourceService implements AutoCloseable {
             out.add(m);
         }
         return out;
+    }
+
+    /** The registered pipeline owning source {@code sourceId} (ACQ-6 push discovery); empty if none. */
+    public Optional<String> pipelineForSourceId(String sourceId) {
+        if (sourceId == null || sourceId.isBlank()) return Optional.empty();
+        String t = sourceId.trim();
+        for (ConfigRegistry.Entry e : configRegistry.all()) {
+            PipelineConfig.Source s = e.config().source();
+            if (s != null && t.equals(s.id())) return Optional.of(e.id());
+        }
+        return Optional.empty();
     }
 
     /** Whether any registered pipeline's source binds to this connection id (blocks a UI delete). */
@@ -1030,20 +1062,25 @@ public final class SourceService implements AutoCloseable {
      * {@link #runPipeline}, so the request thread never blocks on the ETL run.
      */
     public Optional<String> triggerRunAsync(String pipelineName) {
+        return triggerRunAsync(pipelineName, "manual");
+    }
+
+    /** {@link #triggerRunAsync(String)} with an explicit trigger label ({@code manual} | {@code notify} — ACQ-6). */
+    public Optional<String> triggerRunAsync(String pipelineName, String trigger) {
         if (pathFor(pipelineName).isEmpty()) return Optional.empty();
         String runId = newPipelineRunId(pipelineName);
         String start = LocalDateTime.now().format(RUN_AT_TS);
-        liveRuns.put(runId, new PipelineRun(runId, pipelineName, "manual", start, null, "RUNNING", -1, -1, null));
+        liveRuns.put(runId, new PipelineRun(runId, pipelineName, trigger, start, null, "RUNNING", -1, -1, null));
         triggerWorkers.submit(() -> {
             try {
                 MultiSourceProcessor.RunResult res =
                         runPipeline(pipelineName).orElse(new MultiSourceProcessor.RunResult(0, 0));
-                liveRuns.put(runId, new PipelineRun(runId, pipelineName, "manual", start,
+                liveRuns.put(runId, new PipelineRun(runId, pipelineName, trigger, start,
                         LocalDateTime.now().format(RUN_AT_TS), "SUCCESS", res.total(), res.failed(),
                         res.failed() + " of " + res.total() + " file(s) failed"));
             } catch (RuntimeException e) {
-                log.error("Manual pipeline run '{}' ({}) failed", pipelineName, runId, e);
-                liveRuns.put(runId, new PipelineRun(runId, pipelineName, "manual", start,
+                log.error("{} pipeline run '{}' ({}) failed", trigger, pipelineName, runId, e);
+                liveRuns.put(runId, new PipelineRun(runId, pipelineName, trigger, start,
                         LocalDateTime.now().format(RUN_AT_TS), "FAILED", 0, 0, String.valueOf(e.getMessage())));
             }
         });
@@ -1084,6 +1121,7 @@ public final class SourceService implements AutoCloseable {
 
     @Override
     public void close() {
+        if (watcher != null) { watcher.close(); watcher = null; }   // stop push triggers before draining runs
         if (agent != null) {                           // release agent resources first
             try { agent.close(); }
             catch (Exception e) { log.warn("Error closing assist agent '{}': {}", agent.name(), e.getMessage()); }

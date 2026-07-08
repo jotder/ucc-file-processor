@@ -11,7 +11,11 @@ import static org.junit.jupiter.api.Assertions.*;
 class DuplicatePolicyTest {
 
     private static LedgerEntry prior(long size, String checksum, long mtime) {
-        return new LedgerEntry("S", "f.csv", "f.csv", size, checksum, mtime, 0L, LedgerEntry.PROCESSED);
+        return prior(size, checksum, mtime, null, null);
+    }
+
+    private static LedgerEntry prior(long size, String checksum, long mtime, String etag, String version) {
+        return new LedgerEntry("S", "f.csv", "f.csv", size, checksum, etag, version, mtime, 0L, LedgerEntry.PROCESSED);
     }
 
     @Test
@@ -42,6 +46,29 @@ class DuplicatePolicyTest {
     }
 
     @Test
+    void etagComparesListingIdentity() {
+        LedgerEntry p = prior(100, null, 10, "e1", "v1");
+        // etag is the strongest dimension: it decides even when size+mtime agree/disagree
+        assertEquals(Decision.DUPLICATE, DuplicatePolicy.decide(Mode.ETAG, p, 999, 999, null, "e1", "v2"));
+        assertEquals(Decision.CHANGED,   DuplicatePolicy.decide(Mode.ETAG, p, 100, 10,  null, "e2", "v1"));
+        // no prior at all ⇒ NEW
+        assertEquals(Decision.NEW, DuplicatePolicy.decide(Mode.ETAG, null, 1, 1, null, "e1", "v1"));
+    }
+
+    @Test
+    void etagFallsBackToVersionThenMetadata() {
+        // etag absent on one side ⇒ version decides
+        LedgerEntry versionOnly = prior(100, null, 10, null, "v1");
+        assertEquals(Decision.DUPLICATE, DuplicatePolicy.decide(Mode.ETAG, versionOnly, 999, 999, null, null, "v1"));
+        assertEquals(Decision.CHANGED,   DuplicatePolicy.decide(Mode.ETAG, versionOnly, 100, 10,  null, null, "v2"));
+
+        // neither side has etag/version ⇒ degrade to size+mtime (METADATA semantics)
+        LedgerEntry bare = prior(100, null, 10, null, null);
+        assertEquals(Decision.DUPLICATE, DuplicatePolicy.decide(Mode.ETAG, bare, 100, 10, null, null, null));
+        assertEquals(Decision.CHANGED,   DuplicatePolicy.decide(Mode.ETAG, bare, 101, 10, null, null, null));
+    }
+
+    @Test
     void onChangePolicyDrivesReprocessAndAlert() {
         assertFalse(DuplicatePolicy.reprocessOnChange(OnChange.IGNORE));
         assertTrue(DuplicatePolicy.reprocessOnChange(OnChange.REPROCESS));
@@ -55,6 +82,7 @@ class DuplicatePolicyTest {
     void configStringsMapToEnums() {
         assertEquals(Mode.CHECKSUM, Mode.from("checksum"));
         assertEquals(Mode.METADATA, Mode.from("METADATA"));
+        assertEquals(Mode.ETAG, Mode.from("etag"));
         assertEquals(Mode.PATH, Mode.from("anything-else"));
         assertEquals(Mode.PATH, Mode.from(null));
         assertEquals(OnChange.ARCHIVE_OLD_VERSION, OnChange.from("archive_old_version"));

@@ -225,19 +225,28 @@ final class RemoteAcquisitionHandler {
     /**
      * Would this remote file be skipped as a known duplicate <em>before</em> spending bandwidth to fetch it?
      * PATH dedup: a marker for its staging location already exists. METADATA dedup: the listing's size+mtime
-     * match the ledger fingerprint. CHECKSUM can't decide without the bytes, so it never pre-skips (the file is
-     * fetched and {@code ledgerFilter} decides on content). Dedup off ⇒ never a duplicate.
+     * match the ledger fingerprint. ETAG dedup (ACQ-7): the listing's etag/version matches the fingerprint
+     * (falling back to size+mtime when the connector supplies neither). CHECKSUM can't decide without the
+     * bytes, so it never pre-skips (the file is fetched and {@code ledgerFilter} decides on content). Dedup
+     * off ⇒ never a duplicate.
      */
     private static boolean isKnownDuplicate(PipelineConfig cfg, RemoteFile rf, Path pollRoot) {
         if (!cfg.processing().duplicateCheckEnabled()) return false;
         PipelineConfig.Duplicate dup = cfg.source().duplicate();
         if (!dup.contentBased())
             return MarkerManager.isAlreadyProcessed(pollRoot.resolve(rf.relativePath()).toFile(), cfg);
-        if (DuplicatePolicy.Mode.from(dup.mode()) == DuplicatePolicy.Mode.METADATA
-                && rf.hasSize() && rf.lastModified() != null) {
+        DuplicatePolicy.Mode mode = DuplicatePolicy.Mode.from(dup.mode());
+        boolean hasMetadata = rf.hasSize() && rf.lastModified() != null;
+        if (mode == DuplicatePolicy.Mode.METADATA && hasMetadata) {
             LedgerEntry prior = AcquisitionLedgers.shared().find(cfg.source().id(), rf.relativePath()).orElse(null);
             return DuplicatePolicy.decide(DuplicatePolicy.Mode.METADATA, prior, rf.size(),
                     rf.lastModified().toEpochMilli(), null) == DuplicatePolicy.Decision.DUPLICATE;
+        }
+        if (mode == DuplicatePolicy.Mode.ETAG && (rf.etag() != null || rf.version() != null || hasMetadata)) {
+            LedgerEntry prior = AcquisitionLedgers.shared().find(cfg.source().id(), rf.relativePath()).orElse(null);
+            long mtime = rf.lastModified() != null ? rf.lastModified().toEpochMilli() : Long.MIN_VALUE;
+            return DuplicatePolicy.decide(DuplicatePolicy.Mode.ETAG, prior, rf.size(), mtime,
+                    null, rf.etag(), rf.version()) == DuplicatePolicy.Decision.DUPLICATE;
         }
         return false;
     }

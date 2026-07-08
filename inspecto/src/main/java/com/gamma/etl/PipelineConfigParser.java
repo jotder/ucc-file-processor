@@ -323,6 +323,8 @@ final class PipelineConfigParser {
             // Reusable connection-profile binding (resolved against the service's *_connection.toon registry;
             // remote-connector construction from it is roadmap Phase E — the id is parsed/stored now).
             b.sourceConnection = opt(src, "connection", null);
+            // ACQ-6 push discovery: poll (default) | watch (filesystem events on a local poll root).
+            b.sourceDiscovery = opt(src, "discovery", "poll");
 
             // ── duplicate-detection / change policy (Phase C; additive, absent ⇒ PATH = today) ─────────
             Map<String, Object> dupBlock = (Map<String, Object>) src.get("duplicate");
@@ -362,7 +364,7 @@ final class PipelineConfigParser {
             if (b.sourceGuarantee.requiresLedger() && !b.sourceDuplicate.contentBased())
                 log.warn("[CONFIG] source.guarantee={} needs a fingerprint ledger, but source.duplicate.mode "
                         + "is 'path' (marker-only) — behaving as best-effort + commit-log replay. Set "
-                        + "source.duplicate.mode to metadata or checksum to enforce it.", b.sourceGuarantee);
+                        + "source.duplicate.mode to metadata, checksum or etag to enforce it.", b.sourceGuarantee);
 
             // ── retrieval tuning: parallel fetch + rate limit (Phase E/F; additive, absent ⇒ sequential/unthrottled) ──
             Map<String, Object> fetchBlock = (Map<String, Object>) src.get("fetch");
@@ -413,7 +415,7 @@ final class PipelineConfigParser {
                 log.warn("[CONFIG] source.incremental.watermark is set but source.duplicate.mode is 'path' "
                         + "(marker-only) — the watermark is derived from the fingerprint ledger, which path mode "
                         + "does not populate, so incremental filtering will not engage. Set source.duplicate.mode "
-                        + "to metadata or checksum.");
+                        + "to metadata, checksum or etag.");
         }
 
         log.info("[CONFIG] Status file : {}", b.statusFilePath);

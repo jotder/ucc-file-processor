@@ -61,6 +61,26 @@ public interface AcquisitionLedger extends AutoCloseable {
      */
     default void recordDbWatermark(String sourceKey, String value) {}
 
+    /**
+     * Delete fingerprints processed before {@code processedBefore} (epoch millis), optionally scoped to one
+     * {@code sourceId} (PIP-7 {@code ledger_prune} maintenance task). Returns the number of rows removed.
+     *
+     * <p><b>Deliberate forgetting:</b> a pruned file that still exists at the source will look NEW on the next
+     * scan and be reprocessed — retention must sit beyond the source's own file lifetime. The default
+     * implementation prunes nothing.
+     */
+    default int prune(long processedBefore, String sourceId) {
+        return 0;
+    }
+
+    /**
+     * Run backend maintenance on the ledger's storage (PIP-7 {@code db_maintenance} task): for a DB-backed
+     * ledger, merge the WAL and reclaim space ({@code CHECKPOINT} / {@code VACUUM}) over the store's own
+     * connection — DuckDB is single-writer, so maintenance must ride the live connection, never a second one.
+     * Best-effort; the default is a no-op.
+     */
+    default void maintenance() {}
+
     /** Release resources (e.g. a DuckDB connection). Idempotent; no-op for in-memory. */
     @Override
     default void close() {}

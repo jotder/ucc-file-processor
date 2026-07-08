@@ -108,6 +108,7 @@ final class AuditTrail {
                 case "pause" -> "paused";
                 case "resume" -> "resumed";
                 case "reprocess" -> "reprocessed";
+                case "notify" -> "notified";      // POST /sources/{id}/notify (ACQ-6 push discovery)
                 case "ack" -> "acknowledged";
                 case "resolve" -> "resolved";
                 case "transition" -> "transitioned";

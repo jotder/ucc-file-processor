@@ -136,8 +136,14 @@ public final class BatchProcessor {
                         checksum = AcquisitionLedgers.takeChecksum(filePath);
                         if (checksum == null) checksum = com.gamma.acquire.Checksums.of(filePath, dupAlgorithm);
                     }
+                    // Listing identity (ACQ-7): the connector's etag/version, stashed at dedup time — recorded
+                    // whenever the listing carried them, whatever the mode, so a later switch to etag dedup
+                    // starts from a populated ledger.
+                    AcquisitionLedgers.Listing listing = AcquisitionLedgers.takeListing(filePath);
                     ledgerEntries.add(new LedgerEntry(sourceId, rel, m.file().getName(),
-                            Files.size(filePath), checksum, Files.getLastModifiedTime(filePath).toMillis(),
+                            Files.size(filePath), checksum,
+                            listing != null ? listing.etag() : null, listing != null ? listing.version() : null,
+                            Files.getLastModifiedTime(filePath).toMillis(),
                             System.currentTimeMillis(), LedgerEntry.PROCESSED));
                 } catch (IOException ignore) { /* vanished pre-backup — skip recording this member */ }
             }

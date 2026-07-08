@@ -196,7 +196,7 @@ class SourceConfigTest {
             String originalCs = Checksums.of(f, "SHA256");
 
             // pretend it was already processed with the original content
-            ledger.record(new LedgerEntry("CS_SRC", "a.csv", "a.csv", size, originalCs,
+            ledger.record(new LedgerEntry("CS_SRC", "a.csv", "a.csv", size, originalCs, null, null,
                     mtime.toMillis(), 1L, LedgerEntry.PROCESSED));
 
             // content changes (same byte length), mtime forced back — METADATA would call this a duplicate

@@ -8,11 +8,14 @@ package com.gamma.acquire;
  *
  * <p>{@code checksum} is populated only in {@link DuplicatePolicy.Mode#CHECKSUM} mode (it requires reading the
  * file, so it is computed at processing time, not at discovery); {@code size}/{@code lastModified} carry the
- * cheap metadata fingerprint. {@code processedAt} is epoch-millis; {@code status} is a short lifecycle tag
- * (normally {@link #PROCESSED}).
+ * cheap metadata fingerprint. {@code etag}/{@code version} (ACQ-7) are the connector-supplied listing identity
+ * ({@link RemoteFile#etag()}/{@link RemoteFile#version()}) — recorded whenever the listing carried them, compared
+ * in {@link DuplicatePolicy.Mode#ETAG} mode. {@code processedAt} is epoch-millis; {@code status} is a short
+ * lifecycle tag (normally {@link #PROCESSED}).
  */
 public record LedgerEntry(String sourceId, String relativePath, String name, long size,
-                          String checksum, long lastModified, long processedAt, String status) {
+                          String checksum, String etag, String version,
+                          long lastModified, long processedAt, String status) {
 
     /** The usual {@link #status} of a recorded entry: the file's batch committed. */
     public static final String PROCESSED = "PROCESSED";
@@ -20,6 +23,6 @@ public record LedgerEntry(String sourceId, String relativePath, String name, lon
     /** A fingerprint with no checksum (METADATA/PATH modes). */
     public static LedgerEntry metadata(String sourceId, String relativePath, String name,
                                        long size, long lastModified, long processedAt) {
-        return new LedgerEntry(sourceId, relativePath, name, size, null, lastModified, processedAt, PROCESSED);
+        return new LedgerEntry(sourceId, relativePath, name, size, null, null, null, lastModified, processedAt, PROCESSED);
     }
 }

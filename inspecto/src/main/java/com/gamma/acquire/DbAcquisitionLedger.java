@@ -29,7 +29,8 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
     private static final Logger log = LoggerFactory.getLogger(DbAcquisitionLedger.class);
 
     private static final String TABLE = "inspecto_acquisition_ledger";
-    private static final String COLS = "source_id, relative_path, name, size, checksum, last_modified, processed_at, status";
+    // "object_version" not "version" — the latter is dialect-risky (cf. the reserved-word bites: day/trigger).
+    private static final String COLS = "source_id, relative_path, name, size, checksum, etag, object_version, last_modified, processed_at, status";
     private static final String WM_TABLE = "inspecto_acquisition_db_watermark";
 
     private final Connection conn;
@@ -70,15 +71,17 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
                 del.executeUpdate();
             }
             try (PreparedStatement ins = conn.prepareStatement(
-                    "INSERT INTO " + TABLE + " (" + COLS + ") VALUES (?,?,?,?,?,?,?,?)")) {
+                    "INSERT INTO " + TABLE + " (" + COLS + ") VALUES (?,?,?,?,?,?,?,?,?,?)")) {
                 ins.setString(1, e.sourceId());
                 ins.setString(2, e.relativePath());
                 ins.setString(3, e.name());
                 ins.setLong(4, e.size());
                 ins.setString(5, e.checksum());
-                ins.setLong(6, e.lastModified());
-                ins.setLong(7, e.processedAt());
-                ins.setString(8, e.status());
+                ins.setString(6, e.etag());
+                ins.setString(7, e.version());
+                ins.setLong(8, e.lastModified());
+                ins.setLong(9, e.processedAt());
+                ins.setString(10, e.status());
                 ins.executeUpdate();
             }
         } catch (SQLException ex) {
@@ -142,6 +145,31 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
     }
 
     @Override
+    public synchronized int prune(long processedBefore, String sourceId) {
+        String sql = "DELETE FROM " + TABLE + " WHERE processed_at < ?"
+                + (sourceId != null ? " AND source_id = ?" : "");
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, processedBefore);
+            if (sourceId != null) ps.setString(2, sourceId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new IllegalStateException("ledger prune failed: " + e.getMessage(), e);
+        }
+    }
+
+    /** CHECKPOINT + VACUUM, each best-effort — Postgres restricts CHECKPOINT to superusers, DuckDB allows both. */
+    @Override
+    public synchronized void maintenance() {
+        for (String stmt : new String[]{"CHECKPOINT", "VACUUM"}) {
+            try (Statement st = conn.createStatement()) {
+                st.execute(stmt);
+            } catch (SQLException e) {
+                log.warn("ledger maintenance: {} failed (continuing): {}", stmt, e.getMessage());
+            }
+        }
+    }
+
+    @Override
     public void close() {
         try {
             conn.close();
@@ -156,8 +184,13 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE IF NOT EXISTS " + TABLE + " ("
                     + "source_id VARCHAR, relative_path VARCHAR, name VARCHAR, size BIGINT, "
-                    + "checksum VARCHAR, last_modified BIGINT, processed_at BIGINT, status VARCHAR, "
+                    + "checksum VARCHAR, etag VARCHAR, object_version VARCHAR, "
+                    + "last_modified BIGINT, processed_at BIGINT, status VARCHAR, "
                     + "PRIMARY KEY (source_id, relative_path))");
+            // ACQ-7 migration: a ledger created before the etag/version dimensions gains the columns in place
+            // (supported by both bundled DuckDB and Postgres; existing rows read back NULL = "listing carried none").
+            st.execute("ALTER TABLE " + TABLE + " ADD COLUMN IF NOT EXISTS etag VARCHAR");
+            st.execute("ALTER TABLE " + TABLE + " ADD COLUMN IF NOT EXISTS object_version VARCHAR");
             // Row-level DB-export watermark (resumable incremental export): one opaque value per source key,
             // advanced only after a batch commits. Its own table, not a fake row in the fingerprint table.
             st.execute("CREATE TABLE IF NOT EXISTS " + WM_TABLE + " ("
@@ -175,6 +208,8 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
                 rs.getString("name"),
                 rs.getLong("size"),
                 rs.getString("checksum"),
+                rs.getString("etag"),
+                rs.getString("object_version"),
                 rs.getLong("last_modified"),
                 rs.getLong("processed_at"),
                 rs.getString("status"));

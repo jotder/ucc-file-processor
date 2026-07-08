@@ -17,13 +17,18 @@ public final class DuplicatePolicy {
     public enum Mode {
         /** Path seen before ⇒ duplicate (today's {@code MarkerManager} sentinel semantics). */ PATH,
         /** Compare name+size+mtime (cheap; no file read). */                                    METADATA,
-        /** Compare a content checksum (read at processing time). */                             CHECKSUM;
+        /** Compare a content checksum (read at processing time). */                             CHECKSUM,
+        /** Compare the connector-supplied etag/version from the listing (ACQ-7; free — no fetch, no file
+         *  read). Falls back to version when the etag is absent, then to size+mtime when neither side has
+         *  either — so a connector without {@code ETAG}/{@code VERSIONING} capability degrades to METADATA. */
+        ETAG;
 
         public static Mode from(String s) {
             if (s == null) return PATH;
             return switch (s.trim().toUpperCase()) {
                 case "METADATA" -> METADATA;
                 case "CHECKSUM" -> CHECKSUM;
+                case "ETAG" -> ETAG;
                 default -> PATH;
             };
         }
@@ -56,6 +61,18 @@ public final class DuplicatePolicy {
      * @param checksum the candidate's content checksum, required only in {@link Mode#CHECKSUM}
      */
     public static Decision decide(Mode mode, LedgerEntry prior, long size, long lastModified, String checksum) {
+        return decide(mode, prior, size, lastModified, checksum, null, null);
+    }
+
+    /**
+     * Decide NEW / DUPLICATE / CHANGED for a candidate given its prior ledger entry (or {@code null} if none).
+     *
+     * @param checksum the candidate's content checksum, required only in {@link Mode#CHECKSUM}
+     * @param etag     the candidate's listing etag, consulted only in {@link Mode#ETAG} (nullable)
+     * @param version  the candidate's listing object version, consulted only in {@link Mode#ETAG} (nullable)
+     */
+    public static Decision decide(Mode mode, LedgerEntry prior, long size, long lastModified,
+                                  String checksum, String etag, String version) {
         if (prior == null) return Decision.NEW;
         return switch (mode) {
             case PATH -> Decision.DUPLICATE;
@@ -63,6 +80,16 @@ public final class DuplicatePolicy {
                     ? Decision.DUPLICATE : Decision.CHANGED;
             case CHECKSUM -> (checksum != null && checksum.equals(prior.checksum()))
                     ? Decision.DUPLICATE : Decision.CHANGED;
+            case ETAG -> {
+                // Strongest dimension both sides carry wins: etag, then version, then the metadata fallback —
+                // an etag that differs is CHANGED even when size+mtime happen to match.
+                if (etag != null && prior.etag() != null)
+                    yield etag.equals(prior.etag()) ? Decision.DUPLICATE : Decision.CHANGED;
+                if (version != null && prior.version() != null)
+                    yield version.equals(prior.version()) ? Decision.DUPLICATE : Decision.CHANGED;
+                yield (prior.size() == size && prior.lastModified() == lastModified)
+                        ? Decision.DUPLICATE : Decision.CHANGED;
+            }
         };
     }
 
