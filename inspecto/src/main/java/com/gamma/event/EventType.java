@@ -97,6 +97,9 @@ public final class EventType {
     public static final String EXCHANGE_DENIED    = "EXCHANGE_DENIED";
     /** An owner revoked an active grant — the consumer's access is withdrawn (fail-closed). */
     public static final String EXCHANGE_REVOKED   = "EXCHANGE_REVOKED";
+    /** A new snapshot of an offered Dataset was published to the Exchange (S2); {@code owner}/{@code item}/
+     *  {@code version}/{@code rows} attributes carry the refresh. Consumers can gate their own jobs on it. */
+    public static final String EXCHANGE_REFRESHED = "EXCHANGE_REFRESHED";
 
     // ── operational-object bridge (Phase 2 ties back to here) ───────────────────────
     public static final String ALERT_FIRED     = "ALERT_FIRED";

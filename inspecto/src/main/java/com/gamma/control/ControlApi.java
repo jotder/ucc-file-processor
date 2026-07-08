@@ -247,6 +247,9 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         this.legacySunset = sunsetHeader(System.getProperty("api.legacy.sunset"));
         this.http    = createServer(port);
         this.http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+        // Teach DatasetRelation to resolve shared/<owner>/<item> refs to the owner's Exchange snapshot,
+        // grant-checked for the calling space (a no-op resolver until installed — fail-closed).
+        com.gamma.query.SharedRefResolver.install(new ExchangeRefResolver(spaces));
         registerRoutes();
         this.http.createContext("/", this::dispatch);
         // Fail-closed at the edge (W6): resolve the edition's Authenticator now, not on the first

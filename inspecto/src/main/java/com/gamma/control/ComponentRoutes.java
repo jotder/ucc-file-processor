@@ -148,6 +148,12 @@ final class ComponentRoutes implements RouteModule {
         if (!refs.isEmpty())
             throw new ApiException(409, type + " component '" + id + "' is referenced by flow(s): "
                     + String.join(", ", refs));
+        // Deletion fence extends to the Exchange: an offered item still shared with other Spaces cannot be
+        // deleted out from under its consumers (fail-closed; revoke the grant(s) first).
+        List<String> consumers = activeConsumers(api, type, id);
+        if (!consumers.isEmpty())
+            throw new ApiException(409, type + " component '" + id + "' is shared with space(s): "
+                    + String.join(", ", consumers) + " — revoke the grant(s) first");
         boolean removed;
         try {
             removed = store.delete(type, id);
@@ -250,6 +256,18 @@ final class ComponentRoutes implements RouteModule {
     private static String sampleText(Map<String, Object> body) {
         Object t = body.get("sampleText");
         return t == null ? "" : t.toString();
+    }
+
+    /** Consumer Spaces holding an <em>active</em> Exchange grant on {@code type/id} owned by the bound Space. */
+    private static List<String> activeConsumers(ApiContext api, String type, String id) {
+        com.gamma.exchange.Exchange ex = com.gamma.exchange.Exchange.under(api.spaces().containerRoot());
+        if (!ex.enabled()) return List.of();
+        String owner = com.gamma.event.EventLog.currentSpaceId();
+        return ex.grants().stream()
+                .filter(g -> com.gamma.exchange.ShareGrant.ACTIVE.equals(g.status())
+                        && type.equals(g.kind()) && id.equals(g.item()) && owner.equals(g.owner()))
+                .map(com.gamma.exchange.ShareGrant::consumer)
+                .toList();
     }
 
     private static boolean componentExists(ComponentStore store, String type, String id) {

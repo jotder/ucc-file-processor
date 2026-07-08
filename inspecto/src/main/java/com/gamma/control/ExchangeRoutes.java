@@ -4,6 +4,8 @@ import com.gamma.event.Event;
 import com.gamma.event.EventLog;
 import com.gamma.event.EventType;
 import com.gamma.exchange.Exchange;
+import com.gamma.exchange.ExchangeSnapshots;
+import com.gamma.exchange.ExchangeSnapshotWriter;
 import com.gamma.exchange.Offer;
 import com.gamma.exchange.ShareGrant;
 import com.gamma.pipeline.ComponentStore;
@@ -42,6 +44,8 @@ final class ExchangeRoutes implements RouteModule {
         api.get("/exchange/offers", (e, m) -> listOffers(api, e));
         api.post("/exchange/offers", ApiContext.withCapability("canOfferDatasets",
                 (e, m) -> putOffer(api, e)));
+        api.post("/exchange/refresh", ApiContext.withCapability("canOfferDatasets",
+                (e, m) -> refresh(api, e)));
         api.post("/exchange/requests", ApiContext.withCapability("canRequestShares",
                 (e, m) -> requestGrant(api, e)));
         api.post("/exchange/grants/([^/]+)/(approve|deny|revoke)", ApiContext.withCapability("canApproveShares",
@@ -58,8 +62,45 @@ final class ExchangeRoutes implements RouteModule {
         String owner = ApiContext.query(e, "owner");
         return ex.offers().stream()
                 .filter(o -> owner == null || owner.equals(o.owner()))
-                .map(Offer::toMap)
+                .map(o -> withFreshness(ex, o.toMap(), o.owner(), o.item()))
                 .toList();
+    }
+
+    /** Refresh an offered Dataset's Exchange snapshot from the owner's current data (S2 snapshot mode). */
+    private Object refresh(ApiContext api, HttpExchange e) throws java.io.IOException {
+        Exchange ex = requireExchange(api);
+        Map<String, Object> body = api.body(e);
+        String owner = requireSpace(api, ApiContext.str(body, "owner"), "owner");
+        String item  = requireItem(body);
+        if (ex.offer(owner, "dataset", item).isEmpty())
+            throw new ApiException(404, "no offered dataset " + owner + "/" + item);
+        SpaceContext ctx = api.spaces().space(SpaceId.of(owner))
+                .orElseThrow(() -> new ApiException(404, "no such space '" + owner + "'"));
+        java.nio.file.Path config = ctx.root().config();
+        if (config == null) throw new ApiException(409, "space '" + owner + "' has no registry");
+        try {
+            ExchangeSnapshots.SnapshotMeta meta = ExchangeSnapshotWriter.publish(
+                    ex.dir(), owner, config.resolve("registry"),
+                    java.nio.file.Path.of(ctx.root().dataDir()), ctx.root().base().resolve("views"), item);
+            Event.Builder b = Event.builder(EventType.EXCHANGE_REFRESHED).source("exchange")
+                    .message("refreshed dataset " + owner + "/" + item + " → " + meta.version())
+                    .actor(ApiContext.actor(e)).actorType("user")
+                    .attr("owner", owner).attr("kind", "dataset").attr("item", item)
+                    .attr("version", meta.version()).attr("rows", meta.rows());
+            EventLog.current().emit(b);
+            return meta.toMap();
+        } catch (IllegalArgumentException bad) {
+            throw new ApiException(422, bad.getMessage());
+        } catch (Exception fail) {
+            throw new ApiException(500, "snapshot failed: " + fail.getMessage());
+        }
+    }
+
+    /** Merge the live snapshot's freshness into an offer/metadata map, when a snapshot has been published. */
+    private static Map<String, Object> withFreshness(Exchange ex, Map<String, Object> out, String owner, String item) {
+        ExchangeSnapshots.readCurrent(ExchangeSnapshots.itemDir(ex.dir(), owner, item))
+                .ifPresent(meta -> out.put("freshness", meta.toMap()));
+        return out;
     }
 
     private Object putOffer(ApiContext api, HttpExchange e) throws java.io.IOException {
@@ -144,7 +185,7 @@ final class ExchangeRoutes implements RouteModule {
         Exchange ex = requireExchange(api);
         Offer offer = ex.offer(owner, "dataset", item)
                 .orElseThrow(() -> new ApiException(404, "no offered dataset " + owner + "/" + item));
-        Map<String, Object> out = new LinkedHashMap<>(offer.toMap());
+        Map<String, Object> out = withFreshness(ex, new LinkedHashMap<>(offer.toMap()), owner, item);
         String consumer = ApiContext.query(e, "consumer");
         if (consumer != null)
             ex.grant(ShareGrant.idFor("dataset", item, owner, consumer))

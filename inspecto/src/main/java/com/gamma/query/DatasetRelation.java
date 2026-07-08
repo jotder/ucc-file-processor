@@ -60,14 +60,35 @@ public final class DatasetRelation {
         }
         String ref = str(datasetConfig, "physicalRef");
         if (ref != null) {
-            if (dataRoot == null)
-                throw new IllegalArgumentException("no data root for this space; cannot resolve physicalRef");
             if (ref.contains("..") || !SAFE_REF.matcher(ref).matches())
                 throw new IllegalArgumentException("unsafe dataset physicalRef '" + ref + "'");
-            String glob = dataRoot.resolve(ref).normalize().toString().replace('\\', '/') + "/**/*.parquet";
+            // A shared/<owner>/<item> ref routes to the owner's Exchange snapshot (grant-checked, fail-closed)
+            // instead of this space's data root — everything downstream reads it as an ordinary Parquet glob.
+            Path base = ref.startsWith(SHARED_PREFIX)
+                    ? resolveShared(ref)
+                    : localBase(ref, dataRoot);
+            String glob = base.normalize().toString().replace('\\', '/') + "/**/*.parquet";
             return "SELECT * FROM read_parquet(" + sqlStr(glob) + ")";
         }
         throw new IllegalArgumentException("dataset must declare a 'view' or a 'physicalRef'");
+    }
+
+    private static final String SHARED_PREFIX = "shared/";
+
+    private static Path localBase(String ref, Path dataRoot) {
+        if (dataRoot == null)
+            throw new IllegalArgumentException("no data root for this space; cannot resolve physicalRef");
+        return dataRoot.resolve(ref);
+    }
+
+    /** Resolve a {@code shared/<owner>/<item>} ref to its snapshot dir via the installed {@link SharedRefResolver}. */
+    private static Path resolveShared(String ref) {
+        String[] parts = ref.substring(SHARED_PREFIX.length()).split("/", -1);
+        if (parts.length != 2 || parts[0].isEmpty() || parts[1].isEmpty())
+            throw new IllegalArgumentException("malformed shared ref '" + ref + "' (expected shared/<owner>/<item>)");
+        return SharedRefResolver.global().resolveSnapshot(parts[0], parts[1])
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "shared dataset '" + ref + "' is not available (no active grant, or no snapshot published yet)"));
     }
 
     /** Wrap {@code base} with the dataset's calculated columns (DAT-5), or return it untouched when none. */
