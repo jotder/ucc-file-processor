@@ -20,10 +20,10 @@ import java.util.List;
  * into a ready {@code AgentService}. P0 scope deliberately ships:
  *
  * <ul>
- *   <li><b>no RAG corpus</b> ({@link #knowledgeSources()} is empty) — grounding comes from the
- *       read tool belt ({@code glossary_lookup}/{@code docs_search}/{@code status_get}) instead,
- *       which avoids standing up the ONNX embedding + ingestion path before it's verified
- *       offline-safe in CI; a fast-follow once that's proven.</li>
+ *   <li><b>a one-document RAG corpus</b> ({@link #knowledgeSources()}: just {@code docs/GLOSSARY.md},
+ *       see {@link InspectoKnowledgeSources}) — proven offline-safe in CI before widening to the
+ *       full OKF/docs corpus, a fast-follow. The read tool belt (in {@link InspectoToolProvider})
+ *       still grounds everything else.</li>
  *   <li><b>QA only</b> — the eoiagent host layer ({@code DefaultAgentSession}) always drives
  *       {@code GoalKind.QA} today, so {@link InspectoPromptProfile}'s other per-kind prompts are
  *       groundwork for P1/P2, not yet exercised.</li>
@@ -52,7 +52,7 @@ public final class InspectoPack implements ApplicationPack {
 
     @Override
     public List<KnowledgeSource> knowledgeSources() {
-        return List.of();
+        return InspectoKnowledgeSources.sources();
     }
 
     @Override

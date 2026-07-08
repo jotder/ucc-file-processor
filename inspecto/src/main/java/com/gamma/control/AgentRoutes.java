@@ -1,9 +1,16 @@
 package com.gamma.control;
 
+import com.gamma.intelligence.AgentAnswerSink;
 import com.gamma.intelligence.AgentAskRequest;
+import com.gamma.intelligence.AgentAskResult;
 import com.gamma.intelligence.AgentSessionRequest;
 import com.gamma.intelligence.spi.IntelligenceAgent;
+import com.sun.net.httpserver.HttpExchange;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -34,6 +41,62 @@ final class AgentRoutes implements RouteModule {
                 throw new ApiException(404, ex.getMessage());
             }
         });
+        api.post("/agent/sessions/(.+)/ask/stream", (e, m) -> {
+            Map<String, Object> body = api.body(e);
+            String question = ApiContext.str(body, "question");
+            if (question == null) throw new ApiException(400, "question is required");
+            Object page = body.get("page");
+            streamAsk(agentOr503(api), ApiContext.name(m), new AgentAskRequest(question, mapField(page)), e);
+            return ApiContext.HANDLED;
+        });
+    }
+
+    /**
+     * Server-Sent Events variant of {@code ask}: one {@code data:} event per token, then a terminal
+     * {@code event: complete} carrying the {@link AgentAskResult} JSON, or {@code event: error}. An
+     * unknown session surfaces as an {@code error} SSE frame (never a 404) — the response's headers,
+     * including the status, are already committed by the time streaming starts.
+     */
+    private void streamAsk(IntelligenceAgent agent, String sessionId, AgentAskRequest request, HttpExchange e) {
+        try {
+            e.getResponseHeaders().set("Content-Type", "text/event-stream");
+            e.getResponseHeaders().set("Cache-Control", "no-cache");
+            e.sendResponseHeaders(200, 0); // 0 => chunked transfer, unknown total length
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+        OutputStream out = e.getResponseBody();
+        AgentAnswerSink sink = new AgentAnswerSink() {
+            @Override public void onToken(String token) { writeSse(out, null, token); }
+            @Override public void onComplete(AgentAskResult result) {
+                try {
+                    writeSse(out, "complete", ApiContext.JSON.writeValueAsString(result));
+                } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+                    writeSse(out, "error", "failed to serialize the answer: " + ex.getMessage());
+                }
+            }
+            @Override public void onError(String message) { writeSse(out, "error", message); }
+        };
+        try {
+            agent.askStream(sessionId, request, sink);
+        } catch (UncheckedIOException ex) {
+            // Client disconnected mid-stream; headers are already sent so there's nothing left to
+            // respond with — swallow rather than let ControlApi.dispatch try to write a second response.
+        }
+    }
+
+    /** Writes one SSE frame (multi-line {@code data} split across {@code data:} lines) and flushes. */
+    private static void writeSse(OutputStream out, String event, String data) {
+        try {
+            StringBuilder frame = new StringBuilder();
+            if (event != null) frame.append("event: ").append(event).append('\n');
+            for (String line : data.split("\n", -1)) frame.append("data: ").append(line).append('\n');
+            frame.append('\n');
+            out.write(frame.toString().getBytes(StandardCharsets.UTF_8));
+            out.flush();
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
     }
 
     /** The in-process intelligence agent, or 503 when the optional module is absent. */

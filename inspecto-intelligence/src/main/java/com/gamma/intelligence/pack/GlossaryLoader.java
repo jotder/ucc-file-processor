@@ -23,19 +23,25 @@ import java.util.regex.Pattern;
 final class GlossaryLoader {
 
     private static final Logger log = LoggerFactory.getLogger(GlossaryLoader.class);
-    private static final Path GLOSSARY_PATH = Path.of("docs", "GLOSSARY.md");
     private static final Pattern ENTRY = Pattern.compile("^\\*\\*([^*]+)\\*\\*\\s*[—-]+\\s*(.+)$");
 
     private GlossaryLoader() {
     }
 
+    /** {@code <repo root>/docs/GLOSSARY.md}, or the CWD-relative default when the repo root can't be found. */
+    static Path glossaryPath() {
+        return RepoPaths.root().map(r -> r.resolve("docs").resolve("GLOSSARY.md"))
+                .orElse(Path.of("docs", "GLOSSARY.md"));
+    }
+
     static Map<String, String> load() {
+        Path glossaryPath = glossaryPath();
         Map<String, String> terms = new LinkedHashMap<>();
         List<String> lines;
         try {
-            lines = Files.readAllLines(GLOSSARY_PATH);
+            lines = Files.readAllLines(glossaryPath);
         } catch (IOException e) {
-            log.warn("Could not read {} for the domain glossary: {}", GLOSSARY_PATH, e.getMessage());
+            log.warn("Could not read {} for the domain glossary: {}", glossaryPath, e.getMessage());
             return Map.of();
         }
         for (String line : lines) {

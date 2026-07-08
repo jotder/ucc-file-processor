@@ -27,7 +27,7 @@ import java.util.stream.Stream;
  */
 final class InspectoTools {
 
-    private static final Path DOCS_ROOT = Path.of("docs");
+    private static final Path DOCS_ROOT = RepoPaths.root().map(r -> r.resolve("docs")).orElse(Path.of("docs"));
     private static final int DOCS_SEARCH_MAX_HITS = 10;
 
     private InspectoTools() {

@@ -1,5 +1,6 @@
 package com.gamma.intelligence.spi;
 
+import com.gamma.intelligence.AgentAnswerSink;
 import com.gamma.intelligence.AgentAskRequest;
 import com.gamma.intelligence.AgentAskResult;
 import com.gamma.intelligence.AgentSessionRequest;
@@ -49,6 +50,21 @@ public interface IntelligenceAgent extends AutoCloseable {
      * for an unknown/closed {@code sessionId} — the control plane maps that to HTTP 404.
      */
     AgentAskResult ask(String sessionId, AgentAskRequest request);
+
+    /**
+     * Ask a question, streaming tokens to {@code sink} as they're produced (AGT-5, hardening pass).
+     * Additive default: delivers the whole {@link #ask} answer as a single {@code onComplete} call
+     * (no real per-token streaming) and reports an unknown session via {@link AgentAnswerSink#onError}
+     * instead of throwing — so an implementation that doesn't support streaming keeps compiling and
+     * degrades to a post-hoc "stream" rather than breaking the route.
+     */
+    default void askStream(String sessionId, AgentAskRequest request, AgentAnswerSink sink) {
+        try {
+            sink.onComplete(ask(sessionId, request));
+        } catch (IllegalArgumentException e) {
+            sink.onError(e.getMessage());
+        }
+    }
 
     /** Released on service shutdown. Default no-op. */
     @Override default void close() {}

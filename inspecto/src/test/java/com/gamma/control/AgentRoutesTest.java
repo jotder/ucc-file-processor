@@ -91,6 +91,31 @@ class AgentRoutesTest {
     }
 
     @Test
+    void askStreamRoundTripsAsServerSentEvents(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
+            HttpResponse<String> opened = send(ctx.port(), "POST", "/agent/sessions", "{}");
+            String sessionId = JSON.readTree(opened.body()).get("sessionId").asText();
+
+            HttpResponse<String> streamed = send(ctx.port(), "POST",
+                    "/agent/sessions/" + sessionId + "/ask/stream", "{\"question\":\"stream this\"}");
+            assertEquals(200, streamed.statusCode());
+            assertEquals("text/event-stream", streamed.headers().firstValue("Content-Type").orElse(null));
+            assertTrue(streamed.body().contains("event: complete"));
+            assertTrue(streamed.body().contains("echo: stream this"));
+        }
+    }
+
+    @Test
+    void askStreamOnAnUnknownSessionIsAnErrorEventNotA404(@TempDir Path dir) throws Exception {
+        try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
+            HttpResponse<String> r = send(ctx.port(), "POST",
+                    "/agent/sessions/does-not-exist/ask/stream", "{\"question\":\"hi\"}");
+            assertEquals(200, r.statusCode()); // headers are already committed by the time the error is known
+            assertTrue(r.body().contains("event: error"));
+        }
+    }
+
+    @Test
     void askWithoutAQuestionIs400(@TempDir Path dir) throws Exception {
         try (Ctx ctx = open(dir, new FakeIntelligenceAgent())) {
             HttpResponse<String> opened = send(ctx.port(), "POST", "/agent/sessions", "{}");

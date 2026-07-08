@@ -7,10 +7,13 @@ import com.eoiagent.core.Capability;
 import com.eoiagent.core.DeploymentProfile;
 import com.eoiagent.core.GoalKind;
 import com.eoiagent.core.Role;
+import com.eoiagent.knowledge.DocumentSource;
 import com.eoiagent.tool.Tool;
 import com.gamma.service.SourceService;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -42,10 +45,14 @@ class InspectoPackTest {
     }
 
     @Test
-    void p0ShipsNoRagCorpusYet() {
+    void knowledgeSourceResolvesToAReadableGlossaryFile() {
         List<KnowledgeSource> sources = pack.knowledgeSources();
-        assertNotNull(sources);
-        assertTrue(sources.isEmpty());
+        assertEquals(1, sources.size());
+        KnowledgeSource source = sources.get(0);
+        assertFalse(source.resolve().isEmpty());
+        for (DocumentSource doc : source.resolve()) {
+            assertTrue(Files.isRegularFile(Path.of(doc.uri())), "readable file at " + doc.uri());
+        }
     }
 
     @Test

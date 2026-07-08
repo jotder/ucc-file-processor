@@ -3,12 +3,15 @@ package com.gamma.intelligence;
 import com.eoiagent.core.AgentAnswer;
 import com.eoiagent.core.Citation;
 import com.eoiagent.core.DeploymentProfile;
+import com.eoiagent.core.EoiAgentException;
+import com.eoiagent.core.InlineArtifact;
 import com.eoiagent.core.NavigationIntent;
 import com.eoiagent.core.PageContext;
 import com.eoiagent.core.Role;
 import com.eoiagent.core.UserId;
 import com.eoiagent.core.UserMessage;
 import com.eoiagent.host.AgentSession;
+import com.eoiagent.host.AnswerSink;
 import com.eoiagent.host.SessionRequest;
 import com.eoiagent.model.LlmGateway;
 import com.eoiagent.platform.AgentPlatform;
@@ -90,6 +93,22 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
         }
         AgentAnswer answer = session.ask(new UserMessage(request.question(), toPageContext(request.page()), Instant.now()));
         return toResult(answer);
+    }
+
+    @Override
+    public void askStream(String sessionId, AgentAskRequest request, AgentAnswerSink sink) {
+        AgentSession session = sessions.get(sessionId);
+        if (session == null) {
+            sink.onError("unknown intelligence session: '" + sessionId + "'");
+            return;
+        }
+        UserMessage msg = new UserMessage(request.question(), toPageContext(request.page()), Instant.now());
+        session.askStream(msg, new AnswerSink() {
+            @Override public void onToken(String token) { sink.onToken(token); }
+            @Override public void onArtifact(InlineArtifact artifact) { /* P0 answers never carry one */ }
+            @Override public void onComplete(AgentAnswer finalAnswer) { sink.onComplete(toResult(finalAnswer)); }
+            @Override public void onError(EoiAgentException error) { sink.onError(error.getMessage()); }
+        });
     }
 
     @Override
