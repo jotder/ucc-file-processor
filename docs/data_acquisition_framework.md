@@ -51,8 +51,16 @@
 > record; raw = the value verbatim, for CSV-over-Kafka), `options.export_ext`, and `kafka.*` client
 > passthrough. `kafka-clients` (3.9.x, broker-compatible back to 2.1) is confined to `inspecto-connectors`;
 > the tests drive the in-jar `MockConsumer`, so the suite needs no broker.
-> **Still future** (this SPI makes each non-disruptive): Azure Blob (native API), GCS (native API), and a
-> presigned-URL / STS credential mode for s3.
+> **Also shipped 2026-07-08 (ACQ-4, second half):** the **`azure` connector** — Azure Blob Storage spoken
+> directly over the JDK `HttpClient` with in-tree **SharedKey** signing (**no Azure SDK**; the same
+> discipline as the s3 connector). Profile: `host`/`port` = the blob endpoint, `username` = storage
+> account, `password` = account key (SecretResolver reference), `base_path: container[/prefix]`,
+> `options.protocol: https|http` (http for a LAN Azurite). List Blobs pagination via `NextMarker`;
+> listing **Etags feed `RemoteFile.etag`** (ACQ-7 pre-fetch skip); blobs are atomic ⇒ readiness READY;
+> Range-resume fetch; MOVE/RENAME = Copy Blob + Delete guarded on `x-ms-copy-status: success` (a pending
+> copy never deletes the source); TAG = Set Blob Tags.
+> **Still future** (this SPI makes each non-disruptive): GCS (native API — interop mode covers it today,
+> demand-gated), and a presigned-URL / STS credential mode for s3.
 
 **GOAL:**
 * **The system guarantees that every eligible data source file is collected exactly once (or according to policy), safely, efficiently, and recoverable regardless of where the file resides**
@@ -78,8 +86,8 @@ The system shall support collecting files from multiple source types through a p
 * **Object Storage**
   * Amazon S3 — `connector: s3` (SDK-free, SigV4 in-tree)
   * MinIO — `connector: s3` (`options.protocol: http` for a LAN endpoint)
-  * Google Cloud Storage — `connector: s3` in GCS interoperability (HMAC) mode; native API future
-  * Azure Blob Storage (future — different auth/API family)
+  * Google Cloud Storage — `connector: s3` in GCS interoperability (HMAC) mode; native API demand-gated
+  * Azure Blob Storage — `connector: azure` (SDK-free, SharedKey in-tree; Azurite-compatible)
 * **Streaming**
   * Apache Kafka topic — `connector: kafka` (drained per cycle into slice files; offsets in the ledger, no consumer group)
 

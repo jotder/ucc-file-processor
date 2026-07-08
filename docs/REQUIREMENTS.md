@@ -76,7 +76,7 @@ AI-driven autonomy without redesign.
 | ACQ-1 | **Connections**: named endpoint+credential definitions (SFTP/FTP/FTPS, database), reused by many Sources | Must | SHIPPED | All |
 | ACQ-2 | **Sources**: configured collection tasks (paths/queries, cadence, filename patterns, dedup policy) bound to one Connection | Must | SHIPPED | All |
 | ACQ-3 | Acquisition framework: ledgers, dedup, watermarks, gap detection, retry (Phases A–F) | Must | SHIPPED | All |
-| ACQ-4 | Object-storage (S3/GCS/Azure/MinIO) + network-share (NFS/SMB) connectors on the connector SPI | **Must** | PARTIAL (2026-07-08: `connector: s3` — SDK-free SigV4 over JDK HttpClient, covers S3/MinIO/GCS-interop, etags feed ACQ-7; NFS/SMB = documented OS-mounted-share pattern, UNC stays jail-rejected by design. Still open: Azure Blob + GCS native APIs) | All |
+| ACQ-4 | Object-storage (S3/GCS/Azure/MinIO) + network-share (NFS/SMB) connectors on the connector SPI | **Must** | SHIPPED (2026-07-08: `connector: s3` — SDK-free SigV4, covers S3/MinIO/GCS-interop; `connector: azure` — SDK-free SharedKey signing over JDK HttpClient, List Blobs pagination + Range resume + copy-status-guarded MOVE, etags feed ACQ-7, Azurite-compatible for LAN testing; NFS/SMB = documented OS-mounted-share pattern, UNC stays jail-rejected by design. GCS *native* API remains demand-gated — interop mode covers it today) | All |
 | ACQ-5 | Streaming source consumer (e.g. Kafka topic as a Source) | Should | SHIPPED (2026-07-08: `connector: kafka` — a topic drained per scan cycle into virtual slice files on the existing SourceConnector SPI, no core-engine change; `assign()`+`seek()`, no consumer group — the consumed frontier rides the ledger watermark and is persisted only post-commit (at-least-once, DB-export machinery); envelope-NDJSON or raw-value payloads, retention clamp + `max_records` cap, optional SASL PLAIN; kafka-clients 3.9.2 confined to inspecto-connectors, tested offline via in-jar `MockConsumer`, no broker) | All |
 | ACQ-6 | Push/event-driven file discovery (replace poll where the remote can notify) | Could | SHIPPED (2026-07-08: `POST /sources/{id}/notify` — external systems trigger an immediate scan, 202+runId on v1, `canOperateRuns`-gated, audited as `source.notified`; plus `source.discovery: watch` — WatchService push for local/mounted inboxes, debounced, poll loop stays on as backstop) | All |
 | ACQ-7 | etag/version-aware dedup dimensions | Should | SHIPPED (2026-07-08: `source.duplicate.mode: etag` — pre-fetch skip on the connector's listing etag/object version; ledger columns `etag`/`object_version` with in-place migration; degrades to size+mtime when the connector supplies neither) | All |
@@ -111,8 +111,8 @@ AI-driven autonomy without redesign.
 | DAT-1 | **Dataset** umbrella (Table / Derived Table / View) over partitioned Parquet, described by Schemas, browsable in the Catalog | Must | SHIPPED | All |
 | DAT-2 | **Query** as a first-class Component (`sql \| structured`) + Query Library + `$`-**Parameters** + **Result Set** descriptor | Must | SHIPPED (R3+W4) | All |
 | DAT-3 | Live query execution `POST /queries/{id}/run` on DuckDB with server-side parameter resolution | Must | SHIPPED (2026-07-08: the missing server-side *structured* evaluator is BI-7's `POST /bi/query` — spec-based measures/dimensions/filters compiled and executed server-side; `query` components stay `type: sql` and the 422 on `type: structured` remains the honest boundary (no client authors them). Minor caveat: pagination stays offset-based) | All |
-| DAT-4 | **Matrix** materialization: persisted summary Derived Tables as managed assets | Should | PLANNED — **scoped 2026-07-08**: a `materialize` job task on the existing jobs runner (`COPY (spec-compiled SELECT) TO` a partitioned store + register/refresh the `dataset` component), riding the BI-7 compiler + PIP-7's stage-and-atomic-swap discipline; ~1 focused shift, no new subsystem | All |
-| DAT-5 | Row-level calculated columns on Datasets | Should | PLANNED — **scoped 2026-07-08**: the blocker is expression safety, not plumbing (a calculated column is caller SQL *fragments* inside the trusted relation — SqlGuard checks whole statements). Needs a ½-shift design first (validated expression grammar vs. fragment-mode guard), then ~½ shift to wrap `DatasetRelation` | All |
+| DAT-4 | **Matrix** materialization: persisted summary Derived Tables as managed assets | Should | SHIPPED (2026-07-08: `task: materialize` on the maintenance runner — BI-7 spec-compiled SELECT (or raw snapshot) over the source Dataset's trusted relation, `COPY TO` Parquet with PIP-7's hide-old/reveal-new atomic swap (crash leaves only glob-invisible leftovers, self-cleaning), and the target registered/refreshed as a normal `dataset` component — so a Matrix is queryable everywhere a Dataset is, zero net-new read paths) | All |
+| DAT-5 | Row-level calculated columns on Datasets | Should | SHIPPED (2026-07-08: `dataset.calculated: [{name, expr}]` — `DatasetRelation` wraps the base relation `SELECT *, (expr) AS name`; every expr passes the new **`ExpressionGuard`** (fragment-level safety: closed token alphabet + keyword deny-set killing subquery smuggling + function-call whitelist killing `read_parquet`/UDFs + comment-sequence rejection; design: `superpower/calculated-columns-design.md`); fail-closed 422, inherited by every consumer incl. DAT-4 materialization. Deliberate v1 cuts: no window/aggregate functions, no quoted identifiers) | All |
 | DAT-6 | Optional Postgres state store (swap embedded state) | Should | SHIPPED (2026-07-07: all 6 JDBC state stores — jobs/provenance/objects/links/notes/status — verified against real Postgres via embedded-PG test; DuckDB-only `quantile_cont` made dialect-aware; `postgres` backend alias; PG driver on classpath = `inspecto-connectors`) | S/E |
 
 ### 3.5 BI Studio & presentation (BI) — UI + backend
@@ -155,7 +155,7 @@ AI-driven autonomy without redesign.
 | INC-1 | **Alert Rules** watch Metrics; fired **Alerts** with severity | Must | SHIPPED | All |
 | INC-2 | **Alert → Incident → Case** lifecycle, object-link graph, SLA, comments | Must | SHIPPED | All |
 | INC-3 | **Notification** delivery channels (email/webhook) + per-user preferences | **Must** | SHIPPED (2026-07-07: webhook channel in core, SMTP in connectors, `notify.*` sysprops, `ALERT_FIRED` rule; preferences remain single-global until the auth module adds users) | All |
-| INC-4 | Incident workflow depth: queues, escalation, watchers | Should | PLANNED | All |
+| INC-4 | Incident workflow depth: queues, escalation, watchers | Should | SHIPPED (2026-07-08: **queues** first-class — `*_queue.toon` / `POST /queues`, members + `round_robin`\|`least_loaded`\|`manual` routing via `QueueRouter`; **assignment** `POST /objects/{id}/assign` (person or queue-routed) advances the workflow + emits `OBJECT_ASSIGNED` (the assignment history); **watchers** `POST /objects/{id}/watch`\|`unwatch` + `GET .../watchers`; **escalation** `*_escalation.toon` policy the SLA sweep applies on breach — severity bump + queue re-route + `OBJECT_ESCALATED` notify. Queue store in-memory (Db parity a noted follow-on, as links/notes began); per-user notification delivery still rides the global channel tags) | All |
 | INC-5 | **Diagnosis**: AI-assisted RCA of a failing Run/Source producing an Incident | Should | SHIPPED | All |
 
 ### 3.9 Spaces & tenancy (SPC)
@@ -200,7 +200,7 @@ AI-driven autonomy without redesign.
 | SEC-4 | HTTPS via pure-JDK `HttpsServer` + keystore | Must (S) | SHIPPED | S/E |
 | SEC-5 | BFF session: refresh token never reaches the browser (httpOnly cookie, SameSite=Strict + Origin CSRF) | Must (S) | SHIPPED (W6d) | S/E |
 | SEC-6 | UI OIDC login driven by `bootstrap.features.authMode`; offline/Personal = no-op | Must (S) | SHIPPED (W6d/W7) | S/E |
-| SEC-7 | RBAC/ABAC hardening: reject X-Actor on Standard, **per-resource** `permissions[]`, `canTriageRequirements` backend route, data-scoped grants | **Must (S)** | PARTIAL (2026-07-07: **X-Actor rejected outright when an `Authenticator` is active** (Standard) — actor authoritative from the Subject; Personal unchanged. **`canTriageRequirements` route** shipped — `RequirementRoutes` `/decision`+`/deliver` gated server-side on the capability while submission stays open (with UI-6). **Per-resource `permissions[]`** shipped — the v1 envelope emits `grants ∩ resource state` when a route declares the applicable set (`ApiContext.resourcePermissions`; components/expectations/requirements opted in; design: `superpower/resource-permissions-design.md`). Remaining: data-scoped grants only (deferred per `rbac-groundwork.md` §4 — a product call)) | S/E |
+| SEC-7 | RBAC/ABAC hardening: reject X-Actor on Standard, **per-resource** `permissions[]`, `canTriageRequirements` backend route, data-scoped grants | **Must (S)** | SHIPPED (2026-07-07/08: **X-Actor rejected outright when an `Authenticator` is active** (Standard) — actor authoritative from the Subject; Personal unchanged. **`canTriageRequirements` route** shipped — `RequirementRoutes` `/decision`+`/deliver` gated server-side on the capability while submission stays open (with UI-6). **Per-resource `permissions[]`** shipped — the v1 envelope emits `grants ∩ resource state` when a route declares the applicable set (`ApiContext.resourcePermissions`; components/expectations/requirements opted in; design: `superpower/resource-permissions-design.md`). **Data-scoped grants** shipped 2026-07-08 (SEC-7d, closes `rbac-groundwork.md` §4 Q2, model signed by product in-session: **attribute scopes**) — `Subject.dataScopes` (null = unscoped, every plain role unchanged); an object's `caseType` attribute is the scoping dimension; `ObjectRoutes` row-filters lists, 404s any direct route to an out-of-scope object (read AND mutate, existence-hiding), and prunes the correlation graph; `RoleMapper` resolves scopes from a `data_scopes` claim ∪ `case:<scope>` role names. Personal edition byte-identical (no Subject ever attaches)) | S/E |
 | SEC-8 | Secrets: env/file/keystore; Vault option future | Should | PARTIAL (2026-07-07: `SecretResolver` now does `${ENV}`/`${SYS}`/`${FILE}`/`${KEYSTORE:alias}` (JCEKS, pure-JDK); Vault scope deferred — client not in the lean core) | S/E |
 | SEC-9 | Write-root gate (`-Dassist.write.root` → 503 fail-closed) — separate from auth, always on | Must | SHIPPED | All |
 
@@ -282,15 +282,14 @@ Studio persistence · component metamodel + R1–R6 rework · multi-space · `/a
 
 ### MUST (remaining — the release-gating set, each scoped)
 
-1. **ACQ-4 residual** (Azure Blob; GCS-native) — *mostly closed 2026-07-08 (S3/MinIO/GCS-interop
-   SDK-free; NFS/SMB = mounted-share pattern).* **Scope:** Azure Blob is hand-rollable like S3
-   (SharedKey = HMAC-SHA256 canonicalization + List/Get Blob XML over JDK HttpClient — same shape as
-   `AwsSigV4`/`S3Connector`, ~1 shift, offline-testable against a stub). GCS-native adds only
-   OAuth2/service-account beyond the already-covered interop mode — **defer until a customer needs
-   non-interop GCS**. Owner: next backend shift (Azure); product (GCS demand call).
-2. **SEC-7 residual** (data-scoped grants) — **blocked on a product decision**, not engineering: the
-   grants model for case-type data scoping (`rbac-groundwork.md` §4). Once decided, ~1 shift over the
-   shipped per-resource `permissions[]` seam. Owner: product, then any backend shift.
+1. **ACQ-4** — *CLOSED 2026-07-08* (`connector: azure` shipped: SDK-free SharedKey, stub-tested
+   offline, Azurite-compatible; joins s3/MinIO/GCS-interop + the mounted-share pattern). The one
+   residual is **GCS-native** (OAuth2/service-account beyond the covered interop mode) — **defer
+   until a customer needs non-interop GCS**. Owner: product (demand call only).
+2. **SEC-7** — *CLOSED 2026-07-08* (SEC-7d data-scoped grants shipped: attribute-scope model signed by
+   product in-session; `caseType` visibility enforced server-side across list/read/mutate/graph on the
+   Objects surface; scopes resolved by the security module). Boundary noted: the event/audit streams
+   stay capability-gated, not row-scoped — they are ops surfaces, not case data.
 3. **EOI-7** eoiagent `0.1.0` — *(a) cut + pin* **DONE 2026-07-08** (v0.1.0 tagged, Inspecto pinned,
    R2 closed — no SNAPSHOT dependency remains). Remaining: *(b) publish artifacts* — the registry
    decision (internal Nexus? GitHub Packages?) — an infra/product call, not code. Owner: product/infra;
@@ -303,13 +302,6 @@ caveat (live e2e via `examples/06-serve/pipeline-job`).*
 
 ### SHOULD (remaining — each scoped)
 
-- **DAT-4** Matrix materialization — *scoped (see §3.4 row): a `materialize` job task riding the BI-7
-  compiler + `COPY TO` + dataset registration; ~1 shift.*
-- **DAT-5** Calculated columns — *scoped: expression-safety design first (½ shift), then ½ shift on
-  `DatasetRelation`.*
-- **INC-4** Incident workflow depth (queues, escalation, watchers) — *blocked on product design: the
-  escalation/queue model is a workflow-semantics decision, not plumbing (the object engine + SLA sweep
-  already exist to build on). Engineering after: ~1–2 shifts. Owner: product first.*
 - **API-5** Legacy route sunset — *mechanism SHIPPED 2026-07-08 (deprecation/Sunset headers + the
   `-Dapi.legacy.routes=off` 410 flip; see §3.8 row). Remaining is pure ops/policy: product signs the
   soak criterion (proposal: 30 consecutive days of `inspecto_legacy_api_requests_total` = 0 on a
@@ -374,8 +366,8 @@ template gallery + apply).*
    ACQ-5 (Kafka) shipped the same day on the same SPI once `kafka-clients` landed in the cache.
 3. **Parsing unification (ING-5) before Expectation engine (ING-6)** — Expectations bind to the unified
    schema surface.
-4. **Backend catch-up for mock-first UI**: ~~INV-1, SPC-4, MET-4~~ all closed by 2026-07-08; DAT-4
-   (Matrix materialization) is the last of the set — scoped onto the jobs runner, no net-new subsystem.
+4. **Backend catch-up for mock-first UI**: ~~INV-1, SPC-4, MET-4, DAT-4~~ — the whole set closed by
+   2026-07-08; the mock-first UI surfaces now all have real backends.
 5. **AGT-5 (embedded intelligence)** — P0 shipped 2026-07-07 on product-owner sign-off; **EOI-7(a)**
    landed 2026-07-08 (pinned v0.1.0), so P1 no longer builds on a moving SNAPSHOT.
 6. **API-5 legacy sunset**: the mechanism is in (headers + `-Dapi.legacy.routes=off` flip); only the
