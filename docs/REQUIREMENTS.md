@@ -124,9 +124,9 @@ AI-driven autonomy without redesign.
 | BI-3 | KPI & Reports gallery; dashboard quick-filter bar, drill-through, time grain, PNG export; **Measures** in Explore | Should | SHIPPED | All |
 | BI-4 | Scheduled report/export delivery | Should | SHIPPED (2026-07-08: REPORT job `out_dir`/`format` renders a timestamped JSON/CSV artifact — new `scope: dataset` exports a headless BI query; `REPORT_READY` event → webhook/SMTP notification. Caveat: SMTP delivers the artifact *path*, not an attachment — the SMTP channel is text-only) | S/E |
 | BI-5 | Alerting on **Measures** (BI thresholds raising Alerts) | Could | SHIPPED (2026-07-08: `*_alert.toon` measure rules — `dataset:` + `measure: agg(field)` evaluated via the headless BI evaluator on every sweep, firing the existing ALERT_FIRED→notification path. v1 = whole-dataset measures, no per-rule filters) | All |
-| BI-6 | Public/embedded Dashboard sharing | Could | PARTIAL (2026-07-08 backend: fail-closed HMAC share tokens — inert without `-Dbi.share.secret`, expiring, tamper=404; `POST /dashboards/{n}/share` → anonymous `GET /public/dashboards/{token}` + a public BI query fenced to the dashboard's own datasets. Open: the embed viewer UI) | S/E |
+| BI-6 | Public/embedded Dashboard sharing | Could | SHIPPED (2026-07-08: backend — fail-closed HMAC share tokens (inert without `-Dbi.share.secret`, expiring, tamper=404), anonymous resolve + a public BI query fenced to the dashboard's own datasets. **UI** — `/share/:token` guest embed viewer (no shell, no guard): tiles render read-only through the normal VizPlugin→viz-render path, per-tile data via the fenced query with widget controls mapped back to validated agg/field pairs (measure-id parity with the backend); view-bound/expression-measure widgets degrade to an explicit "not embeddable" tile, per-tile errors never take down the page; `/public` added to the space-interceptor's server-global set; mock answers an honest 501 (no HMAC secret offline). Gauntlet green + live-preview verified) | S/E |
 | BI-7 | Semantic / headless BI API | Could | SHIPPED (2026-07-08: `POST /bi/query` — spec-based measures/dimensions/filters compiled server-side (the declared backend twin of the UI QuerySpec seam), SqlGuard-checked, sandbox-executed; `GET /bi/datasets`. Open follow-up: swapping the UI viz layer onto it) | S/E |
-| BI-8 | Widget/Dashboard template marketplace | Could | PARTIAL (2026-07-08: curated in-instance template gallery — `GET /bi/templates` + parameterized all-or-nothing `apply` writing real Studio-editable components; cross-space sharing stays `/bundle/*`. Open: gallery/browsing UI, external exchange) | All |
+| BI-8 | Widget/Dashboard template marketplace | Could | SHIPPED (2026-07-08: backend — `GET /bi/templates` + parameterized all-or-nothing `apply` writing real Studio-editable components (templates reshaped to UI-native `{vizType, controls}` widgets / `{name, tiles}` dashboards, so applied boards render immediately). **UI** — `/studio/templates` gallery pane over `GET /bi/templates` + an apply dialog (dataset picker + optional id prefix → routes to the created dashboard); nav entry; mock lists offline, apply 501 (writes server-side). Gauntlet green. Cross-space sharing stays `/bundle/*`; an external *marketplace/exchange* remains out of scope by design) | All |
 
 ### 3.6 Investigation studios (INV) — UI + backend
 
@@ -145,7 +145,7 @@ AI-driven autonomy without redesign.
 | OPS-2 | **Metrics** (Prometheus-compatible), incl. `inspecto_legacy_api_requests_total` sunset signal | Must | SHIPPED | All |
 | OPS-3 | Three-layer audit: file/batch audit, provenance rows, immutable who-did-what **Audit Log** | Must | SHIPPED (actor attribution hardening on Standard — see SEC-7) | All |
 | OPS-4 | Durable Run reporting (success rate, p50/p95) | Should | SHIPPED (off by default) | All |
-| OPS-5 | Per-edge **Provenance** + conservation invariant → Alerts + Sankey overlay | Should | PARTIAL (built/tested; off by default; verified vs synthetic data only) | All |
+| OPS-5 | Per-edge **Provenance** + conservation invariant → Alerts + Sankey overlay | Should | PARTIAL (built/tested; off by default; verified vs synthetic data only. Executable verification protocol signed 2026-07-08: `docs/ops/provenance-conservation-verification.md` — enable on a real feed, soak through natural variation, cross-check invariants against ground truth, log the outcome. Cannot close offline; needs the first live deployment to run it) | All |
 | OPS-6 | Record-level lineage & replay (per-record ancestry) | **Won't (now)** | — (per-batch ancestry is the accepted grain) | — |
 
 ### 3.8 Alerts & Incidents (INC) — backend + UI Ops
@@ -186,7 +186,7 @@ AI-driven autonomy without redesign.
 | API-2 | OpenAPI 3.1 contract (`docs/api/openapi-v1.json`) enforced by `ApiContractTest` | Must | SHIPPED (W2) | All |
 | API-3 | Optimistic concurrency: `ContentHash` + ETag / If-None-Match / If-Match on Components | Must | SHIPPED (W3) | All |
 | API-4 | `GET /bootstrap` metadata-first boot (features, `authMode`, permissions) | Must | SHIPPED (W3/W6) | All |
-| API-5 | Legacy (unversioned) route sunset — **soak-gated** on the usage metric | Should | PARTIAL (2026-07-08: the **mechanism** shipped — every legacy response carries `Deprecation` (RFC 9745) + `Link: </api/v1>; rel="successor-version"`, plus `Sunset` (RFC 8594) once `-Dapi.legacy.sunset=YYYY-MM-DD` is signed; `-Dapi.legacy.routes=off` retires the surface with 410→`/api/v1` (infra probes exempt; `inspecto_legacy_api_requests_total` keeps counting residual demand through the off-window). Remaining: the per-deployment soak itself — proposal 30 consecutive days at zero, then flip `off`; physical route-table deletion follows a release later) | All |
+| API-5 | Legacy (unversioned) route sunset — **soak-gated** on the usage metric | Should | SHIPPED (2026-07-08: mechanism — `Deprecation`/`Link`/`Sunset` headers + `-Dapi.legacy.routes=off` → 410 (infra exempt, metric keeps counting) — plus the **soak criterion signed** the same day: **30 consecutive days at zero `inspecto_legacy_api_requests_total` on a deployment ⇒ flip that deployment `off`**. Executable runbook: `docs/ops/legacy-api-sunset-runbook.md` (PromQL query, flip procedure, verification curls). Remaining is pure per-deployment ops execution — no engineering, no open decision) | All |
 | API-6 | Gateway/IAM drop-in: WSO2 gateway + Keycloak blueprints for Standard | Must (S) | SHIPPED (design + security module seams) | S |
 | API-7 | Java embedding API stability policy (SemVer, `@PublicApi`) | Must | SHIPPED | All |
 
@@ -302,13 +302,9 @@ caveat (live e2e via `examples/06-serve/pipeline-job`).*
 
 ### SHOULD (remaining — each scoped)
 
-- **API-5** Legacy route sunset — *mechanism SHIPPED 2026-07-08 (deprecation/Sunset headers + the
-  `-Dapi.legacy.routes=off` 410 flip; see §3.8 row). Remaining is pure ops/policy: product signs the
-  soak criterion (proposal: 30 consecutive days of `inspecto_legacy_api_requests_total` = 0 on a
-  deployment ⇒ set `off` there), then physical route-table deletion one release after every
-  deployment runs `off` clean. No further engineering shift needed.*
-- **OPS-5** Provenance conservation on live data — *not code: a verification protocol run (enable on a
-  real feed, soak, compare invariants). Owner: ops, first live deployment.*
+- **OPS-5** Provenance conservation on live data — *not code: the verification protocol is written
+  and signed (`docs/ops/provenance-conservation-verification.md`); running it needs the first live
+  deployment. Owner: ops, first live deployment.*
 
 *Closed 2026-07-08: **ACQ-7** etag/version dedup · **ACQ-6** push discovery (notify + watch) ·
 **PIP-7** maintenance library (ledger_prune/db_maintenance/compact) · **PIP-6** job templates ·
@@ -330,11 +326,10 @@ P1–P5 remaining).*
 
 ### COULD (remaining — each scoped)
 
-- **BI-6 residual** (embed viewer UI) + **BI-8 residual** (gallery UI) — *one combined UI shift: a
-  chromeless `/public/dashboard/:token` viewer consuming the fenced public query endpoint (the first
-  real consumer of the BI-7 swap seam), a Share dialog, and a Studio gallery pane over
-  `GET /bi/templates`. Prereq check (minutes): align the curated templates' widget `kind` ids with
-  the VizPlugin registry. Backends for both are done.*
+- **BI-6 Share dialog** (residual UX) — *BI-6 (embed viewer) and BI-8 (template gallery) both shipped
+  2026-07-08. The only leftover from the old combined UI shift is a Share dialog on the dashboard
+  editor to mint a link in-app (today `POST /dashboards/{n}/share` is called via the API). Small,
+  ~¼ shift; the fenced public surface it drives is already live.*
 - **MET-5** Component version history — *scoped (see §3.10 row): ~1 shift, no migration.*
 - **SPC-5** Per-tenant ABAC — *Enterprise-tier, demand-gated; design rides SEC-7's grants model —
   do not start before the SEC-7 product decision lands.*
@@ -370,8 +365,9 @@ template gallery + apply).*
    2026-07-08; the mock-first UI surfaces now all have real backends.
 5. **AGT-5 (embedded intelligence)** — P0 shipped 2026-07-07 on product-owner sign-off; **EOI-7(a)**
    landed 2026-07-08 (pinned v0.1.0), so P1 no longer builds on a moving SNAPSHOT.
-6. **API-5 legacy sunset**: the mechanism is in (headers + `-Dapi.legacy.routes=off` flip); only the
-   per-deployment soak on `inspecto_legacy_api_requests_total` — a product/policy call — remains.
+6. **API-5 legacy sunset — CLOSED 2026-07-08**: mechanism + signed soak criterion (30 days at zero)
+   + executable runbook (`docs/ops/legacy-api-sunset-runbook.md`); every remaining step is per-deployment
+   ops execution, not a decision or an engineering task.
 
 ---
 
