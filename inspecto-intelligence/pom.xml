@@ -27,10 +27,12 @@
     </description>
 
     <properties>
-        <!-- Same eoiagent line inspecto-agent pins; kept in lockstep deliberately (one SNAPSHOT
-             version for both optional agent modules built from C:/sandbox/agent-brainstorm). -->
+        <!-- Same eoiagent line inspecto-agent pins; kept in lockstep deliberately (one version for
+             both optional agent modules). EOI-7a (2026-07-08): pinned to the released 0.1.0 (tag
+             v0.1.0 in C:/sandbox/agent-brainstorm); reproduce the artifact with
+             `git checkout v0.1.0 && mvn -o clean install` until a registry is chosen (EOI-7b). -->
         <langchain4j.version>1.16.3</langchain4j.version>
-        <eoiagent.version>0.1.0-SNAPSHOT</eoiagent.version>
+        <eoiagent.version>0.1.0</eoiagent.version>
     </properties>
 
     <dependencies>
