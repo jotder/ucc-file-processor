@@ -1,24 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 260" role="img" aria-label="Inspecto logo">
-  <defs>
-    <clipPath id="emblemClip">
-      <rect x="5" y="5" width="250" height="250" rx="42"/>
-    </clipPath>
-  </defs>
-
-  <!-- Emblem: red / grey split with white swoosh, bold "i" -->
-  <g clip-path="url(#emblemClip)">
-    <rect x="5" y="5" width="250" height="250" fill="#58595B"/>
-    <path d="M5 5 H205 C150 60 70 150 5 235 Z" fill="#D62027"/>
-    <path d="M-20 250 C 90 130 170 60 270 -10 L 300 20 C 190 80 110 160 10 280 Z" fill="#FFFFFF" opacity="0.92"/>
-    <rect x="113" y="112" width="36" height="102" rx="6" fill="#FFFFFF"/>
-    <circle cx="131" cy="76" r="23" fill="#D62027" stroke="#FFFFFF" stroke-width="5"/>
-  </g>
-
-  <!-- Wordmark: i with red dot + NSPECTO -->
-  <g>
-    <rect x="318" y="92" width="42" height="128" rx="4" fill="#F7F6F6"/>
-    <circle cx="339" cy="52" r="27" fill="#D62027"/>
-    <text x="392" y="220" font-family="'Arial Black','Segoe UI Black',Arial,sans-serif"
-          font-weight="900" font-size="170" letter-spacing="6" fill="#F7F6F6">NSPECTO</text>
-  </g>
+<svg
+    width="32"
+    height="32"
+    viewBox="0 0 32 32"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg">
+    <path
+        d="M16 6.75556V0L1.02839 14.6389C0.462304 15.1924 0.457197 16.1016 1.01703 16.6615L3.55556 19.2"
+        fill="#2196F3"/>
+    <path
+        d="M16 6.75556V0L30.9716 14.6389C31.5377 15.1924 31.5428 16.1016 30.983 16.6615L28.4444 19.2"
+        fill="#1878C6"/>
+    <path
+        d="M3.55556 19.2L9.6 13.1556H16V19.2"
+        fill="#1565C0"/>
+    <path
+        d="M28.4444 19.2L22.4 13.1556H16V19.2"
+        fill="#10519D"/>
+    <path
+        d="M16 25.9556H9.95555L12.9778 22.7556L16 25.9556Z"
+        fill="#1565C0"/>
+    <path
+        d="M16 32L22.0444 25.9556L16 25.9556V32Z"
+        fill="#1878C6"/>
+    <path
+        d="M16 32L9.95555 25.9556H16V32Z"
+        fill="#2196F3"/>
+    <path
+        d="M16 25.9556H22.0444L19.0222 22.7556L16 25.9556Z"
+        fill="#10519D"/>
+    <path
+        d="M7.72363 21.7502C7.18605 22.3085 7.19441 23.1944 7.74243 23.7424L9.95556 25.9556L16 19.5556V13.1556"
+        fill="#2196F3"/>
+    <path
+        d="M24.2764 21.7502C24.814 22.3085 24.8056 23.1944 24.2576 23.7424L22.0444 25.9556L16 19.5556V13.1556"
+        fill="#1878C6"/>
 </svg>

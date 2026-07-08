@@ -206,6 +206,18 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private final Idempotency.Store idempotency = new Idempotency.Store();
 
     /**
+     * API-5 sunset flip: {@code -Dapi.legacy.routes=off} answers <b>410 Gone</b> on the unversioned legacy
+     * route aliases once a deployment's soak shows zero residual demand (the
+     * {@code inspecto_legacy_api_requests_total} signal, which keeps counting through the off-window).
+     * Default {@code on} serves them unchanged. The always-unversioned infra probes
+     * (health/ready/metrics) are exempt — they have no v1 semantics.
+     */
+    private final boolean legacyRoutesOff;
+    /** Pre-formatted RFC 8594 {@code Sunset} header from {@code -Dapi.legacy.sunset=YYYY-MM-DD};
+     *  {@code null} until an operator signs a retirement date. */
+    private final String legacySunset;
+
+    /**
      * Control plane over a single running service — wrapped as the {@code default} space. The long-standing
      * single-tenant entry point (and every test); behaviour is unchanged.
      *
@@ -231,6 +243,8 @@ public final class ControlApi implements AutoCloseable, ApiContext {
         this.uiDir   = blank(ui) ? null : Path.of(ui.trim()).toAbsolutePath().normalize();
         String wr    = System.getProperty("assist.write.root");
         this.writeRoot = blank(wr) ? null : Path.of(wr.trim()).toAbsolutePath().normalize();
+        this.legacyRoutesOff = "off".equalsIgnoreCase(System.getProperty("api.legacy.routes", "on").trim());
+        this.legacySunset = sunsetHeader(System.getProperty("api.legacy.sunset"));
         this.http    = createServer(port);
         this.http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         registerRoutes();
@@ -432,6 +446,19 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 if (!m.matches()) continue;
                 pathMatched = true;
                 if (!r.method.equals(method)) continue;
+                // API-5 sunset: a business route reached on the unversioned legacy surface either gets the
+                // deprecation signalling headers (default) or, once the deployment flips
+                // -Dapi.legacy.routes=off after its soak, a 410 pointing at /api/v1. The usage metric keeps
+                // counting either way, so residual demand stays visible through the off-window.
+                boolean legacySurface = !ApiContext.v1(ex) && !isInfraRoute(path);
+                if (legacySurface && legacyRoutesOff) {
+                    recordLegacyUsage(ex, method, path, r);
+                    if (!"GET".equals(method)) AuditTrail.accessDenied(ex, method, path, 410);
+                    respond(ex, 410, Map.of("error",
+                            "the unversioned legacy API surface is retired here (api.legacy.routes=off) — use /api/v1"));
+                    return;
+                }
+                if (legacySurface) markDeprecated(ex);
                 authenticate(ex, path);
                 Object result = r.handler.handle(ex, m);
                 if (result != HANDLED) respond(ex, 200, result);
@@ -637,6 +664,31 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private static boolean isInfraRoute(String path) {
         return path.equals("/health") || path.equals("/ready")
                 || path.equals("/metrics") || path.equals("/metrics/acquisition");
+    }
+
+    /**
+     * API-5 sunset signalling on every legacy (non-v1) response: {@code Deprecation} (RFC 9745 — pinned to
+     * 2026-07-07, the day the SPA finished migrating to {@code /api/v1} and the unversioned aliases became
+     * legacy), a {@code Link} to the successor surface, and {@code Sunset} (RFC 8594) once an operator signs
+     * a retirement date. Set before the handler runs, so the headers ride whatever response it writes.
+     */
+    private void markDeprecated(HttpExchange ex) {
+        var h = ex.getResponseHeaders();
+        h.set("Deprecation", "@1783382400");   // 2026-07-07T00:00:00Z (W7 migration complete)
+        h.set("Link", "</api/v1>; rel=\"successor-version\"");
+        if (legacySunset != null) h.set("Sunset", legacySunset);
+    }
+
+    /** Parse {@code -Dapi.legacy.sunset=YYYY-MM-DD} into an RFC 8594 HTTP-date, or null (unset/unparsable). */
+    private static String sunsetHeader(String isoDate) {
+        if (blank(isoDate)) return null;
+        try {
+            return java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(
+                    java.time.LocalDate.parse(isoDate.trim()).atStartOfDay(java.time.ZoneOffset.UTC));
+        } catch (java.time.format.DateTimeParseException e) {
+            log.warn("[CONFIG] Ignoring unparsable -Dapi.legacy.sunset '{}' (want YYYY-MM-DD)", isoDate);
+            return null;
+        }
     }
 
     private record Route(String method, Pattern pattern, Handler handler) {}
