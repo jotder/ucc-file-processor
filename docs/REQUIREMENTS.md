@@ -186,7 +186,7 @@ AI-driven autonomy without redesign.
 | API-2 | OpenAPI 3.1 contract (`docs/api/openapi-v1.json`) enforced by `ApiContractTest` | Must | SHIPPED (W2) | All |
 | API-3 | Optimistic concurrency: `ContentHash` + ETag / If-None-Match / If-Match on Components | Must | SHIPPED (W3) | All |
 | API-4 | `GET /bootstrap` metadata-first boot (features, `authMode`, permissions) | Must | SHIPPED (W3/W6) | All |
-| API-5 | Legacy (unversioned) route sunset — **soak-gated** on the usage metric | Should | PLANNED (gated by OPS-2 signal) | All |
+| API-5 | Legacy (unversioned) route sunset — **soak-gated** on the usage metric | Should | PARTIAL (2026-07-08: the **mechanism** shipped — every legacy response carries `Deprecation` (RFC 9745) + `Link: </api/v1>; rel="successor-version"`, plus `Sunset` (RFC 8594) once `-Dapi.legacy.sunset=YYYY-MM-DD` is signed; `-Dapi.legacy.routes=off` retires the surface with 410→`/api/v1` (infra probes exempt; `inspecto_legacy_api_requests_total` keeps counting residual demand through the off-window). Remaining: the per-deployment soak itself — proposal 30 consecutive days at zero, then flip `off`; physical route-table deletion follows a release later) | All |
 | API-6 | Gateway/IAM drop-in: WSO2 gateway + Keycloak blueprints for Standard | Must (S) | SHIPPED (design + security module seams) | S |
 | API-7 | Java embedding API stability policy (SemVer, `@PublicApi`) | Must | SHIPPED | All |
 
@@ -225,7 +225,7 @@ AI-driven autonomy without redesign.
 | EOI-4 | Audit trail + observability of agent decisions | Must | SHIPPED | — |
 | EOI-5 | Core vs **application-pack** split (host apps ship packs; core stays generic) | Must | SHIPPED | — |
 | EOI-6 | Eval harness for skill/orchestration regression | Should | SHIPPED | — |
-| EOI-7 | Cut a **0.1.0 release** + publish artifacts (today: `0.1.0-SNAPSHOT`, local-`.m2`/source-build only; Inspecto CI builds it from source) | **Must** | PLANNED | — |
+| EOI-7 | Cut a **0.1.0 release** + publish artifacts (today: `0.1.0-SNAPSHOT`, local-`.m2`/source-build only; Inspecto CI builds it from source) | **Must** | PARTIAL (2026-07-08: **(a) cut + pinned** — `v0.1.0` tagged on eoiagent `main`, trunk bumped to `0.2.0-SNAPSHOT`, released jars in local `.m2`; both Inspecto agent poms pin `eoiagent.version 0.1.0` (no SNAPSHOT anywhere), reactor green; reproduce with `git checkout v0.1.0 && mvn -o clean install`. Remaining: **(b) publish** — the registry decision (Nexus? GitHub Packages?), infra/product call) | — |
 
 ### 3.15 Operator console UX (UI)
 
@@ -291,10 +291,10 @@ Studio persistence · component metamodel + R1–R6 rework · multi-space · `/a
 2. **SEC-7 residual** (data-scoped grants) — **blocked on a product decision**, not engineering: the
    grants model for case-type data scoping (`rbac-groundwork.md` §4). Once decided, ~1 shift over the
    shipped per-resource `permissions[]` seam. Owner: product, then any backend shift.
-3. **EOI-7** eoiagent `0.1.0` — **two separable halves**: (a) *cut + pin* — bump the version in
-   `C:/sandbox/agent-brainstorm`, `mvn install`, re-pin the three Inspecto poms off the SNAPSHOT
-   (~1–2 h, next shift, unblocks R2); (b) *publish artifacts* — needs a registry decision
-   (internal Nexus? GitHub packages?) — an infra/product call, not code. Owner: (a) next shift; (b) product/infra.
+3. **EOI-7** eoiagent `0.1.0` — *(a) cut + pin* **DONE 2026-07-08** (v0.1.0 tagged, Inspecto pinned,
+   R2 closed — no SNAPSHOT dependency remains). Remaining: *(b) publish artifacts* — the registry
+   decision (internal Nexus? GitHub Packages?) — an infra/product call, not code. Owner: product/infra;
+   until then CI reproduces the pin from the tag (`git checkout v0.1.0 && mvn -o clean install`).
 
 *Closed 2026-07-07: ING-5 (unified parsing + json/text_regex frontends), **ING-6** (Expectation engine:
 `com.gamma.expectation` + `/expectations*`, real DuckDB violation counting + deduped-Incident/notify
@@ -310,9 +310,11 @@ caveat (live e2e via `examples/06-serve/pipeline-job`).*
 - **INC-4** Incident workflow depth (queues, escalation, watchers) — *blocked on product design: the
   escalation/queue model is a workflow-semantics decision, not plumbing (the object engine + SLA sweep
   already exist to build on). Engineering after: ~1–2 shifts. Owner: product first.*
-- **API-5** Legacy route sunset — *pure policy: pick the soak criterion (proposal: 30 consecutive days
-  of `inspecto_legacy_api_requests_total` = 0 on every deployment), then removal is mechanical.
-  Owner: product signs the criterion; any shift executes.*
+- **API-5** Legacy route sunset — *mechanism SHIPPED 2026-07-08 (deprecation/Sunset headers + the
+  `-Dapi.legacy.routes=off` 410 flip; see §3.8 row). Remaining is pure ops/policy: product signs the
+  soak criterion (proposal: 30 consecutive days of `inspecto_legacy_api_requests_total` = 0 on a
+  deployment ⇒ set `off` there), then physical route-table deletion one release after every
+  deployment runs `off` clean. No further engineering shift needed.*
 - **OPS-5** Provenance conservation on live data — *not code: a verification protocol run (enable on a
   real feed, soak, compare invariants). Owner: ops, first live deployment.*
 
@@ -344,8 +346,8 @@ P1–P5 remaining).*
 - **MET-5** Component version history — *scoped (see §3.10 row): ~1 shift, no migration.*
 - **SPC-5** Per-tenant ABAC — *Enterprise-tier, demand-gated; design rides SEC-7's grants model —
   do not start before the SEC-7 product decision lands.*
-- **AGT-5 P1–P5** — *phased per `embedded-intelligence-plan.md` §8; P1 should wait on EOI-7(a) so it
-  doesn't build on a moving SNAPSHOT.*
+- **AGT-5 P1–P5** — *phased per `embedded-intelligence-plan.md` §8; the EOI-7(a) gate lifted
+  2026-07-08 (pinned v0.1.0, no moving SNAPSHOT) — P1 is now unblocked engineering.*
 - **AGT-6** AI behind every screen / agent graphs — *sequenced after AGT-5 P2 (needs the tool belt +
   autonomy ladder in place); not scoped further on purpose.*
 - **E1** Enterprise distributed tier · Stage-2 streaming — *demand-gated strategy items, unchanged.*
@@ -374,10 +376,10 @@ template gallery + apply).*
    schema surface.
 4. **Backend catch-up for mock-first UI**: ~~INV-1, SPC-4, MET-4~~ all closed by 2026-07-08; DAT-4
    (Matrix materialization) is the last of the set — scoped onto the jobs runner, no net-new subsystem.
-5. **AGT-5 (embedded intelligence)** — P0 shipped 2026-07-07 on product-owner sign-off, riding the
-   eoiagent transport already in place; **EOI-7** (release pin) should still land before P1 goes wide.
-6. **API-5 legacy sunset** waits on the `inspecto_legacy_api_requests_total` soak signal — a
-   product/policy call, not an engineering one.
+5. **AGT-5 (embedded intelligence)** — P0 shipped 2026-07-07 on product-owner sign-off; **EOI-7(a)**
+   landed 2026-07-08 (pinned v0.1.0), so P1 no longer builds on a moving SNAPSHOT.
+6. **API-5 legacy sunset**: the mechanism is in (headers + `-Dapi.legacy.routes=off` flip); only the
+   per-deployment soak on `inspecto_legacy_api_requests_total` — a product/policy call — remains.
 
 ---
 
@@ -386,7 +388,7 @@ template gallery + apply).*
 | # | Risk / question | Mitigation / owner signal |
 |---|---|---|
 | R1 | ~~Authored-Pipeline go-live verified only against synthetic data~~ **RESOLVED 2026-07-07** — live seeded `type: pipeline` run verified (`examples/06-serve/pipeline-job`) | — |
-| R2 | eoiagent SNAPSHOT churn (moving dependency) | EOI-7: cut 0.1.0, pin jars; CI already builds from source |
+| R2 | ~~eoiagent SNAPSHOT churn (moving dependency)~~ **RESOLVED 2026-07-08** — v0.1.0 cut + pinned (EOI-7a); CI builds the tag | — |
 | R3 | ~~Standard jlink runtime unverified vs Nimbus~~ **RESOLVED 2026-07-07** — module set verified sufficient (PKG-4) | — |
 | R4 | Per-resource permissions & X-Actor rejection incomplete on Standard | SEC-7 before first Standard customer |
 | R5 | Provenance conservation checks unproven on live data | OPS-5 live verification alongside R1's seeded run |
