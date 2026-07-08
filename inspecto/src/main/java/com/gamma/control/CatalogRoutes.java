@@ -24,6 +24,10 @@ final class CatalogRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/catalog", (e, m) -> api.service().catalog().tables());
+        // MET-4 (2026-07-08): Streams — the Catalog's browsable data origins: each pipeline's Source
+        // (+ its Connection binding) as a catalog node. A pure projection of the sources read-model,
+        // shaped exactly like the UI's MetadataNode contract (the mock's CATALOG_STREAMS twin).
+        api.get("/catalog/streams", (e, m) -> streams(api));
         api.get("/catalog/kpis", (e, m) -> catalogKpis(api));
         api.get("/catalog/graph", (e, m) -> api.service().catalog().traverse(
                 ApiContext.query(e, "from"),
@@ -33,6 +37,28 @@ final class CatalogRoutes implements RouteModule {
                 edgeKinds(ApiContext.query(e, "edgeKinds")),
                 "true".equalsIgnoreCase(ApiContext.query(e, "overlay"))));
         api.get("/catalog/tables/(.+)", (e, m) -> catalogNodeDetail(api, ApiContext.name(m)));
+    }
+
+    /** {@code GET /catalog/streams} — every Source as a browsable data-origin node (MET-4). */
+    private List<Map<String, Object>> streams(ApiContext api) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> s : api.service().sources()) {
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("id", s.get("id"));
+            node.put("kind", "SOURCE");
+            node.put("label", s.get("id"));
+            node.put("description", Map.of(
+                    "text", s.get("connector") + " source feeding " + s.get("pipeline"),
+                    "source", "source"));
+            Map<String, Object> attrs = new LinkedHashMap<>();
+            attrs.put("connector", s.get("connector"));
+            attrs.put("connection", s.get("connection"));
+            attrs.put("pipeline", s.get("pipeline"));
+            attrs.put("discovery", s.get("discovery"));
+            node.put("attrs", attrs);
+            out.add(node);
+        }
+        return out;
     }
 
     /** A node (any kind) with its operational overlay + immediate neighbours, or 404. */

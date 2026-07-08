@@ -38,3 +38,4 @@ export * from './expectations.service';
 export * from './decision-rules.service';
 export * from './geo-settings.service';
 export * from './branding.service';
+export * from './inv.service';

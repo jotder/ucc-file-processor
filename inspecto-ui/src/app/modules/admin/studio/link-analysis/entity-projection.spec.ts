@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-sources';
 import { Dataset } from 'app/modules/admin/studio/datasets/dataset-types';
 import {
@@ -8,6 +8,7 @@ import {
     ProjectedGraph,
     isProjectionError,
     projectEntities,
+    projectTriples,
 } from './entity-projection';
 
 const rows = [
@@ -79,8 +80,11 @@ describe('EntityProjectionGraphSource', () => {
         query: null, physicalRef: null, columns: [], measures: [],
     };
 
-    it('projects the dataset rows (the seeded `links` sample source)', async () => {
-        const src = new EntityProjectionGraphSource({ get: () => of(ds) } as never);
+    /** An InvService stub for the offline path: the backend call fails, forcing the client fold. */
+    const offlineInv = { project: () => throwError(() => new Error('offline')) } as never;
+
+    it('falls back to the client fold over sample rows when the backend is unavailable', async () => {
+        const src = new EntityProjectionGraphSource({ get: () => of(ds) } as never, offlineInv);
         const g = (await src.query({
             projection: { datasetId: 'links-ds', sourceCol: 'source', targetCol: 'target', linkKindCol: 'link_type' },
         })) as ProjectedGraph;
@@ -89,10 +93,66 @@ describe('EntityProjectionGraphSource', () => {
     });
 
     it('requires a mapping and surfaces projection errors as thrown messages', async () => {
-        const src = new EntityProjectionGraphSource({ get: () => of(ds) } as never);
+        const src = new EntityProjectionGraphSource({ get: () => of(ds) } as never, offlineInv);
         await expect(src.query({})).rejects.toThrow(/mapping/);
         await expect(
             src.query({ projection: { datasetId: 'links-ds', sourceCol: 'bogus', targetCol: 'target' } }),
         ).rejects.toThrow(/bogus/);
+    });
+
+    it('is backend-first: aggregated triples become the graph, no dataset row fetch (INV-1)', async () => {
+        const inv = {
+            project: (req: unknown) => {
+                expect(req).toEqual({
+                    dataset: 'links-ds', sourceCol: 'source', targetCol: 'target', linkKindCol: undefined,
+                });
+                return of({
+                    rows: [
+                        { source: 'alice', target: 'bob', kind: null, count: 3 },
+                        { source: 'bob', target: 'carol', kind: null, count: 1 },
+                    ],
+                    truncated: false,
+                });
+            },
+        } as never;
+        const datasets = { get: () => { throw new Error('must not fetch rows on the backend path'); } } as never;
+        const src = new EntityProjectionGraphSource(datasets, inv);
+        const g = (await src.query({
+            projection: { datasetId: 'links-ds', sourceCol: 'source', targetCol: 'target' },
+        })) as ProjectedGraph;
+        expect(g.nodes.map((n) => n.id)).toEqual(['entity:alice', 'entity:bob', 'entity:carol']);
+        expect(g.edges[0].data.kind).toBe('link · 3');
+        expect(g.edges[1].data.kind).toBe('link');
+        expect(g.truncated).toBe(false);
+    });
+});
+
+describe('projectTriples', () => {
+    it('folds triples with the same shapes as the client fold (ids, kind·count, cap)', () => {
+        const g = projectTriples(
+            [
+                { source: 'a', target: 'b', kind: 'sms', count: 2 },
+                { source: 'a', target: 'c', kind: 'call', count: 1 },
+                { source: ' ', target: 'x', kind: null, count: 5 },   // blank endpoint skipped
+            ],
+            false,
+        );
+        expect(g.nodes.map((n) => n.id)).toEqual(['entity:a', 'entity:b', 'entity:c']);
+        expect(g.nodes[0].data.kind).toBe('entity');
+        expect(g.edges.map((e) => e.id)).toEqual(['entity:a->entity:b:sms', 'entity:a->entity:c:call']);
+        expect(g.edges[0].data.kind).toBe('sms · 2');
+        expect(g.edges[1].data.kind).toBe('call');
+        expect(g.truncated).toBe(false);
+    });
+
+    it('caps nodes and carries server truncation through', () => {
+        const many = Array.from({ length: PROJECTION_NODE_CAP + 50 }, (_, i) => ({
+            source: `s${i}`, target: `t${i}`, kind: null, count: 1,
+        }));
+        const capped = projectTriples(many, false);
+        expect(capped.nodes.length).toBeLessThanOrEqual(PROJECTION_NODE_CAP);
+        expect(capped.truncated).toBe(true);
+
+        expect(projectTriples([{ source: 'a', target: 'b', kind: null, count: 1 }], true).truncated).toBe(true);
     });
 });

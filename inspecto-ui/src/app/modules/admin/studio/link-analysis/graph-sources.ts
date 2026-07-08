@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { CatalogService, PipelinesService } from 'app/inspecto/api';
+import { CatalogService, InvService, PipelinesService } from 'app/inspecto/api';
 import { G6GraphData, GraphSource, GraphSourceQuery } from 'app/inspecto/graph';
 import { deriveComponentGraph } from 'app/inspecto/component-model';
 import { toG6Data } from 'app/modules/admin/catalog/catalog-graph';
@@ -69,9 +69,10 @@ export class GraphSourcesService {
     private pipelines = inject(PipelinesService);
     private components = inject(ComponentsDataProvider);
     private datasets = inject(DatasetsService);
+    private inv = inject(InvService);
 
     readonly sources: GraphSource[] = [
-        new EntityProjectionGraphSource(this.datasets),
+        new EntityProjectionGraphSource(this.datasets, this.inv),
         new LineageGraphSource(this.catalog),
         new ComponentRegistryGraphSource(this.components),
         new PipelineGraphSource(this.pipelines),

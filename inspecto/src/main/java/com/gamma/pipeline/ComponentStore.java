@@ -40,7 +40,10 @@ public final class ComponentStore {
      */
     public static final Set<String> WRITABLE_TYPES =
             Set.of("grammar", "schema", "transform", "sink", "dataset", "widget", "dashboard", "query",
-                    "expectation", "requirement");
+                    "expectation", "requirement",
+                    // INV-1/INV-2 saved investigation views (2026-07-08): the UI's SavedViewStore already
+                    // speaks the /components contract — widening here is what moves them off the mock store.
+                    "link-analysis-view", "geo-map-view");
 
     private static final String TOON = ".toon";
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");

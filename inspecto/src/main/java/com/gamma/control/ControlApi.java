@@ -346,7 +346,8 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 new RunRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new PipelineRoutes(), new ComponentRoutes(), new BundleRoutes(),
                 new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
-                new QueryRoutes(), new ExpectationRoutes(), new RequirementRoutes(),
+                new QueryRoutes(), new BiRoutes(), new ShareRoutes(), new InvRoutes(),
+                new ExpectationRoutes(), new RequirementRoutes(),
                 new JobRoutes(), new LineageRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
                 new NotificationRoutes(), new SettingsRoutes(),
                 new AssistRoutes(), new AgentRoutes()))
@@ -467,7 +468,10 @@ public final class ControlApi implements AutoCloseable, ApiContext {
      *  {@code 401 UNAUTHENTICATED}. On success the resolved {@link Subject} is attached to the exchange
      *  for {@link ApiContext#actor}, {@code requireCapability} and the v1 envelope's {@code permissions}. */
     private void authenticate(HttpExchange ex, String path) {
-        boolean required = !PUBLIC_PATHS.contains(path);
+        // BI-6: /public/dashboards/* carries its own credential — the HMAC share token in the path,
+        // verified (signature + expiry) by ShareRoutes. Sharing as a whole is disabled unless
+        // -Dbi.share.secret is configured, so this exemption is inert by default.
+        boolean required = !PUBLIC_PATHS.contains(path) && !path.startsWith("/public/dashboards/");
         Authenticators.active().ifPresent(a -> {
             // SEC-7(a): on Standard the acting identity is authoritative from the authenticated Subject; a
             // client-supplied X-Actor header is an attempted actor spoof and is rejected outright. (Personal
