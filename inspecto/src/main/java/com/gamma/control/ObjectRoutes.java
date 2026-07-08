@@ -23,21 +23,59 @@ final class ObjectRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/objects", (e, m) -> toObjectMaps(api.service().objects().query(objectQuery(e))));
+        api.get("/objects", (e, m) -> toObjectMaps(visibleOnly(api.service().objects().query(objectQuery(e)), e)));
         api.post("/objects", (e, m) -> createObject(api, api.body(e)));
-        api.post("/objects/([^/]+)/ack", (e, m) -> transition(api, ApiContext.name(m), "ack", null, api.body(e)));
-        api.post("/objects/([^/]+)/resolve", (e, m) -> transition(api, ApiContext.name(m), "resolve", null, api.body(e)));
-        api.post("/objects/([^/]+)/transition", (e, m) -> transitionFromBody(api, ApiContext.name(m), api.body(e)));
-        api.post("/objects/([^/]+)/links", (e, m) -> createLink(api, ApiContext.name(m), api.body(e)));
-        api.get("/objects/([^/]+)/links", (e, m) -> toLinkMaps(api.service().objects().linksOf(ApiContext.name(m))));
-        api.get("/objects/([^/]+)/graph", (e, m) -> objectGraph(api, ApiContext.name(m), e));
-        api.post("/objects/([^/]+)/comments", (e, m) -> addComment(api, ApiContext.name(m), api.body(e)));
-        api.get("/objects/([^/]+)/comments", (e, m) -> toNoteMaps(api.service().objects().notesOf(ApiContext.name(m), NoteKind.COMMENT)));
-        api.post("/objects/([^/]+)/attachments", (e, m) -> addAttachment(api, ApiContext.name(m), api.body(e)));
-        api.get("/objects/([^/]+)/attachments", (e, m) -> toNoteMaps(api.service().objects().notesOf(ApiContext.name(m), NoteKind.ATTACHMENT)));
-        api.post("/objects/([^/]+)/rca", (e, m) -> applyRca(api, ApiContext.name(m), api.body(e)));
-        api.get("/objects/([^/]+)", (e, m) -> objectById(api, ApiContext.name(m)));
+        // Every by-id route runs behind the SEC-7d data-scope guard: an object whose caseType is outside
+        // the caller's dataScopes answers 404, indistinguishable from absence (existence-hiding).
+        api.post("/objects/([^/]+)/ack", scoped(api, (e, m) -> transition(api, ApiContext.name(m), "ack", null, api.body(e))));
+        api.post("/objects/([^/]+)/resolve", scoped(api, (e, m) -> transition(api, ApiContext.name(m), "resolve", null, api.body(e))));
+        api.post("/objects/([^/]+)/transition", scoped(api, (e, m) -> transitionFromBody(api, ApiContext.name(m), api.body(e))));
+        api.post("/objects/([^/]+)/assign", scoped(api, (e, m) -> assign(api, ApiContext.name(m), api.body(e))));
+        api.post("/objects/([^/]+)/watch", scoped(api, (e, m) -> setWatch(api, ApiContext.name(m), api.body(e), true)));
+        api.post("/objects/([^/]+)/unwatch", scoped(api, (e, m) -> setWatch(api, ApiContext.name(m), api.body(e), false)));
+        api.get("/objects/([^/]+)/watchers", scoped(api, (e, m) -> watchersOf(api, ApiContext.name(m))));
+        api.post("/objects/([^/]+)/links", scoped(api, (e, m) -> createLink(api, ApiContext.name(m), api.body(e))));
+        api.get("/objects/([^/]+)/links", scoped(api, (e, m) -> toLinkMaps(api.service().objects().linksOf(ApiContext.name(m)))));
+        api.get("/objects/([^/]+)/graph", scoped(api, (e, m) -> objectGraph(api, ApiContext.name(m), e)));
+        api.post("/objects/([^/]+)/comments", scoped(api, (e, m) -> addComment(api, ApiContext.name(m), api.body(e))));
+        api.get("/objects/([^/]+)/comments", scoped(api, (e, m) -> toNoteMaps(api.service().objects().notesOf(ApiContext.name(m), NoteKind.COMMENT))));
+        api.post("/objects/([^/]+)/attachments", scoped(api, (e, m) -> addAttachment(api, ApiContext.name(m), api.body(e))));
+        api.get("/objects/([^/]+)/attachments", scoped(api, (e, m) -> toNoteMaps(api.service().objects().notesOf(ApiContext.name(m), NoteKind.ATTACHMENT))));
+        api.post("/objects/([^/]+)/rca", scoped(api, (e, m) -> applyRca(api, ApiContext.name(m), api.body(e))));
+        api.get("/objects/([^/]+)", scoped(api, (e, m) -> objectById(api, ApiContext.name(m))));
         api.get("/rca/templates", (e, m) -> rcaTemplateList(api));
+    }
+
+    // ── SEC-7d data-scoped grants ("a fraud analyst sees fraud cases") ───────────────
+
+    /** Attribute key carrying an object's case type — the dimension {@link Subject#dataScopes()} filters on. */
+    static final String ATTR_CASE_TYPE = "caseType";
+
+    /**
+     * Whether the caller may see {@code o}: an unscoped caller (Personal — no Subject; or a role with
+     * {@code dataScopes = null}) sees everything; a scoped caller sees untyped objects plus those whose
+     * {@code caseType} is in their scopes. Fail-closed: an empty scope set reveals only untyped objects.
+     */
+    private static boolean visibleTo(HttpExchange ex, OperationalObject o) {
+        Subject s = ApiContext.subject(ex).orElse(null);
+        if (s == null || !s.scoped()) return true;
+        String caseType = o.attributes().get(ATTR_CASE_TYPE);
+        return caseType == null || caseType.isBlank() || s.dataScopes().contains(caseType);
+    }
+
+    private static List<OperationalObject> visibleOnly(List<OperationalObject> objs, HttpExchange ex) {
+        return objs.stream().filter(o -> visibleTo(ex, o)).toList();
+    }
+
+    /** Wrap a by-id handler: out-of-scope answers the same 404 an absent id does (existence-hiding). */
+    private Handler scoped(ApiContext api, Handler h) {
+        return (e, m) -> {
+            String id = ApiContext.name(m);
+            OperationalObject o = api.service().objects().get(id).orElse(null);
+            if (o != null && !visibleTo(e, o))
+                throw new ApiException(404, "no object with id '" + id + "'");
+            return h.handle(e, m);   // absent ids keep their existing 404/behaviour
+        };
     }
 
     private static List<Map<String, Object>> toObjectMaps(List<OperationalObject> objs) {
@@ -147,14 +185,34 @@ final class ObjectRoutes implements RouteModule {
         return links.stream().map(ObjectLink::toMap).toList();
     }
 
-    /** {@code GET /objects/{id}/graph?depth=} (Phase 4) — correlation subgraph (default depth 2, capped at 5). */
+    /**
+     * {@code GET /objects/{id}/graph?depth=} (Phase 4) — correlation subgraph (default depth 2, capped at 5).
+     * SEC-7d: out-of-scope neighbours are pruned from the result (nodes dropped, edges touching them dropped),
+     * so a scoped analyst's graph never names case data outside their grants.
+     */
+    @SuppressWarnings("unchecked")
     private Object objectGraph(ApiContext api, String id, HttpExchange ex) {
         int depth = Math.min(5, Math.max(1, ApiContext.parseIntOr(ApiContext.query(ex, "depth"), 2)));
+        Map<String, Object> g;
         try {
-            return api.service().objects().graph(id, depth);
+            g = api.service().objects().graph(id, depth);
         } catch (java.util.NoSuchElementException notFound) {
             throw new ApiException(404, notFound.getMessage());
         }
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) g.get("nodes");
+        java.util.Set<String> visible = new java.util.HashSet<>();
+        List<Map<String, Object>> keptNodes = nodes.stream().filter(n -> {
+            String nid = String.valueOf(n.get("id"));
+            boolean ok = api.service().objects().get(nid).map(o -> visibleTo(ex, o)).orElse(false);
+            if (ok) visible.add(nid);
+            return ok;
+        }).toList();
+        List<Map<String, Object>> keptEdges = ((List<Map<String, Object>>) g.get("edges")).stream()
+                .filter(l -> visible.contains(String.valueOf(l.get("from")))
+                        && visible.contains(String.valueOf(l.get("to")))).toList();
+        g.put("nodes", keptNodes);
+        g.put("edges", keptEdges);
+        return g;
     }
 
     /** {@code POST /objects/{id}/comments} (Phase 4) — add a comment; body {@code {body, author?}}. */
@@ -219,6 +277,46 @@ final class ObjectRoutes implements RouteModule {
     /** {@code GET /rca/templates} (Phase 4) — the RCA templates loaded from {@code *_rca.toon}, by name. */
     private Object rcaTemplateList(ApiContext api) {
         return api.service().rcaTemplates().values().stream().map(RcaTemplate::toMap).toList();
+    }
+
+    /**
+     * {@code POST /objects/{id}/assign} (INC-4) — assign to a person or route through a queue: body
+     * {@code {assignee?|queue?, actor?}}. An explicit {@code assignee} wins; else the {@code queue}'s router
+     * picks a member. Missing both → 400; unknown object/queue → 404; an unroutable queue (empty / manual
+     * without an assignee) → 422.
+     */
+    private Object assign(ApiContext api, String id, Map<String, Object> body) {
+        String assignee = ApiContext.str(body, "assignee");
+        String queue = ApiContext.str(body, "queue");
+        if (assignee == null && queue == null)
+            throw new ApiException(400, "body must include 'assignee' or 'queue'");
+        try {
+            return api.service().objects().assign(id, assignee, queue, ApiContext.str(body, "actor")).toMap();
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        } catch (IllegalStateException illegal) {
+            throw new ApiException(422, illegal.getMessage());
+        } catch (IllegalArgumentException bad) {
+            throw new ApiException(400, bad.getMessage());
+        }
+    }
+
+    /** {@code POST /objects/{id}/watch|unwatch} (INC-4) — subscribe/unsubscribe a watcher; body {@code {user}}. */
+    private Object setWatch(ApiContext api, String id, Map<String, Object> body, boolean add) {
+        String user = ApiContext.str(body, "user");
+        if (user == null) throw new ApiException(400, "body must include 'user'");
+        try {
+            return (add ? api.service().objects().watch(id, user)
+                        : api.service().objects().unwatch(id, user)).toMap();
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        }
+    }
+
+    /** {@code GET /objects/{id}/watchers} (INC-4) — the object's watcher list. */
+    private Object watchersOf(ApiContext api, String id) {
+        return api.service().objects().get(id).map(OperationalObject::watchers)
+                .orElseThrow(() -> new ApiException(404, "no object with id '" + id + "'"));
     }
 
     /** {@code POST /objects/{id}/ack|resolve} — a fixed-action transition; {@code actor} from the body. */

@@ -12,6 +12,10 @@ import com.gamma.ops.note.InMemoryNoteStore;
 import com.gamma.ops.note.NoteKind;
 import com.gamma.ops.note.NoteStore;
 import com.gamma.ops.note.ObjectNote;
+import com.gamma.ops.queue.InMemoryQueueStore;
+import com.gamma.ops.queue.Queue;
+import com.gamma.ops.queue.QueueRouter;
+import com.gamma.ops.queue.QueueStore;
 import com.gamma.ops.rca.RcaTemplate;
 import com.gamma.ops.workflow.Workflow;
 
@@ -50,10 +54,14 @@ public final class ObjectService {
     public static final String ATTR_DUE_AT = "dueAt";
     /** Attribute key stamped (epoch millis) when an SLA breach has been emitted — makes {@link #sweepIncidentSla} idempotent. */
     public static final String ATTR_SLA_BREACHED_AT = "slaBreachedAt";
+    /** Attribute key holding an object's comma-separated watcher list (INC-4). */
+    public static final String ATTR_WATCHERS = "watchers";
 
     private final ObjectStore store;
     private final LinkStore links;
     private final NoteStore notes;
+    private final QueueStore queues = new InMemoryQueueStore();     // INC-4: work queues (config-authored)
+    private volatile EscalationPolicy escalationPolicy;             // INC-4: applied on SLA breach; null = breach-only
     private final Map<ObjectType, Workflow> workflows = new EnumMap<>(ObjectType.class);
 
     /** Build with the built-in default workflows and in-memory link + note stores. */
@@ -194,6 +202,110 @@ public final class ObjectService {
                 .stream().filter(o -> !wf.isTerminal(o.status())).toList();
     }
 
+    // ── queues, assignment, watchers (INC-4) ─────────────────────────────────────────
+
+    /** Register (create or replace) a work {@link Queue}; loaded from {@code *_queue.toon} at boot or {@code POST /queues}. */
+    public Queue registerQueue(Queue queue) {
+        return queues.put(queue);
+    }
+
+    /** The queue with this id, or empty. */
+    public Optional<Queue> queue(String id) {
+        return queues.get(id);
+    }
+
+    /** Every registered queue. */
+    public List<Queue> queues() {
+        return queues.all();
+    }
+
+    /** Install the SLA {@link EscalationPolicy} the sweep applies on breach; {@code null} = breach-event only. */
+    public void escalationPolicy(EscalationPolicy policy) {
+        this.escalationPolicy = policy;
+    }
+
+    /** The installed escalation policy, or empty. */
+    public Optional<EscalationPolicy> escalationPolicy() {
+        return Optional.ofNullable(escalationPolicy);
+    }
+
+    /**
+     * Assign an object to a person or route it through a queue (INC-4). Exactly one of {@code assignee} /
+     * {@code queueId} drives the target: an explicit {@code assignee} wins; otherwise {@link QueueRouter}
+     * picks a member of {@code queueId} per its {@link Queue.Routing}. Sets the assignee, records an
+     * {@link EventType#OBJECT_ASSIGNED} event (the assignment history), and — when the current state has a
+     * legal {@code assign} action (e.g. INCIDENT {@code OPEN → ASSIGNED}) — also advances the workflow.
+     *
+     * @throws NoSuchElementException  unknown object or queue id
+     * @throws IllegalArgumentException neither an assignee nor a queue was supplied
+     * @throws IllegalStateException    the queue can't yield an assignee (empty, or MANUAL with no explicit assignee)
+     */
+    public OperationalObject assign(String id, String assignee, String queueId, String actor) {
+        OperationalObject obj = require(id);
+        String target = resolveAssignee(assignee, queueId);
+        long now = System.currentTimeMillis();
+        String from = obj.assignee();
+        OperationalObject updated = store.update(obj.withAssignee(target, now));
+        EventLog.current().emit(Event.builder(EventType.OBJECT_ASSIGNED)
+                .level(EventLevel.INFO)
+                .source(SOURCE)
+                .correlationId(obj.correlationId())
+                .message(obj.objectType() + " " + id + " assigned to " + target
+                        + (queueId != null ? " via queue " + queueId : "")
+                        + (from == null || from.isBlank() ? "" : " (was " + from + ")")
+                        + (actor == null ? "" : " by " + actor))
+                .attr("objectId", id)
+                .attr("objectType", obj.objectType().name())
+                .attr("from", from)
+                .attr("to", target)
+                .attr("queue", queueId)
+                .attr("actor", actor));
+        // Unify assignment with the workflow: if the current state legally accepts an `assign` action
+        // (INCIDENT OPEN → ASSIGNED), advance it too so status tracks reality. Absent such a transition
+        // (already ASSIGNED, or a type without one) the assignee change alone stands.
+        Workflow wf = workflow(obj.objectType());
+        if (wf.apply(updated.status(), "assign").isPresent())
+            return commit(updated, wf, wf.apply(updated.status(), "assign").get(), "assign", actor);
+        return updated;
+    }
+
+    /** Resolve the concrete assignee: explicit name wins, else route through the queue. */
+    private String resolveAssignee(String assignee, String queueId) {
+        if (assignee != null && !assignee.isBlank()) return assignee.trim();
+        if (queueId == null || queueId.isBlank())
+            throw new IllegalArgumentException("assign needs an 'assignee' or a 'queue'");
+        Queue q = queues.get(queueId).orElseThrow(() -> new NoSuchElementException("no queue with id '" + queueId + "'"));
+        return QueueRouter.pick(q, queues, this::openLoadOf).orElseThrow(() -> new IllegalStateException(
+                "queue '" + queueId + "' cannot pick an assignee (empty members, or manual routing needs an explicit assignee)"));
+    }
+
+    /** Open (non-closed) objects currently assigned to {@code member} — the load metric for least-loaded routing. */
+    private int openLoadOf(String member) {
+        return (int) store.query(ObjectQuery.builder().assignee(member).limit(ObjectQuery.MAX_LIMIT).build())
+                .stream().filter(o -> !o.isClosed()).count();
+    }
+
+    /** Add {@code user} to an object's watcher list (idempotent); returns the updated object. Unknown id → 404. */
+    public OperationalObject watch(String id, String user) {
+        return mutateWatchers(id, user, true);
+    }
+
+    /** Remove {@code user} from an object's watcher list (idempotent); returns the updated object. Unknown id → 404. */
+    public OperationalObject unwatch(String id, String user) {
+        return mutateWatchers(id, user, false);
+    }
+
+    private OperationalObject mutateWatchers(String id, String user, boolean add) {
+        if (user == null || user.isBlank()) throw new IllegalArgumentException("watch needs a 'user'");
+        OperationalObject obj = require(id);
+        String u = user.trim();
+        List<String> current = new ArrayList<>(obj.watchers());
+        boolean changed = add ? (!current.contains(u) && current.add(u)) : current.remove(u);
+        if (!changed) return obj;   // idempotent — no write, no event
+        return store.update(obj.withAttributes(
+                Map.of(ATTR_WATCHERS, String.join(",", current)), System.currentTimeMillis()));
+    }
+
     /**
      * SLA sweep (Phase 3): breach every {@link ObjectType#INCIDENT} that has passed its {@link #ATTR_DUE_AT}
      * deadline while still being worked. An incident qualifies when it carries a {@code dueAt} attribute at
@@ -233,10 +345,54 @@ public final class ObjectService {
                     .attr("assignee", marked.assignee())
                     .attr("dueAt", dueAt)
                     .attr("overdueMs", now - dueAt));
+            escalate(marked, now);   // INC-4: apply the escalation policy (no-op when none is installed)
             breached++;
         }
         return breached;
     }
+
+    /**
+     * Apply the installed {@link EscalationPolicy} to a just-breached incident (INC-4): bump severity and/or
+     * re-route to a queue, then emit an {@link EventType#OBJECT_ESCALATED} event so the notify chain re-alerts.
+     * A no-op when no policy is installed (the sweep then behaves exactly as before — breach event only).
+     */
+    private void escalate(OperationalObject breached, long now) {
+        EscalationPolicy policy = this.escalationPolicy;
+        if (policy == null) return;
+        OperationalObject obj = breached;
+        String newSeverity = obj.severity();
+        if (policy.severity() != null && !policy.severity().isBlank()) {
+            newSeverity = policy.severity().trim();
+            obj = obj.withSeverity(newSeverity, now);
+        }
+        String newAssignee = obj.assignee();
+        String queueId = policy.reassignQueue();
+        if (queueId != null && !queueId.isBlank()) {
+            Optional<Queue> q = queues.get(queueId);
+            if (q.isPresent()) {
+                Optional<String> picked = QueueRouter.pick(q.get(), queues, this::openLoadOf);
+                if (picked.isPresent()) { newAssignee = picked.get(); obj = obj.withAssignee(newAssignee, now); }
+            } else {
+                log.warn("escalation policy names unknown queue '{}' — skipping reassignment of {}", queueId, obj.id());
+            }
+        }
+        if (policy.mutates()) store.update(obj);   // one persist for severity + assignee
+        if (policy.renotify() || policy.mutates())
+            EventLog.current().emit(Event.builder(EventType.OBJECT_ESCALATED)
+                    .level(EventLevel.WARN)
+                    .source(SOURCE)
+                    .correlationId(obj.correlationId())
+                    .message("INCIDENT " + obj.id() + " escalated after SLA breach"
+                            + (policy.severity() != null ? " → severity " + newSeverity : "")
+                            + (queueId != null ? " → queue " + queueId + " (" + newAssignee + ")" : ""))
+                    .attr("objectId", obj.id())
+                    .attr("objectType", obj.objectType().name())
+                    .attr("severity", newSeverity)
+                    .attr("queue", queueId)
+                    .attr("assignee", newAssignee));
+    }
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ObjectService.class);
 
     // ── correlation graph (Phase 4) ──────────────────────────────────────────────────
 

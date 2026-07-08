@@ -59,7 +59,11 @@ public final class NotificationRules {
                 new NotificationRule(EventType.OBJECT_SLA_BREACH, null, "ops",
                         "SLA breach",
                         "{{message}}",
-                        "sla:{{correlationId}}")));
+                        "sla:{{correlationId}}"),
+                new NotificationRule(EventType.OBJECT_ESCALATED, null, "ops",
+                        "Incident escalated: {{attributes.objectId}}",
+                        "{{message}}",
+                        "escalated:{{attributes.objectId}}")));
     }
 
     /** The first rule that matches {@code e}, if any. */

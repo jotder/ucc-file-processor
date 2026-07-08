@@ -52,6 +52,25 @@ public record OperationalObject(String id, ObjectType objectType, String title, 
                 owner, newAssignee, correlationId, attributes, createdAt, now, closedAt);
     }
 
+    /** A copy at a new {@code severity} (INC-4 escalation bump); touches {@code updatedAt}. */
+    public OperationalObject withSeverity(String newSeverity, long now) {
+        return new OperationalObject(id, objectType, title, description, status, newSeverity, priority,
+                owner, assignee, correlationId, attributes, createdAt, now, closedAt);
+    }
+
+    /**
+     * The object's watcher list (INC-4) — the comma-separated {@code watchers} attribute parsed into a list,
+     * or empty. Watchers are subscribers notified when the object changes; they ride the attribute bag so
+     * they persist with the object across either store backend.
+     */
+    public java.util.List<String> watchers() {
+        String raw = attributes.get("watchers");
+        if (raw == null || raw.isBlank()) return java.util.List.of();
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String s : raw.split(",")) { String t = s.trim(); if (!t.isEmpty()) out.add(t); }
+        return out;
+    }
+
     /**
      * A copy with {@code updates} merged over the current {@link #attributes()} (updates win; null keys
      * or values are skipped); touches {@code updatedAt}. Used to stamp derived markers such as the
@@ -83,6 +102,7 @@ public record OperationalObject(String id, ObjectType objectType, String title, 
         m.put("assignee", assignee);
         m.put("correlationId", correlationId);
         m.put("attributes", attributes);
+        m.put("watchers", watchers());
         m.put("createdAt", createdAt);
         m.put("updatedAt", updatedAt);
         m.put("closedAt", closedAt);

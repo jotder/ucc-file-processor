@@ -72,6 +72,11 @@ final class ServiceBootstrap {
             svc.registerRcaTemplate(t);
         for (com.gamma.acquire.ConnectionProfile c : loadConnections(resolveBySuffix(paths, "_connection.toon")))
             svc.registerConnection(c);
+        // INC-4: work queues + the SLA escalation policy. Queues route incident assignment; the escalation
+        // policy (at most one — the incident SLA response) is applied by the sweep. Both optional.
+        for (com.gamma.ops.queue.Queue q : loadQueues(resolveBySuffix(paths, "_queue.toon")))
+            svc.objects().registerQueue(q);
+        loadEscalation(resolveBySuffix(paths, "_escalation.toon")).ifPresent(svc.objects()::escalationPolicy);
         return svc;
     }
 
@@ -150,6 +155,37 @@ final class ServiceBootstrap {
             }
         }
         return out;
+    }
+
+    /** Load each {@code *_queue.toon} (INC-4); a bad one is warned and skipped (others still register). */
+    static List<com.gamma.ops.queue.Queue> loadQueues(List<Path> paths) {
+        List<com.gamma.ops.queue.Queue> out = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                com.gamma.ops.queue.Queue q = com.gamma.ops.queue.Queue.load(p);
+                out.add(q);
+                log.info("Loaded queue '{}' ({} member(s), {} routing) from {}",
+                        q.id(), q.members().size(), q.routing(), p);
+            } catch (Exception e) {
+                log.warn("Could not load queue {}: {}", p, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    /** Load the SLA {@code *_escalation.toon} policy (INC-4) — the first valid one wins; a bad one is skipped. */
+    static java.util.Optional<com.gamma.ops.EscalationPolicy> loadEscalation(List<Path> paths) {
+        for (Path p : paths) {
+            try {
+                com.gamma.ops.EscalationPolicy pol = com.gamma.ops.EscalationPolicy.load(p);
+                log.info("Loaded SLA escalation policy from {} (severity={}, reassignQueue={}, renotify={})",
+                        p, pol.severity(), pol.reassignQueue(), pol.renotify());
+                return java.util.Optional.of(pol);
+            } catch (Exception e) {
+                log.warn("Could not load escalation policy {}: {}", p, e.getMessage());
+            }
+        }
+        return java.util.Optional.empty();
     }
 
     /** Load each {@code *_connection.toon} (Data Acquisition); a bad one is warned and skipped. */

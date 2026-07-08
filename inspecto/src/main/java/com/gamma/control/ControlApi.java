@@ -359,7 +359,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 new SpaceRoutes(), new DataSourceRoutes(),
                 new RunRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new PipelineRoutes(), new ComponentRoutes(), new BundleRoutes(),
-                new EventRoutes(), new ObjectRoutes(), new CatalogRoutes(), new ConfigRoutes(),
+                new EventRoutes(), new ObjectRoutes(), new QueueRoutes(), new CatalogRoutes(), new ConfigRoutes(),
                 new QueryRoutes(), new BiRoutes(), new ShareRoutes(), new InvRoutes(),
                 new ExpectationRoutes(), new RequirementRoutes(),
                 new JobRoutes(), new LineageRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
