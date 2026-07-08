@@ -47,4 +47,33 @@ class DatasetRelationTest {
         assertThrows(IllegalArgumentException.class,
                 () -> DatasetRelation.relationSql(Map.of("name", "x"), Path.of("/data"), null));
     }
+
+    // ── calculated columns (DAT-5) ────────────────────────────────────────────────
+
+    @Test
+    void calculatedColumnsWrapTheBaseRelation() {
+        String sql = DatasetRelation.relationSql(Map.of(
+                "physicalRef", "cdr",
+                "calculated", List.of(Map.of("name", "amount_taxed", "expr", "round(amount * 1.2, 2)"))),
+                Path.of("/data"), null);
+        assertTrue(sql.startsWith("SELECT *, (round(amount * 1.2, 2)) AS \"amount_taxed\" FROM ("), sql);
+        assertTrue(sql.endsWith(") AS __base"), sql);
+    }
+
+    @Test
+    void calculatedColumnFailsClosed() {
+        // an unsafe expression makes the whole dataset unusable (422 at the route), never silently degraded
+        assertThrows(IllegalArgumentException.class, () -> DatasetRelation.relationSql(Map.of(
+                "physicalRef", "cdr",
+                "calculated", List.of(Map.of("name", "x", "expr", "(SELECT 1)"))),
+                Path.of("/data"), null), "subquery smuggle rejected");
+        assertThrows(IllegalArgumentException.class, () -> DatasetRelation.relationSql(Map.of(
+                "physicalRef", "cdr",
+                "calculated", List.of(Map.of("name", "bad name", "expr", "1"))),
+                Path.of("/data"), null), "non-identifier column name rejected");
+        assertThrows(IllegalArgumentException.class, () -> DatasetRelation.relationSql(Map.of(
+                "physicalRef", "cdr",
+                "calculated", List.of(Map.of("name", "x"))),
+                Path.of("/data"), null), "missing expr rejected");
+    }
 }

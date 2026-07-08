@@ -34,6 +34,9 @@ import java.util.stream.Stream;
  *       small partitions alone). Readers glob {@code *.parquet}, so compaction is invisible to queries;
  *       the trade-off is that {@code reprocess} of a compacted-away batch is no longer supported (its
  *       manifest's outputFile is gone) — set {@code min_age_days} beyond your reprocess horizon.</li>
+ *   <li>{@code materialize} — persist a summary Derived Table (a <b>Matrix</b>, DAT-4) from a measure
+ *       spec over a source Dataset; the snapshot swaps in atomically and registers/refreshes a
+ *       {@code dataset} component. See {@link MaterializeTask}.</li>
  *   <li>{@code heartbeat} / {@code noop} — do nothing but record a run (liveness probe / test).</li>
  * </ul>
  */
@@ -42,9 +45,15 @@ final class MaintenanceJob implements Job {
     private static final Logger log = LoggerFactory.getLogger(MaintenanceJob.class);
 
     private final JobConfig cfg;
+    private final String dataDir;   // the space's data root — needed only by the materialize task
 
     MaintenanceJob(JobConfig cfg) {
+        this(cfg, null);
+    }
+
+    MaintenanceJob(JobConfig cfg, String dataDir) {
         this.cfg = cfg;
+        this.dataDir = dataDir;
     }
 
     @Override public String name() { return cfg.name(); }
@@ -58,6 +67,7 @@ final class MaintenanceJob implements Job {
             case "ledger_prune"       -> ledgerPrune();
             case "db_maintenance"     -> dbMaintenance();
             case "compact"            -> PartitionCompactor.run(cfg);
+            case "materialize"        -> MaterializeTask.run(cfg, dataDir);
             case "heartbeat", "noop"  -> JobResult.ok("heartbeat", 0L);
             default -> throw new IllegalArgumentException("unknown maintenance task '" + task + "'");
         };

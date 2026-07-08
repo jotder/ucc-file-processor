@@ -21,12 +21,21 @@ import java.util.regex.Pattern;
  * </ul>
  * The returned SQL is <b>trusted</b> (server-built) and is the only place file-reading functions appear —
  * a query's own text is {@code SqlGuard}-checked and can never smuggle one.
+ *
+ * <p><b>Calculated columns (DAT-5).</b> A dataset may declare {@code calculated: [{name, expr}]} —
+ * row-level derived columns computed at query time. Each {@code expr} is a caller-authored SQL
+ * <em>fragment</em> and must pass {@link ExpressionGuard} (fragment-level safety; design:
+ * {@code docs/superpower/calculated-columns-design.md}); each {@code name} must be a plain identifier.
+ * The base relation is then wrapped {@code SELECT *, (expr) AS "name", … FROM (<base>)} — so every
+ * consumer (BI query, reports, alerts, materialization) sees calculated columns as real columns.
+ * Fail-closed: one bad column makes the whole dataset unusable (422), never silently degraded.
  */
 public final class DatasetRelation {
 
     private DatasetRelation() {}
 
     private static final Pattern SAFE_REF = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._/-]*");
+    private static final Pattern SAFE_IDENT = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
     /**
      * @param datasetConfig the dataset component's parsed config
@@ -35,6 +44,10 @@ public final class DatasetRelation {
      * @throws IllegalArgumentException on an unusable dataset config (→ 422 at the route)
      */
     public static String relationSql(Map<String, Object> datasetConfig, Path dataRoot, ViewStore views) {
+        return withCalculated(baseRelationSql(datasetConfig, dataRoot, views), datasetConfig);
+    }
+
+    private static String baseRelationSql(Map<String, Object> datasetConfig, Path dataRoot, ViewStore views) {
         String view = str(datasetConfig, "view");
         if (view != null) {
             Optional<ViewDefinition> def = views == null ? Optional.empty() : views.get(view);
@@ -55,6 +68,30 @@ public final class DatasetRelation {
             return "SELECT * FROM read_parquet(" + sqlStr(glob) + ")";
         }
         throw new IllegalArgumentException("dataset must declare a 'view' or a 'physicalRef'");
+    }
+
+    /** Wrap {@code base} with the dataset's calculated columns (DAT-5), or return it untouched when none. */
+    private static String withCalculated(String base, Map<String, Object> datasetConfig) {
+        Object calc = datasetConfig == null ? null : datasetConfig.get("calculated");
+        if (!(calc instanceof java.util.List<?> list) || list.isEmpty()) return base;
+        StringBuilder cols = new StringBuilder();
+        for (Object o : list) {
+            if (!(o instanceof Map<?, ?> c))
+                throw new IllegalArgumentException("calculated entries must be {name, expr} objects");
+            String name = str(cast(c), "name");
+            String expr = str(cast(c), "expr");
+            if (name == null || !SAFE_IDENT.matcher(name).matches())
+                throw new IllegalArgumentException("calculated column needs a plain-identifier 'name', got '" + name + "'");
+            if (expr == null)
+                throw new IllegalArgumentException("calculated column '" + name + "' needs an 'expr'");
+            cols.append(", (").append(ExpressionGuard.check(expr)).append(") AS \"").append(name).append('"');
+        }
+        return "SELECT *" + cols + " FROM (" + base + ") AS __base";
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> cast(Map<?, ?> m) {
+        return (Map<String, Object>) m;
     }
 
     private static String str(Map<String, Object> m, String key) {
