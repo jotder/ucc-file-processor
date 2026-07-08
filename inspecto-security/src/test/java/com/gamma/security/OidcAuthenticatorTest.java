@@ -102,6 +102,37 @@ class OidcAuthenticatorTest {
     }
 
     @Test
+    void caseRolesResolveDataScopesAndPlainRolesStayUnscoped() throws Exception {
+        // SEC-7d: case:<scope> role names → dataScopes (lower-cased); plain roles → unscoped (null)
+        String scoped = token(Instant.now().plusSeconds(60), List.of("operations", "case:Fraud"),
+                RSA_KEY, ISSUER, AUDIENCE, "ana");
+        Subject ana = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + scoped).orElseThrow();
+        assertTrue(ana.scoped());
+        assertEquals(Set.of("fraud"), ana.dataScopes());
+        assertEquals(Set.of(RoleMapper.CAN_OPERATE_RUNS), ana.capabilities(), "case role grants no capability");
+
+        String plain = token(Instant.now().plusSeconds(60), List.of("operations"), RSA_KEY, ISSUER, AUDIENCE, "ops");
+        assertFalse(authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + plain)
+                .orElseThrow().scoped(), "no scoping claims → unscoped, the pre-scoping behaviour");
+    }
+
+    @Test
+    void dataScopesClaimResolvesAndUnionsWithCaseRoles() throws Exception {
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .issuer(ISSUER).subject("ana").audience(AUDIENCE)
+                .expirationTime(Date.from(Instant.now().plusSeconds(60)))
+                .claim("roles", List.of("case:fraud"))
+                .claim("data_scopes", List.of("billing", "Roaming"))
+                .build();
+        SignedJWT jwt = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(RSA_KEY.getKeyID()).build(), claims);
+        jwt.sign(new RSASSASigner(RSA_KEY));
+        Subject ana = authenticateWithHeader(authenticator(ISSUER, AUDIENCE), "Bearer " + jwt.serialize()).orElseThrow();
+        assertEquals(Set.of("fraud", "billing", "roaming"), ana.dataScopes(),
+                "data_scopes claim unions with case:<scope> roles, all lower-cased");
+    }
+
+    @Test
     void missingAuthorizationHeaderIsEmpty() throws Exception {
         assertTrue(authenticateWithHeader(authenticator(ISSUER, AUDIENCE), null).isEmpty());
     }

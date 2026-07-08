@@ -51,9 +51,12 @@ current value happens to match; never gate on `readOnly`/lens identity in a pane
    (Connection etc.)" under Admin; today Connections authoring is a Builder/Workbench surface gated by
    `canAuthorWorkbench` (Wave-1 decision). If it moves, Connections gets its own capability
    (e.g. `canOnboardConnections`) granted to Admin rather than Pipeline Developer.
-2. **Case-type / business-function roles are data-scoped**, not pane-scoped: "a fraud analyst sees fraud
-   cases" needs server-side row filtering by subject — beyond any lens/capability gating. Touches the
-   Wave-4 Objects/Incidents/Cases pane; design belongs with the security module.
+2. ~~**Case-type / business-function roles are data-scoped**~~ **CLOSED 2026-07-08 (SEC-7d)** — product
+   signed the **attribute-scope** model in-session: an object's `caseType` attribute vs
+   `Subject.dataScopes` (null = unscoped; resolved by `RoleMapper` from a `data_scopes` claim ∪
+   `case:<scope>` role names). Enforced server-side in `ObjectRoutes`: filtered lists, 404 on direct
+   access to out-of-scope objects (read and mutate), pruned correlation graphs. The event/audit streams
+   stay capability-gated by design (ops surfaces, not case data).
 3. **Requirements triage under roles** — today `canTriageRequirements` is granted to every non-Business
    lens (there is no builder-vs-ops distinction in grants). Confirm the RBAC grant set when roles are real.
 4. **SLA on Requirements** — declined 2026-07-03 (C1); revisit with roles if wanted.

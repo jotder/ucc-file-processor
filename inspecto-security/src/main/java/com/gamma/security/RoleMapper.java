@@ -17,9 +17,12 @@ import java.util.Set;
  * {@code rolesClaim} as a role-name list (case-insensitive) and unions each role's grants. An
  * unrecognised role name grants nothing (fail-closed — never "everything").
  *
- * <p><b>Out of scope</b> (rbac-groundwork §4 open Q2): case-type/business-function data-scoped grants
- * ("a fraud analyst sees fraud cases") need server-side row filtering per bounded context, not a
- * capability set — deferred, not built here.
+ * <p><b>Data scopes (SEC-7d, closes rbac-groundwork §4 Q2):</b> {@link #dataScopesFor} resolves the
+ * case-type/business-function visibility grants ("a fraud analyst sees fraud cases") that
+ * {@code ObjectRoutes} row-filters on. Two claim shapes feed it: a {@code data_scopes} string-list
+ * claim, and/or role names of the form {@code case:<scope>} (e.g. {@code case:fraud}). When neither
+ * is present the subject is <b>unscoped</b> ({@code null}) — every plain role keeps full visibility,
+ * exactly the pre-scoping behaviour.
  */
 final class RoleMapper {
     private RoleMapper() {}
@@ -44,6 +47,35 @@ final class RoleMapper {
             }
         }
         return caps;
+    }
+
+    /**
+     * The caller's data-visibility scopes (SEC-7d), or {@code null} when unscoped. Union of the
+     * {@code data_scopes} string-list claim and any {@code case:<scope>} role names (lower-cased).
+     * Distinguishes "no scoping claims at all" ({@code null} — sees everything) from an explicit empty
+     * list ({@code []} — sees only untyped objects, fail-closed).
+     */
+    static Set<String> dataScopesFor(JWTClaimsSet claims, String rolesClaim) {
+        Set<String> scopes = new LinkedHashSet<>();
+        boolean scoped = false;
+        try {
+            List<String> direct = claims.getStringListClaim("data_scopes");
+            if (direct != null) {
+                scoped = true;
+                for (String s : direct) if (s != null && !s.isBlank()) scopes.add(s.trim().toLowerCase(Locale.ROOT));
+            }
+        } catch (ParseException ignored) {
+            // not a string list — treated as absent
+        }
+        for (String role : roles(claims, rolesClaim)) {
+            String r = role.toLowerCase(Locale.ROOT);
+            if (r.startsWith("case:")) {
+                scoped = true;
+                String s = r.substring("case:".length()).trim();
+                if (!s.isEmpty()) scopes.add(s);
+            }
+        }
+        return scoped ? scopes : null;
     }
 
     /** The role-name list from {@code rolesClaim}, or (when that claim is absent/not a string list and

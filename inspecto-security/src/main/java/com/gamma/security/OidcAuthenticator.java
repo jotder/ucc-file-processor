@@ -61,7 +61,8 @@ public final class OidcAuthenticator implements Authenticator {
             JWTClaimsSet claims = processor.process(header.substring(7).trim(), null);
             String subjectId = claims.getSubject();
             if (subjectId == null || subjectId.isBlank()) return Optional.empty();
-            return Optional.of(new Subject(subjectId, RoleMapper.capabilitiesFor(claims, rolesClaim)));
+            return Optional.of(new Subject(subjectId, RoleMapper.capabilitiesFor(claims, rolesClaim),
+                    RoleMapper.dataScopesFor(claims, rolesClaim)));
         } catch (Exception e) {
             return Optional.empty();   // bad signature, wrong issuer/audience, expired, malformed — all 401
         }
