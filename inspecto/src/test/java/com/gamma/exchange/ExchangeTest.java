@@ -97,6 +97,58 @@ class ExchangeTest {
     }
 
     @Test
+    void widgetGrantClosureAndCascade(@TempDir Path spacesRoot) {
+        Exchange ex = Exchange.under(spacesRoot);
+        ex.putOffer(new Offer("dataset", "tax_receipts", "finance", "", Map.of(), "a", 1L));
+        ex.putOffer(new Offer("widget", "chart1", "finance", "", Map.of(), "a", 1L, "tax_receipts"));
+
+        // requesting the widget auto-creates the bound dataset grant (both pending)
+        ShareGrant wg = ex.request("widget", "chart1", "finance", "audit", "r", "p", null);
+        String dgid = ShareGrant.idFor("dataset", "tax_receipts", "finance", "audit");
+        assertEquals(ShareGrant.REQUESTED, wg.status());
+        assertTrue(ex.grant(dgid).isPresent(), "dataset grant travels with the widget");
+        assertFalse(ex.canRenderWidget("audit", "finance", "chart1"), "not renderable while pending");
+
+        // approving the widget activates the pair atomically
+        ex.approve(wg.id(), "a");
+        assertEquals(ShareGrant.ACTIVE, ex.grant(dgid).orElseThrow().status());
+        assertTrue(ex.canRenderWidget("audit", "finance", "chart1"));
+
+        // revoking the dataset grant cascades to the dependent widget grant (fail-closed)
+        ex.revoke(dgid, "a");
+        assertEquals(ShareGrant.REVOKED, ex.grant(wg.id()).orElseThrow().status());
+        assertFalse(ex.canRenderWidget("audit", "finance", "chart1"));
+    }
+
+    @Test
+    void expiryClosesResolution(@TempDir Path spacesRoot) {
+        Exchange ex = Exchange.under(spacesRoot);
+        ex.putOffer(datasetOffer());
+        ShareGrant g = ex.request("dataset", "tax_receipts", "finance", "audit", "r", "p", null);
+        ex.approve(g.id(), "a");
+        assertTrue(ex.resolveForConsumer("audit", "finance", "dataset", "tax_receipts").isPresent());
+
+        ex.setExpiry(g.id(), System.currentTimeMillis() - 1000);   // already past
+        assertTrue(ex.activeGrant("audit", "finance", "dataset", "tax_receipts").isEmpty(), "expired ⇒ inactive");
+        assertTrue(ex.resolveForConsumer("audit", "finance", "dataset", "tax_receipts").isEmpty());
+
+        ex.setExpiry(g.id(), System.currentTimeMillis() + 3_600_000);   // future re-opens
+        assertTrue(ex.resolveForConsumer("audit", "finance", "dataset", "tax_receipts").isPresent());
+    }
+
+    @Test
+    void pinSetAndClear(@TempDir Path spacesRoot) {
+        Exchange ex = Exchange.under(spacesRoot);
+        ex.putOffer(datasetOffer());
+        ShareGrant g = ex.request("dataset", "tax_receipts", "finance", "audit", "r", "p", null);
+        ex.approve(g.id(), "a");
+        assertNull(ex.grant(g.id()).orElseThrow().pin());
+        assertEquals("v123", ex.setPin(g.id(), "v123").pin());
+        assertEquals("v123", ex.grant(g.id()).orElseThrow().pin());
+        assertNull(ex.setPin(g.id(), null).pin(), "blank/null clears the pin");
+    }
+
+    @Test
     void sharedRefParsing() {
         assertEquals(new SharedRef("finance", "tax_receipts"),
                 SharedRef.parse("shared/finance/tax_receipts").orElseThrow());

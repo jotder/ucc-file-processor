@@ -1,6 +1,12 @@
 # Storage Layout & Cross-Space Sharing — Plan
 
-> **Status: PLAN (2026-07-09, revised same day after review). No implementation yet.** Two linked
+> **Status: BACKEND SHIPPED L0→S3 (2026-07-09, on `master`, unpushed). UI track (§3.6 surfaces) still
+> open.** Commits: L0 `76e51a9`, S1 `6170123`, S2 `4d175d4`, S2b+S3 (this shift). New backend code:
+> `com.gamma.exchange` (Exchange/Offer/ShareGrant/SharedRef/Ledger/ExchangeSnapshots/ExchangeSnapshotWriter),
+> `com.gamma.control.{ExchangeRoutes,ExchangeRefResolver}`, `com.gamma.query.SharedRefResolver`,
+> `com.gamma.service.SpaceLayoutContract`. See §5 for the per-phase status.
+>
+> **Original plan follows.** Two linked
 > requirements: **(1)** a formal, system-organized layout for config and data files; **(2)** **Datasets
 > shareable across Spaces on request (Share Grants)** — a deliberate, narrowly-scoped change to the
 > tenancy model (glossary §1: today "Activity in one Space is invisible to another").
@@ -218,13 +224,14 @@ empty-state, never stale cached data.
 
 ## 5. Phasing
 
-| Phase | Scope | Notes |
+| Phase | Scope | Status |
 |---|---|---|
-| **L0 — layout contract** | Boot-time tree validation (WARN signals), `views/` + `packs/` + `share-grants/` homes documented, contract table in `architecture.md` | Pure formalization, no behavior change |
-| **S1 — Exchange + grant workflow (no data path)** | `_shared` reservation, offer/request/approve/revoke lifecycle + ledger, `shared/<owner>/<id>` ref parsing (resolving to metadata only), Catalog tabs, capabilities | Includes the `IdScheme`/lineage sizing spike (§3.3) |
-| **S2 — snapshot mode (Datasets)** | Refresh Job + versioned exchange dirs + atomic pointer flip, `DatasetRelation` snapshot routing, freshness metadata + `exchange.refreshed` signals, consumer fence | Depends on job-framework P1 (Run Artifacts) |
-| **S2b — shared Widgets** | `kind: widget` grants with dataset-grant closure, render-only resolution in the Widget library/dashboards/embed viewer, revoked empty-state | Thin on top of S2 — widgets are config-only; the data path is S2's |
-| **S3 — live mode + governance** | Per-grant jail roots, live `DatasetRelation` routing, revocation/expiry enforcement, drift/version pinning UI | Live mode ships only after fence + revocation proven in S2 |
+| **L0 — layout contract** | Boot-time tree validation (WARN signals), `views/` + `packs/` + `share-grants/` homes documented, contract table in `architecture.md` | ✅ **SHIPPED** — `SpaceLayoutContract.verify` in `SpaceBootstrap.load`; `LAYOUT_CONTRACT_VIOLATION` WARN events; `SpaceLayoutContractTest` |
+| **S1 — Exchange + grant workflow (no data path)** | `_shared` reservation, offer/request/approve/revoke lifecycle + ledger, `shared/<owner>/<id>` ref parsing (resolving to metadata only), capabilities | ✅ **SHIPPED (backend)** — `Exchange` (offers/grants ledgers), `ExchangeRoutes`, caps `canOfferDatasets`/`canRequestShares`/`canApproveShares`. **IdScheme spike finding:** the catalog (`com.gamma.catalog`) models pipeline/schema lineage, *not* Studio datasets — no re-keying needed; shared refs flow as plain `physicalRef` strings (`ComponentStore.SAFE_ID` rejects `/`, so a shared ref is never a component id) |
+| **S2 — snapshot mode (Datasets)** | Versioned exchange dirs + atomic `current.toon` pointer flip, `DatasetRelation` snapshot routing, freshness metadata + `EXCHANGE_REFRESHED` signal, consumer deletion fence | ✅ **SHIPPED** — `ExchangeSnapshotWriter`/`ExchangeSnapshots` + `POST /exchange/refresh` (owner-triggered; the cron/`on_signal` *cadence* awaits job-framework P1, but the data path is complete), `SharedRefResolver` grant-checked routing, `ComponentRoutes` fence |
+| **S2b — shared Widgets** | `kind: widget` grants with dataset-grant closure, render-only resolution, revoked empty-state | ✅ **SHIPPED (backend)** — widget offer requires its dataset offer; request auto-pairs the dataset grant; approve activates the pair; revoke cascades; `GET /exchange/widgets/{owner}/{item}` render-authorization. **UI** (library/dashboard placement, empty-state) is in the UI track |
+| **S3 — live mode + governance** | Live `DatasetRelation` routing, revocation/expiry enforcement, version pinning | ✅ **SHIPPED (backend)** — `ExchangeRefResolver` live vs snapshot vs pinned branching; `activeGrant` enforces expiry; `POST /exchange/grants/{id}/{pin,expiry}`. **Per-grant `ConfigSafetyValidator` jail roots proved unnecessary:** shared refs resolve to server-computed *trusted* paths, never config-authored ones. Drift/pinning **UI** is in the UI track |
+| **UI — Exchange surfaces (§3.6)** | Catalog "Shared with me"/"Shared by me", "Offer for sharing…", scope badges, revoked empty-state, pin/drift UI | ⬜ **OPEN** — the remaining track; backend endpoints + `bootstrap.features.exchange` flag are all in place |
 
 ## 6. Risks & open questions
 

@@ -18,12 +18,20 @@ import java.util.Map;
  * @param resultSet   descriptive Result Set metadata (may be empty until S2 populates it)
  * @param offeredBy   the actor who listed the offer
  * @param offeredAt   epoch millis the offer was listed/last updated
+ * @param dataset     for a {@code widget} offer, the id of the Dataset its query binds (its grant travels
+ *                    with the widget — §3.5); {@code null} for a Dataset offer
  */
 public record Offer(String kind, String item, String owner, String description,
-                    Map<String, Object> resultSet, String offeredBy, long offeredAt) {
+                    Map<String, Object> resultSet, String offeredBy, long offeredAt, String dataset) {
 
     public Offer {
         resultSet = resultSet == null ? Map.of() : Map.copyOf(resultSet);
+    }
+
+    /** A Dataset offer (no bound-dataset link). */
+    public Offer(String kind, String item, String owner, String description,
+                 Map<String, Object> resultSet, String offeredBy, long offeredAt) {
+        this(kind, item, owner, description, resultSet, offeredBy, offeredAt, null);
     }
 
     /** Stable ledger key for an offer — unique per {@code (owner, kind, item)}. */
@@ -41,6 +49,7 @@ public record Offer(String kind, String item, String owner, String description,
         m.put("resultSet", resultSet);
         m.put("offeredBy", offeredBy == null ? "" : offeredBy);
         m.put("offeredAt", offeredAt);
+        m.put("dataset", dataset);
         return m;
     }
 
@@ -51,6 +60,6 @@ public record Offer(String kind, String item, String owner, String description,
                 Ledger.str(m, "kind"), Ledger.str(m, "item"), Ledger.str(m, "owner"),
                 Ledger.str(m, "description"),
                 rs instanceof Map ? (Map<String, Object>) rs : Map.of(),
-                Ledger.str(m, "offeredBy"), Ledger.asLong(m.get("offeredAt")));
+                Ledger.str(m, "offeredBy"), Ledger.asLong(m.get("offeredAt")), Ledger.str(m, "dataset"));
     }
 }

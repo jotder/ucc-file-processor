@@ -3,7 +3,9 @@ package com.gamma.control;
 import com.gamma.event.EventLog;
 import com.gamma.exchange.Exchange;
 import com.gamma.exchange.ExchangeSnapshots;
+import com.gamma.exchange.ShareGrant;
 import com.gamma.query.SharedRefResolver;
+import com.gamma.service.SpaceId;
 import com.gamma.service.SpaceManager;
 
 import java.nio.file.Files;
@@ -33,9 +35,29 @@ final class ExchangeRefResolver implements SharedRefResolver {
         Exchange ex = Exchange.under(spaces.containerRoot());
         if (!ex.enabled()) return Optional.empty();
         String consumer = EventLog.currentSpaceId();
-        if (ex.resolveForConsumer(consumer, owner, "dataset", item).isEmpty())
-            return Optional.empty();   // no active grant ⇒ does not resolve, even if files exist
-        return ExchangeSnapshots.currentDir(ExchangeSnapshots.itemDir(ex.dir(), owner, item))
+        Optional<ShareGrant> granted = ex.activeGrant(consumer, owner, "dataset", item);
+        if (granted.isEmpty()) return Optional.empty();   // no active grant ⇒ does not resolve, even if files exist
+        ShareGrant grant = granted.get();
+
+        // Live mode (S3): read the owner's at-rest Table directory directly, read-only. Zero duplication,
+        // always current — the query is a SELECT so nothing can write back.
+        if (ShareGrant.LIVE.equals(grant.mode()))
+            return ownerTableDir(owner, item);
+
+        // Snapshot mode: the pinned version if the grant pins one (fail-closed if that version is gone),
+        // else the live version the current.toon pointer names.
+        Path itemDir = ExchangeSnapshots.itemDir(ex.dir(), owner, item);
+        if (grant.pin() != null) {
+            Path pinned = itemDir.resolve(grant.pin());
+            return Files.isDirectory(pinned) ? Optional.of(pinned) : Optional.empty();
+        }
+        return ExchangeSnapshots.currentDir(itemDir).filter(Files::isDirectory);
+    }
+
+    /** The owner Space's at-rest Table directory for {@code item} (live-mode read target). */
+    private Optional<Path> ownerTableDir(String owner, String item) {
+        return spaces.space(SpaceId.of(owner))
+                .map(ctx -> Path.of(ctx.root().dataDir()).resolve(item))
                 .filter(Files::isDirectory);
     }
 }
