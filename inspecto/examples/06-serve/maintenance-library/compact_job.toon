@@ -1,0 +1,9 @@
+job:
+  name: compact_sales
+  type: maintenance
+  task: compact
+  cron: "0 6 * * 0"
+  dir: out/database
+  min_age_days: "7"
+  min_files: "4"
+  store: out/database

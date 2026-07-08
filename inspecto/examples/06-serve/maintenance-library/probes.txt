@@ -1,0 +1,26 @@
+# Per-example Control API probes for serve-example.{ps1,sh}.
+# One endpoint path per line; blank lines and lines starting with '#' are ignored.
+#
+# This example is the PIP-7 MAINTENANCE JOB LIBRARY + PIP-6 JOB TEMPLATES in one config dir:
+#
+#   retention_job_template.toon    - a parameterized job template (PIP-6): cleanup with ${dir},
+#                                    ${retention_days}, ${glob} params ("dir" required, others defaulted)
+#   backup_retention_job.toon      - instantiates the template for out/backup (30d)
+#   quarantine_retention_job.toon  - instantiates it for out/quarantine (14d) AND overrides the
+#                                    template's cron directly (instance keys win)
+#   ledger_prune_job.toon          - task ledger_prune: forget acquisition-ledger fingerprints
+#                                    older than 180d (deliberate forgetting - a pruned file still
+#                                    at the source re-ingests as NEW; retention_days is required)
+#   db_maintenance_job.toon        - task db_maintenance: CHECKPOINT/VACUUM the ledger DB over its
+#                                    own live connection (DuckDB is single-writer)
+#   compact_job.toon               - task compact: merge small per-batch parquet files inside each
+#                                    partition dir under out/database (min_age_days=7 quiet window,
+#                                    min_files=4; declares store: so DeletionFence flags a race with
+#                                    a running pipeline). NB reprocess of a compacted-away batch is
+#                                    not supported - keep min_age_days beyond your reprocess horizon.
+#
+# /jobs lists all six registered jobs (the template itself is NOT a job - *_job_template.toon is
+# a different suffix, resolved at load; the two retention jobs show their fully-resolved params).
+/jobs
+/jobs/backup_retention/runs
+/jobs/compact_sales/runs

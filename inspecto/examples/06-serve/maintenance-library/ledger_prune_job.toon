@@ -1,0 +1,6 @@
+job:
+  name: ledger_prune
+  type: maintenance
+  task: ledger_prune
+  cron: "0 5 * * 0"
+  retention_days: "180"

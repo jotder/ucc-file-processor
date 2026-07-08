@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -50,7 +51,12 @@ final class ServiceBootstrap {
     static SourceService buildFrom(SpaceRoot root, String[] paths, boolean exitIfEmpty) throws IOException {
         List<Path> registry = MultiSourceProcessor.resolveConfigs(paths);
         List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(paths, "_enrich.toon"));
-        List<JobConfig> jobConfigs = loadJobs(resolveBySuffix(paths, "_job.toon"));
+        // Job templates (PIP-6) resolve at load: jobs referencing `template:` are expanded here, so the
+        // scheduler only ever sees plain JobConfigs. (The *_job_template.toon suffix does not match the
+        // *_job.toon scan — a template file is never loaded as a job itself.)
+        Map<String, com.gamma.job.JobTemplate> templates =
+                loadJobTemplates(resolveBySuffix(paths, "_job_template.toon"));
+        List<JobConfig> jobConfigs = loadJobs(resolveBySuffix(paths, "_job.toon"), templates);
         List<SemanticModel> semantics = loadSemantics(resolveBySuffix(paths, "_meta.toon"));
         List<com.gamma.alert.AlertRule> alertRules = loadAlerts(resolveBySuffix(paths, "_alert.toon"));
         if (registry.isEmpty() && enrichJobs.isEmpty() && jobConfigs.isEmpty() && exitIfEmpty) {
@@ -162,14 +168,41 @@ final class ServiceBootstrap {
         return out;
     }
 
-    /** Load each {@code *_job.toon}; a bad one is warned and skipped (others still host). */
-    private static List<JobConfig> loadJobs(List<Path> paths) {
+    /** Load each {@code *_job_template.toon} (PIP-6) by name; a bad one is warned and skipped. */
+    private static Map<String, com.gamma.job.JobTemplate> loadJobTemplates(List<Path> paths) {
+        Map<String, com.gamma.job.JobTemplate> out = new java.util.LinkedHashMap<>();
+        for (Path p : paths) {
+            try {
+                com.gamma.job.JobTemplate t = com.gamma.job.JobTemplate.load(p.toString());
+                if (out.putIfAbsent(t.name(), t) != null)
+                    log.warn("Duplicate job template '{}' at {} — keeping the first", t.name(), p);
+                else log.info("Loaded job template '{}' ({} param(s)) from {}", t.name(), t.paramDefaults().size(), p);
+            } catch (Exception e) {
+                log.warn("Could not load job template {}: {}", p, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    /** Load each {@code *_job.toon}, expanding {@code template:} references (PIP-6); a bad one is
+     *  warned and skipped (others still host). */
+    private static List<JobConfig> loadJobs(List<Path> paths, Map<String, com.gamma.job.JobTemplate> templates) {
         List<JobConfig> jobs = new ArrayList<>();
         for (Path p : paths) {
             try {
-                JobConfig c = JobConfig.load(p.toString());
+                Map<String, Object> raw = com.gamma.util.ToonHelper.load(p.toString());
+                Map<String, Object> job = com.gamma.util.ToonHelper.requireSection(raw, "job");
+                Object templateRef = job.get("template");
+                if (templateRef != null) {
+                    com.gamma.job.JobTemplate t = templates.get(String.valueOf(templateRef).trim());
+                    if (t == null) throw new IllegalArgumentException(
+                            "references unknown job template '" + templateRef + "'");
+                    job = t.instantiate(job);
+                }
+                JobConfig c = JobConfig.fromMap(Map.of("job", job));
                 jobs.add(c);
-                log.info("Registered {} job '{}' from {}", c.type(), c.name(), p);
+                log.info("Registered {} job '{}'{} from {}", c.type(), c.name(),
+                        templateRef != null ? " (template " + templateRef + ")" : "", p);
             } catch (Exception e) {
                 log.warn("Could not load job config {}: {}", p, e.getMessage());
             }
