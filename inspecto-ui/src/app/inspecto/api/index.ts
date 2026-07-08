@@ -39,3 +39,5 @@ export * from './decision-rules.service';
 export * from './geo-settings.service';
 export * from './branding.service';
 export * from './inv.service';
+export * from './share.service';
+export * from './bi-templates.service';

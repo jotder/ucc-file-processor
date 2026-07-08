@@ -28,38 +28,37 @@ final class BiTemplates {
     private static final String P_DATASET = "${dataset}";
     private static final String P_PREFIX = "${prefix}";
 
+    // Component content is authored in the SAME shape the Studio consumes (widget-types.ts / dashboard-types.ts),
+    // so an applied template is immediately renderable and editable: a widget = {vizType, datasetId, controls, options},
+    // a dashboard = {name, tiles:[{widgetId, span}]}. Curated over the conventional starter columns
+    // (region/amount/id) — a starter board the operator then edits to their dataset's real fields.
     private static final List<Template> TEMPLATES = List.of(
             new Template("kpi-overview", "KPI overview",
-                    "A count KPI, a sum-by-dimension bar, and a raw table over one Dataset — the "
+                    "A count KPI, a sum-by-dimension bar, and a per-dimension table over one Dataset — the "
                             + "minimal executive board to start from.",
                     List.of(
-                            component("widget", P_PREFIX + "kpi_total", Map.of(
-                                    "kind", "kpi", "datasetId", P_DATASET, "title", "Total records",
-                                    "spec", Map.of("measures", List.of(Map.of("agg", "count"))))),
-                            component("widget", P_PREFIX + "sum_by_dim", Map.of(
-                                    "kind", "bar", "datasetId", P_DATASET, "title", "Sum by dimension",
-                                    "spec", Map.of("measures", List.of(Map.of("agg", "sum", "field", "amount")),
-                                            "groupBy", List.of("region")))),
-                            component("widget", P_PREFIX + "raw_table", Map.of(
-                                    "kind", "table", "datasetId", P_DATASET, "title", "Records",
-                                    "spec", Map.of("limit", 100))),
-                            component("dashboard", P_PREFIX + "kpi_board", Map.of(
-                                    "title", "KPI overview",
-                                    "widgets", List.of(P_PREFIX + "kpi_total", P_PREFIX + "sum_by_dim",
-                                            P_PREFIX + "raw_table"))))),
+                            widget(P_PREFIX + "kpi_total", "kpi", "Total records",
+                                    Map.of("value", List.of(measure("count", "id")))),
+                            widget(P_PREFIX + "sum_by_dim", "bar", "Sum by dimension",
+                                    Map.of("x", List.of(dimension("region")),
+                                            "y", List.of(measure("sum", "amount")))),
+                            widget(P_PREFIX + "raw_table", "table", "By dimension",
+                                    Map.of("x", List.of(dimension("region")),
+                                            "y", List.of(measure("sum", "amount")))),
+                            dashboard(P_PREFIX + "kpi_board", "KPI overview",
+                                    tile(P_PREFIX + "kpi_total", 1), tile(P_PREFIX + "sum_by_dim", 2),
+                                    tile(P_PREFIX + "raw_table", 1)))),
             new Template("quality-monitor", "Data quality monitor",
-                    "Row volume over time plus a distinct-count check — a starting point for watching a "
+                    "Row volume by dimension plus a distinct-key count — a starting point for watching a "
                             + "feed's health.",
                     List.of(
-                            component("widget", P_PREFIX + "volume", Map.of(
-                                    "kind", "line", "datasetId", P_DATASET, "title", "Row volume",
-                                    "spec", Map.of("measures", List.of(Map.of("agg", "count"))))),
-                            component("widget", P_PREFIX + "distincts", Map.of(
-                                    "kind", "kpi", "datasetId", P_DATASET, "title", "Distinct keys",
-                                    "spec", Map.of("measures", List.of(Map.of("agg", "countDistinct", "field", "id"))))),
-                            component("dashboard", P_PREFIX + "quality_board", Map.of(
-                                    "title", "Data quality",
-                                    "widgets", List.of(P_PREFIX + "volume", P_PREFIX + "distincts"))))));
+                            widget(P_PREFIX + "volume", "bar", "Row volume by dimension",
+                                    Map.of("x", List.of(dimension("region")),
+                                            "y", List.of(measure("count", "id")))),
+                            widget(P_PREFIX + "distincts", "kpi", "Distinct keys",
+                                    Map.of("value", List.of(measure("countDistinct", "id")))),
+                            dashboard(P_PREFIX + "quality_board", "Data quality",
+                                    tile(P_PREFIX + "volume", 2), tile(P_PREFIX + "distincts", 1)))));
 
     private BiTemplates() {}
 
@@ -118,6 +117,33 @@ final class BiTemplates {
 
     private static Map<String, Object> component(String kind, String id, Map<String, Object> content) {
         return Map.of("kind", kind, "id", id, "content", content);
+    }
+
+    /** A {@code widget} component in the Studio's {@code {vizType, datasetId, controls, options}} shape. */
+    private static Map<String, Object> widget(String id, String vizType, String title, Map<String, Object> controls) {
+        return component("widget", id, Map.of(
+                "vizType", vizType, "datasetId", P_DATASET, "controls", controls,
+                "options", Map.of("title", title)));
+    }
+
+    /** A {@code dashboard} component in the Studio's {@code {name, tiles:[{widgetId, span}]}} shape. */
+    @SafeVarargs
+    private static Map<String, Object> dashboard(String id, String name, Map<String, Object>... tiles) {
+        return component("dashboard", id, Map.of("name", name, "tiles", List.of(tiles), "filter", Map.of()));
+    }
+
+    private static Map<String, Object> tile(String widgetId, int span) {
+        return Map.of("widgetId", widgetId, "span", span);
+    }
+
+    /** One measure channel value ({@code agg(field)}); {@code count} ignores the field but keeps the shape valid. */
+    private static Map<String, Object> measure(String agg, String field) {
+        return Map.of("field", field, "agg", agg);
+    }
+
+    /** One dimension channel value (no aggregation). */
+    private static Map<String, Object> dimension(String field) {
+        return Map.of("field", field);
     }
 
     private static String substitute(String s, String dataset, String prefix) {

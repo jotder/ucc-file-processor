@@ -11,6 +11,7 @@ export default [
     { path: 'queries', loadChildren: () => import('./queries/queries.routes') },
     { path: 'widgets', loadChildren: () => import('./widgets/widgets.routes') },
     { path: 'dashboards', loadChildren: () => import('./dashboards/dashboards.routes') },
+    { path: 'templates', loadChildren: () => import('./templates/templates.routes') },
     { path: 'link-analysis', loadChildren: () => import('./link-analysis/link-analysis.routes') },
     { path: 'geo-map', loadChildren: () => import('./geo-map/geo-map.routes') },
 ] as Routes;

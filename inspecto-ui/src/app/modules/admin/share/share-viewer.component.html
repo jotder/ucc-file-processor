@@ -1,0 +1,42 @@
+<div class="min-h-screen p-6 sm:p-10">
+    @switch (state()) {
+        @case ('loading') {
+            <inspecto-skeleton></inspecto-skeleton>
+        }
+        @case ('error') {
+            <div class="mx-auto max-w-lg pt-16">
+                <h1 class="mb-4 text-2xl font-semibold">Shared dashboard</h1>
+                <inspecto-alert variant="error" title="Link unavailable">{{ errorMessage() }}</inspecto-alert>
+            </div>
+        }
+        @case ('ready') {
+            <header class="mx-auto mb-6 max-w-6xl">
+                <h1 class="text-2xl font-semibold">{{ name() }}</h1>
+                <p class="text-secondary mt-1 text-sm">
+                    Shared read-only view · link expires {{ expiresAt() }}
+                </p>
+            </header>
+            <main class="mx-auto grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2">
+                @for (tile of tiles(); track $index) {
+                    <section class="rounded-lg border p-4" [class.sm:col-span-2]="tile.span === 2">
+                        <h2 class="mb-3 truncate text-base font-medium">{{ tile.title }}</h2>
+                        @switch (tile.state) {
+                            @case ('loading') {
+                                <inspecto-skeleton></inspecto-skeleton>
+                            }
+                            @case ('unsupported') {
+                                <inspecto-alert variant="info" title="Not embeddable">{{ tile.detail }}</inspecto-alert>
+                            }
+                            @case ('error') {
+                                <inspecto-alert variant="warning" title="Data unavailable">{{ tile.detail }}</inspecto-alert>
+                            }
+                            @case ('ready') {
+                                <inspecto-viz-render [plugin]="tile.plugin!" [props]="tile.props!" [title]="tile.title" />
+                            }
+                        }
+                    </section>
+                }
+            </main>
+        }
+    }
+</div>

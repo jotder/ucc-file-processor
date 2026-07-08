@@ -34,6 +34,9 @@ export const appRoutes: Route[] = [
     { path: 'sign-in', loadComponent: () => import('app/modules/admin/session/sign-in.component').then((m) => m.SignInComponent) },
     { path: 'auth/callback', loadComponent: () => import('app/modules/admin/session/callback.component').then((m) => m.CallbackComponent) },
 
+    // Public dashboard embed (BI-6) — the share token IS the credential; no shell, no guard, read-only.
+    { path: 'share/:token', loadComponent: () => import('app/modules/admin/share/share-viewer.component').then((m) => m.ShareViewerComponent) },
+
     // Template OAuth flow, kept for reference (Inspecto uses operator tokens instead):
     // { path: 'signed-in-redirect', pathMatch: 'full', redirectTo: 'dashboard' },
     // {

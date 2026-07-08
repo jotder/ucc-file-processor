@@ -69,6 +69,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
                     { id: 'studio-queries',    title: 'Query Library',  type: 'basic', icon: 'heroicons_outline:command-line', link: '/studio/queries' },
                     { id: 'studio-viz-library', title: 'Viz Library',    type: 'basic', icon: 'heroicons_outline:rectangle-stack', link: '/studio/widgets' },
                     { id: 'studio-dashboards', title: 'Dashboard Builder', type: 'basic', icon: 'heroicons_outline:squares-2x2', link: '/studio/dashboards' },
+                    { id: 'studio-templates',  title: 'Template Gallery', type: 'basic', icon: 'heroicons_outline:sparkles', link: '/studio/templates' },
                     { id: 'studio-link-analysis', title: 'Link Analysis', type: 'basic', icon: 'heroicons_outline:share',    link: '/studio/link-analysis' },
                     { id: 'menus',             title: 'Menus',          type: 'basic', icon: 'heroicons_outline:bars-3',    link: '/settings/menus' },
                     { id: 'studio-geo-map',    title: 'Geo Map Analysis', type: 'basic', icon: 'heroicons_outline:globe-alt', link: '/studio/geo-map' },

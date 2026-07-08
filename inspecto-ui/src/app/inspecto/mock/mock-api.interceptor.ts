@@ -17,6 +17,8 @@ import { opsHandler } from './handlers/ops.handler';
 import { pipelinesHandler } from './handlers/pipelines.handler';
 import { requirementsHandler } from './handlers/requirements.handler';
 import { settingsHandler } from './handlers/settings.handler';
+import { biTemplatesHandler } from './handlers/bi-templates.handler';
+import { publicDashboardsHandler } from './handlers/public-dashboards.handler';
 import { spacesHandler } from './handlers/spaces.handler';
 import { registerIntegrityRules } from './integrity';
 import { MockFlags } from './mock-flags';
@@ -54,6 +56,8 @@ const HANDLERS: MockHandler[] = [
     opsHandler(flags),
     expectationsHandler(flags),
     invHandler(flags),
+    publicDashboardsHandler(flags),
+    biTemplatesHandler(flags),
     requirementsHandler(flags),
     decisionRulesHandler(flags),
     jobsHandler(flags),

@@ -1,0 +1,34 @@
+<div class="p-6">
+    <header class="mb-6">
+        <h1 class="text-2xl font-semibold">Template gallery</h1>
+        <p class="text-secondary mt-1 text-sm">
+            Curated starter boards — apply one to a Dataset, then edit it in the Studio.
+        </p>
+    </header>
+
+    @if (loading()) {
+        <inspecto-skeleton></inspecto-skeleton>
+    } @else if (templates().length === 0) {
+        <inspecto-empty-state icon="heroicons_outline:squares-2x2" title="No templates"
+            message="The curated template gallery is empty."></inspecto-empty-state>
+    } @else {
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            @for (t of templates(); track t.id) {
+                <section class="flex flex-col rounded-lg border p-4">
+                    <h2 class="text-base font-medium">{{ t.title }}</h2>
+                    <p class="text-secondary mt-1 grow text-sm">{{ t.description }}</p>
+                    <p class="text-secondary mt-3 text-xs">
+                        {{ t.components.length }} component(s):
+                        {{ componentSummary(t) }}
+                    </p>
+                    <div class="mt-4">
+                        <button type="button" mat-flat-button color="primary"
+                            [attr.aria-label]="'Apply template ' + t.title" (click)="apply(t)">
+                            Apply…
+                        </button>
+                    </div>
+                </section>
+            }
+        </div>
+    }
+</div>
