@@ -212,6 +212,17 @@ touching `inspecto-ui/`.** Highlights (full detail there):
 - **G6 graph** — reuse `modules/admin/catalog/graph-view.component.ts` (`@Input data`, `@Output nodeClick`);
   nodes are canvas-drawn (not DOM) → verify inspector logic via unit test, not preview clicks. Flow graph data
   via `flow-graph.ts#toFlowG6Data`.
+- **Viz plugins register by side effect** — `import 'app/inspecto/viz/plugins'` runs `registerBuiltinViz()`.
+  Admin shell surfaces trigger it transitively; a **guest/shell-less or lazy route that renders widgets must
+  import it explicitly** or `getViz(type)` returns undefined and every tile reads "not embeddable" (bit BI-6
+  `/share/:token` + BI-8). Reference: `modules/admin/share/share-viewer.component.ts`.
+- **Anonymous routes** — add the path prefix to `space.interceptor` `SERVER_GLOBAL` (e.g. `/public`) or the
+  active-space rewrite 404s it; the call is token/credential-addressed, not space-scoped.
+- **`<inspecto-empty-state>` inputs are `title` + `message`** (not `heading`); `message` is required. Wrong
+  input names fail silently (dropped in prod, caught only by a text assertion).
+- **BI widget/dashboard content shape** — a `widget` component is `{vizType, datasetId, controls, options}`
+  (channel mapping, NOT a raw query spec); a `dashboard` is `{name, tiles:[{widgetId, span}]}`. Anything
+  writing these server-side (e.g. `BiTemplates`) must emit this shape or the Studio can't render it.
 - **Dev**: `npm start` (`ng serve` :4204); `proxy.conf.json` maps `/api` → `:8080`. `.claude/launch.json`
   defines both preview servers.
 
@@ -220,7 +231,9 @@ touching `inspecto-ui/`.** Highlights (full detail there):
 ## 7. Related sandboxes (separate repos — pointers only)
 
 - **agent-kernel** (`C:/sandbox/agent-kernel`) — DISCONTINUED; Inspecto vendored its reasoning layer 2026-07-07.
-- **eoiagent** (`C:/sandbox/agent-brainstorm`) — agent platform; Inspecto's model transport since 2026-07-07 (0.1.0-SNAPSHOT).
+- **eoiagent** (`C:/sandbox/agent-brainstorm`) — agent platform; Inspecto's model transport. Pinned to the
+  released **`0.1.0`** (tag `v0.1.0`, EOI-7a 2026-07-08; trunk now `0.2.0-SNAPSHOT`). Rebuild into local `.m2`
+  with `git checkout v0.1.0 && mvn -o clean install` until a registry is chosen (EOI-7b).
 - **CVVE** (`C:/sandbox/agentic-doc-validation`) — kernel's 3rd consumer; first real `HumanHandoff` driver.
 
 (Detailed progress for these lives in the per-user agent memory, not in this repo — they are different projects.)
