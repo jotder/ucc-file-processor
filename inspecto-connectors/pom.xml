@@ -32,6 +32,7 @@
         <commons-net.version>3.6</commons-net.version>
         <postgresql.version>42.7.4</postgresql.version>
         <javax-mail.version>1.6.2</javax-mail.version>
+        <kafka.version>3.9.2</kafka.version>
         <!-- test-only embedded servers -->
         <sshd.version>2.12.1</sshd.version>
         <ftpserver.version>1.2.0</ftpserver.version>
@@ -65,6 +66,15 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>${postgresql.version}</version>
+        </dependency>
+
+        <!-- Kafka consumer client (Apache 2.0) for the streaming source (ACQ-5). 3.9.x = the last line
+             compatible with brokers back to 2.1 (4.x drops them). MockConsumer ships in this jar, so the
+             tests need no broker. Confined to this module. -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>${kafka.version}</version>
         </dependency>
 
         <!-- SMTP client (CDDL/GPLv2+CE) for the email notification channel (SmtpEmailChannel) —

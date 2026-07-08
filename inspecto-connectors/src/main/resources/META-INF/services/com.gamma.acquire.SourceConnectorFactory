@@ -5,3 +5,4 @@ com.gamma.acquire.connectors.FtpConnectorFactory
 com.gamma.acquire.connectors.FtpsConnectorFactory
 com.gamma.acquire.connectors.DbExportConnectorFactory
 com.gamma.acquire.connectors.S3ConnectorFactory
+com.gamma.acquire.connectors.KafkaConnectorFactory
