@@ -27,6 +27,20 @@ import java.util.Set;
  *   }
  * </pre>
  *
+ * <p><b>Measure rules (BI-5)</b> — replace {@code metric}+{@code window} with a Dataset measure,
+ * evaluated over the current at-rest data via the headless BI evaluator on every sweep:
+ *
+ * <pre>
+ *   alert {
+ *     name:       low-total-revenue
+ *     dataset:    sales_ds                 # a dataset component id
+ *     measure:    sum(amount)              # count | agg(field), agg ∈ count/countDistinct/sum/avg/min/max
+ *     comparator: lt
+ *     threshold:  1000
+ *     severity:   WARNING
+ *   }
+ * </pre>
+ *
  * <h3>Metric semantics (over the batches ledger, within the window)</h3>
  * <ul>
  *   <li>{@code error_rate} — {@code 1 - sum(total_output_rows)/sum(total_input_rows)} (0 when no input)</li>
@@ -36,12 +50,19 @@ import java.util.Set;
  * </ul>
  */
 public record AlertRule(String name, String metric, String comparator, double threshold,
-                        String window, String severity, String onPipeline) {
+                        String window, String severity, String onPipeline,
+                        String dataset, String measure) {
 
     public static final Set<String> METRICS =
             Set.of("error_rate", "failed_batches", "rejected_files", "duration_ms");
     public static final Set<String> COMPARATORS = Set.of("gt", "gte", "lt", "lte");
     public static final Set<String> SEVERITIES = Set.of("INFO", "WARNING", "CRITICAL");
+
+    /** The historic ledger-metric rule shape (every pre-BI-5 caller). */
+    public AlertRule(String name, String metric, String comparator, double threshold,
+                     String window, String severity, String onPipeline) {
+        this(name, metric, comparator, threshold, window, severity, onPipeline, null, null);
+    }
 
     public AlertRule {
         require(name != null && !name.isBlank(), "alert.name is required");
@@ -49,12 +70,28 @@ public record AlertRule(String name, String metric, String comparator, double th
         comparator = lower(comparator);
         severity = severity == null ? null : severity.trim().toUpperCase(Locale.ROOT);
         window = window == null ? null : window.trim().toLowerCase(Locale.ROOT);
-        require(METRICS.contains(metric), "alert.metric must be one of " + METRICS);
+        dataset = (dataset == null || dataset.isBlank()) ? null : dataset.trim();
+        measure = (measure == null || measure.isBlank()) ? null : measure.trim();
+        if (dataset != null) {
+            // Measure rule (BI-5): a scalar Measure over a Dataset; the ledger window does not apply.
+            require(metric == null, "a measure alert (dataset:) must not also declare a ledger metric");
+            require(window == null, "a measure alert (dataset:) takes no window (it reads current data)");
+            require(com.gamma.query.DatasetMeasureProbe.validMeasure(measure),
+                    "alert.measure must be count or agg(field) with agg ∈ count/countDistinct/sum/avg/min/max");
+        } else {
+            require(measure == null, "alert.measure requires alert.dataset");
+            require(METRICS.contains(metric), "alert.metric must be one of " + METRICS);
+            require(window != null && window.matches("\\d+[smhdb]"), "alert.window must be Ns/Nm/Nh/Nd or Nb");
+        }
         require(COMPARATORS.contains(comparator), "alert.comparator must be one of " + COMPARATORS);
         require(SEVERITIES.contains(severity), "alert.severity must be one of " + SEVERITIES);
-        require(window != null && window.matches("\\d+[smhdb]"), "alert.window must be Ns/Nm/Nh/Nd or Nb");
         require(threshold > 0, "alert.threshold must be a positive number");
         onPipeline = (onPipeline == null || onPipeline.isBlank()) ? null : onPipeline.trim();
+    }
+
+    /** Whether this is a BI-5 measure rule (a Dataset measure) vs a ledger-metric rule. */
+    public boolean isMeasureRule() {
+        return dataset != null;
     }
 
     /** Parse + validate from the decoded {@code alert { … }} map. */
@@ -67,7 +104,9 @@ public record AlertRule(String name, String metric, String comparator, double th
                 number(alert.get("threshold")),
                 str(alert.get("window")),
                 str(alert.get("severity")),
-                str(alert.get("onPipeline")));
+                str(alert.get("onPipeline")),
+                str(alert.get("dataset")),
+                str(alert.get("measure")));
     }
 
     /** Load a {@code *_alert.toon}. */
@@ -116,10 +155,12 @@ public record AlertRule(String name, String metric, String comparator, double th
     public Map<String, Object> toMap() {
         Map<String, Object> m = new java.util.LinkedHashMap<>();
         m.put("name", name);
-        m.put("metric", metric);
+        if (metric != null) m.put("metric", metric);
+        if (dataset != null) m.put("dataset", dataset);
+        if (measure != null) m.put("measure", measure);
         m.put("comparator", comparator);
         m.put("threshold", threshold);
-        m.put("window", window);
+        if (window != null) m.put("window", window);
         m.put("severity", severity);
         if (onPipeline != null) m.put("onPipeline", onPipeline);
         return m;

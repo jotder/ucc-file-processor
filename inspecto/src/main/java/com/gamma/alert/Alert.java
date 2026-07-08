@@ -12,11 +12,14 @@ public record Alert(String rule, String severity, String pipeline, String metric
                     String message) {
 
     static Alert of(AlertRule r, String pipeline, double value, long epochMillis) {
+        // A measure rule (BI-5) has no ledger metric/window: label it by its measure over its dataset.
+        String metricLabel = r.metric() != null ? r.metric() : r.measure();
+        String windowLabel = r.window() != null ? r.window() : "current data";
         String msg = String.format(java.util.Locale.ROOT,
                 "%s: %s %s is %s (threshold %s %s over %s)",
-                r.severity(), pipeline, r.metric(), trim(value), r.comparator(), trim(r.threshold()),
-                r.window());
-        return new Alert(r.name(), r.severity(), pipeline, r.metric(), value, r.comparator(),
+                r.severity(), pipeline, metricLabel, trim(value), r.comparator(), trim(r.threshold()),
+                windowLabel);
+        return new Alert(r.name(), r.severity(), pipeline, metricLabel, value, r.comparator(),
                 r.threshold(), r.window(), epochMillis, msg);
     }
 

@@ -82,6 +82,8 @@ public final class EventType {
 
     // ── operational-object bridge (Phase 2 ties back to here) ───────────────────────
     public static final String ALERT_FIRED     = "ALERT_FIRED";
+    /** A scheduled report/export artifact was produced (BI-4); {@code attributes.path} points at it. */
+    public static final String REPORT_READY    = "REPORT_READY";
     /** A data-quality {@code Expectation} evaluated with violating records (ING-6) — raises an Incident + notifies. */
     public static final String EXPECTATION_FAILED = "EXPECTATION_FAILED";
     public static final String CONFIG_VALIDATED = "CONFIG_VALIDATED";

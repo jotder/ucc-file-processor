@@ -59,6 +59,8 @@ public final class AlertService {
     private final Deque<Alert> fired = new ArrayDeque<>();
     private final int capacity;
     private final Map<String, Long> lastFired = new ConcurrentHashMap<>();
+    /** BI-5: evaluates {@code (dataset, measure)} → current scalar value; {@code null} disables measure rules. */
+    private volatile java.util.function.BiFunction<String, String, java.util.OptionalDouble> measureProbe;
 
     public AlertService(List<AlertRule> rules, ConfigSource configs, StatusStore status) {
         this(rules, configs, status, (ObjectService) null);
@@ -85,6 +87,11 @@ public final class AlertService {
         this.status = status;
         this.objects = objects;
         this.capacity = Math.max(1, capacity);
+    }
+
+    /** Wire the BI-5 measure evaluator (BiFunction so this engine stays decoupled from the query layer). */
+    public void measureProbe(java.util.function.BiFunction<String, String, java.util.OptionalDouble> probe) {
+        this.measureProbe = probe;
     }
 
     /** The loaded rules, JSON-ready — backs {@code GET /alerts/rules}. */
@@ -118,6 +125,19 @@ public final class AlertService {
      */
     synchronized List<Map<String, Object>> evaluate(String pipelineFilter, long nowMs) {
         List<Map<String, Object>> out = new ArrayList<>();
+
+        // Measure rules (BI-5) are dataset-scoped, not pipeline-scoped: any sweep (a terminal batch may
+        // have changed the data, or the manual POST /alerts/evaluate) re-reads the current value; the
+        // cooldown suppresses repeats. Skipped silently when no probe is wired (lean/unit paths).
+        for (AlertRule rule : rules) {
+            if (!rule.isMeasureRule()) continue;
+            var probe = measureProbe;
+            if (probe == null) continue;
+            java.util.OptionalDouble value = probe.apply(rule.dataset(), rule.measure());
+            if (value.isEmpty() || !rule.breached(value.getAsDouble())) continue;
+            fire(rule, rule.dataset(), rule.dataset(), value.getAsDouble(), nowMs, out);
+        }
+
         for (PipelineConfig cfg : configs.pipelines()) {
             String display = cfg.identity().name();
             String id = cfg.identity().pipelineName();
@@ -125,40 +145,46 @@ public final class AlertService {
 
             List<Map<String, String>> ledger = null;
             for (AlertRule rule : rules) {
+                if (rule.isMeasureRule()) continue;
                 if (rule.onPipeline() != null && !matches(rule.onPipeline(), display, id)) continue;
                 if (ledger == null) ledger = status.batches(cfg);   // one read per pipeline pass
                 List<Map<String, String>> rows = inWindow(rule, ledger, nowMs);
                 if (rows.isEmpty()) continue;
                 double value = metricValue(rule.metric(), rows);
                 if (!rule.breached(value)) continue;
-                String key = rule.name() + "|" + id;
-                long cooldown = cooldownMs(rule);
-                Long last = lastFired.get(key);
-                if (last != null && nowMs - last < cooldown) continue;   // still in cooldown
-                lastFired.put(key, nowMs);
-                Alert alert = Alert.of(rule, display, value, nowMs);
-                fired.addFirst(alert);
-                while (fired.size() > capacity) fired.removeLast();
-                out.add(alert.toMap());
-                log.warn("[ALERT] {}", alert.message());
-                // Phase-1↔2 tie: a fired alert is also a structured operational event, so the Event
-                // Viewer shows it inline with the batch facts that triggered it (correlate via pipeline).
-                // Built explicitly so the persisted alert object (Phase 2) can link back to its id.
-                Event firedEvent = Event.builder(EventType.ALERT_FIRED)
-                        .level(EventLevel.WARN)
-                        .source(AlertService.class.getName())
-                        .pipeline(display)
-                        .message(alert.message())
-                        .attr("rule", rule.name())
-                        .attr("metric", rule.metric())
-                        .attr("value", value)
-                        .attr("severity", rule.severity())
-                        .build();
-                EventLog.current().emit(firedEvent);
-                persistAlertObject(rule, alert, display, value, firedEvent.eventId());
+                fire(rule, display, id, value, nowMs, out);
             }
         }
         return out;
+    }
+
+    /** Fire one breached rule for a scope (a pipeline, or a measure rule's dataset), cooldown-guarded. */
+    private void fire(AlertRule rule, String display, String cooldownScope, double value, long nowMs,
+                      List<Map<String, Object>> out) {
+        String key = rule.name() + "|" + cooldownScope;
+        Long last = lastFired.get(key);
+        if (last != null && nowMs - last < cooldownMs(rule)) return;   // still in cooldown
+        lastFired.put(key, nowMs);
+        Alert alert = Alert.of(rule, display, value, nowMs);
+        fired.addFirst(alert);
+        while (fired.size() > capacity) fired.removeLast();
+        out.add(alert.toMap());
+        log.warn("[ALERT] {}", alert.message());
+        // Phase-1↔2 tie: a fired alert is also a structured operational event, so the Event
+        // Viewer shows it inline with the batch facts that triggered it (correlate via pipeline).
+        // Built explicitly so the persisted alert object (Phase 2) can link back to its id.
+        Event firedEvent = Event.builder(EventType.ALERT_FIRED)
+                .level(EventLevel.WARN)
+                .source(AlertService.class.getName())
+                .pipeline(display)
+                .message(alert.message())
+                .attr("rule", rule.name())
+                .attr("metric", alert.metric())
+                .attr("value", value)
+                .attr("severity", rule.severity())
+                .build();
+        EventLog.current().emit(firedEvent);
+        persistAlertObject(rule, alert, display, value, firedEvent.eventId());
     }
 
     /**
@@ -178,10 +204,12 @@ public final class AlertService {
             if (active) return;
             Map<String, String> attrs = new LinkedHashMap<>();
             attrs.put("rule", rule.name());
-            attrs.put("metric", rule.metric());
+            if (rule.metric() != null) attrs.put("metric", rule.metric());
+            if (rule.dataset() != null) attrs.put("dataset", rule.dataset());
+            if (rule.measure() != null) attrs.put("measure", rule.measure());
             attrs.put("comparator", rule.comparator());
             attrs.put("threshold", String.valueOf(rule.threshold()));
-            attrs.put("window", rule.window());
+            if (rule.window() != null) attrs.put("window", rule.window());
             attrs.put("value", String.valueOf(value));
             if (eventId != null) attrs.put("causedByEvent", eventId);
             objects.open(ObjectType.ALERT, rule.name() + " on " + pipeline, alert.message(),
@@ -241,7 +269,8 @@ public final class AlertService {
     }
 
     private static long cooldownMs(AlertRule rule) {
-        long ms = rule.batchWindow() ? Duration.ofMinutes(10).toMillis()
+        // Measure rules (no window) re-fire at most every 10 minutes while breached, like batch windows.
+        long ms = (rule.window() == null || rule.batchWindow()) ? Duration.ofMinutes(10).toMillis()
                 : rule.windowDuration().toMillis();
         return Math.max(ms, Duration.ofMinutes(1).toMillis());
     }
