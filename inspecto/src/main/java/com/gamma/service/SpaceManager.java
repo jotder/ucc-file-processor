@@ -105,6 +105,12 @@ public final class SpaceManager implements AutoCloseable {
         return spacesRoot != null;
     }
 
+    /** The container root ({@code -Dspaces.root}) hosted spaces live under, or {@code null} in single-tenant
+     *  mode. The Exchange ({@code spaces/_shared/}) is rooted here; a {@code null} disables cross-Space sharing. */
+    public Path containerRoot() {
+        return spacesRoot;
+    }
+
     /**
      * Create a new space under {@code spaces/<id>/}: make its convention dirs + {@code space.toon} manifest, boot it
      * via {@link SpaceBootstrap}, {@link SpaceContext#start() start} it, and register it — all without a restart.

@@ -84,6 +84,20 @@ public final class EventType {
      *  describe the imbalance; {@code correlationId} is the run's {@code batchId}. */
     public static final String FLOW_CONSERVATION_IMBALANCE = "FLOW_CONSERVATION_IMBALANCE";
 
+    // ── cross-space sharing (the Exchange — Share Grants) ───────────────────────────
+    /** An owner Space listed a Dataset/Widget as shareable in the Exchange. {@code owner}/{@code kind}/
+     *  {@code item} attributes name the offered item. */
+    public static final String EXCHANGE_OFFERED   = "EXCHANGE_OFFERED";
+    /** A consumer Space requested use of an offered item; {@code consumer}/{@code owner}/{@code kind}/
+     *  {@code item}/{@code purpose} carry the request. */
+    public static final String EXCHANGE_REQUESTED = "EXCHANGE_REQUESTED";
+    /** An owner approved a request — the grant is now {@code active}. */
+    public static final String EXCHANGE_GRANTED   = "EXCHANGE_GRANTED";
+    /** An owner denied a pending request. */
+    public static final String EXCHANGE_DENIED    = "EXCHANGE_DENIED";
+    /** An owner revoked an active grant — the consumer's access is withdrawn (fail-closed). */
+    public static final String EXCHANGE_REVOKED   = "EXCHANGE_REVOKED";
+
     // ── operational-object bridge (Phase 2 ties back to here) ───────────────────────
     public static final String ALERT_FIRED     = "ALERT_FIRED";
     /** A scheduled report/export artifact was produced (BI-4); {@code attributes.path} points at it. */

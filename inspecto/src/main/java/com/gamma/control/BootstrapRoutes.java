@@ -59,6 +59,7 @@ final class BootstrapRoutes implements RouteModule {
         Map<String, Object> f = new LinkedHashMap<>();
         f.put("authoring", api.writeRoot() != null);      // write-root set ⇒ config authoring enabled
         f.put("multiSpace", api.spaces().supportsCrud());
+        f.put("exchange", api.spaces().containerRoot() != null);   // cross-space sharing needs -Dspaces.root
         f.put("authMode", System.getProperty("auth.mode", "none"));
         return f;
     }
