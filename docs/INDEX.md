@@ -89,6 +89,13 @@ topic docs (each cites its authoritative doc); they don't replace them. *(Consol
   component registry, T-checklist). **Active.**
 - [`flow-live-execution-plan.md`](flow-live-execution-plan.md) — live execution of authored Pipelines as
   `JobType.PIPELINE` (T32). **Active.**
+- [`superpower/storage-layout-and-sharing-plan.md`](superpower/storage-layout-and-sharing-plan.md) — **Storage
+  layout contract + Dataset Share Grants**: formalizes the shipped `spaces/<id>/` tree (config/data/audit/duckdb
+  axes, `packs/` + `views/` homes) and plans **per-Dataset sharing across Spaces on request** (the ministries
+  model): owner offers → consumer requests → grant → consume as `shared/<owner>/<item>` with snapshot
+  (atomic-swap, default) or live read-only delivery — Datasets + **render-only Widgets** (widget grant pulls its
+  dataset grant), no pipeline re-creation, no Schema sharing (the Result Set travels with the Dataset), never
+  cross-space writes or shared editing. **Plan (2026-07-09, not started).**
 - [`job-framework-design.md`](job-framework-design.md) — **Job Framework**: pluggable Job Types (SPI registry
   evolving the shipped `com.gamma.job` engine), parameterized Triggers, Signals (§8 envelope, one ledger),
   Run Artifacts + queryable result metadata, and hot-deployable **Job Packs** — with worked `sql.template` +

@@ -111,7 +111,7 @@ starts — this doc does not edit the glossary):
         ▲              │   2. resolve Parameters ─► ParameterResolver ◄── classpath SPI         │
         │              │      (trigger args ∘ signal bind ∘ config ∘ deduced ∘ defaults)  ▲     │
         │              │   3. run on virtual thread under LockingRunner                   │     │
-        │              └───────────────┬────────────────────────────────────────────┐    │     │
+        │              └───────────────┬─────────────────────────────────────────────┐    │     │
         │                              ▼                                             │  Job Packs
         │                    Job.run(JobContext)                                     │  (watched dir,
         │       ┌──────────────┬──────┴───────┬────────────────┐                     │  isolated
@@ -749,3 +749,483 @@ Each phase is independently shippable; P0 changes no observable behavior (the sa
    (quiet by default)? Leaning default-on for `dataset(...)` with an opt-out flag (§10).
 5. **Pack signature verification default** in the Standard flavor launcher (`requireSignature=true`
    default-on there?) — security review call, ties to the SEC-7 track.
+
+---
+
+## Appendix A — Complex configuration gallery (TOON ↔ JSON ↔ UI)
+
+Worked configurations for one coherent scenario (a payments Space), showing every authoring knob and —
+the point of this appendix — **how each key maps onto a UI surface**: the descriptor-driven authoring
+form, and the derived wiring canvas that connects Jobs to other Jobs and Pipelines.
+
+**One shape, two encodings (binding).** There is exactly **one canonical object shape** per artifact;
+TOON is its at-rest serialization, JSON its wire/export serialization — both decode to the *same*
+`Map` (`ConfigCodec.toMap` / `toToon`, canonicality asserted by `toMapStrict`). No semantic mapping
+layer exists or may be introduced: **a UI export imports unchanged** — `GET` returns the decoded
+canonical map as JSON; `POST`/`PUT` accepts that same JSON verbatim and the server re-encodes it as
+canonical TOON (no `#` comments). Cross-space transport rides the same rule via the metadata-bundle
+contract (`BundleExporter`).
+
+### A.0 Which key drives which UI surface
+
+| Config key | UI surface it maps to |
+|---|---|
+| `type` | Job Type picker (from `GET /jobs/types`) — selecting it fetches the descriptor and **generates the form** |
+| `params:` | Form fields generated from the descriptor's `configSpec` + `ParameterDecl`s (editor hints, §A.2) |
+| `cron:` / `catch_up:` | Schedule editor (cron builder + next-fires preview) |
+| `on_signal:` / `on_pipeline:` | **Inbound edge** on the wiring canvas — a connection *drawn from* another Job/Pipeline/signal type |
+| `bind:` | Edge property sheet: payload-field → parameter mapping (autocomplete from the upstream descriptor's `emits` payload contract) |
+| `when:` | Edge guard (condition builder over the `$`-context) |
+| `args:` | Trigger-local constant overrides (per-edge or per-schedule) |
+| descriptor `emits` / `artifacts` | **Outbound ports** of the node — what downstream Jobs can connect to |
+| `$upstream(...)` expressions | **Data edges** (dashed) from another Job's artifact to this Job's parameter |
+| `retry:` / `timeout:` | Resilience panel on the Job form |
+
+The canvas never *stores* a graph: the Job/Pipeline connection graph is **derived** from these keys
+(component-model rule — the relationship graph is computed, not authored) and feeds the Execution /
+Signal planes of the glossary §11 graph model.
+
+### A.1 The scenario graph (derived, five configs below)
+
+```
+                     cron 01:30                        cron 06:30 (fallback)
+                        │                                  │
+                        ▼                                  ▼
+  Pipeline ◄──runs── job:payments_etl_nightly     job:bank_statement_import
+  payments_clean        │ emits pipeline.commit            │ emits bank.statement.imported
+                        ▼                                  │
+        on_signal(pipeline.commit, when pipeline=="payments_clean")
+                        │                                  │
+                        ▼                                  │
+            job:velocity_screen_daily                      │
+                │ writes dataset:fraud_findings            │
+                │ emits fraud.suspicious-activity          │
+                ▼                                          ▼
+   on_signal(fraud.suspicious-activity)    job:settlement_recon (on_signal + cron,
+                │                            $upstream data edge from payments_etl_nightly)
+                ▼                                          │
+        job:casefile_export                                ▼ writes dataset:settlement_breaks
+```
+
+### A.2 `settlement_recon` — every knob at once (dual trigger, bind, guard, data edge, resilience)
+
+`settlement_recon_job.toon`:
+
+```
+name: settlement_recon
+type: sql.template
+enabled: true
+cron: "0 7 * * 1-5"
+catch_up: true
+on_signal: bank.statement.imported
+bind:
+  statement_date: $signal.statement_date
+  statement_dataset: $signal.dataset
+  payments_dataset: $upstream(payments_etl_nightly).artifact(output).ref
+when: $signal.rows > 0
+args:
+  mode: incremental
+timeout: PT20M
+retry:
+  attempts: 3
+  backoff: PT2M
+params:
+  sql: "SELECT p.txn_id, p.amount, s.amount AS stmt_amount FROM $payments_dataset p LEFT JOIN $statement_dataset s USING (txn_id) WHERE p.event_date = $statement_date AND p.loaded_at > $since AND (s.txn_id IS NULL OR p.amount <> s.amount)"
+  sink_dataset: settlement_breaks
+  partitions:
+    - event_date
+```
+
+Reading it: two independent triggers (weekday 07:00 cron as a fallback sweep, *and* the statement-import
+signal — each firing resolves parameters in its own context, so `$signal.*` binds are only live on the
+signal path and the declared `deduce:` fallbacks of `sql.template`'s scanned parameters
+(`$statement_date → $day(-1)`, `$since → $job.last_success_time`) cover the cron path). `bind:` values are
+plain `$`-expressions evaluated in the Run's Parameter Context — which is why an `$upstream(...)` **data
+edge** can sit next to `$signal.*` payload mappings. `when:` skips zero-row imports cheaply. `retry` /
+`timeout` ride the existing `RetryPolicy` seam (§16).
+
+Same object as the API's JSON (what the UI form round-trips; server persists the TOON above):
+
+```json
+{
+  "name": "settlement_recon",
+  "type": "sql.template",
+  "enabled": true,
+  "triggers": [
+    { "kind": "cron", "cron": "0 7 * * 1-5", "catchUp": true },
+    { "kind": "on-signal", "signalType": "bank.statement.imported",
+      "when": "$signal.rows > 0",
+      "bind": {
+        "statement_date": "$signal.statement_date",
+        "statement_dataset": "$signal.dataset",
+        "payments_dataset": "$upstream(payments_etl_nightly).artifact(output).ref"
+      },
+      "args": { "mode": "incremental" } }
+  ],
+  "timeout": "PT20M",
+  "retry": { "attempts": 3, "backoff": "PT2M" },
+  "params": {
+    "sql": "SELECT …",
+    "sink_dataset": "settlement_breaks",
+    "partitions": ["event_date"]
+  }
+}
+```
+
+**Trigger shape decision** (resolves the one place TOON and JSON could have diverged): `triggers[]` is
+the canonical shape in **both** encodings. TOON carries the same list natively:
+
+```
+name: settlement_recon
+type: sql.template
+enabled: true
+triggers:
+  - kind: cron
+    cron: "0 7 * * 1-5"
+    catch_up: true
+  - kind: on-signal
+    signal: bank.statement.imported
+    when: "$signal.rows > 0"
+    bind:
+      statement_date: $signal.statement_date
+      statement_dataset: $signal.dataset
+      payments_dataset: $upstream(payments_etl_nightly).artifact(output).ref
+    args:
+      mode: incremental
+```
+
+The flat single-trigger keys shown above (`cron:`, `on_signal:`, `bind:`, …) remain valid as **input
+sugar only** — today's `*_job.toon` files keep loading — and are normalized into `triggers[]` at decode
+time. The decoded canonical map (what `GET` serves, what exports contain, what the graph derives from)
+always has `triggers[]`; re-importing an export therefore needs no conversion and persists in the
+canonical list form.
+
+### A.3 What generates the form — descriptor JSON (`GET /jobs/types/sql.template`)
+
+```json
+{
+  "id": "sql.template",
+  "title": "Templated SQL",
+  "origin": "built-in",
+  "configSpec": {
+    "fields": [
+      { "key": "sql",          "type": "string",   "required": true,  "editor": "sql",
+        "help": "$name tokens become required run Parameters" },
+      { "key": "sink_dataset", "type": "string",   "required": true,  "editor": "dataset-ref" },
+      { "key": "partitions",   "type": "string[]", "required": false, "editor": "column-multiselect" }
+    ]
+  },
+  "parameters": [
+    { "name": "statement_date", "type": "DATE",    "required": true,
+      "deduce": "$day(-1)",                "description": "Business date to reconcile" },
+    { "name": "since",          "type": "INSTANT", "required": false,
+      "deduce": "$job.last_success_time",  "description": "Record-time watermark" }
+  ],
+  "emits":     ["job.dataset.produced"],
+  "artifacts": [ { "name": "output", "kind": "dataset" } ],
+  "resolvedFor": "settlement_recon"
+}
+```
+
+`parameters` here is the **config-aware** answer of `JobTypeProvider.parameters(config)` (§6.1) — for
+`sql.template` it was derived by scanning this Job's SQL, which is why the endpoint accepts
+`?job=<name>` and echoes `resolvedFor`. `editor` hints map `ConfigSpec` field types to widgets:
+`sql` → SQL editor with `$`-token highlighting; `dataset-ref` → Catalog dataset picker;
+`cron` → schedule builder; `signal-type` → picker fed by the union of all descriptors' `emits` (so the
+"connect" dropdown only offers signals something actually produces).
+
+### A.4 The producer chain — Pipeline job and its two consumers
+
+`payments_etl_job.toon` — a `pipeline`-type Job runs the authored Pipeline `payments_clean` (T32 shape,
+plus incremental):
+
+```
+name: payments_etl_nightly
+type: pipeline
+flow: payments_clean
+cron: "30 1 * * *"
+catch_up: true
+enabled: true
+incremental_column: loaded_at
+```
+
+`velocity_screen_job.toon` — consumes the Pipeline's commit signal (the canvas draws
+Pipeline → Job edge from exactly these two keys):
+
+```
+name: velocity_screen_daily
+type: fraud.velocity-screen
+on_signal: pipeline.commit
+when: $signal.pipeline == "payments_clean"
+enabled: true
+params:
+  transactions_dataset: payments
+  max_tx_per_account: 40
+```
+
+`casefile_export_job.toon` — fan-out consumer of the domain signal, with a static per-edge `args:`:
+
+```
+name: casefile_export
+type: report
+on_signal: fraud.suspicious-activity
+bind:
+  event_date: $signal.event_date
+  findings_dataset: $signal.dataset
+when: $signal.findings > 0
+args:
+  format: pdf
+  channel: fraud-ops
+enabled: true
+```
+
+### A.5 Authoring-time templates (`*_job_template.toon`) vs the runtime `$`-namespace
+
+A **Job Template** stamps out Jobs at authoring time (existing `JobTemplate` mechanism, `${param}`
+substitution — §7.4; the UI's "New Job from template" flow). Note the two namespaces in one file:
+`${dataset}` is filled when the Job is *created*; `$event_date` survives into the Job and resolves at
+*run* time:
+
+`daily_rollup_job_template.toon`:
+
+```
+name: rollup_${dataset}_daily
+type: sql.template
+cron: "${cron}"
+enabled: true
+params:
+  sql: "SELECT ${dims}, count(*) AS n, sum(amount) AS total FROM ${dataset} WHERE event_date = $event_date GROUP BY ${dims}"
+  sink_dataset: ${dataset}_rollup_daily
+  partitions:
+    - event_date
+```
+
+Instantiated twice (UI form asks for `dataset`, `dims`, `cron`) → `rollup_payments_daily` and
+`rollup_refunds_daily` — two ordinary Jobs, fully editable afterwards.
+
+### A.6 The wiring canvas's food — derived composition graph (`GET /jobs/graph`, proposed)
+
+Everything the UI needs to draw §A.1 and to offer valid connections, computed from the configs +
+descriptors above (never stored):
+
+```json
+{
+  "nodes": [
+    { "id": "pipeline:payments_clean",        "kind": "PIPELINE" },
+    { "id": "job:payments_etl_nightly",       "kind": "JOB", "type": "pipeline",
+      "triggers": ["cron"], "state": "enabled" },
+    { "id": "job:velocity_screen_daily",      "kind": "JOB", "type": "fraud.velocity-screen",
+      "typeOrigin": "pack:fraud-screen-pack@1.2.0" },
+    { "id": "job:casefile_export",            "kind": "JOB", "type": "report" },
+    { "id": "job:bank_statement_import",      "kind": "JOB", "type": "acme.stmt-import" },
+    { "id": "job:settlement_recon",           "kind": "JOB", "type": "sql.template" },
+    { "id": "signal:pipeline.commit",         "kind": "SIGNAL_TYPE" },
+    { "id": "signal:fraud.suspicious-activity", "kind": "SIGNAL_TYPE", "severity": "WARNING" },
+    { "id": "signal:bank.statement.imported", "kind": "SIGNAL_TYPE" },
+    { "id": "dataset:fraud_findings",         "kind": "DATASET" },
+    { "id": "dataset:settlement_breaks",      "kind": "DATASET" }
+  ],
+  "edges": [
+    { "from": "job:payments_etl_nightly", "to": "pipeline:payments_clean",       "rel": "runs" },
+    { "from": "job:payments_etl_nightly", "to": "signal:pipeline.commit",        "rel": "emits" },
+    { "from": "signal:pipeline.commit",   "to": "job:velocity_screen_daily",     "rel": "triggers",
+      "when": "$signal.pipeline == \"payments_clean\"" },
+    { "from": "job:velocity_screen_daily", "to": "dataset:fraud_findings",       "rel": "writes" },
+    { "from": "job:velocity_screen_daily", "to": "signal:fraud.suspicious-activity", "rel": "emits" },
+    { "from": "signal:fraud.suspicious-activity", "to": "job:casefile_export",   "rel": "triggers",
+      "when": "$signal.findings > 0",
+      "bind": { "event_date": "$signal.event_date", "findings_dataset": "$signal.dataset" } },
+    { "from": "job:bank_statement_import", "to": "signal:bank.statement.imported", "rel": "emits" },
+    { "from": "signal:bank.statement.imported", "to": "job:settlement_recon",    "rel": "triggers",
+      "when": "$signal.rows > 0" },
+    { "from": "job:payments_etl_nightly", "to": "job:settlement_recon",          "rel": "binds",
+      "via": "$upstream(payments_etl_nightly).artifact(output).ref" },
+    { "from": "job:settlement_recon",     "to": "dataset:settlement_breaks",     "rel": "writes" }
+  ]
+}
+```
+
+Edge derivation rules: `runs` from a `pipeline`-type Job's `flow:`; `emits` from the descriptor's
+`emits` list (+ framework lifecycle signals, hidden by default on the canvas); `triggers` from
+`on_signal`/`on_pipeline` keys with their `when`/`bind` as edge properties; `binds` (dashed data edge)
+from any `$upstream(...)` expression; `writes` from `ArtifactDecl`s of kind dataset. **Drawing** a
+connection on the canvas is therefore just an edit of the downstream Job's config (add `on_signal` +
+`bind`), which keeps the TOON file the single source of truth and the graph a pure projection —
+consistent with how the deletion fence (§16) and the glossary §11 Execution/Signal planes consume the
+same topology.
+
+---
+
+## Appendix B — Rules → Jobs: evidence contracts and parameter mapping
+
+How the three rule engines (glossary §4: Expectation / Alert Rule / Decision Rule) pass data into Jobs.
+Two principles govern everything here:
+
+1. **Evidence passes as facts; data passes by reference.** A firing carries a small payload of facts
+   (counts, names, dates, the value-vs-threshold pair) plus **refs** to Datasets holding the actual
+   records (violating rows, matched rows). Signals never carry rows; the downstream Job reads the
+   referenced Dataset itself, exactly like `$upstream(...)` artifact binding (§10).
+2. **The evidence payload is a fixed, per-engine contract** — the engine fills it at fire time; the
+   author never types it. That is what makes the UI mapping picker possible: both sides of the mapping
+   are machine-known (evidence contract ← engine; required parameters ← `GET /jobs/types/{id}?job=`).
+
+### B.1 Evidence contracts (the signal payload each engine emits at fire time)
+
+**Expectation** → `EXPECTATION_FAILED` (fields today per `ExpectationRoutes` attrs, plus the proposed
+`evidence` ref — the violating rows materialized once, quarantine-style, instead of every consumer
+re-running the violation SQL):
+
+```json
+{ "expectation": "orders_amount_range", "kind": "range", "targetType": "pipeline",
+  "target": "orders_etl", "column": "amount", "violations": 17, "severity": "MAJOR",
+  "checkedAt": 1783947600123,
+  "evidence": { "dataset": "dq_violations", "filter": "expectation = 'orders_amount_range' AND checked_at = 1783947600123" } }
+```
+
+**Alert Rule** → `ALERT_FIRED` (the shape the mock already emits; one contract for both variants —
+ledger-metric fills `metric`+`window`, measure fills `dataset`+`measure`):
+
+```json
+{ "rule": "high-error-rate", "pipeline": "EVENTS", "metric": "error_rate", "window": "1h",
+  "value": 0.081, "comparator": "gt", "threshold": 0.05, "severity": "WARNING", "at": 1783947600123 }
+```
+
+**Decision Rule** — two evidence layers matching its two execution planes (Appendix of the R5 model):
+
+- *Rule-level* → `DECISION_MATCHED`: `{ "rule", "target", "targetType", "matched", "total", "checkedAt",
+  "evidence": { "dataset": …, "filter": <compiled when-tree> } }`.
+- *Record-level* — the routing actions' evidence **is the routed data**: quarantined records land in the
+  quarantine store, tagged records carry the tag column, routed records sit on their branch's sink. The
+  ref to those Datasets is the parameter; no payload copy.
+
+### B.2 Firing a Job on a rule — the two wiring styles
+
+| | **Loose (canonical): signal-subscribe** | **Direct: `start-job` consequence** |
+|---|---|---|
+| Who has it | All three engines (they all emit on the one ledger) | Decision Rule only (it is the *decision* engine — Expectation/Alert only announce) |
+| Authored on | The **Job** (`on_signal` + `bind` + `when`) | The **rule** (consequence `{action: "start-job", target, params}`) |
+| Backend path | Ledger match → Trigger → ParameterResolver layer 2 (`bind:`) | `JobService.trigger(name, actor: "decision:<rule>", args)` → layer 1 (`args`) |
+| Parameter mapping | `bind: { p: $signal.<field> }` | consequence `params: { p: "$signal.<field>" }` (same `$`-expressions, evaluated in the firing's context) |
+| Coupling | Rule doesn't know its consumers; N jobs can subscribe | Rule names the job; visible as an `invokes` edge |
+
+Both funnel into the same §7.2 resolution chain, so the Job Type cannot tell how it was fired — deduced
+fallbacks (`$day(-1)`, `$job.last_success_time`) still cover anything the firing didn't bind.
+
+### B.3 The config-time ↔ run-time mapping (user perspective → backend)
+
+| User configures (UI) | Persisted as | Backend at fire time |
+|---|---|---|
+| Rule form (kind/threshold/when-tree) | Rule JSON/TOON (Appendix of §A / rule stores) | Engine evaluates **on data**: violation SQL over at-rest data (Expectation), ledger-window or measure query (Alert), compiled when-tree per Batch or on demand (Decision) |
+| "Run job on this rule" picker | Job's `on_signal: <type>` (+ `when:` narrowing to this rule, e.g. `$signal.rule == "high-error-rate"`) — or the rule's `start-job` consequence | Ledger subscription match / `JobService.trigger` |
+| Parameter-mapping rows (`parameter ← evidence field`) | `bind:` map (or consequence `params`) of `$signal.*` expressions | ParameterResolver evaluates each expression against the firing's payload; missing required ⇒ Run `REJECTED` (§7.2), never a half-bound run |
+| Guard ("only when …") | `when:` expression | Evaluated pre-run; false ⇒ `SKIPPED`, no user code |
+
+UI flow for the mapping rows: pick the rule (or signal type) → the UI shows the engine's **evidence
+contract** fields on the left; pick the job → `GET /jobs/types/{id}?job=` returns its `ParameterDecl`s
+on the right; each required parameter gets a dropdown of evidence fields (type-checked: DATE↔date fields,
+DATASET_REF↔`evidence.dataset`), with the declared `deduce:` shown as the fallback when unmapped. Saving
+writes only the downstream Job's `bind:` block (or the rule's consequence) — the canvas edge is derived,
+never stored (§A.6).
+
+### B.4 Worked chain (Expectation → remediation Job)
+
+`dq_remediation_job.toon`:
+
+```
+name: dq_remediation
+type: sql.template
+on_signal: EXPECTATION_FAILED
+when: $signal.violations > 0 && $signal.severity == "CRITICAL"
+bind:
+  target: $signal.target
+  column: $signal.column
+  violations_dataset: $signal.evidence.dataset
+  checked_at: $signal.checkedAt
+enabled: true
+params:
+  sql: "SELECT * FROM $violations_dataset WHERE target = $target"
+  sink_dataset: dq_remediation_queue
+```
+
+Fire-time sequence: nightly evaluate runs the violation SQL over `orders_etl`'s at-rest data → 17
+violations → violating rows materialized once into `dq_violations` → `EXPECTATION_FAILED` emitted with
+the B.1 payload → the Trigger matches, `when` passes (CRITICAL, 17 > 0) → `bind:` resolves the four
+parameters from the payload → the Run reads the referenced evidence Dataset (by ref, not from the
+signal) and writes the remediation queue — itself recorded as a Run Artifact, so a third Job (or an
+operator's `$upstream(dq_remediation)…`) can keep the chain going. Correlation: the signal's
+`correlationId` flows through the Run per §8.4, so `GET /signals?correlationId=` shows
+rule-fire → job-run → artifacts as one story.
+
+### B.5 Case-style routing — the multi-way (arms) form of the Decision Rule
+
+**The gap.** A single Decision Rule is `when → consequences[]`; several rules stacked by `priority` are
+**cumulative** (every matching rule applies). A `case` needs the opposite: **ordered, mutually exclusive
+arms with an `else`, owned by one rule — first match wins, exactly one path per record/firing.** This is
+not a new rule kind (⛔ no "Routing Rule" vocabulary): it is the **case form of the Decision Rule**, and
+it is the first-class authoring surface for what `transform.route` edge metadata already does in the data
+plane (the Decision Rule was lifted out of exactly that metadata — `decision-rules.service.ts:26`).
+
+**Persistence shape** (discriminator: `arms` present ⇒ case form; single `when` ⇒ classic form —
+additive, existing rules unchanged):
+
+```json
+{
+  "name": "route-orders-by-risk",
+  "description": "Case dispatch: risk band decides the path",
+  "targetType": "pipeline",
+  "target": "orders_etl",
+  "on": "risk_score",
+  "arms": [
+    { "label": "critical",
+      "when": { "kind": "group", "op": "AND", "items": [
+        { "kind": "condition", "field": "risk_score", "operator": ">=", "value": "90" } ] },
+      "consequences": [
+        { "action": "quarantine", "destination": "fraud-hold" },
+        { "action": "start-job", "target": { "kind": "job", "id": "velocity_screen_daily" },
+          "params": { "event_date": "$signal.event_date" } } ] },
+    { "label": "review",
+      "values": ["60..89"],
+      "consequences": [
+        { "action": "route", "destination": "manual-review" },
+        { "action": "tag", "destination": "needs-scoring" } ] },
+    { "label": "trusted-geo",
+      "values": ["US", "CA", "GB"], "onOverride": "country",
+      "consequences": [ { "action": "route", "destination": "fast-path" } ] }
+  ],
+  "else": { "label": "clean",
+    "consequences": [ { "action": "route", "destination": "clean" } ] },
+  "priority": 10,
+  "enabled": true
+}
+```
+
+Repopulation rules: each arm is discriminated by shape — `when` (searched case, full `ConditionGroup`)
+vs `values` (simple case over `on`'s field: literals, comma lists, `lo..hi` ranges; `onOverride` retargets
+one arm). The UI's simple-mode editor persists `values` verbatim (never compiled away, so the form
+round-trips); the engine normalizes both to conditions at execution. `else` is required in the editor
+(explicit default path — no silent fall-through); `label` is the arm's identity for ports, evidence, and
+branch names.
+
+**Execution — same two planes as B.1, now exclusive:**
+
+- *Record plane*: the arms compile to **one SQL `CASE WHEN … THEN '<label>' … ELSE 'clean' END`**
+  producing a branch-label column, evaluated in a single pass over the Batch (arm order = `WHEN` order —
+  first-match-wins is native SQL semantics). The label column drives `transform.route` to per-branch
+  sinks/quarantine/tags, and the existing `BranchCommitCoordinator` already gives multi-branch idempotent
+  commit for free. No per-arm rescans.
+- *Orchestration plane*: on a firing (event-driven evaluation or `/apply`), arms are tested in order
+  against the evidence/`$`-context; **exactly one arm's consequences execute** (then the usual per-
+  consequence isolation within the arm). Per-arm `start-job` with per-arm `params` = an exclusive job
+  dispatcher — the thing N independent `when:`-guarded jobs cannot guarantee (they fan out; overlapping
+  guards fire twice, gaps fire nothing — the case form makes exclusivity + coverage structural).
+
+**Evidence contract addition**: `DECISION_MATCHED` gains the arm dimension —
+`{ "rule", "target", "arm": "review", "armCounts": { "critical": 3, "review": 41, "trusted-geo": 1200, "clean": 16986 }, "total": 18230, "checkedAt", "evidence": { "dataset", "filter": <that arm's compiled predicate> } }` —
+rule-level firings emit one signal per matched arm (so a downstream Job can subscribe to
+`when: $signal.arm == "critical"`), and Simulate previews the full `armCounts` histogram before saving.
+
+**Canvas mapping**: the case rule renders as one node with **one outbound port per arm + else** (labels
+as port names) — visually identical to a `transform.route` node's branches, which is the point: drawing
+an edge from the "critical" port to a Job writes that arm's `start-job` consequence (or the Job's
+`on_signal` + `when: $signal.arm == "critical"` in the loose style); the graph stays a derived
+projection (§A.6).
