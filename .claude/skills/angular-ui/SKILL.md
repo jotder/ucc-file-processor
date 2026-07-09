@@ -109,7 +109,9 @@ src/app/
   vars). The CM editor is `@defer`-loaded so mini/standard never pull CodeMirror; **a `@defer` block means
   the spec must `await TestBed.compileComponents()` before `createComponent`**. New deps (justified, lazy):
   `alasql` (offline SQL — also add to `allowedCommonJsDependencies`), `codemirror` + `@codemirror/*` +
-  `@lezer/highlight`. Don't re-roll a bare `<ag-grid-angular>` host or a second SQL engine.
+  `@lezer/highlight`. Don't re-roll a bare `<ag-grid-angular>` host or a second SQL engine. `[rowActions]`
+  appends an actions column; add `[pinActions]="true"` to keep it visible when many data columns overflow
+  into a horizontal scroll (pins the `actionsColumn` right — default off so narrow grids are unaffected).
 - **ag-Grid internals** (used inside the data-table, rarely direct): `app/inspecto/grid`
   (`INSPECTO_DEFAULT_COL_DEF`, `actionsColumn`, `fmtDateTime`, `InspectoGridThemeService`, `noRowsOverlay`).
   Bind `(firstDataRendered)` AND `(rowDataUpdated)` → `refreshActionsCells($event)` (actions column) or

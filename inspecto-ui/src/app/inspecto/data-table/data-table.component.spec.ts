@@ -75,6 +75,17 @@ describe('DataTableComponent', () => {
         expect(f.componentInstance.gridColumns().some((col) => col.colId === 'actions')).toBe(true);
     });
 
+    it('pins the actions column to the right only when pinActions is set', async () => {
+        const f = await create('mini');
+        f.componentRef.setInput('rowActions', [{ icon: 'heroicons_outline:eye', hint: 'View', onClick: () => {} }]);
+        f.detectChanges();
+        const actions = () => f.componentInstance.gridColumns().find((col) => col.colId === 'actions');
+        expect(actions()?.pinned).toBeUndefined();
+        f.componentRef.setInput('pinActions', true);
+        f.detectChanges();
+        expect(actions()?.pinned).toBe('right');
+    });
+
     it('capability overrides win over the tier preset', async () => {
         const f = await create('mini');
         f.componentRef.setInput('exportable', true);

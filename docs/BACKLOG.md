@@ -73,7 +73,7 @@
 | Transportability | `requires` present-but-different classification; bespoke editor draft-load; connection/pipeline/job/view bundle kinds (deferred to own stores) | Deferred cuts | `superpower/transportability-plan.md` |
 | Multi-space leftover | `SpaceManager.delete` doesn't tear down per-space ConnectionRegistry/StabilityGate entries (`forget(spaceId)`) | Minor, fix if it bites | `HANDOVER-multi-space.md` |
 | Exchange UI | ~~**Bind-a-shared-dataset flow**~~: consumer creates a local dataset whose `physicalRef` = a granted `shared/<owner>/<item>` ref. | **DONE** (2026-07-09) — `BindSharedDatasetDialog` on the Datasets page: lists a space's active dataset grants, binds the chosen one as a `physical` dataset. Scope badge exercised live via mock; against a real backend the widget "Access revoked" empty-state now has a producing path. | `superpower/storage-layout-and-sharing-plan.md` §3.6 · `SESSION_STATUS.local.md` |
-| Exchange UI | **Sharing-grid row-action ergonomics**: the grant/offer grids carry many columns, so the action column (approve/refresh/pin/expiry) sits behind a horizontal scroll on a narrow pane. Consider pinning the actions column or condensing columns. | Minor polish | `SESSION_STATUS.local.md` |
+| Exchange UI | ~~**Sharing-grid row-action ergonomics**~~: action column sat behind horizontal scroll on narrow panes. | **DONE** (2026-07-09) — new opt-in `<inspecto-data-table [pinActions]>` pins the row-actions column right (`actionsColumn(…, pinned)`); enabled on all four sharing grids. Also fixed a latent gap: the "Shared with me" grants grid had no `[rowActions]` bound, so the consumer **pin** action was unreachable — now wired. | `SESSION_STATUS.local.md` |
 
 ## 5. Engineering / tech-debt backlog
 

@@ -13,6 +13,8 @@
                 [loading]="loading()"
                 [rows]="myGrants()"
                 [columns]="grantColumns"
+                [rowActions]="grantActions"
+                [pinActions]="true"
                 noRowsTitle="Nothing shared with this space yet"
                 noRowsHint="Request access to an offered dataset below — the owner space approves it."
             />
@@ -31,6 +33,7 @@
                 [rows]="myOffers()"
                 [columns]="offerColumns"
                 [rowActions]="offerActions"
+                [pinActions]="true"
                 noRowsTitle="No offers from other spaces"
                 noRowsHint="Other spaces list datasets here with 'Offer for sharing' — nothing is offered yet."
             />
@@ -50,6 +53,7 @@
                 [rows]="myGrants()"
                 [columns]="grantColumns"
                 [rowActions]="grantActions"
+                [pinActions]="true"
                 noRowsTitle="No requests or grants yet"
                 noRowsHint="Once another space requests one of your offers, it appears here for approval."
             />
@@ -68,6 +72,7 @@
                 [rows]="myOffers()"
                 [columns]="offerColumns"
                 [rowActions]="offerActions"
+                [pinActions]="true"
                 noRowsTitle="This space offers nothing yet"
                 noRowsHint="Use 'Offer for sharing' on a dataset or widget to list it here."
             />

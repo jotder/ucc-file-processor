@@ -102,6 +102,8 @@ export class DataTableComponent {
     /** Explicit ag-Grid columns (status `cellRenderer`, date `valueFormatter`, …); omitted ⇒ one per row key. */
     readonly columns = input<ColDef[] | undefined>(undefined);
     readonly rowActions = input<InspectoRowAction[]>([]);
+    /** Pin the row-actions column to the right so it stays visible when wide data columns overflow. */
+    readonly pinActions = input(false);
     readonly loading = input(false);
     readonly pageSize = input(25);
     readonly height = input('42rem');
@@ -209,7 +211,7 @@ export class DataTableComponent {
             const sel = this.chosen();
             base = sel ? all.filter((c) => sel.includes(String(c.field))) : all;
         }
-        return acts.length ? [...base, actionsColumn(acts)] : base;
+        return acts.length ? [...base, actionsColumn(acts, 160, this.pinActions() ? 'right' : undefined)] : base;
     });
 
     /**

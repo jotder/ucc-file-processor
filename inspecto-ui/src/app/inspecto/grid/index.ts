@@ -178,8 +178,15 @@ export function autoColumns(rows: Record<string, unknown>[]): ColDef[] {
     return rows.length ? Object.keys(rows[0]).map((k) => ({ field: k })) : [];
 }
 
-/** Convenience builder for an actions column. */
-export function actionsColumn<T>(actions: InspectoRowAction<T>[], width = 160): ColDef<T> {
+/**
+ * Convenience builder for an actions column. Pass `pinned: 'right'` to keep the row actions visible
+ * when a wide grid's data columns overflow into a horizontal scroll (e.g. the sharing grids).
+ */
+export function actionsColumn<T>(
+    actions: InspectoRowAction<T>[],
+    width = 160,
+    pinned?: ColDef<T>['pinned'],
+): ColDef<T> {
     return {
         colId: 'actions',
         headerName: 'Actions',
@@ -188,5 +195,7 @@ export function actionsColumn<T>(actions: InspectoRowAction<T>[], width = 160): 
         width,
         sortable: false,
         resizable: false,
+        pinned,
+        lockPinned: true,
     };
 }
