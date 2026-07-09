@@ -37,18 +37,34 @@ import java.util.Map;
  * @param catchUp    whether to run once on startup when a scheduled fire was missed while down (T26)
  * @param params     type-specific parameters (all values as strings)
  */
-public record JobConfig(String name, JobType type, String cron, String onPipeline,
+public record JobConfig(String name, String type, String cron, String onPipeline,
                         boolean enabled, boolean catchUp, Map<String, String> params,
                         String onSignal, String when) {
 
     /**
-     * Back-compat constructor (pre-P1c call sites): no {@code on_signal} trigger and no {@code when}
-     * guard. Kept so every existing {@code new JobConfig(name, type, cron, onPipeline, enabled,
-     * catchUp, params)} continues to compile unchanged.
+     * Back-compat constructor (pre-P1c 7-arg call sites, {@link JobType} typed): no {@code on_signal}
+     * trigger and no {@code when} guard. The enum maps to its lowercased id.
+     * @deprecated since 5.x — pass the type id string; {@link JobType} is deprecated (P2b).
      */
+    @Deprecated(since = "5.x")
     public JobConfig(String name, JobType type, String cron, String onPipeline,
                      boolean enabled, boolean catchUp, Map<String, String> params) {
-        this(name, type, cron, onPipeline, enabled, catchUp, params, null, null);
+        this(name, idOf(type), cron, onPipeline, enabled, catchUp, params, null, null);
+    }
+
+    /**
+     * Back-compat constructor (P1c 9-arg call sites, {@link JobType} typed).
+     * @deprecated since 5.x — pass the type id string; {@link JobType} is deprecated (P2b).
+     */
+    @Deprecated(since = "5.x")
+    public JobConfig(String name, JobType type, String cron, String onPipeline,
+                     boolean enabled, boolean catchUp, Map<String, String> params,
+                     String onSignal, String when) {
+        this(name, idOf(type), cron, onPipeline, enabled, catchUp, params, onSignal, when);
+    }
+
+    private static String idOf(JobType type) {
+        return type == null ? null : type.name().toLowerCase(java.util.Locale.ROOT);
     }
 
     public boolean hasCron()   { return cron != null && !cron.isBlank(); }
@@ -91,7 +107,8 @@ public record JobConfig(String name, JobType type, String cron, String onPipelin
         Map<String, Object> job = ToonHelper.requireSection(raw, "job");
 
         String name = ToonHelper.require(job, "name", "job");
-        JobType type = JobType.from(ToonHelper.opt(job, "type", null));
+        // P2b: type is an open registry id (was the JobType enum). Required; normalized to a lowercase id.
+        String type = ToonHelper.require(job, "type", "job").trim().toLowerCase(java.util.Locale.ROOT);
         String cron = ToonHelper.opt(job, "cron", null);
         String onPipeline = ToonHelper.opt(job, "on_pipeline", null);
         String onSignal = ToonHelper.opt(job, "on_signal", null);   // P1c: signal-type trigger (exact or prefix.*)

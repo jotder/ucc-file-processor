@@ -28,7 +28,7 @@ final class EnrichJob implements Job {
     }
 
     @Override public String name() { return cfg.name(); }
-    @Override public JobType type() { return JobType.ENRICH; }
+    @Override public String type() { return "enrich"; }
 
     @Override
     public JobResult run() throws Exception {

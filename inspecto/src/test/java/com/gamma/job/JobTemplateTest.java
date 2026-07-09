@@ -48,7 +48,7 @@ class JobTemplateTest {
         JobConfig cfg = JobConfig.fromMap(Map.of("job", resolved));
 
         assertEquals("backup-retention", cfg.name());
-        assertEquals(JobType.MAINTENANCE, cfg.type());
+        assertEquals("maintenance", cfg.type());   // P2b: type is the lowercased registry id
         assertEquals("0 3 * * *", cfg.cron());
         assertEquals("cleanup", cfg.params().get("task"));
         assertEquals("data/backup", cfg.params().get("dir"), "instance param fills the placeholder");

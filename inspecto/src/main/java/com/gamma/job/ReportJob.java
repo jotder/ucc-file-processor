@@ -68,7 +68,7 @@ final class ReportJob implements Job {
     }
 
     @Override public String name() { return cfg.name(); }
-    @Override public JobType type() { return JobType.REPORT; }
+    @Override public String type() { return "report"; }
 
     @Override
     public JobResult run() throws Exception {

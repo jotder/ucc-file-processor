@@ -232,8 +232,9 @@ public final class ConfigSpecs {
     public static ConfigSpec job() {
         List<FieldSpec> fields = List.of(
                 FieldSpec.required("job.name", "Job name", FieldType.STRING, "Unique job name."),
-                FieldSpec.enumField("job.type", "Job type",
-                        List.of("enrich", "report", "maintenance"), null, "The kind of work."),
+                FieldSpec.required("job.type", "Job type", FieldType.STRING,
+                        "The Job Type id — an open registry key (built-ins: enrich, report, maintenance, "
+                                + "pipeline; plus any module/pack-provided id). See GET /jobs/types."),
                 new FieldSpec("job.cron", "Cron", "Calendar schedule (5 or 6 cron fields), or blank.",
                         FieldType.CRON, false, null, List.of(), null, "cron-editor", null),
                 FieldSpec.of("job.on_pipeline", "Trigger pipeline", FieldType.STRING,

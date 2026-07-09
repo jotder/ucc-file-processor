@@ -59,7 +59,7 @@ class JobServiceTest {
             JobRun run = await(() -> js.lastRunOf("hb").orElse(null));
             assertEquals("SUCCESS", run.status());
             assertEquals("manual", run.trigger());
-            assertEquals("MAINTENANCE", run.type());
+            assertEquals("maintenance", run.type());
             assertEquals(1, js.runsFor("hb").size(), "one run in history");
             assertTrue(Files.exists(auditDir.resolve("jobs_runs.csv")), "durable audit written");
             assertTrue(Files.readString(auditDir.resolve("jobs_runs.csv")).contains("hb"));
@@ -279,7 +279,7 @@ class JobServiceTest {
                      dir.resolve("audit").toString(), null, store, dir.resolve("data").toString())) {
             js.start();
             assertTrue(js.has("fj"), "a flow job is built when a flow store is configured");
-            assertEquals("PIPELINE", js.jobs().get(0).type(), "the listing reports the PIPELINE type");
+            assertEquals("pipeline", js.jobs().get(0).type(), "the listing reports the PIPELINE type");
         }
     }
 
@@ -316,7 +316,7 @@ class JobServiceTest {
             JobRun run = await(() -> js.lastRunOf("nightly").orElse(null));
 
             assertEquals("SUCCESS", run.status(), run.message());
-            assertEquals("PIPELINE", run.type());
+            assertEquals("pipeline", run.type());
             assertNotNull(midRun.get(), "the flow's chain event fired");
             assertTrue(midRun.get().contains("evt_rollup"), "flow tracked as running mid-run: " + midRun.get());
             assertTrue(js.runningFlows().isEmpty(), "the running-flow set is cleaned up after the run");
@@ -342,7 +342,7 @@ class JobServiceTest {
             JobRun run = await(() -> js.runsFor("ticker").stream()
                     .filter(r -> "SUCCESS".equals(r.status())).findFirst().orElse(null));
             assertEquals("schedule", run.trigger(), "cron fire records the schedule trigger");
-            assertEquals("PIPELINE", run.type());
+            assertEquals("pipeline", run.type());
         }
     }
 
@@ -364,7 +364,7 @@ class JobServiceTest {
             bus.publish(new BatchEvent("events_etl", "b1", "SUCCESS", List.of("p=1"), 1L, 1L, 0));
             JobRun run = await(() -> js.lastRunOf("rollup_job").orElse(null));
             assertEquals("SUCCESS", run.status(), run.message());
-            assertEquals("PIPELINE", run.type());
+            assertEquals("pipeline", run.type());
             assertTrue(run.trigger().startsWith("event:events_etl"), "fired by the upstream commit: " + run.trigger());
             assertTrue(Files.exists(Path.of(dataDir, "rollup")), "the flow job wrote its sink store");
         }
@@ -413,7 +413,7 @@ class JobServiceTest {
                     "the flow run was projected into the reporting store");
             List<Map<String, Object>> recent = runStore.recentRuns(10, "nightly_rollup");
             assertFalse(recent.isEmpty(), "the flow run is queryable in the reporting store");
-            assertEquals("PIPELINE", recent.get(0).get("type"), "reported as a PIPELINE run");
+            assertEquals("pipeline", recent.get(0).get("type"), "reported as a PIPELINE run");
         }
     }
 

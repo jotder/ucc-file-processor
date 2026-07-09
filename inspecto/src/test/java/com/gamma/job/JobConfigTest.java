@@ -31,7 +31,7 @@ class JobConfigTest {
                 """);
         JobConfig c = JobConfig.load(p.toString());
         assertEquals("nightly-clean", c.name());
-        assertEquals(JobType.MAINTENANCE, c.type());
+        assertEquals("maintenance", c.type());   // P2b: type is an open lowercased registry id
         assertEquals("0 2 * * *", c.cron());
         assertTrue(c.hasCron());
         assertTrue(c.hasEvent());
@@ -54,20 +54,23 @@ class JobConfigTest {
                 """);
         JobConfig c = JobConfig.load(p.toString());
         assertFalse(c.enabled());
-        assertEquals(JobType.REPORT, c.type());
+        assertEquals("report", c.type());
         assertFalse(c.hasCron());
         assertFalse(c.hasEvent());
     }
 
     @Test
-    void rejectsUnknownTypeAndBadCron(@TempDir Path dir) throws Exception {
-        Path badType = write(dir, "bt_job.toon", """
+    void acceptsAnOpenTypeIdAndStillRejectsBadCron(@TempDir Path dir) throws Exception {
+        // P2b: the type is an open registry id — an unknown id is no longer rejected at load; it parses
+        // fine and is resolved (or fails closed) when JobService builds the job against the registry.
+        Path openType = write(dir, "ot_job.toon", """
                 job:
                   name: x
-                  type: frobnicate
+                  type: fraud.velocity-screen
                 """);
-        assertThrows(IllegalArgumentException.class, () -> JobConfig.load(badType.toString()));
+        assertEquals("fraud.velocity-screen", JobConfig.load(openType.toString()).type());
 
+        // a bad cron still fails eagerly at load
         Path badCron = write(dir, "bc_job.toon", """
                 job:
                   name: y

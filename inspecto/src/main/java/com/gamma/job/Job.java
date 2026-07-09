@@ -12,8 +12,9 @@ public interface Job {
     /** Stable job name (from config); used for scheduling, audit and the API. */
     String name();
 
-    /** Which kind of work this job performs. */
-    JobType type();
+    /** The Job Type id this job performs — the registry key / {@code type:} string (P2b: was the
+     *  {@link JobType} enum; now an open id so plugin/module types are first-class). */
+    String type();
 
     /**
      * Perform the work once and return its outcome. May throw; {@link JobService}

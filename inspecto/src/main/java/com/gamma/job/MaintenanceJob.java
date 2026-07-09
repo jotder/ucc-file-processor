@@ -57,7 +57,7 @@ final class MaintenanceJob implements Job {
     }
 
     @Override public String name() { return cfg.name(); }
-    @Override public JobType type() { return JobType.MAINTENANCE; }
+    @Override public String type() { return "maintenance"; }
 
     @Override
     public JobResult run() throws Exception {

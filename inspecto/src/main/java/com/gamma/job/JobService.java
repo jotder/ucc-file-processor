@@ -33,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -211,6 +212,16 @@ public final class JobService implements AutoCloseable {
                         ParameterDecl.optional("incremental_column", ParamType.STRING, null, "Watermark column for incremental runs")),
                 List.of("pipeline.commit"), List.of()),
                 this::buildFlowJob));
+        // Classpath providers (optional Maven modules — the "classpath way", §12.4). ServiceLoader finds
+        // none in the base build; a provider whose id collides with a built-in (registered first) is
+        // rejected, fail-closed. Hot-deployable Job Packs (isolated classloaders) arrive in P2c.
+        for (JobTypeProvider provider : ServiceLoader.load(JobTypeProvider.class)) {
+            try {
+                registry.register(provider);
+            } catch (RuntimeException e) {
+                log.warn("job type provider {} rejected: {}", provider.getClass().getName(), e.getMessage());
+            }
+        }
     }
 
     /** Wire the event/signal subscribers and arm cron schedules. */
@@ -273,7 +284,7 @@ public final class JobService implements AutoCloseable {
     }
 
     private Job build(JobConfig c) {
-        return registry.create(c.type().name(), c);   // registry keys are lowercased ids; create() folds case
+        return registry.create(c.type(), c);   // registry keys are lowercased ids; create() folds case
     }
 
     /** A {@link JobType#PIPELINE} job (T32) — requires an authored-flow store (set {@code -Dassist.write.root}). */
@@ -357,7 +368,7 @@ public final class JobService implements AutoCloseable {
         Job job = jobs.get(name);
         if (job == null) return;
         String now = LocalDateTime.now().format(TS);
-        record(new JobRun(newRunId(name), name, job.type().name(), trigger, now, now, "SKIPPED", 0L, message));
+        record(new JobRun(newRunId(name), name, job.type(), trigger, now, now, "SKIPPED", 0L, message));
     }
 
     /** The Job name from a signal source of the form {@code job:<name>/run:<id>}, else {@code null}. */
@@ -425,7 +436,7 @@ public final class JobService implements AutoCloseable {
         Job job = jobs.get(name);
         if (job == null) return;
         String start = LocalDateTime.now().format(TS);
-        liveRuns.put(runId, new JobRun(runId, name, job.type().name(), trigger, start, null, "RUNNING", 0L, null));
+        liveRuns.put(runId, new JobRun(runId, name, job.type(), trigger, start, null, "RUNNING", 0L, null));
         // The default space runs with no MDC (it is the fallback namespace everywhere); a named space sets it so
         // this job run's events/metrics/acquisition route to that space. Fresh per-task virtual thread → clear after.
         boolean scoped = !EventLog.DEFAULT_SPACE_ID.equals(spaceId);
@@ -472,17 +483,17 @@ public final class JobService implements AutoCloseable {
             else
                 ctx.signals().emit("job.run.completed", res.success() ? Severity.INFO : Severity.WARNING,
                         Map.of("job", name, "run", runId, "outcome", res.status(), "durationMs", res.durationMs()));
-            JobRun run = new JobRun(runId, name, job.type().name(), trigger, start,
+            JobRun run = new JobRun(runId, name, job.type(), trigger, start,
                     LocalDateTime.now().format(TS), res.status(), res.durationMs(), res.message());
             record(run);
             MetricRegistry.global().inc("inspecto_jobs_total", "Config-driven job executions",
-                    Map.of("job", name, "type", job.type().name(), "status", res.status()));
+                    Map.of("job", name, "type", job.type(), "status", res.status()));
             MetricRegistry.global().observe("inspecto_job_duration_seconds", "Job wall time",
                     Map.of("job", name), res.durationMs() / 1000.0);
             log.info("[JOB] {} ({}) {} in {}ms — {}",
                     name, trigger, res.status(), res.durationMs(), res.message());
         }, () ->   // a previous run is still in flight — don't overlap
-            record(new JobRun(runId, name, job.type().name(), trigger, start,
+            record(new JobRun(runId, name, job.type(), trigger, start,
                     LocalDateTime.now().format(TS), "SKIPPED", 0L, "previous run still in flight")));
     }
 
@@ -517,7 +528,7 @@ public final class JobService implements AutoCloseable {
         DeletionFence.Guard guard = deletionGuard;
         if (guard == null) return;
         JobConfig jc = configFor(name).orElse(null);
-        if (jc == null || jc.type() != JobType.MAINTENANCE) return;
+        if (jc == null || !"maintenance".equals(jc.type())) return;
         String storeCsv = jc.opt("store", "").trim();
         if (storeCsv.isBlank()) return;
         List<String> stores = java.util.Arrays.stream(storeCsv.split(","))
@@ -532,7 +543,7 @@ public final class JobService implements AutoCloseable {
      * {@code SourceService} feeds it — a delete racing this flow's store then surfaces as a conflict.
      */
     private String trackFlowStart(Job job, String name) {
-        if (job.type() != JobType.PIPELINE) return null;
+        if (!"pipeline".equals(job.type())) return null;
         String flowId = configFor(name).map(c -> c.opt("flow", name)).orElse(name);
         runningFlows.add(flowId);
         return flowId;
@@ -565,7 +576,7 @@ public final class JobService implements AutoCloseable {
                 CronExpression expr = crons.getOrDefault(c.name(), c.cronExpression());
                 nextFire = expr.next(now).format(TS);
             }
-            out.add(new JobView(c.name(), c.type().name(), c.cron(), c.onPipeline(), c.enabled(),
+            out.add(new JobView(c.name(), c.type(), c.cron(), c.onPipeline(), c.enabled(),
                     last == null ? "" : last.status(),
                     last == null ? "" : last.endTime(),
                     nextFire));

@@ -270,7 +270,7 @@ class ControlApiTest {
             JsonNode list = json(send(c.port, "GET", "/jobs", null));
             assertTrue(list.isArray() && list.size() == 1);
             assertEquals("hb", list.get(0).get("name").asText());
-            assertEquals("MAINTENANCE", list.get(0).get("type").asText());
+            assertEquals("maintenance", list.get(0).get("type").asText());   // P2b: type is the lowercased registry id
 
             HttpResponse<String> trig = send(c.port, "POST", "/jobs/hb/trigger", null);
             assertEquals(200, trig.statusCode());

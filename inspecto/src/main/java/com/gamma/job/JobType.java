@@ -9,7 +9,13 @@ package com.gamma.job;
  * Ingestion is the <em>pipeline's</em> sole responsibility, driven by the poll loop only;
  * a job is strictly a downstream custom function over data already at rest, never a
  * re-acquisition. Migrate any former {@code ingest} job to an {@code active: true} pipeline.
+ *
+ * @deprecated since 5.x — Job Types are now an <b>open registry</b> keyed by string id
+ * ({@code JobTypeProvider}/{@code JobTypeRegistry}, P2b). {@link Job#type()} and
+ * {@link JobConfig#type()} are strings; these four constants remain only as the built-in ids
+ * (lowercased) and for source compatibility of pre-5.x callers.
  */
+@Deprecated(since = "5.x")
 public enum JobType {
     /** Run a Stage-2 enrichment once (param {@code config} = enrichment {@code .toon}). */
     ENRICH,

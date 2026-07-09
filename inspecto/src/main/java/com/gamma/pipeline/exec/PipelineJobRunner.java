@@ -114,7 +114,7 @@ public final class PipelineJobRunner implements Job {
     }
 
     @Override public String name() { return cfg.name(); }
-    @Override public JobType type() { return JobType.PIPELINE; }
+    @Override public String type() { return "pipeline"; }
 
     @Override
     public JobResult run() throws Exception {
