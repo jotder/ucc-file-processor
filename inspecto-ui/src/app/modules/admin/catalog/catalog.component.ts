@@ -17,6 +17,7 @@ import {
     MetadataGraph,
     MetadataNode,
     NodeKind,
+    SessionService,
 } from 'app/inspecto/api';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
@@ -25,8 +26,9 @@ import { RegistryComponent } from './registry.component';
 import { G6GraphData, legendFor, toG6Data } from './catalog-graph';
 import { GraphViewComponent } from './graph-view.component';
 import { NodeDetailDialog } from './node-detail.dialog';
+import { SharingComponent } from './sharing.component';
 
-type CatTab = 'tables' | 'streams' | 'kpis' | 'graph' | 'usage';
+type CatTab = 'tables' | 'streams' | 'kpis' | 'graph' | 'usage' | 'shared-with-me' | 'shared-by-me';
 
 /**
  * Data catalog — the metadata graph surfaced five ways: a Tables grid (with operational
@@ -51,6 +53,7 @@ type CatTab = 'tables' | 'streams' | 'kpis' | 'graph' | 'usage';
         InspectoEmptyStateComponent,
         GraphViewComponent,
         RegistryComponent,
+        SharingComponent,
     ],
     templateUrl: './catalog.component.html',
 })
@@ -58,12 +61,20 @@ export class CatalogComponent implements OnInit {
     private api = inject(CatalogService);
     private dialog = inject(MatDialog);
 
+    // The two Exchange tabs appear only on a multi-space runtime (bootstrap.features.exchange —
+    // resolved before the app initializes, so the list is stable for the component's lifetime).
     readonly tabs: { id: CatTab; label: string }[] = [
         { id: 'tables', label: 'Tables' },
         { id: 'streams', label: 'Streams' },
         { id: 'kpis', label: 'KPIs' },
         { id: 'graph', label: 'Lineage' },
         { id: 'usage', label: 'Usage' },
+        ...(inject(SessionService).exchangeEnabled()
+            ? [
+                  { id: 'shared-with-me' as CatTab, label: 'Shared with me' },
+                  { id: 'shared-by-me' as CatTab, label: 'Shared by me' },
+              ]
+            : []),
     ];
     tabIndex = 0;
     get activeTab(): CatTab {

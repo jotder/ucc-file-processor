@@ -1,0 +1,75 @@
+<div class="flex flex-col gap-8">
+    @if (view() === 'with-me') {
+        <section>
+            <h2 class="text-xl font-semibold">Shared with me</h2>
+            <div class="text-secondary mb-3 mt-0.5 text-sm">
+                Grants where this space is the consumer — what other spaces have shared here.
+            </div>
+            <inspecto-data-table
+                tier="standard"
+                sourceName="shared_with_me"
+                exportName="shared-with-me"
+                height="24rem"
+                [loading]="loading()"
+                [rows]="myGrants()"
+                [columns]="grantColumns"
+                noRowsTitle="Nothing shared with this space yet"
+                noRowsHint="Request access to an offered dataset below — the owner space approves it."
+            />
+        </section>
+        <section>
+            <h2 class="text-xl font-semibold">Available from other spaces</h2>
+            <div class="text-secondary mb-3 mt-0.5 text-sm">
+                The shareable catalog — datasets and widgets other spaces have offered.
+            </div>
+            <inspecto-data-table
+                tier="standard"
+                sourceName="exchange_offers"
+                exportName="exchange-offers"
+                height="24rem"
+                [loading]="loading()"
+                [rows]="myOffers()"
+                [columns]="offerColumns"
+                [rowActions]="offerActions"
+                noRowsTitle="No offers from other spaces"
+                noRowsHint="Other spaces list datasets here with 'Offer for sharing' — nothing is offered yet."
+            />
+        </section>
+    } @else {
+        <section>
+            <h2 class="text-xl font-semibold">Requests &amp; grants on my offers</h2>
+            <div class="text-secondary mb-3 mt-0.5 text-sm">
+                Approve or deny pending requests; revoke an active grant to cut access immediately.
+            </div>
+            <inspecto-data-table
+                tier="standard"
+                sourceName="shared_by_me"
+                exportName="shared-by-me"
+                height="24rem"
+                [loading]="loading()"
+                [rows]="myGrants()"
+                [columns]="grantColumns"
+                [rowActions]="grantActions"
+                noRowsTitle="No requests or grants yet"
+                noRowsHint="Once another space requests one of your offers, it appears here for approval."
+            />
+        </section>
+        <section>
+            <h2 class="text-xl font-semibold">My offers</h2>
+            <div class="text-secondary mb-3 mt-0.5 text-sm">
+                What this space has listed in the shareable catalog.
+            </div>
+            <inspecto-data-table
+                tier="standard"
+                sourceName="my_offers"
+                exportName="my-offers"
+                height="24rem"
+                [loading]="loading()"
+                [rows]="myOffers()"
+                [columns]="offerColumns"
+                noRowsTitle="This space offers nothing yet"
+                noRowsHint="Use 'Offer for sharing' on a dataset or widget to list it here."
+            />
+        </section>
+    }
+</div>

@@ -37,6 +37,8 @@ export function statusTone(value: string | null | undefined): StatusTone {
         case 'ERRORED':
         case 'REJECTED':
         case 'UNREACHABLE':
+        case 'DENIED':
+        case 'REVOKED':
             return 'error';
         case 'WARN':
         case 'WARNING':
@@ -44,11 +46,13 @@ export function statusTone(value: string | null | undefined): StatusTone {
         case 'PAUSED':
         case 'QUARANTINE':
         case 'QUARANTINED':
+        case 'EXPIRED':
             return 'warning';
         case 'INFO':
         case 'OPEN':
         case 'PENDING':
         case 'PROCESSING':
+        case 'REQUESTED':
             return 'info';
         case 'SUCCESS':
         case 'SUCCEEDED':

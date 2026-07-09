@@ -125,5 +125,13 @@
         @if (activeTab === 'usage') {
             <app-registry />
         }
+
+        <!-- Cross-space sharing (Exchange) — tabs exist only when bootstrap.features.exchange -->
+        @if (activeTab === 'shared-with-me') {
+            <catalog-sharing class="mt-6 block" view="with-me" />
+        }
+        @if (activeTab === 'shared-by-me') {
+            <catalog-sharing class="mt-6 block" view="by-me" />
+        }
     </div>
 </div>

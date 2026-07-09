@@ -4,7 +4,8 @@ import { MatDialog } from '@angular/material/dialog';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
-import { CatalogService, MetadataGraph, MetadataNode, PipelinesService } from 'app/inspecto/api';
+import { CatalogService, ExchangeService, MetadataGraph, MetadataNode, PipelinesService, SessionService, SpacesService } from 'app/inspecto/api';
+import { ToastrService } from 'ngx-toastr';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { ComponentsDataProvider } from './components-data-provider';
@@ -33,6 +34,11 @@ function create(overrides: Partial<CatalogService> = {}) {
             // RegistryComponent is embedded (not lazy) for the "usage" tab.
             { provide: ComponentsDataProvider, useValue: { list: () => Promise.resolve([]) } },
             { provide: PipelinesService, useValue: { authoredList: () => of([]), authoredRaw: () => of(undefined) } },
+            // The Exchange tabs gate on bootstrap.features.exchange (SharingComponent is embedded).
+            { provide: SessionService, useValue: { exchangeEnabled: () => true } },
+            { provide: ExchangeService, useValue: { grants: () => of([]), offers: () => of([]) } },
+            { provide: SpacesService, useValue: { currentSpaceId: () => 'default' } },
+            { provide: ToastrService, useValue: {} },
         ],
     });
     const fixture = TestBed.createComponent(CatalogComponent);
@@ -45,6 +51,12 @@ describe('CatalogComponent', () => {
         const c = create().componentInstance;
         expect(c.activeTab).toBe('tables');
         expect(c.nodes).toEqual([TABLE]);
+    });
+
+    it('offers the two Exchange tabs when bootstrap.features.exchange is on', () => {
+        const c = create().componentInstance;
+        expect(c.tabs.map((t) => t.id)).toContain('shared-with-me');
+        expect(c.tabs.map((t) => t.id)).toContain('shared-by-me');
     });
 
     it('switching to a tab loads its data', () => {
