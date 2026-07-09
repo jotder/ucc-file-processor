@@ -177,6 +177,72 @@ class ControlApiAsyncV1Test {
         }
     }
 
+    // ── Signal ledger (job-framework P1a, R6) ────────────────────────────────────────
+
+    /** Trigger a heartbeat job and wait for it to reach a terminal status; returns its runId. */
+    private String triggerAndAwait(Ctx c, String job) throws Exception {
+        String runId = JSON.readTree(post(c.port, "/api/v1/jobs/" + job + "/trigger", null).body())
+                .get("data").get("runId").asText();
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            JsonNode run = JSON.readTree(get(c.port, "/api/v1/jobs/runs/" + runId).body()).get("data");
+            if (!"RUNNING".equals(run.get("status").asText())) break;
+            Thread.sleep(50);
+        }
+        return runId;
+    }
+
+    @Test
+    void jobLifecycleSignalsLandOnTheLedgerWithTheEnvelope(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        // Unique job name → unique runId (= correlationId): EventLog.global() is process-wide and drains
+        // forward across the per-test SourceServices, and runIds are only second-precision + a per-instance
+        // seq, so a shared "hb" name would collide with other tests' hb runs in the same second.
+        JobConfig hb = new JobConfig("sigjob", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "heartbeat"));
+        try (Ctx c = open(cfg, root, List.of(hb))) {
+            String runId = triggerAndAwait(c, "sigjob");
+
+            HttpResponse<String> resp = get(c.port, "/signals?correlationId=" + runId);
+            assertEquals(200, resp.statusCode(), resp.body());
+            JsonNode arr = JSON.readTree(resp.body());
+            assertTrue(arr.isArray() && arr.size() >= 2, "started + completed on the ledger: " + resp.body());
+
+            List<String> types = new ArrayList<>();
+            JsonNode completed = null;
+            for (JsonNode n : arr) {
+                types.add(n.get("type").asText());
+                if ("job.run.completed".equals(n.get("type").asText())) completed = n;
+            }
+            assertTrue(types.contains("job.run.started"), types.toString());
+            assertTrue(types.contains("job.run.completed"), types.toString());
+
+            assertNotNull(completed, "a completed signal was emitted");
+            assertEquals(runId, completed.get("correlationId").asText(), "correlated to the run");
+            assertEquals("INFO", completed.get("severity").asText());
+            assertFalse(completed.get("signalId").asText().isBlank(), "framework-stamped id");
+            assertEquals("SUCCESS", completed.get("payload").get("outcome").asText(), completed.toString());
+        }
+    }
+
+    @Test
+    void signalTypeFilterSupportsExactAndPrefixGlob(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        JobConfig hb = new JobConfig("globjob", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "heartbeat"));
+        try (Ctx c = open(cfg, root, List.of(hb))) {
+            String runId = triggerAndAwait(c, "globjob");
+
+            // Exact filter admits ONLY that type; unique runId isolates this run's single started signal.
+            JsonNode exact = JSON.readTree(get(c.port, "/signals?type=job.run.started&correlationId=" + runId).body());
+            assertEquals(1, exact.size(), "exact type filter isolates one signal: " + exact);
+            exact.forEach(n -> assertEquals("job.run.started", n.get("type").asText()));
+
+            // Prefix glob matches the whole job.run.* family (started + completed) — a strict superset.
+            JsonNode glob = JSON.readTree(get(c.port, "/signals?type=job.run.*&correlationId=" + runId).body());
+            assertTrue(glob.size() >= 2, "prefix glob matches all job.run.* : " + glob);
+            List<String> globTypes = new ArrayList<>();
+            glob.forEach(n -> globTypes.add(n.get("type").asText()));
+            assertTrue(globTypes.contains("job.run.completed"), "glob matches more than the exact type: " + globTypes);
+        }
+    }
+
     // ── async pipeline trigger + poll (W5b) ──────────────────────────────────────────
 
     @Test

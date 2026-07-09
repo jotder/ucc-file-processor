@@ -74,6 +74,10 @@ public final class EventType {
     public static final String JOB_SUCCEEDED = "JOB_SUCCEEDED";
     public static final String JOB_FAILED    = "JOB_FAILED";
     public static final String ENRICHMENT_RUN = "ENRICHMENT_RUN";
+    /** The one signal-ledger event type (job-framework §8.1). A {@code com.gamma.signal.Signal} persists
+     *  as an Event of this type; its dotted signal-type, severity and JSON payload ride in the attributes,
+     *  its correlationId in the first-class field. {@code GET /signals} is the ledger view over these. */
+    public static final String SIGNAL = "SIGNAL";
     /** A delete/maintenance job targets a resting store with an active producer/consumer — the one
      *  cross-driver hazard the deletion fence guards (§3.8 rule 4, T25). The {@code store},
      *  {@code activeProducers} and {@code activeConsumers} attributes name the racing flows. */

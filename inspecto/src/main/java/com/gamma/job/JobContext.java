@@ -1,5 +1,7 @@
 package com.gamma.job;
 
+import com.gamma.signal.SignalEmitter;
+
 import java.util.Map;
 
 /**
@@ -24,4 +26,7 @@ public interface JobContext {
 
     /** Structured, persisted per-run logging (R5). */
     RunLog log();
+
+    /** Emit domain {@link com.gamma.signal.Signal}s onto the one ledger (R6); framework-stamped. */
+    SignalEmitter signals();
 }

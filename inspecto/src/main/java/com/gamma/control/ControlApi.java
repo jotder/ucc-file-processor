@@ -365,7 +365,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 new EventRoutes(), new ObjectRoutes(), new QueueRoutes(), new CatalogRoutes(), new ConfigRoutes(),
                 new QueryRoutes(), new BiRoutes(), new ShareRoutes(), new InvRoutes(),
                 new ExpectationRoutes(), new RequirementRoutes(),
-                new JobRoutes(), new LineageRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
+                new JobRoutes(), new SignalRoutes(), new LineageRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
                 new NotificationRoutes(), new SettingsRoutes(),
                 new AssistRoutes(), new AgentRoutes()))
             module.register(this);

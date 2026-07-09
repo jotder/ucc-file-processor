@@ -11,6 +11,7 @@ import com.gamma.report.ReportService;
 import com.gamma.service.BatchEventBus;
 import com.gamma.service.CronExpression;
 import com.gamma.service.Scheduler;
+import com.gamma.signal.Severity;
 import com.gamma.util.LockingRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -302,12 +303,18 @@ public final class JobService implements AutoCloseable {
             fenceDelete(name);   // T25: surface a conflict if a declared delete races an active reader/writer
             String flowId = trackFlowStart(job, name);   // T32: mark a flow job's stores active for the fence
             Map<String, String> params = configFor(name).map(JobConfig::params).orElse(Map.of());
-            RunContext ctx = new RunContext(runId, spaceId, trigger, params, runLogStore, runLogMax);
+            // correlationId = runId for now (a fresh chain); on-signal-triggered Runs inherit the firing
+            // signal's correlationId in P1c.
+            RunContext ctx = new RunContext(runId, spaceId, name, trigger, runId, params, runLogStore, runLogMax);
             ctx.log().info("run started", "trigger", trigger, "params", params);   // param snapshot (R5/R2 scaffold)
+            ctx.signals().emit("job.run.started", Severity.INFO,
+                    Map.of("job", name, "run", runId, "trigger", trigger));
             JobResult res;
+            boolean threw = false;
             try {
                 res = job.run(ctx);
             } catch (Exception e) {
+                threw = true;
                 log.error("Job '{}' ({}) failed", name, trigger, e);
                 ctx.log().error("run failed", e);
                 res = JobResult.failed(String.valueOf(e.getMessage()),
@@ -316,6 +323,13 @@ public final class JobService implements AutoCloseable {
                 if (flowId != null) runningFlows.remove(flowId);
             }
             ctx.log().info("run completed", "status", res.status(), "durationMs", res.durationMs());
+            // One terminal lifecycle signal: job.run.failed on a thrown exception, else job.run.completed.
+            if (threw)
+                ctx.signals().emit("job.run.failed", Severity.CRITICAL,
+                        Map.of("job", name, "run", runId, "outcome", res.status(), "message", String.valueOf(res.message())));
+            else
+                ctx.signals().emit("job.run.completed", res.success() ? Severity.INFO : Severity.WARNING,
+                        Map.of("job", name, "run", runId, "outcome", res.status(), "durationMs", res.durationMs()));
             JobRun run = new JobRun(runId, name, job.type().name(), trigger, start,
                     LocalDateTime.now().format(TS), res.status(), res.durationMs(), res.message());
             record(run);
