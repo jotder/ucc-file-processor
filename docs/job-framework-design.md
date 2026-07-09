@@ -2,7 +2,8 @@
 
 > **Pluggable Job Types · parameterized Triggers · Signals · Run Artifacts · hot-deployable Job Packs**
 >
-> **Status: DESIGN (2026-07-08). No implementation yet — this document is the spec to build from.**
+> **Status: DESIGN — IMPLEMENTATION-READY (open questions resolved 2026-07-09; §19). No implementation
+> yet — this document is the spec to build from.**
 > It is an **evolution of the shipped `com.gamma.job` subsystem** (cron/event/manual scheduling,
 > non-overlap locking, run ledger, `JobType.PIPELINE` per [`flow-live-execution-plan.md`](flow-live-execution-plan.md)
 > — T32 phases A+B+C shipped 2026-06-18/19), **not** a replacement. It subsumes and expands
@@ -80,7 +81,9 @@ Canonical terms used throughout — **Type vs Instance vs Execution** is the spi
 starts — this doc does not edit the glossary):
 
 - **Job Pack** — a hot-deployable jar bundling one or more Job Types (SPI implementations + their shaded
-  dependencies). Distinct from the *plugin ingester* (`plugins.md`) and from the agent's *InspectoPack*.
+  dependencies). Distinct from the *Plugin Ingester* (`plugins.md`, file-format SPI) and from the agent's
+  *InspectoPack* / *Application Pack* (agent platform). **Always the two-word term; never bare "Pack"** as a
+  standalone noun in the job context (§19.1 resolution).
 - **Run Artifact** — the recorded description of one output a Run produced: kind (dataset \| file \| report),
   a ref, its Result Set, row/byte counts, and a watermark. The queryable "result metadata" of R7.
 - **Trigger kind `on-signal`** — extends the §5 Trigger list; `on-pipeline` becomes sugar for a specific
@@ -414,9 +417,14 @@ public record ResultSetMeta(List<Column> columns) {
     composition binds to what its predecessor produced *without* the predecessor pushing anything.
 - `ResultSetMeta` **is** the glossary §6-B *Result Set* — the same shape Studio/Show-Me matches against,
   so a Job-produced Dataset is immediately bindable by Widgets.
-- Dataset artifacts may **register in the catalog**: a `dataset(...)` record with a new ref creates/updates
-  a `ViewDefinition` via the existing `ViewStore` (the T32-C `sink.view` path), making the output visible
-  in Catalog → Tables. Opt-out per artifact for scratch outputs.
+- Dataset artifacts **register a queryable view** by default: a `dataset(...)` record with a new ref
+  creates/updates a `ViewDefinition` via the existing `ViewStore` (the T32-C `sink.view` path — the same
+  best-effort registration `PipelineJobRunner.registerViews` already does). This makes the output
+  **bindable via `/views`** (Widgets, Alert Rules, `$upstream`); opt-out per artifact for scratch outputs.
+  ⚠ It does **not** by itself surface the output under **Catalog → Tables** — that view is built from
+  `SemanticModel.TableMeta` via `ComponentStore` semantics (`MetadataGraphBuilder`), a separate path with
+  no bridge to `ViewStore` today. Catalog-node surfacing of Job outputs is a small **follow-on bridge**
+  (§19.4), out of scope for this framework.
 - The lifecycle signal `job.run.completed` carries artifact summaries in its payload — so `bind:` can pass
   `$signal.dataset` refs to the next Job with no extra query (the §15.3 walkthrough shows both styles).
 
@@ -473,9 +481,11 @@ fraud-screen-pack-1.2.0.jar
 
 - Absent flag = no dynamic code loading at all; the attack surface stays the (air-gappable) fat JAR.
 - The packs dir is an **admin-controlled filesystem location** — the same trust boundary as the config
-  write-root. Optional `-Djobs.packs.requireSignature=true` verifies jar signatures before loading
-  (Standard-edition hardening; ships default-on in the standard flavor's launcher flags, not as
-  `if (edition)` code).
+  write-root. `-Djobs.packs.requireSignature` verifies jar signatures (JDK jar-signature trust model
+  against `-Djobs.packs.trustStore`) before loading. **Default-off in core/Personal; the Standard &
+  Enterprise flavor launchers set it on via launcher flags, not `if (edition)` code** (§19.5). The
+  flavor-on default + trust-anchor wiring is a **SEC-7 sign-off gate**: P2 may land with the flag present
+  and default-off ahead of that review.
 - Pack code runs in-process (no sandbox — same trust level as a connector module today; stated
   explicitly so nobody mistakes packs for a multi-tenant plugin marketplace). Secrets remain reachable
   only through the `SecretResolver` seam on `JobServices`; packs never see raw env/config secrets.
@@ -701,7 +711,7 @@ under a new correlation — or is folded by the `TriggerCoalescer` if the first 
 | Job Type unavailable (pack removed/rejected) | Firings `REJECTED`, Job flagged `unavailable` in `GET /jobs`; recovers automatically when the pack returns (§12.2) |
 | Signal cycle A→B→A | Chain cut at `maxChainDepth`, `job.chain.cut` WARNING with the chain (§8.4) |
 | Signal storm | `TriggerCoalescer` folds matching firings under the non-overlap lock (§8.4) |
-| Overlapping firings of one Job | Existing `LockingRunner` non-overlap: same-name Runs serialize (cron skip/queue semantics unchanged from today) |
+| Overlapping firings of one Job | Per-Job `concurrency:` (§19.3) — default `skip` (`LockingRunner.runExclusiveOrSkip`, today's behavior: new fire recorded `SKIPPED`) or `queue` (`LockingRunner.runExclusive`, blocks on the per-name lock up to `-Djobs.queue.maxDepth`). Different jobs always run in parallel. `allow` deferred |
 | Crash mid-Run | On restart, ledger rows stuck in `RUNNING` are closed as `INTERRUPTED`; cron catch-up (`catchUpMissedFires`, T26) reschedules missed fires per `catch_up:` |
 | Job code throws | Run `FAILED`, stack in Run Log, `job.run.failed` signal; optional per-Job `retry:` block (attempts/backoff) executed through the existing `RetryPolicy` |
 | Run hangs | Per-Job `timeout:` — the virtual-thread Run is interrupted, Run `FAILED(timeout)`; DuckDB connection closed by the try-with-resources contract of `JobServices.duckDb()` |
@@ -735,20 +745,58 @@ Each phase is independently shippable; P0 changes no observable behavior (the sa
 | R8 hot-deployable, interface/annotation discovery | §12 Job Packs, §6.1 ServiceLoader + `@JobTypeMeta` |
 | R9 developer templates (SQL / bespoke / fraud) | §15.1–15.3 |
 
-## 19. Open questions
+## 19. Resolved decisions
 
-1. **"Job Pack" naming** — collides with nothing canonical, but "Pack" is informally used by the
-   intelligence module (`InspectoPack`). Alternatives: *Job Module*, *Job Extension*. Decide at glossary
-   registration time (§3).
-2. **Signal ledger store** — this design rides the `EventLog`/`EventStore` seam (the one-ledger rule of
-   platform track R4, glossary §8). If ledger query volume outgrows it, a dedicated DuckDB signal table is the fallback;
-   the `Signal` envelope is store-agnostic either way.
-3. **Concurrency knob** — is the existing non-overlap-per-Job always right, or do we expose
-   `concurrency: skip | queue | allow`? Default stays today's behavior; the knob is additive if wanted.
-4. **Artifact → Catalog auto-registration** — default-on (visible outputs, glossary-friendly) or opt-in
-   (quiet by default)? Leaning default-on for `dataset(...)` with an opt-out flag (§10).
-5. **Pack signature verification default** in the Standard flavor launcher (`requireSignature=true`
-   default-on there?) — security review call, ties to the SEC-7 track.
+_The five design questions of the DESIGN draft, resolved (2026-07-09) against the as-built code so the
+spec is implementation-ready. Each records the decision, the grounding, and any residual gate._
+
+1. **"Job Pack" naming — KEEP "Job Pack".** The bare word *Pack* is overloaded — `InspectoPack`
+   (`com.gamma.intelligence.pack`, an eoiagent `ApplicationPack`), the agentic OKF's "Application Pack"
+   (ADR-0011), and the older **Plugin Ingester** (`docs/plugins.md`, `StreamingFileIngester` SPI) all sit
+   in adjacent territory — but the **two-word** term *Job Pack* has no canonical-glossary collision, and
+   "*Pack* = an SPI-implementing deployable bundle" is already a **coherent platform-wide idiom**
+   (`ApplicationPack` implements the agent SPI; a **Job Pack** implements `JobTypeProvider`). Rename cost
+   is also real: *Job Pack* / the `packs/` home are already threaded through `architecture.md` and
+   `INDEX.md`. **Binding rule:** always the qualified *Job Pack*; **never bare "Pack"** as a standalone
+   noun in the job context. Register in `GLOSSARY.md` §6-A with a disambiguation note vs `InspectoPack` /
+   Application Pack (agent platform) and vs the Plugin Ingester (file-format SPI). *Job Module* /
+   *Job Extension* dropped.
+2. **Signal ledger store — RIDE `EventLog`/`EventStore` (confirmed, not just leaning).** `EventStore` is a
+   swappable interface (`InMemoryEventStore` / `ParquetEventStore`+DuckDB, chosen by `-Devents.backend`)
+   with a **generic `EventQuery`** (`fromMs/toMs`, `type`, `correlationId`, `textContains`, paging) that
+   both backends honor identically and that already powers `/events/search` (`EventRoutes`). The proposed
+   `GET /signals?type=&since=&correlationId=` (§14) maps **directly** onto `EventQuery` — implement it as a
+   new signal `EventType` + attrs and a thin route over `EventStore.query(...)`, no new store. *Nuance:*
+   `on_signal` **prefix-glob** (`prefix.*`) matching lives at the Trigger-dispatch layer (§8.2), not the
+   store; `EventQuery`'s exact-`type` filter is sufficient for the read API. **Fallback unchanged:** a
+   dedicated DuckDB signal table (the `JobRunLedger → DbJobRunStore` pattern, with hand-rolled aggregates)
+   only if signal query volume or bespoke aggregates outgrow `EventQuery`'s generic filter model.
+3. **Concurrency knob — EXPOSE `concurrency: skip | queue`, default `skip`; DEFER `allow`.** Grounding:
+   today `JobService` uses `LockingRunner.runExclusiveOrSkip` per job-name (records `SKIPPED`, "previous
+   run still in flight") — that **is** `skip`, and stays the default (zero behavior change). The blocking
+   variant `LockingRunner.runExclusive` **already exists and is proven**, so `queue` is a one-line call-site
+   swap, not new machinery. `allow` (bypass the per-name lock) is the *only* genuinely new code path, and
+   it removes the non-overlap safety that partition-overwrite idempotency relies on (§15.3) — **deferred**
+   to future/on-demand. *Caveat for `queue`:* a queued fire blocks a virtual thread waiting on the lock
+   (cheap, but unbounded if fires pile up) — bound it with `-Djobs.queue.maxDepth` (reject beyond, record
+   `SKIPPED(queue-full)`). Additive to `JobConfig`; `TriggerCoalescer` remains the pipeline-side
+   fold mechanism and is untouched.
+4. **Artifact → Catalog auto-registration — DEFAULT-ON for `dataset(...)`, per-artifact opt-out — with a
+   factual correction.** A `dataset(...)` artifact registers a `ViewDefinition` via `ViewStore` by default
+   (opt-out per artifact for scratch), matching `PipelineJobRunner.registerViews`, which already runs
+   unconditionally + best-effort. **Correction to the earlier §10 wording:** registering a `ViewDefinition`
+   makes the output **bindable via `/views`** (Widgets, Alert Rules, `$upstream`) — it does **not** surface
+   it under **Catalog → Tables**. Catalog Tables is built from `SemanticModel.TableMeta` via `ComponentStore`
+   semantics (`MetadataGraphBuilder`), a **separate path with no bridge to `ViewStore`**. Surfacing Job
+   outputs as Catalog nodes is a **small, separate bridge** (e.g. `MetadataGraphBuilder` reading
+   `ViewStore.list()`, or a catalog overlay) — **follow-on work, out of scope here** (§10 fixed to say so).
+5. **Pack signature default — DEFAULT-OFF in core; Standard/Enterprise launcher sets it ON (pending SEC-7
+   sign-off).** `-Djobs.packs.requireSignature` defaults `false` (Personal/base — hot deploy is off entirely
+   without `-Djobs.packs.dir` anyway); the Standard & Enterprise flavor **launchers** set it `true` via
+   launcher flags — **not** `if (edition)` code (house rule). Verification uses the JDK jar-signature trust
+   model against a configured trust anchor `-Djobs.packs.trustStore`. This is a security-review call on the
+   **SEC-7** track: the default is recommended, but P2 may land with the flag present and default-off; the
+   flavor-on default + trust-anchor wiring ships only after SEC-7 sign-off.
 
 ---
 
