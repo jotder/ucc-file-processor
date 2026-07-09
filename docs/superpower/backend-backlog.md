@@ -86,18 +86,24 @@ parameterization concept exists** (grep for "template" in `JobConfig.java`/`JobS
 3. `JobService` gains "instantiate a job from a template" alongside today's direct `JobConfig` authoring
    (additive — existing individually-authored jobs keep working unchanged).
 
-## 4. Alert-Rule write endpoints (from `alert-rule-authoring-plan.md`, audit C3)
+## 4. Alert-Rule write endpoints (from `alert-rule-authoring-plan.md`, audit C3) — ✅ SHIPPED 2026-07-09
 
-**Current state:** `GET /alerts` / `GET /alerts/rules` / `POST /alerts/evaluate` exist; rules are armed
-by hand-saving a `*_alert.toon` next to the pipeline configs (the engine hot-loads them). The UI
-authoring pane (Alerts → Alert Rules, shipped 2026-07-07) is **mock-served**: a live server answers
-503 on writes and the form shows the writes-disabled banner.
+`ControlApi` POST `/alerts/rules` + PUT/DELETE `/alerts/rules/{name}` (`AlertRoutes.java`) per the
+`endpoint` skill's fail-closed gate order: write-root 503 → invalid body 422 (`AlertRule.fromMap`) →
+unsafe name 422 (`WriteGates.safeName`) → duplicate 409 (create) / absent 404 (update/delete). Gated on
+`canAuthorAlertRules` (a no-op on Personal). Each write persists `<name>_alert.toon` (wrapped `alert{}`
+block via `ConfigCodec` + `AtomicFiles`) under the write root **and** arms the rule in the running
+`AlertService` so `GET /alerts/rules` + evaluation reflect it immediately. Name is the storage key
+(immutable on PUT — bound from the path, not the body). Covered by `ControlApiAlertRuleWriteTest` (7
+gate/happy-path cases, real HTTP).
 
-**Shape of the work:** `ControlApi` POST `/alerts/rules` + PUT/DELETE `/alerts/rules/{name}` per the
-`endpoint` skill's fail-closed gate order (write-root 503 → validate 422 → path jail 403 → duplicate
-409 → act atomically), writing/deleting the `*_alert.toon` via `ConfigCodec`. Contract already fixed
-by the UI + mock (name immutable on PUT; 409 duplicate; 404 absent). Small — one route class + the
-mandatory real-HTTP test.
+**Two as-built decisions the original framing missed** (the plan said "the engine hot-loads them" — it
+did *not*): (1) alert rules had **no** hot-reload — `AlertService` held an immutable boot-time list — so
+the routes now mutate it in place (`upsert`/`remove`, volatile swap). (2) `AlertService` was `null` when
+no `*_alert.toon` loaded at boot; it is **now always created** (empty until armed, matching the
+always-present object store) so authoring works on a fresh space. Restart re-arms from the persisted
+files as before. Path-jail (403) is defensive-only here (the name is the sole path component; `safeName`
+422s any traversal first).
 
 ## Sequencing recommendation
 

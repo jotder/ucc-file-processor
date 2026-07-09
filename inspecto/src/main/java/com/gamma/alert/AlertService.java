@@ -51,7 +51,8 @@ public final class AlertService {
     private static final DateTimeFormatter LEDGER_TS =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private final List<AlertRule> rules;
+    /** Armed rules; swapped atomically by the authoring mutators ({@link #upsert}/{@link #remove}). */
+    private volatile List<AlertRule> rules;
     private final ConfigSource configs;
     private final StatusStore status;
     /** Object store for persisting fired alerts as managed objects (Phase 2); {@code null} = events-only. */
@@ -97,6 +98,31 @@ public final class AlertService {
     /** The loaded rules, JSON-ready — backs {@code GET /alerts/rules}. */
     public List<Map<String, Object>> rules() {
         return rules.stream().map(AlertRule::toMap).toList();
+    }
+
+    /** True when a rule with this name is armed (the create-conflict / update-exists check). */
+    public boolean has(String name) {
+        return rules.stream().anyMatch(r -> r.name().equals(name));
+    }
+
+    /**
+     * Arm a rule at runtime (authoring: {@code POST}/{@code PUT /alerts/rules}), replacing any existing
+     * rule of the same name. The name is the identity, so an upsert is add-or-replace. The next batch
+     * event (or {@code POST /alerts/evaluate}) evaluates it. Serialised against {@link #evaluate}.
+     */
+    public synchronized void upsert(AlertRule rule) {
+        List<AlertRule> next = new ArrayList<>(rules.size() + 1);
+        for (AlertRule r : rules) if (!r.name().equals(rule.name())) next.add(r);
+        next.add(rule);
+        this.rules = List.copyOf(next);
+    }
+
+    /** Disarm a rule by name ({@code DELETE /alerts/rules/{name}}); {@code true} if one was armed. */
+    public synchronized boolean remove(String name) {
+        List<AlertRule> next = rules.stream().filter(r -> !r.name().equals(name)).toList();
+        boolean removed = next.size() != rules.size();
+        this.rules = List.copyOf(next);
+        return removed;
     }
 
     /** Recent fired alerts, newest first, JSON-ready — backs {@code GET /alerts}. */

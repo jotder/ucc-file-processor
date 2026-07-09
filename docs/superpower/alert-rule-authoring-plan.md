@@ -48,9 +48,13 @@ onPipeline?`) — no model ripple into the fired-alert view or the backend TOON.
 8. Docs — USER_GUIDE Alerts entry gains the authoring sentence; audit C3 marked resolved;
    backlog entry below.
 
-## Backend (backlog — recorded in `superpower/backend-backlog.md`)
+## Backend — ✅ SHIPPED 2026-07-09 (recorded in `superpower/backend-backlog.md` §4)
 
-`ControlApi` POST/PUT/DELETE `/alerts/rules[/{name}]` per the `endpoint` skill's fail-closed
-gate order, writing/deleting the `*_alert.toon` via `ConfigCodec` next to the pipeline configs
-(the engine already hot-loads them). Until then the UI authoring is mock-only and a real
-deployment 503s into the writes-disabled banner.
+`ControlApi` POST/PUT/DELETE `/alerts/rules[/{name}]` (`AlertRoutes.java`) per the `endpoint`
+skill's fail-closed gate order, writing/deleting `<name>_alert.toon` via `ConfigCodec` +
+`AtomicFiles` under the write root, gated on `canAuthorAlertRules`. The UI authoring pane now
+works against a live server (no more 503 writes-disabled banner). **Correction to the note that
+was here:** the engine did **not** hot-load `*_alert.toon` — the write routes now arm rules in the
+running `AlertService` in-process (which is always present, empty until armed); a restart still
+re-arms from the persisted files. See `backend-backlog.md` §4 for the two as-built decisions and
+`ControlApiAlertRuleWriteTest` for the gate coverage.

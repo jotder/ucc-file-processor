@@ -346,26 +346,25 @@ public final class SourceService implements AutoCloseable {
         // metric) and de-registered in close() so repeated service instances don't accumulate listeners.
         this.eventObjectBridge = new com.gamma.ops.EventObjectBridge(this.objects)::onEvent;
         this.eventLog.addSubscriber(this.eventObjectBridge);
-        // Alert engine (v4.1, B5): deterministic, lean-core, event-driven. Subscribed here (before
-        // start()) so it sees the first terminal batch; null when no *_alert.toon was loaded. Phase 2:
-        // also persists each fired alert as a managed ALERT object via the Object Engine above.
-        this.alerting = alertRules.isEmpty() ? null
-                : new com.gamma.alert.AlertService(alertRules, configSource, this.status, this.objects);
-        if (alerting != null) {
-            // BI-5: measure rules evaluate a Dataset measure via the headless BI evaluator. Both roots
-            // resolve lazily — the write root is a -D property, the data root is this space's data dir.
-            alerting.measureProbe(new com.gamma.query.DatasetMeasureProbe(
-                    () -> {
-                        String wr = System.getProperty("assist.write.root");
-                        return (wr == null || wr.isBlank()) ? null : java.nio.file.Path.of(wr);
-                    },
-                    () -> {
-                        String dd = root.dataDir();
-                        return (dd == null || dd.isBlank()) ? null : java.nio.file.Path.of(dd);
-                    })::value);
-            bus.subscribe(alerting::onEvent);
-            log.info("Alert engine armed with {} rule(s)", alertRules.size());
-        }
+        // Alert engine (v4.1, B5): deterministic, lean-core, event-driven. Always present (like the
+        // object store above) so the authoring routes (POST/PUT/DELETE /alerts/rules) can arm rules at
+        // runtime even when no *_alert.toon was loaded at boot — empty until a rule is added. Subscribed
+        // here (before start()) so it sees the first terminal batch. Phase 2: also persists each fired
+        // alert as a managed ALERT object via the Object Engine above.
+        this.alerting = new com.gamma.alert.AlertService(alertRules, configSource, this.status, this.objects);
+        // BI-5: measure rules evaluate a Dataset measure via the headless BI evaluator. Both roots
+        // resolve lazily — the write root is a -D property, the data root is this space's data dir.
+        alerting.measureProbe(new com.gamma.query.DatasetMeasureProbe(
+                () -> {
+                    String wr = System.getProperty("assist.write.root");
+                    return (wr == null || wr.isBlank()) ? null : java.nio.file.Path.of(wr);
+                },
+                () -> {
+                    String dd = root.dataDir();
+                    return (dd == null || dd.isBlank()) ? null : java.nio.file.Path.of(dd);
+                })::value);
+        bus.subscribe(alerting::onEvent);
+        if (!alertRules.isEmpty()) log.info("Alert engine armed with {} rule(s)", alertRules.size());
         // Event engine (Phase 1, v4.2.0): the append-only record of "what happened". Built from
         // -Devents.backend (memory|parquet), installed into the process-wide EventLog so the SLF4J
         // capture appender (INFO+) and the domain emitters below share one sink, and subscribed to the
@@ -406,7 +405,7 @@ public final class SourceService implements AutoCloseable {
         }
     }
 
-    /** The alert execution engine (v4.1, B5), or {@code null} when no {@code *_alert.toon} loaded. */
+    /** The alert execution engine (v4.1, B5); always present (empty until a rule is armed). */
     private final com.gamma.alert.AlertService alerting;
 
     /** The EventLog→ObjectService bridge (Phase D2); held so {@link #close()} can de-register it. */
@@ -419,7 +418,7 @@ public final class SourceService implements AutoCloseable {
     private final com.gamma.notify.NotificationService notificationService;
     private final java.util.function.Consumer<com.gamma.event.Event> notificationSubscriber;
 
-    /** The alert engine, when any {@code *_alert.toon} rules are armed — backs {@code /alerts}. */
+    /** The alert engine (always present; empty until a rule is armed) — backs {@code /alerts}. */
     public java.util.Optional<com.gamma.alert.AlertService> alertService() {
         return java.util.Optional.ofNullable(alerting);
     }

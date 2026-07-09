@@ -36,7 +36,7 @@
 |---|---|---|---|
 | DAT-4 | **Matrix materialization** (`materialize` job task) — same work as backend-backlog §2 and ia-reorg Phase C | PLANNED, ~1 shift | `REQUIREMENTS.md`, `superpower/backend-backlog.md` §2, `superpower/ia-vocabulary-reorg.md` C |
 | DAT-5 | **Row-level calculated columns** — same as frontend-completion C8, studio-bi Phase B | PLANNED; expression-safety design first | `REQUIREMENTS.md`, `superpower/frontend-review-and-completion-plan.md` C8 |
-| — | **Alert-Rule write endpoints** (`POST/PUT/DELETE /alerts/rules`; UI is mock-only, live server 503s). New capability `canAuthorAlertRules` | Not started | `superpower/backend-backlog.md` §4, `superpower/alert-rule-authoring-plan.md` |
+| — | ~~**Alert-Rule write endpoints**~~ (`POST/PUT/DELETE /alerts/rules`) | **DONE** (2026-07-09) — `AlertRoutes` CRUD, `canAuthorAlertRules`-gated, writes `<name>_alert.toon` + arms the (now always-present) `AlertService` in-process; `ControlApiAlertRuleWriteTest` 7/7, reactor 1136/0/0/3 | `superpower/backend-backlog.md` §4, `superpower/alert-rule-authoring-plan.md` |
 | — | **Widget-Library M2**: `DatasetResultService` M2 form, materialized-dataset refresh; sharing/RBAC blocked on SEC-7 | Not started | `superpower/backend-backlog.md` §1, `superpower/widget-library-spec.md` |
 | — | **Job templates** (backend) — backend-backlog §3 = ia-reorg Phase D; REQUIREMENTS shows PIP-6 SHIPPED — **reconcile before starting** | Not started / verify | `superpower/backend-backlog.md` §3 |
 | INC-4 | Incident workflow depth (queues/escalation/watchers) | Blocked on product design | `REQUIREMENTS.md` |
