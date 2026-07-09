@@ -16,6 +16,12 @@
             <button mat-icon-button (click)="load()" [disabled]="loading()" aria-label="Refresh">
                 <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
             </button>
+            @if (!writesDisabled() && canShare()) {
+                <button mat-stroked-button (click)="bindShared()">
+                    <mat-icon svgIcon="heroicons_outline:link"></mat-icon>
+                    <span class="ml-2">Bind shared dataset</span>
+                </button>
+            }
             @if (!writesDisabled()) {
                 <button mat-flat-button color="primary" routerLink="new">
                     <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>

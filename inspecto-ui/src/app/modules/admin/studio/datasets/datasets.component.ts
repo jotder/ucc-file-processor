@@ -13,7 +13,8 @@ import { OfferShareDialog, OfferShareResult } from 'app/inspecto/components/offe
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { TransferMenuComponent } from 'app/inspecto/transfer';
-import { Dataset } from './dataset-types';
+import { BindSharedDatasetDialog, BindSharedDatasetResult } from './bind-shared-dataset.dialog';
+import { buildDataset, Dataset } from './dataset-types';
 import { DatasetsService } from './datasets.service';
 
 /**
@@ -108,6 +109,34 @@ export class DatasetsComponent implements OnInit {
                 this.exchange.offer({ kind: 'dataset', owner, item: d.id, description: r.description }).subscribe({
                     next: () => this.toastr.success(`Dataset "${d.id}" offered for sharing.`),
                     error: (e) => this.toastr.error(apiErrorMessage(e, `Could not offer "${d.id}".`)),
+                });
+            });
+    }
+
+    /** Bind an active cross-space dataset grant as a local `physical` dataset (physicalRef = `shared/<owner>/<item>`). */
+    bindShared(): void {
+        const me = this.spaces.currentSpaceId() ?? 'default';
+        this.dialog
+            .open(BindSharedDatasetDialog, {
+                data: { me, existingNames: this.datasets().map((d) => d.id) },
+            })
+            .afterClosed()
+            .subscribe((r: BindSharedDatasetResult | undefined) => {
+                if (!r) return;
+                const ref = `shared/${r.owner}/${r.item}`;
+                this.api.save(buildDataset(r.name, 'physical', r.item, { physicalRef: ref })).subscribe({
+                    next: () => {
+                        this.toastr.success(`Bound ${r.owner}/${r.item} as local dataset "${r.name}".`);
+                        this.load();
+                    },
+                    error: (e) => {
+                        if (e?.status === 503) this.writesDisabled.set(true);
+                        this.toastr.error(
+                            e?.status === 503
+                                ? 'Writes are disabled (no write root configured).'
+                                : apiErrorMessage(e, `Could not bind "${r.item}".`),
+                        );
+                    },
                 });
             });
     }
