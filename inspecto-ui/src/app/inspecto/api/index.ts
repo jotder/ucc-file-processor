@@ -41,4 +41,5 @@ export * from './branding.service';
 export * from './inv.service';
 export * from './share.service';
 export * from './exchange.service';
+export * from './shared-ref';
 export * from './bi-templates.service';

@@ -83,6 +83,13 @@
                         <div class="break-all font-mono text-lg font-semibold">{{ w.id }}</div>
                         <div class="text-secondary mt-0.5 flex flex-wrap items-center gap-2 text-sm">
                             <inspecto-status-badge [value]="w.vizType" [label]="w.vizType" />
+                            @if (sharedOwner(w); as owner) {
+                                <inspecto-status-badge
+                                    value="shared"
+                                    [label]="'Shared · ' + owner"
+                                    matTooltip="Binds a dataset shared by another space"
+                                />
+                            }
                             @if (w.viewId) {
                                 <span>view: <span class="font-mono">{{ w.viewId }}</span></span>
                             } @else {

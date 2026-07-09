@@ -6,7 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, ExchangeService, SessionService, SpacesService } from 'app/inspecto/api';
+import { apiErrorMessage, ExchangeService, parseSharedRef, SessionService, SpacesService } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { OfferShareDialog, OfferShareResult } from 'app/inspecto/components/offer-share.dialog';
@@ -90,6 +90,11 @@ export class DatasetsComponent implements OnInit {
     /** Column count gives a quick sense of the dataset's shape on the card. */
     columnCount(d: Dataset): number {
         return d.columns.length;
+    }
+
+    /** The owner space when this dataset is bound to a cross-space shared ref, else null (scope badge). */
+    sharedOwner(d: Dataset): string | null {
+        return parseSharedRef(d.physicalRef)?.owner ?? null;
     }
 
     /** Offer this dataset in the cross-space shareable catalog (owner = the active space). */

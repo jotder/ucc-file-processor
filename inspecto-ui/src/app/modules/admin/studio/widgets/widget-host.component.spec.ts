@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
+import { DatasetResultService } from 'app/inspecto/viz/dataset-result.service';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { Widget } from './widget-types';
 import { WidgetsService } from './widgets.service';
@@ -96,6 +97,36 @@ describe('WidgetHostComponent', () => {
         expect(fixture.componentInstance.canExport()).toBe(false);
         expect(datasetFetched).toBe(false);
         expect(fixture.nativeElement.querySelector('inspecto-viz-render')).toBeTruthy();
+    });
+
+    it('shows the "access revoked" empty-state when a shared-bound dataset no longer resolves', async () => {
+        const shared: Dataset = { ...DS, kind: 'physical', physicalRef: 'shared/analytics-hub/fx_rates_daily' };
+        const fixture = create([
+            { provide: WidgetsService, useValue: {} },
+            { provide: DatasetsService, useValue: {} },
+            { provide: DatasetResultService, useValue: { run: () => Promise.resolve({ ok: false, rows: [] }) } },
+        ]);
+        fixture.componentRef.setInput('widget', { ...WIDGET, vizType: 'bar' });
+        fixture.componentRef.setInput('dataset', shared);
+        fixture.detectChanges();
+        await new Promise((r) => setTimeout(r)); // let the run effect's promise settle
+        fixture.detectChanges();
+        expect(fixture.componentInstance.showRevoked()).toBe(true);
+        expect(fixture.nativeElement.querySelector('inspecto-empty-state')).toBeTruthy();
+    });
+
+    it('does not show the revoked state for a local dataset even if a run fails', async () => {
+        const fixture = create([
+            { provide: WidgetsService, useValue: {} },
+            { provide: DatasetsService, useValue: {} },
+            { provide: DatasetResultService, useValue: { run: () => Promise.resolve({ ok: false, rows: [] }) } },
+        ]);
+        fixture.componentRef.setInput('widget', { ...WIDGET, vizType: 'bar' });
+        fixture.componentRef.setInput('dataset', DS); // local (no shared physicalRef)
+        fixture.detectChanges();
+        await new Promise((r) => setTimeout(r));
+        fixture.detectChanges();
+        expect(fixture.componentInstance.showRevoked()).toBe(false);
     });
 
     it('resolves a category click to the widget’s x-channel field and emits a drill event', () => {

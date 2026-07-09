@@ -60,6 +60,13 @@
                         <div class="break-all font-mono text-lg font-semibold">{{ d.id }}</div>
                         <div class="text-secondary mt-0.5 flex flex-wrap items-center gap-2 text-sm">
                             <inspecto-status-badge [value]="d.kind" [label]="d.kind" />
+                            @if (sharedOwner(d); as owner) {
+                                <inspecto-status-badge
+                                    value="shared"
+                                    [label]="'Shared · ' + owner"
+                                    matTooltip="Bound to a dataset shared by another space"
+                                />
+                            }
                             <span>source: <span class="font-mono">{{ d.sourceName }}</span></span>
                             <span>· {{ columnCount(d) }} columns</span>
                         </div>

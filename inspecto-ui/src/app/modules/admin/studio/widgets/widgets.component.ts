@@ -6,7 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, ExchangeService, SessionService, SpacesService } from 'app/inspecto/api';
+import { apiErrorMessage, ExchangeService, parseSharedRef, SessionService, SpacesService } from 'app/inspecto/api';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { OfferShareDialog, OfferShareResult } from 'app/inspecto/components/offer-share.dialog';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
@@ -113,6 +113,11 @@ export class WidgetsComponent implements OnInit {
 
     onFilter(ev: Event): void {
         this.filterText.set((ev.target as HTMLInputElement).value);
+    }
+
+    /** The owner space when this widget's bound dataset is a cross-space shared ref, else null (scope badge). */
+    sharedOwner(w: Widget): string | null {
+        return parseSharedRef(this.datasetsById().get(w.datasetId)?.physicalRef)?.owner ?? null;
     }
 
     toggleTag(tag: string): void {

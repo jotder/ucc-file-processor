@@ -82,6 +82,15 @@ describe('DatasetsComponent', () => {
         expect(offer).not.toHaveBeenCalled();
     });
 
+    it('flags a dataset bound to a shared ref with its owner', () => {
+        const shared: Dataset = { ...D1, id: 'fx_local', kind: 'physical', physicalRef: 'shared/analytics-hub/fx_rates_daily' };
+        const { fixture } = create([shared, D1]);
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        expect(c.sharedOwner(shared)).toBe('analytics-hub');
+        expect(c.sharedOwner(D1)).toBeNull();
+    });
+
     it('renders the empty state with no a11y violations', async () => {
         const { fixture } = create([]);
         fixture.detectChanges();

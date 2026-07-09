@@ -126,6 +126,19 @@ describe('WidgetsComponent', () => {
         expect(remove).toHaveBeenCalledWith('dur_by_tariff');
     });
 
+    it('flags a widget whose bound dataset is a shared ref', () => {
+        const sharedDs: Dataset = { ...DS, physicalRef: 'shared/analytics-hub/fx_rates_daily' };
+        const { fixture } = create([W1], [sharedDs]);
+        fixture.detectChanges();
+        expect(fixture.componentInstance.sharedOwner(W1)).toBe('analytics-hub');
+    });
+
+    it('does not flag a widget whose dataset is local', () => {
+        const { fixture } = create([W1], [DS]);
+        fixture.detectChanges();
+        expect(fixture.componentInstance.sharedOwner(W1)).toBeNull();
+    });
+
     it('offers a widget for sharing when the dialog is confirmed', () => {
         const { fixture, offer } = create([W1], [DS], { description: 'ops chart' }, { canShare: true });
         fixture.detectChanges();

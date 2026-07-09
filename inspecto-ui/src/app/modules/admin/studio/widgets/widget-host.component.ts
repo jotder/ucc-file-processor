@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, injec
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { isSharedRef } from 'app/inspecto/api';
+import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { ColumnMeta, ConditionGroup } from 'app/inspecto/query';
 import { VizPlugin, VizProps, bucketRows, getViz } from 'app/inspecto/viz';
 import { DatasetResultService } from 'app/inspecto/viz/dataset-result.service';
@@ -33,7 +35,7 @@ export interface DrillEvent {
 @Component({
     selector: 'app-widget-host',
     standalone: true,
-    imports: [MatButtonModule, MatIconModule, MatTooltipModule, VizRenderComponent],
+    imports: [MatButtonModule, MatIconModule, MatTooltipModule, VizRenderComponent, InspectoEmptyStateComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         <div class="bg-card flex h-full flex-col rounded-2xl p-4 shadow">
@@ -54,13 +56,22 @@ export interface DrillEvent {
                         <!-- View-bound (geo-map / link-analysis): the saved view is the binding — no dataset/query. -->
                         <inspecto-viz-render [plugin]="p" [props]="props()" [title]="widget.name" [viewId]="widget.viewId" />
                     } @else if (resolvedDataset(); as dataset) {
-                        <inspecto-viz-render
-                            [plugin]="p"
-                            [props]="props()"
-                            [title]="dataset.sourceName"
-                            [renderOptions]="widget.options"
-                            (categoryClick)="onCategoryClick($event)"
-                        />
+                        @if (showRevoked()) {
+                            <!-- A shared-bound dataset whose grant was revoked/expired no longer resolves (fail-closed). -->
+                            <inspecto-empty-state
+                                icon="heroicons_outline:lock-closed"
+                                title="Access revoked"
+                                message="This widget's shared dataset is no longer available — the owner space may have revoked or expired the grant."
+                            />
+                        } @else {
+                            <inspecto-viz-render
+                                [plugin]="p"
+                                [props]="props()"
+                                [title]="dataset.sourceName"
+                                [renderOptions]="widget.options"
+                                (categoryClick)="onCategoryClick($event)"
+                            />
+                        }
                     }
                 } @else {
                     <div class="text-secondary text-sm">Unknown visualization “{{ widget.vizType }}”.</div>
@@ -100,6 +111,10 @@ export class WidgetHostComponent {
     readonly viewBound = computed(() => !!this.plugin()?.meta.viewKind);
     readonly props = signal<VizProps>({ labels: [], series: [] });
     readonly canExport = computed(() => this.plugin()?.render.kind === 'chartjs');
+    /** False once a data run fails — a shared-bound dataset that no longer resolves (revoked/expired grant). */
+    private readonly runOk = signal(true);
+    /** Show the "access revoked" empty-state: a shared-bound dataset whose backing grant no longer resolves. */
+    readonly showRevoked = computed(() => isSharedRef(this.resolvedDataset()?.physicalRef) && !this.runOk());
 
     private readonly colMetas = computed<ColumnMeta[]>(() =>
         (this.resolvedDataset()?.columns ?? []).map((c) => ({ name: c.name, type: c.type })),
@@ -134,8 +149,14 @@ export class WidgetHostComponent {
             const rows = x ? bucketRows(SAMPLE_SOURCES[dataset.sourceName] ?? [], x.field, x.grain) : SAMPLE_SOURCES[dataset.sourceName] ?? [];
             this.datasetResult
                 .run(spec, rows, this.colMetas())
-                .then((res) => this.props.set(plugin.transformProps(res.ok ? res.rows : [], widget.controls)))
-                .catch(() => this.props.set({ labels: [], series: [] }));
+                .then((res) => {
+                    this.runOk.set(res.ok);
+                    this.props.set(plugin.transformProps(res.ok ? res.rows : [], widget.controls));
+                })
+                .catch(() => {
+                    this.runOk.set(false);
+                    this.props.set({ labels: [], series: [] });
+                });
         });
     }
 
