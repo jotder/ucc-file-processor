@@ -223,6 +223,9 @@ public final class JobService implements AutoCloseable {
                         ParameterDecl.optional("incremental_column", ParamType.STRING, null, "Watermark column for incremental runs")),
                 List.of("pipeline.commit"), List.of()),
                 this::buildFlowJob));
+        // sql.template (P3b, §15.1): the first Run Artifact producer. Config-aware parameters — the
+        // authored SQL's $name tokens are its contract (SqlParamScanner). Injected with the space dataDir.
+        registry.register(new SqlTemplateJobType(dataDir));
         // Classpath providers (optional Maven modules — the "classpath way", §12.4). ServiceLoader finds
         // none in the base build; a provider whose id collides with a built-in (registered first) is
         // rejected, fail-closed. Hot-deployable Job Packs (isolated classloaders) arrive in P2c.
@@ -496,8 +499,7 @@ public final class JobService implements AutoCloseable {
             // P3a/P3a-2: resolve the Job Type's declared parameters across the §7.2 ladder — trigger args
             // (this fire's explicit args over any static config args:) → signal bind: → config params: →
             // deduce → default. A missing required parameter fails the Run REJECTED before any user code.
-            List<ParameterDecl> decls = registry.descriptor(job.type())
-                    .map(JobTypeDescriptor::parameters).orElse(List.of());
+            List<ParameterDecl> decls = cfg != null ? registry.parameters(job.type(), cfg) : List.of();
             Map<String, String> args = new LinkedHashMap<>(cfg != null ? cfg.args() : Map.of());
             args.putAll(firing.args());                         // explicit manual args win over static config args:
             Map<String, String> bind = cfg != null ? cfg.bind() : Map.of();

@@ -73,4 +73,11 @@ final class JobTypeRegistry {
         JobTypeProvider p = providers.get(id == null ? "" : id.toLowerCase(Locale.ROOT));
         return Optional.ofNullable(p).map(JobTypeProvider::descriptor);
     }
+
+    /** The parameters a type requires for one authored config (R3) — config-aware where the provider
+     *  overrides {@link JobTypeProvider#parameters(JobConfig)}; empty for an unknown id. */
+    List<ParameterDecl> parameters(String id, JobConfig config) {
+        JobTypeProvider p = providers.get(id == null ? "" : id.toLowerCase(Locale.ROOT));
+        return p == null ? List.of() : p.parameters(config);
+    }
 }
