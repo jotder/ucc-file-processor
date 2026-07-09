@@ -74,10 +74,15 @@ join the nav as their phases land, never as dead links.
   the embed is same-feature not cross-feature). `/registry` now redirects to `/catalog`; its nav item is
   gone. The embedded component's own `<h1>Registry</h1>` became `<h2>Usage &amp; reuse</h2>` (one h1 per
   page). **Phase B is now complete** (B.1–B.4 all shipped, mock-only where noted).
-- **Phase C — Matrices (persisted summary Derived Tables).** Backend materialization of a cube/rollup
-  Transform's output as a Derived Table, surfaced as a **Matrix** + selectable as a Studio Dataset. **Backend-gated.**
-- **Phase D — Job templates (trigger-condition-action).** Template model atop `com.gamma.job.JobService` +
-  `CronExpression`; authoring UI under Workbench > Jobs. **Backend work.**
+- **Phase C — Matrices (persisted summary Derived Tables). DONE** (backend shipped 2026-07-08 = DAT-4,
+  reconciled here 2026-07-10 — this section previously said "Backend-gated"). `com.gamma.job.MaterializeTask`
+  (`task: materialize`) persists a BI-7 spec-compiled SELECT/snapshot as Parquet with an atomic swap and
+  registers it as a normal `dataset` component — selectable as a Studio Dataset per this phase's intent.
+  Detail: `superpower/backend-backlog.md` §2.
+- **Phase D — Job templates (trigger-condition-action). DONE** (= PIP-6, shipped 2026-07-08, reconciled
+  here 2026-07-10 — this section previously said "Backend work"). `com.gamma.job.JobTemplate`
+  (`*_job_template.toon`, `${param}` substitution) atop `JobService`/`CronExpression`; superseded/expanded
+  by the job framework (`docs/job-framework-design.md` §7/§8.2/§14). Detail: `superpower/backend-backlog.md` §3.
 - **Phase E — Processing Status / Provenance. DONE.** New Operations page
   `modules/admin/processing-status/` (`/processing-status`) — a cross-pipeline rollup (every pipeline's
   committed/quarantine counts + last-batch outcome, `GET /status` via the existing `ReportsService`) that

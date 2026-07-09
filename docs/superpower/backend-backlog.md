@@ -1,6 +1,8 @@
 # Backend Backlog — Widget-Library M2, Matrices (Phase C), Job Templates (Phase D)
 
-> **Status:** Consolidated backlog, not started. Written after the UI-only passes of the widget library
+> **Status (reconciled 2026-07-10):** Matrices (§2 = DAT-4), Job templates (§3 = PIP-6), and Alert-Rule
+> write endpoints (§4) have all SHIPPED since this doc's "not started" framing was written — see each
+> section's own status line. **Only §1 Widget-Library M2 remains open.** Written after the UI-only passes of the widget library
 > (`widget-library-spec.md`, M1 shipped) and the Platform IA reorg (`ia-vocabulary-reorg.md`, Phases A/B/E
 > shipped) both hit the same wall: **one closed backend enum**. This doc exists so the three backlogs are
 > reviewed together instead of three separate one-line mentions. Facts below are grounded in the current
@@ -44,16 +46,20 @@ Already scoped there; repeated here only for sequencing:
 - Materialized-dataset refresh / scheduled delivery (adoption-plan P4 territory).
 - *(Tracked, not owned by this work):* sharing/RBAC once `inspecto-security` exists.
 
-## 2. Phase C — Matrices (persisted summary Derived Tables)
+## 2. Phase C — Matrices (persisted summary Derived Tables) — ✅ SHIPPED 2026-07-08 (= DAT-4)
 
-**Current state:** nothing exists. A repo-wide grep for `DerivedTable`/`materializ`/`rollup`/`cube`
-returns zero matches in `inspecto/src/main/java`. Adjacent-but-not-equivalent building blocks:
-`com.gamma.etl.TransformCompiler`/`DataTransformer` run a Transform **inline within a pipeline** (no
-persistence step); `com.gamma.report.ReportJob`/`ReportService` persist *report* output, not a generic
-derived table. **There is no reusable seam to widen here — a Matrix is net-new**, not a closed-enum problem
-like the other two items.
+**Reconciled 2026-07-10** — this section's "nothing exists" snapshot predates the work; verify against
+current code (not this doc) if in doubt. As-built (per `REQUIREMENTS.md` DAT-4): `task: materialize` on
+the maintenance runner (`com.gamma.job.MaterializeTask`) — a BI-7 spec-compiled `SELECT` (or raw snapshot)
+over the source Dataset's trusted relation, `COPY TO` Parquet with PIP-7's hide-old/reveal-new atomic swap
+(a crash leaves only glob-invisible leftovers, self-cleaning), and the target registered/refreshed as a
+normal `dataset` component — so a Matrix is queryable everywhere a Dataset is, with zero net-new read
+paths (point 2 of the original shape-of-work below). Refresh today is manual/job-triggered (point 3);
+job-framework scheduling (§3 note below) can drive it on a cadence. Catalog surfacing (point 4) — verify
+separately if picking up follow-on polish.
 
-**Shape of the work** (sequencing, not a full design):
+<details><summary>Original shape-of-work (superseded — kept for the sequencing rationale, not as a task list)</summary>
+
 1. A `DerivedTable`/materialization concept: run a `transform` component's config once (not per-pipeline-
    batch) and persist the output as a new DuckDB table, distinct from a pipeline's per-batch output.
 2. Register it in the (now-widened) `ComponentStore` as a `dataset` (kind: derived/materialized) so it's
@@ -62,6 +68,8 @@ like the other two items.
 3. A refresh trigger — manual now, `JobService` template hook later (see §3) once that exists.
 4. Surfaces in Catalog's Tables tab (kind: `DERIVED_TABLE`) — `catalog.service.ts`/`catalog-graph.ts`
    already model `DERIVED_TABLE` as a `NodeKind` (frontend is ready; only the backend row is missing).
+
+</details>
 
 ## 3. Phase D — Job templates (trigger-condition-action)
 

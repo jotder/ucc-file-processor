@@ -34,11 +34,11 @@
 
 | ID | Item | Status / blocker | Source |
 |---|---|---|---|
-| DAT-4 | **Matrix materialization** (`materialize` job task) — same work as backend-backlog §2 and ia-reorg Phase C | PLANNED, ~1 shift | `REQUIREMENTS.md`, `superpower/backend-backlog.md` §2, `superpower/ia-vocabulary-reorg.md` C |
-| DAT-5 | **Row-level calculated columns** — same as frontend-completion C8, studio-bi Phase B | PLANNED; expression-safety design first | `REQUIREMENTS.md`, `superpower/frontend-review-and-completion-plan.md` C8 |
+| DAT-4 | ~~**Matrix materialization**~~ (`materialize` job task) | **DONE** (verified 2026-07-10, shipped 2026-07-08 per code: `MaterializeTask.java` — `task: materialize` on the maintenance runner; BI-7 spec-compiled SELECT/raw snapshot → `COPY TO` Parquet with PIP-7's atomic swap; target registered as a normal `dataset` component) | `REQUIREMENTS.md` DAT-4 |
+| DAT-5 | **Row-level calculated columns** — backend done, **no authoring UI** | **BACKEND DONE** (verified 2026-07-10, shipped 2026-07-08: `ExpressionGuard.java` + `DatasetRelation.java` — `dataset.calculated:[{name,expr}]`, fragment-level safety fail-closed 422; v1 cuts: no window/aggregate fns, no quoted identifiers). **UI gap still open**: no editor writes `dataset.calculated` — a caller must hand-author the array; `studio-bi-improvements-plan.md`'s "no calculated-columns UI" weakness is still accurate | `REQUIREMENTS.md` DAT-5, `superpower/calculated-columns-design.md`, `superpower/studio-bi-improvements-plan.md` |
 | — | ~~**Alert-Rule write endpoints**~~ (`POST/PUT/DELETE /alerts/rules`) | **DONE** (2026-07-09) — `AlertRoutes` CRUD, `canAuthorAlertRules`-gated, writes `<name>_alert.toon` + arms the (now always-present) `AlertService` in-process; `ControlApiAlertRuleWriteTest` 7/7, reactor 1136/0/0/3 | `superpower/backend-backlog.md` §4, `superpower/alert-rule-authoring-plan.md` |
 | — | **Widget-Library M2**: `DatasetResultService` M2 form, materialized-dataset refresh; sharing/RBAC blocked on SEC-7 | Not started | `superpower/backend-backlog.md` §1, `superpower/widget-library-spec.md` |
-| — | **Job templates** (backend) — backend-backlog §3 = ia-reorg Phase D; REQUIREMENTS shows PIP-6 SHIPPED — **reconcile before starting** | Not started / verify | `superpower/backend-backlog.md` §3 |
+| — | ~~**Job templates**~~ (backend) | **DONE** — verified 2026-07-10: `JobTemplate.java` exists (`*_job_template.toon`, `${param}` substitution); REQUIREMENTS PIP-6 SHIPPED 2026-07-08 was correct, `backend-backlog.md` §3's "no template concept exists" was the stale side — reconciled | `REQUIREMENTS.md` PIP-6 |
 | INC-4 | Incident workflow depth (queues/escalation/watchers) | Blocked on product design | `REQUIREMENTS.md` |
 | ACQ-5 | Streaming (Kafka) source consumer | **Hard-blocked offline** (no client jars in `.m2`) | `REQUIREMENTS.md` |
 | API-5 | Legacy route sunset — gated on `inspecto_legacy_api_requests_total` soak signal (= W7 deferred follow-ons) | Policy call | `REQUIREMENTS.md`, `superpower/w7-ui-v1-migration.md` |
@@ -106,9 +106,9 @@ constraint, data scoping — all explicitly deferred to the security module by
 
 | Canonical | Also recorded as |
 |---|---|
-| DAT-4 Matrix materialization | backend-backlog §2 · ia-vocabulary-reorg Phase C |
-| DAT-5 calculated columns | frontend-completion C8 · studio-bi Phase B |
-| Job templates | backend-backlog §3 · ia-vocabulary-reorg Phase D · PIP-6 (**REQUIREMENTS says SHIPPED — reconcile**) |
+| DAT-4 Matrix materialization — **DONE** | backend-backlog §2 (stale, not updated) · ia-vocabulary-reorg Phase C |
+| DAT-5 calculated columns — **backend DONE, UI open** | frontend-completion C8 · studio-bi Phase B |
+| Job templates — **DONE** (= PIP-6) | backend-backlog §3 (stale, not updated) · ia-vocabulary-reorg Phase D |
 | SEC-7 data-scoped grants | rbac-groundwork Q2 · resource-permissions SEC-7d · prerequisite of SPC-5 |
 | API-5 legacy sunset | w7-ui-v1-migration deferred follow-ons |
 | EOI-7 eoiagent release | agent-kernel-replacement §open-items · SESSION_STATUS eoiagent blocker |
