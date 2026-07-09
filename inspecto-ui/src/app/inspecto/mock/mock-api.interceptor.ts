@@ -10,6 +10,7 @@ import { componentsHandler } from './handlers/components.handler';
 import { connectionsHandler } from './handlers/connections.handler';
 import { demoHandler } from './handlers/demo.handler';
 import { decisionRulesHandler } from './handlers/decision-rules.handler';
+import { exchangeHandler } from './handlers/exchange.handler';
 import { expectationsHandler } from './handlers/expectations.handler';
 import { invHandler } from './handlers/inv.handler';
 import { jobsHandler } from './handlers/jobs.handler';
@@ -49,6 +50,7 @@ const flags = environment as MockFlags;
 const HANDLERS: MockHandler[] = [
     authHandler(flags), // server-global /bootstrap + /auth/* (W6d edition switch) — ahead of everything
     spacesHandler(flags), // server-global /spaces — ahead of the per-space domains
+    exchangeHandler(flags), // installation-scope /exchange/* (cross-space sharing) — also un-prefixed
     demoHandler(flags),
     connectionsHandler(flags),
     componentsHandler(flags),

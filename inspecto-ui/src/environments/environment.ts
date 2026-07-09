@@ -36,6 +36,10 @@ export const environment = {
     // seeds jobs so the page works offline. Gates the jobs handler in the unified mock store; flip false
     // once the real Java endpoints land (see the plan's follow-on).
     mockJobs: true,
+    // Prototype-only (§3.6): serve the cross-space Exchange (/exchange/* offers, grants, requests,
+    // snapshots) from the mock store so the Catalog sharing surfaces work offline. Flip false against
+    // a real multi-space backend (-Dspaces.root). Gates the exchange handler in the unified mock store.
+    mockExchange: true,
     // Master demo-mode flag: mocks every remaining endpoint (health, status, pipelines, sources,
     // notifications, catalog, diagnoses, config) so the full UI works with no backend at all.
     // Gates the demo handler in the unified mock store (inspecto/mock/).

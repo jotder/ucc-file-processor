@@ -46,7 +46,7 @@ export function authHandler(flags: MockFlags): MockHandler {
             const active = mode === 'oidc' && (store.get<MockSession>(space, AUTH_COLL, SESSION_ID)?.active ?? false);
             const body: Record<string, unknown> = {
                 edition: mode === 'oidc' ? 'standard' : 'personal',
-                features: { authMode: mode, authoring: true, multiSpace: false },
+                features: { authMode: mode, authoring: true, multiSpace: false, exchange: !!flags.mockExchange },
                 session: {
                     authenticated: active,
                     actor: active ? 'mock-user' : 'appUser',

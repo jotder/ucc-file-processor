@@ -22,7 +22,7 @@ export interface OidcConfig {
 /** The slice of `GET /bootstrap` this service consumes (edition switch + session). */
 interface Bootstrap {
     edition?: string;
-    features?: { authMode?: string };
+    features?: { authMode?: string; exchange?: boolean };
     session?: { authenticated?: boolean; actor?: string; capabilities?: string[] };
     auth?: Partial<OidcConfig>;
 }
@@ -52,6 +52,8 @@ export class SessionService {
     readonly edition = signal<string>('personal');
     readonly authenticated = signal(false);
     readonly capabilities = signal<string[]>([]);
+    /** `bootstrap.features.exchange` — the multi-space runtime hosts the cross-Space Exchange. */
+    readonly exchangeEnabled = signal(false);
 
     private readonly accessToken = signal<string | null>(null);
     private oidc: OidcConfig | null = null;
@@ -77,6 +79,7 @@ export class SessionService {
         const mode = boot.features?.authMode === 'oidc' ? 'oidc' : 'none';
         this.authMode.set(mode);
         this.capabilities.set(boot.session?.capabilities ?? []);
+        this.exchangeEnabled.set(boot.features?.exchange === true);
 
         if (mode !== 'oidc') return; // Personal / offline — done, no login path.
 

@@ -9,7 +9,8 @@ import { SpacesService } from './spaces.service';
  * `/spaces/{id}/…` call (export/import/datasources) — those already carry their space id explicitly.
  */
 // '/public' (BI-6): share-token routes are anonymous and token-addressed — a space prefix would 404 them.
-const SERVER_GLOBAL = ['/health', '/ready', '/metrics', '/spaces', '/bootstrap', '/auth', '/public'];
+// '/exchange' (§3 sharing): installation-scope like '/spaces' — owner/consumer travel in the payload.
+const SERVER_GLOBAL = ['/health', '/ready', '/metrics', '/spaces', '/bootstrap', '/auth', '/public', '/exchange'];
 
 /**
  * Scopes every feature API call to the active space by rewriting `/api/<path>` →

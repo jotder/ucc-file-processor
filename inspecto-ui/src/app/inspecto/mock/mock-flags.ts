@@ -7,6 +7,7 @@ export interface MockFlags {
     mockStudio?: boolean;
     mockFlows?: boolean;
     mockJobs?: boolean;
+    mockExchange?: boolean;
     mockOps?: boolean;
     mockDemo?: boolean;
     mockConnectionProbe?: boolean;
