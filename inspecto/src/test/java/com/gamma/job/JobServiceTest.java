@@ -127,6 +127,23 @@ class JobServiceTest {
     }
 
     @Test
+    void triggerArgsSatisfyARequiredParameterAndClearTheReject(@TempDir Path dir) throws Exception {
+        // P3a-2 (§7.2 layer 1): the same enrich job that REJECTs with no 'config' passes the resolver gate
+        // when the manual trigger supplies it as an explicit arg — proving trigger args reach the run path.
+        JobConfig noConfig = new JobConfig("needs_config", JobType.ENRICH, null, null, true, false, Map.of());
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(noConfig), new BatchEventBus(), s, null,
+                     dir.resolve("audit").toString())) {
+            js.start();
+            assertTrue(js.triggerRun("needs_config", null,
+                    Map.of("config", dir.resolve("missing.toon").toString())).isPresent());
+            JobRun run = await(() -> js.lastRunOf("needs_config").orElse(null));
+            assertNotEquals("REJECTED", run.status(),
+                    "an explicit trigger arg satisfies the required parameter, so the run is not rejected");
+        }
+    }
+
+    @Test
     void cleanupDeletesFilesOlderThanRetention(@TempDir Path dir) throws Exception {
         Path target = dir.resolve("target");
         Files.createDirectories(target);

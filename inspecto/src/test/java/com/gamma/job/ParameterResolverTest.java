@@ -23,7 +23,19 @@ class ParameterResolverTest {
 
     private static ParameterResolver.Context ctx(Optional<LocalDateTime> lastSuccess,
             java.util.function.BiFunction<String, String, Optional<RunArtifact>> upstream) {
-        return new ParameterResolver.Context("run-1", FIRE, "cron", ZoneOffset.UTC, () -> lastSuccess, upstream);
+        return ctx(lastSuccess, upstream, Map.of());
+    }
+
+    private static ParameterResolver.Context ctx(Optional<LocalDateTime> lastSuccess,
+            java.util.function.BiFunction<String, String, Optional<RunArtifact>> upstream,
+            Map<String, Object> signalPayload) {
+        return new ParameterResolver.Context("run-1", FIRE, "cron", ZoneOffset.UTC, () -> lastSuccess,
+                upstream, signalPayload);
+    }
+
+    private static ParameterResolver.Resolution resolve(List<ParameterDecl> decls,
+            Map<String, String> config, ParameterResolver.Context ctx) {
+        return ParameterResolver.resolve(decls, Map.of(), Map.of(), config, ctx);
     }
 
     private static ParameterDecl decl(String name, boolean required, String deduce, String def) {
@@ -76,7 +88,7 @@ class ParameterResolverTest {
                 decl("event_date", true, "$day(-1)", null),   // deduced (no config value)
                 decl("scope", false, null, "status"),          // default
                 decl("region", false, null, null));            // unresolved optional ⇒ absent
-        var r = ParameterResolver.resolve(decls, Map.of(), ctx(Optional.empty()));
+        var r = resolve(decls, Map.of(), ctx(Optional.empty()));
 
         assertEquals("2026-07-07", r.resolved().get("event_date"), "deduce fills when config is absent");
         assertEquals("status", r.resolved().get("scope"), "default fills when config + deduce are absent");
@@ -89,7 +101,7 @@ class ParameterResolverTest {
         List<ParameterDecl> decls = List.of(
                 decl("event_date", true, "$day(-1)", null),
                 decl("scope", false, null, "status"));
-        var r = ParameterResolver.resolve(decls,
+        var r = resolve(decls,
                 Map.of("event_date", "2026-01-01", "scope", "batch"), ctx(Optional.empty()));
 
         assertEquals("2026-01-01", r.resolved().get("event_date"), "authored config beats the deduce");
@@ -97,11 +109,54 @@ class ParameterResolverTest {
     }
 
     @Test
+    void signalBindResolvesAgainstTheFiringPayload() {
+        // P3a-2 (§7.2 layer 2): bind: maps a parameter to a $signal.<field> expression.
+        List<ParameterDecl> decls = List.of(
+                decl("event_date", true, "$day(-1)", null),   // would deduce yesterday, but bind wins
+                decl("findings", true, null, null));
+        var c = ctx(Optional.empty(), (j, n) -> Optional.empty(),
+                Map.of("event_date", "2026-07-02", "findings", 17));
+        var r = ParameterResolver.resolve(decls,
+                Map.of(),
+                Map.of("event_date", "$signal.event_date", "findings", "$signal.findings"),
+                Map.of(), c);
+
+        assertEquals("2026-07-02", r.resolved().get("event_date"), "bind beats the declared deduce");
+        assertEquals("17", r.resolved().get("findings"), "a non-string payload value is stringified");
+        assertTrue(r.missingRequired().isEmpty());
+    }
+
+    @Test
+    void triggerArgsWinOverBindConfigAndDeduce() {
+        // P3a-2 (§7.2 layer 1): explicit trigger args are the highest-precedence source.
+        List<ParameterDecl> decls = List.of(decl("event_date", true, "$day(-1)", null));
+        var c = ctx(Optional.empty(), (j, n) -> Optional.empty(), Map.of("event_date", "2026-07-02"));
+        var r = ParameterResolver.resolve(decls,
+                Map.of("event_date", "2026-01-01"),                 // trigger args
+                Map.of("event_date", "$signal.event_date"),          // bind
+                Map.of("event_date", "2026-05-05"),                  // config
+                c);
+
+        assertEquals("2026-01-01", r.resolved().get("event_date"), "trigger args beat bind, config and deduce");
+    }
+
+    @Test
+    void bindToAnAbsentSignalFieldFallsThroughToConfig() {
+        List<ParameterDecl> decls = List.of(decl("scope", true, null, null));
+        var c = ctx(Optional.empty(), (j, n) -> Optional.empty(), Map.of());   // empty payload
+        var r = ParameterResolver.resolve(decls,
+                Map.of(), Map.of("scope", "$signal.missing"), Map.of("scope", "fallback"), c);
+
+        assertEquals("fallback", r.resolved().get("scope"),
+                "a bind whose $signal field is absent falls through to the next layer");
+    }
+
+    @Test
     void missingRequiredParameterIsReported() {
         List<ParameterDecl> decls = List.of(
                 decl("must_have", true, null, null),           // no config, no deduce, no default
                 decl("ok", false, null, "d"));
-        var r = ParameterResolver.resolve(decls, Map.of(), ctx(Optional.empty()));
+        var r = resolve(decls, Map.of(), ctx(Optional.empty()));
 
         assertEquals(List.of("must_have"), r.missingRequired(), "a required param with no source is REJECTED-worthy");
         assertFalse(r.resolved().containsKey("must_have"));

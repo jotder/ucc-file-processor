@@ -68,13 +68,24 @@ final class JobRoutes implements RouteModule {
      * its unchanged {@code 200 {job,status:"triggered"}} body. 404 if no such job.
      */
     private Object triggerJob(ApiContext api, HttpExchange e, String name) throws IOException {
-        String runId = jobs(api).triggerRun(name, ApiContext.query(e, "actor"))   // optional ?actor= attributes the fire (T32)
+        // Optional JSON body {"params":{...}} — explicit trigger args for this fire (job-framework §7.2 layer 1, P3a-2).
+        Map<String, String> args = triggerArgs(api.body(e));
+        String runId = jobs(api).triggerRun(name, ApiContext.query(e, "actor"), args)   // optional ?actor= attributes the fire (T32)
                 .orElseThrow(() -> new ApiException(404, "no job named '" + name + "'"));
         if (ApiContext.v1(e)) {
             e.getResponseHeaders().set("Location", "/api/v1/jobs/runs/" + runId);
             return ApiContext.respondJson(e, 202, Map.of("runId", runId, "job", name, "status", "running"));
         }
         return Map.of("job", name, "status", "triggered");
+    }
+
+    /** Extract the optional {@code params:{}} object from a trigger body as string-valued trigger args (§7.2 layer 1). */
+    private static Map<String, String> triggerArgs(Map<String, Object> body) {
+        if (!(body.get("params") instanceof Map<?, ?> p)) return Map.of();
+        Map<String, String> args = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> en : p.entrySet())
+            if (en.getValue() != null) args.put(String.valueOf(en.getKey()), en.getValue().toString());
+        return args;
     }
 
     /** {@code GET /jobs/runs/{runId}} — poll one run's status (W5); 404 once evicted or unknown. */

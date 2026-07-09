@@ -339,8 +339,9 @@ public final class JobService implements AutoCloseable {
             }
             if (newDepth > maxChainDepth) { cutChain(c.name(), sig, newDepth); continue; }
             String cid = sig.correlationId();
+            Firing firing = new Firing(Map.of(), sig.payload());   // §7.2 layer 2: bind: resolves $signal.<field>
             signalCoalescers.computeIfAbsent(c.name(), k -> new TriggerCoalescer())
-                    .signal(() -> submitRun(newRunId(c.name()), c.name(), "signal:" + sig.type(), cid, newDepth));
+                    .signal(() -> submitRun(newRunId(c.name()), c.name(), "signal:" + sig.type(), cid, newDepth, firing));
         }
     }
 
@@ -414,9 +415,19 @@ public final class JobService implements AutoCloseable {
      * {@link #runById}. Empty if no such (enabled) job. Attribution matches {@link #trigger(String, String)}.
      */
     public Optional<String> triggerRun(String name, String actor) {
+        return triggerRun(name, actor, Map.of());
+    }
+
+    /**
+     * As {@link #triggerRun(String, String)} but carrying explicit trigger {@code args} — the manual
+     * {@code POST /jobs/{name}/trigger} body's {@code params:} (§7.2 layer 1). These override any static
+     * config {@code args:}/{@code params:} and the deduced context for this fire.
+     */
+    public Optional<String> triggerRun(String name, String actor, Map<String, String> args) {
         if (!jobs.containsKey(name)) return Optional.empty();
         String runId = newRunId(name);
-        submitRun(runId, name, actor == null || actor.isBlank() ? "manual" : "manual:" + actor.trim());
+        String trigger = actor == null || actor.isBlank() ? "manual" : "manual:" + actor.trim();
+        submitRun(runId, name, trigger, runId, 0, new Firing(args == null ? Map.of() : args, Map.of()));
         return Optional.of(runId);
     }
 
@@ -434,17 +445,27 @@ public final class JobService implements AutoCloseable {
         if (jobs.containsKey(name)) submitRun(newRunId(name), name, trigger);
     }
 
+    /**
+     * Per-firing dynamic parameter inputs (P3a-2, §7.2): {@code args} are explicit trigger args (a manual
+     * {@code POST} body's {@code params:}); {@code signalPayload} is the firing Signal's payload, against
+     * which a Job's {@code bind:} map resolves {@code $signal.<field>}. Both empty for cron/event/catch-up.
+     */
+    private record Firing(Map<String, String> args, Map<String, Object> signalPayload) {
+        static final Firing NONE = new Firing(Map.of(), Map.of());
+    }
+
     /** Register the run as {@code RUNNING} and execute it off the caller's thread; a fresh correlation chain. */
     private void submitRun(String runId, String name, String trigger) {
-        submitRun(runId, name, trigger, runId, 0);
+        submitRun(runId, name, trigger, runId, 0, Firing.NONE);
     }
 
     /**
      * As above, carrying the correlation context: {@code correlationId} ties a Run to the chain that started it
      * (a fresh Run uses its own runId), {@code chainDepth} is its position in a signal chain (0 for cron/manual/
      * event/catch-up; the firing signal's depth + 1 for on-signal Runs) — stamped onto every signal the Run emits.
+     * {@code firing} carries this fire's dynamic parameter inputs (§7.2 layers 1–2).
      */
-    private void submitRun(String runId, String name, String trigger, String correlationId, int chainDepth) {
+    private void submitRun(String runId, String name, String trigger, String correlationId, int chainDepth, Firing firing) {
         Job job = jobs.get(name);
         if (job == null) return;
         String start = LocalDateTime.now().format(TS);
@@ -455,29 +476,34 @@ public final class JobService implements AutoCloseable {
         workers.submit(() -> {
             if (scoped) MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
             try {
-                runJob(runId, name, trigger, start, correlationId, chainDepth);
+                runJob(runId, name, trigger, start, correlationId, chainDepth, firing);
             } finally {
                 if (scoped) MDC.remove(EventLog.SPACE_MDC_KEY);
             }
         });
     }
 
-    private void runJob(String runId, String name, String trigger, String start, String correlationId, int chainDepth) {
+    private void runJob(String runId, String name, String trigger, String start, String correlationId, int chainDepth, Firing firing) {
         Job job = jobs.get(name);
         if (job == null) return;
         runner.runExclusiveOrSkip(name, () -> {
             fenceDelete(name);   // T25: surface a conflict if a declared delete races an active reader/writer
             String flowId = trackFlowStart(job, name);   // T32: mark a flow job's stores active for the fence
-            Map<String, String> params = configFor(name).map(JobConfig::params).orElse(Map.of());
+            JobConfig cfg = configFor(name).orElse(null);
+            Map<String, String> params = cfg != null ? cfg.params() : Map.of();
             RunContext ctx = new RunContext(runId, spaceId, name, trigger, correlationId, chainDepth,
                     params, runLogStore, runLogMax, runArtifactStore);
-            // P3a: resolve the Job Type's declared parameters (config → deduce → default). A missing
-            // required parameter fails the Run REJECTED before any user code runs (§7.2, fail-closed).
+            // P3a/P3a-2: resolve the Job Type's declared parameters across the §7.2 ladder — trigger args
+            // (this fire's explicit args over any static config args:) → signal bind: → config params: →
+            // deduce → default. A missing required parameter fails the Run REJECTED before any user code.
             List<ParameterDecl> decls = registry.descriptor(job.type())
                     .map(JobTypeDescriptor::parameters).orElse(List.of());
-            ParameterResolver.Resolution pr = ParameterResolver.resolve(decls, params,
+            Map<String, String> args = new LinkedHashMap<>(cfg != null ? cfg.args() : Map.of());
+            args.putAll(firing.args());                         // explicit manual args win over static config args:
+            Map<String, String> bind = cfg != null ? cfg.bind() : Map.of();
+            ParameterResolver.Resolution pr = ParameterResolver.resolve(decls, args, bind, params,
                     new ParameterResolver.Context(runId, Instant.now(), trigger, zone,
-                            () -> ledger.lastSuccessEnd(name), this::upstreamArtifact));
+                            () -> ledger.lastSuccessEnd(name), this::upstreamArtifact, firing.signalPayload()));
             if (!pr.missingRequired().isEmpty()) {
                 String miss = String.join(", ", pr.missingRequired());
                 ctx.log().error("run rejected: missing required parameter(s): " + miss, null);

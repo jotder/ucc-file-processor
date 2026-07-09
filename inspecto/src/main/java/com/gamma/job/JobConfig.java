@@ -39,7 +39,24 @@ import java.util.Map;
  */
 public record JobConfig(String name, String type, String cron, String onPipeline,
                         boolean enabled, boolean catchUp, Map<String, String> params,
-                        String onSignal, String when) {
+                        String onSignal, String when,
+                        Map<String, String> args, Map<String, String> bind) {
+
+    /** Null-guard the trigger maps so {@link #args()}/{@link #bind()} accessors never return null (P3a-2). */
+    public JobConfig {
+        args = args == null ? Map.of() : args;
+        bind = bind == null ? Map.of() : bind;
+    }
+
+    /**
+     * P2b 9-arg String call site ({@code fromMap} pre-P3a-2, and any code that doesn't set trigger
+     * {@code args}/{@code bind}). No static trigger args, no signal bindings.
+     */
+    public JobConfig(String name, String type, String cron, String onPipeline,
+                     boolean enabled, boolean catchUp, Map<String, String> params,
+                     String onSignal, String when) {
+        this(name, type, cron, onPipeline, enabled, catchUp, params, onSignal, when, Map.of(), Map.of());
+    }
 
     /**
      * Back-compat constructor (pre-P1c 7-arg call sites, {@link JobType} typed): no {@code on_signal}
@@ -49,7 +66,7 @@ public record JobConfig(String name, String type, String cron, String onPipeline
     @Deprecated(since = "5.x")
     public JobConfig(String name, JobType type, String cron, String onPipeline,
                      boolean enabled, boolean catchUp, Map<String, String> params) {
-        this(name, idOf(type), cron, onPipeline, enabled, catchUp, params, null, null);
+        this(name, idOf(type), cron, onPipeline, enabled, catchUp, params, null, null, Map.of(), Map.of());
     }
 
     /**
@@ -60,7 +77,7 @@ public record JobConfig(String name, String type, String cron, String onPipeline
     public JobConfig(String name, JobType type, String cron, String onPipeline,
                      boolean enabled, boolean catchUp, Map<String, String> params,
                      String onSignal, String when) {
-        this(name, idOf(type), cron, onPipeline, enabled, catchUp, params, onSignal, when);
+        this(name, idOf(type), cron, onPipeline, enabled, catchUp, params, onSignal, when, Map.of(), Map.of());
     }
 
     private static String idOf(JobType type) {
@@ -71,6 +88,7 @@ public record JobConfig(String name, String type, String cron, String onPipeline
     public boolean hasEvent()  { return onPipeline != null && !onPipeline.isBlank(); }
     public boolean hasSignal() { return onSignal != null && !onSignal.isBlank(); }
     public boolean hasWhen()   { return when != null && !when.isBlank(); }
+    public boolean hasBind()   { return !bind.isEmpty(); }
 
     /** A required param, or an {@link IllegalArgumentException} naming the job. */
     public String require(String key) {
@@ -119,13 +137,29 @@ public record JobConfig(String name, String type, String cron, String onPipeline
         // validate the cron eagerly so a bad expression fails at load, not at first fire
         if (cron != null && !cron.isBlank()) CronExpression.parse(cron);
 
+        // P3a-2: static trigger args (layer 1) and signal bindings (layer 2, values are $signal.<field>
+        // expressions) — nested maps, distinct from the type-specific params: block (layer 3).
+        Map<String, String> args = subMap(job.get("args"));
+        Map<String, String> bind = subMap(job.get("bind"));
+
         Map<String, String> params = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : job.entrySet()) {
             switch (e.getKey()) {
-                case "name", "type", "cron", "on_pipeline", "on_signal", "when", "enabled", "catch_up" -> { /* known keys */ }
+                case "name", "type", "cron", "on_pipeline", "on_signal", "when", "enabled", "catch_up",
+                     "args", "bind" -> { /* known keys */ }
                 default -> { if (e.getValue() != null) params.put(e.getKey(), e.getValue().toString()); }
             }
         }
-        return new JobConfig(name, type, cron, onPipeline, enabled, catchUp, params, onSignal, when);
+        return new JobConfig(name, type, cron, onPipeline, enabled, catchUp, params, onSignal, when, args, bind);
+    }
+
+    /** Coerce a decoded nested section ({@code args:}/{@code bind:}) into a string-valued map; empty when absent. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> subMap(Object raw) {
+        if (!(raw instanceof Map<?, ?> m)) return Map.of();
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> e : ((Map<String, Object>) m).entrySet())
+            if (e.getValue() != null) out.put(String.valueOf(e.getKey()), e.getValue().toString());
+        return out;
     }
 }
