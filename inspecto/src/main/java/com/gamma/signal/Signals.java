@@ -36,7 +36,7 @@ public final class Signals {
     }
 
     /** Exact match, or a {@code prefix.*} glob, or no filter (null/blank type). */
-    static boolean matchesType(String signalType, String filter) {
+    public static boolean matchesType(String signalType, String filter) {
         if (filter == null || filter.isBlank()) return true;
         String f = filter.trim();
         if (f.endsWith(".*")) return signalType != null && signalType.startsWith(f.substring(0, f.length() - 1));

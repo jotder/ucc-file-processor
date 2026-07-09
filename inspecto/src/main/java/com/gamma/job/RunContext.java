@@ -29,13 +29,13 @@ final class RunContext implements JobContext {
     private final SignalEmitter signals;
 
     RunContext(String runId, String spaceId, String jobName, String trigger, String correlationId,
-               Map<String, String> config, RunLogStore store, int maxEntries) {
+               int chainDepth, Map<String, String> config, RunLogStore store, int maxEntries) {
         this.runId   = runId;
         this.spaceId = spaceId;
         this.trigger = TriggerInfo.parse(trigger);
         this.config  = config == null ? Map.of() : Map.copyOf(config);
         this.log     = new FileRunLog(runId, store, maxEntries);
-        this.signals = new RunSignalEmitter("job:" + jobName + "/run:" + runId, correlationId);
+        this.signals = new RunSignalEmitter("job:" + jobName + "/run:" + runId, correlationId, chainDepth);
     }
 
     @Override public String runId()               { return runId; }
@@ -45,20 +45,24 @@ final class RunContext implements JobContext {
     @Override public RunLog log()                 { return log; }
     @Override public SignalEmitter signals()      { return signals; }
 
-    /** A {@link SignalEmitter} that stamps the envelope and routes to the space's ledger via MDC. */
+    /** A {@link SignalEmitter} that stamps the envelope (id/time/source/correlation + the run's
+     *  {@code chainDepth} into the payload, for loop protection) and routes to the space's ledger via MDC. */
     private static final class RunSignalEmitter implements SignalEmitter {
         private final String source;
         private final String correlationId;
+        private final int chainDepth;
 
-        RunSignalEmitter(String source, String correlationId) {
+        RunSignalEmitter(String source, String correlationId, int chainDepth) {
             this.source = source;
             this.correlationId = correlationId;
+            this.chainDepth = chainDepth;
         }
 
         @Override public void emit(String type, Severity severity, Map<String, Object> payload) {
+            Map<String, Object> p = new LinkedHashMap<>(payload == null ? Map.of() : payload);
+            p.putIfAbsent("chainDepth", chainDepth);   // the next run in the chain is chainDepth + 1 (§8.4)
             Signal s = new Signal(UUID.randomUUID().toString(), type, Instant.now(), source,
-                    correlationId, severity == null ? Severity.INFO : severity,
-                    payload == null ? Map.of() : payload);
+                    correlationId, severity == null ? Severity.INFO : severity, p);
             EventLog.current().emit(s.toEvent());   // MDC (set by the Run) routes to the space store
         }
     }

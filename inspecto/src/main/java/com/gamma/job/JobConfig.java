@@ -38,10 +38,23 @@ import java.util.Map;
  * @param params     type-specific parameters (all values as strings)
  */
 public record JobConfig(String name, JobType type, String cron, String onPipeline,
-                        boolean enabled, boolean catchUp, Map<String, String> params) {
+                        boolean enabled, boolean catchUp, Map<String, String> params,
+                        String onSignal, String when) {
 
-    public boolean hasCron()  { return cron != null && !cron.isBlank(); }
-    public boolean hasEvent() { return onPipeline != null && !onPipeline.isBlank(); }
+    /**
+     * Back-compat constructor (pre-P1c call sites): no {@code on_signal} trigger and no {@code when}
+     * guard. Kept so every existing {@code new JobConfig(name, type, cron, onPipeline, enabled,
+     * catchUp, params)} continues to compile unchanged.
+     */
+    public JobConfig(String name, JobType type, String cron, String onPipeline,
+                     boolean enabled, boolean catchUp, Map<String, String> params) {
+        this(name, type, cron, onPipeline, enabled, catchUp, params, null, null);
+    }
+
+    public boolean hasCron()   { return cron != null && !cron.isBlank(); }
+    public boolean hasEvent()  { return onPipeline != null && !onPipeline.isBlank(); }
+    public boolean hasSignal() { return onSignal != null && !onSignal.isBlank(); }
+    public boolean hasWhen()   { return when != null && !when.isBlank(); }
 
     /** A required param, or an {@link IllegalArgumentException} naming the job. */
     public String require(String key) {
@@ -81,6 +94,8 @@ public record JobConfig(String name, JobType type, String cron, String onPipelin
         JobType type = JobType.from(ToonHelper.opt(job, "type", null));
         String cron = ToonHelper.opt(job, "cron", null);
         String onPipeline = ToonHelper.opt(job, "on_pipeline", null);
+        String onSignal = ToonHelper.opt(job, "on_signal", null);   // P1c: signal-type trigger (exact or prefix.*)
+        String when = ToonHelper.opt(job, "when", null);            // P1c: guard expression over $signal.*
         boolean enabled = !"false".equalsIgnoreCase(ToonHelper.opt(job, "enabled", "true"));
         boolean catchUp = "true".equalsIgnoreCase(ToonHelper.opt(job, "catch_up", "false"));
 
@@ -90,10 +105,10 @@ public record JobConfig(String name, JobType type, String cron, String onPipelin
         Map<String, String> params = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : job.entrySet()) {
             switch (e.getKey()) {
-                case "name", "type", "cron", "on_pipeline", "enabled", "catch_up" -> { /* known keys */ }
+                case "name", "type", "cron", "on_pipeline", "on_signal", "when", "enabled", "catch_up" -> { /* known keys */ }
                 default -> { if (e.getValue() != null) params.put(e.getKey(), e.getValue().toString()); }
             }
         }
-        return new JobConfig(name, type, cron, onPipeline, enabled, catchUp, params);
+        return new JobConfig(name, type, cron, onPipeline, enabled, catchUp, params, onSignal, when);
     }
 }

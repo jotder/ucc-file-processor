@@ -5,22 +5,29 @@ import com.gamma.etl.BatchEvent;
 import com.gamma.pipeline.DeletionFence;
 import com.gamma.pipeline.PipelineStore;
 import com.gamma.pipeline.exec.PipelineJobRunner;
+import com.gamma.pipeline.exec.TriggerCoalescer;
+import com.gamma.event.Event;
 import com.gamma.event.EventLog;
+import com.gamma.event.EventType;
 import com.gamma.metrics.MetricRegistry;
 import com.gamma.report.ReportService;
 import com.gamma.service.BatchEventBus;
 import com.gamma.service.CronExpression;
 import com.gamma.service.Scheduler;
 import com.gamma.signal.Severity;
+import com.gamma.signal.Signal;
+import com.gamma.signal.Signals;
 import com.gamma.util.LockingRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -98,6 +105,16 @@ public final class JobService implements AutoCloseable {
     private final RunLogStore runLogStore;
     /** Cap on Run Log entries per run (overflow summarized) — {@code -Djobs.runlog.maxEntries}, default 10 000. */
     private final int runLogMax = Integer.getInteger("jobs.runlog.maxEntries", 10_000);
+    /** This space's event ledger — the on-signal Trigger source (P1c). Set by the host ({@code SourceService});
+     *  {@code null} (e.g. the bare-{@code JobService} test constructors) disables on-signal dispatch. */
+    private volatile EventLog eventLog;
+    /** One coalescer per on-signal Job, so a burst of matching signals folds into one follow-up Run (§8.4). */
+    private final Map<String, TriggerCoalescer> signalCoalescers = new ConcurrentHashMap<>();
+    /** Loop cut: a signal-triggered Run beyond this chain depth does not fire (§8.4) — {@code -Djobs.signal.maxChainDepth}. */
+    private final int maxChainDepth = Integer.getInteger("jobs.signal.maxChainDepth", 8);
+    /** The ledger subscriber this service installed, kept so {@link #close()} can remove it — the default
+     *  space's {@link EventLog#global()} is process-wide, so an un-removed subscriber would leak and misfire. */
+    private volatile java.util.function.Consumer<Event> signalSubscriber;
     /** Flow ids (authored-flow graph names) of {@link JobType#PIPELINE} jobs currently in flight — fed to the
      *  deletion fence (T32) so a delete that races an active flow-job reader/writer surfaces a conflict. */
     private final Set<String> runningFlows = ConcurrentHashMap.newKeySet();
@@ -171,10 +188,10 @@ public final class JobService implements AutoCloseable {
         registry.register(JobTypeProvider.of("pipeline",    this::buildFlowJob));
     }
 
-    /** Wire the event subscriber and arm cron schedules. */
+    /** Wire the event/signal subscribers and arm cron schedules. */
     public void start() {
         bus.subscribe(this::onBatchEvent);
-        int cronCount = 0, eventCount = 0;
+        int cronCount = 0, eventCount = 0, signalCount = 0;
         for (JobConfig c : configs) {
             if (!c.enabled()) continue;
             if (c.hasCron()) {
@@ -184,10 +201,24 @@ public final class JobService implements AutoCloseable {
                 cronCount++;
             }
             if (c.hasEvent()) eventCount++;
+            if (c.hasSignal()) { signalCoalescers.put(c.name(), new TriggerCoalescer()); signalCount++; }
         }
-        log.info("JobService started: {} job(s) — {} cron-scheduled, {} event-triggered",
-                jobs.size(), cronCount, eventCount);
+        // On-signal Triggers (P1c): subscribe to THIS space's ledger (per-instance subscriber list ⇒
+        // space-correct), and mirror each BatchEvent as a pipeline.commit signal so on_signal:pipeline.commit
+        // works. Both are no-ops when no event ledger is wired (bare-JobService test constructors).
+        if (eventLog != null) {
+            signalSubscriber = this::onSignalEvent;
+            eventLog.addSubscriber(signalSubscriber);
+            bus.subscribe(this::mirrorPipelineCommit);   // bus is per-space, discarded with this service
+        }
+        log.info("JobService started: {} job(s) — {} cron-scheduled, {} event-triggered, {} signal-triggered",
+                jobs.size(), cronCount, eventCount, signalCount);
         catchUpMissedFires();
+    }
+
+    /** Bind this service to its space's event ledger (the on-signal Trigger source). Call before {@link #start()}. */
+    public void eventLog(EventLog eventLog) {
+        this.eventLog = eventLog;
     }
 
     /**
@@ -238,6 +269,84 @@ public final class JobService implements AutoCloseable {
         }
     }
 
+    /**
+     * On-signal dispatch (P1c, §8.2): a Signal landed on this space's ledger — fire every enabled Job whose
+     * {@code on_signal:} matches its dotted type (exact or {@code prefix.*}), that isn't the emitter (self-loop
+     * guard), and whose {@code when:} guard passes. Firings fold through a per-Job {@link TriggerCoalescer} so a
+     * storm collapses into one follow-up Run; the Run inherits the signal's correlation id and chain depth + 1,
+     * and a chain deeper than {@link #maxChainDepth} is cut instead of fired (§8.4).
+     */
+    private void onSignalEvent(Event e) {
+        if (!EventType.SIGNAL.equals(e.type())) return;
+        Signal sig = Signal.fromEvent(e);
+        String emitter = emittingJob(sig.source());
+        int newDepth = intOf(sig.payload().get("chainDepth")) + 1;
+        for (JobConfig c : configs) {
+            if (!c.enabled() || !c.hasSignal()) continue;
+            if (!Signals.matchesType(sig.type(), c.onSignal())) continue;
+            if (c.name().equals(emitter)) continue;                       // self-loop guard
+            if (c.hasWhen() && !WhenGuard.eval(c.when(), sig.payload())) {
+                recordSkipped(c.name(), "signal:" + sig.type(), "when guard false");
+                continue;
+            }
+            if (newDepth > maxChainDepth) { cutChain(c.name(), sig, newDepth); continue; }
+            String cid = sig.correlationId();
+            signalCoalescers.computeIfAbsent(c.name(), k -> new TriggerCoalescer())
+                    .signal(() -> submitRun(newRunId(c.name()), c.name(), "signal:" + sig.type(), cid, newDepth));
+        }
+    }
+
+    /** Mirror each committed BatchEvent as a {@code pipeline.commit} signal (§8.3) so a Job may
+     *  {@code on_signal: pipeline.commit}. The existing {@code on_pipeline} path (via {@link #onBatchEvent})
+     *  is unchanged — the two coexist (no double-fire; different config keys). */
+    private void mirrorPipelineCommit(BatchEvent be) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("pipeline", be.pipeline());
+        payload.put("batchId", be.batchId());
+        payload.put("status", be.status());
+        payload.put("rows", be.outputRows());
+        payload.put("ms", be.durationMs());
+        payload.put("parts", be.partitions());
+        emitSignal("pipeline.commit", "SUCCESS".equals(be.status()) ? Severity.INFO : Severity.WARNING,
+                be.batchId(), "pipeline:" + be.pipeline(), payload);
+    }
+
+    /** Emit a framework signal outside a Run (mirror / chain-cut) directly to this space's ledger. */
+    private void emitSignal(String type, Severity sev, String correlationId, String source, Map<String, Object> payload) {
+        EventLog el = eventLog;
+        if (el == null) return;
+        Map<String, Object> p = new LinkedHashMap<>(payload);
+        p.putIfAbsent("chainDepth", 0);
+        el.emit(new Signal(UUID.randomUUID().toString(), type, Instant.now(), source, correlationId, sev, p).toEvent());
+    }
+
+    /** A→B→A loop protection: the chain is too deep — don't fire; emit a {@code job.chain.cut} WARNING (§8.4). */
+    private void cutChain(String name, Signal sig, int depth) {
+        log.warn("[JOB] signal chain cut at depth {} (max {}) — not firing '{}' on '{}'",
+                depth, maxChainDepth, name, sig.type());
+        emitSignal("job.chain.cut", Severity.WARNING, sig.correlationId(), "job:" + name,
+                Map.of("job", name, "signalType", sig.type(), "chainDepth", depth, "maxChainDepth", maxChainDepth));
+    }
+
+    private void recordSkipped(String name, String trigger, String message) {
+        Job job = jobs.get(name);
+        if (job == null) return;
+        String now = LocalDateTime.now().format(TS);
+        record(new JobRun(newRunId(name), name, job.type().name(), trigger, now, now, "SKIPPED", 0L, message));
+    }
+
+    /** The Job name from a signal source of the form {@code job:<name>/run:<id>}, else {@code null}. */
+    private static String emittingJob(String source) {
+        if (source == null || !source.startsWith("job:")) return null;
+        int slash = source.indexOf('/', 4);
+        return slash < 0 ? source.substring(4) : source.substring(4, slash);
+    }
+
+    private static int intOf(Object o) {
+        try { return o == null ? 0 : (int) Double.parseDouble(String.valueOf(o)); }
+        catch (RuntimeException e) { return 0; }
+    }
+
     /** Run a job once by name, off the caller's thread. Returns false if no such (enabled) job. */
     public boolean trigger(String name) {
         return trigger(name, null);
@@ -277,8 +386,17 @@ public final class JobService implements AutoCloseable {
         if (jobs.containsKey(name)) submitRun(newRunId(name), name, trigger);
     }
 
-    /** Register the run as {@code RUNNING} and execute it off the caller's thread (runId minted by the caller). */
+    /** Register the run as {@code RUNNING} and execute it off the caller's thread; a fresh correlation chain. */
     private void submitRun(String runId, String name, String trigger) {
+        submitRun(runId, name, trigger, runId, 0);
+    }
+
+    /**
+     * As above, carrying the correlation context: {@code correlationId} ties a Run to the chain that started it
+     * (a fresh Run uses its own runId), {@code chainDepth} is its position in a signal chain (0 for cron/manual/
+     * event/catch-up; the firing signal's depth + 1 for on-signal Runs) — stamped onto every signal the Run emits.
+     */
+    private void submitRun(String runId, String name, String trigger, String correlationId, int chainDepth) {
         Job job = jobs.get(name);
         if (job == null) return;
         String start = LocalDateTime.now().format(TS);
@@ -289,23 +407,22 @@ public final class JobService implements AutoCloseable {
         workers.submit(() -> {
             if (scoped) MDC.put(EventLog.SPACE_MDC_KEY, spaceId);
             try {
-                runJob(runId, name, trigger, start);
+                runJob(runId, name, trigger, start, correlationId, chainDepth);
             } finally {
                 if (scoped) MDC.remove(EventLog.SPACE_MDC_KEY);
             }
         });
     }
 
-    private void runJob(String runId, String name, String trigger, String start) {
+    private void runJob(String runId, String name, String trigger, String start, String correlationId, int chainDepth) {
         Job job = jobs.get(name);
         if (job == null) return;
         runner.runExclusiveOrSkip(name, () -> {
             fenceDelete(name);   // T25: surface a conflict if a declared delete races an active reader/writer
             String flowId = trackFlowStart(job, name);   // T32: mark a flow job's stores active for the fence
             Map<String, String> params = configFor(name).map(JobConfig::params).orElse(Map.of());
-            // correlationId = runId for now (a fresh chain); on-signal-triggered Runs inherit the firing
-            // signal's correlationId in P1c.
-            RunContext ctx = new RunContext(runId, spaceId, name, trigger, runId, params, runLogStore, runLogMax);
+            RunContext ctx = new RunContext(runId, spaceId, name, trigger, correlationId, chainDepth,
+                    params, runLogStore, runLogMax);
             ctx.log().info("run started", "trigger", trigger, "params", params);   // param snapshot (R5/R2 scaffold)
             ctx.signals().emit("job.run.started", Severity.INFO,
                     Map.of("job", name, "run", runId, "trigger", trigger));
@@ -451,6 +568,7 @@ public final class JobService implements AutoCloseable {
 
     @Override
     public void close() {
+        if (eventLog != null && signalSubscriber != null) eventLog.removeSubscriber(signalSubscriber);
         workers.close();   // virtual-thread executor: awaits in-flight job runs
         ledger.close();
         if (provenanceStore != null) provenanceStore.close();

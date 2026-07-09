@@ -316,6 +316,7 @@ public final class SourceService implements AutoCloseable {
         if (this.jobs != null) {
             this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
             this.jobs.spaceId(spaceId);                     // run this space's jobs under its MDC (per-space routing)
+            this.jobs.eventLog(eventLog);                   // P1c: this space's ledger = the on-signal Trigger source
         }
         this.semanticModels    = List.copyOf(semanticModels);
         // Invalidate the catalog whenever configs are (re)indexed — the registry is now the

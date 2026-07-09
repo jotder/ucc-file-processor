@@ -243,6 +243,56 @@ class ControlApiAsyncV1Test {
         }
     }
 
+    // ── on-signal triggers + when guard (job-framework P1c, §8.2) ────────────────────
+
+    /** Poll GET /jobs/{job}/runs (unversioned raw array) until a run matches, or fail after 10s. */
+    private JsonNode awaitRun(Ctx c, String job, java.util.function.Predicate<JsonNode> match) throws Exception {
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            JsonNode runs = JSON.readTree(get(c.port, "/jobs/" + job + "/runs").body());
+            if (runs.isArray()) for (JsonNode r : runs) if (match.test(r)) return r;
+            Thread.sleep(50);
+        }
+        fail("no matching run for '" + job + "' within 10s");
+        return null;
+    }
+
+    @Test
+    void onSignalTriggerFiresAListenerWhenAnUpstreamJobCompletes(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        JobConfig producer = new JobConfig("producerjob", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"), null, null);
+        JobConfig listener = new JobConfig("listenerjob", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"), "job.run.completed", null);   // fires on any job's completion
+        try (Ctx c = open(cfg, root, List.of(producer, listener))) {
+            c.svc().start();   // on-signal dispatch (like cron) arms only on a started service; manual triggers don't
+            post(c.port, "/api/v1/jobs/producerjob/trigger", null);   // its job.run.completed fires the listener
+            JsonNode run = awaitRun(c, "listenerjob", r -> r.get("trigger").asText().startsWith("signal:"));
+            assertEquals("SUCCESS", run.get("status").asText(), run.toString());
+            assertTrue(run.get("trigger").asText().startsWith("signal:job.run.completed"), run.toString());
+        }
+    }
+
+    @Test
+    void onSignalWhenGuardSkipsWithoutRunningTheJob(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        JobConfig producer = new JobConfig("prodguard", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"), null, null);
+        // guard references the completed signal's outcome and demands a value it won't have → skip, no run
+        JobConfig listener = new JobConfig("listenguard", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"), "job.run.completed", "$signal.outcome == \"NOPE\"");
+        try (Ctx c = open(cfg, root, List.of(producer, listener))) {
+            c.svc().start();
+            post(c.port, "/api/v1/jobs/prodguard/trigger", null);
+            JsonNode skipped = awaitRun(c, "listenguard", r -> "SKIPPED".equals(r.get("status").asText()));
+            assertTrue(skipped.get("trigger").asText().startsWith("signal:"), skipped.toString());
+            assertTrue(skipped.get("message").asText().contains("guard"), skipped.toString());
+
+            JsonNode runs = JSON.readTree(get(c.port, "/jobs/listenguard/runs").body());
+            boolean anySuccess = false;
+            for (JsonNode r : runs) if ("SUCCESS".equals(r.get("status").asText())) anySuccess = true;
+            assertFalse(anySuccess, "a guard-false listener never executes the job: " + runs);
+        }
+    }
+
     // ── async pipeline trigger + poll (W5b) ──────────────────────────────────────────
 
     @Test
