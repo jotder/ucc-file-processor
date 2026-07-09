@@ -13,13 +13,15 @@ export const JOB_ATTRIBUTES: AttributeSpec[] = [
         help: 'Letters, digits, dot, dash, underscore; start alphanumeric.',
     },
     {
-        key: 'type', label: 'Type', type: 'select', tier: 'required', default: 'ingest',
+        key: 'type', label: 'Type', type: 'select', tier: 'required', default: 'enrich',
+        help: 'The kind of work; its declared parameters drive the form below.',
+        // The registered Job Type ids (matches the backend registry / GET /jobs/types).
         options: [
-            { value: 'ingest', label: 'ingest' },
             { value: 'enrich', label: 'enrich' },
             { value: 'report', label: 'report' },
             { value: 'maintenance', label: 'maintenance' },
-            { value: 'flow', label: 'flow' },
+            { value: 'pipeline', label: 'pipeline' },
+            { value: 'sql.template', label: 'sql.template' },
         ],
     },
     {

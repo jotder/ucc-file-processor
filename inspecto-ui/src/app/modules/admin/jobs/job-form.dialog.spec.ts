@@ -8,7 +8,9 @@ import { ToastrService } from 'ngx-toastr';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { JobFormData, JobFormDialog } from './job-form.dialog';
 
-function create(data: JobFormData, save = vi.fn(() => of({ name: 'x' }))) {
+const noParams = () => of({ id: 'x', title: '', description: '', parameters: [], emits: [], artifacts: [] });
+
+function create(data: JobFormData, save = vi.fn(() => of({ name: 'x' })), describeType = vi.fn(noParams)) {
     const ref = { close: vi.fn() };
     TestBed.configureTestingModule({
         imports: [JobFormDialog],
@@ -16,7 +18,7 @@ function create(data: JobFormData, save = vi.fn(() => of({ name: 'x' }))) {
             provideNoopAnimations(),
             { provide: MAT_DIALOG_DATA, useValue: data },
             { provide: MatDialogRef, useValue: ref },
-            { provide: JobsService, useValue: { create: save, update: save } },
+            { provide: JobsService, useValue: { create: save, update: save, describeType, types: () => of([]) } },
             { provide: ToastrService, useValue: { error: vi.fn() } },
         ],
     });
@@ -54,6 +56,25 @@ describe('JobFormDialog', () => {
         c.schemaForm.form.patchValue({ name: 'cdr_ingest_2' });
         c.save();
         expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'cdr_ingest_2' }));
+    });
+
+    it("renders the selected type's declared parameters and includes them on save", async () => {
+        const describeType = vi.fn(() =>
+            of({
+                id: 'sql.template', title: 'Templated SQL', description: '',
+                parameters: [{ name: 'sink_dataset', type: 'STRING', required: true, deduce: '', default: '', description: 'Output Dataset' }],
+                emits: [], artifacts: [],
+            }),
+        );
+        const { c, fixture, save } = create({}, undefined, describeType);
+        await Promise.resolve(); // flush the queued loadParams microtask
+        fixture.detectChanges();
+
+        expect(c.paramSpecs().map((s) => s.key)).toContain('sink_dataset');
+        c.schemaForm.form.patchValue({ name: 'rollup', scheduleMode: 'manual' });
+        c.paramForm!.form.patchValue({ sink_dataset: 'txn_rollup' });
+        c.save();
+        expect(save).toHaveBeenCalledWith(expect.objectContaining({ params: expect.objectContaining({ sink_dataset: 'txn_rollup' }) }));
     });
 
     it('renders with no a11y violations', async () => {

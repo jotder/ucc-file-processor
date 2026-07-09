@@ -20,8 +20,14 @@
         </mat-form-field>
     }
 
-    <!-- Params (bespoke key/value array) -->
-    <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Parameters</div>
+    <!-- Descriptor-driven parameters (P3c): the selected Job Type's declared params as typed fields. -->
+    @if (paramSpecs().length) {
+        <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Type parameters</div>
+        <inspecto-schema-form #pf [specs]="paramSpecs()" [initial]="paramInitial()"></inspecto-schema-form>
+    }
+
+    <!-- Additional params (bespoke key/value array) — anything not declared by the type. -->
+    <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Additional parameters</div>
     <form [formGroup]="paramsForm">
         <div formArrayName="params" class="flex flex-col gap-2">
             @for (p of paramsArray.controls; track $index; let i = $index) {

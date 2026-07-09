@@ -23,6 +23,29 @@ export interface JobUpsert {
   params?: Record<string, unknown>;
 }
 
+/** One declared parameter of a Job Type (GET /jobs/types/{id}, R3) — drives the authoring form. */
+export interface JobParameterDecl {
+  name: string;
+  /** STRING | INTEGER | DECIMAL | BOOLEAN | DATE | INSTANT | DATASET_REF */
+  type: string;
+  required: boolean;
+  /** $-expression the platform deduces when unbound (e.g. `$day(-1)`); '' when none. */
+  deduce: string;
+  /** Literal fallback; '' when none. */
+  default: string;
+  description: string;
+}
+
+/** One Job Type's catalog metadata (GET /jobs/types[/{id}]) — the descriptor that drives authoring. */
+export interface JobTypeDescriptor {
+  id: string;
+  title: string;
+  description: string;
+  parameters: JobParameterDecl[];
+  emits: string[];
+  artifacts: { name: string; kind: string }[];
+}
+
 /** One log line for a job run (GET /jobs/{name}/runs/{runId}/logs). */
 export interface JobLogLine {
   ts: string;
@@ -89,6 +112,14 @@ export class JobsService {
 
   list(): Observable<JobView[]> {
     return this.http.get<JobView[]>(apiUrl('/jobs'));
+  }
+  /** The registered Job Types (R3) — drives the authoring form's type picker. */
+  types(): Observable<JobTypeDescriptor[]> {
+    return this.http.get<JobTypeDescriptor[]>(apiUrl('/jobs/types'));
+  }
+  /** One Job Type's descriptor — its declared parameters generate the form (Workbench → Jobs, Phase D). */
+  describeType(id: string): Observable<JobTypeDescriptor> {
+    return this.http.get<JobTypeDescriptor>(apiUrl(`/jobs/types/${encodeURIComponent(id)}`));
   }
   runs(name: string): Observable<JobRun[]> {
     return this.http.get<JobRun[]>(apiUrl(`/jobs/${encodeURIComponent(name)}/runs`));

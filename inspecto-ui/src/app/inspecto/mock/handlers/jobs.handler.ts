@@ -32,9 +32,65 @@ export interface ReportArtifact {
     content: string;
 }
 
-const RESERVED = new Set(['metrics', 'runs', 'failures']); // /jobs/<reserved> are real reporting routes, not job ids
+const RESERVED = new Set(['metrics', 'runs', 'failures', 'types']); // /jobs/<reserved> are real routes, not job ids
+
+/**
+ * Job Type descriptors (R3, GET /jobs/types[/{id}]) — mirrors the backend registry so the authoring
+ * form is descriptor-driven offline too. `type` values are the framework `ParamType` names.
+ */
+const JOB_TYPE_DESCRIPTORS = [
+    {
+        id: 'enrich', title: 'Enrichment',
+        description: 'Runs a Stage-2 enrichment once (full recompute) and publishes a chain commit.',
+        parameters: [{ name: 'config', type: 'STRING', required: true, deduce: '', default: '', description: 'Path to the enrichment .toon' }],
+        emits: ['pipeline.commit'], artifacts: [],
+    },
+    {
+        id: 'report', title: 'Report',
+        description: 'Computes a report (status / batch / dataset export) and optionally delivers it.',
+        parameters: [
+            { name: 'scope', type: 'STRING', required: false, deduce: '', default: 'status', description: 'status | batch | dataset' },
+            { name: 'out_dir', type: 'STRING', required: false, deduce: '', default: '', description: 'Delivery directory (enables artifact + REPORT_READY)' },
+            { name: 'format', type: 'STRING', required: false, deduce: '', default: '', description: 'json | csv' },
+            { name: 'dataset', type: 'DATASET_REF', required: false, deduce: '', default: '', description: 'Dataset id (scope=dataset)' },
+        ],
+        emits: [], artifacts: [{ name: 'report', kind: 'report' }],
+    },
+    {
+        id: 'maintenance', title: 'Maintenance',
+        description: 'Built-in housekeeping task (cleanup / ledger_prune / db_maintenance / compact / materialize).',
+        parameters: [
+            { name: 'task', type: 'STRING', required: false, deduce: '', default: 'cleanup', description: 'Which maintenance task' },
+            { name: 'dir', type: 'STRING', required: false, deduce: '', default: '', description: 'Target directory (cleanup / compact)' },
+            { name: 'retention_days', type: 'INTEGER', required: false, deduce: '', default: '7', description: 'Age threshold in days' },
+            { name: 'store', type: 'STRING', required: false, deduce: '', default: '', description: 'Store(s) a delete task targets (fenced)' },
+        ],
+        emits: [], artifacts: [],
+    },
+    {
+        id: 'pipeline', title: 'Pipeline',
+        description: 'Runs an authored Pipeline over data at rest; emits a commit downstream jobs can chain on.',
+        parameters: [
+            { name: 'flow', type: 'STRING', required: true, deduce: '', default: '', description: 'Authored Pipeline id to run' },
+            { name: 'incremental_column', type: 'STRING', required: false, deduce: '', default: '', description: 'Watermark column for incremental runs' },
+        ],
+        emits: ['pipeline.commit'], artifacts: [],
+    },
+    {
+        id: 'sql.template', title: 'Templated SQL',
+        description: 'Runs an authored SQL template over source Datasets and materializes the result as a queryable Dataset.',
+        parameters: [
+            { name: 'sql', type: 'STRING', required: true, deduce: '', default: '', description: 'SQL SELECT template; its $name tokens are the runtime parameters' },
+            { name: 'sink_dataset', type: 'STRING', required: true, deduce: '', default: '', description: 'Output Dataset (store dir under the data root)' },
+            { name: 'sources', type: 'STRING', required: false, deduce: '', default: '', description: 'CSV of source store names to register as views' },
+        ],
+        emits: ['job.dataset.produced'], artifacts: [{ name: 'output', kind: 'dataset' }],
+    },
+];
 
 const JOBS = /\/jobs$/;
+const JOB_TYPES = /\/jobs\/types$/;
+const JOB_TYPE_ONE = /\/jobs\/types\/([^/]+)$/;
 const JOB_RUN_LOGS = /\/jobs\/([^/]+)\/runs\/([^/]+)\/logs$/;
 const JOB_RUN_ARTIFACT = /\/jobs\/([^/]+)\/runs\/([^/]+)\/artifact$/;
 const JOB_RUNS = /\/jobs\/([^/]+)\/runs$/;
@@ -52,6 +108,11 @@ export function jobsHandler(flags: MockFlags): MockHandler {
         if (method === 'GET' && (m = match(url, JOB_RUN_ARTIFACT))) {
             const artifact = store.get<ReportArtifact>(space, REPORT_ARTIFACTS_COLL, m[2]);
             return artifact ? json(artifact) : error(404, `no artifact for run ${m[2]}`);
+        }
+        if (method === 'GET' && JOB_TYPES.test(url)) return json(JOB_TYPE_DESCRIPTORS);
+        if (method === 'GET' && (m = match(url, JOB_TYPE_ONE))) {
+            const d = JOB_TYPE_DESCRIPTORS.find((t) => t.id === m![1]);
+            return d ? json(d) : error(404, `no job type ${m[1]}`);
         }
         if (method === 'GET' && (m = match(url, JOB_RUN_LOGS))) return json(runLogs(store, space, m[2]));
         if (method === 'GET' && (m = match(url, JOB_RUNS))) return json(runsOf(store, space, m[1]));

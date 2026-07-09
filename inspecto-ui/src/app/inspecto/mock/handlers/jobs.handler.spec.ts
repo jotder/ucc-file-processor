@@ -33,6 +33,18 @@ describe('jobsHandler', () => {
         expect(detail.params).toEqual({ source: 'cdr_sftp_prod', scope: 'roaming' });
     });
 
+    it('serves the Job Type descriptors (R3) — the list and one by id, 404 for unknown', () => {
+        const store = seededStore();
+        const types = handler(req('GET', '/api/jobs/types'), store)?.body as { id: string }[];
+        expect(types.map((t) => t.id)).toEqual(expect.arrayContaining(['enrich', 'report', 'maintenance', 'pipeline', 'sql.template']));
+
+        const sql = handler(req('GET', '/api/jobs/types/sql.template'), store)?.body as { parameters: { name: string; required: boolean }[] };
+        expect(sql.parameters.map((p) => p.name)).toEqual(['sql', 'sink_dataset', 'sources']);
+        expect(sql.parameters.find((p) => p.name === 'sql')?.required).toBe(true);
+
+        expect(handler(req('GET', '/api/jobs/types/nope'), store)?.status).toBe(404);
+    });
+
     it('upserts, toggles, reschedules and deletes a job (with its runs)', () => {
         const store = seededStore();
         handler(req('POST', '/api/jobs', { name: 'nightly_export', type: 'flow', cron: '0 0 3 * * *', enabled: true }), store);
