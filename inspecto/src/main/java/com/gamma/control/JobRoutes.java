@@ -30,6 +30,12 @@ final class JobRoutes implements RouteModule {
         api.get("/jobs/types/([^/]+)", (e, m) -> jobs(api).jobType(ApiContext.name(m))
                 .map(JobTypeDescriptor::toMap)
                 .orElseThrow(() -> new ApiException(404, "no job type '" + ApiContext.name(m) + "'")));
+        // Job Pack inventory + explicit rescan (R8, job-framework P2c, §12/§14). Fixed sub-paths under
+        // /jobs/, registered before the /jobs/{name} regex routes. Rescan is a canOperateRuns write
+        // (reconciles the packs dir now instead of waiting on the watcher); every transition is audited
+        // via job.pack.* signals on the ledger.
+        api.get("/jobs/packs", (e, m) -> jobs(api).jobPacks());
+        api.post("/jobs/packs/rescan", ApiContext.withCapability("canOperateRuns", (e, m) -> jobs(api).rescanPacks()));
         // T27 job-execution reporting (DuckDB projection; 404 unless -Djobs.backend is set). Fixed
         // sub-paths, registered before the /jobs/{name}/runs regex (single-segment, so no collision).
         api.get("/jobs/metrics", (e, m) -> jobRunStore(api).metrics(ApiContext.query(e, "job")));

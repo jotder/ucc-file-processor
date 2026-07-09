@@ -1,5 +1,6 @@
 package com.gamma.job;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -12,14 +13,41 @@ import java.util.Set;
  * in {@code JobService.build()} (P0, {@code docs/job-framework-design.md} §6.1). Keyed by type id;
  * the four built-ins register under their lowercased enum names ({@code enrich} / {@code report} /
  * {@code maintenance} / {@code pipeline}) so existing {@code *_job.toon} files load unchanged.
+ *
+ * <p>Every provider carries an <em>owner</em> tag: {@code null} for the permanent built-ins and
+ * classpath ({@code ServiceLoader}) providers, or a Job Pack's key for hot-deployed types (P2c). Only
+ * pack-owned types can be {@linkplain #deregister(String) deregistered} — a pack can never displace a
+ * built-in (its id collides and is rejected at {@link #register(JobTypeProvider, String)}).
  */
 final class JobTypeRegistry {
 
     private final Map<String, JobTypeProvider> providers = new LinkedHashMap<>();
+    private final Map<String, String> owners = new LinkedHashMap<>();   // id -> owner (null = permanent)
 
+    /** Register a permanent (built-in / classpath) provider — never deregistered. */
     void register(JobTypeProvider provider) {
+        register(provider, null);
+    }
+
+    /** Register a provider owned by {@code owner} (a Job Pack key, or {@code null} for permanent). */
+    void register(JobTypeProvider provider, String owner) {
         if (providers.putIfAbsent(provider.id(), provider) != null)
             throw new IllegalStateException("duplicate job type id '" + provider.id() + "'");
+        owners.put(provider.id(), owner);
+    }
+
+    /** Remove every type owned by {@code owner} (Job Pack unload/reload); returns the ids removed. */
+    List<String> deregister(String owner) {
+        List<String> removed = new ArrayList<>();
+        for (var it = owners.entrySet().iterator(); it.hasNext(); ) {
+            var e = it.next();
+            if (java.util.Objects.equals(owner, e.getValue())) {
+                providers.remove(e.getKey());
+                removed.add(e.getKey());
+                it.remove();
+            }
+        }
+        return removed;
     }
 
     /** Build the {@link Job} for an authored config; throws if the type id is unknown. */

@@ -102,6 +102,9 @@ public final class JobService implements AutoCloseable {
     /** Open Job Type registry (job-framework P0) — replaced the compiled-in {@link JobType} switch; the four
      *  built-ins register here in {@link #registerBuiltins()} and {@link #build} delegates to it. */
     private final JobTypeRegistry registry = new JobTypeRegistry();
+
+    /** Hot-deployable Job Packs (P2c, §12) — off unless {@code -Djobs.packs.dir} is set. */
+    private final JobPackManager packs;
     /** Per-run structured Run Log persistence (R5): JSONL under {@code <auditDir>/runlog/}. */
     private final RunLogStore runLogStore;
     /** Cap on Run Log entries per run (overflow summarized) — {@code -Djobs.runlog.maxEntries}, default 10 000. */
@@ -175,6 +178,11 @@ public final class JobService implements AutoCloseable {
         this.provenanceStore = provenanceStore;
         this.runLogStore = new RunLogStore(auditDir);
         registerBuiltins();
+        // Job Packs (P2c): load hot-deployable types BEFORE building Jobs, so a Job authored against a
+        // pack type resolves at construction. Startup-scan signals no-op until the event log is wired.
+        this.packs = new JobPackManager(System.getProperty("jobs.packs.dir"), registry,
+                (type, sev, payload) -> emitSignal(type, sev, null, "job.packs", payload));
+        this.packs.scanAtStartup();
         for (JobConfig c : this.configs) {
             if (c.enabled()) jobs.put(c.name(), build(c));
         }
@@ -247,6 +255,7 @@ public final class JobService implements AutoCloseable {
             eventLog.addSubscriber(signalSubscriber);
             bus.subscribe(this::mirrorPipelineCommit);   // bus is per-space, discarded with this service
         }
+        packs.startWatching();   // P2c: react to jars dropped/removed at runtime (settle-delayed rescan)
         log.info("JobService started: {} job(s) — {} cron-scheduled, {} event-triggered, {} signal-triggered",
                 jobs.size(), cronCount, eventCount, signalCount);
         catchUpMissedFires();
@@ -609,12 +618,23 @@ public final class JobService implements AutoCloseable {
         return registry.descriptor(id);
     }
 
+    /** Loaded Job Pack inventory (id, version, hash, types, state) — {@code GET /jobs/packs} (§12, R8). */
+    public List<Map<String, Object>> jobPacks() {
+        return packs.inventory();
+    }
+
+    /** Force a Job Pack dir reconcile (load/reload/unload); returns the transition summary — {@code POST /jobs/packs/rescan}. */
+    public Map<String, Object> rescanPacks() {
+        return packs.rescan();
+    }
+
     /** Whether any job by this name is registered and enabled. */
     public boolean has(String name) { return jobs.containsKey(name); }
 
     @Override
     public void close() {
         if (eventLog != null && signalSubscriber != null) eventLog.removeSubscriber(signalSubscriber);
+        packs.close();     // P2c: stop the watch thread, close pack classloaders
         workers.close();   // virtual-thread executor: awaits in-flight job runs
         ledger.close();
         if (provenanceStore != null) provenanceStore.close();
