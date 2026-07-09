@@ -36,4 +36,7 @@ public interface JobContext {
 
     /** Emit domain {@link com.gamma.signal.Signal}s onto the one ledger (R6); framework-stamped. */
     SignalEmitter signals();
+
+    /** Record queryable Run Artifacts — produced Datasets / files (R7, §10). */
+    ArtifactRecorder artifacts();
 }

@@ -107,6 +107,8 @@ public final class JobService implements AutoCloseable {
     private final JobPackManager packs;
     /** Per-run structured Run Log persistence (R5): JSONL under {@code <auditDir>/runlog/}. */
     private final RunLogStore runLogStore;
+    /** Per-run Run Artifact persistence (R7, §10): JSONL under {@code <auditDir>/artifacts/}. */
+    private final RunArtifactStore runArtifactStore;
     /** Cap on Run Log entries per run (overflow summarized) — {@code -Djobs.runlog.maxEntries}, default 10 000. */
     private final int runLogMax = Integer.getInteger("jobs.runlog.maxEntries", 10_000);
     /** This space's event ledger — the on-signal Trigger source (P1c). Set by the host ({@code SourceService});
@@ -177,6 +179,7 @@ public final class JobService implements AutoCloseable {
         this.dataDir   = dataDir;
         this.provenanceStore = provenanceStore;
         this.runLogStore = new RunLogStore(auditDir);
+        this.runArtifactStore = new RunArtifactStore(auditDir);
         registerBuiltins();
         // Job Packs (P2c): load hot-deployable types BEFORE building Jobs, so a Job authored against a
         // pack type resolves at construction. Startup-scan signals no-op until the event log is wired.
@@ -467,14 +470,14 @@ public final class JobService implements AutoCloseable {
             String flowId = trackFlowStart(job, name);   // T32: mark a flow job's stores active for the fence
             Map<String, String> params = configFor(name).map(JobConfig::params).orElse(Map.of());
             RunContext ctx = new RunContext(runId, spaceId, name, trigger, correlationId, chainDepth,
-                    params, runLogStore, runLogMax);
+                    params, runLogStore, runLogMax, runArtifactStore);
             // P3a: resolve the Job Type's declared parameters (config → deduce → default). A missing
             // required parameter fails the Run REJECTED before any user code runs (§7.2, fail-closed).
             List<ParameterDecl> decls = registry.descriptor(job.type())
                     .map(JobTypeDescriptor::parameters).orElse(List.of());
             ParameterResolver.Resolution pr = ParameterResolver.resolve(decls, params,
                     new ParameterResolver.Context(runId, Instant.now(), trigger, zone,
-                            () -> ledger.lastSuccessEnd(name)));
+                            () -> ledger.lastSuccessEnd(name), this::upstreamArtifact));
             if (!pr.missingRequired().isEmpty()) {
                 String miss = String.join(", ", pr.missingRequired());
                 ctx.log().error("run rejected: missing required parameter(s): " + miss, null);
@@ -625,6 +628,23 @@ public final class JobService implements AutoCloseable {
     /** The structured Run Log entries for one run (R5), in write order; empty if unknown or never logged. */
     public List<RunLogEntry> runLog(String runId) {
         return runLogStore.read(runId);
+    }
+
+    /** Run Artifacts recorded by one run (R7, §10), in write order — {@code GET /jobs/{name}/runs/{runId}/artifacts}. */
+    public List<RunArtifact> runArtifacts(String runId) {
+        return runArtifactStore.read(runId);
+    }
+
+    /** Artifacts of a job's most recent successful run (R7) — {@code GET /jobs/{name}/artifacts/latest}; empty if none. */
+    public List<RunArtifact> latestArtifacts(String name) {
+        return ledger.lastSuccessRunId(name).map(runArtifactStore::read).orElse(List.of());
+    }
+
+    /** One named artifact from a job's latest successful run (highest seq wins) — the {@code $upstream(...)} lookup (§7.3). */
+    private Optional<RunArtifact> upstreamArtifact(String job, String artifact) {
+        RunArtifact hit = null;
+        for (RunArtifact a : latestArtifacts(job)) if (artifact.equals(a.name())) hit = a;
+        return Optional.ofNullable(hit);
     }
 
     /** Every registered Job Type's descriptor (R3, {@code GET /jobs/types}) — built-ins now, modules/packs later. */

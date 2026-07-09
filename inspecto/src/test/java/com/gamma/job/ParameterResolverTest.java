@@ -18,7 +18,12 @@ class ParameterResolverTest {
     private static final Instant FIRE = Instant.parse("2026-07-08T06:00:00Z");
 
     private static ParameterResolver.Context ctx(Optional<LocalDateTime> lastSuccess) {
-        return new ParameterResolver.Context("run-1", FIRE, "cron", ZoneOffset.UTC, () -> lastSuccess);
+        return ctx(lastSuccess, (job, name) -> Optional.empty());
+    }
+
+    private static ParameterResolver.Context ctx(Optional<LocalDateTime> lastSuccess,
+            java.util.function.BiFunction<String, String, Optional<RunArtifact>> upstream) {
+        return new ParameterResolver.Context("run-1", FIRE, "cron", ZoneOffset.UTC, () -> lastSuccess, upstream);
     }
 
     private static ParameterDecl decl(String name, boolean required, String deduce, String def) {
@@ -43,6 +48,26 @@ class ParameterResolverTest {
     @Test
     void lastSuccessTimeIsNullWhenTheJobNeverSucceeded() {
         assertNull(ParameterResolver.deduce("$job.last_success_time", ctx(Optional.empty())));
+    }
+
+    @Test
+    void resolvesUpstreamArtifactAttributes() {
+        RunArtifact art = new RunArtifact("up-run-9", "loader", 1, "output", "dataset",
+                "txn_rollup", null, 4200L, 0L, "2026-07-07T06:00:04Z", "2026-07-01..2026-07-07",
+                "2026-07-08T06:00:00Z");
+        var c = ctx(Optional.empty(),
+                (job, name) -> "loader".equals(job) && "output".equals(name) ? Optional.of(art) : Optional.empty());
+
+        assertEquals("txn_rollup", ParameterResolver.deduce("$upstream(loader).artifact(output).ref", c));
+        assertEquals("4200", ParameterResolver.deduce("$upstream(loader).artifact(output).rows", c));
+        assertEquals("2026-07-07T06:00:04Z",
+                ParameterResolver.deduce("$upstream(loader).artifact(output).watermark", c));
+        assertEquals("2026-07-01..2026-07-07",
+                ParameterResolver.deduce("$upstream(loader).artifact(output).time_range", c));
+        assertNull(ParameterResolver.deduce("$upstream(loader).artifact(missing).ref", c),
+                "an absent artifact resolves to null (⇒ REJECTED if the param is required)");
+        assertNull(ParameterResolver.deduce("$upstream(loader).artifact(output).bogus_attr", c),
+                "an unknown attribute is unresolved");
     }
 
     @Test

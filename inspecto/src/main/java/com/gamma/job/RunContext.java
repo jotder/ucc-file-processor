@@ -27,16 +27,19 @@ final class RunContext implements JobContext {
     private final Map<String, String> config;
     private final RunLog log;
     private final SignalEmitter signals;
+    private final ArtifactRecorder artifacts;
     private volatile Map<String, String> params = Map.of();   // resolved by the framework before run (P3a)
 
     RunContext(String runId, String spaceId, String jobName, String trigger, String correlationId,
-               int chainDepth, Map<String, String> config, RunLogStore store, int maxEntries) {
-        this.runId   = runId;
-        this.spaceId = spaceId;
-        this.trigger = TriggerInfo.parse(trigger);
-        this.config  = config == null ? Map.of() : Map.copyOf(config);
-        this.log     = new FileRunLog(runId, store, maxEntries);
-        this.signals = new RunSignalEmitter("job:" + jobName + "/run:" + runId, correlationId, chainDepth);
+               int chainDepth, Map<String, String> config, RunLogStore store, int maxEntries,
+               RunArtifactStore artifactStore) {
+        this.runId     = runId;
+        this.spaceId   = spaceId;
+        this.trigger   = TriggerInfo.parse(trigger);
+        this.config    = config == null ? Map.of() : Map.copyOf(config);
+        this.log       = new FileRunLog(runId, store, maxEntries);
+        this.signals   = new RunSignalEmitter("job:" + jobName + "/run:" + runId, correlationId, chainDepth);
+        this.artifacts = new RunArtifactRecorder(runId, jobName, artifactStore);
     }
 
     @Override public String runId()               { return runId; }
@@ -46,9 +49,34 @@ final class RunContext implements JobContext {
     @Override public Map<String, String> params() { return params; }
     @Override public RunLog log()                 { return log; }
     @Override public SignalEmitter signals()      { return signals; }
+    @Override public ArtifactRecorder artifacts() { return artifacts; }
 
     /** The framework installs the resolved Parameter Context (§7.2) just before {@code Job.run(ctx)}. */
     void params(Map<String, String> resolved) { this.params = Map.copyOf(resolved); }
+
+    /** Records each artifact to the run's JSONL, stamping runId/job + a monotonic seq (R7, §10). */
+    private static final class RunArtifactRecorder implements ArtifactRecorder {
+        private final String runId;
+        private final String job;
+        private final RunArtifactStore store;
+        private final AtomicInteger seq = new AtomicInteger();
+
+        RunArtifactRecorder(String runId, String job, RunArtifactStore store) {
+            this.runId = runId;
+            this.job = job;
+            this.store = store;
+        }
+
+        @Override public void dataset(String name, String ref, ResultSetMeta meta, long rows, Instant watermark) {
+            store.append(new RunArtifact(runId, job, seq.incrementAndGet(), name, "dataset", ref, meta,
+                    rows, 0L, watermark == null ? null : watermark.toString(), null, Instant.now().toString()));
+        }
+
+        @Override public void file(String name, java.nio.file.Path path, long bytes) {
+            store.append(new RunArtifact(runId, job, seq.incrementAndGet(), name, "file",
+                    path == null ? null : path.toString(), null, 0L, bytes, null, null, Instant.now().toString()));
+        }
+    }
 
     /** A {@link SignalEmitter} that stamps the envelope (id/time/source/correlation + the run's
      *  {@code chainDepth} into the payload, for loop protection) and routes to the space's ledger via MDC. */

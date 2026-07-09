@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,8 +26,9 @@ import java.util.regex.Pattern;
  * framework can fail the Run <b>REJECTED</b> before any user code runs (§7.2, fail-closed).
  *
  * <p>Not yet wired (they need run-path plumbing that arrives later): trigger {@code args} (layer 1) and
- * signal {@code bind} (layer 2), and therefore the {@code $signal.<field>} and {@code $upstream(...)}
- * tokens. This is a fresh, minimal evaluator; consolidating it with {@code com.gamma.query.Parameters}
+ * signal {@code bind} (layer 2), and therefore the {@code $signal.<field>} token. The
+ * {@code $upstream(<job>).artifact(<name>).<attr>} token (§10) resolves against recorded Run Artifacts.
+ * This is a fresh, minimal evaluator; consolidating it with {@code com.gamma.query.Parameters}
  * (SQL-literal output, a different token set) and {@link WhenGuard}'s {@code $signal} evaluator is
  * deliberate future work.
  */
@@ -34,14 +36,18 @@ final class ParameterResolver {
 
     private ParameterResolver() {}
 
-    /** The built-in {@code $}-context for deduction (§7.3): this Run's identity/timing + the success watermark. */
+    /** The built-in {@code $}-context for deduction (§7.3): this Run's identity/timing, the success
+     *  watermark, and an {@code (job, artifactName)} → latest {@link RunArtifact} lookup for {@code $upstream}. */
     record Context(String runId, Instant fireTime, String actor, ZoneId zone,
-                   Supplier<Optional<LocalDateTime>> lastSuccess) {}
+                   Supplier<Optional<LocalDateTime>> lastSuccess,
+                   BiFunction<String, String, Optional<RunArtifact>> upstream) {}
 
     /** Outcome: the resolved values, and any {@code required} names that stayed unresolved (⇒ REJECTED). */
     record Resolution(Map<String, String> resolved, List<String> missingRequired) {}
 
     private static final Pattern DATE_FN = Pattern.compile("\\$(day|month)\\(\\s*(-?\\d+)\\s*\\)");
+    private static final Pattern UPSTREAM =
+            Pattern.compile("\\$upstream\\(([^)]+)\\)\\.artifact\\(([^)]+)\\)\\.(\\w+)");
 
     static Resolution resolve(List<ParameterDecl> decls, Map<String, String> config, Context ctx) {
         Map<String, String> out = new LinkedHashMap<>();
@@ -86,7 +92,21 @@ final class ParameterResolver {
                     int n = Integer.parseInt(m.group(2));
                     return ("day".equals(m.group(1)) ? base.plusDays(n) : base.plusMonths(n)).toString();
                 }
+                Matcher u = UPSTREAM.matcher(expr);
+                if (u.matches()) return upstreamAttr(ctx, u.group(1).trim(), u.group(2).trim(), u.group(3));
                 return null;
         }
+    }
+
+    /** {@code $upstream(<job>).artifact(<name>).<attr>} — an attr of a predecessor's latest artifact (§10). */
+    private static String upstreamAttr(Context ctx, String job, String artifact, String attr) {
+        return ctx.upstream().apply(job, artifact).map(a -> switch (attr) {
+            case "ref"        -> a.ref();
+            case "rows"       -> String.valueOf(a.rows());
+            case "bytes"      -> String.valueOf(a.bytes());
+            case "watermark"  -> a.watermark();
+            case "time_range" -> a.timeRange();
+            default           -> null;
+        }).orElse(null);
     }
 }

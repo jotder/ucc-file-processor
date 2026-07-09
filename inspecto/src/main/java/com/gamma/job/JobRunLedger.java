@@ -136,6 +136,31 @@ final class JobRunLedger implements AutoCloseable {
         return Optional.ofNullable(best);
     }
 
+    /**
+     * The {@code run_id} of a job's most recent {@code SUCCESS}ful run from the audit CSV — the anchor for
+     * {@code GET /jobs/{name}/artifacts/latest} and the {@code $upstream(...)} Parameter Context (§7.3, §10);
+     * empty if it has never succeeded. Durable (survives restart), unlike the bounded in-memory history.
+     */
+    Optional<String> lastSuccessRunId(String name) {
+        if (auditFile == null || !Files.exists(auditFile)) return Optional.empty();
+        String bestRunId = null;
+        LocalDateTime best = null;
+        try {
+            List<String> lines = Files.readAllLines(auditFile);
+            for (int i = 1; i < lines.size(); i++) {                      // row 0 is the header
+                String[] f = lines.get(i).split(",", -1);
+                if (f.length < 7 || !name.equals(f[1]) || !"SUCCESS".equals(f[6])) continue;
+                try {
+                    LocalDateTime end = LocalDateTime.parse(f[5], TS);
+                    if (best == null || end.isAfter(best)) { best = end; bestRunId = f[0]; }
+                } catch (RuntimeException ignore) { /* skip a malformed row */ }
+            }
+        } catch (IOException e) {
+            log.warn("Could not read job audit for latest-success run id ({}): {}", auditFile, e.getMessage());
+        }
+        return Optional.ofNullable(bestRunId);
+    }
+
     /** The DuckDB job-run projection for reporting (T27), or empty when no backend is configured. */
     Optional<DbJobRunStore> runStore() {
         return Optional.ofNullable(jobRunStore);

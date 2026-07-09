@@ -48,6 +48,11 @@ final class JobRoutes implements RouteModule {
         // Structured Run Log for one run (R5, job-framework P0). More path segments than the history
         // route above and ends in /log, so the two never collide under full-match routing.
         api.get("/jobs/([^/]+)/runs/([^/]+)/log", (e, m) -> jobs(api).runLog(ApiContext.param(m, 2)));
+        // Run Artifacts (R7, job-framework P1d, §10/§14): one run's recorded outputs, and the latest
+        // successful run's outputs. Both end in fixed segments (/artifacts[/latest]) so they never
+        // collide with the /runs history or /trigger routes under full-match routing.
+        api.get("/jobs/([^/]+)/runs/([^/]+)/artifacts", (e, m) -> jobs(api).runArtifacts(ApiContext.param(m, 2)));
+        api.get("/jobs/([^/]+)/artifacts/latest", (e, m) -> jobs(api).latestArtifacts(ApiContext.name(m)));
         // Requires canOperateRuns (W6; a no-op on Personal — no Subject is ever attached there).
         api.post("/jobs/([^/]+)/trigger", ApiContext.withCapability("canOperateRuns", (e, m) -> triggerJob(api, e, ApiContext.name(m))));
 
