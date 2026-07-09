@@ -1,8 +1,19 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { ComponentsService } from 'app/inspecto/api';
+import { apiUrl } from 'app/inspecto/api/api-base';
 import { ConditionGroup, emptyGroup } from 'app/inspecto/query';
 import { Dashboard, DashboardTile } from './dashboard-types';
+
+/** `POST /dashboards/{id}/share` — the minted public link (BI-6). `url` is the API resolve path;
+ *  the shareable link the user copies is the app viewer route `/share/{token}`. */
+export interface DashboardShareLink {
+    token: string;
+    url: string;
+    dashboard: string;
+    expiresAt: string;
+}
 
 /**
  * Dashboard store — persists {@link Dashboard}s as the `dashboard` component type (mock-served by the unified mock store).
@@ -11,6 +22,7 @@ import { Dashboard, DashboardTile } from './dashboard-types';
 @Injectable({ providedIn: 'root' })
 export class DashboardsService {
     private components = inject(ComponentsService);
+    private http = inject(HttpClient);
 
     list(): Observable<Dashboard[]> {
         return this.components.list('dashboard').pipe(map((defs) => defs.map((d) => fromContent(d.name, d.content))));
@@ -26,6 +38,14 @@ export class DashboardsService {
 
     remove(id: string): Observable<unknown> {
         return this.components.remove('dashboard', id);
+    }
+
+    /** Mint a public, expiring share link for a saved dashboard (BI-6). 503 when sharing is disabled server-side. */
+    share(id: string, ttlHours?: number): Observable<DashboardShareLink> {
+        return this.http.post<DashboardShareLink>(
+            apiUrl('/dashboards/' + encodeURIComponent(id) + '/share'),
+            ttlHours ? { ttl_hours: ttlHours } : {},
+        );
     }
 }
 

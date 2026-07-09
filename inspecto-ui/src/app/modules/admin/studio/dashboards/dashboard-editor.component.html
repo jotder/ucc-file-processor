@@ -22,6 +22,12 @@
                 <mat-icon class="icon-size-4 mr-1" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
                 <span>Export PNGs</span>
             </button>
+            @if (editing()) {
+                <button type="button" mat-stroked-button (click)="share()">
+                    <mat-icon class="icon-size-4 mr-1" svgIcon="heroicons_outline:share"></mat-icon>
+                    <span>Share</span>
+                </button>
+            }
             <button type="button" mat-button routerLink="/studio/dashboards">Cancel</button>
             <button type="button" mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
                 <span>Save dashboard</span>

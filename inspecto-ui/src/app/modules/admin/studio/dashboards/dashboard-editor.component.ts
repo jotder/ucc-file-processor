@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, Input, OnInit, computed
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { AbstractControl, FormBuilder, FormsModule, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -22,6 +23,7 @@ import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
 import { Dashboard, DashboardTile, buildDashboard } from './dashboard-types';
 import { DashboardsService } from './dashboards.service';
+import { ShareDashboardDialog } from './share-dashboard.dialog';
 import { DashboardTileComponent } from './dashboard-tile.component';
 import { DashboardFilterBarComponent } from './dashboard-filter-bar.component';
 import { DashboardDrillDrawerComponent } from './dashboard-drill-drawer.component';
@@ -73,6 +75,7 @@ export class DashboardEditorComponent implements OnInit {
     private router = inject(Router);
     private elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
     private toastr = inject(ToastrService);
+    private dialog = inject(MatDialog);
 
     /** Route param — the dashboard id to edit; absent on the `new` route. */
     @Input() id?: string;
@@ -80,6 +83,12 @@ export class DashboardEditorComponent implements OnInit {
     /** This saved dashboard as a transfer reference — export is offered only in edit mode. */
     get transferItems(): { kind: 'dashboard'; id: string }[] {
         return this.id ? [{ kind: 'dashboard', id: this.id }] : [];
+    }
+
+    /** Mint + show a public share link for this saved dashboard (BI-6). Edit mode only. */
+    share(): void {
+        if (!this.id) return;
+        this.dialog.open(ShareDashboardDialog, { data: { id: this.id } });
     }
 
     readonly widgets = signal<Widget[]>([]);

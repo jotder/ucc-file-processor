@@ -19,6 +19,7 @@ import { pipelinesHandler } from './handlers/pipelines.handler';
 import { requirementsHandler } from './handlers/requirements.handler';
 import { settingsHandler } from './handlers/settings.handler';
 import { biTemplatesHandler } from './handlers/bi-templates.handler';
+import { dashboardShareHandler } from './handlers/dashboard-share.handler';
 import { publicDashboardsHandler } from './handlers/public-dashboards.handler';
 import { spacesHandler } from './handlers/spaces.handler';
 import { registerIntegrityRules } from './integrity';
@@ -58,6 +59,7 @@ const HANDLERS: MockHandler[] = [
     opsHandler(flags),
     expectationsHandler(flags),
     invHandler(flags),
+    dashboardShareHandler(flags), // mint side of BI-6 share (POST /dashboards/{id}/share)
     publicDashboardsHandler(flags),
     biTemplatesHandler(flags),
     requirementsHandler(flags),
