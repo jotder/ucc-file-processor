@@ -17,8 +17,8 @@
 
 | Item | Status | Source |
 |---|---|---|
-| AGT-5 P0 **hardening pass** (RAG corpus, SSE streaming, nav auto-derivation) | **UNCOMMITTED** working tree on top of `f2f9506`; reactor green (1008 tests). Next: commit (feat, master-only) | `SESSION_STATUS.local.md` |
-| AGT-5 P0 spine `f2f9506` + earlier chain (`c06bf7e`…`23cc08c`, `e67bea0`, `3afe606`) | Committed, **UNPUSHED** — push needs explicit user go-ahead | `SESSION_STATUS.local.md` |
+| AGT-5 P0 **hardening pass** (RAG corpus, SSE streaming, nav auto-derivation) | **COMMITTED & PUSHED** (verified 2026-07-09: working tree clean, `master`==`origin/master` @ `7b6c7db`) | `SESSION_STATUS.local.md` |
+| AGT-5 P0 spine `f2f9506` + earlier chain (`c06bf7e`…`23cc08c`, `e67bea0`, `3afe606`) | **PUSHED** (verified 2026-07-09: `master`==`origin/master` @ `7b6c7db`) | `SESSION_STATUS.local.md` |
 | `ControlApiConnectionsTest.java` | Another session's deliverable — **hands off, do not commit** | `SESSION_STATUS.local.md` |
 | Full `package.ps1` bundle (npm+jlink) not re-run since the `spaces/` migration | Smoke-test the built artifact before any release | `HANDOVER-multi-space.md` |
 
