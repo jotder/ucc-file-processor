@@ -176,7 +176,7 @@ AI-driven autonomy without redesign.
 | MET-2 | Derived **Registry** reuse graph + Catalog + lineage graph (canonical edge/node kinds, `CONSUMES` etc.) | Must | SHIPPED | All |
 | MET-3 | Single ref derivation (`deriveRefs`) feeding reuse graph, bundles, delete-protection | Must | SHIPPED (R1) | All |
 | MET-4 | **Stream** read-model in the Catalog (browsable data origins; IA reorg Phase B) | Should | SHIPPED (2026-07-08: `GET /catalog/streams` — every Source as a data-origin catalog node (connector/connection/pipeline/discovery attrs), shaped to the UI `MetadataNode` contract the mock already served; UI needed no change) | All |
-| MET-5 | Draft/published Component version history (W3b) | Could | PLANNED — **scoped 2026-07-08**: keep-N prior copies on `ComponentStore.write` (sibling `.v<N>.toon` files) + `GET /components/{type}/{id}/versions` + restore; ~1 shift, no store migration | All |
+| MET-5 | Draft/published Component version history (W3b) | Could | SHIPPED (2026-07-09: `ComponentStore.write` archives the prior copy under `<typeDir>/.history/<id>.v<N>.toon` — a sub-dir, not a sibling `.toon`, so the registry scan never mis-reads it as a duplicate — keep-N (`-Dcomponents.history.keep`, default 10); `GET /components/{type}/{id}/versions` + `POST …/versions/{v}/restore` (restore is itself a versioned write); reusable `ComponentHistoryDialog` + a History button on the dashboard editor; mock mirrors the archive/list/restore. Reactor 1139/0/0/3 + UI specs/live-walk green) | All |
 
 ### 3.11 API & integration (API)
 

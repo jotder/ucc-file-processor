@@ -14,6 +14,7 @@ import { apiErrorMessage } from 'app/inspecto/api';
 import { getViz } from 'app/inspecto/viz';
 import { Condition, ColumnMeta, ConditionGroup, QueryConditionGroupComponent, emptyGroup, evaluateRows } from 'app/inspecto/query';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { ComponentHistoryDialog } from 'app/inspecto/components/component-history.dialog';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { DrillEvent } from '../widgets/widget-host.component';
@@ -89,6 +90,17 @@ export class DashboardEditorComponent implements OnInit {
     share(): void {
         if (!this.id) return;
         this.dialog.open(ShareDashboardDialog, { data: { id: this.id } });
+    }
+
+    /** Show version history for this saved dashboard; reload its state after a restore (MET-5). Edit mode only. */
+    history(): void {
+        if (!this.id) return;
+        const id = this.id;
+        this.dialog.open(ComponentHistoryDialog, { data: { type: 'dashboard', id, label: id } })
+            .afterClosed()
+            .subscribe((restored) => {
+                if (restored) this.dashboardsApi.get(id).subscribe({ next: (d) => this.seed(d) });
+            });
     }
 
     readonly widgets = signal<Widget[]>([]);

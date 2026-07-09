@@ -33,6 +33,10 @@ final class ComponentRoutes implements RouteModule {
         api.post("/components/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> createComponent(api, e, ApiContext.name(m), api.body(e))));
         api.put("/components/([^/]+)/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> updateComponent(api, e, ApiContext.name(m), ApiContext.param(m, 2), api.body(e))));
         api.delete("/components/([^/]+)/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> deleteComponent(api, ApiContext.name(m), ApiContext.param(m, 2))));
+        // MET-5 version history: list prior saved copies + restore one (restore is an authoring write).
+        api.get("/components/([^/]+)/([^/]+)/versions", (e, m) -> listVersions(api, ApiContext.name(m), ApiContext.param(m, 2)));
+        api.post("/components/([^/]+)/([^/]+)/versions/([^/]+)/restore", ApiContext.withCapability("canAuthorWorkbench",
+                (e, m) -> restoreVersion(api, e, ApiContext.name(m), ApiContext.param(m, 2), ApiContext.param(m, 3))));
         // T18 dry-run/test: preview a component over a sample through the production logic (scratch-only).
         api.post("/components/transform/([^/]+)/test", (e, m) -> previewTransform(api, ApiContext.name(m), api.body(e)));
         api.post("/components/grammar/([^/]+)/test", (e, m) -> previewGrammar(api, ApiContext.name(m), api.body(e)));
@@ -161,6 +165,55 @@ final class ComponentRoutes implements RouteModule {
             throw new ApiException(400, e.getMessage());
         }
         return Map.of("type", type, "id", id, "deleted", true, "fileRemoved", removed);
+    }
+
+    /** {@code GET /components/{type}/{id}/versions} — prior saved copies, newest first (MET-5); 404 if absent. */
+    private Object listVersions(ApiContext api, String type, String id) {
+        Path root = componentRootOrNull(api);
+        if (root == null) return List.of();
+        ComponentStore store = new ComponentStore(root);
+        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        try {
+            return store.versions(type, id).stream().map(v -> versionDoc(type, id, v)).toList();
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        }
+    }
+
+    /**
+     * {@code POST /components/{type}/{id}/versions/{v}/restore} — write an archived version back as the
+     * current component (MET-5). The restore is itself a versioned write (the outgoing copy is archived).
+     * 400 if {@code v} isn't an integer, 404 if the component or that version is absent.
+     */
+    private Object restoreVersion(ApiContext api, com.sun.net.httpserver.HttpExchange ex, String type, String id, String versionStr) throws IOException {
+        ComponentStore store = componentStore(api);
+        int version;
+        try {
+            version = Integer.parseInt(versionStr);
+        } catch (NumberFormatException e) {
+            throw new ApiException(400, "version must be an integer, got '" + versionStr + "'");
+        }
+        if (!componentExists(store, type, id)) throw new ApiException(404, "no " + type + " component '" + id + "'");
+        Map<String, Object> content;
+        try {
+            content = store.versionContent(type, id, version).orElseThrow(
+                    () -> new ApiException(404, "no version " + version + " of " + type + " component '" + id + "'"));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, e.getMessage());
+        }
+        return writeComponent(store, ex, type, id, content);
+    }
+
+    /** The JSON shape for one archived version: identity + version metadata + the archived content. */
+    private static Map<String, Object> versionDoc(String type, String id, ComponentStore.ComponentVersion v) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("type", type);
+        m.put("id", id);
+        m.put("version", v.version());
+        m.put("savedAt", v.savedAt() == null ? null : v.savedAt().toString());
+        m.put("contentHash", ContentHash.of(v.content()));
+        m.put("content", v.content());
+        return m;
     }
 
     /**

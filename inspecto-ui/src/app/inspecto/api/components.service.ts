@@ -25,6 +25,17 @@ export interface ComponentDef {
     content: Record<string, unknown>;
 }
 
+/** One archived prior copy of a component (MET-5): `GET /components/{type}/{id}/versions`. */
+export interface ComponentVersion {
+    type: string;
+    id: string;
+    version: number;
+    /** ISO-8601 time this copy was last the live version (best-effort from the file's saved time). */
+    savedAt: string | null;
+    contentHash: string;
+    content: Record<string, unknown>;
+}
+
 /** One produced relation in a preview (transform / schema): the rel key, its row count, and a bounded sample. */
 export interface RelationPreview {
     rel: string;
@@ -127,6 +138,17 @@ export class ComponentsService {
     /** Delete a component (write-root gated). 503/404/409 (in use) on failure. */
     remove(type: ComponentType, id: string): Observable<unknown> {
         return this.http.delete(apiUrl(`/components/${type}/${encodeURIComponent(id)}`));
+    }
+
+    /** Prior saved copies of a component, newest first (MET-5). Empty when none / writes disabled. */
+    versions(type: ComponentType, id: string): Observable<ComponentVersion[]> {
+        return this.http.get<ComponentVersion[]>(apiUrl(`/components/${type}/${encodeURIComponent(id)}/versions`));
+    }
+
+    /** Restore an archived version as the current component (write-root gated). Returns the restored component. */
+    restore(type: ComponentType, id: string, version: number): Observable<ComponentDef> {
+        return this.http.post<ComponentDef>(
+            apiUrl(`/components/${type}/${encodeURIComponent(id)}/versions/${version}/restore`), {});
     }
 
     /** Parse raw `sampleText` with a grammar's dialect (scratch-only). */

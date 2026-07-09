@@ -1,4 +1,4 @@
-import type { ComponentDef, ParserPreview, ParserTreeNode } from '../../api/components.service';
+import type { ComponentDef, ComponentVersion, ParserPreview, ParserTreeNode } from '../../api/components.service';
 import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
@@ -16,8 +16,17 @@ const STUDIO_KINDS = new Set(['dataset', 'query', 'widget', 'dashboard', 'requir
 
 /** MockStore collection for a component kind. */
 export const componentCollection = (kind: string): string => `component:${kind}`;
+/** MET-5: MockStore collection holding a kind's archived prior copies (mirrors the backend `.history/`). */
+const historyCollection = (kind: string): string => `component-history:${kind}`;
+/** Keep the newest N archived copies per component (mirrors the backend keep bound). */
+const HISTORY_KEEP = 10;
+
+/** One archived copy as stored in the mock history collection. */
+interface StoredVersion { id: string; version: number; savedAt: string; contentHash: string; content: Record<string, unknown>; }
 
 const COMPONENT_TEST = /\/components\/([^/]+)\/([^/]+)\/test$/;
+const COMPONENT_VERSIONS = /\/components\/([^/]+)\/([^/]+)\/versions$/;
+const COMPONENT_RESTORE = /\/components\/([^/]+)\/([^/]+)\/versions\/([^/]+)\/restore$/;
 const GRAMMAR_PREVIEW = /\/components\/grammar\/preview$/;
 const COMPONENT_ONE = /\/components\/([^/]+)\/([^/]+)$/;
 const COMPONENTS = /\/components\/([^/]+)$/;
@@ -52,6 +61,14 @@ export function componentsHandler(flags: MockFlags): MockHandler {
             }
         }
 
+        // MET-5 version history (before COMPONENT_ONE — these are longer, anchored paths).
+        if (method === 'POST' && (m = match(url, COMPONENT_RESTORE)) && enabledFor(m[1])) {
+            return restoreVersion(store, space, m[1], m[2], m[3]);
+        }
+        if (method === 'GET' && (m = match(url, COMPONENT_VERSIONS)) && enabledFor(m[1])) {
+            return json(listVersions(store, space, m[1], m[2]));
+        }
+
         if ((m = match(url, COMPONENT_ONE)) && enabledFor(m[1])) {
             const [, kind, id] = m;
             const coll = componentCollection(kind);
@@ -81,8 +98,41 @@ function save(store: MockStore, space: string, kind: string, body: unknown, idFr
     const content = { ...((body as Record<string, unknown>) ?? {}) };
     const name = String(idFromUrl ?? content['id'] ?? 'unnamed');
     delete content['id'];
+    // MET-5: archive the outgoing copy before overwriting it (a create over nothing archives nothing).
+    const prior = store.get<ComponentDef>(space, componentCollection(kind), name);
+    if (prior) archiveVersion(store, space, kind, name, prior.content);
     const def: ComponentDef = { type: kind, name, ref: `${kind}/${name}`, content };
     return store.put(space, componentCollection(kind), name, def);
+}
+
+/** Snapshot the prior content into the kind's history collection, then prune to {@link HISTORY_KEEP}. */
+function archiveVersion(store: MockStore, space: string, kind: string, id: string, content: Record<string, unknown>): void {
+    const coll = historyCollection(kind);
+    const mine = store.list<StoredVersion>(space, coll).filter((v) => v.id === id);
+    const next = mine.reduce((mx, v) => Math.max(mx, v.version), 0) + 1;
+    store.put(space, coll, `${id}~v${next}`, {
+        id, version: next, savedAt: new Date().toISOString(), contentHash: `mock-${id}-v${next}`, content,
+    });
+    const kept = [...mine.map((v) => v.version), next].sort((a, b) => b - a);
+    for (const v of kept.slice(HISTORY_KEEP)) store.delete(space, coll, `${id}~v${v}`);
+}
+
+/** Prior copies of a component, newest first (MET-5). */
+function listVersions(store: MockStore, space: string, kind: string, id: string): ComponentVersion[] {
+    return store.list<StoredVersion>(space, historyCollection(kind))
+        .filter((v) => v.id === id)
+        .sort((a, b) => b.version - a.version)
+        .map((v) => ({ type: kind, id, version: v.version, savedAt: v.savedAt, contentHash: v.contentHash, content: v.content }));
+}
+
+/** Restore an archived version as current (which archives the outgoing copy); mirrors the backend. */
+function restoreVersion(store: MockStore, space: string, kind: string, id: string, versionStr: string) {
+    const version = Number(versionStr);
+    if (!Number.isInteger(version)) return error(400, `version must be an integer, got '${versionStr}'`);
+    if (!store.get<ComponentDef>(space, componentCollection(kind), id)) return error(404, `no ${kind} '${id}'`);
+    const v = store.get<StoredVersion>(space, historyCollection(kind), `${id}~v${version}`);
+    if (!v) return error(404, `no version ${version} of ${kind} '${id}'`);
+    return json(save(store, space, kind, { ...v.content, id }, id));
 }
 
 function componentTest(type: string, idRef: string): unknown {

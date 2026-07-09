@@ -23,6 +23,10 @@
                 <span>Export PNGs</span>
             </button>
             @if (editing()) {
+                <button type="button" mat-stroked-button (click)="history()">
+                    <mat-icon class="icon-size-4 mr-1" svgIcon="heroicons_outline:clock"></mat-icon>
+                    <span>History</span>
+                </button>
                 <button type="button" mat-stroked-button (click)="share()">
                     <mat-icon class="icon-size-4 mr-1" svgIcon="heroicons_outline:share"></mat-icon>
                     <span>Share</span>

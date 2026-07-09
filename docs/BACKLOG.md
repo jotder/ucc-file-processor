@@ -53,7 +53,7 @@
 | AGT-5 cuts | QA-only (`incident_explain` waits on eoiagent host seam); local-models-only (no hosted-provider companion) | Open scope cuts | same |
 | AGT-6 | AI behind every screen / agent graphs | PLANNED | `REQUIREMENTS.md` |
 | BI-6 / BI-8 | Embed viewer UI; template gallery/browsing UI | **DONE** — BI-6 fully shipped incl. the in-app **Share dialog** (`e6ea167`, 2026-07-09: `ShareDashboardDialog` mints `POST /dashboards/{id}/share`, shows `/share/{token}` + copy/expiry); BI-8 gallery shipped 2026-07-08 | `REQUIREMENTS.md` |
-| MET-5 | Component draft/published version history | PLANNED, ~1 shift | `REQUIREMENTS.md` |
+| MET-5 | ~~Component draft/published version history~~ | **DONE** (2026-07-09) — `ComponentStore` archives prior copies under `<typeDir>/.history/`, keep-N; `GET …/versions` + `POST …/versions/{v}/restore`; reusable `ComponentHistoryDialog` + History button (dashboard editor); mock mirrors it. Reactor 1139/0/0/3. Follow-on: wire the History button into the other component editors (mechanical) | `REQUIREMENTS.md` |
 | SPC-5 | Per-tenant ABAC (rides SEC-7 grants model) | PLANNED (E) | `REQUIREMENTS.md` |
 | E1 | Enterprise distributed tier / Stage-2 streaming | Demand-gated | `REQUIREMENTS.md` |
 | Link-analysis V1 | Multi-entity mapping, multi-root, incremental expand, all-paths, layout save, widget/dashboard placement, SVG/GraphML export, undo/redo; design §7 `attrCols` + schema-relationship model | Open | `superpower/link-analysis-studio-plan.md` §6–7 |

@@ -8,6 +8,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +19,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * The write side of the component registry (doc §7.1 / §14 T19): create / replace / delete the reusable
@@ -47,6 +52,20 @@ public final class ComponentStore {
 
     private static final String TOON = ".toon";
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
+
+    /**
+     * MET-5 version history: prior copies of an overwritten component live under a {@code .history/}
+     * sub-directory of the type dir (e.g. {@code grammars/.history/pipe.v3.toon}). It is a
+     * <b>sub-directory, not a sibling</b> {@code .toon}, on purpose — {@link ComponentRegistry#scan}
+     * reads a component's in-file {@code name}, so a versioned copy sitting beside the live file would
+     * register as a duplicate and shadow it. {@code scan} only lists the known type dirs' regular files,
+     * so {@code .history/} is invisible to it. Keep the newest {@value #HISTORY_KEEP_DEFAULT}
+     * (override with {@code -Dcomponents.history.keep}).
+     */
+    private static final String HISTORY_DIR = ".history";
+    private static final int HISTORY_KEEP_DEFAULT = 10;
+    private static final int HISTORY_KEEP =
+            Math.max(1, Integer.getInteger("components.history.keep", HISTORY_KEEP_DEFAULT));
 
     private final Path registryRoot;
 
@@ -87,6 +106,7 @@ public final class ComponentStore {
         Path file = fileFor(type, name);
         Map<String, Object> doc = new LinkedHashMap<>(content);
         doc.put("name", name);   // canonicalise: in-file identity == URL id == filename stem
+        archivePrevious(type, name, file);   // MET-5: snapshot the outgoing copy before we overwrite it
         byte[] bytes = ConfigCodec.toToon(doc).getBytes(StandardCharsets.UTF_8);
         AtomicFiles.write(file, bytes, ".comp-");
         return new ComponentRegistry.Component(type, name, file, doc);
@@ -95,7 +115,106 @@ public final class ComponentStore {
     /** Delete a component's backing file (resolved by in-file identity). Returns whether a file was removed. */
     public boolean delete(String type, String id) throws IOException {
         Optional<ComponentRegistry.Component> c = get(type, id);
-        return c.isPresent() && Files.deleteIfExists(c.get().path());
+        if (c.isEmpty()) return false;
+        boolean removed = Files.deleteIfExists(c.get().path());
+        purgeHistory(type, validId(id));   // MET-5: delete means gone, history included (restore is for edits)
+        return removed;
+    }
+
+    // ── MET-5 version history ───────────────────────────────────────────────────
+
+    /** One archived prior copy of a component: its version number, when it was saved, and its content. */
+    public record ComponentVersion(int version, Instant savedAt, Map<String, Object> content) {}
+
+    /** Prior versions of {@code type}/{@code id}, newest first (empty when none / no history dir). */
+    public List<ComponentVersion> versions(String type, String id) {
+        validateType(type);
+        String name = validId(id);
+        Path dir = historyDir(type);
+        List<ComponentVersion> out = new ArrayList<>();
+        for (Path p : historyFiles(dir, name)) {
+            int v = versionOf(p, name);
+            if (v < 0) continue;
+            try {
+                Map<String, Object> content = ConfigCodec.toMap(Files.readString(p, StandardCharsets.UTF_8));
+                out.add(new ComponentVersion(v, Files.getLastModifiedTime(p).toInstant(), content));
+            } catch (IOException | RuntimeException ignored) {
+                // a corrupt/half archived copy is skipped, never blocking the rest of the history
+            }
+        }
+        out.sort(Comparator.comparingInt(ComponentVersion::version).reversed());
+        return out;
+    }
+
+    /** The content of one archived version of {@code type}/{@code id}, if that version exists. */
+    public Optional<Map<String, Object>> versionContent(String type, String id, int version) {
+        return versions(type, id).stream().filter(v -> v.version() == version).findFirst()
+                .map(ComponentVersion::content);
+    }
+
+    /**
+     * Copy the current file (if any) into {@code .history/<id>.v<next>.toon}, preserving its saved time,
+     * then prune to the newest {@link #HISTORY_KEEP}. A missing current file (a create) is a no-op.
+     */
+    private void archivePrevious(String type, String id, Path current) throws IOException {
+        if (!Files.exists(current)) return;
+        Path dir = historyDir(type);
+        int next = maxVersion(dir, id) + 1;
+        Path archived = dir.resolve(id + ".v" + next + TOON);
+        FileTime saved = Files.getLastModifiedTime(current);
+        AtomicFiles.write(archived, Files.readAllBytes(current), ".hist-");
+        try {
+            Files.setLastModifiedTime(archived, saved);   // savedAt = when this copy was the live one
+        } catch (IOException ignored) {
+            // best-effort; falls back to the archive time if the fs rejects the stamp
+        }
+        prune(dir, id);
+    }
+
+    private void prune(Path dir, String id) throws IOException {
+        List<Path> files = historyFiles(dir, id);
+        files.sort(Comparator.comparingInt((Path p) -> versionOf(p, id)).reversed());
+        for (int i = HISTORY_KEEP; i < files.size(); i++) Files.deleteIfExists(files.get(i));
+    }
+
+    private void purgeHistory(String type, String id) throws IOException {
+        for (Path p : historyFiles(historyDir(type), id)) Files.deleteIfExists(p);
+    }
+
+    private Path historyDir(String type) {
+        String dir = ComponentRegistry.dirForType(type)
+                .orElseThrow(() -> new IllegalArgumentException("no registry dir for type '" + type + "'"));
+        return registryRoot.resolve(dir).resolve(HISTORY_DIR);
+    }
+
+    /** The {@code <id>.v<N>.toon} archive files for {@code id} in {@code dir} (empty if the dir is absent). */
+    private static List<Path> historyFiles(Path dir, String id) {
+        if (!Files.isDirectory(dir)) return List.of();
+        try (Stream<Path> s = Files.list(dir)) {
+            return s.filter(Files::isRegularFile)
+                    .filter(p -> versionOf(p, id) >= 0)
+                    .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        } catch (IOException e) {
+            return List.of();
+        }
+    }
+
+    private static int maxVersion(Path dir, String id) {
+        return historyFiles(dir, id).stream().mapToInt(p -> versionOf(p, id)).max().orElse(0);
+    }
+
+    /** Parse N from a {@code <id>.v<N>.toon} filename, or {@code -1} if it isn't one (digits only). */
+    private static int versionOf(Path p, String id) {
+        String f = p.getFileName().toString();
+        String prefix = id + ".v";
+        if (!f.startsWith(prefix) || !f.endsWith(TOON)) return -1;
+        String mid = f.substring(prefix.length(), f.length() - TOON.length());
+        if (mid.isEmpty() || !mid.chars().allMatch(Character::isDigit)) return -1;
+        try {
+            return Integer.parseInt(mid);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
     }
 
     // ── internals ─────────────────────────────────────────────────────────────────

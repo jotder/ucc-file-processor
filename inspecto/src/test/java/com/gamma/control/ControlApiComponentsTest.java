@@ -183,6 +183,73 @@ class ControlApiComponentsTest {
         }
     }
 
+    @Test
+    void versionHistoryListsPriorCopiesAndRestores(@TempDir Path dir) throws Exception {
+        Path wr = dir.resolve("wr");
+        try (Ctx c = open(dir, wr)) {
+            // create → no history yet (nothing was overwritten)
+            assertEquals(200, send(c.port, "POST", "/components/grammar", "{\"id\":\"pipe\",\"delimiter\":\"|\"}").statusCode());
+            assertEquals(0, json(send(c.port, "GET", "/components/grammar/pipe/versions", null)).size(), "no history on create");
+
+            // two edits → two archived pre-edit copies
+            assertEquals(200, send(c.port, "PUT", "/components/grammar/pipe", "{\"delimiter\":\",\"}").statusCode());
+            assertEquals(200, send(c.port, "PUT", "/components/grammar/pipe", "{\"delimiter\":\";\"}").statusCode());
+
+            JsonNode versions = json(send(c.port, "GET", "/components/grammar/pipe/versions", null));
+            assertEquals(2, versions.size(), versions.toString());
+            assertEquals(2, versions.get(0).get("version").asInt(), "newest first");
+            assertEquals(",", versions.get(0).get("content").get("delimiter").asText());   // v2 archived the ',' edit
+            assertEquals(1, versions.get(1).get("version").asInt());
+            assertEquals("|", versions.get(1).get("content").get("delimiter").asText());    // v1 archived the original
+            assertNotNull(versions.get(0).get("contentHash").asText());
+
+            // current is the latest edit
+            assertEquals(";", json(send(c.port, "GET", "/components/grammar/pipe", null)).get("content").get("delimiter").asText());
+
+            // restore v1 (the original '|') → current reverts, and the outgoing ';' is archived as a new version
+            HttpResponse<String> restored = send(c.port, "POST", "/components/grammar/pipe/versions/1/restore", "");
+            assertEquals(200, restored.statusCode(), restored.body());
+            assertEquals("|", json(restored).get("content").get("delimiter").asText());
+            assertEquals("|", json(send(c.port, "GET", "/components/grammar/pipe", null)).get("content").get("delimiter").asText());
+            assertEquals(3, json(send(c.port, "GET", "/components/grammar/pipe/versions", null)).size(),
+                    "restore archives the outgoing copy");
+
+            // a missing version → 404; a non-integer version → 400
+            assertEquals(404, send(c.port, "POST", "/components/grammar/pipe/versions/99/restore", "").statusCode());
+            assertEquals(400, send(c.port, "POST", "/components/grammar/pipe/versions/abc/restore", "").statusCode());
+            // versions of a missing component → 404
+            assertEquals(404, send(c.port, "GET", "/components/grammar/ghost/versions", null).statusCode());
+        }
+    }
+
+    @Test
+    void versionHistoryIsPrunedToTheKeepBound(@TempDir Path dir) throws Exception {
+        Path wr = dir.resolve("wr");
+        try (Ctx c = open(dir, wr)) {   // default keep = 10
+            assertEquals(200, send(c.port, "POST", "/components/grammar", "{\"id\":\"pipe\",\"delimiter\":\"x0\"}").statusCode());
+            for (int i = 1; i <= 13; i++)
+                assertEquals(200, send(c.port, "PUT", "/components/grammar/pipe", "{\"delimiter\":\"x" + i + "\"}").statusCode());
+            JsonNode versions = json(send(c.port, "GET", "/components/grammar/pipe/versions", null));
+            assertEquals(10, versions.size(), "pruned to the keep bound");
+            assertEquals(13, versions.get(0).get("version").asInt(), "newest kept");
+            assertEquals(4, versions.get(9).get("version").asInt(), "oldest kept = 13 - 10 + 1");
+        }
+    }
+
+    @Test
+    void versionHistoryIsInvisibleToTheRegistryScan(@TempDir Path dir) throws Exception {
+        Path wr = dir.resolve("wr");
+        try (Ctx c = open(dir, wr)) {
+            assertEquals(200, send(c.port, "POST", "/components/grammar", "{\"id\":\"pipe\",\"delimiter\":\"|\"}").statusCode());
+            assertEquals(200, send(c.port, "PUT", "/components/grammar/pipe", "{\"delimiter\":\",\"}").statusCode());
+            // the archived copy sits in registry/grammars/.history/, never scanned as a component
+            assertTrue(Files.exists(wr.resolve("registry/grammars/.history/pipe.v1.toon")), "archived under .history/");
+            JsonNode list = json(send(c.port, "GET", "/components/grammar", null));
+            assertEquals(1, list.size(), "history copies do not appear as components");
+            assertEquals("pipe", list.get(0).get("name").asText());
+        }
+    }
+
     private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (body != null) b.header("Content-Type", "application/json").method(method, BodyPublishers.ofString(body));
