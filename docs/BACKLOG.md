@@ -1,6 +1,6 @@
 # Consolidated Backlog — every pending item, one page
 
-**Updated:** 2026-07-08 · **Owner:** whole team (update at every handoff that closes/opens an item)
+**Updated:** 2026-07-09 · **Owner:** whole team (update at every handoff that closes/opens an item)
 
 > **What this is.** The single index of ALL pending/deferred/open work, consolidated from
 > `REQUIREMENTS.md` §5 (the product MoSCoW of record), every `docs/superpower/*` plan,
@@ -72,6 +72,8 @@
 | Component model | Verify P2 adapters / P3 registry view (menu placement + gating deferred to security module) / P4 formatter consolidation completion | Verify | `superpower/component-model-adoption-plan.md` |
 | Transportability | `requires` present-but-different classification; bespoke editor draft-load; connection/pipeline/job/view bundle kinds (deferred to own stores) | Deferred cuts | `superpower/transportability-plan.md` |
 | Multi-space leftover | `SpaceManager.delete` doesn't tear down per-space ConnectionRegistry/StabilityGate entries (`forget(spaceId)`) | Minor, fix if it bites | `HANDOVER-multi-space.md` |
+| Exchange UI | **Bind-a-shared-dataset flow**: consumer creates a local dataset whose `physicalRef` = a granted `shared/<owner>/<item>` ref. Needed to exercise the scope badge + widget "Access revoked" empty-state end-to-end against a live backend (both shipped but only unit-verified). | Not started (§3.6 UI track shipped) | `superpower/storage-layout-and-sharing-plan.md` §3.6 · `SESSION_STATUS.local.md` |
+| Exchange UI | **Sharing-grid row-action ergonomics**: the grant/offer grids carry many columns, so the action column (approve/refresh/pin/expiry) sits behind a horizontal scroll on a narrow pane. Consider pinning the actions column or condensing columns. | Minor polish | `SESSION_STATUS.local.md` |
 
 ## 5. Engineering / tech-debt backlog
 
