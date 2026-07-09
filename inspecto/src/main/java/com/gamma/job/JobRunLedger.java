@@ -110,6 +110,32 @@ final class JobRunLedger implements AutoCloseable {
         return out;
     }
 
+    /**
+     * End time of a job's most recent {@code SUCCESS}ful run from the audit CSV — the
+     * {@code $job.last_success_time} record-time watermark (§7.3, the P3a parameter resolver); empty if
+     * the job has never succeeded. Reads the durable file directly (the {@link CsvLedger} is write-only).
+     * {@code start_time}/{@code end_time}/{@code status} are comma-free, so the naive split is safe for
+     * fields 0–6 (the quoted {@code message} at field 8 is never read here).
+     */
+    Optional<LocalDateTime> lastSuccessEnd(String name) {
+        if (auditFile == null || !Files.exists(auditFile)) return Optional.empty();
+        LocalDateTime best = null;
+        try {
+            List<String> lines = Files.readAllLines(auditFile);
+            for (int i = 1; i < lines.size(); i++) {                      // row 0 is the header
+                String[] f = lines.get(i).split(",", -1);
+                if (f.length < 7 || !name.equals(f[1]) || !"SUCCESS".equals(f[6])) continue;
+                try {
+                    LocalDateTime end = LocalDateTime.parse(f[5], TS);
+                    if (best == null || end.isAfter(best)) best = end;
+                } catch (RuntimeException ignore) { /* skip a malformed row */ }
+            }
+        } catch (IOException e) {
+            log.warn("Could not read job audit for last-success ({}): {}", auditFile, e.getMessage());
+        }
+        return Optional.ofNullable(best);
+    }
+
     /** The DuckDB job-run projection for reporting (T27), or empty when no backend is configured. */
     Optional<DbJobRunStore> runStore() {
         return Optional.ofNullable(jobRunStore);

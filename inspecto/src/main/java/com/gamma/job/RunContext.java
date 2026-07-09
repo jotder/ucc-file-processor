@@ -27,6 +27,7 @@ final class RunContext implements JobContext {
     private final Map<String, String> config;
     private final RunLog log;
     private final SignalEmitter signals;
+    private volatile Map<String, String> params = Map.of();   // resolved by the framework before run (P3a)
 
     RunContext(String runId, String spaceId, String jobName, String trigger, String correlationId,
                int chainDepth, Map<String, String> config, RunLogStore store, int maxEntries) {
@@ -42,8 +43,12 @@ final class RunContext implements JobContext {
     @Override public String spaceId()             { return spaceId; }
     @Override public TriggerInfo trigger()        { return trigger; }
     @Override public Map<String, String> config() { return config; }
+    @Override public Map<String, String> params() { return params; }
     @Override public RunLog log()                 { return log; }
     @Override public SignalEmitter signals()      { return signals; }
+
+    /** The framework installs the resolved Parameter Context (§7.2) just before {@code Job.run(ctx)}. */
+    void params(Map<String, String> resolved) { this.params = Map.copyOf(resolved); }
 
     /** A {@link SignalEmitter} that stamps the envelope (id/time/source/correlation + the run's
      *  {@code chainDepth} into the payload, for loop protection) and routes to the space's ledger via MDC. */

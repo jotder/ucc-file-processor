@@ -468,7 +468,26 @@ public final class JobService implements AutoCloseable {
             Map<String, String> params = configFor(name).map(JobConfig::params).orElse(Map.of());
             RunContext ctx = new RunContext(runId, spaceId, name, trigger, correlationId, chainDepth,
                     params, runLogStore, runLogMax);
-            ctx.log().info("run started", "trigger", trigger, "params", params);   // param snapshot (R5/R2 scaffold)
+            // P3a: resolve the Job Type's declared parameters (config → deduce → default). A missing
+            // required parameter fails the Run REJECTED before any user code runs (§7.2, fail-closed).
+            List<ParameterDecl> decls = registry.descriptor(job.type())
+                    .map(JobTypeDescriptor::parameters).orElse(List.of());
+            ParameterResolver.Resolution pr = ParameterResolver.resolve(decls, params,
+                    new ParameterResolver.Context(runId, Instant.now(), trigger, zone,
+                            () -> ledger.lastSuccessEnd(name)));
+            if (!pr.missingRequired().isEmpty()) {
+                String miss = String.join(", ", pr.missingRequired());
+                ctx.log().error("run rejected: missing required parameter(s): " + miss, null);
+                ctx.signals().emit("job.run.rejected", Severity.WARNING,
+                        Map.of("job", name, "run", runId, "missing", pr.missingRequired()));
+                if (flowId != null) runningFlows.remove(flowId);
+                record(new JobRun(runId, name, job.type(), trigger, start,
+                        LocalDateTime.now().format(TS), "REJECTED", 0L,
+                        "missing required parameter(s): " + miss));
+                return;
+            }
+            ctx.params(pr.resolved());
+            ctx.log().info("run started", "trigger", trigger, "params", pr.resolved());   // resolved Parameter Context (R2/R5)
             ctx.signals().emit("job.run.started", Severity.INFO,
                     Map.of("job", name, "run", runId, "trigger", trigger));
             JobResult res;

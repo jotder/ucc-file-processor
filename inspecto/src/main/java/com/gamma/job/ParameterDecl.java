@@ -6,9 +6,9 @@ package com.gamma.job;
  * tried when nothing explicit is bound, a literal {@code defaultValue} fallback, and a description.
  * Surfaced verbatim by {@code GET /jobs/types/{id}} so a UI can render an authoring form.
  *
- * <p>The resolver that consumes {@code deduce}/{@code defaultValue} at run time is P1b — deferred to
- * its first consuming Job Type (a pack or {@code sql.template}); today these declarations are catalog
- * metadata only.
+ * <p>Consumed at run time by {@link ParameterResolver} (P3a): {@code deduce} is a {@code $}-expression
+ * tried when nothing explicit is bound, {@code defaultValue} the literal fallback after it. A missing
+ * {@code required} parameter fails the Run REJECTED before user code runs (§7.2).
  */
 public record ParameterDecl(String name, ParamType type, boolean required,
                             String deduce, String defaultValue, String description) {

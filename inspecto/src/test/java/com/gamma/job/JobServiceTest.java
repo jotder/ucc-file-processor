@@ -110,6 +110,23 @@ class JobServiceTest {
     }
 
     @Test
+    void missingRequiredParameterRejectsBeforeRunning(@TempDir Path dir) throws Exception {
+        // P3a (§7.2): the 'enrich' Job Type declares a required 'config' parameter. Authoring an enrich
+        // job without it fails the run REJECTED before EnrichJob executes (fail-closed), rather than
+        // throwing inside the job — the resolver gates the run path for every Job Type.
+        JobConfig noConfig = new JobConfig("needs_config", JobType.ENRICH, null, null, true, false, Map.of());
+        try (Scheduler s = new Scheduler();
+             JobService js = new JobService(List.of(noConfig), new BatchEventBus(), s, null,
+                     dir.resolve("audit").toString())) {
+            js.start();
+            assertTrue(js.trigger("needs_config"));
+            JobRun run = await(() -> js.lastRunOf("needs_config").orElse(null));
+            assertEquals("REJECTED", run.status());
+            assertTrue(run.message().contains("config"), "names the missing parameter: " + run.message());
+        }
+    }
+
+    @Test
     void cleanupDeletesFilesOlderThanRetention(@TempDir Path dir) throws Exception {
         Path target = dir.resolve("target");
         Files.createDirectories(target);
