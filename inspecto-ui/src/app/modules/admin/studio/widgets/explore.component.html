@@ -8,6 +8,12 @@
         <h1 class="text-3xl font-extrabold leading-tight tracking-tight">{{ editing() ? 'Edit widget' : 'Widget Builder' }}</h1>
         <div class="flex items-center gap-2">
             <inspecto-transfer-menu [items]="transferItems" [allowedKinds]="['widget']" label="Import / export widget" />
+            @if (editing()) {
+                <button mat-stroked-button (click)="history()">
+                    <mat-icon class="icon-size-4 mr-1" svgIcon="heroicons_outline:clock"></mat-icon>
+                    <span>History</span>
+                </button>
+            }
             <button mat-icon-button (click)="openOptions()" [disabled]="viewBound() || !dataset() || !plugin()" matTooltip="Advanced options" aria-label="Advanced options">
                 <mat-icon svgIcon="heroicons_outline:cog"></mat-icon>
             </button>

@@ -185,6 +185,9 @@
                                 <button mat-icon-button (click)="editQuery(q)" matTooltip="Edit" aria-label="Edit query">
                                     <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
                                 </button>
+                                <button mat-icon-button (click)="history(q)" matTooltip="Version history" aria-label="Version history">
+                                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:clock"></mat-icon>
+                                </button>
                                 @if (!writesDisabled()) {
                                     <button mat-icon-button (click)="remove(q)" matTooltip="Delete" aria-label="Delete query">
                                         <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>

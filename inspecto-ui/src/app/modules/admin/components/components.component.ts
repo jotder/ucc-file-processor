@@ -9,6 +9,7 @@ import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ComponentDef, ComponentsService, ComponentType, COMPONENT_TYPES } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { ComponentHistoryDialog } from 'app/inspecto/components/component-history.dialog';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { ComponentFormDialog, ComponentFormResult } from './component-form.dialog';
 
@@ -85,6 +86,16 @@ export class ComponentsComponent implements OnInit {
             .subscribe((r?: ComponentFormResult) => {
                 if (r?.writesDisabled) this.writesDisabled = true;
                 if (r?.saved) this.load();
+            });
+    }
+
+    /** Show version history for a registry component; reload the lists after a restore (MET-5). */
+    history(type: ComponentType, def: ComponentDef): void {
+        this.dialog
+            .open(ComponentHistoryDialog, { data: { type, id: def.name, label: def.name } })
+            .afterClosed()
+            .subscribe((restored) => {
+                if (restored) this.load();
             });
     }
 

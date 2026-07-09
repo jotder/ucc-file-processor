@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, injec
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -15,6 +16,7 @@ import { ResultSet, describeResultSet, recommend } from 'app/inspecto/viz';
 import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
 import { runSql } from 'app/inspecto/data-table/sql/sql-run';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { ComponentHistoryDialog } from 'app/inspecto/components/component-history.dialog';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
@@ -79,6 +81,7 @@ export class QueriesComponent implements OnInit {
     private toastr = inject(ToastrService);
     private lens = inject(LensService);
     private destroyRef = inject(DestroyRef);
+    private dialog = inject(MatDialog);
 
     /** Authoring gate — Business lens views read-only (capability seam, not lens identity). */
     readonly canAuthor = this.lens.canAuthorWorkbench;
@@ -161,6 +164,18 @@ export class QueriesComponent implements OnInit {
     cancel(): void {
         this.editing.set(false);
         this.preview.set(null);
+    }
+
+    /** Show version history for a saved query; reload the list after a restore (MET-5). If that query is
+     *  open in the edit form, close it — a stale form left open would silently overwrite the restore on save. */
+    history(q: Query): void {
+        this.dialog.open(ComponentHistoryDialog, { data: { type: 'query', id: q.id, label: q.name } })
+            .afterClosed()
+            .subscribe((restored) => {
+                if (!restored) return;
+                if (this.editingExisting() && this.form.getRawValue().name === q.name) this.cancel();
+                this.load();
+            });
     }
 
     setParamDefault(name: string, value: string): void {

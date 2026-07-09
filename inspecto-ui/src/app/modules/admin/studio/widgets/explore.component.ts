@@ -23,6 +23,7 @@ import {
 } from 'app/inspecto/viz';
 import { VizRenderComponent } from 'app/inspecto/viz/viz-render.component';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { ComponentHistoryDialog } from 'app/inspecto/components/component-history.dialog';
 import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
@@ -181,6 +182,17 @@ export class ExploreComponent implements OnInit {
     onControls(values: ControlValues): void {
         this.controls.set(values);
         this.run();
+    }
+
+    /** Show version history for this saved widget; reload its state after a restore (MET-5). Edit mode only. */
+    history(): void {
+        if (!this.id) return;
+        const id = this.id;
+        this.dialog.open(ComponentHistoryDialog, { data: { type: 'widget', id, label: id } })
+            .afterClosed()
+            .subscribe((restored) => {
+                if (restored) this.widgetsApi.get(id).subscribe({ next: (w) => this.seedFromWidget(w) });
+            });
     }
 
     /** Open the advanced (cog) options dialog; applies the edited options on close, no-ops on cancel. */

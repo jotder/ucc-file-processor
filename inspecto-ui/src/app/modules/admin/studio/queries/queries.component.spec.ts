@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
@@ -18,21 +19,24 @@ const DS: Dataset = {
 };
 const Q: Query = { id: 'recent', name: 'recent', type: 'sql', datasetId: 'cdr_sample', sourceName: 'cdr', text: 'SELECT * FROM cdr', parameters: [] };
 
-function create(queries: Query[] = [Q]) {
+function create(queries: Query[] = [Q], dialogResult: unknown = true) {
     const save = vi.fn((q: Query) => of(q));
     const remove = vi.fn(() => of(null));
+    const list = vi.fn(() => of(queries));
+    const dialogOpen = vi.fn(() => ({ afterClosed: () => of(dialogResult) }));
     TestBed.configureTestingModule({
         imports: [QueriesComponent],
         providers: [
             provideNoopAnimations(),
             provideRouter([]),
-            { provide: QueriesService, useValue: { list: () => of(queries), get: () => of(Q), save, remove } },
+            { provide: QueriesService, useValue: { list, get: () => of(Q), save, remove } },
             { provide: DatasetsService, useValue: { list: () => of([DS]) } },
+            { provide: MatDialog, useValue: { open: dialogOpen } },
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
             { provide: InspectoConfirmService, useValue: { confirmDestructive: () => Promise.resolve(true) } },
         ],
     });
-    return { fixture: TestBed.createComponent(QueriesComponent), save, remove };
+    return { fixture: TestBed.createComponent(QueriesComponent), save, remove, list, dialogOpen };
 }
 
 describe('QueriesComponent (R3)', () => {
@@ -90,6 +94,28 @@ describe('QueriesComponent (R3)', () => {
         fixture.detectChanges();
         await fixture.componentInstance.remove(Q);
         expect(remove).toHaveBeenCalledWith('recent');
+    });
+
+    it('a history restore reloads the list and closes a stale open editor for that query (MET-5)', () => {
+        const { fixture, list, dialogOpen } = create();
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.editQuery(Q);                       // the restored query is open in the edit form
+        c.history(Q);                         // dialog closes with `true` (restored)
+        expect(dialogOpen).toHaveBeenCalled();
+        expect(c.editing()).toBe(false);      // stale form closed — saving it would overwrite the restore
+        expect(list).toHaveBeenCalledTimes(2); // init + post-restore reload
+    });
+
+    it('a dismissed history dialog changes nothing', () => {
+        // `null`, not `undefined` — an explicit undefined would trigger create()'s `= true` default.
+        const { fixture, list } = create([Q], null);   // dialog dismissed (no restore)
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.editQuery(Q);
+        c.history(Q);
+        expect(c.editing()).toBe(true);        // editor untouched
+        expect(list).toHaveBeenCalledTimes(1); // no reload
     });
 
     it('renders the library with no a11y violations', async () => {

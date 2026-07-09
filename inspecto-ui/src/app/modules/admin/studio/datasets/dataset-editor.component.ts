@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, Input, OnInit, computed
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -11,6 +12,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
+import { ComponentHistoryDialog } from 'app/inspecto/components/component-history.dialog';
 import { TransferMenuComponent } from 'app/inspecto/transfer';
 import { ColumnMeta, QueryChange, QueryModel, QueryPanelComponent, QuerySource, inferColumns } from 'app/inspecto/query';
 import { DatasetCalculatedComponent } from './dataset-calculated.component';
@@ -62,6 +64,7 @@ export class DatasetEditorComponent implements OnInit {
     private toastr = inject(ToastrService);
     private router = inject(Router);
     private destroyRef = inject(DestroyRef);
+    private matDialog = inject(MatDialog);
 
     /** Route param — the dataset id to edit; absent on the `new` route (create mode). */
     @Input() id?: string;
@@ -135,6 +138,17 @@ export class DatasetEditorComponent implements OnInit {
             next: (d) => this.seed(d),
             error: (e) => this.toastr.error(apiErrorMessage(e, `Could not load dataset "${id}"`)),
         });
+    }
+
+    /** Show version history for this saved dataset; reload its state after a restore (MET-5). Edit mode only. */
+    history(): void {
+        if (!this.id) return;
+        const id = this.id;
+        this.matDialog.open(ComponentHistoryDialog, { data: { type: 'dataset', id, label: id } })
+            .afterClosed()
+            .subscribe((restored) => {
+                if (restored) this.loadExisting(id);
+            });
     }
 
     private seed(d: Dataset): void {
