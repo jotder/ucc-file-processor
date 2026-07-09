@@ -179,13 +179,38 @@ public final class JobService implements AutoCloseable {
         }
     }
 
-    /** Register the four built-in Job Types as providers (job-framework P0). Ids are the lowercased
-     *  {@link JobType} names, so existing {@code *_job.toon} {@code type:} strings resolve unchanged. */
+    /** Register the four built-in Job Types as providers with catalog descriptors (job-framework P0/P2a).
+     *  Ids are the lowercased {@link JobType} names, so existing {@code *_job.toon} {@code type:} strings
+     *  resolve unchanged. Declared parameters are the real config keys each built-in reads — surfaced by
+     *  {@code GET /jobs/types/{id}} (R3). */
     private void registerBuiltins() {
-        registry.register(JobTypeProvider.of("enrich",      c -> new EnrichJob(c, bus)));
-        registry.register(JobTypeProvider.of("report",      c -> new ReportJob(c, reports, dataDir)));
-        registry.register(JobTypeProvider.of("maintenance", c -> new MaintenanceJob(c, dataDir)));
-        registry.register(JobTypeProvider.of("pipeline",    this::buildFlowJob));
+        registry.register(JobTypeProvider.of(new JobTypeDescriptor("enrich", "Enrichment",
+                "Runs a Stage-2 enrichment once (full recompute) and publishes a chain commit.",
+                List.of(ParameterDecl.required("config", ParamType.STRING, "Path to the enrichment .toon")),
+                List.of("pipeline.commit"), List.of()),
+                c -> new EnrichJob(c, bus)));
+        registry.register(JobTypeProvider.of(new JobTypeDescriptor("report", "Report",
+                "Computes a report (status / batch / dataset export) and optionally delivers it.",
+                List.of(ParameterDecl.optional("scope", ParamType.STRING, "status", "status | batch | dataset"),
+                        ParameterDecl.optional("out_dir", ParamType.STRING, null, "Delivery directory (enables artifact + REPORT_READY)"),
+                        ParameterDecl.optional("format", ParamType.STRING, null, "json | csv"),
+                        ParameterDecl.optional("dataset", ParamType.DATASET_REF, null, "Dataset id (scope=dataset)")),
+                List.of(), List.of(ArtifactDecl.report("report"))),
+                c -> new ReportJob(c, reports, dataDir)));
+        registry.register(JobTypeProvider.of(new JobTypeDescriptor("maintenance", "Maintenance",
+                "Built-in housekeeping task (cleanup / ledger_prune / db_maintenance / compact / materialize).",
+                List.of(ParameterDecl.optional("task", ParamType.STRING, "cleanup", "Which maintenance task"),
+                        ParameterDecl.optional("dir", ParamType.STRING, null, "Target directory (cleanup / compact)"),
+                        ParameterDecl.optional("retention_days", ParamType.INTEGER, "7", "Age threshold in days"),
+                        ParameterDecl.optional("store", ParamType.STRING, null, "Store(s) a delete task targets (fenced)")),
+                List.of(), List.of()),
+                c -> new MaintenanceJob(c, dataDir)));
+        registry.register(JobTypeProvider.of(new JobTypeDescriptor("pipeline", "Pipeline",
+                "Runs an authored Pipeline over data at rest; emits a commit downstream jobs can chain on.",
+                List.of(ParameterDecl.required("flow", ParamType.STRING, "Authored Pipeline id to run"),
+                        ParameterDecl.optional("incremental_column", ParamType.STRING, null, "Watermark column for incremental runs")),
+                List.of("pipeline.commit"), List.of()),
+                this::buildFlowJob));
     }
 
     /** Wire the event/signal subscribers and arm cron schedules. */
@@ -561,6 +586,16 @@ public final class JobService implements AutoCloseable {
     /** The structured Run Log entries for one run (R5), in write order; empty if unknown or never logged. */
     public List<RunLogEntry> runLog(String runId) {
         return runLogStore.read(runId);
+    }
+
+    /** Every registered Job Type's descriptor (R3, {@code GET /jobs/types}) — built-ins now, modules/packs later. */
+    public List<JobTypeDescriptor> jobTypes() {
+        return registry.descriptors();
+    }
+
+    /** One Job Type's descriptor by id (R3, {@code GET /jobs/types/{id}}), if registered. */
+    public Optional<JobTypeDescriptor> jobType(String id) {
+        return registry.descriptor(id);
     }
 
     /** Whether any job by this name is registered and enabled. */

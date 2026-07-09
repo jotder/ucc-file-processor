@@ -177,6 +177,31 @@ class ControlApiAsyncV1Test {
         }
     }
 
+    // ── Job Type registry (job-framework P2a, R3) ───────────────────────────────────
+
+    @Test
+    void jobTypesRegistryIsListableWithParameterDescriptors(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        JobConfig hb = new JobConfig("hb", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "heartbeat"));
+        try (Ctx c = open(cfg, root, List.of(hb))) {
+            JsonNode types = JSON.readTree(get(c.port, "/jobs/types").body());
+            assertTrue(types.isArray(), types.toString());
+            List<String> ids = new ArrayList<>();
+            types.forEach(n -> ids.add(n.get("id").asText()));
+            assertTrue(ids.containsAll(List.of("enrich", "report", "maintenance", "pipeline")),
+                    "the four built-ins are registered: " + ids);
+
+            HttpResponse<String> resp = get(c.port, "/jobs/types/maintenance");
+            assertEquals(200, resp.statusCode(), resp.body());
+            JsonNode desc = JSON.readTree(resp.body());
+            assertEquals("maintenance", desc.get("id").asText());
+            List<String> paramNames = new ArrayList<>();
+            desc.get("parameters").forEach(p -> paramNames.add(p.get("name").asText()));
+            assertTrue(paramNames.contains("task"), "declared parameters surface for form-gen (R3): " + paramNames);
+
+            assertEquals(404, get(c.port, "/jobs/types/nope").statusCode(), "unknown type is 404");
+        }
+    }
+
     // ── Signal ledger (job-framework P1a, R6) ────────────────────────────────────────
 
     /** Trigger a heartbeat job and wait for it to reach a terminal status; returns its runId. */

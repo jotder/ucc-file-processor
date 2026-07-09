@@ -4,6 +4,7 @@ import com.gamma.pipeline.exec.DbProvenanceStore;
 import com.gamma.job.DbJobRunStore;
 import com.gamma.job.JobRun;
 import com.gamma.job.JobService;
+import com.gamma.job.JobTypeDescriptor;
 import com.sun.net.httpserver.HttpExchange;
 
 import java.io.IOException;
@@ -22,6 +23,13 @@ final class JobRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/jobs", (e, m) -> jobs(api).jobs());
+        // Job Type registry (R3, job-framework P2a): list + per-type descriptor (params/emits/artifacts)
+        // that drives authoring forms. Fixed sub-paths under /jobs/, registered before the /jobs/{name}
+        // regex routes (two segments; "types" never collides with a job name's /runs route).
+        api.get("/jobs/types", (e, m) -> jobs(api).jobTypes().stream().map(JobTypeDescriptor::toMap).toList());
+        api.get("/jobs/types/([^/]+)", (e, m) -> jobs(api).jobType(ApiContext.name(m))
+                .map(JobTypeDescriptor::toMap)
+                .orElseThrow(() -> new ApiException(404, "no job type '" + ApiContext.name(m) + "'")));
         // T27 job-execution reporting (DuckDB projection; 404 unless -Djobs.backend is set). Fixed
         // sub-paths, registered before the /jobs/{name}/runs regex (single-segment, so no collision).
         api.get("/jobs/metrics", (e, m) -> jobRunStore(api).metrics(ApiContext.query(e, "job")));

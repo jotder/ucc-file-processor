@@ -1,8 +1,10 @@
 package com.gamma.job;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -32,4 +34,15 @@ final class JobTypeRegistry {
     boolean has(String id) { return id != null && providers.containsKey(id.toLowerCase(Locale.ROOT)); }
 
     Set<String> ids() { return Set.copyOf(providers.keySet()); }
+
+    /** Every registered type's descriptor, in registration order (R3 / {@code GET /jobs/types}). */
+    List<JobTypeDescriptor> descriptors() {
+        return providers.values().stream().map(JobTypeProvider::descriptor).toList();
+    }
+
+    /** One type's descriptor by id (case-insensitive), if registered. */
+    Optional<JobTypeDescriptor> descriptor(String id) {
+        JobTypeProvider p = providers.get(id == null ? "" : id.toLowerCase(Locale.ROOT));
+        return Optional.ofNullable(p).map(JobTypeProvider::descriptor);
+    }
 }

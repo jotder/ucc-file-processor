@@ -3,25 +3,25 @@ package com.gamma.job;
 import java.util.function.Function;
 
 /**
- * One Job Type: a stable {@code id} (the {@code type:} string in a {@code *_job.toon}) and a factory
- * that builds the runnable {@link Job} for one authored config. This is the registry seam that
- * replaced the hard-coded {@link JobType} switch in {@code JobService.build()} (P0,
- * {@code docs/job-framework-design.md} §6.1).
- *
- * <p>In P0 the only providers are the four built-ins, registered internally. ServiceLoader-based
- * discovery, per-type descriptors, and hot-deployable Job Packs arrive with P2/P3 — at which point
- * this type widens to public API.
+ * One Job Type: its catalog {@link JobTypeDescriptor} (id, title, declared parameters, emitted signals,
+ * artifacts) and a factory that builds the runnable {@link Job} for one authored config. This is the
+ * registry seam that replaced the hard-coded {@link JobType} switch in {@code JobService.build()} (§6.1);
+ * the four built-ins register through it today, and it becomes the {@code ServiceLoader} SPI that optional
+ * modules and hot-deployable Job Packs implement (P2b/P2c).
  */
-interface JobTypeProvider {
+public interface JobTypeProvider {
 
-    String id();
+    JobTypeDescriptor descriptor();
 
     Job create(JobConfig config);
 
-    /** A provider from an id + a factory function (how the built-ins register). */
-    static JobTypeProvider of(String id, Function<JobConfig, Job> factory) {
+    /** The registry key — the descriptor's id. */
+    default String id() { return descriptor().id(); }
+
+    /** A provider from a descriptor + a factory function (how the built-ins register). */
+    static JobTypeProvider of(JobTypeDescriptor descriptor, Function<JobConfig, Job> factory) {
         return new JobTypeProvider() {
-            @Override public String id() { return id; }
+            @Override public JobTypeDescriptor descriptor() { return descriptor; }
             @Override public Job create(JobConfig config) { return factory.apply(config); }
         };
     }
