@@ -90,6 +90,13 @@ public final class JobService implements AutoCloseable {
     private final Map<String, CronExpression> crons = new ConcurrentHashMap<>();
     private final LockingRunner runner = new LockingRunner();
     private final AtomicLong seq = new AtomicLong();
+    /** Open Job Type registry (job-framework P0) — replaced the compiled-in {@link JobType} switch; the four
+     *  built-ins register here in {@link #registerBuiltins()} and {@link #build} delegates to it. */
+    private final JobTypeRegistry registry = new JobTypeRegistry();
+    /** Per-run structured Run Log persistence (R5): JSONL under {@code <auditDir>/runlog/}. */
+    private final RunLogStore runLogStore;
+    /** Cap on Run Log entries per run (overflow summarized) — {@code -Djobs.runlog.maxEntries}, default 10 000. */
+    private final int runLogMax = Integer.getInteger("jobs.runlog.maxEntries", 10_000);
     /** Flow ids (authored-flow graph names) of {@link JobType#PIPELINE} jobs currently in flight — fed to the
      *  deletion fence (T32) so a delete that races an active flow-job reader/writer surfaces a conflict. */
     private final Set<String> runningFlows = ConcurrentHashMap.newKeySet();
@@ -147,9 +154,20 @@ public final class JobService implements AutoCloseable {
         this.flowStore = flowStore;
         this.dataDir   = dataDir;
         this.provenanceStore = provenanceStore;
+        this.runLogStore = new RunLogStore(auditDir);
+        registerBuiltins();
         for (JobConfig c : this.configs) {
             if (c.enabled()) jobs.put(c.name(), build(c));
         }
+    }
+
+    /** Register the four built-in Job Types as providers (job-framework P0). Ids are the lowercased
+     *  {@link JobType} names, so existing {@code *_job.toon} {@code type:} strings resolve unchanged. */
+    private void registerBuiltins() {
+        registry.register(JobTypeProvider.of("enrich",      c -> new EnrichJob(c, bus)));
+        registry.register(JobTypeProvider.of("report",      c -> new ReportJob(c, reports, dataDir)));
+        registry.register(JobTypeProvider.of("maintenance", c -> new MaintenanceJob(c, dataDir)));
+        registry.register(JobTypeProvider.of("pipeline",    this::buildFlowJob));
     }
 
     /** Wire the event subscriber and arm cron schedules. */
@@ -198,12 +216,7 @@ public final class JobService implements AutoCloseable {
     }
 
     private Job build(JobConfig c) {
-        return switch (c.type()) {
-            case ENRICH      -> new EnrichJob(c, bus);
-            case REPORT      -> new ReportJob(c, reports, dataDir);
-            case MAINTENANCE -> new MaintenanceJob(c, dataDir);
-            case PIPELINE        -> buildFlowJob(c);
-        };
+        return registry.create(c.type().name(), c);   // registry keys are lowercased ids; create() folds case
     }
 
     /** A {@link JobType#PIPELINE} job (T32) — requires an authored-flow store (set {@code -Dassist.write.root}). */
@@ -288,16 +301,21 @@ public final class JobService implements AutoCloseable {
         runner.runExclusiveOrSkip(name, () -> {
             fenceDelete(name);   // T25: surface a conflict if a declared delete races an active reader/writer
             String flowId = trackFlowStart(job, name);   // T32: mark a flow job's stores active for the fence
+            Map<String, String> params = configFor(name).map(JobConfig::params).orElse(Map.of());
+            RunContext ctx = new RunContext(runId, spaceId, trigger, params, runLogStore, runLogMax);
+            ctx.log().info("run started", "trigger", trigger, "params", params);   // param snapshot (R5/R2 scaffold)
             JobResult res;
             try {
-                res = job.run();
+                res = job.run(ctx);
             } catch (Exception e) {
                 log.error("Job '{}' ({}) failed", name, trigger, e);
+                ctx.log().error("run failed", e);
                 res = JobResult.failed(String.valueOf(e.getMessage()),
                         0L);
             } finally {
                 if (flowId != null) runningFlows.remove(flowId);
             }
+            ctx.log().info("run completed", "status", res.status(), "durationMs", res.durationMs());
             JobRun run = new JobRun(runId, name, job.type().name(), trigger, start,
                     LocalDateTime.now().format(TS), res.status(), res.durationMs(), res.message());
             record(run);
@@ -407,6 +425,11 @@ public final class JobService implements AutoCloseable {
     /** The most recent run of a job, if any. */
     public Optional<JobRun> lastRunOf(String name) {
         return Optional.ofNullable(ledger.lastRun(name));
+    }
+
+    /** The structured Run Log entries for one run (R5), in write order; empty if unknown or never logged. */
+    public List<RunLogEntry> runLog(String runId) {
+        return runLogStore.read(runId);
     }
 
     /** Whether any job by this name is registered and enabled. */

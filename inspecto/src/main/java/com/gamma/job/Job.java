@@ -20,4 +20,16 @@ public interface Job {
      * converts a thrown exception into a {@code FAILED} {@link JobResult} and records it.
      */
     JobResult run() throws Exception;
+
+    /**
+     * Perform the work once with a per-Run {@link JobContext} (structured logging, trigger info,
+     * validated config). This is the entry point {@link JobService} invokes; the default bridges
+     * to the legacy no-arg {@link #run()} so existing implementations keep working unchanged
+     * (job-framework P0, {@code docs/job-framework-design.md} §6.3). New Job Types override this
+     * and read from {@code ctx}; {@link #run()} becomes a default (deprecated) when the parameter
+     * resolver lands in P1.
+     */
+    default JobResult run(JobContext ctx) throws Exception {
+        return run();
+    }
 }

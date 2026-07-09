@@ -2,8 +2,8 @@
 
 > **Pluggable Job Types · parameterized Triggers · Signals · Run Artifacts · hot-deployable Job Packs**
 >
-> **Status: DESIGN — IMPLEMENTATION-READY (open questions resolved 2026-07-09; §19). No implementation
-> yet — this document is the spec to build from.**
+> **Status: IN BUILD — P0 SHIPPED (2026-07-09; registry + `run(JobContext)` bridge + Run Log; §17).
+> Open questions resolved 2026-07-09 (§19). P1–P3 remain to build from this spec.**
 > It is an **evolution of the shipped `com.gamma.job` subsystem** (cron/event/manual scheduling,
 > non-overlap locking, run ledger, `JobType.PIPELINE` per [`flow-live-execution-plan.md`](flow-live-execution-plan.md)
 > — T32 phases A+B+C shipped 2026-06-18/19), **not** a replacement. It subsumes and expands
@@ -723,7 +723,7 @@ under a new correlation — or is folded by the `TriggerCoalescer` if the first 
 
 | Phase | Scope | Est. |
 |---|---|---|
-| **P0 — Registry & context** (behavior-preserving refactor) | `JobTypeRegistry` replaces the enum switch; built-ins become providers; `Job.run(JobContext)` bridge; `RunLog` (persist + API); resolved-parameter recording scaffold | ~500–700 LOC + tests |
+| **P0 — Registry & context** (behavior-preserving refactor) | `JobTypeRegistry` replaces the enum switch; built-ins become providers; `Job.run(JobContext)` bridge; `RunLog` (persist + API); resolved-parameter recording scaffold | ✅ **SHIPPED (2026-07-09)** — `JobTypeRegistry`/`JobTypeProvider` (4 built-ins as providers) replace `JobService.build()`'s switch; `Job.run(JobContext)` default bridge (built-ins unchanged); `JobContext`/`TriggerInfo`/`RunLog`/`RunLogEntry`/`RunLogStore` (JSONL under `<auditDir>/runlog/`) + `GET /jobs/{name}/runs/{runId}/log`; the framework records a `run started` param snapshot + `run completed`/`run failed` entries. `JobServiceTest` unchanged & green (behavior preserved); +2 real-HTTP tests. Reactor 1337/0/0. **Deferred to keep P0 non-speculative:** the `JobType` enum stays on `Job`/`JobConfig` (opens to string ids in P2), and `ServiceLoader` discovery + `JobTypeDescriptor`s + porting the built-ins to `run(JobContext)` land in P2/P3 (unreachable until packs/`sql.template` exist) |
 | **P1 — Parameters, Signals, Artifacts** | `ParameterDecl`/resolver + `$`-context; `Signal` envelope + ledger over `EventLog` + `BatchEvent` adapters; `on_signal`/`bind`/`when`/`args` in `JobConfig`; `ArtifactRecorder` + `job_run_artifacts` + query routes; chain/storm protection | ~900–1300 LOC + tests |
 | **P2 — Job Packs** | `JobPackManager` (scan/watch/validate/quiesce), pack routes, signature flag, audit | ~600–900 LOC + tests |
 | **P3 — Templates & UI** | `sql.template` Job Type; descriptor-driven authoring form (Workbench → Jobs, closes `ia-vocabulary-reorg` Phase D); example fraud pack under `inspecto/examples/` | ~500–800 LOC + UI |

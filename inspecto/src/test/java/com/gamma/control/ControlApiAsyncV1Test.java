@@ -16,6 +16,7 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -131,6 +132,48 @@ class ControlApiAsyncV1Test {
         try (Ctx c = open(cfg, root, List.of(hb))) {
             assertEquals(404, post(c.port, "/api/v1/jobs/ghost/trigger", null).statusCode());
             assertEquals(404, get(c.port, "/api/v1/jobs/runs/does-not-exist").statusCode());
+        }
+    }
+
+    // ── Run Log (job-framework P0, R5) ───────────────────────────────────────────────
+
+    @Test
+    void runLogIsPersistedAndServedWithTheParamSnapshot(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        JobConfig hb = new JobConfig("hb", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "heartbeat"));
+        try (Ctx c = open(cfg, root, List.of(hb))) {
+            String runId = JSON.readTree(post(c.port, "/api/v1/jobs/hb/trigger", null).body()).get("data").get("runId").asText();
+            // wait for the run to reach a terminal status so the "run completed" entry is written
+            long deadline = System.nanoTime() + 10_000_000_000L;
+            while (System.nanoTime() < deadline) {
+                JsonNode run = JSON.readTree(get(c.port, "/api/v1/jobs/runs/" + runId).body()).get("data");
+                if (!"RUNNING".equals(run.get("status").asText())) break;
+                Thread.sleep(50);
+            }
+            HttpResponse<String> logResp = get(c.port, "/jobs/hb/runs/" + runId + "/log");   // unversioned: raw array
+            assertEquals(200, logResp.statusCode(), logResp.body());
+            JsonNode entries = JSON.readTree(logResp.body());
+            assertTrue(entries.isArray() && entries.size() >= 2, "run start + completion logged: " + logResp.body());
+
+            List<String> messages = new ArrayList<>();
+            entries.forEach(n -> messages.add(n.get("message").asText()));
+            assertTrue(messages.contains("run started"), messages.toString());
+            assertTrue(messages.contains("run completed"), messages.toString());
+
+            JsonNode start = entries.get(0);
+            assertEquals("run started", start.get("message").asText(), "the first entry is the start (seq 1)");
+            assertEquals("heartbeat", start.get("kv").get("params").get("task").asText(),
+                    "the resolved param snapshot is recorded: " + start);
+        }
+    }
+
+    @Test
+    void runLogForAnUnknownRunIsAnEmptyArray(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        JobConfig hb = new JobConfig("hb", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "heartbeat"));
+        try (Ctx c = open(cfg, root, List.of(hb))) {
+            HttpResponse<String> r = get(c.port, "/jobs/hb/runs/never-ran-1/log");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode body = JSON.readTree(r.body());
+            assertTrue(body.isArray() && body.isEmpty(), "unknown run → empty log, not 404");
         }
     }
 
