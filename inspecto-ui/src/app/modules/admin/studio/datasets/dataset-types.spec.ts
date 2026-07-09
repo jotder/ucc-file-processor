@@ -33,13 +33,19 @@ describe('buildDataset', () => {
         expect(d.sourceName).toBe('cdr');
         expect(d.columns).toEqual([]);
         expect(d.measures).toEqual([]);
+        expect(d.calculated).toEqual([]);
         expect(d.query).toBeNull();
     });
 
     it('carries through a provided body', () => {
         const cols = inferRoles(COLS);
-        const d = buildDataset('cdr_view', 'virtual', 'cdr', { columns: cols, physicalRef: 'catalog/cdr' });
+        const d = buildDataset('cdr_view', 'virtual', 'cdr', {
+            columns: cols,
+            physicalRef: 'catalog/cdr',
+            calculated: [{ name: 'total_with_tax', expr: 'amt * 2' }],
+        });
         expect(d.columns).toHaveLength(COLS.length);
         expect(d.physicalRef).toBe('catalog/cdr');
+        expect(d.calculated).toEqual([{ name: 'total_with_tax', expr: 'amt * 2' }]);
     });
 });

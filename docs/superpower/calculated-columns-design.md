@@ -1,7 +1,18 @@
 # Calculated columns (DAT-5) — expression safety design
 
-**Status:** designed + shipped 2026-07-08 · **Owner:** backend · **Companions:**
-`api-contract-design.md` §10 W4 (the query stack this extends), `docs/GLOSSARY.md` (Dataset).
+**Status:** backend designed + shipped 2026-07-08; **authoring UI shipped 2026-07-10** · **Owner:**
+backend (+ UI) · **Companions:** `api-contract-design.md` §10 W4 (the query stack this extends),
+`docs/GLOSSARY.md` (Dataset).
+
+## 0. UI (2026-07-10)
+
+`DatasetCalculatedComponent` (`modules/admin/studio/datasets/dataset-calculated.component.ts`) on the
+dataset editor: add/edit/remove `{name, expr}` rows, a **Test** button that runs the expression over the
+dataset's sample rows via the same offline AlaSQL path Measures use (no backend round trip), and an inline
+error shown per-field. The inline check is `calculated-column-guard.ts` — a hand-maintained TS mirror of
+this doc's three rules (closed token alphabet, keyword deny-set, function whitelist), kept for instant
+author feedback. **It is not authoritative**: the server (`ExpressionGuard`, below) is the only enforcement
+that matters for safety and re-validates at query time regardless of what the client thinks is clean.
 
 ## 1. The problem
 

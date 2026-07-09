@@ -34,6 +34,17 @@ export interface NamedMeasure {
     format?: string;
 }
 
+/**
+ * A row-level calculated column (DAT-5) — `SELECT *, (expr) AS name` spliced into the dataset's
+ * relation server-side. `expr` is fail-closed validated by the backend `ExpressionGuard` at query time
+ * (`docs/superpower/calculated-columns-design.md`); `calculated-column-guard.ts` mirrors those rules
+ * client-side for instant feedback. Row-level only — no aggregates (that's a {@link NamedMeasure}).
+ */
+export interface CalculatedColumn {
+    name: string;
+    expr: string;
+}
+
 /** Default visualization hints carried by the dataset (the widget builder seeds from these). */
 export interface DatasetViz {
     defaultType?: string;
@@ -51,6 +62,8 @@ export interface DatasetConfig {
     physicalRef?: string | null;
     columns: DatasetColumn[];
     measures: NamedMeasure[];
+    /** Row-level calculated columns (DAT-5) — spliced into the relation ahead of measures/dimensions. */
+    calculated: CalculatedColumn[];
     viz?: DatasetViz | null;
 }
 
@@ -99,6 +112,7 @@ export function buildDataset(
         physicalRef: body?.physicalRef ?? null,
         columns: body?.columns ?? [],
         measures: body?.measures ?? [],
+        calculated: body?.calculated ?? [],
         viz: body?.viz ?? null,
     };
 }

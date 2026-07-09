@@ -21,7 +21,10 @@ consistency (status-badge/empty-state/skeleton, no-hardcoded-colors CI gate, WCA
 
 **Weak for BI use (UI-addressable):**
 1. No time-grain control on charts (bucketing exists in `transformProps` but no user control).
-2. No calculated columns / named-Measure builder UI (model has `NamedMetric[]`, no editor). *(Note: UI term is **Measure** per GLOSSARY — the model type `NamedMetric` is a deferred backend-rename touchpoint; UI labels must say Measure.)*
+2. ~~No calculated columns / named-Measure builder UI~~ — **RESOLVED**: `DatasetMeasuresComponent`
+   (named-Measure editor) already existed; `DatasetCalculatedComponent` (row-level calculated columns,
+   DAT-5) shipped 2026-07-10 — see `calculated-columns-design.md` §0. *(Note: UI term is **Measure** per
+   GLOSSARY — the model type `NamedMetric` is a deferred backend-rename touchpoint; UI labels say Measure.)*
 3. Export is CSV-only — no PNG export of a chart, no dashboard snapshot.
 4. Drill-down only toggles cross-filter; no drill-through ("click value → detail table/view").
 5. No dashboard-level filter bar (viewer-facing quick filters vs the editor's condition builder).

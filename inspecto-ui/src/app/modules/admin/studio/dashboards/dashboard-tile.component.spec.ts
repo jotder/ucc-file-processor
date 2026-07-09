@@ -20,6 +20,7 @@ const DS: Dataset = {
     sourceName: 'cdr',
     columns: [{ name: 'duration_s', type: 'number', role: 'measure' }],
     measures: [],
+    calculated: [],
 };
 const WIDGET: Widget = { id: 'total_dur', name: 'Total duration', datasetId: 'cdr_sample', vizType: 'kpi', controls: { value: [{ field: 'duration_s', agg: 'sum' }] } };
 

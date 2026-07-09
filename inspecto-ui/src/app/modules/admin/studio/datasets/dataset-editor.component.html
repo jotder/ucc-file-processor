@@ -75,6 +75,23 @@
         </div>
     </section>
 
+    <!-- Row-level calculated columns (DAT-5) -->
+    <section class="mt-6">
+        <h2 class="mb-2 text-lg font-semibold">Calculated columns</h2>
+        <div class="text-secondary mb-3 mt-0.5 text-sm">
+            New columns derived from a row expression (e.g. <span class="font-mono">round(amt * 1.1, 2)</span>) —
+            available to Measures, filters, and every consumer below.
+        </div>
+        <div class="bg-card overflow-x-auto rounded-2xl p-5 shadow">
+            <app-dataset-calculated
+                [calculated]="calculated()"
+                [sourceName]="sourceName()"
+                [sampleRows]="querySource().rows"
+                (calculatedChange)="onCalculatedChange($event)"
+            />
+        </div>
+    </section>
+
     <!-- Calculated measures -->
     <section class="mt-6">
         <h2 class="mb-2 text-lg font-semibold">Measures</h2>

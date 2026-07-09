@@ -13,7 +13,7 @@ export const DATASET_KIND: ComponentKind<DatasetConfig> = {
     wiring: 'none',
     config: {
         validate: validateDatasetConfig,
-        create: () => ({ kind: 'virtual', sourceName: 'data', query: null, columns: [], measures: [] }),
+        create: () => ({ kind: 'virtual', sourceName: 'data', query: null, columns: [], measures: [], calculated: [] }),
     },
     authoring: { editorKey: 'dataset' },
     exec: { runnerKey: 'query' },

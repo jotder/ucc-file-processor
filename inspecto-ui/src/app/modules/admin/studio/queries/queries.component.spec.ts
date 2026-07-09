@@ -14,7 +14,7 @@ import { QueriesComponent } from './queries.component';
 
 const DS: Dataset = {
     id: 'cdr_sample', name: 'cdr_sample', kind: 'virtual', sourceName: 'cdr',
-    columns: [{ name: 'cost_usd', type: 'number', role: 'measure' }], measures: [],
+    columns: [{ name: 'cost_usd', type: 'number', role: 'measure' }], measures: [], calculated: [],
 };
 const Q: Query = { id: 'recent', name: 'recent', type: 'sql', datasetId: 'cdr_sample', sourceName: 'cdr', text: 'SELECT * FROM cdr', parameters: [] };
 

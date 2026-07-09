@@ -14,7 +14,7 @@ import { GraphSourcesService } from './graph-sources';
 import { LinkAnalysisComponent } from './link-analysis.component';
 import { LinkAnalysisService, LinkAnalysisView } from './link-analysis.service';
 
-const DS: Dataset = { id: 'links-ds', name: 'Links', kind: 'physical', sourceName: 'links', columns: [], measures: [] };
+const DS: Dataset = { id: 'links-ds', name: 'Links', kind: 'physical', sourceName: 'links', columns: [], measures: [], calculated: [] };
 
 /** A tiny two-cluster graph: a–b–c plus d–e. */
 const GRAPH: G6GraphData = {

@@ -14,7 +14,7 @@ import { GeoMapComponent } from './geo-map.component';
 import { GeoSourcesService, ProjectedGeo } from './geo-projection';
 import { GeoMapService, GeoMapView } from './geo-map.service';
 
-const DS: Dataset = { id: 'towers-ds', name: 'Towers', kind: 'physical', sourceName: 'towers', columns: [], measures: [] };
+const DS: Dataset = { id: 'towers-ds', name: 'Towers', kind: 'physical', sourceName: 'towers', columns: [], measures: [], calculated: [] };
 
 const GEO: ProjectedGeo = {
     points: [

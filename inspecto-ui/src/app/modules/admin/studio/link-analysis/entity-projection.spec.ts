@@ -77,7 +77,7 @@ describe('example graph sample sources (C5 user testing)', () => {
 describe('EntityProjectionGraphSource', () => {
     const ds: Dataset = {
         id: 'links-ds', name: 'Links', kind: 'physical', sourceName: 'links',
-        query: null, physicalRef: null, columns: [], measures: [],
+        query: null, physicalRef: null, columns: [], measures: [], calculated: [],
     };
 
     /** An InvService stub for the offline path: the backend call fails, forcing the client fold. */

@@ -19,6 +19,7 @@ const D1: Dataset = {
     sourceName: 'cdr',
     columns: [{ name: 'duration_s', type: 'number', role: 'measure' }],
     measures: [],
+    calculated: [],
 };
 
 function create(datasets: Dataset[] = [D1], opts: { canShare?: boolean; offerResult?: { description: string } } = {}) {

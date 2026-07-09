@@ -18,6 +18,7 @@ const DS: Dataset = {
     id: 'cdr_sample', name: 'cdr_sample', kind: 'virtual', sourceName: 'cdr',
     columns: [{ name: 'tariff', type: 'string', role: 'dimension' }, { name: 'duration_s', type: 'number', role: 'measure' }],
     measures: [],
+    calculated: [],
 };
 const WIDGET: Widget = { id: 'bar1', name: 'Bar 1', datasetId: 'cdr_sample', vizType: 'bar', controls: { x: [{ field: 'tariff' }], y: [{ field: 'duration_s', agg: 'sum' }] } };
 

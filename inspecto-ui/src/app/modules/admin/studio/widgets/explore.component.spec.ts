@@ -23,6 +23,7 @@ const DS: Dataset = {
         { name: 'duration_s', type: 'number', role: 'measure' },
     ],
     measures: [],
+    calculated: [],
 };
 
 function create() {

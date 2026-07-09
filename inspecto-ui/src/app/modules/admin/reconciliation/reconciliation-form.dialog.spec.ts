@@ -12,6 +12,7 @@ const DS = (id: string): Dataset => ({
     id, name: id, kind: 'physical', sourceName: id, physicalRef: id,
     columns: [{ name: 'id', type: 'number', role: 'dimension' }, { name: 'cost_usd', type: 'number', role: 'measure' }],
     measures: [],
+    calculated: [],
 });
 
 function create() {
