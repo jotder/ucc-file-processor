@@ -108,6 +108,11 @@
                         <button mat-icon-button (click)="addToDashboard(w)" matTooltip="Add to dashboard" aria-label="Add to dashboard">
                             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:squares-plus"></mat-icon>
                         </button>
+                        @if (canShare()) {
+                            <button mat-icon-button (click)="offer(w)" matTooltip="Offer for sharing" aria-label="Offer for sharing">
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:share"></mat-icon>
+                            </button>
+                        }
                         <button mat-icon-button (click)="remove(w)" matTooltip="Delete" aria-label="Delete">
                             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
                         </button>

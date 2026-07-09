@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ToastrService } from 'ngx-toastr';
+import { ExchangeService, SessionService, SpacesService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { Dataset } from './dataset-types';
@@ -19,8 +21,10 @@ const D1: Dataset = {
     measures: [],
 };
 
-function create(datasets: Dataset[] = [D1]) {
+function create(datasets: Dataset[] = [D1], opts: { canShare?: boolean; offerResult?: { description: string } } = {}) {
     const remove = vi.fn(() => of(null));
+    const offer = vi.fn(() => of({} as never));
+    const dialog = { open: () => ({ afterClosed: () => of(opts.offerResult) }) };
     TestBed.configureTestingModule({
         imports: [DatasetsComponent],
         providers: [
@@ -29,9 +33,14 @@ function create(datasets: Dataset[] = [D1]) {
             { provide: DatasetsService, useValue: { list: () => of(datasets), remove } },
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
             { provide: InspectoConfirmService, useValue: { confirmDestructive: () => Promise.resolve(true) } },
+            { provide: MatDialog, useValue: dialog },
+            { provide: SessionService, useValue: { exchangeEnabled: () => opts.canShare ?? false } },
+            { provide: ExchangeService, useValue: { offer } },
+            { provide: SpacesService, useValue: { currentSpaceId: () => 'default' } },
         ],
     });
-    return { fixture: TestBed.createComponent(DatasetsComponent), remove };
+    TestBed.overrideProvider(MatDialog, { useValue: dialog });
+    return { fixture: TestBed.createComponent(DatasetsComponent), remove, offer };
 }
 
 describe('DatasetsComponent', () => {
@@ -56,6 +65,21 @@ describe('DatasetsComponent', () => {
         fixture.detectChanges();
         await fixture.componentInstance.remove(D1);
         expect(remove).toHaveBeenCalledWith('cdr_view');
+    });
+
+    it('offers a dataset for sharing when the dialog is confirmed', () => {
+        const { fixture, offer } = create([D1], { canShare: true, offerResult: { description: 'ref rates' } });
+        fixture.detectChanges();
+        expect(fixture.componentInstance.canShare()).toBe(true);
+        fixture.componentInstance.offer(D1);
+        expect(offer).toHaveBeenCalledWith({ kind: 'dataset', owner: 'default', item: 'cdr_view', description: 'ref rates' });
+    });
+
+    it('does not offer when the share dialog is cancelled', () => {
+        const { fixture, offer } = create([D1], { canShare: true, offerResult: undefined });
+        fixture.detectChanges();
+        fixture.componentInstance.offer(D1);
+        expect(offer).not.toHaveBeenCalled();
     });
 
     it('renders the empty state with no a11y violations', async () => {

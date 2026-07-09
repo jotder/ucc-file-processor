@@ -13,6 +13,7 @@ import { DataTableComponent } from 'app/inspecto/data-table';
 import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin } from 'rxjs';
+import { GrantGovernanceDialog, GrantGovernanceResult } from './grant-governance.dialog';
 import { RequestShareDialog, RequestShareResult } from './request-share.dialog';
 
 /**
@@ -102,15 +103,36 @@ export class SharingComponent implements OnInit {
             visible: (g) => this.view() === 'by-me' && g.status === 'active',
             onClick: (g) => this.act(g, 'revoke'),
         },
+        {
+            // Consumer governance (S3): pin an active grant to a fixed snapshot version.
+            icon: 'heroicons_outline:bookmark',
+            hint: (g) => (g.pin ? `Pinned to ${g.pin} — change or clear` : 'Pin a snapshot version'),
+            visible: (g) => this.view() === 'with-me' && g.status === 'active',
+            onClick: (g) => this.govern(g, 'pin'),
+        },
+        {
+            // Owner governance (S3): set/clear an expiry after which the grant auto-revokes.
+            icon: 'heroicons_outline:clock',
+            hint: (g) => (g.expiresAt ? 'Change or clear expiry' : 'Set an expiry'),
+            visible: (g) => this.view() === 'by-me' && g.status === 'active',
+            onClick: (g) => this.govern(g, 'expiry'),
+        },
     ];
 
-    /** with-me: request access to an offer (hidden once a request/grant is already in flight). */
+    /** Offer actions — request access (consumer) or refresh the published snapshot (owner). */
     readonly offerActions: InspectoRowAction<ExchangeOffer>[] = [
         {
             icon: 'heroicons_outline:paper-airplane',
             hint: 'Request access',
             visible: (o) => this.view() === 'with-me' && !this.inFlight(o),
             onClick: (o) => this.requestAccess(o),
+        },
+        {
+            // Owner republishes the dataset's Exchange snapshot from its current data (S2). Datasets only.
+            icon: 'heroicons_outline:arrow-path',
+            hint: 'Refresh snapshot',
+            visible: (o) => this.view() === 'by-me' && o.kind === 'dataset',
+            onClick: (o) => this.refresh(o),
         },
     ];
 
@@ -146,6 +168,36 @@ export class SharingComponent implements OnInit {
             },
             error: (e) => this.toastr.error(apiErrorMessage(e, `Could not ${action} the grant.`)),
         });
+    }
+
+    private refresh(o: ExchangeOffer): void {
+        this.exchange.refresh(o.owner, o.item).subscribe({
+            next: (meta) => {
+                this.toastr.success(`Snapshot of ${o.item} refreshed → ${meta.version} (${meta.rows.toLocaleString()} rows).`);
+                this.reload();
+            },
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Could not refresh "${o.item}".`)),
+        });
+    }
+
+    private govern(g: ExchangeGrant, field: 'pin' | 'expiry'): void {
+        this.dialog
+            .open(GrantGovernanceDialog, { data: { field, grant: g } })
+            .afterClosed()
+            .subscribe((result: GrantGovernanceResult | undefined) => {
+                if (result === undefined) return; // dismissed — no change
+                const call =
+                    field === 'pin'
+                        ? this.exchange.pin(g.id, result as string | null)
+                        : this.exchange.expiry(g.id, result as number | null);
+                call.subscribe({
+                    next: () => {
+                        this.toastr.success(`Updated ${field} for ${g.item}.`);
+                        this.reload();
+                    },
+                    error: (e) => this.toastr.error(apiErrorMessage(e, `Could not update the ${field}.`)),
+                });
+            });
     }
 
     private requestAccess(o: ExchangeOffer): void {

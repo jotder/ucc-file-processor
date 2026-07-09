@@ -6,6 +6,7 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { ToastrService } from 'ngx-toastr';
+import { ExchangeService, SessionService, SpacesService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { registerBuiltinViz } from 'app/inspecto/viz/plugins';
@@ -23,10 +24,16 @@ const W2: Widget = { id: 'other', name: 'other', datasetId: 'cdr_sample', vizTyp
 const DS: Dataset = { id: 'cdr_sample', name: 'cdr_sample', kind: 'virtual', sourceName: 'cdr', columns: [], measures: [] };
 const D1: Dashboard = { id: 'd1', name: 'd1', tiles: [{ widgetId: 'other', span: 1 }], filter: null };
 
-function create(widgets: Widget[] = [W1], datasets: Dataset[] = [DS], dialogResult?: AddToDashboardResult) {
+function create(
+    widgets: Widget[] = [W1],
+    datasets: Dataset[] = [DS],
+    dialogResult?: AddToDashboardResult | { description: string },
+    opts: { canShare?: boolean } = {},
+) {
     registerBuiltinViz();
     const remove = vi.fn(() => of(null));
     const saveDashboard = vi.fn((d: Dashboard) => of(d));
+    const offer = vi.fn(() => of({} as never));
     const dialog = { open: () => ({ afterClosed: () => of(dialogResult) }) };
     TestBed.configureTestingModule({
         imports: [WidgetsComponent],
@@ -40,12 +47,15 @@ function create(widgets: Widget[] = [W1], datasets: Dataset[] = [DS], dialogResu
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
             { provide: InspectoConfirmService, useValue: { confirmDestructive: () => Promise.resolve(true) } },
+            { provide: SessionService, useValue: { exchangeEnabled: () => opts.canShare ?? false } },
+            { provide: ExchangeService, useValue: { offer } },
+            { provide: SpacesService, useValue: { currentSpaceId: () => 'default' } },
         ],
     });
     // A component-level MatDialog provider shadows the root-level test double — override wins at any level.
     TestBed.overrideProvider(MatDialog, { useValue: dialog });
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-    return { fixture: TestBed.createComponent(WidgetsComponent), remove, saveDashboard, navigate };
+    return { fixture: TestBed.createComponent(WidgetsComponent), remove, saveDashboard, navigate, offer };
 }
 
 describe('WidgetsComponent', () => {
@@ -114,6 +124,14 @@ describe('WidgetsComponent', () => {
         fixture.detectChanges();
         await fixture.componentInstance.remove(W1);
         expect(remove).toHaveBeenCalledWith('dur_by_tariff');
+    });
+
+    it('offers a widget for sharing when the dialog is confirmed', () => {
+        const { fixture, offer } = create([W1], [DS], { description: 'ops chart' }, { canShare: true });
+        fixture.detectChanges();
+        expect(fixture.componentInstance.canShare()).toBe(true);
+        fixture.componentInstance.offer(W1);
+        expect(offer).toHaveBeenCalledWith({ kind: 'widget', owner: 'default', item: 'dur_by_tariff', description: 'ops chart' });
     });
 
     it('renders the empty state with no a11y violations', async () => {

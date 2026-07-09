@@ -6,8 +6,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage } from 'app/inspecto/api';
+import { apiErrorMessage, ExchangeService, SessionService, SpacesService } from 'app/inspecto/api';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { OfferShareDialog, OfferShareResult } from 'app/inspecto/components/offer-share.dialog';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { TransferMenuComponent } from 'app/inspecto/transfer';
@@ -51,6 +52,11 @@ export class WidgetsComponent implements OnInit {
     private router = inject(Router);
     private toastr = inject(ToastrService);
     private confirm = inject(InspectoConfirmService);
+    private exchange = inject(ExchangeService);
+    private spaces = inject(SpacesService);
+
+    /** Cross-space sharing is available only on a multi-space runtime (bootstrap.features.exchange). */
+    readonly canShare = inject(SessionService).exchangeEnabled;
 
     readonly widgets = signal<Widget[]>([]);
     readonly datasets = signal<Dataset[]>([]);
@@ -158,6 +164,24 @@ export class WidgetsComponent implements OnInit {
     private openDashboard(w: Widget, dashboardId: string): void {
         this.toastr.success(`Widget "${w.id}" placed on dashboard "${dashboardId}"`);
         this.router.navigate(['/studio/dashboards', dashboardId]);
+    }
+
+    /**
+     * Offer this widget in the cross-space shareable catalog. The backend requires the widget's bound
+     * dataset to be offered first (409) — surfaced as a toast so the owner offers the dataset, then retries.
+     */
+    offer(w: Widget): void {
+        const owner = this.spaces.currentSpaceId() ?? 'default';
+        this.dialog
+            .open(OfferShareDialog, { data: { kind: 'widget', owner, item: w.id } })
+            .afterClosed()
+            .subscribe((r: OfferShareResult | undefined) => {
+                if (!r) return;
+                this.exchange.offer({ kind: 'widget', owner, item: w.id, description: r.description }).subscribe({
+                    next: () => this.toastr.success(`Widget "${w.id}" offered for sharing.`),
+                    error: (e) => this.toastr.error(apiErrorMessage(e, `Could not offer "${w.id}".`)),
+                });
+            });
     }
 
     async remove(w: Widget): Promise<void> {

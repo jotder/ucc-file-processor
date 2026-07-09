@@ -68,6 +68,11 @@
                         <button mat-icon-button [routerLink]="[d.id]" matTooltip="Edit" aria-label="Edit">
                             <mat-icon class="icon-size-5" svgIcon="heroicons_outline:pencil-square"></mat-icon>
                         </button>
+                        @if (canShare()) {
+                            <button mat-icon-button (click)="offer(d)" matTooltip="Offer for sharing" aria-label="Offer for sharing">
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:share"></mat-icon>
+                            </button>
+                        }
                         @if (!writesDisabled()) {
                             <button mat-icon-button (click)="remove(d)" matTooltip="Delete" aria-label="Delete">
                                 <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>

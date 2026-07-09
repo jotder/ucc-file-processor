@@ -1,13 +1,15 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage } from 'app/inspecto/api';
+import { apiErrorMessage, ExchangeService, SessionService, SpacesService } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
+import { OfferShareDialog, OfferShareResult } from 'app/inspecto/components/offer-share.dialog';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { TransferMenuComponent } from 'app/inspecto/transfer';
@@ -40,6 +42,12 @@ export class DatasetsComponent implements OnInit {
     private api = inject(DatasetsService);
     private toastr = inject(ToastrService);
     private confirm = inject(InspectoConfirmService);
+    private dialog = inject(MatDialog);
+    private exchange = inject(ExchangeService);
+    private spaces = inject(SpacesService);
+
+    /** Cross-space sharing is available only on a multi-space runtime (bootstrap.features.exchange). */
+    readonly canShare = inject(SessionService).exchangeEnabled;
 
     readonly datasets = signal<Dataset[]>([]);
     readonly loading = signal(false);
@@ -82,6 +90,21 @@ export class DatasetsComponent implements OnInit {
     /** Column count gives a quick sense of the dataset's shape on the card. */
     columnCount(d: Dataset): number {
         return d.columns.length;
+    }
+
+    /** Offer this dataset in the cross-space shareable catalog (owner = the active space). */
+    offer(d: Dataset): void {
+        const owner = this.spaces.currentSpaceId() ?? 'default';
+        this.dialog
+            .open(OfferShareDialog, { data: { kind: 'dataset', owner, item: d.id } })
+            .afterClosed()
+            .subscribe((r: OfferShareResult | undefined) => {
+                if (!r) return;
+                this.exchange.offer({ kind: 'dataset', owner, item: d.id, description: r.description }).subscribe({
+                    next: () => this.toastr.success(`Dataset "${d.id}" offered for sharing.`),
+                    error: (e) => this.toastr.error(apiErrorMessage(e, `Could not offer "${d.id}".`)),
+                });
+            });
     }
 
     async remove(d: Dataset): Promise<void> {

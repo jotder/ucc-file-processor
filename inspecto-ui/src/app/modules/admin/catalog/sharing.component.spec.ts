@@ -41,26 +41,33 @@ const GRANTS: ExchangeGrant[] = [
     },
 ];
 
-async function create(view: 'with-me' | 'by-me', exchange: Partial<ExchangeService> = {}) {
+async function create(view: 'with-me' | 'by-me', exchange: Partial<ExchangeService> = {}, dialogResult?: unknown) {
     const api = {
         grants: () => of(GRANTS),
         offers: () => of(OFFERS),
         actOnGrant: vi.fn(() => of(GRANTS[1])),
         request: vi.fn(() => of(GRANTS[0])),
+        refresh: vi.fn(() => of({ version: 'v4', rows: 10, refreshedAt: '', columns: [] })),
+        pin: vi.fn(() => of(GRANTS[0])),
+        expiry: vi.fn(() => of(GRANTS[0])),
         ...exchange,
     } as unknown as ExchangeService;
+    const dialog = { open: () => ({ afterClosed: () => of(dialogResult) }) };
     TestBed.configureTestingModule({
         imports: [SharingComponent],
         providers: [
             provideNoopAnimations(),
             { provide: ExchangeService, useValue: api },
             { provide: SpacesService, useValue: { currentSpaceId: () => 'default' } },
-            { provide: MatDialog, useValue: {} },
+            { provide: MatDialog, useValue: dialog },
             { provide: ToastrService, useValue: { success: vi.fn(), error: vi.fn() } },
             { provide: InspectoGridThemeService, useValue: { theme: () => ({}) } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
         ],
     });
+    // A component-level MatDialog provider (via imported MatDialogModule) shadows the root test double —
+    // overrideProvider wins at any level.
+    TestBed.overrideProvider(MatDialog, { useValue: dialog });
     await TestBed.compileComponents(); // the embedded data-table carries a @defer block
     const fixture = TestBed.createComponent(SharingComponent);
     fixture.componentRef.setInput('view', view);
@@ -105,6 +112,36 @@ describe('SharingComponent', () => {
         c.grantActions[0].onClick(c.myGrants()[0]);
         expect(api.actOnGrant).toHaveBeenCalledWith('analytics-hub~default~dataset~billing_summary', 'approve');
         expect(grantsSpy).toHaveBeenCalled(); // reload after the transition
+    });
+
+    it('by-me: the refresh offer action is dataset-only and republishes the snapshot', async () => {
+        const { fixture, api } = await create('by-me');
+        const c = fixture.componentInstance;
+        const refresh = c.offerActions.find((a) => a.hint === 'Refresh snapshot')!;
+        const myOffer = c.myOffers()[0]; // default/billing_summary, a dataset
+        expect(refresh.visible!(myOffer)).toBe(true);
+        expect(refresh.visible!({ ...myOffer, kind: 'widget' })).toBe(false);
+        refresh.onClick(myOffer);
+        expect(api.refresh).toHaveBeenCalledWith('default', 'billing_summary');
+    });
+
+    it('with-me: pinning an active grant opens the dialog and calls pin with the version', async () => {
+        const { fixture, api } = await create('with-me', {}, 'v2');
+        const c = fixture.componentInstance;
+        const pin = c.grantActions.find((a) => a.icon === 'heroicons_outline:bookmark')!;
+        expect(pin.visible!(c.myGrants()[0])).toBe(true); // active grant I consume
+        pin.onClick(c.myGrants()[0]);
+        expect(api.pin).toHaveBeenCalledWith('default~analytics-hub~dataset~fx_rates_daily', 'v2');
+    });
+
+    it('by-me: setting expiry calls expiry with the chosen epoch millis', async () => {
+        const active: ExchangeGrant = { ...GRANTS[1], status: 'active' };
+        const { fixture, api } = await create('by-me', { grants: () => of([active]) }, 1_800_000_000_000);
+        const c = fixture.componentInstance;
+        const expiry = c.grantActions.find((a) => a.icon === 'heroicons_outline:clock')!;
+        expect(expiry.visible!(active)).toBe(true);
+        expiry.onClick(active);
+        expect(api.expiry).toHaveBeenCalledWith('analytics-hub~default~dataset~billing_summary', 1_800_000_000_000);
     });
 
     it('renders with no a11y violations', async () => {
