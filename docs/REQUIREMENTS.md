@@ -124,7 +124,7 @@ AI-driven autonomy without redesign.
 | BI-3 | KPI & Reports gallery; dashboard quick-filter bar, drill-through, time grain, PNG export; **Measures** in Explore | Should | SHIPPED | All |
 | BI-4 | Scheduled report/export delivery | Should | SHIPPED (2026-07-08: REPORT job `out_dir`/`format` renders a timestamped JSON/CSV artifact — new `scope: dataset` exports a headless BI query; `REPORT_READY` event → webhook/SMTP notification. Caveat: SMTP delivers the artifact *path*, not an attachment — the SMTP channel is text-only) | S/E |
 | BI-5 | Alerting on **Measures** (BI thresholds raising Alerts) | Could | SHIPPED (2026-07-08: `*_alert.toon` measure rules — `dataset:` + `measure: agg(field)` evaluated via the headless BI evaluator on every sweep, firing the existing ALERT_FIRED→notification path. v1 = whole-dataset measures, no per-rule filters) | All |
-| BI-6 | Public/embedded Dashboard sharing | Could | SHIPPED (2026-07-08: backend — fail-closed HMAC share tokens (inert without `-Dbi.share.secret`, expiring, tamper=404), anonymous resolve + a public BI query fenced to the dashboard's own datasets. **UI** — `/share/:token` guest embed viewer (no shell, no guard): tiles render read-only through the normal VizPlugin→viz-render path, per-tile data via the fenced query with widget controls mapped back to validated agg/field pairs (measure-id parity with the backend); view-bound/expression-measure widgets degrade to an explicit "not embeddable" tile, per-tile errors never take down the page; `/public` added to the space-interceptor's server-global set; mock answers an honest 501 (no HMAC secret offline). Gauntlet green + live-preview verified) | S/E |
+| BI-6 | Public/embedded Dashboard sharing | Could | SHIPPED (2026-07-08: backend — fail-closed HMAC share tokens (inert without `-Dbi.share.secret`, expiring, tamper=404), anonymous resolve + a public BI query fenced to the dashboard's own datasets. **UI** — `/share/:token` guest embed viewer (no shell, no guard): tiles render read-only through the normal VizPlugin→viz-render path, per-tile data via the fenced query with widget controls mapped back to validated agg/field pairs (measure-id parity with the backend); view-bound/expression-measure widgets degrade to an explicit "not embeddable" tile, per-tile errors never take down the page; `/public` added to the space-interceptor's server-global set; mock answers an honest 501 (no HMAC secret offline). Gauntlet green + live-preview verified. **In-app mint dialog added 2026-07-09** — `ShareDashboardDialog` + a Share button on the dashboard editor call `POST /dashboards/{id}/share` and show the `/share/{token}` link with copy + expiry) | S/E |
 | BI-7 | Semantic / headless BI API | Could | SHIPPED (2026-07-08: `POST /bi/query` — spec-based measures/dimensions/filters compiled server-side (the declared backend twin of the UI QuerySpec seam), SqlGuard-checked, sandbox-executed; `GET /bi/datasets`. Open follow-up: swapping the UI viz layer onto it) | S/E |
 | BI-8 | Widget/Dashboard template marketplace | Could | SHIPPED (2026-07-08: backend — `GET /bi/templates` + parameterized all-or-nothing `apply` writing real Studio-editable components (templates reshaped to UI-native `{vizType, controls}` widgets / `{name, tiles}` dashboards, so applied boards render immediately). **UI** — `/studio/templates` gallery pane over `GET /bi/templates` + an apply dialog (dataset picker + optional id prefix → routes to the created dashboard); nav entry; mock lists offline, apply 501 (writes server-side). Gauntlet green. Cross-space sharing stays `/bundle/*`; an external *marketplace/exchange* remains out of scope by design) | All |
 
@@ -271,7 +271,7 @@ AI-driven autonomy without redesign.
 ## 5. MoSCoW summary — the reconciled backlog (as of 2026-07-08, post ship-sweep)
 
 > **2026-07-08 ship-sweep:** one session closed ACQ-6/ACQ-7 · PIP-6/PIP-7 · the whole BI section
-> (BI-4/5/7 shipped, BI-6/BI-8 partial) · INV-1 · MET-4 · the DAT-3 caveat · ACQ-4's S3/MinIO/NFS/SMB
+> (BI-4/5/6/7/8 shipped) · INV-1 · MET-4 · the DAT-3 caveat · ACQ-4's S3/MinIO/NFS/SMB
 > half — each verified by the full reactor (1,271+ tests). **Everything still pending below carries a
 > concrete scope line (size + blocker + owner), not a bare PLANNED.**
 
@@ -326,10 +326,10 @@ P1–P5 remaining).*
 
 ### COULD (remaining — each scoped)
 
-- **BI-6 Share dialog** (residual UX) — *BI-6 (embed viewer) and BI-8 (template gallery) both shipped
-  2026-07-08. The only leftover from the old combined UI shift is a Share dialog on the dashboard
-  editor to mint a link in-app (today `POST /dashboards/{n}/share` is called via the API). Small,
-  ~¼ shift; the fenced public surface it drives is already live.*
+- ~~**BI-6 Share dialog**~~ (residual UX) — **DONE 2026-07-09**: `ShareDashboardDialog` + a Share button
+  on the dashboard editor (edit mode) mint the link in-app via `POST /dashboards/{id}/share` and show the
+  `/share/{token}` viewer URL with copy + expiry; 503 (no `-Dbi.share.secret`) → writes-disabled notice.
+  BI-6 (embed viewer) + BI-8 (template gallery) shipped 2026-07-08. **BI-6 is now fully shipped.**
 - **MET-5** Component version history — *scoped (see §3.10 row): ~1 shift, no migration.*
 - **SPC-5** Per-tenant ABAC — *Enterprise-tier, demand-gated; design rides SEC-7's grants model —
   do not start before the SEC-7 product decision lands.*
