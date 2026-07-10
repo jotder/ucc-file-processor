@@ -1,0 +1,5 @@
+name: orders_overview
+tiles[3]{widgetId,span}:
+  orders_kpi_total,1
+  orders_revenue_by_region,2
+  orders_daily_trend,3

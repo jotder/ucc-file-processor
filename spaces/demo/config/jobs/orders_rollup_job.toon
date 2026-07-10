@@ -1,0 +1,6 @@
+job:
+  name: orders_rollup
+  type: pipeline
+  flow: orders_rollup_flow
+  data_dir: spaces/demo/data/orders
+  on_pipeline: orders

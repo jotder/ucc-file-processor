@@ -1,0 +1,4 @@
+physicalRef: orders
+calculated[2]{name,expr}:
+  gross_taxed,"round(gross * 1.18, 2)"
+  unit_margin,"round(unit_price * 0.35, 2)"

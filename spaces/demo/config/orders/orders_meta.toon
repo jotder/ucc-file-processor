@@ -1,0 +1,28 @@
+name: orders_semantics
+version: 1
+tables:
+  orders:
+    description: "One row per retail order line (Stage-1 partitioned output)"
+    grain: "year, month, day"
+  ORDERS_DAILY:
+    description: "Daily order count + gross revenue per region (Stage-2 rollup)"
+    grain: "region, year, month, day"
+kpis:
+  daily_revenue:
+    definition: "Gross revenue per region per day (sum of GROSS)"
+    grain: "region, day"
+    inputs[1]: "ORDERS_DAILY"
+    join_keys[1]: region
+  order_count:
+    definition: "Number of order lines per region per day"
+    grain: "region, day"
+    inputs[1]: "ORDERS_DAILY"
+    join_keys[1]: region
+reports:
+  orders_daily:
+    description: "Operator-facing daily orders report"
+    uses[2]: "daily_revenue", "ORDERS_DAILY"
+domain:
+  currency: "USD"
+  timezone: "UTC"
+  notes[1]: "GROSS = QUANTITY * UNIT_PRICE, rounded to cents"

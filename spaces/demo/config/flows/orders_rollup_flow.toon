@@ -1,0 +1,18 @@
+name: orders_rollup_flow
+active: true
+nodes[3]:
+  - id: src
+    type: acquisition
+    config:
+      source_store: database
+  - id: flt
+    type: transform.filter
+    config:
+      where: STATUS = 'SHIPPED'
+  - id: out
+    type: sink.persistent
+    config:
+      store: rollup
+edges[2]{from,rel,to}:
+  src,data,flt
+  flt,data,out

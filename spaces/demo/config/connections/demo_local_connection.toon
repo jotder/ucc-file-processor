@@ -1,0 +1,6 @@
+connection:
+  id: DEMO_LOCAL
+  connector: local
+  base_path: spaces/demo/data/samples/orders
+  options:
+    test_timeout_ms: 1500

@@ -1,0 +1,6 @@
+job:
+  name: orders_summary_followup
+  type: maintenance
+  task: heartbeat
+  on_signal: job.dataset.produced
+  when: "$signal.dataset == orders_summary"

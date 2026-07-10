@@ -1,0 +1,7 @@
+vizType: kpi
+datasetId: orders_dataset
+controls:
+  value[1]{field,agg}:
+    order_id,count
+options:
+  title: Total orders

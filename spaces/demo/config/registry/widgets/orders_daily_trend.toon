@@ -1,0 +1,11 @@
+vizType: line
+datasetId: orders_dataset
+controls:
+  x[1]{field}:
+    order_date
+  y[1]{field,agg}:
+    gross,sum
+  series[1]{field}:
+    region
+options:
+  title: Daily revenue trend

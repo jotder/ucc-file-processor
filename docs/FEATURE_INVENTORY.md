@@ -181,7 +181,7 @@ authored-flow TOON shape lives only in test Java strings: `ControlApiFlowCrudTes
 
 ---
 
-## 2. Existing example configs (under `spaces/<id>/config/` — `ucc` hosts voucher; `default` hosts subscriber, events, connections)
+## 2. Existing example configs (under `spaces/<id>/config/` — `ucc` hosts voucher; `default` hosts subscriber, events, connections; `demo` hosts the full editable sample catalog — one sample of every authorable kind + committed sample data, see [`../spaces/demo/config/README.md`](../spaces/demo/config/README.md))
 
 | File | Demonstrates |
 |---|---|

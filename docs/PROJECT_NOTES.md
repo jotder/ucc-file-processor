@@ -120,6 +120,22 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
   `MultiSourceProcessor.runAll`/`runConfigs` **and** `SourceProcessor`'s per-batch executor (the batch commit,
   per-batch metrics and event log fire there, not on the poll thread). Miss one and that space's metrics/events
   silently fall back to `"default"`. The `default` space sets NO MDC, so single-space output stays label-free.
+- **Hand-authored `.toon` rules (verified live 2026-07-10, `spaces/demo` shakeout):** (1) **No `#` comments
+  anywhere** — suffix-scanned loaders (`*_pipeline/_job/_connection/_alert/_queue/…`) strict-reject the file
+  ("Multiple primitives at root depth"), and even the lenient registry read mangles comment lines into junk
+  keys. Some loaders tolerate them today (template/escalation) — do not rely on it. (2) **Lists need counts**:
+  inline `members[1]: operator` or tabular `tiles[3]{widgetId,span}:`; bare `- item` lists fail (exception:
+  authored-flow `nodes[n]:` blocks accept `- id:` maps). (3) **Alert rules need an `alert:` wrapper** and
+  `severity` ∈ {CRITICAL, INFO, WARNING} — not WARN. (4) **Job-type params are FLAT keys under `job:`**
+  (`JobConfig.fromMap` treats unknown keys as params); only `args:`/`bind:` nest. A `params:` wrapper in some
+  design-doc sketches is doc-only, not the shipped parser.
+- **Authored flows live under `config/flows/` — one dir for both readers (FIXED 2026-07-10):** the UI/HTTP
+  authored-pipeline CRUD always wrote `writeRoot()/flows` (= the space's `config/flows/`), but
+  `DirSpaceRoot.flowsDir()` pointed `JobService`/the T32 deletion fence at a sibling `spaces/<id>/flows/`, so a
+  `type: pipeline` job couldn't resolve a UI-authored flow in multi-space mode. `flowsDir()` now returns
+  `config().resolve("flows")`; a top-level `spaces/<id>/flows/` is dead (still tolerated by
+  `SpaceLayoutContract` as historical) and new spaces no longer mint it. Regression test:
+  `SpaceBootstrapTest.flowJobResolvesAFlowAuthoredUnderConfigFlows`.
 - **Pipeline-internal paths resolve against the JVM CWD, NOT the space root.** A pipeline's `schema_file`,
   `grammar`, and `dirs.*` are `Paths.get(...)` in `PipelineConfigParser` with **no rebasing** to `spaces/<id>/`.
   Only the *space discovery* layer (`-Dspaces.root`, `SpaceRoot`) is space-relative. So when configs were moved

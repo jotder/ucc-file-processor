@@ -38,7 +38,10 @@
 /spaces/default/config/test_connection.toon
 
 # Multi-space runtime output — keep spaces/<id>/config/ + space.toon tracked; ignore generated state.
-/spaces/*/data/
+# (data/samples/ is the one committed exception: pristine sample inputs + seed scripts.)
+/spaces/*/data/**
+!/spaces/*/data/samples/
+!/spaces/*/data/samples/**
 /spaces/*/audit/
 /spaces/*/duckdb/
 /spaces/*/flows/

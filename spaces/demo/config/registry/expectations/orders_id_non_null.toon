@@ -1,0 +1,5 @@
+name: orders_id_non_null
+targetType: pipeline
+target: orders
+column: ORDER_ID
+kind: non_null

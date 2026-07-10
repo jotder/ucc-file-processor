@@ -1,0 +1,7 @@
+alert:
+  name: orders_low_volume
+  dataset: orders_dataset
+  measure: count
+  comparator: lt
+  threshold: 10
+  severity: WARNING

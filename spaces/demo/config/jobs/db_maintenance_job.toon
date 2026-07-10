@@ -1,0 +1,5 @@
+job:
+  name: db_maintenance
+  type: maintenance
+  task: db_maintenance
+  cron: "30 5 * * 0"

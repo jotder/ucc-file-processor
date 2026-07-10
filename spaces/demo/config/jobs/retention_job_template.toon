@@ -1,0 +1,13 @@
+job_template:
+  name: retention-sweep
+  params:
+    dir:
+    retention_days: "30"
+    glob: "*"
+  job:
+    type: maintenance
+    task: cleanup
+    cron: "0 3 * * *"
+    dir: ${dir}
+    retention_days: ${retention_days}
+    glob: ${glob}

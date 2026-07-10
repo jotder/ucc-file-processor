@@ -1,0 +1,1 @@
+sql: "SELECT * EXCLUDE (ssn) FROM rows"

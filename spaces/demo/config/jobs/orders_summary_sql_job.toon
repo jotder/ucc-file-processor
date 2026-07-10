@@ -1,0 +1,9 @@
+job:
+  name: orders_summary
+  type: sql.template
+  sql: "SELECT REGION, COUNT(*) AS ORDER_COUNT, ROUND(SUM(GROSS), 2) AS REVENUE FROM orders WHERE STATUS = $status GROUP BY REGION ORDER BY REVENUE DESC"
+  sources: orders
+  sink_dataset: orders_summary
+  status: SHIPPED
+  cron: "0 6 * * *"
+  enabled: true

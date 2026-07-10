@@ -1,0 +1,3 @@
+rca:
+  name: orders-incident
+  sections[5]: Summary, Impact, "Root cause", Remediation, Prevention

@@ -1,0 +1,19 @@
+name: ORDERS_DAILY
+version: 1
+
+input:
+  database: spaces/demo/data/orders/database
+  format: PARQUET
+  partitions[3]: year, month, day
+
+output:
+  database: spaces/demo/data/reports/orders_daily
+  format: PARQUET
+  compression: snappy
+  partitions[3]: year, month, day
+
+triggers:
+  on_pipeline: orders
+  schedule_seconds: 3600
+
+transform: "SELECT i.year, i.month, i.day, i.REGION, COUNT(*) AS ORDER_COUNT, ROUND(SUM(i.GROSS), 2) AS REVENUE FROM input i GROUP BY i.year, i.month, i.day, i.REGION"

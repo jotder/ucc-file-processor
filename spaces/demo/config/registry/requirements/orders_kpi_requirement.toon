@@ -1,0 +1,3 @@
+title: Daily revenue KPI board
+kind: kpi
+description: "Ops wants a per-region daily revenue and order-count board over the demo orders feed"

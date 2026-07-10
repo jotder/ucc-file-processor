@@ -1,0 +1,5 @@
+name: orders_gross_non_null
+targetType: pipeline
+target: orders
+column: GROSS
+kind: non_null

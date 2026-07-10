@@ -1,0 +1,4 @@
+type: sql
+text: "SELECT region, ROUND(SUM(amount), 2) AS revenue FROM (VALUES ('NORTH', 129.87), ('SOUTH', 214.20), ('EAST', 96.45), ('WEST', 180.10)) AS t(region, amount) WHERE amount > $minAmount GROUP BY region ORDER BY revenue DESC"
+parameters[1]{name,type,default}:
+  minAmount,number,"50"
