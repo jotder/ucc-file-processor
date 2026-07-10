@@ -18,7 +18,7 @@ import java.nio.file.Path;
  *       historical names, honouring every existing {@code -D} flag. This is the default for the
  *       long-standing single-tenant {@link SourceService} constructors, so their behaviour is unchanged.</li>
  *   <li>{@link #under(Path)} — a self-contained space directory
- *       {@code <base>/{config,data,audit,duckdb,flows}}.</li>
+ *       {@code <base>/{config,data,audit,duckdb}} (authored flows under {@code config/flows/}).</li>
  * </ul>
  */
 public interface SpaceRoot {
@@ -38,7 +38,10 @@ public interface SpaceRoot {
     /** Data root where partition stores are written. */
     String dataDir();
 
-    /** Authored-flow store directory, or {@code null} when flow authoring is disabled. */
+    /** Authored-flow store directory, or {@code null} when flow authoring is disabled. Always the same
+     *  {@code flows/} subtree of the write root the HTTP flow CRUD ({@code /pipelines/authored}) writes,
+     *  so a UI-authored flow is visible to pipeline-type jobs and the deletion fence (T32):
+     *  {@code config/flows/} for a space, {@code -Dassist.write.root/flows} for {@link #legacy()}. */
     Path flowsDir();
 
     /** Rolling-Parquet event-store directory. */
@@ -70,7 +73,7 @@ public interface SpaceRoot {
         return new LegacySpaceRoot();
     }
 
-    /** A self-contained space rooted at {@code base}: {@code base/{config,data,audit,duckdb,flows}}. */
+    /** A self-contained space rooted at {@code base}: {@code base/{config,data,audit,duckdb}}. */
     static SpaceRoot under(Path base) {
         return new DirSpaceRoot(base.toAbsolutePath().normalize());
     }
@@ -115,7 +118,7 @@ final class LegacySpaceRoot implements SpaceRoot {
     public String acquisitionLedgerDbUrl() { return "jdbc:duckdb:inspecto-acquisition.db"; }
 }
 
-/** A self-contained per-space directory: {@code base/{config,data,audit,duckdb,flows}}. */
+/** A self-contained per-space directory: {@code base/{config,data,audit,duckdb}}. */
 final class DirSpaceRoot implements SpaceRoot {
     private final Path base;
 
@@ -131,7 +134,7 @@ final class DirSpaceRoot implements SpaceRoot {
 
     public String dataDir() { return base.resolve("data").toString(); }
 
-    public Path flowsDir() { return base.resolve("flows"); }
+    public Path flowsDir() { return config().resolve("flows"); }
 
     public Path eventsDir() { return base.resolve("data").resolve("events"); }
 

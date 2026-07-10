@@ -46,8 +46,9 @@ public final class SpaceManager implements AutoCloseable {
     private static final Logger log = LoggerFactory.getLogger(SpaceManager.class);
     private static final SpaceId DEFAULT = SpaceId.of(EventLog.DEFAULT_SPACE_ID);
 
-    /** The convention subdirectories a space owns under its root (also what {@link SpaceRoot} addresses). */
-    private static final List<String> SPACE_SUBDIRS = List.of("config", "data", "audit", "duckdb", "flows");
+    /** The convention subdirectories a space owns under its root (also what {@link SpaceRoot} addresses).
+     *  Authored flows live under {@code config/flows/} (minted on first write), not a top-level dir. */
+    private static final List<String> SPACE_SUBDIRS = List.of("config", "data", "audit", "duckdb");
 
     private final ConcurrentHashMap<SpaceId, SpaceContext> spaces = new ConcurrentHashMap<>();
     /** Serialises the rare create/delete admin mutations; reads ({@link #space}/{@link #current}) stay lock-free. */
