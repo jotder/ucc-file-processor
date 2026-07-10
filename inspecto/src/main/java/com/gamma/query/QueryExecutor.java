@@ -74,7 +74,7 @@ public final class QueryExecutor {
                 List<Map<String, Object>> rows = new ArrayList<>();
                 while (rs.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
-                    for (int c = 1; c <= n; c++) row.put(md.getColumnLabel(c), rs.getObject(c));
+                    for (int c = 1; c <= n; c++) row.put(md.getColumnLabel(c), wireValue(rs.getObject(c)));
                     rows.add(row);
                 }
                 boolean truncated = rows.size() > req.limit();
@@ -83,6 +83,18 @@ public final class QueryExecutor {
                 return new Result(columns, rows, rows.size(), truncated, (System.nanoTime() - t0) / 1_000_000);
             }
         }
+    }
+
+    /**
+     * Normalise a raw JDBC cell for the JSON wire: DuckDB returns DATE/TIMESTAMP/TIME columns as
+     * {@code java.time} values, but the control-plane {@code ApiContext.JSON} mapper carries no
+     * {@code jsr310} module by design (every wire record uses ISO-8601 strings), so serialising a
+     * {@link java.time.temporal.Temporal} throws {@code InvalidDefinitionException}. Their
+     * {@code toString()} is already ISO-8601, so we coerce here at the extraction point — the shared
+     * read path for {@code /bi/query} and {@code /queries/{id}/run}. All other value types pass through.
+     */
+    private static Object wireValue(Object v) {
+        return v instanceof java.time.temporal.Temporal ? v.toString() : v;
     }
 
     /** Wrap the user query with server-built projection / ORDER BY / LIMIT+1 / OFFSET (all identifier-safe). */

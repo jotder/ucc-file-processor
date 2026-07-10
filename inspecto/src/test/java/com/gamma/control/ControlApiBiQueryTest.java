@@ -98,6 +98,36 @@ class ControlApiBiQueryTest {
         }
     }
 
+    /** A view-backed dataset whose grouping key is a DATE column (DuckDB → {@code java.time.LocalDate}). */
+    private void seedDatedSales(Ctx c) throws Exception {
+        new ViewStore(c.root.resolve("views")).write(new ViewDefinition("dated_view", "flow-x", List.of(),
+                "SELECT * FROM (VALUES (DATE '2026-07-08', 10.0), (DATE '2026-07-08', 30.0), "
+                        + "(DATE '2026-07-09', 5.0)) AS t(order_date, amount)",
+                "2026-07-08T00:00:00Z"));
+        new ComponentStore(c.root.resolve("registry")).write("dataset", "dated_ds", Map.of("view", "dated_view"));
+    }
+
+    /** Regression (2026-07-10): a DATE/TIMESTAMP column must serialise to a 200 with an ISO-8601 string,
+     *  not throw {@code InvalidDefinitionException} from the jsr310-free wire mapper (HTTP 500). */
+    @Test
+    void serialisesTemporalColumnsAsIsoStrings(@TempDir Path cfg, @TempDir Path root) throws Exception {
+        try (Ctx c = open(cfg, root)) {
+            seedDatedSales(c);
+            HttpResponse<String> r = biQuery(c.port, """
+                    {"dataset":"dated_ds",
+                     "measures":[{"agg":"sum","field":"amount"}],
+                     "groupBy":["order_date"],
+                     "orderBy":[{"field":"order_date","dir":"asc"}]}""");
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode rows = JSON.readTree(r.body()).get("data").get("rows");
+            assertEquals(2, rows.size());
+            JsonNode first = rows.get(0);
+            assertTrue(first.get("order_date").isTextual(), "DATE serialised as an ISO string, not an object");
+            assertEquals("2026-07-08", first.get("order_date").asText());
+            assertEquals(40.0, first.get("sum_amount").asDouble(), 1e-9, "2026-07-08 sums 10+30");
+        }
+    }
+
     @Test
     void listsDatasets(@TempDir Path cfg, @TempDir Path root) throws Exception {
         try (Ctx c = open(cfg, root)) {
