@@ -21,9 +21,19 @@ describe('aggExpression / measureId / buildMeasure', () => {
         expect(measureId('count', 'x')).toBe('count');
     });
 
-    it('builds a measure with id/expression/label', () => {
+    it('builds a measure with id/expression/label plus the structured {agg, field} origin (M2)', () => {
         const m = buildMeasure('sum', 'duration_s');
-        expect(m).toEqual({ id: 'sum_duration_s', expression: 'SUM("duration_s")', label: 'sum(duration_s)' });
+        expect(m).toEqual({
+            id: 'sum_duration_s',
+            expression: 'SUM("duration_s")',
+            label: 'sum(duration_s)',
+            agg: 'sum',
+            field: 'duration_s',
+        });
+        // `count` takes no column — the stamp carries the agg only.
+        expect(buildMeasure('count', 'x')).toEqual({
+            id: 'count', expression: 'COUNT(*)', label: 'count(x)', agg: 'count',
+        });
     });
 });
 

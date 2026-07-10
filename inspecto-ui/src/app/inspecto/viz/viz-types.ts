@@ -32,6 +32,11 @@ export interface QueryMeasure {
     id: string;
     expression: string;
     label: string;
+    /** Structured origin (set by `buildMeasure`) — what the server path sends as a validated `{agg, field}`
+     *  pair (M2; the wire never carries SQL text). Absent on named-measure expressions, which therefore
+     *  only run offline. `field` is unset for `count`. */
+    agg?: Aggregation;
+    field?: string;
 }
 
 export type SortDir = 'asc' | 'desc';

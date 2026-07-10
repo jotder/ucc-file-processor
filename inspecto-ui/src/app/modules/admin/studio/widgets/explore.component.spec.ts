@@ -8,6 +8,8 @@ import { GammaConfigService } from '@gamma/services/config';
 import { ToastrService } from 'ngx-toastr';
 import { ComponentsService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
+import { DatasetResultService } from 'app/inspecto/viz/dataset-result.service';
+import { runSpec } from 'app/inspecto/viz/query-spec';
 import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
 import { WidgetsService } from './widgets.service';
@@ -41,6 +43,8 @@ function create() {
                         of([{ type: 'geo-map-view', name: 'dhaka-network', ref: '', content: { name: 'Example — Dhaka cell network' } }]),
                 },
             },
+            // Pass-through to the offline runSpec (no cache, no HttpClient) — byte-identical M1 behaviour.
+            { provide: DatasetResultService, useValue: { run: runSpec, clear: () => undefined } },
             { provide: MatDialog, useValue: { open: () => ({ afterClosed: () => of(undefined) }) } },
             { provide: ToastrService, useValue: { warning: () => undefined, success: () => undefined, error: () => undefined } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },

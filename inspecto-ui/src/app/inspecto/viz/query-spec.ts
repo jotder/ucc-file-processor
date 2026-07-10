@@ -34,9 +34,16 @@ export function measureId(agg: Aggregation, field: string): string {
     return base.replace(/[^A-Za-z0-9_]/g, '_');
 }
 
-/** Build a {@link QueryMeasure} from an aggregation + column. */
+/** Build a {@link QueryMeasure} from an aggregation + column. Stamps the structured `{agg, field}` origin
+ *  so the server path (M2) can send validated identifiers instead of SQL text. */
 export function buildMeasure(agg: Aggregation, field: string, label?: string): QueryMeasure {
-    return { id: measureId(agg, field), expression: aggExpression(agg, field), label: label ?? `${agg}(${field})` };
+    return {
+        id: measureId(agg, field),
+        expression: aggExpression(agg, field),
+        label: label ?? `${agg}(${field})`,
+        agg,
+        ...(agg === 'count' ? {} : { field }),
+    };
 }
 
 /** The measure a channel value contributes: a named measure's expression verbatim, else `agg(field)`. */

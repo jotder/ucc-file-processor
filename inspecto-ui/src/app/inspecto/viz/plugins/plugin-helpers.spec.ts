@@ -13,7 +13,13 @@ describe('buildXyQuery', () => {
         };
         const spec = buildXyQuery(values, CTX);
         expect(spec.groupBy).toEqual(['tariff', 'cell_id']);
-        expect(spec.measures[0]).toEqual({ id: 'sum_duration_s', expression: 'SUM("duration_s")', label: 'sum(duration_s)' });
+        expect(spec.measures[0]).toEqual({
+            id: 'sum_duration_s',
+            expression: 'SUM("duration_s")',
+            label: 'sum(duration_s)',
+            agg: 'sum',
+            field: 'duration_s',
+        });
     });
 });
 

@@ -1,8 +1,10 @@
 # Backend Backlog — Widget-Library M2, Matrices (Phase C), Job Templates (Phase D)
 
-> **Status (reconciled 2026-07-10):** Matrices (§2 = DAT-4), Job templates (§3 = PIP-6), and Alert-Rule
-> write endpoints (§4) have all SHIPPED since this doc's "not started" framing was written — see each
-> section's own status line. **Only §1 Widget-Library M2 remains open.** Written after the UI-only passes of the widget library
+> **Status (reconciled 2026-07-10):** ALL sections closed. Matrices (§2 = DAT-4), Job templates (§3 =
+> PIP-6), Alert-Rule write endpoints (§4), and Widget-Library M2 (§1 — the `DatasetResultService` live
+> data path landed 2026-07-10, the last open bullet) have all SHIPPED since this doc's "not started"
+> framing was written — see each section's own status line. The only remainder is §1's sharing/RBAC
+> bullet, which was never M2-owned (SEC-7 / `inspecto-security` scope). Written after the UI-only passes of the widget library
 > (`widget-library-spec.md`, M1 shipped) and the Platform IA reorg (`ia-vocabulary-reorg.md`, Phases A/B/E
 > shipped) both hit the same wall: **one closed backend enum**. This doc exists so the three backlogs are
 > reviewed together instead of three separate one-line mentions. Facts below are grounded in the current
@@ -42,9 +44,18 @@ Already scoped there; repeated here only for sequencing:
   `POST /queries/{id}/run` executes a persisted `query` component against its dataset in a DuckDB sandbox
   (`com.gamma.query.QueryExecutor`) with server-side `$`-parameter resolution + the Result Set contract. This
   is the query-time **read** path; it does **not** materialize (Matrices, §2 below, remains net-new and separate).
-- `DatasetResultService` M2 form — same interface as M1.4, now backed by real network calls.
-- Materialized-dataset refresh / scheduled delivery (adoption-plan P4 territory).
-- *(Tracked, not owned by this work):* sharing/RBAC once `inspecto-security` exists.
+- `DatasetResultService` M2 form — same interface as M1.4, now backed by real network calls. **✅ DONE
+  (2026-07-10):** when the Studio domain is live (`environment.mockStudio` false — the same flag that
+  decides whether datasets come from the real ComponentStore), `run()` maps the `QuerySpec` to validated
+  `{agg, field}` identifiers + a flat AND filter list and executes via the new `BiQueryService`
+  (`POST /bi/query`, BI-7); offline/mock mode keeps the in-browser AlaSQL path byte-identical. Specs that
+  can't cross the wire faithfully (named-measure SQL expressions, OR filter branches) fail honestly rather
+  than silently dropping terms — the same boundary the BI-6 embed viewer draws. The Explore builder's raw
+  `runSpec` call now also routes through the service, so previews use the same data path saved widgets do.
+- Materialized-dataset refresh / scheduled delivery (adoption-plan P4 territory). **✅ COVERED elsewhere
+  (reconciled 2026-07-10):** DAT-4's `task: materialize` (refresh = re-run, manual or job-scheduled) +
+  BI-4's scheduled report/export delivery shipped 2026-07-08 — nothing M2-specific remains.
+- *(Tracked, not owned by this work):* sharing/RBAC once `inspecto-security` exists. **Still SEC-7-gated.**
 
 ## 2. Phase C — Matrices (persisted summary Derived Tables) — ✅ SHIPPED 2026-07-08 (= DAT-4)
 

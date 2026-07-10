@@ -218,15 +218,20 @@ ships incrementally; each is independently verifiable.
 - *Verify:* each new type appears correctly in Show‑Me for a matching mock field shape; export produces a
   valid file from a live widget.
 
-### Milestone 2 — Backend (BACKLOG — not started, revisit later)
+### Milestone 2 — Backend ✅ COMPLETE (closed 2026-07-10; detail in `backend-backlog.md` §1)
 
-Captured for scope, not detailed further until M1 ships and this is picked up:
 - Widen the closed `ComponentStore.WRITABLE_TYPES` / `ComponentRegistry.TYPE_BY_DIR` (+ registry dir) so
-  `dataset` / `widget` / `dashboard` persist for real, replacing the mock interceptor.
-- `QuerySpec → DuckDB` exec endpoint, swapping the offline `runSpec` seam.
-- `DatasetResultService` M2 form: same interface as M1.4, dedupe/cache now also cuts real network calls.
-- Materialized‑dataset refresh / scheduled delivery (adoption‑plan P4 territory).
-- *(Tracked, not owned by M2):* sharing/RBAC once the separate `inspecto-security` module exists.
+  `dataset` / `widget` / `dashboard` persist for real. **✅ DONE** (API-contract W3, 2026-07-06).
+- `QuerySpec → DuckDB` exec endpoint. **✅ DONE** — `POST /queries/{id}/run` (W4) for persisted queries;
+  BI-7's `POST /bi/query` (2026-07-08) is the spec-based twin widgets use.
+- `DatasetResultService` M2 form: same interface as M1.4, backed by `POST /bi/query` when Studio is live
+  (`environment.mockStudio` false); offline stays in-browser AlaSQL byte-identical. **✅ DONE 2026-07-10**
+  (new `BiQueryService` + spec→wire mapping; unmappable specs — named-measure SQL, OR filters — fail
+  honestly, the same boundary the BI-6 embed viewer draws).
+- Materialized‑dataset refresh / scheduled delivery. **✅ COVERED** by DAT-4 `task: materialize` + BI-4
+  scheduled delivery (both 2026-07-08) — nothing M2-specific remained.
+- *(Tracked, not owned by M2):* sharing/RBAC once the separate `inspecto-security` module exists —
+  **still SEC-7-gated**, the only open line here.
 
 ## 8. Decisions made while scoping M1 (flag if any should be revisited)
 

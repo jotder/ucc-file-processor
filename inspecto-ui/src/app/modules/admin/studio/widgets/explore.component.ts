@@ -19,8 +19,8 @@ import {
     bucketRows,
     getViz,
     recommend,
-    runSpec,
 } from 'app/inspecto/viz';
+import { DatasetResultService } from 'app/inspecto/viz/dataset-result.service';
 import { VizRenderComponent } from 'app/inspecto/viz/viz-render.component';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { ComponentHistoryDialog } from 'app/inspecto/components/component-history.dialog';
@@ -62,6 +62,7 @@ export class ExploreComponent implements OnInit {
     private datasetsApi = inject(DatasetsService);
     private widgetsApi = inject(WidgetsService);
     private componentsApi = inject(ComponentsService);
+    private datasetResult = inject(DatasetResultService);
     private dialog = inject(MatDialog);
     private router = inject(Router);
     private toastr = inject(ToastrService);
@@ -236,7 +237,9 @@ export class ExploreComponent implements OnInit {
         this.running.set(true);
         const x = this.controls().x?.[0];
         const rows = x ? bucketRows(this.rows(), x.field, x.grain) : this.rows();
-        runSpec(spec, rows, this.colMetas())
+        // Through DatasetResultService (M2): offline AlaSQL in mock mode, POST /bi/query when Studio is
+        // live — the builder previews against the same data path the saved widget will render with.
+        this.datasetResult.run(spec, rows, this.colMetas())
             .then((res) => {
                 this.props.set(plugin.transformProps(res.ok ? res.rows : [], this.controls()));
             })

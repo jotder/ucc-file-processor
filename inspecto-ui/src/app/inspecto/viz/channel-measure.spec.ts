@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { channelMeasure, channelMeasureId } from './query-spec';
 
 describe('channelMeasure / channelMeasureId', () => {
-    it('compiles a plain column channel to agg(field)', () => {
+    it('compiles a plain column channel to agg(field), stamping the structured {agg, field} origin (M2)', () => {
         expect(channelMeasure({ field: 'duration_s', agg: 'avg' })).toEqual({
             id: 'avg_duration_s',
             expression: 'AVG("duration_s")',
             label: 'avg(duration_s)',
+            agg: 'avg',
+            field: 'duration_s',
         });
         expect(channelMeasureId({ field: 'duration_s', agg: 'avg' })).toBe('avg_duration_s');
     });
@@ -15,7 +17,7 @@ describe('channelMeasure / channelMeasureId', () => {
         expect(channelMeasureId({ field: 'cost_usd' })).toBe('sum_cost_usd');
     });
 
-    it('uses a named measure expression verbatim with an identifier-safe id', () => {
+    it('uses a named measure expression verbatim with an identifier-safe id — and no {agg, field} stamp, so it stays offline-only (M2)', () => {
         const cv = { field: 'avg-rate', expression: 'sum(duration_s) / count(*)' };
         expect(channelMeasure(cv)).toEqual({
             id: 'avg_rate',
