@@ -1,27 +1,41 @@
 import type { Expectation, ExpectationResult } from '../../api/expectations.service';
+import type { ComponentDef } from '../../api/components.service';
 import type { OperationalObject } from '../../api/objects.service';
 import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
 import { emitSignal } from '../signals';
+import { componentCollection, deleteComponent, putComponent, putComponentQuiet } from './components.handler';
 import { OPS_OBJECTS_COLL } from './ops.handler';
 
 /**
  * The Expectations mock domain (C2) — CRUD over data-quality checks plus the "run check" evaluation.
  * A FAILED evaluation raises an INCIDENT (correlated `expectation:<name>`, deduped while one is
  * still open) and fans out an EXPECTATION_FAILED notification — the same consequence chain the real
- * engine will drive.
+ * engine drives.
+ *
+ * Storage (unified 2026-07-10): expectations persist in the generic `component:expectation` collection
+ * as `ComponentDef` wrappers — the same store the real backend's `ExpectationRoutes` shares with
+ * `ComponentStore` — so the MET-5 version-history routes (`/components/expectation/{id}/versions` +
+ * restore, served by `componentsHandler`) work for expectations offline. Config edits archive the
+ * outgoing copy; a run-check's `lastResult` stamp is written quietly (not an authoring edit), mirroring
+ * the backend's `write(…, archive=false)`.
  *
  * Determinism: evaluation has no real records to scan, so a seeded expectation may carry a
  * mock-only `demoViolations` count (> 0 ⇒ FAILED with that count). User-authored expectations
  * evaluate clean. This keeps demos scriptable and specs exact.
  */
 
-export const EXPECTATIONS_COLL = 'expectation';
+const COLL = componentCollection('expectation');
 
 /** Mock-only extension: seeded rows can predetermine their evaluation outcome. */
 export interface MockExpectation extends Expectation {
     demoViolations?: number;
+}
+
+/** Seed one expectation as its component wrapper (no archiving — seeding is not an edit). */
+export function seedExpectation(store: MockStore, space: string, e: MockExpectation): void {
+    putComponentQuiet(store, space, 'expectation', e as unknown as Record<string, unknown>, e.name);
 }
 
 const LIST = /\/expectations$/;
@@ -36,42 +50,53 @@ export function expectationsHandler(flags: MockFlags): MockHandler {
         let m: string[] | null;
 
         if (method === 'GET' && LIST.test(url)) {
-            return json(store.list<MockExpectation>(space, EXPECTATIONS_COLL).sort((a, b) => a.name.localeCompare(b.name)));
+            return json(list(store, space).sort((a, b) => a.name.localeCompare(b.name)));
         }
         if (method === 'POST' && EVAL_ALL.test(url)) {
-            const rows = store.list<MockExpectation>(space, EXPECTATIONS_COLL);
-            const out = rows.map((e) => (e.enabled ? evaluate(store, space, e) : e));
+            const out = list(store, space).map((e) => (e.enabled ? evaluate(store, space, e) : e));
             return json(out.sort((a, b) => a.name.localeCompare(b.name)));
         }
         if (method === 'POST' && (m = match(url, EVAL_ONE))) {
-            const e = store.get<MockExpectation>(space, EXPECTATIONS_COLL, m[1]);
+            const e = get(store, space, m[1]);
             if (!e) return error(404, `expectation ${m[1]} not found`);
             return json(evaluate(store, space, e));
         }
         if (method === 'POST' && LIST.test(url)) {
             const b = (req.body ?? {}) as Partial<MockExpectation>;
             if (!b.name) return error(422, 'name is required');
-            if (store.get(space, EXPECTATIONS_COLL, b.name)) return error(409, `expectation "${b.name}" already exists`);
+            if (get(store, space, b.name)) return error(409, `expectation "${b.name}" already exists`);
             const now = Date.now();
             const e: MockExpectation = { ...normalize(b), name: b.name, lastResult: null, createdAt: now, updatedAt: now };
-            return json(store.put(space, EXPECTATIONS_COLL, e.name, e));
+            return json(putComponent(store, space, 'expectation', e, e.name).content);
         }
         if (method === 'PUT' && (m = match(url, ONE))) {
-            const prev = store.get<MockExpectation>(space, EXPECTATIONS_COLL, m[1]);
+            const prev = get(store, space, m[1]);
             if (!prev) return error(404, `expectation ${m[1]} not found`);
             const b = (req.body ?? {}) as Partial<MockExpectation>;
             const e: MockExpectation = { ...prev, ...normalize(b), name: prev.name, updatedAt: Date.now() };
-            return json(store.put(space, EXPECTATIONS_COLL, e.name, e));
+            // putComponent archives the outgoing copy — a config edit is exactly what history tracks.
+            return json(putComponent(store, space, 'expectation', e, e.name).content);
         }
         if (method === 'DELETE' && (m = match(url, ONE))) {
-            const prev = store.get<MockExpectation>(space, EXPECTATIONS_COLL, m[1]);
+            const prev = get(store, space, m[1]);
             if (!prev) return error(404, `expectation ${m[1]} not found`);
-            store.delete(space, EXPECTATIONS_COLL, m[1]);
+            deleteComponent(store, space, 'expectation', m[1]);   // purges archived versions too
             return json({ deleted: m[1] });
         }
 
         return undefined;
     };
+}
+
+/** All expectations, unwrapped from their component wrappers. */
+function list(store: MockStore, space: string): MockExpectation[] {
+    return store.list<ComponentDef>(space, COLL).map((d) => d.content as unknown as MockExpectation);
+}
+
+/** One expectation by name, unwrapped, or undefined. */
+function get(store: MockStore, space: string, name: string): MockExpectation | undefined {
+    const d = store.get<ComponentDef>(space, COLL, name);
+    return d ? (d.content as unknown as MockExpectation) : undefined;
 }
 
 /** Clamp an upsert body to the model's own fields (drops junk, keeps kind params as sent). */
@@ -93,7 +118,8 @@ function normalize(b: Partial<MockExpectation>): Omit<MockExpectation, 'name' | 
     };
 }
 
-/** Run one check: persist the result; on FAILED raise a correlated Incident (deduped while open) + fan out. */
+/** Run one check: persist the result STAMP (quiet — not an authoring edit, so no version is archived);
+ *  on FAILED raise a correlated Incident (deduped while open) + fan out. */
 function evaluate(store: MockStore, space: string, e: MockExpectation): MockExpectation {
     const violations = e.demoViolations ?? 0;
     const result: ExpectationResult = {
@@ -102,7 +128,7 @@ function evaluate(store: MockStore, space: string, e: MockExpectation): MockExpe
         checkedAt: Date.now(),
     };
     const next: MockExpectation = { ...e, lastResult: result, updatedAt: result.checkedAt };
-    store.put(space, EXPECTATIONS_COLL, next.name, next);
+    putComponentQuiet(store, space, 'expectation', next as unknown as Record<string, unknown>, next.name);
 
     if (result.status === 'FAILED') {
         const correlationId = `expectation:${e.name}`;

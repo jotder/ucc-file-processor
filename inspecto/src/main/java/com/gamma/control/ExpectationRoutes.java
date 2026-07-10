@@ -143,7 +143,8 @@ final class ExpectationRoutes implements RouteModule {
         Map<String, Object> next = new LinkedHashMap<>(content);
         next.put("lastResult", lastResult);
         next.put("updatedAt", result.checkedAt());
-        store.write(TYPE, exp.name(), next);
+        // archive=false: a run-check stamps lastResult, it doesn't author a new version (MET-5).
+        store.write(TYPE, exp.name(), next, false);
 
         if ("FAILED".equals(result.status())) raiseIncident(api, exp, result.violations());
         return next;

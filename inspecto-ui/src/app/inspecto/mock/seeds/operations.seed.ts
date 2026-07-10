@@ -6,7 +6,7 @@ import type { EnrichmentJobView } from '../../api/models';
 import type { OperationalObject } from '../../api/objects.service';
 import { CONNECTIONS_COLL } from '../handlers/connections.handler';
 import { DECISION_RULES_COLL, MockDecisionRule } from '../handlers/decision-rules.handler';
-import { EXPECTATIONS_COLL, MockExpectation } from '../handlers/expectations.handler';
+import { MockExpectation, seedExpectation } from '../handlers/expectations.handler';
 import { NOTIFICATIONS_COLL, seedNotifications } from '../handlers/demo.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
 import { ALERT_RULES_COLL, ENRICHMENT_COLL, OPS_OBJECTS_COLL } from '../handlers/ops.handler';
@@ -219,7 +219,7 @@ export function seedOperations(store: MockStore, space: string): void {
             severity: 'MAJOR', enabled: false, lastResult: null, createdAt: min(-540), updatedAt: min(-540),
         },
     ];
-    for (const e of expectations) store.put(space, EXPECTATIONS_COLL, e.name, e);
+    for (const e of expectations) seedExpectation(store, space, e);
 
     // ── Decision Rules (C3) — routing rules over the CDR stream. `demoMatched`/`demoTotal` are the
     //    mock-only deterministic simulation outcome (no real records to route). ───────────────────

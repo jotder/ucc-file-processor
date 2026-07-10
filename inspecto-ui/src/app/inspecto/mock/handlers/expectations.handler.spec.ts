@@ -4,6 +4,7 @@ import type { OperationalObject } from '../../api/objects.service';
 import { MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
 import { seedDefaultSpace } from '../seeds/default-space.seed';
+import { componentsHandler } from './components.handler';
 import { expectationsHandler } from './expectations.handler';
 import { OPS_OBJECTS_COLL } from './ops.handler';
 
@@ -91,5 +92,45 @@ describe('expectationsHandler', () => {
     it('gates on mockOps', () => {
         const store = seededStore();
         expect(expectationsHandler({})(req('GET', '/api/expectations'), store)).toBeUndefined();
+    });
+
+    // ── MET-5: unified storage — expectations live in component:expectation, so the generic
+    //    version-history routes (componentsHandler) serve them offline ─────────────────────────
+
+    const components = componentsHandler({ mockFlows: true });
+
+    it('a config edit archives a version; run-check stamps do not (MET-5)', () => {
+        const store = seededStore();
+        // Two run-checks stamp lastResult — result stamps are not authoring edits.
+        handler(req('POST', '/api/expectations/cdr_duration_range/evaluate'), store);
+        handler(req('POST', '/api/expectations/cdr_duration_range/evaluate'), store);
+        let versions = components(req('GET', '/api/components/expectation/cdr_duration_range/versions'), store)?.body as unknown[];
+        expect(versions).toEqual([]);
+
+        // A config edit archives the outgoing copy.
+        handler(req('PUT', '/api/expectations/cdr_duration_range',
+            { target: 'cdr_ingest', column: 'duration_s', kind: 'range', min: 0, max: 3600, severity: 'CRITICAL' }), store);
+        versions = components(req('GET', '/api/components/expectation/cdr_duration_range/versions'), store)?.body as { version: number }[];
+        expect(versions).toHaveLength(1);
+    });
+
+    it('restore via the components route round-trips into GET /expectations (MET-5)', () => {
+        const store = seededStore();
+        // Edit the seeded CRITICAL row down to MINOR — the original is archived as v1.
+        handler(req('PUT', '/api/expectations/cdr_msisdn_not_null',
+            { target: 'cdr_ingest', column: 'msisdn', kind: 'non_null', severity: 'MINOR' }), store);
+        const restored = components(req('POST', '/api/components/expectation/cdr_msisdn_not_null/versions/1/restore'), store);
+        expect(restored?.status ?? 200).toBe(200);
+        const list = handler(req('GET', '/api/expectations'), store)?.body as Expectation[];
+        expect(list.find((e) => e.name === 'cdr_msisdn_not_null')?.severity).toBe('CRITICAL');
+    });
+
+    it('delete purges the archived versions too', () => {
+        const store = seededStore();
+        handler(req('PUT', '/api/expectations/cdr_msisdn_format',
+            { target: 'cdr_ingest_daily', targetType: 'job', column: 'msisdn', kind: 'regex', pattern: 'x' }), store);
+        handler(req('DELETE', '/api/expectations/cdr_msisdn_format'), store);
+        // The component and its history are both gone — a later namesake starts fresh.
+        expect(components(req('GET', '/api/components/expectation/cdr_msisdn_format/versions'), store)?.body).toEqual([]);
     });
 });

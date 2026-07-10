@@ -174,6 +174,33 @@ class ControlApiExpectationTest {
         }
     }
 
+    // ── MET-5: run-check stamps are not authoring edits ────────────────────────────
+
+    @Test
+    void evaluationStampsDoNotArchiveVersionsButEditsDo(@TempDir Path cfg, @TempDir Path wr) throws Exception {
+        String target = "orders_" + System.nanoTime();
+        String name = "vh_" + System.nanoTime();
+        seedParquet(target, "SELECT * FROM (VALUES (1,NULL),(2,'x')) t(id,email)");
+        try (Ctx c = open(cfg, wr)) {
+            send(c.port, "POST", "/expectations", mk(name, target, "email", "non_null", null));
+
+            // Two run-checks persist lastResult — result stamps must NOT create versions, or
+            // evaluation cadence would churn real config edits out of the keep-N window.
+            json(send(c.port, "POST", "/expectations/" + name + "/evaluate", null));
+            json(send(c.port, "POST", "/expectations/" + name + "/evaluate", null));
+            JsonNode afterEvals = json(send(c.port, "GET", "/components/expectation/" + name + "/versions", null));
+            assertEquals(0, afterEvals.size(), "run-check stamps must not create versions");
+
+            // A real config edit DOES archive the outgoing copy.
+            json(send(c.port, "PUT", "/expectations/" + name,
+                    mk(name, target, "email", "non_null", "\"description\":\"edited\"")));
+            JsonNode afterEdit = json(send(c.port, "GET", "/components/expectation/" + name + "/versions", null));
+            assertEquals(1, afterEdit.size(), "an authoring edit archives one version");
+        } finally {
+            cleanup(target);
+        }
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────────
 
     private static String mk(String name, String target, String column, String kind, String extra) {

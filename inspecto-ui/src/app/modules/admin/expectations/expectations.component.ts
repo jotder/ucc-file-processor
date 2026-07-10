@@ -8,6 +8,7 @@ import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, Expectation, ExpectationsService, LensService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { ComponentHistoryDialog } from 'app/inspecto/components/component-history.dialog';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
@@ -103,8 +104,20 @@ export class ExpectationsComponent implements OnInit {
         return [
             ...ops,
             { icon: 'heroicons_outline:pencil-square', hint: 'Edit', onClick: (e) => this.edit(e) },
+            { icon: 'heroicons_outline:clock', hint: 'Version history', onClick: (e) => this.history(e) },
             { icon: 'heroicons_outline:trash', hint: 'Delete', onClick: (e) => this.remove(e) },
         ];
+    }
+
+    /** Show version history for an expectation; reload the list after a restore (MET-5). Config edits
+     *  archive versions; run-check result stamps do not. */
+    history(e: Expectation): void {
+        this.dialog
+            .open(ComponentHistoryDialog, { data: { type: 'expectation', id: e.name, label: e.name } })
+            .afterClosed()
+            .subscribe((restored) => {
+                if (restored) this.load();
+            });
     }
 
     ngOnInit(): void {

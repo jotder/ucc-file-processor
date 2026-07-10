@@ -73,28 +73,30 @@ export function componentsHandler(flags: MockFlags): MockHandler {
             const [, kind, id] = m;
             const coll = componentCollection(kind);
             if (method === 'GET') return json(store.get<ComponentDef>(space, coll, id) ?? null);
-            if (method === 'PUT') return json(save(store, space, kind, req.body, id));
+            if (method === 'PUT') return json(putComponent(store, space, kind, req.body, id));
             if (method === 'DELETE') {
                 const refs = store.referencesTo(space, coll, id);
                 if (refs.length) {
                     const by = refs.map((r) => `${r.collection.replace('component:', '')}/${r.id}`).join(', ');
                     return error(409, `${kind} "${id}" is still referenced by: ${by}`);
                 }
-                store.delete(space, coll, id);
+                deleteComponent(store, space, kind, id);   // purges archived versions too (MET-5)
                 return json({ deleted: true });
             }
         }
         if ((m = match(url, COMPONENTS)) && enabledFor(m[1])) {
             const kind = m[1];
             if (method === 'GET') return json(store.list<ComponentDef>(space, componentCollection(kind)));
-            if (method === 'POST') return json(save(store, space, kind, req.body));
+            if (method === 'POST') return json(putComponent(store, space, kind, req.body));
         }
         return undefined;
     };
 }
 
-/** Create (POST, id in body) or replace (PUT, id in URL) — mirrors the real id→name split. */
-function save(store: MockStore, space: string, kind: string, body: unknown, idFromUrl?: string): ComponentDef {
+/** Create (POST, id in body) or replace (PUT, id in URL) — mirrors the real id→name split. Exported so
+ *  sibling domain handlers persisting a component kind through their own routes (expectations) share the
+ *  MET-5 archive-on-save behaviour instead of re-rolling it. */
+export function putComponent(store: MockStore, space: string, kind: string, body: unknown, idFromUrl?: string): ComponentDef {
     const content = { ...((body as Record<string, unknown>) ?? {}) };
     const name = String(idFromUrl ?? content['id'] ?? 'unnamed');
     delete content['id'];
@@ -103,6 +105,22 @@ function save(store: MockStore, space: string, kind: string, body: unknown, idFr
     if (prior) archiveVersion(store, space, kind, name, prior.content);
     const def: ComponentDef = { type: kind, name, ref: `${kind}/${name}`, content };
     return store.put(space, componentCollection(kind), name, def);
+}
+
+/** Write a component WITHOUT archiving — for result-stamp updates (e.g. an Expectation's `lastResult`
+ *  after a run-check), which are not authoring edits (mirrors the backend's `write(…, archive=false)`). */
+export function putComponentQuiet(store: MockStore, space: string, kind: string, content: Record<string, unknown>, name: string): ComponentDef {
+    const def: ComponentDef = { type: kind, name, ref: `${kind}/${name}`, content };
+    return store.put(space, componentCollection(kind), name, def);
+}
+
+/** Delete a component AND its archived versions (mirrors the backend's delete-purges-history). */
+export function deleteComponent(store: MockStore, space: string, kind: string, id: string): void {
+    store.delete(space, componentCollection(kind), id);
+    const coll = historyCollection(kind);
+    for (const v of store.list<StoredVersion>(space, coll).filter((v) => v.id === id)) {
+        store.delete(space, coll, `${id}~v${v.version}`);
+    }
 }
 
 /** Snapshot the prior content into the kind's history collection, then prune to {@link HISTORY_KEEP}. */
@@ -132,7 +150,7 @@ function restoreVersion(store: MockStore, space: string, kind: string, id: strin
     if (!store.get<ComponentDef>(space, componentCollection(kind), id)) return error(404, `no ${kind} '${id}'`);
     const v = store.get<StoredVersion>(space, historyCollection(kind), `${id}~v${version}`);
     if (!v) return error(404, `no version ${version} of ${kind} '${id}'`);
-    return json(save(store, space, kind, { ...v.content, id }, id));
+    return json(putComponent(store, space, kind, { ...v.content, id }, id));
 }
 
 function componentTest(type: string, idRef: string): unknown {

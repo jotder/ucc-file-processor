@@ -97,16 +97,27 @@ public final class ComponentStore {
     /**
      * Write (create or replace) a component at {@code registry/<typeDir>/<id>.toon}, atomically. {@code id}
      * is stamped as the content's {@code name} so the in-file identity matches the URL id. Returns the
-     * written component (its parsed content as persisted).
+     * written component (its parsed content as persisted). Archives the outgoing copy (MET-5).
      */
     public ComponentRegistry.Component write(String type, String id, Map<String, Object> content) throws IOException {
+        return write(type, id, content, true);
+    }
+
+    /**
+     * {@link #write(String, String, Map)} with an explicit archive switch. Pass {@code archive=false} for
+     * <b>result-stamp</b> writes (e.g. an Expectation persisting {@code lastResult} after a run-check) —
+     * version history tracks authoring edits, and a stamp per evaluation would churn real edits out of the
+     * keep-N window.
+     */
+    public ComponentRegistry.Component write(String type, String id, Map<String, Object> content, boolean archive)
+            throws IOException {
         validateType(type);
         String name = validId(id);
         if (content == null) throw new IllegalArgumentException("component content is required");
         Path file = fileFor(type, name);
         Map<String, Object> doc = new LinkedHashMap<>(content);
         doc.put("name", name);   // canonicalise: in-file identity == URL id == filename stem
-        archivePrevious(type, name, file);   // MET-5: snapshot the outgoing copy before we overwrite it
+        if (archive) archivePrevious(type, name, file);   // MET-5: snapshot the outgoing copy first
         byte[] bytes = ConfigCodec.toToon(doc).getBytes(StandardCharsets.UTF_8);
         AtomicFiles.write(file, bytes, ".comp-");
         return new ComponentRegistry.Component(type, name, file, doc);
