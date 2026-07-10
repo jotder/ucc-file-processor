@@ -23,7 +23,9 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Data Acquisition: the {@code /connections} routes over real HTTP — masked list/by-id + a live
- *  reachability test against a local listening socket + the 404 / 401 gates. */
+ *  reachability test against a local listening socket + the 404 gates on update/delete of an unknown
+ *  id. (The write-root 503 gate, success path, 409 duplicate-on-create and 409 in-use-on-delete are
+ *  covered by {@link ControlApiSourcesAndConnectionsTest}.) */
 class ControlApiConnectionsTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -40,6 +42,22 @@ class ControlApiConnectionsTest {
         ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port());
+    }
+
+    @Test
+    void updateAndDeleteUnknownConnectionAre404(@TempDir Path dir, @TempDir Path root) throws Exception {
+        System.setProperty("assist.write.root", root.toString());
+        try (Ctx c = open(dir)) {
+            String body = """
+                {"id":"none","connector":"sftp","host":"h","port":22,"username":"svc","password":"${ENV:PW}"}
+                """;
+            assertEquals(404, send(c.port, "PUT", "/connections/none", body).statusCode(),
+                    "updating an unknown connection id is a 404");
+            assertEquals(404, send(c.port, "DELETE", "/connections/none", null).statusCode(),
+                    "deleting an unknown connection id is a 404");
+        } finally {
+            System.clearProperty("assist.write.root");
+        }
     }
 
     @Test
