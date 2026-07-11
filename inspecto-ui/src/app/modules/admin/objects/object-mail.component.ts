@@ -1,7 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal, ViewEncapsulation } from '@angular/core';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute } from '@angular/router';
@@ -9,7 +12,7 @@ import { ColDef, ICellRendererParams, ValueGetterParams } from 'ag-grid-communit
 import { forkJoin, Observable, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, ObjectsService, OperationalObject, UpdateObject } from 'app/inspecto/api';
+import { apiErrorMessage, ObjectsService, OperationalObject, Tag, TagRule, UpdateObject } from 'app/inspecto/api';
 import {
     STATUS_BADGE_BASE,
     statusBadgeClasses,
@@ -32,6 +35,8 @@ import { CategorizeDialog } from './categorize.dialog';
 import { ObjectCreateDialog } from './object-create.dialog';
 import { PostmortemPanelComponent } from './postmortem-panel.component';
 import { ResolveDialog } from './resolve.dialog';
+import { TagChange, TagDialog } from './tag.dialog';
+import { TagRulesDialog } from './tag-rules.dialog';
 
 const NAV_WIDTH_KEY = 'inspecto.mail.navWidth';
 const NAV_COLLAPSED_KEY = 'inspecto.mail.navCollapsed';
@@ -69,8 +74,11 @@ function mailDate(ms: number | undefined): string {
     standalone: true,
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
+        ReactiveFormsModule,
         MatButtonModule,
+        MatFormFieldModule,
         MatIconModule,
+        MatInputModule,
         MatMenuModule,
         MatTooltipModule,
         DataTableComponent,
@@ -110,6 +118,12 @@ export class ObjectMailComponent implements OnInit {
         Math.min(NAV_MAX, Math.max(NAV_MIN, Number(localStorage.getItem(NAV_WIDTH_KEY)) || 240)),
     );
 
+    // Tag registry + Tag Rules (user-created; loaded independently, degrade gracefully offline).
+    readonly tagRegistry = signal<Tag[]>([]);
+    readonly tagRulesList = signal<TagRule[]>([]);
+    readonly navTagOpen = signal(false);
+    readonly navNewTag = new FormControl('');
+
     // ── derived ───────────────────────────────────────────────────────────────────
     readonly rows = computed<OperationalObject[]>(() => {
         const tag = this.tagFilter();
@@ -123,8 +137,10 @@ export class ObjectMailComponent implements OnInit {
         return new Map(this.folders.map((f) => [f.id, all.filter((o) => f.match(o, this.me)).length]));
     });
 
+    /** Registry tags (zero-count ones stay visible) merged with tags found on the loaded rows. */
     readonly tags = computed<{ tag: string; count: number }[]>(() => {
         const byTag = new Map<string, number>();
+        for (const t of this.tagRegistry()) byTag.set(t.name, 0);
         for (const o of this.objects()) for (const t of objectTags(o)) byTag.set(t, (byTag.get(t) ?? 0) + 1);
         return [...byTag.entries()]
             .map(([tag, count]) => ({ tag, count }))
@@ -223,7 +239,14 @@ export class ObjectMailComponent implements OnInit {
         this.reload();
     }
 
+    /** Refresh the tag registry + rules; failures leave the previous value (offline-tolerant). */
+    loadTags(): void {
+        this.api.tags().subscribe({ next: (t) => this.tagRegistry.set(t), error: () => undefined });
+        this.api.tagRules().subscribe({ next: (r) => this.tagRulesList.set(r), error: () => undefined });
+    }
+
     reload(): void {
+        this.loadTags();
         this.loading.set(true);
         this.api.list({ type: this.type, limit: 500 }).subscribe({
             next: (o) => {
@@ -248,6 +271,20 @@ export class ObjectMailComponent implements OnInit {
 
     selectTag(tag: string): void {
         this.tagFilter.set(this.tagFilter() === tag ? null : tag);
+    }
+
+    /** Create a tag from the nav's inline input (Gmail's "create new label"). */
+    createNavTag(): void {
+        const name = (this.navNewTag.value ?? '').trim();
+        if (!name) return;
+        this.api.createTag(name).subscribe({
+            next: () => {
+                this.navNewTag.setValue('');
+                this.navTagOpen.set(false);
+                this.loadTags();
+            },
+            error: (e) => this.toastr.error(apiErrorMessage(e, 'Could not create tag')),
+        });
     }
 
     isActiveFolder(id: string): boolean {
@@ -363,6 +400,51 @@ export class ObjectMailComponent implements OnInit {
 
     prioritize(priority: string, targets = this.selected()): void {
         this.bulk(targets, (o) => this.api.update(o.id, { priority }), `Priority set to ${priority}`);
+    }
+
+    /** Manual tagging: the tri-state tag dialog decides what to add/remove on every target. */
+    tagSelection(targets = this.selected()): void {
+        if (!targets.length) return;
+        this.dialog
+            .open(TagDialog, { width: '420px', data: { targets, registry: this.tagRegistry() } })
+            .afterClosed()
+            .subscribe((change?: TagChange | null) => {
+                // Even on cancel a tag may have been created inside the dialog — refresh the registry.
+                if (!change || (!change.add.length && !change.remove.length)) {
+                    this.loadTags();
+                    return;
+                }
+                this.bulk(
+                    targets,
+                    (o) => {
+                        const tags = new Set(objectTags(o));
+                        change.add.forEach((t) => tags.add(t));
+                        change.remove.forEach((t) => tags.delete(t));
+                        return this.api.update(o.id, { attributes: { tags: [...tags].join(',') } });
+                    },
+                    'Tags updated',
+                );
+            });
+    }
+
+    /** Manage Tag Rules (saved searches that tag automatically + in bulk, Gmail-filter style). */
+    openTagRules(): void {
+        this.dialog
+            .open(TagRulesDialog, {
+                width: '640px',
+                maxHeight: '85vh',
+                data: {
+                    type: this.type,
+                    typeLabel: this.title,
+                    registry: this.tagRegistry(),
+                    rules: this.tagRulesList().filter((r) => (r.filter?.type ?? this.type).toUpperCase() === this.type),
+                },
+            })
+            .afterClosed()
+            .subscribe((changed?: boolean) => {
+                if (changed) this.reload();
+                else this.loadTags();
+            });
     }
 
     /** Incidents toggle the `escalated` flag; cases run the `escalate` transition. */

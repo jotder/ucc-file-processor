@@ -44,8 +44,43 @@
                 </button>
             }
 
-            @if (!navCollapsed() && tags().length) {
-                <div class="mb-1 mt-4 px-2 text-xs font-bold uppercase tracking-wider opacity-60">Tags</div>
+            @if (!navCollapsed()) {
+                <div class="mb-1 mt-4 flex items-center gap-1 px-2">
+                    <span class="flex-auto text-xs font-bold uppercase tracking-wider opacity-60">Tags</span>
+                    <button
+                        mat-icon-button
+                        class="icon-size-8"
+                        (click)="navTagOpen.set(!navTagOpen())"
+                        matTooltip="Create tag"
+                        aria-label="Create tag"
+                        [attr.aria-expanded]="navTagOpen()"
+                    >
+                        <mat-icon class="icon-size-4" svgIcon="heroicons_outline:plus"></mat-icon>
+                    </button>
+                    <button
+                        mat-icon-button
+                        class="icon-size-8"
+                        (click)="openTagRules()"
+                        matTooltip="Tag rules (saved searches that tag automatically)"
+                        aria-label="Manage tag rules"
+                    >
+                        <mat-icon class="icon-size-4" svgIcon="heroicons_outline:funnel"></mat-icon>
+                    </button>
+                </div>
+                @if (navTagOpen()) {
+                    <div class="mb-2 px-2">
+                        <mat-form-field class="w-full" subscriptSizing="dynamic">
+                            <mat-label>New tag</mat-label>
+                            <input
+                                matInput
+                                [formControl]="navNewTag"
+                                (keyup.enter)="createNavTag()"
+                                placeholder="name, then Enter"
+                                aria-label="New tag name"
+                            />
+                        </mat-form-field>
+                    </div>
+                }
                 @for (t of tags(); track t.tag) {
                     <button
                         type="button"
@@ -122,6 +157,10 @@
                         <button mat-menu-item (click)="prioritize(p)">{{ p }}</button>
                     }
                 </mat-menu>
+                <button mat-stroked-button [disabled]="!selected().length" (click)="tagSelection()" matTooltip="Add or remove tags">
+                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:tag"></mat-icon>
+                    <span class="ml-1">Tag</span>
+                </button>
                 <button mat-stroked-button [disabled]="!canEscalate()" (click)="escalate()">
                     <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-trending-up"></mat-icon>
                     <span class="ml-1">{{ escalateLabel() }}</span>

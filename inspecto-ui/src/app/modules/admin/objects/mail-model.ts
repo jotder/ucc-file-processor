@@ -1,4 +1,6 @@
-import { OperationalObject } from 'app/inspecto/api';
+import { normalizeIncidentStatus, OperationalObject } from 'app/inspecto/api';
+
+export { normalizeIncidentStatus };
 
 /**
  * The mail-view model over {@link OperationalObject}: the canonical incident lifecycle
@@ -9,25 +11,9 @@ import { OperationalObject } from 'app/inspecto/api';
 
 export const INCIDENT_PRIORITIES = ['CRITICAL', 'MAJOR', 'MINOR', 'LOW'] as const;
 
-/**
- * Normalize a legacy built-in-workflow incident status onto the mail lifecycle, so the pane
- * folders/render correctly against a backend still running `OPEN → ASSIGNED → IN_PROGRESS →
- * RESOLVED → CLOSED` (the built-in workflow is config-replaceable; see design §2).
- */
-export function normalizeIncidentStatus(status: string | undefined): string {
-    const s = (status ?? '').toUpperCase();
-    switch (s) {
-        case 'OPEN':
-            return 'IDENTIFIED';
-        case 'ASSIGNED':
-        case 'IN_PROGRESS':
-            return 'DIAGNOSING';
-        case 'CLOSED':
-            return 'ARCHIVED';
-        default:
-            return s;
-    }
-}
+/** The (normalized) statuses per object type — folder set and Tag-Rule criteria options. */
+export const INCIDENT_STATUSES = ['IDENTIFIED', 'DIAGNOSING', 'RESOLVED', 'ARCHIVED'] as const;
+export const CASE_STATUSES = ['OPEN', 'INVESTIGATING', 'ESCALATED', 'RESOLVED', 'CLOSED'] as const;
 
 /** The status shown/foldered for an object — normalized for incidents, as-is otherwise. */
 export function displayStatus(o: OperationalObject): string {

@@ -321,8 +321,13 @@ Identified → Diagnosing transition); Resolving requires a resolution comment. 
 **Critical · Major · Minor · Low**. ⛔ never "Issue". *(Lifecycle renamed from open → in-progress →
 resolved with the mail-like Incidents UI, 2026-07-12 — see §13.)*
 
-**Tag** — A free-form label attached to an Incident or Case for cross-cutting grouping/filtering
-(the mail metaphor's "labels"). ⛔ never "Label".
+**Tag** — A **user-created** label attached to an Incident or Case for cross-cutting
+grouping/filtering (the mail metaphor's "labels"). Applied **manually** (in bulk over a selection)
+or **by a Tag Rule**. ⛔ never "Label".
+
+**Tag Rule** — A saved search that applies a Tag (the Gmail-filter metaphor): it auto-tags newly
+created Incidents/Cases that match its criteria and can be **applied in bulk** to existing matches.
+⛔ never bare "Rule" (see §0 — Rule always qualified: Expectation / Alert Rule / Decision Rule / Tag Rule).
 
 **Case** — A group of related **Incidents** managed as one larger investigation with a shared resolution.
 Managed in the **Case Manager** pane; lifecycle open → investigating → escalated → resolved → closed.

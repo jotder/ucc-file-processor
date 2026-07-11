@@ -40,6 +40,9 @@ async function create() {
         update: vi.fn((id: string) => of(OBJECTS.find((o) => o.id === id))),
         transition: vi.fn((id: string) => of(OBJECTS.find((o) => o.id === id))),
         addComment: vi.fn(() => of({})),
+        tags: vi.fn(() => of([{ name: 'billing', createdAt: 1 }])),
+        tagRules: vi.fn(() => of([])),
+        createTag: vi.fn((name: string) => of({ name, createdAt: 2 })),
     } as unknown as ObjectsService;
     TestBed.configureTestingModule({
         imports: [ObjectMailComponent],
@@ -77,17 +80,27 @@ describe('ObjectMailComponent', () => {
         expect(c.rows().map((o) => o.id).sort()).toEqual(['i1', 'i4']);
     });
 
-    it('derives the tag list from attributes and filters rows by tag', async () => {
+    it('merges registry tags (zero-count) with tags derived from the rows, and filters by tag', async () => {
         const { c } = await create();
         expect(c.tags()).toEqual([
             { tag: 'network', count: 1 },
             { tag: 'urgent', count: 1 },
+            { tag: 'billing', count: 0 }, // registry-only tag stays visible
         ]);
         c.selectTag('urgent');
         expect(c.rows().map((o) => o.id)).toEqual(['i2']);
         c.selectFolder('resolved');
         expect(c.tagFilter()).toBeNull();
         expect(c.rows().map((o) => o.id)).toEqual(['i3']);
+    });
+
+    it('creates a tag from the nav inline input and refreshes the registry', async () => {
+        const { c, api } = await create();
+        c.navNewTag.setValue('  feeds ');
+        c.createNavTag();
+        expect(api.createTag).toHaveBeenCalledWith('feeds');
+        expect(api.tags).toHaveBeenCalledTimes(2); // init + refresh
+        expect(c.navNewTag.value).toBe('');
     });
 
     it('enables toolbar actions from the selection lifecycle', async () => {

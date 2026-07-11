@@ -1,7 +1,15 @@
 import type { AlertRule, FiredAlert } from '../../api/alerts.service';
 import { EVENT_LEVELS, type EventRow } from '../../api/events.service';
 import type { AuditRow, EnrichmentJobView } from '../../api/models';
-import type { ObjectGraph, ObjectLink, ObjectNote, OperationalObject } from '../../api/objects.service';
+import {
+    normalizeIncidentStatus,
+    type ObjectGraph,
+    type ObjectLink,
+    type ObjectNote,
+    type OperationalObject,
+    type Tag,
+    type TagRule,
+} from '../../api/objects.service';
 import { type Signal, alertToSignal, isAlertSignal, signalToAlert, signalToEvent } from '../../signal/signal';
 import { MockFlags } from '../mock-flags';
 import { error, json, match, MockHandler, MockRequest } from '../mock-http';
@@ -22,6 +30,8 @@ export const OPS_OBJECTS_COLL = 'ops-object';
 export const OBJECT_LINKS_COLL = 'object-link';
 export const OBJECT_NOTES_COLL = 'object-note';
 export const ENRICHMENT_COLL = 'enrichment-job';
+export const TAGS_COLL = 'tag';
+export const TAG_RULES_COLL = 'tag-rule';
 
 const EVENTS_SEARCH = /\/events\/search$/;
 const EVENTS_EXPORT = /\/events\/export$/;
@@ -40,6 +50,10 @@ const OBJECT_COMMENTS = /\/objects\/([^/]+)\/comments$/;
 const OBJECT_ATTACHMENTS = /\/objects\/([^/]+)\/attachments$/;
 const OBJECT_RCA = /\/objects\/([^/]+)\/rca$/;
 const RCA_TEMPLATES = /\/rca\/templates$/;
+const TAGS = /\/tags$/;
+const TAG_RULES = /\/tags\/rules$/;
+const TAG_RULE_ONE = /\/tags\/rules\/([^/]+)$/;
+const TAG_RULE_APPLY = /\/tags\/rules\/([^/]+)\/apply$/;
 
 /** Happy-path workflow: action → resulting status (the real backend validates per-type state machines). */
 const OBJECT_ACTION_STATUS: Record<string, string> = {
@@ -167,6 +181,8 @@ export function opsHandler(flags: MockFlags): MockHandler {
                 updatedAt: now,
                 closedAt: 0,
             };
+            // Tag Rules apply automatically to incoming objects (the Gmail-filter semantics).
+            autoApplyTagRules(store, space, obj);
             store.put(space, OPS_OBJECTS_COLL, obj.id, obj);
             if (obj.objectType === 'INCIDENT') {
                 // Emit an INCIDENT_OPENED signal; emitSignal fans out the notification (was a direct fanOut).
@@ -263,6 +279,59 @@ export function opsHandler(flags: MockFlags): MockHandler {
             return json(sections.map((s) => putNote(store, space, id, 'COMMENT', 'rca', `## ${s}\n`)));
         }
         if (method === 'GET' && RCA_TEMPLATES.test(url)) return json(RCA_TEMPLATE_CATALOG);
+        // ── tag registry + Tag Rules (design §7 follow-up on the real backend) ───────────────
+        if (method === 'GET' && TAGS.test(url)) {
+            return json(store.list<Tag>(space, TAGS_COLL).sort((a, b) => a.name.localeCompare(b.name)));
+        }
+        if (method === 'POST' && TAGS.test(url)) {
+            const name = String((req.body as { name?: string })?.name ?? '').trim();
+            if (!name) return error(422, 'tag name is required');
+            if (name.includes(',')) return error(422, 'tag names may not contain commas');
+            if (store.has(space, TAGS_COLL, name)) return error(409, `tag "${name}" already exists`);
+            return json(store.put(space, TAGS_COLL, name, { name, createdAt: Date.now() } satisfies Tag));
+        }
+        if (method === 'GET' && TAG_RULES.test(url)) {
+            return json(store.list<TagRule>(space, TAG_RULES_COLL).sort((a, b) => a.name.localeCompare(b.name)));
+        }
+        if (method === 'POST' && TAG_RULES.test(url)) {
+            const b = (req.body ?? {}) as Partial<TagRule>;
+            const filter = b.filter ?? {};
+            if (!b.name || !b.tag) return error(422, 'name and tag are required');
+            const hasCriterion = ['type', 'q', 'status', 'priority', 'severity', 'category']
+                .some((k) => (filter as Record<string, string>)[k]);
+            if (!hasCriterion) return error(422, 'a Tag Rule needs at least one criterion');
+            // Saving a rule implicitly registers its tag (Gmail creates the label with the filter).
+            if (!store.has(space, TAGS_COLL, b.tag)) {
+                store.put(space, TAGS_COLL, b.tag, { name: b.tag, createdAt: Date.now() } satisfies Tag);
+            }
+            return json(store.put(space, TAG_RULES_COLL, b.name, {
+                name: b.name, tag: b.tag, filter, createdAt: Date.now(),
+            } satisfies TagRule));
+        }
+        if (method === 'DELETE' && (m = match(url, TAG_RULE_ONE))) {
+            if (!store.has(space, TAG_RULES_COLL, m[1])) return error(404, `no tag rule "${m[1]}"`);
+            store.delete(space, TAG_RULES_COLL, m[1]);
+            return json({ deleted: m[1] });
+        }
+        if (method === 'POST' && (m = match(url, TAG_RULE_APPLY))) {
+            const rule = store.get<TagRule>(space, TAG_RULES_COLL, m[1]);
+            if (!rule) return error(404, `no tag rule "${m[1]}"`);
+            let matched = 0;
+            let updated = 0;
+            for (const o of store.list<OperationalObject>(space, OPS_OBJECTS_COLL)) {
+                if (!tagRuleMatches(rule, o)) continue;
+                matched++;
+                const tags = csvTags(o.attributes?.['tags']);
+                if (tags.includes(rule.tag)) continue;
+                updated++;
+                store.put(space, OPS_OBJECTS_COLL, o.id, {
+                    ...o,
+                    attributes: { ...(o.attributes ?? {}), tags: [...tags, rule.tag].join(',') },
+                    updatedAt: Date.now(),
+                });
+            }
+            return json({ matched, updated });
+        }
         if (method === 'GET' && (m = match(url, OBJECT_ONE))) {
             const obj = store.get<OperationalObject>(space, OPS_OBJECTS_COLL, m[1]);
             return obj ? json(obj) : error(404, `object ${m[1]} not found`);
@@ -292,6 +361,33 @@ export function opsHandler(flags: MockFlags): MockHandler {
 
         return undefined;
     };
+}
+
+/** Split the `attributes.tags` CSV. */
+function csvTags(csv: string | undefined): string[] {
+    return (csv ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+}
+
+/** Every set Tag-Rule criterion must match; incident statuses are compared on the mail lifecycle. */
+export function tagRuleMatches(rule: TagRule, o: OperationalObject): boolean {
+    const f = rule.filter ?? {};
+    const status = o.objectType === 'INCIDENT' ? normalizeIncidentStatus(o.status) : (o.status ?? '').toUpperCase();
+    if (f.type && o.objectType !== f.type.toUpperCase()) return false;
+    if (f.status && status !== f.status.toUpperCase()) return false;
+    if (f.priority && (o.priority ?? '').toUpperCase() !== f.priority.toUpperCase()) return false;
+    if (f.severity && (o.severity ?? '').toUpperCase() !== f.severity.toUpperCase()) return false;
+    if (f.category && !(o.attributes?.['category'] ?? '').startsWith(f.category)) return false;
+    if (f.q && !(o.title + ' ' + o.description).toLowerCase().includes(f.q.toLowerCase())) return false;
+    return true;
+}
+
+/** Merge every matching Tag Rule's tag into a (new, not yet stored) object's `attributes.tags`. */
+function autoApplyTagRules(store: MockStore, space: string, obj: OperationalObject): void {
+    const tags = new Set(csvTags(obj.attributes?.['tags']));
+    for (const rule of store.list<TagRule>(space, TAG_RULES_COLL)) {
+        if (tagRuleMatches(rule, obj)) tags.add(rule.tag);
+    }
+    if (tags.size && obj.attributes) obj.attributes['tags'] = [...tags].join(',');
 }
 
 /** Apply the GET /objects query semantics: type/status/severity/assignee/correlationId exact, `q` substring, `limit`. */

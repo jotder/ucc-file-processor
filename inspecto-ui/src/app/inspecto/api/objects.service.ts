@@ -65,6 +65,54 @@ export interface RcaTemplate {
     sections: string[];
 }
 
+/** A user-created tag in the registry (GET /tags). Objects carry tags as a CSV in `attributes.tags`. */
+export interface Tag {
+    name: string;
+    createdAt: number;
+}
+
+/** Criteria of a Tag Rule — every set field must match (q is a title+description substring). */
+export interface TagRuleFilter {
+    type?: string;
+    q?: string;
+    status?: string;
+    priority?: string;
+    severity?: string;
+    /** Category path prefix, e.g. "Pipeline" or "Pipeline / Ingest". */
+    category?: string;
+}
+
+/**
+ * A **Tag Rule** (GLOSSARY §9) — a saved search that applies a tag, Gmail-filter style:
+ * automatically to newly created objects, and in bulk to existing matches via `apply`.
+ */
+export interface TagRule {
+    name: string;
+    tag: string;
+    filter: TagRuleFilter;
+    createdAt?: number;
+}
+
+/**
+ * Map a legacy built-in-workflow incident status onto the mail lifecycle (GLOSSARY §9:
+ * IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED), so panes and Tag Rules fold/match correctly
+ * against a backend still running OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED.
+ */
+export function normalizeIncidentStatus(status: string | undefined): string {
+    const s = (status ?? '').toUpperCase();
+    switch (s) {
+        case 'OPEN':
+            return 'IDENTIFIED';
+        case 'ASSIGNED':
+        case 'IN_PROGRESS':
+            return 'DIAGNOSING';
+        case 'CLOSED':
+            return 'ARCHIVED';
+        default:
+            return s;
+    }
+}
+
 /** Filters for GET /objects. */
 export interface ObjectFilter {
     type?: string;
@@ -177,5 +225,33 @@ export class ObjectsService {
 
     rcaTemplates(): Observable<RcaTemplate[]> {
         return this.http.get<RcaTemplate[]>(apiUrl('/rca/templates'));
+    }
+
+    // ── tags & Tag Rules (mock-backed; real routes are a design-§7 follow-up) ────────────────
+
+    tags(): Observable<Tag[]> {
+        return this.http.get<Tag[]>(apiUrl('/tags'));
+    }
+
+    createTag(name: string): Observable<Tag> {
+        return this.http.post<Tag>(apiUrl('/tags'), { name });
+    }
+
+    tagRules(): Observable<TagRule[]> {
+        return this.http.get<TagRule[]>(apiUrl('/tags/rules'));
+    }
+
+    saveTagRule(rule: TagRule): Observable<TagRule> {
+        return this.http.post<TagRule>(apiUrl('/tags/rules'), rule);
+    }
+
+    deleteTagRule(name: string): Observable<{ deleted: string }> {
+        return this.http.delete<{ deleted: string }>(apiUrl(`/tags/rules/${encodeURIComponent(name)}`));
+    }
+
+    /** Bulk-apply a saved Tag Rule to every existing match — returns how many were tagged. */
+    applyTagRule(name: string): Observable<{ matched: number; updated: number }> {
+        return this.http.post<{ matched: number; updated: number }>(
+            apiUrl(`/tags/rules/${encodeURIComponent(name)}/apply`), {});
     }
 }

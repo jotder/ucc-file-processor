@@ -9,7 +9,7 @@ import { DECISION_RULES_COLL, MockDecisionRule } from '../handlers/decision-rule
 import { MockExpectation, seedExpectation } from '../handlers/expectations.handler';
 import { NOTIFICATIONS_COLL, seedNotifications } from '../handlers/demo.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
-import { ALERT_RULES_COLL, ENRICHMENT_COLL, OPS_OBJECTS_COLL } from '../handlers/ops.handler';
+import { ALERT_RULES_COLL, ENRICHMENT_COLL, OPS_OBJECTS_COLL, TAG_RULES_COLL, TAGS_COLL } from '../handlers/ops.handler';
 import { alertToSignal, eventToSignal } from '../../signal/signal';
 import { SIGNALS_COLL } from '../signals';
 import { MockStore } from '../mock-store';
@@ -211,6 +211,18 @@ export function seedOperations(store: MockStore, space: string): void {
         };
         store.put(space, OPS_OBJECTS_COLL, obj.id, obj);
     }
+
+    // ── Tag registry + Tag Rules (mail-view labels; GLOSSARY §9) ────────────────────────────────
+    for (const t of ['billing', 'data-quality', 'network', 'regression', 'urgent']) {
+        store.put(space, TAGS_COLL, t, { name: t, createdAt: now });
+    }
+    // Sample Gmail-style rule: every CRITICAL incident is tagged "urgent" (auto on create + bulk apply).
+    store.put(space, TAG_RULES_COLL, 'critical-is-urgent', {
+        name: 'critical-is-urgent',
+        tag: 'urgent',
+        filter: { type: 'INCIDENT', priority: 'CRITICAL' },
+        createdAt: now,
+    });
 
     // ── Enrichment jobs ─────────────────────────────────────────────────────────────────────────
     const enrich: EnrichmentJobView[] = [

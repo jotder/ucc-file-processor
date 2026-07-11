@@ -180,6 +180,60 @@ describe('opsHandler', () => {
         expect(archived.closedAt).toBeGreaterThan(0);
     });
 
+    it('manages the tag registry (list sorted, create validates + 409s duplicates)', () => {
+        const store = seededStore();
+        const seeded = handler(req('GET', '/api/tags'), store)?.body as Array<{ name: string }>;
+        expect(seeded.map((t) => t.name)).toEqual(['billing', 'data-quality', 'network', 'regression', 'urgent']);
+        expect(handler(req('POST', '/api/tags', { name: '  ' }), store)?.status).toBe(422);
+        expect(handler(req('POST', '/api/tags', { name: 'a,b' }), store)?.status).toBe(422);
+        expect(handler(req('POST', '/api/tags', { name: 'urgent' }), store)?.status).toBe(409);
+        expect(handler(req('POST', '/api/tags', { name: 'feeds' }), store)?.status).toBe(200);
+        const after = handler(req('GET', '/api/tags'), store)?.body as Array<{ name: string }>;
+        expect(after.map((t) => t.name)).toContain('feeds');
+    });
+
+    it('saves a Tag Rule (criteria required, tag implicitly registered) and bulk-applies it', () => {
+        const store = seededStore();
+        // No criteria → 422 (would tag everything).
+        expect(handler(req('POST', '/api/tags/rules', { name: 'r0', tag: 't0', filter: {} }), store)?.status).toBe(422);
+        // Every seeded incident title contains "rejected" → the rule matches all 5.
+        const saved = handler(
+            req('POST', '/api/tags/rules', { name: 'feed-issues', tag: 'feed-issue', filter: { type: 'INCIDENT', q: 'rejected' } }),
+            store,
+        );
+        expect(saved?.status).toBe(200);
+        const tags = handler(req('GET', '/api/tags'), store)?.body as Array<{ name: string }>;
+        expect(tags.map((t) => t.name)).toContain('feed-issue'); // saving the rule registered its tag
+        const applied = handler(req('POST', '/api/tags/rules/feed-issues/apply', {}), store)
+            ?.body as { matched: number; updated: number };
+        expect(applied).toEqual({ matched: 5, updated: 5 });
+        const incidents = handler(req('GET', '/api/objects', null, { type: 'incident' }), store)
+            ?.body as OperationalObject[];
+        expect(incidents.every((o) => (o.attributes?.['tags'] ?? '').includes('feed-issue'))).toBe(true);
+        // Re-apply is idempotent.
+        const again = handler(req('POST', '/api/tags/rules/feed-issues/apply', {}), store)
+            ?.body as { matched: number; updated: number };
+        expect(again).toEqual({ matched: 5, updated: 0 });
+        expect(handler(req('DELETE', '/api/tags/rules/feed-issues'), store)?.status).toBe(200);
+        expect(handler(req('POST', '/api/tags/rules/feed-issues/apply', {}), store)?.status).toBe(404);
+    });
+
+    it('auto-applies matching Tag Rules to newly created objects (Gmail-filter semantics)', () => {
+        const store = seededStore();
+        // The seeded rule "critical-is-urgent" tags CRITICAL incidents with "urgent".
+        const created = handler(
+            req('POST', '/api/objects', { type: 'incident', title: 'Broken feed', priority: 'CRITICAL' }),
+            store,
+        )?.body as OperationalObject;
+        expect((created.attributes?.['tags'] ?? '').split(',')).toContain('urgent');
+        // A non-matching object stays untagged.
+        const minor = handler(
+            req('POST', '/api/objects', { type: 'incident', title: 'Small glitch', priority: 'LOW' }),
+            store,
+        )?.body as OperationalObject;
+        expect(minor.attributes?.['tags']).toBeUndefined();
+    });
+
     it('patches priority and merges attributes without touching the rest', () => {
         const store = seededStore();
         const [o] = handler(req('GET', '/api/objects', null, { type: 'incident' }), store)?.body as OperationalObject[];

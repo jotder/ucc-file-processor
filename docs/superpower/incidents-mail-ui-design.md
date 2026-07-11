@@ -94,6 +94,23 @@ interface Postmortem {
 
 Reactive form with FormArrays (add/remove rows), saved via `PATCH /objects/{id}`.
 
+## 5b. Tags & Tag Rules (added 2026-07-12, same shift)
+
+Tags are **user-created** (registry, per space) and applied **manually or by rule** (GLOSSARY §9):
+
+- **Registry**: `GET/POST /tags` (`Tag {name, createdAt}`; names may not contain commas — CSV
+  storage). Created from the nav's Tags "+" inline input, inside the tag dialog, or implicitly by
+  saving a Tag Rule. The nav Tags section shows registry ∪ in-use tags (zero-count visible).
+- **Manual tagging**: toolbar **Tag** button → tri-state checkbox dialog over the registry
+  (checked = all selected have it, indeterminate = some); only touched rows are applied
+  (add/remove per target via `PATCH /objects/{id}` CSV merge).
+- **Tag Rules** (Gmail filters): `TagRule {name, tag, filter: {type, q, status, priority,
+  severity, category-prefix}}` — `GET/POST /tags/rules`, `DELETE /tags/rules/{name}`,
+  `POST /tags/rules/{name}/apply` → `{matched, updated}`. Rules **auto-apply on object creation**
+  (mock `POST /objects`) and **bulk-apply** on demand ("Apply now" / "Save & apply now") from the
+  rules dialog (nav Tags funnel icon). At least one criterion is required (422 otherwise); incident
+  status criteria match on the **normalized** lifecycle; saving a rule registers its tag.
+
 ## 6. Touched files
 
 - **Shared**: `status-badge.component.ts` (+IDENTIFIED/DIAGNOSING/MAJOR/MINOR tones),
@@ -114,6 +131,8 @@ Reactive form with FormArrays (add/remove rows), saved via `PATCH /objects/{id}`
 1. **`PATCH /objects/{id}`** on `ObjectRoutes` (priority / severity / assignee / attributes merge)
    — today only transition/assign/watch mutate; the UI's Prioritize/tags/postmortem need this
    against a real backend (mock provides it now).
+1b. **Tag registry + Tag Rules routes** (`/tags`, `/tags/rules`, `/tags/rules/{name}/apply`) and
+   the create-time auto-apply hook in `ObjectService` — all mock-only today (§5b).
 2. **Built-in INCIDENT workflow** → `IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED` with actions
    `accept/resolve/archive/reopen` (or ship a default `incident_workflow.toon`); UI normalization
    keeps the old statuses rendering meanwhile.
