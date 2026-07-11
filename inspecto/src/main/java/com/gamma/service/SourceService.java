@@ -317,6 +317,7 @@ public final class SourceService implements AutoCloseable {
             this.jobs.deletionGuard(this::checkDeletion);   // T25: fence delete jobs
             this.jobs.spaceId(spaceId);                     // run this space's jobs under its MDC (per-space routing)
             this.jobs.eventLog(eventLog);                   // P1c: this space's ledger = the on-signal Trigger source
+            this.jobs.knownPipelines(this::pipelineNamesForAudit);   // MNT-4: orphan on_pipeline detection
         }
         this.semanticModels    = List.copyOf(semanticModels);
         // Invalidate the catalog whenever configs are (re)indexed — the registry is now the
@@ -911,6 +912,16 @@ public final class SourceService implements AutoCloseable {
     /** The config-driven job registry, or empty when no jobs are registered (v2.8.0). */
     public Optional<JobService> jobService() {
         return Optional.ofNullable(jobs);
+    }
+
+    /** Live pipeline names, lowercased to match {@code BatchEvent.pipeline()} — the valid
+     *  {@code on_pipeline} targets the scheduler_audit maintenance task checks against (MNT-4). */
+    private java.util.Set<String> pipelineNamesForAudit() {
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (PipelineConfig cfg : configRegistry.configs()) {
+            names.add(cfg.identity().pipelineName().toLowerCase());
+        }
+        return names;
     }
 
     /** The Stage-2 enrichment service, or empty when no enrichment jobs are registered (v2.9.0). */

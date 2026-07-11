@@ -29,6 +29,7 @@ final class RunContext implements JobContext {
     private final SignalEmitter signals;
     private final ArtifactRecorder artifacts;
     private volatile Map<String, String> params = Map.of();   // resolved by the framework before run (P3a)
+    private volatile boolean dryRun;                          // installed by the framework before run (MNT-1)
 
     RunContext(String runId, String spaceId, String jobName, String trigger, String correlationId,
                int chainDepth, Map<String, String> config, RunLogStore store, int maxEntries,
@@ -50,9 +51,13 @@ final class RunContext implements JobContext {
     @Override public RunLog log()                 { return log; }
     @Override public SignalEmitter signals()      { return signals; }
     @Override public ArtifactRecorder artifacts() { return artifacts; }
+    @Override public boolean dryRun()              { return dryRun; }
 
     /** The framework installs the resolved Parameter Context (§7.2) just before {@code Job.run(ctx)}. */
     void params(Map<String, String> resolved) { this.params = Map.copyOf(resolved); }
+
+    /** The framework marks a preview fire (MNT-1) just before {@code Job.run(ctx)}. */
+    void dryRun(boolean dryRun) { this.dryRun = dryRun; }
 
     /** Records each artifact to the run's JSONL, stamping runId/job + a monotonic seq (R7, §10). */
     private static final class RunArtifactRecorder implements ArtifactRecorder {

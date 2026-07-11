@@ -70,11 +70,14 @@ final class JobRoutes implements RouteModule {
     private Object triggerJob(ApiContext api, HttpExchange e, String name) throws IOException {
         // Optional JSON body {"params":{...}} — explicit trigger args for this fire (job-framework §7.2 layer 1, P3a-2).
         Map<String, String> args = triggerArgs(api.body(e));
-        String runId = jobs(api).triggerRun(name, ApiContext.query(e, "actor"), args)   // optional ?actor= attributes the fire (T32)
+        // Optional ?dryRun=true (MNT-1): a preview fire — the Run reports impact, mutates nothing.
+        boolean dryRun = "true".equalsIgnoreCase(ApiContext.query(e, "dryRun"));
+        String runId = jobs(api).triggerRun(name, ApiContext.query(e, "actor"), args, dryRun)   // optional ?actor= attributes the fire (T32)
                 .orElseThrow(() -> new ApiException(404, "no job named '" + name + "'"));
         if (ApiContext.v1(e)) {
             e.getResponseHeaders().set("Location", "/api/v1/jobs/runs/" + runId);
-            return ApiContext.respondJson(e, 202, Map.of("runId", runId, "job", name, "status", "running"));
+            return ApiContext.respondJson(e, 202,
+                    Map.of("runId", runId, "job", name, "status", "running", "dryRun", dryRun));
         }
         return Map.of("job", name, "status", "triggered");
     }

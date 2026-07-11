@@ -74,6 +74,15 @@ public interface AcquisitionLedger extends AutoCloseable {
     }
 
     /**
+     * Count the fingerprints {@link #prune(long, String)} would delete, without deleting anything —
+     * the {@code ledger_prune} dry-run estimate (System Maintenance MNT-1). The default counts nothing,
+     * matching the default {@code prune} that prunes nothing.
+     */
+    default int countPrunable(long processedBefore, String sourceId) {
+        return 0;
+    }
+
+    /**
      * Run backend maintenance on the ledger's storage (PIP-7 {@code db_maintenance} task): for a DB-backed
      * ledger, merge the WAL and reclaim space ({@code CHECKPOINT} / {@code VACUUM}) over the store's own
      * connection — DuckDB is single-writer, so maintenance must ride the live connection, never a second one.

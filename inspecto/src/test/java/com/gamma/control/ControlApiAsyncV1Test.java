@@ -15,7 +15,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -123,6 +127,40 @@ class ControlApiAsyncV1Test {
             assertEquals("triggered", body.get("status").asText());
             assertEquals("hb", body.get("job").asText());
             assertNull(body.get("data"), "legacy surface stays un-enveloped and un-changed (200, no runId/202)");
+        }
+    }
+
+    @Test
+    void dryRunTriggerPreviewsWithoutMutating(@TempDir Path cfg, @TempDir Path root, @TempDir Path junk) throws Exception {
+        // Two stale files a real cleanup would delete (System Maintenance MNT-1).
+        Path a = Files.writeString(junk.resolve("a.csv"), "old!");
+        Path b = Files.writeString(junk.resolve("b.csv"), "old!");
+        FileTime past = FileTime.from(Instant.now().minus(Duration.ofDays(30)));
+        Files.setLastModifiedTime(a, past);
+        Files.setLastModifiedTime(b, past);
+        JobConfig clean = new JobConfig("dryclean", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "cleanup", "dir", junk.toString(), "retention_days", "7"));
+        try (Ctx c = open(cfg, root, List.of(clean))) {
+            HttpResponse<String> accepted = post(c.port, "/api/v1/jobs/dryclean/trigger?dryRun=true", null);
+            assertEquals(202, accepted.statusCode(), accepted.body());
+            JsonNode data = JSON.readTree(accepted.body()).get("data");
+            assertTrue(data.get("dryRun").asBoolean(), accepted.body());
+            String dryId = data.get("runId").asText();
+
+            JsonNode dry = awaitRun(c, "dryclean",
+                    r -> dryId.equals(r.get("runId").asText()) && !"RUNNING".equals(r.get("status").asText()));
+            assertEquals("SUCCESS", dry.get("status").asText(), dry.toString());
+            assertTrue(dry.get("message").asText().contains("would delete 2 file(s)"), dry.toString());
+            assertTrue(Files.exists(a) && Files.exists(b), "a dry run deletes nothing");
+
+            // The real fire matches the dry-run estimate.
+            String realId = JSON.readTree(post(c.port, "/api/v1/jobs/dryclean/trigger", null).body())
+                    .get("data").get("runId").asText();
+            JsonNode real = awaitRun(c, "dryclean",
+                    r -> realId.equals(r.get("runId").asText()) && !"RUNNING".equals(r.get("status").asText()));
+            assertEquals("SUCCESS", real.get("status").asText(), real.toString());
+            assertTrue(real.get("message").asText().contains("cleanup: deleted 2 file(s)"), real.toString());
+            assertFalse(Files.exists(a) || Files.exists(b), "the real run deletes what the preview counted");
         }
     }
 

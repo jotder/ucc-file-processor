@@ -39,4 +39,15 @@ public interface JobContext {
 
     /** Record queryable Run Artifacts — produced Datasets / files (R7, §10). */
     ArtifactRecorder artifacts();
+
+    /**
+     * Whether this Run is a <b>dry run</b> (System Maintenance MNT-1, "Safe by Default"): a preview
+     * fire that must mutate nothing. A destructive Job Type honours it by reporting the affected
+     * objects and estimated impact instead of acting; one that cannot preview must do nothing and
+     * say so — never fall through to the real action. Only manual triggers can request it
+     * ({@code POST /jobs/{name}/trigger?dryRun=true}); cron/event/signal fires are always real.
+     */
+    default boolean dryRun() {
+        return false;
+    }
 }

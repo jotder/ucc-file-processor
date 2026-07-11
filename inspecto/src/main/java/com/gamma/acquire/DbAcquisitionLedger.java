@@ -157,6 +157,21 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
         }
     }
 
+    @Override
+    public synchronized int countPrunable(long processedBefore, String sourceId) {
+        String sql = "SELECT COUNT(*) FROM " + TABLE + " WHERE processed_at < ?"
+                + (sourceId != null ? " AND source_id = ?" : "");
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, processedBefore);
+            if (sourceId != null) ps.setString(2, sourceId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("ledger prune count failed: " + e.getMessage(), e);
+        }
+    }
+
     /** CHECKPOINT + VACUUM, each best-effort — Postgres restricts CHECKPOINT to superusers, DuckDB allows both. */
     @Override
     public synchronized void maintenance() {

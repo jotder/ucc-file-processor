@@ -29,9 +29,71 @@ class MaintenanceLibraryTest {
         return new JobConfig("m", JobType.MAINTENANCE, null, null, true, false, params);
     }
 
+    /** A real {@link RunContext} marked as a preview fire (MNT-1), audit files under {@code auditDir}. */
+    private static JobContext dryCtx(Path auditDir) {
+        RunContext ctx = new RunContext("r-dry", "default", "m", "manual", "r-dry", 0, Map.of(),
+                new RunLogStore(auditDir.toString()), 100, new RunArtifactStore(auditDir.toString()));
+        ctx.dryRun(true);
+        return ctx;
+    }
+
     @AfterEach
     void resetLedger() {
         AcquisitionLedgers.use(null);
+    }
+
+    // ── dry run (System Maintenance MNT-1) ───────────────────────────────────────
+
+    @Test
+    void cleanupDryRunReportsImpactButDeletesNothing(@TempDir Path junk, @TempDir Path audit) throws Exception {
+        Path stale = junk.resolve("stale.csv");
+        Files.writeString(stale, "old-data");
+        Files.setLastModifiedTime(stale, FileTime.from(Instant.now().minus(Duration.ofDays(30))));
+        Path fresh = Files.writeString(junk.resolve("fresh.csv"), "new");
+        JobConfig cfg = job(Map.of("task", "cleanup", "dir", junk.toString(), "retention_days", "7"));
+
+        JobResult dry = new MaintenanceJob(cfg).run(dryCtx(audit));
+        assertTrue(dry.message().contains("would delete 1 file(s), 8 byte(s)"), dry.message());
+        assertTrue(Files.exists(stale), "dry run must not delete");
+        assertTrue(Files.exists(fresh));
+
+        // The real run matches the dry-run estimate.
+        JobResult real = new MaintenanceJob(cfg).run();
+        assertTrue(real.message().contains("deleted 1 file(s), 8 byte(s)"), real.message());
+        assertFalse(Files.exists(stale), "real run deletes the stale file");
+        assertTrue(Files.exists(fresh), "fresh file inside retention survives both runs");
+    }
+
+    @Test
+    void ledgerPruneDryRunCountsWithoutForgetting(@TempDir Path audit) throws Exception {
+        InMemoryAcquisitionLedger ledger = new InMemoryAcquisitionLedger();
+        AcquisitionLedgers.use(ledger);
+        long old = System.currentTimeMillis() - Duration.ofDays(120).toMillis();
+        ledger.record(new LedgerEntry("S", "old.csv", "old.csv", 1, null, null, null, old, old, LedgerEntry.PROCESSED));
+        ledger.record(new LedgerEntry("S", "new.csv", "new.csv", 1, null, null, null, old,
+                System.currentTimeMillis(), LedgerEntry.PROCESSED));
+
+        JobResult r = new MaintenanceJob(job(Map.of("task", "ledger_prune",
+                "retention_days", "90", "source", "S"))).run(dryCtx(audit));
+
+        assertTrue(r.message().contains("would remove 1 fingerprint(s)"), r.message());
+        assertTrue(ledger.find("S", "old.csv").isPresent(), "dry run must not prune");
+        assertTrue(ledger.find("S", "new.csv").isPresent());
+    }
+
+    @Test
+    void dryRunOnATaskWithoutPreviewDoesNothing(@TempDir Path root, @TempDir Path audit) throws Exception {
+        Files.writeString(root.resolve("keep.parquet"), "not-really-parquet");
+        JobResult r = new MaintenanceJob(job(Map.of("task", "compact", "dir", root.toString())))
+                .run(dryCtx(audit));
+        assertTrue(r.message().contains("has no preview — no action taken"), r.message());
+        assertTrue(Files.exists(root.resolve("keep.parquet")), "fail-closed: nothing was touched");
+    }
+
+    @Test
+    void dbMaintenanceDryRunOnlyDescribes(@TempDir Path audit) throws Exception {
+        JobResult r = new MaintenanceJob(job(Map.of("task", "db_maintenance"))).run(dryCtx(audit));
+        assertTrue(r.message().contains("db_maintenance[dry-run]"), r.message());
     }
 
     // ── ledger_prune ─────────────────────────────────────────────────────────────
@@ -60,6 +122,221 @@ class MaintenanceLibraryTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new MaintenanceJob(job(Map.of("task", "ledger_prune"))).run(),
                 "forgetting must be deliberate — no default retention");
+    }
+
+    // ── cleanup policy knobs (MNT-2b) ────────────────────────────────────────────
+
+    /** Write {@code bytes} into {@code dir/name}, mtime backdated by {@code ageDays}. */
+    private static Path aged(Path dir, String name, String content, int ageDays) throws Exception {
+        Files.createDirectories(dir);
+        Path f = Files.writeString(dir.resolve(name), content);
+        Files.setLastModifiedTime(f, FileTime.from(Instant.now().minus(Duration.ofDays(ageDays))));
+        return f;
+    }
+
+    @Test
+    void cleanupMaxCountKeepsOnlyTheNewestFiles(@TempDir Path dir) throws Exception {
+        Path oldest = aged(dir, "a.csv", "x", 3);
+        Path middle = aged(dir, "b.csv", "x", 2);
+        Path newest = aged(dir, "c.csv", "x", 1);
+
+        JobResult r = new MaintenanceJob(job(Map.of("task", "cleanup", "dir", dir.toString(),
+                "retention_days", "30", "max_count", "2"))).run();
+
+        assertTrue(r.message().contains("deleted 1 file(s)"), r.message());
+        assertFalse(Files.exists(oldest), "beyond the newest max_count files");
+        assertTrue(Files.exists(middle) && Files.exists(newest));
+    }
+
+    @Test
+    void cleanupMaxSizeKeepsTheNewestWithinTheByteBudget(@TempDir Path dir) throws Exception {
+        Path oldest = aged(dir, "a.csv", "4chr", 3);
+        Path middle = aged(dir, "b.csv", "4chr", 2);
+        Path newest = aged(dir, "c.csv", "4chr", 1);
+
+        JobResult r = new MaintenanceJob(job(Map.of("task", "cleanup", "dir", dir.toString(),
+                "retention_days", "30", "max_size", "8"))).run();
+
+        assertTrue(r.message().contains("deleted 1 file(s), 4 byte(s)"), r.message());
+        assertFalse(Files.exists(oldest), "over the newest-first byte budget");
+        assertTrue(Files.exists(middle) && Files.exists(newest), "newest files within budget kept");
+    }
+
+    @Test
+    void cleanupArchivesInsteadOfDeletingAndNeverRewalksTheArchive(@TempDir Path dir) throws Exception {
+        Path stale = aged(dir.resolve("sub"), "stale.csv", "old-data", 30);
+        Path archiveDir = dir.resolve(".archive");   // inside the cleaned dir — must be excluded from the walk
+        JobConfig cfg = job(Map.of("task", "cleanup", "dir", dir.toString(), "retention_days", "7",
+                "archive_instead_of_delete", "true", "archive_dir", archiveDir.toString()));
+
+        JobResult first = new MaintenanceJob(cfg).run();
+        assertTrue(first.message().contains("archived 1 file(s)"), first.message());
+        assertFalse(Files.exists(stale), "moved out of the live tree");
+        assertTrue(Files.exists(archiveDir.resolve("sub").resolve("stale.csv")),
+                "relative structure preserved under archive_dir");
+
+        JobResult second = new MaintenanceJob(cfg).run();
+        assertTrue(second.message().contains("archived 0 file(s)"),
+                "the archive itself is never re-cleaned: " + second.message());
+        assertTrue(Files.exists(archiveDir.resolve("sub").resolve("stale.csv")));
+    }
+
+    @Test
+    void cleanupArchiveRequiresAnExplicitArchiveDir(@TempDir Path dir) {
+        assertThrows(IllegalArgumentException.class, () -> new MaintenanceJob(job(Map.of(
+                "task", "cleanup", "dir", dir.toString(), "archive_instead_of_delete", "true"))).run(),
+                "no silent default archive destination");
+    }
+
+    // ── runlog_prune (MNT-2a) ────────────────────────────────────────────────────
+
+    /** Write a JSONL file into {@code dir}, mtime backdated by {@code ageDays}. */
+    private static Path jsonl(Path dir, String name, int ageDays) throws Exception {
+        Files.createDirectories(dir);
+        Path f = Files.writeString(dir.resolve(name), "{\"x\":1}\n");
+        Files.setLastModifiedTime(f, FileTime.from(Instant.now().minus(Duration.ofDays(ageDays))));
+        return f;
+    }
+
+    @Test
+    void runlogPruneForgetsOldRunHistoryAcrossAllThreeStores(@TempDir Path audit, @TempDir Path ctxDir) throws Exception {
+        Path oldLog  = jsonl(audit.resolve("runlog"), "r-old.jsonl", 30);
+        Path newLog  = jsonl(audit.resolve("runlog"), "r-new.jsonl", 0);
+        Path oldArt  = jsonl(audit.resolve("artifacts"), "r-old.jsonl", 30);
+        Path newArt  = jsonl(audit.resolve("artifacts"), "r-new.jsonl", 0);
+        DuckDbUtil.loadDriver();
+        try (DbJobRunStore store = DbJobRunStore.open("jdbc:duckdb:")) {
+            store.record(new JobRun("r-old", "j", "maintenance", "manual",
+                    "2020-01-01 00:00:00", "2020-01-01 00:00:01", "SUCCESS", 10L, "m"));
+            store.record(new JobRun("r-new", "j", "maintenance", "manual",
+                    java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter
+                            .ofPattern("yyyy-MM-dd HH:mm:ss")), null, "SUCCESS", 10L, "m"));
+            MaintenanceJob job = new MaintenanceJob(job(Map.of("task", "runlog_prune",
+                    "retention_days", "7")), null, audit.toString(), store);
+
+            // Dry run first: reports the impact, removes nothing.
+            JobResult dry = job.run(dryCtx(ctxDir));
+            assertTrue(dry.message().contains(
+                    "would remove 1 run log(s), 1 artifact file(s), 1 projected run row(s)"), dry.message());
+            assertTrue(Files.exists(oldLog) && Files.exists(oldArt), "dry run must not delete");
+            assertEquals(2, store.recentRuns(10, null).size(), "dry run must not prune rows");
+
+            // The real run matches the estimate; recent history survives.
+            JobResult real = job.run();
+            assertTrue(real.message().contains(
+                    "removed 1 run log(s), 1 artifact file(s), 1 projected run row(s)"), real.message());
+            assertFalse(Files.exists(oldLog));
+            assertFalse(Files.exists(oldArt));
+            assertTrue(Files.exists(newLog) && Files.exists(newArt), "recent history kept");
+            assertEquals(1, store.recentRuns(10, null).size(), "only the old row pruned");
+        }
+    }
+
+    @Test
+    void runlogPruneMaxCountCapsToNewestFiles(@TempDir Path audit) throws Exception {
+        Path oldest = jsonl(audit.resolve("runlog"), "r1.jsonl", 3);
+        Path middle = jsonl(audit.resolve("runlog"), "r2.jsonl", 2);
+        Path newest = jsonl(audit.resolve("runlog"), "r3.jsonl", 1);
+
+        JobResult r = new MaintenanceJob(job(Map.of("task", "runlog_prune",
+                "retention_days", "30", "max_count", "2")), null, audit.toString(), null).run();
+
+        assertTrue(r.message().contains("removed 1 run log(s)"), r.message());
+        assertFalse(Files.exists(oldest), "beyond the newest max_count files");
+        assertTrue(Files.exists(middle) && Files.exists(newest), "newest N kept");
+    }
+
+    @Test
+    void runlogPruneRequiresRetentionDays() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new MaintenanceJob(job(Map.of("task", "runlog_prune"))).run(),
+                "forgetting must be deliberate — no default retention");
+    }
+
+    // ── storage_report (MNT-3) ───────────────────────────────────────────────────
+
+    @Test
+    void storageReportSummarisesAxesAndFlagsTheThreshold(@TempDir Path space, @TempDir Path ctxDir) throws Exception {
+        Files.writeString(Files.createDirectories(space.resolve("config")).resolve("a.toon"), "1234");
+        Files.writeString(Files.createDirectories(space.resolve("data")).resolve("big.csv"), "12345678");
+        Files.writeString(space.resolve("space.toon"), "12");
+
+        JobResult r = new MaintenanceJob(job(Map.of("task", "storage_report",
+                "dir", space.toString(), "warn_bytes", "10"))).run(dryCtx(ctxDir));
+
+        assertTrue(r.message().contains("3 file(s), 14 byte(s)"), r.message());
+        assertTrue(r.message().contains(".=2b"), r.message());
+        assertTrue(r.message().contains("config=4b"), r.message());
+        assertTrue(r.message().contains("data=8b"), r.message());
+        assertTrue(r.message().contains("OVER warn_bytes=10"), r.message());
+        assertTrue(Files.exists(space.resolve("data").resolve("big.csv")), "read-only task touches nothing");
+    }
+
+    @Test
+    void storageReportStaysQuietUnderTheThreshold(@TempDir Path space) throws Exception {
+        Files.writeString(Files.createDirectories(space.resolve("data")).resolve("small.csv"), "12");
+        JobResult r = new MaintenanceJob(job(Map.of("task", "storage_report",
+                "dir", space.toString(), "warn_bytes", "1000"))).run();
+        assertFalse(r.message().contains("OVER"), r.message());
+    }
+
+    // ── scheduler_audit (MNT-4) ──────────────────────────────────────────────────
+
+    /** Poll until the job's last run is terminal, or fail after 10s. */
+    private static JobRun await(java.util.function.Supplier<JobRun> latest) throws Exception {
+        long deadline = System.nanoTime() + 10_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            JobRun r = latest.get();
+            if (r != null && !"RUNNING".equals(r.status())) return r;
+            Thread.sleep(25);
+        }
+        throw new AssertionError("run did not reach a terminal status within 10s");
+    }
+
+    @Test
+    void schedulerAuditFlagsEveryHygieneFindingClass(@TempDir Path audit) throws Exception {
+        JobConfig disabled  = new JobConfig("off", JobType.MAINTENANCE, null, null, false, false, Map.of("task", "heartbeat"));
+        JobConfig twinA     = new JobConfig("twin-a", JobType.MAINTENANCE, "0 3 * * *", null, true, false, Map.of("task", "heartbeat"));
+        JobConfig twinB     = new JobConfig("twin-b", JobType.MAINTENANCE, "0 3 * * *", null, true, false, Map.of("task", "heartbeat"));
+        JobConfig orphanPipe = new JobConfig("waits", JobType.MAINTENANCE, null, "ghost_pipeline", true, false, Map.of("task", "heartbeat"));
+        JobConfig orphanSig = new JobConfig("listens", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"), "custom.signal.type", null);
+        JobConfig auditJob  = new JobConfig("hygiene", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "scheduler_audit"));
+        try (com.gamma.service.Scheduler s = new com.gamma.service.Scheduler();
+             JobService js = new JobService(List.of(disabled, twinA, twinB, orphanPipe, orphanSig, auditJob),
+                     new com.gamma.service.BatchEventBus(), s, null, audit.toString())) {
+            js.knownPipelines(() -> java.util.Set.of("real_pipeline"));
+            String runId = js.triggerRun("hygiene", null).orElseThrow();
+            JobRun run = await(() -> js.lastRunOf("hygiene").orElse(null));
+
+            assertEquals("SUCCESS", run.status(), run.message());
+            assertTrue(run.message().contains("finding(s) across 6 job(s)"), run.message());
+            List<String> logged = js.runLog(runId).stream().map(RunLogEntry::message).toList();
+            assertTrue(logged.stream().anyMatch(m -> m.contains("disabled job 'off'")), logged.toString());
+            assertTrue(logged.stream().anyMatch(m -> m.contains("duplicate definition")
+                    && m.contains("twin-a") && m.contains("twin-b")), logged.toString());
+            assertTrue(logged.stream().anyMatch(m -> m.contains("unknown pipeline 'ghost_pipeline'")), logged.toString());
+            assertTrue(logged.stream().anyMatch(m -> m.contains("no declared producer for on_signal 'custom.signal.type'")),
+                    logged.toString());
+        }
+    }
+
+    @Test
+    void schedulerAuditIsHealthyOnACleanRegistry(@TempDir Path audit) throws Exception {
+        JobConfig ok = new JobConfig("fine", JobType.MAINTENANCE, "0 4 * * *", null, true, false, Map.of("task", "heartbeat"));
+        JobConfig listener = new JobConfig("chained", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"), "job.run.completed", null);   // a declared framework producer
+        JobConfig auditJob = new JobConfig("hygiene", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "scheduler_audit"));
+        try (com.gamma.service.Scheduler s = new com.gamma.service.Scheduler();
+             JobService js = new JobService(List.of(ok, listener, auditJob),
+                     new com.gamma.service.BatchEventBus(), s, null, audit.toString())) {
+            js.knownPipelines(() -> java.util.Set.of());
+            js.triggerRun("hygiene", null).orElseThrow();
+            JobRun run = await(() -> js.lastRunOf("hygiene").orElse(null));
+            assertEquals("SUCCESS", run.status(), run.message());
+            assertTrue(run.message().contains("0 finding(s)"), run.message());
+            assertTrue(run.message().contains("healthy"), run.message());
+        }
     }
 
     // ── db_maintenance ───────────────────────────────────────────────────────────

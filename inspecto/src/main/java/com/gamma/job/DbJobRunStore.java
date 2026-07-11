@@ -180,6 +180,34 @@ public final class DbJobRunStore implements AutoCloseable {
         }
     }
 
+    /**
+     * Delete projected runs started before {@code cutoff} ({@code yyyy-MM-dd HH:mm:ss} — lexicographic
+     * on the VARCHAR {@code start_time}) — the {@code runlog_prune} maintenance task (MNT-2a).
+     * Returns the number of rows removed.
+     */
+    public synchronized int prune(String cutoff) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM " + T_RUNS + " WHERE start_time < ?")) {
+            ps.setString(1, cutoff);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new IllegalStateException("job-run prune failed: " + e.getMessage(), e);
+        }
+    }
+
+    /** Count the rows {@link #prune(String)} would delete, deleting nothing — the dry-run estimate (MNT-1). */
+    public synchronized int countPrunable(String cutoff) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM " + T_RUNS + " WHERE start_time < ?")) {
+            ps.setString(1, cutoff);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("job-run prune count failed: " + e.getMessage(), e);
+        }
+    }
+
     @Override
     public synchronized void close() {
         try {

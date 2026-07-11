@@ -210,13 +210,21 @@ public final class JobService implements AutoCloseable {
                 List.of(), List.of(ArtifactDecl.report("report"))),
                 c -> new ReportJob(c, reports, dataDir)));
         registry.register(JobTypeProvider.of(new JobTypeDescriptor("maintenance", "Maintenance",
-                "Built-in housekeeping task (cleanup / ledger_prune / db_maintenance / compact / materialize).",
+                "Built-in housekeeping task (cleanup / ledger_prune / runlog_prune / storage_report / "
+                        + "scheduler_audit / db_maintenance / compact / materialize).",
                 List.of(ParameterDecl.optional("task", ParamType.STRING, "cleanup", "Which maintenance task"),
-                        ParameterDecl.optional("dir", ParamType.STRING, null, "Target directory (cleanup / compact)"),
-                        ParameterDecl.optional("retention_days", ParamType.INTEGER, "7", "Age threshold in days"),
+                        ParameterDecl.optional("dir", ParamType.STRING, null, "Target directory (cleanup / compact / storage_report)"),
+                        ParameterDecl.optional("retention_days", ParamType.INTEGER, "7", "Age threshold in days (required for the *_prune tasks)"),
+                        ParameterDecl.optional("glob", ParamType.STRING, "*", "Filename filter (cleanup)"),
+                        ParameterDecl.optional("max_count", ParamType.INTEGER, null, "Keep at most the newest N files (cleanup / runlog_prune)"),
+                        ParameterDecl.optional("max_size", ParamType.INTEGER, null, "Keep at most this many bytes, newest first (cleanup)"),
+                        ParameterDecl.optional("archive_instead_of_delete", ParamType.BOOLEAN, "false", "cleanup: move affected files to archive_dir instead of deleting"),
+                        ParameterDecl.optional("archive_dir", ParamType.STRING, null, "Archive destination (required when archiving)"),
+                        ParameterDecl.optional("warn_bytes", ParamType.INTEGER, null, "storage_report: emit maintenance.storage.threshold above this total"),
+                        ParameterDecl.optional("source", ParamType.STRING, null, "ledger_prune: scope to one Source"),
                         ParameterDecl.optional("store", ParamType.STRING, null, "Store(s) a delete task targets (fenced)")),
-                List.of(), List.of()),
-                c -> new MaintenanceJob(c, dataDir)));
+                List.of("maintenance.storage.threshold", "maintenance.scheduler.findings"), List.of()),
+                c -> new MaintenanceJob(c, dataDir, auditDir, ledger.runStore().orElse(null), this)));
         registry.register(JobTypeProvider.of(new JobTypeDescriptor("pipeline", "Pipeline",
                 "Runs an authored Pipeline over data at rest; emits a commit downstream jobs can chain on.",
                 List.of(ParameterDecl.required("flow", ParamType.STRING, "Authored Pipeline id to run"),
@@ -342,7 +350,7 @@ public final class JobService implements AutoCloseable {
             }
             if (newDepth > maxChainDepth) { cutChain(c.name(), sig, newDepth); continue; }
             String cid = sig.correlationId();
-            Firing firing = new Firing(Map.of(), sig.payload());   // §7.2 layer 2: bind: resolves $signal.<field>
+            Firing firing = new Firing(Map.of(), sig.payload(), false);   // §7.2 layer 2: bind: resolves $signal.<field>
             signalCoalescers.computeIfAbsent(c.name(), k -> new TriggerCoalescer())
                     .signal(() -> submitRun(newRunId(c.name()), c.name(), "signal:" + sig.type(), cid, newDepth, firing));
         }
@@ -427,10 +435,20 @@ public final class JobService implements AutoCloseable {
      * config {@code args:}/{@code params:} and the deduced context for this fire.
      */
     public Optional<String> triggerRun(String name, String actor, Map<String, String> args) {
+        return triggerRun(name, actor, args, false);
+    }
+
+    /**
+     * As {@link #triggerRun(String, String, Map)} but optionally as a <b>dry run</b> (MNT-1): the Run
+     * executes normally except {@link JobContext#dryRun()} is {@code true}, so a destructive Job Type
+     * previews its impact instead of acting. Only this manual path can request it — cron/event/signal
+     * fires are always real.
+     */
+    public Optional<String> triggerRun(String name, String actor, Map<String, String> args, boolean dryRun) {
         if (!jobs.containsKey(name)) return Optional.empty();
         String runId = newRunId(name);
         String trigger = actor == null || actor.isBlank() ? "manual" : "manual:" + actor.trim();
-        submitRun(runId, name, trigger, runId, 0, new Firing(args == null ? Map.of() : args, Map.of()));
+        submitRun(runId, name, trigger, runId, 0, new Firing(args == null ? Map.of() : args, Map.of(), dryRun));
         return Optional.of(runId);
     }
 
@@ -453,8 +471,8 @@ public final class JobService implements AutoCloseable {
      * {@code POST} body's {@code params:}); {@code signalPayload} is the firing Signal's payload, against
      * which a Job's {@code bind:} map resolves {@code $signal.<field>}. Both empty for cron/event/catch-up.
      */
-    private record Firing(Map<String, String> args, Map<String, Object> signalPayload) {
-        static final Firing NONE = new Firing(Map.of(), Map.of());
+    private record Firing(Map<String, String> args, Map<String, Object> signalPayload, boolean dryRun) {
+        static final Firing NONE = new Firing(Map.of(), Map.of(), false);
     }
 
     /** Register the run as {@code RUNNING} and execute it off the caller's thread; a fresh correlation chain. */
@@ -518,7 +536,9 @@ public final class JobService implements AutoCloseable {
                 return;
             }
             ctx.params(pr.resolved());
-            ctx.log().info("run started", "trigger", trigger, "params", pr.resolved());   // resolved Parameter Context (R2/R5)
+            ctx.dryRun(firing.dryRun());
+            ctx.log().info("run started", "trigger", trigger, "params", pr.resolved(),
+                    "dryRun", firing.dryRun());   // resolved Parameter Context (R2/R5)
             ctx.signals().emit("job.run.started", Severity.INFO,
                     Map.of("job", name, "run", runId, "trigger", trigger));
             JobResult res;
@@ -697,6 +717,29 @@ public final class JobService implements AutoCloseable {
 
     /** Whether any job by this name is registered and enabled. */
     public boolean has(String name) { return jobs.containsKey(name); }
+
+    // ── scheduler_audit seams (System Maintenance MNT-4) ─────────────────────────
+
+    /** Valid {@code on_pipeline} targets: the host's live pipeline names, lowercased to match
+     *  {@code BatchEvent.pipeline()}. Null until wired — the audit then skips that finding class
+     *  rather than guessing. Set by the hosting service (like {@link #eventLog}). */
+    private volatile java.util.function.Supplier<Set<String>> knownPipelines;
+
+    /** Wire the host's pipeline-name supplier so scheduler_audit can detect orphan {@code on_pipeline} triggers. */
+    public void knownPipelines(java.util.function.Supplier<Set<String>> supplier) {
+        this.knownPipelines = supplier;
+    }
+
+    /** The host-supplied pipeline-name set (lowercased), or null when never wired. */
+    Set<String> knownPipelineNames() {
+        java.util.function.Supplier<Set<String>> s = knownPipelines;
+        return s == null ? null : s.get();
+    }
+
+    /** Immutable snapshot of every configured job, for the scheduler_audit task. */
+    List<JobConfig> configSnapshot() {
+        return List.copyOf(configs);
+    }
 
     @Override
     public void close() {
