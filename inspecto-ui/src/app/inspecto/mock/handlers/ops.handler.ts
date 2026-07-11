@@ -50,7 +50,14 @@ const OBJECT_ACTION_STATUS: Record<string, string> = {
     ack: 'ACKNOWLEDGED',
     resolve: 'RESOLVED',
     close: 'CLOSED',
+    // Incident mail-lifecycle (GLOSSARY §9): IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED.
+    accept: 'DIAGNOSING',
+    archive: 'ARCHIVED',
+    reopen: 'DIAGNOSING',
 };
+
+/** Terminal statuses that stamp `closedAt`. */
+const CLOSING_STATUSES = new Set(['CLOSED', 'ARCHIVED']);
 
 const RCA_TEMPLATE_CATALOG = [
     { name: 'incident-default', sections: ['Summary', 'Timeline', 'Root cause', 'Impact', 'Remediation'] },
@@ -139,18 +146,23 @@ export function opsHandler(flags: MockFlags): MockHandler {
             const b = (req.body ?? {}) as Record<string, unknown> & { title?: string };
             if (!b.title) return error(422, 'title is required');
             const now = Date.now();
+            const objectType = String(b['type'] ?? 'INCIDENT').toUpperCase();
             const obj: OperationalObject = {
                 id: 'obj-' + now,
-                objectType: String(b['type'] ?? 'INCIDENT').toUpperCase(),
+                objectType,
                 title: b.title,
                 description: String(b['description'] ?? ''),
-                status: 'OPEN',
+                // Incidents enter the mail lifecycle at IDENTIFIED (Inbox); other types keep OPEN.
+                status: objectType === 'INCIDENT' ? 'IDENTIFIED' : 'OPEN',
                 severity: b['severity'] as string | undefined,
                 priority: b['priority'] as string | undefined,
                 owner: b['owner'] as string | undefined,
                 assignee: b['assignee'] as string | undefined,
                 correlationId: b['correlationId'] as string | undefined,
-                attributes: b['dueInMinutes'] ? { dueAt: String(now + Number(b['dueInMinutes']) * 60_000) } : {},
+                attributes: {
+                    ...((b['attributes'] as Record<string, string> | undefined) ?? {}),
+                    ...(b['dueInMinutes'] ? { dueAt: String(now + Number(b['dueInMinutes']) * 60_000) } : {}),
+                },
                 createdAt: now,
                 updatedAt: now,
                 closedAt: 0,
@@ -177,7 +189,7 @@ export function opsHandler(flags: MockFlags): MockHandler {
             const status = OBJECT_ACTION_STATUS[action];
             if (!status) return error(422, `unknown action "${action}"`);
             const now = Date.now();
-            const next = { ...obj, status, updatedAt: now, closedAt: status === 'CLOSED' ? now : obj.closedAt };
+            const next = { ...obj, status, updatedAt: now, closedAt: CLOSING_STATUSES.has(status) ? now : obj.closedAt };
             store.put(space, OPS_OBJECTS_COLL, next.id, next);
             // A user action is a signal producer too (living-operational-system §5): the operator moved an object.
             emitSignal(store, space, {
@@ -254,6 +266,24 @@ export function opsHandler(flags: MockFlags): MockHandler {
         if (method === 'GET' && (m = match(url, OBJECT_ONE))) {
             const obj = store.get<OperationalObject>(space, OPS_OBJECTS_COLL, m[1]);
             return obj ? json(obj) : error(404, `object ${m[1]} not found`);
+        }
+        // Field patch (priority / severity / assignee / attributes merge) — backend follow-up, see
+        // docs/superpower/incidents-mail-ui-design.md §7. Drives Prioritize / tags / postmortem saves.
+        if (method === 'PATCH' && (m = match(url, OBJECT_ONE))) {
+            const obj = store.get<OperationalObject>(space, OPS_OBJECTS_COLL, m[1]);
+            if (!obj) return error(404, `object ${m[1]} not found`);
+            const b = (req.body ?? {}) as {
+                priority?: string; severity?: string; assignee?: string; attributes?: Record<string, string>;
+            };
+            const next: OperationalObject = {
+                ...obj,
+                ...(b.priority !== undefined ? { priority: b.priority } : {}),
+                ...(b.severity !== undefined ? { severity: b.severity } : {}),
+                ...(b.assignee !== undefined ? { assignee: b.assignee } : {}),
+                attributes: { ...(obj.attributes ?? {}), ...(b.attributes ?? {}) },
+                updatedAt: Date.now(),
+            };
+            return json(store.put(space, OPS_OBJECTS_COLL, next.id, next));
         }
         if (method === 'GET' && ((m = match(url, ENRICH_RUNS)) || (m = match(url, ENRICH_LINEAGE)))) {
             return json(enrichRuns(m[1]));

@@ -43,6 +43,8 @@ export function statusTone(value: string | null | undefined): StatusTone {
         case 'WARN':
         case 'WARNING':
         case 'HIGH':
+        case 'MAJOR':
+        case 'DIAGNOSING':
         case 'PAUSED':
         case 'QUARANTINE':
         case 'QUARANTINED':
@@ -50,6 +52,8 @@ export function statusTone(value: string | null | undefined): StatusTone {
             return 'warning';
         case 'INFO':
         case 'OPEN':
+        case 'IDENTIFIED':
+        case 'MINOR':
         case 'PENDING':
         case 'PROCESSING':
         case 'REQUESTED':

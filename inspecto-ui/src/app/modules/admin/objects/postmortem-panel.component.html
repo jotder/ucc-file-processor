@@ -1,0 +1,200 @@
+<div class="flex h-full min-h-0 flex-col">
+    <!-- Header -->
+    <div class="border-b p-4" style="border-color: var(--gamma-border)">
+        <div class="flex items-start gap-2">
+            <div class="min-w-0 flex-auto">
+                <h2 class="truncate text-lg font-bold" [matTooltip]="object().title">
+                    {{ isIncident ? 'Incident Postmortem: ' : '' }}{{ object().title }}
+                    <span class="text-secondary font-normal">({{ object().id }})</span>
+                </h2>
+                <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <inspecto-status-badge [value]="displayStatus(object())" />
+                    @if (object().priority) {
+                        <inspecto-status-badge [value]="object().priority" />
+                    }
+                    @if (object().severity) {
+                        <inspecto-status-badge [value]="object().severity" />
+                    }
+                    @if (isEscalated(object())) {
+                        <inspecto-status-badge value="CRITICAL" label="ESCALATED" />
+                    }
+                </div>
+            </div>
+            <a
+                mat-icon-button
+                [routerLink]="detailLink"
+                matTooltip="Open full detail (graph, comments, attachments)"
+                aria-label="Open full detail"
+            >
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrows-pointing-out"></mat-icon>
+            </a>
+            <button mat-icon-button (click)="closed.emit()" matTooltip="Close panel" aria-label="Close panel">
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:x-mark"></mat-icon>
+            </button>
+        </div>
+
+        <dl class="text-secondary mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
+            @if (objectCategory(object())) {
+                <dt class="font-semibold">Category</dt>
+                <dd class="min-w-0 truncate" [matTooltip]="objectCategory(object())">{{ objectCategory(object()) }}</dd>
+            }
+            @if (objectTags(object()).length) {
+                <dt class="font-semibold">Tags</dt>
+                <dd>{{ objectTags(object()).join(', ') }}</dd>
+            }
+            @if (object().assignee) {
+                <dt class="font-semibold">Assignee</dt>
+                <dd>{{ object().assignee }}</dd>
+            }
+            <dt class="font-semibold">Updated</dt>
+            <dd>{{ fmtDateTime(object().updatedAt) }}</dd>
+        </dl>
+
+        @if (quickActions.length) {
+            <div class="mt-3 flex flex-wrap gap-2">
+                @for (a of quickActions; track a.id) {
+                    <button mat-stroked-button (click)="act.emit(a.id)">{{ a.label }}</button>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Body -->
+    <div class="min-h-0 flex-auto overflow-y-auto p-4">
+        @if (object().description) {
+            <p class="text-secondary mb-4 text-sm">{{ object().description }}</p>
+        }
+
+        @if (isIncident) {
+            <form [formGroup]="form" class="flex flex-col gap-5">
+                <!-- Summary -->
+                <section>
+                    <h3 class="mb-2 text-sm font-bold uppercase tracking-wider opacity-60">Summary</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Incident Commander</mat-label>
+                            <input matInput formControlName="commander" />
+                        </mat-form-field>
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Date of Incident</mat-label>
+                            <input matInput formControlName="incidentDate" placeholder="YYYY-MM-DD" />
+                        </mat-form-field>
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Total Downtime</mat-label>
+                            <input matInput formControlName="downtime" placeholder="X hours Y minutes" />
+                        </mat-form-field>
+                        <mat-form-field subscriptSizing="dynamic">
+                            <mat-label>Business Impact</mat-label>
+                            <input matInput formControlName="businessImpact" placeholder="e.g. Y% of transactions failed" />
+                        </mat-form-field>
+                    </div>
+                </section>
+
+                <!-- Timeline -->
+                <section formArrayName="timeline">
+                    <div class="mb-2 flex items-center justify-between">
+                        <h3 class="text-sm font-bold uppercase tracking-wider opacity-60">Timeline of Events</h3>
+                        <button
+                            mat-icon-button
+                            type="button"
+                            (click)="addTimeline()"
+                            matTooltip="Add timeline entry"
+                            aria-label="Add timeline entry"
+                        >
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
+                        </button>
+                    </div>
+                    @for (row of timeline.controls; track row; let i = $index) {
+                        <div [formGroupName]="i" class="mb-2 flex items-start gap-2">
+                            <mat-form-field class="w-32 shrink-0" subscriptSizing="dynamic">
+                                <mat-label>Time</mat-label>
+                                <input matInput formControlName="time" placeholder="12:00 UTC" />
+                            </mat-form-field>
+                            <mat-form-field class="flex-auto" subscriptSizing="dynamic">
+                                <mat-label>What happened</mat-label>
+                                <input matInput formControlName="text" />
+                            </mat-form-field>
+                            <button
+                                mat-icon-button
+                                type="button"
+                                class="mt-1"
+                                (click)="removeTimeline(i)"
+                                matTooltip="Remove entry"
+                                aria-label="Remove timeline entry"
+                            >
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                            </button>
+                        </div>
+                    } @empty {
+                        <p class="text-secondary text-sm">No entries yet — add the first alert, escalation, fix and recovery.</p>
+                    }
+                </section>
+
+                <!-- 5 Whys -->
+                <section formArrayName="fiveWhys">
+                    <h3 class="mb-2 text-sm font-bold uppercase tracking-wider opacity-60">Root Cause Analysis (The 5 Whys)</h3>
+                    @for (row of fiveWhys.controls; track row; let i = $index) {
+                        <div [formGroupName]="i" class="mb-2 flex items-baseline gap-2">
+                            <span class="text-secondary w-4 shrink-0 text-sm font-bold">{{ i + 1 }}.</span>
+                            <mat-form-field class="flex-auto" subscriptSizing="dynamic">
+                                <mat-label>Why?</mat-label>
+                                <input matInput formControlName="why" />
+                            </mat-form-field>
+                        </div>
+                    }
+                </section>
+
+                <!-- Corrective actions -->
+                <section formArrayName="actions">
+                    <div class="mb-2 flex items-center justify-between">
+                        <h3 class="text-sm font-bold uppercase tracking-wider opacity-60">Corrective Actions &amp; Preventative Tasks</h3>
+                        <button
+                            mat-icon-button
+                            type="button"
+                            (click)="addAction()"
+                            matTooltip="Add corrective action"
+                            aria-label="Add corrective action"
+                        >
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
+                        </button>
+                    </div>
+                    @for (row of actionsArr.controls; track row; let i = $index) {
+                        <div [formGroupName]="i" class="mb-2 flex items-start gap-2">
+                            <mat-checkbox formControlName="done" class="mt-1" aria-label="Task done"></mat-checkbox>
+                            <mat-form-field class="flex-auto" subscriptSizing="dynamic">
+                                <mat-label>Task</mat-label>
+                                <input matInput formControlName="text" />
+                            </mat-form-field>
+                            <mat-form-field class="w-24 shrink-0" subscriptSizing="dynamic">
+                                <mat-label>Owner</mat-label>
+                                <input matInput formControlName="owner" />
+                            </mat-form-field>
+                            <mat-form-field class="w-32 shrink-0" subscriptSizing="dynamic">
+                                <mat-label>Due</mat-label>
+                                <input matInput formControlName="due" placeholder="YYYY-MM-DD" />
+                            </mat-form-field>
+                            <button
+                                mat-icon-button
+                                type="button"
+                                class="mt-1"
+                                (click)="removeAction(i)"
+                                matTooltip="Remove task"
+                                aria-label="Remove corrective action"
+                            >
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                            </button>
+                        </div>
+                    } @empty {
+                        <p class="text-secondary text-sm">No tasks yet — capture the fixes that prevent a recurrence.</p>
+                    }
+                </section>
+
+                <div class="flex justify-end">
+                    <button mat-flat-button color="primary" [disabled]="saving || form.pristine" (click)="save()">
+                        Save postmortem
+                    </button>
+                </div>
+            </form>
+        }
+    </div>
+</div>

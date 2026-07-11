@@ -90,10 +90,11 @@
     [quickFilterText]="search()"
     [pagination]="true"
     [paginationPageSize]="pageSize()"
-    [rowSelection]="singleSelect() ? 'single' : undefined"
+    [rowSelection]="rowSelectionValue()"
     [loading]="loading()"
     [overlayNoRowsTemplate]="noRows()"
     (rowClicked)="onRowClicked($event)"
+    (selectionChanged)="onSelectionChanged($event)"
     (firstDataRendered)="refresh($event)"
     (rowDataUpdated)="refresh($event)"
 ></ag-grid-angular>

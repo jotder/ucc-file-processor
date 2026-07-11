@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AgGridAngular } from 'ag-grid-angular';
-import { ColDef, GridApi } from 'ag-grid-community';
+import { ColDef, GridApi, RowClickedEvent, RowSelectionOptions } from 'ag-grid-community';
 import {
     actionsColumn,
     autoColumns,
@@ -109,6 +109,8 @@ export class DataTableComponent {
     readonly height = input('42rem');
     readonly autoHeight = input(false);
     readonly singleSelect = input(false);
+    /** Checkbox multi-select (mail-list style): header + row checkboxes; row *click* still only emits `rowClick`. */
+    readonly multiSelect = input(false);
     readonly noRowsTitle = input('No data to display');
     readonly noRowsHint = input<string | undefined>(undefined);
     readonly exportName = input('export');
@@ -121,8 +123,19 @@ export class DataTableComponent {
     readonly savable = input<boolean | undefined>(undefined);
 
     readonly rowClick = output<Record<string, unknown>>();
+    /** Multi-select: the currently checked rows, re-emitted on every selection change. */
+    readonly selectionChange = output<Record<string, unknown>[]>();
     /** Pro Max: emitted after a rule template is saved via the built-in save dialog. */
     readonly ruleSaved = output<RuleTemplate>();
+
+    /** ag-Grid selection config: checkbox multi-row wins over legacy single-select. */
+    readonly rowSelectionValue = computed<RowSelectionOptions | 'single' | undefined>(() =>
+        this.multiSelect()
+            ? { mode: 'multiRow', enableClickSelection: false }
+            : this.singleSelect()
+              ? 'single'
+              : undefined,
+    );
 
     // ── toolbar state ────────────────────────────────────────────────────────────
     readonly search = signal('');
@@ -291,7 +304,14 @@ export class DataTableComponent {
     }
 
     onRowClicked(e: { data?: Record<string, unknown> }): void {
+        // A click on the selection checkbox toggles selection only — it is not a row "open".
+        const target = (e as RowClickedEvent).event?.target as HTMLElement | null;
+        if (target?.closest?.('.ag-selection-checkbox')) return;
         if (e.data) this.rowClick.emit(e.data);
+    }
+
+    onSelectionChanged(e: { api: GridApi }): void {
+        this.selectionChange.emit(e.api.getSelectedRows());
     }
 
     refresh(e: { api: GridApi }): void {

@@ -314,9 +314,18 @@ preferences in Settings.
 > Chain: **Alert → Incident → Case.**
 
 **Incident** — A tracked operational problem. Raised automatically by an **Alert** or a **Diagnosis**, or
-manually. Has a status lifecycle (open → in-progress → resolved). ⛔ never "Issue".
+manually. Status lifecycle **Identified → Diagnosing → Resolved → Archived** (mail metaphor: Inbox →
+Draft → Sent → Trash; *reopen* returns a Resolved/Archived Incident to Diagnosing). Created with a
+**3-layer categorization** (Category / Subcategory / Detail — enforced at latest on *Accept*, the
+Identified → Diagnosing transition); Resolving requires a resolution comment. Priority ladder
+**Critical · Major · Minor · Low**. ⛔ never "Issue". *(Lifecycle renamed from open → in-progress →
+resolved with the mail-like Incidents UI, 2026-07-12 — see §13.)*
+
+**Tag** — A free-form label attached to an Incident or Case for cross-cutting grouping/filtering
+(the mail metaphor's "labels"). ⛔ never "Label".
 
 **Case** — A group of related **Incidents** managed as one larger investigation with a shared resolution.
+Managed in the **Case Manager** pane; lifecycle open → investigating → escalated → resolved → closed.
 
 **Diagnosis** — An AI-assisted root-cause analysis of a failing Run or Source that produces an **Incident** with
 a suggested fix.
@@ -455,6 +464,8 @@ touchpoint before renaming; the backend hits below are *known examples*, not an 
 | Data Source *(browsable origin)* | **Stream** | **Additive, not a model rename.** New Catalog data-origin concept (§3); the acquisition *config* stays **Connection** + **Source**. Touchpoints so far: nav + Catalog labels (Phase A of `superpower/ia-vocabulary-reorg.md`). Backend Stream read-model is Phase B. |
 | Cube *(noun / summary asset)* | **Matrix** | **Additive label, not a model rename.** User-facing name for a summary **Derived Table** (§6-B); the model type stays `Derived Table` / `NodeKind.DERIVED_TABLE`. Touchpoints: Catalog/Studio UI labels; persisted materialization is Phase C. |
 | Issue | **Incident** | ✅ **DONE** (`2878b31`, breaking → 5.0): `ObjectType.INCIDENT`, `/objects?type=INCIDENT` + `objectType` value, UI `/issues`→`/incidents` (route file renamed), ops-mock seeds INCIDENT. No DB migration (in-memory `ObjectStore`). |
+| Incident lifecycle `OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED` | **`IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED`** (§9) | ✅ **UI + mock DONE** (2026-07-12, mail-like Incidents/Case Manager — `docs/superpower/incidents-mail-ui-design.md`): `object-mail.component` folders/normalizes legacy statuses (`mail-model.ts`), ops mock actions `accept/archive/reopen` + INCIDENT creates as IDENTIFIED. ⏳ **Backend pending**: built-in INCIDENT `Workflow` (config-replaceable via `*_workflow.toon`) + a `PATCH /objects/{id}` field-patch route (design §7). |
+| Label *(on an Incident)* | **Tag** (§9) | ✅ UI ships Tags (CSV in `attributes.tags`); no backend field yet (design §7). |
 | Rule *(bare)* | **Expectation** / **Alert Rule** / **Decision Rule** | rule builder UI; `AlertRule`, rule services — split by purpose |
 | Metric *(BI sense)* | **Measure** | ✅ **UI DONE** (`feat/rename-bi-metric-to-measure`): Studio/viz FE renamed — `DatasetRole`/`FieldRole` `'metric'`→`'measure'`, `NamedMetric`→`NamedMeasure`, `QueryMetric`→`QueryMeasure`, `buildMetric`/`metricId`, `isMetric`, `DatasetConfig.metrics`/`QuerySpec.measures`, plugins, mock data + specs. ✅ **Backend = NO-OP** (verified 2026-06-30): the backend BI concept is **KPI** (`kpis:` / `KpiMeta` / `NodeKind.KPI` / `IdScheme.kpi()`) — a *distinct canonical term* (a single-number Measure with a target), **not** renamed. There is no server-side "Metric" in the BI sense. Kept ops `MetricRegistry`/`MetricsService`/`AcquisitionTelemetry` as **Metric**. |
 | Collector *(noun)* | **Source** | any "Collector" labels → "Source"; keep `collect()` verbs |

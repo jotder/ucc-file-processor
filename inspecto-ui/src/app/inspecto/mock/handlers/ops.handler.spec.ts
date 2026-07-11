@@ -149,26 +149,49 @@ describe('opsHandler', () => {
     it('creates an object, fetches it, and walks the workflow transitions', () => {
         const store = seededStore();
         const created = handler(
-            req('POST', '/api/objects', { type: 'incident', title: 'Late feed', severity: 'WARNING', dueInMinutes: 60 }),
+            req('POST', '/api/objects', {
+                type: 'incident',
+                title: 'Late feed',
+                severity: 'WARNING',
+                dueInMinutes: 60,
+                attributes: { category: 'Data Quality / Timeliness / Late arrival', tags: 'urgent' },
+            }),
             store,
         )?.body as OperationalObject;
         expect(created.objectType).toBe('INCIDENT');
-        expect(created.status).toBe('OPEN');
+        // Incidents enter the mail lifecycle at IDENTIFIED (GLOSSARY §9) with attributes passed through.
+        expect(created.status).toBe('IDENTIFIED');
+        expect(created.attributes?.['category']).toBe('Data Quality / Timeliness / Late arrival');
         expect(Number(created.attributes?.['dueAt'])).toBeGreaterThan(created.createdAt);
 
         const fetched = handler(req('GET', `/api/objects/${created.id}`), store)?.body as OperationalObject;
         expect(fetched.title).toBe('Late feed');
 
-        const assigned = handler(req('POST', `/api/objects/${created.id}/transition`, { action: 'assign' }), store)
+        const accepted = handler(req('POST', `/api/objects/${created.id}/transition`, { action: 'accept' }), store)
             ?.body as OperationalObject;
-        expect(assigned.status).toBe('ASSIGNED');
+        expect(accepted.status).toBe('DIAGNOSING');
 
         const bad = handler(req('POST', `/api/objects/${created.id}/transition`, { action: 'frobnicate' }), store);
         expect(bad?.status).toBe(422);
 
-        const closed = handler(req('POST', `/api/objects/${created.id}/transition`, { action: 'close' }), store)
+        const archived = handler(req('POST', `/api/objects/${created.id}/transition`, { action: 'archive' }), store)
             ?.body as OperationalObject;
-        expect(closed.closedAt).toBeGreaterThan(0);
+        expect(archived.status).toBe('ARCHIVED');
+        expect(archived.closedAt).toBeGreaterThan(0);
+    });
+
+    it('patches priority and merges attributes without touching the rest', () => {
+        const store = seededStore();
+        const [o] = handler(req('GET', '/api/objects', null, { type: 'incident' }), store)?.body as OperationalObject[];
+        const patched = handler(
+            req('PATCH', `/api/objects/${o.id}`, { priority: 'CRITICAL', attributes: { escalated: 'true' } }),
+            store,
+        )?.body as OperationalObject;
+        expect(patched.priority).toBe('CRITICAL');
+        expect(patched.attributes?.['escalated']).toBe('true');
+        expect(patched.attributes?.['pipeline']).toBe(o.attributes?.['pipeline']); // merge, not replace
+        expect(patched.title).toBe(o.title);
+        expect(handler(req('PATCH', '/api/objects/nope', { priority: 'LOW' }), store)?.status).toBe(404);
     });
 
     it('links two objects and returns the correlation graph around the root', () => {

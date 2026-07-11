@@ -29,14 +29,24 @@ function create() {
 }
 
 describe('ObjectCreateDialog', () => {
-    it('blocks save until a title is set, then creates and closes with the object', () => {
+    it('blocks save until title AND the 3-layer category are set, then creates and closes', () => {
         const { c, ref, api } = create();
         c.save();
         expect(api.create).not.toHaveBeenCalled();
 
+        // Title alone is not enough for an incident — the 3-layer categorization is required.
         c.form.patchValue({ title: 'Late feed', severity: 'WARNING' });
         c.save();
-        expect(api.create).toHaveBeenCalledWith({ type: 'INCIDENT', title: 'Late feed', severity: 'WARNING' });
+        expect(api.create).not.toHaveBeenCalled();
+
+        c.form.patchValue({ l1: 'Data Quality', l2: 'Timeliness', l3: 'Late arrival', tags: 'urgent, feed' });
+        c.save();
+        expect(api.create).toHaveBeenCalledWith({
+            type: 'INCIDENT',
+            title: 'Late feed',
+            severity: 'WARNING',
+            attributes: { category: 'Data Quality / Timeliness / Late arrival', tags: 'urgent,feed' },
+        });
         expect(ref.close).toHaveBeenCalledWith(CREATED);
     });
 

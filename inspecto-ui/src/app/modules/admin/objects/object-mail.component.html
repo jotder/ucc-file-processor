@@ -1,0 +1,183 @@
+<div class="flex h-full min-h-0 min-w-0 flex-auto overflow-hidden">
+    <!-- Left: folder nav (collapsible + drag-resizable) -->
+    <aside
+        class="flex h-full min-h-0 shrink-0 flex-col border-r"
+        style="border-color: var(--gamma-border)"
+        [style.width.px]="navCollapsed() ? 56 : navWidth()"
+    >
+        <div class="flex items-center gap-2 p-2" [class.justify-center]="navCollapsed()">
+            @if (!navCollapsed()) {
+                <span class="flex-auto pl-2 text-xs font-bold uppercase tracking-wider opacity-60">Folders</span>
+            }
+            <button
+                mat-icon-button
+                (click)="toggleNav()"
+                [matTooltip]="navCollapsed() ? 'Expand folder panel' : 'Collapse folder panel'"
+                [attr.aria-label]="navCollapsed() ? 'Expand folder panel' : 'Collapse folder panel'"
+                [attr.aria-expanded]="!navCollapsed()"
+            >
+                <mat-icon
+                    class="icon-size-5"
+                    [svgIcon]="navCollapsed() ? 'heroicons_outline:chevron-double-right' : 'heroicons_outline:chevron-double-left'"
+                ></mat-icon>
+            </button>
+        </div>
+
+        <nav class="min-h-0 flex-auto overflow-y-auto px-2 pb-3" aria-label="Folders">
+            @for (f of folders; track f.id) {
+                <button
+                    type="button"
+                    (click)="selectFolder(f.id)"
+                    class="hover:bg-hover mb-0.5 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
+                    [class.bg-hover]="isActiveFolder(f.id)"
+                    [class.font-bold]="isActiveFolder(f.id)"
+                    [class.justify-center]="navCollapsed()"
+                    [attr.aria-current]="isActiveFolder(f.id) ? 'true' : null"
+                    [attr.aria-label]="f.label + ' (' + (counts().get(f.id) ?? 0) + ')'"
+                    [matTooltip]="navCollapsed() ? f.label : ''"
+                >
+                    <mat-icon class="icon-size-5 shrink-0" [svgIcon]="f.icon"></mat-icon>
+                    @if (!navCollapsed()) {
+                        <span class="min-w-0 flex-auto truncate">{{ f.label }}</span>
+                        <span class="text-secondary text-xs">{{ counts().get(f.id) ?? 0 }}</span>
+                    }
+                </button>
+            }
+
+            @if (!navCollapsed() && tags().length) {
+                <div class="mb-1 mt-4 px-2 text-xs font-bold uppercase tracking-wider opacity-60">Tags</div>
+                @for (t of tags(); track t.tag) {
+                    <button
+                        type="button"
+                        (click)="selectTag(t.tag)"
+                        class="hover:bg-hover mb-0.5 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
+                        [class.bg-hover]="tagFilter() === t.tag"
+                        [class.font-bold]="tagFilter() === t.tag"
+                        [attr.aria-current]="tagFilter() === t.tag ? 'true' : null"
+                    >
+                        <mat-icon class="icon-size-5 shrink-0" svgIcon="heroicons_outline:tag"></mat-icon>
+                        <span class="min-w-0 flex-auto truncate">{{ t.tag }}</span>
+                        <span class="text-secondary text-xs">{{ t.count }}</span>
+                    </button>
+                }
+            }
+        </nav>
+    </aside>
+
+    <!-- Drag handle (pointer or ArrowLeft/ArrowRight) -->
+    @if (!navCollapsed()) {
+        <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize folder panel (arrow keys or drag)"
+            [attr.aria-valuenow]="navWidth()"
+            [attr.aria-valuemin]="170"
+            [attr.aria-valuemax]="420"
+            tabindex="0"
+            class="hover:bg-hover h-full w-1.5 shrink-0 cursor-col-resize"
+            (pointerdown)="startResize($event)"
+            (keydown)="onHandleKeydown($event)"
+        ></div>
+    }
+
+    <!-- Center: toolbar + list -->
+    <section class="flex h-full min-h-0 min-w-0 flex-auto flex-col">
+        <div class="flex flex-col gap-3 border-b p-4 sm:px-6" style="border-color: var(--gamma-border)">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h1 class="text-2xl font-extrabold leading-none tracking-tight">{{ title }}</h1>
+                    <div class="text-secondary mt-1 text-sm">{{ activeLabel() }} · {{ rows().length }} item{{ rows().length === 1 ? '' : 's' }}</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button mat-icon-button (click)="reload()" matTooltip="Refresh" aria-label="Refresh">
+                        <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                    </button>
+                    <button mat-flat-button color="primary" (click)="openCreate()">
+                        <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                        <span class="ml-2">New {{ createLabel }}</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Action toolbar (drives the checkbox selection) -->
+            <div class="flex flex-wrap items-center gap-2">
+                @if (isIncident) {
+                    <button mat-stroked-button [disabled]="!canAccept()" (click)="accept()" matTooltip="Identified → Diagnosing (asks for the 3-layer category when missing)">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:check"></mat-icon>
+                        <span class="ml-1">Accept</span>
+                    </button>
+                } @else {
+                    <button mat-stroked-button [disabled]="!canInvestigate()" (click)="investigate()">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                        <span class="ml-1">Investigate</span>
+                    </button>
+                }
+                <button mat-stroked-button [disabled]="!selected().length" [matMenuTriggerFor]="prioMenu" matTooltip="Set priority">
+                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:flag"></mat-icon>
+                    <span class="ml-1">Prioritize</span>
+                    <mat-icon class="icon-size-4" svgIcon="heroicons_outline:chevron-down"></mat-icon>
+                </button>
+                <mat-menu #prioMenu="matMenu">
+                    @for (p of priorities; track p) {
+                        <button mat-menu-item (click)="prioritize(p)">{{ p }}</button>
+                    }
+                </mat-menu>
+                <button mat-stroked-button [disabled]="!canEscalate()" (click)="escalate()">
+                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-trending-up"></mat-icon>
+                    <span class="ml-1">{{ escalateLabel() }}</span>
+                </button>
+                <button mat-stroked-button [disabled]="!canResolve()" (click)="resolve()" matTooltip="Requires a resolution comment">
+                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:paper-airplane"></mat-icon>
+                    <span class="ml-1">Resolve</span>
+                </button>
+                @if (isIncident) {
+                    <button mat-stroked-button [disabled]="!canArchive()" (click)="archive()">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:archive-box"></mat-icon>
+                        <span class="ml-1">Archive</span>
+                    </button>
+                    <button mat-stroked-button [disabled]="!canReopen()" (click)="reopen()">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-uturn-left"></mat-icon>
+                        <span class="ml-1">Reopen</span>
+                    </button>
+                } @else {
+                    <button mat-stroked-button [disabled]="!canClose()" (click)="closeCases()">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:archive-box"></mat-icon>
+                        <span class="ml-1">Close</span>
+                    </button>
+                }
+                @if (selected().length) {
+                    <span class="text-secondary ml-1 text-sm" role="status">{{ selected().length }} selected</span>
+                }
+            </div>
+        </div>
+
+        <div class="min-h-0 flex-auto overflow-y-auto p-4 sm:px-6">
+            <inspecto-data-table
+                tier="standard"
+                [multiSelect]="true"
+                [autoHeight]="true"
+                [sourceName]="type.toLowerCase()"
+                [exportName]="type.toLowerCase()"
+                [rows]="rows()"
+                [columns]="columnDefs"
+                [loading]="loading()"
+                noRowsTitle="Nothing in {{ activeLabel() }}"
+                noRowsHint="Items land here as their lifecycle moves — or create a new {{ createLabel }}."
+                (rowClick)="onRowClicked($any($event))"
+                (selectionChange)="onSelection($event)"
+            />
+        </div>
+    </section>
+
+    <!-- Right: detail / postmortem panel -->
+    @if (detail(); as d) {
+        <app-postmortem-panel
+            class="block h-full w-[30rem] shrink-0 border-l"
+            style="border-color: var(--gamma-border)"
+            [object]="d"
+            (closed)="detail.set(null)"
+            (act)="onPanelAction($event)"
+            (changed)="reload()"
+        />
+    }
+</div>

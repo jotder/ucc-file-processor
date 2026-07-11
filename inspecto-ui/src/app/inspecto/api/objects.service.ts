@@ -88,8 +88,17 @@ export interface CreateObject {
     owner?: string;
     assignee?: string;
     correlationId?: string;
+    attributes?: Record<string, string>;
     dueInMinutes?: number;
     dueAt?: number;
+}
+
+/** Partial update for PATCH /objects/{id} — `attributes` merge onto the stored map. */
+export interface UpdateObject {
+    priority?: string;
+    severity?: string;
+    assignee?: string;
+    attributes?: Record<string, string>;
 }
 
 /**
@@ -114,6 +123,11 @@ export class ObjectsService {
 
     create(body: CreateObject): Observable<OperationalObject> {
         return this.http.post<OperationalObject>(apiUrl('/objects'), body);
+    }
+
+    /** Patch mutable fields (priority / severity / assignee / attributes merge) — PATCH /objects/{id}. */
+    update(id: string, patch: UpdateObject): Observable<OperationalObject> {
+        return this.http.patch<OperationalObject>(apiUrl(`/objects/${encodeURIComponent(id)}`), patch);
     }
 
     /** Apply a workflow action (e.g. assign / start / resolve / close / investigate / escalate). */

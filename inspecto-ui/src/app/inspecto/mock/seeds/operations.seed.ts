@@ -142,9 +142,49 @@ export function seedOperations(store: MockStore, space: string): void {
     for (const r of rules) store.put(space, ALERT_RULES_COLL, r.name, r);
 
     // ── Operational objects (Alerts / Incidents / Cases, 15) ────────────────────────────────────
+    // Incidents walk the mail lifecycle (GLOSSARY §9: IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED)
+    // and carry the mail-view attributes (3-layer `category`, `tags` CSV, `escalated` flag) that the
+    // /incidents folders filter on. One IDENTIFIED incident is deliberately uncategorized so the
+    // Accept → categorize flow is demoable. Cases keep their own lifecycle.
+    const statusesByType: Record<string, string[]> = {
+        ALERT: ['OPEN', 'ACK', 'RESOLVED'],
+        INCIDENT: ['IDENTIFIED', 'DIAGNOSING', 'RESOLVED', 'ARCHIVED'],
+        CASE: ['OPEN', 'INVESTIGATING', 'ESCALATED', 'RESOLVED', 'CLOSED'],
+    };
+    const incidentCategories = [
+        '', // uncategorized inbox item — Accept must ask for the 3-layer category
+        'Data Quality / Completeness / Missing records',
+        'Infrastructure / Network / Latency',
+        'Application / Job / Crash loop',
+    ];
+    const incidentTags = ['urgent', 'data-quality,regression', 'network', 'billing'];
+    const samplePostmortem = JSON.stringify({
+        commander: 'alice',
+        incidentDate: '2026-07-10',
+        downtime: '1 hour 10 minutes',
+        businessImpact: '2% of batch loads delayed past SLA',
+        timeline: [
+            { time: '12:00 UTC', text: 'Automated alert fired for rejected-file spike' },
+            { time: '12:15 UTC', text: 'Accepted; parser regression suspected' },
+            { time: '13:10 UTC', text: 'Rollback deployed; ingest recovered' },
+        ],
+        fiveWhys: [
+            'Batch loads failed — the parser rejected every record.',
+            'Schema drift: the upstream feed added a column.',
+            'The contract check did not cover optional columns.',
+            'Schema expectations were pinned to an old feed version.',
+            'No process reviews upstream schema announcements.',
+        ],
+        actions: [
+            { done: true, text: 'Roll back parser to v1.4.2', owner: 'ops', due: '2026-07-10' },
+            { done: false, text: 'Add optional-column expectation to the feed schema', owner: 'data', due: '2026-07-20' },
+        ],
+    });
     for (let i = 0; i < 15; i++) {
         const objectType = ['ALERT', 'INCIDENT', 'CASE'][i % 3];
-        const status = ['OPEN', 'ACK', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'][i % 5];
+        const statuses = statusesByType[objectType];
+        const status = statuses[i % statuses.length];
+        const isIncident = objectType === 'INCIDENT';
         const ts = now - i * 3_600_000;
         const obj: OperationalObject = {
             id: objectType.toLowerCase() + '-' + (100 + i),
@@ -153,14 +193,21 @@ export function seedOperations(store: MockStore, space: string): void {
             description: 'auto-generated sample',
             status,
             severity: ['INFO', 'WARNING', 'CRITICAL'][i % 3],
-            priority: ['LOW', 'MEDIUM', 'HIGH'][i % 3],
+            priority: isIncident ? ['CRITICAL', 'MAJOR', 'MINOR', 'LOW'][i % 4] : ['LOW', 'MEDIUM', 'HIGH'][i % 3],
             owner: 'ops',
-            assignee: i % 2 ? 'alice' : 'bob',
+            // Decoupled from the i%3 objectType cycle so each type gets a mix of assignees.
+            assignee: ['alice', 'operator', 'bob'][Math.floor(i / 3) % 3],
             correlationId: 'corr-' + (i % 5),
-            attributes: { pipeline: pipelines[i % 3] },
+            attributes: {
+                pipeline: pipelines[i % 3],
+                ...(isIncident && incidentCategories[i % 4] ? { category: incidentCategories[i % 4] } : {}),
+                ...(isIncident && incidentTags[i % 4] ? { tags: incidentTags[i % 4] } : {}),
+                ...(isIncident && i % 6 === 1 ? { escalated: 'true' } : {}),
+                ...(isIncident && status === 'RESOLVED' ? { postmortem: samplePostmortem } : {}),
+            },
             createdAt: ts,
             updatedAt: ts + 600_000,
-            closedAt: status === 'CLOSED' ? ts + 1_200_000 : 0,
+            closedAt: status === 'CLOSED' || status === 'ARCHIVED' ? ts + 1_200_000 : 0,
         };
         store.put(space, OPS_OBJECTS_COLL, obj.id, obj);
     }
