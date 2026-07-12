@@ -1,0 +1,8 @@
+job:
+  name: config_backup
+  type: maintenance
+  task: backup
+  cron: "0 4 * * *"
+  dir: spaces/demo/config
+  backup_dir: spaces/demo/data/backups
+  prefix: demo_config

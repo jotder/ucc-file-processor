@@ -339,7 +339,173 @@ class MaintenanceLibraryTest {
         }
     }
 
+    // ── backup / backup_verify / restore (MNT-5 / MNT-6, Phase 2) ────────────────
+
+    /** Seed a two-file source tree (one nested) and return the config for a backup of it. */
+    private static JobConfig backupCfg(Path source, Path backupDir) throws Exception {
+        Files.writeString(Files.createDirectories(source.resolve("orders")).resolve("a.toon"), "alpha");
+        Files.writeString(source.resolve("space.toon"), "root");
+        return job(Map.of("task", "backup", "dir", source.toString(), "backup_dir", backupDir.toString()));
+    }
+
+    private static Path onlyZip(Path backupDir) throws Exception {
+        try (var s = Files.list(backupDir)) {
+            return s.filter(p -> p.getFileName().toString().endsWith(".zip")).findFirst().orElseThrow();
+        }
+    }
+
+    @Test
+    void backupArchivesWithManifestAndDryRunPreviews(@TempDir Path source, @TempDir Path backupDir,
+                                                     @TempDir Path ctxDir) throws Exception {
+        JobConfig cfg = backupCfg(source, backupDir);
+
+        JobResult dry = new MaintenanceJob(cfg).run(dryCtx(ctxDir));
+        assertTrue(dry.message().contains("would archive 2 file(s), 9 byte(s)"), dry.message());
+        try (var s = Files.list(backupDir)) {
+            assertEquals(0, s.count(), "dry run writes nothing");
+        }
+
+        JobResult real = new MaintenanceJob(cfg).run();
+        assertTrue(real.message().contains("archived 2 file(s), 9 byte(s)"), real.message());
+        Path zip = onlyZip(backupDir);
+        assertTrue(Files.isRegularFile(zip.resolveSibling(zip.getFileName() + ".manifest.json")),
+                "sidecar manifest written");
+    }
+
+    @Test
+    void backupVerifyPassesThenDetectsCorruption(@TempDir Path source, @TempDir Path backupDir) throws Exception {
+        new MaintenanceJob(backupCfg(source, backupDir)).run();
+        JobConfig verify = job(Map.of("task", "backup_verify", "backup_dir", backupDir.toString()));
+
+        JobResult ok = new MaintenanceJob(verify).run();
+        assertEquals("SUCCESS", ok.status(), ok.message());
+        assertTrue(ok.message().contains("1 archive(s) OK, 2 file entr(ies) hash-checked"), ok.message());
+
+        // Flip bytes inside the archive — verification must fail on the archive hash, fail-closed.
+        Path zip = onlyZip(backupDir);
+        byte[] bytes = Files.readAllBytes(zip);
+        bytes[bytes.length / 2] ^= 0x7f;
+        Files.write(zip, bytes);
+        JobResult bad = new MaintenanceJob(verify).run();
+        assertEquals("FAILED", bad.status(), bad.message());
+        assertTrue(bad.message().contains("archive hash mismatch"), bad.message());
+    }
+
+    @Test
+    void restoreRoundTripsBlocksConflictsAndPreviews(@TempDir Path source, @TempDir Path backupDir,
+                                                     @TempDir Path target, @TempDir Path ctxDir) throws Exception {
+        new MaintenanceJob(backupCfg(source, backupDir)).run();
+        Path zip = onlyZip(backupDir);
+        JobConfig restore = job(Map.of("task", "restore",
+                "archive", zip.toString(), "target_dir", target.toString()));
+
+        JobResult first = new MaintenanceJob(restore).run();
+        assertEquals("SUCCESS", first.status(), first.message());
+        assertEquals("alpha", Files.readString(target.resolve("orders").resolve("a.toon")), "byte-identical restore");
+        assertEquals("root", Files.readString(target.resolve("space.toon")));
+
+        // Same restore again: everything now conflicts — preview says so, real run blocks fail-closed.
+        JobResult dry = new MaintenanceJob(restore).run(dryCtx(ctxDir));
+        assertTrue(dry.message().contains("(2 conflict(s))"), dry.message());
+        JobResult blocked = new MaintenanceJob(restore).run();
+        assertEquals("FAILED", blocked.status(), blocked.message());
+        assertTrue(blocked.message().contains("restore blocked: 2 existing file(s)"), blocked.message());
+
+        JobResult forced = new MaintenanceJob(job(Map.of("task", "restore", "archive", zip.toString(),
+                "target_dir", target.toString(), "overwrite", "true"))).run();
+        assertEquals("SUCCESS", forced.status(), forced.message());
+        assertTrue(forced.message().contains("(2 overwritten)"), forced.message());
+    }
+
+    @Test
+    void backupAppendsCatalogRowAndRegistersTheDataset(@TempDir Path source, @TempDir Path backupDir,
+                                                       @TempDir Path dataDir, @TempDir Path writeRoot) throws Exception {
+        System.setProperty("assist.write.root", writeRoot.toString());
+        try {
+            JobResult r = new MaintenanceJob(backupCfg(source, backupDir), dataDir.toString()).run();
+            assertEquals("SUCCESS", r.status(), r.message());
+            Path storeDir = dataDir.resolve("maintenance_backups");
+            try (var s = Files.list(storeDir)) {
+                assertEquals(1, s.filter(p -> p.getFileName().toString().endsWith(".parquet")).count(),
+                        "one catalog row parquet per backup");
+            }
+            var store = new com.gamma.pipeline.ComponentStore(writeRoot.resolve("registry"));
+            assertTrue(store.exists("dataset", "maintenance_backups"), "catalog Dataset registered");
+        } finally {
+            System.clearProperty("assist.write.root");
+        }
+    }
+
+    // ── metadata_validate (MNT-7, Phase 2) ───────────────────────────────────────
+
+    @Test
+    void metadataValidateFlagsBrokenRefsAndDuplicates(@TempDir Path writeRoot) throws Exception {
+        System.setProperty("assist.write.root", writeRoot.toString());
+        try {
+            var store = new com.gamma.pipeline.ComponentStore(writeRoot.resolve("registry"));
+            store.write("widget", "lonely", Map.of("vizType", "bar", "datasetId", "ghost_ds"));
+            store.write("dashboard", "board", Map.of("tiles", List.of(Map.of("widgetId", "nope", "span", 1))));
+            store.write("transform", "twin_a", Map.of("kind", "expr", "expr", "a+b"));
+            store.write("transform", "twin_b", Map.of("kind", "expr", "expr", "a+b"));
+
+            JobResult r = new MaintenanceJob(job(Map.of("task", "metadata_validate"))).run();
+            assertEquals("SUCCESS", r.status(), r.message());
+            assertTrue(r.message().contains("3 finding(s)"), r.message());
+        } finally {
+            System.clearProperty("assist.write.root");
+        }
+    }
+
+    @Test
+    void metadataValidateIsHealthyOnAConsistentRegistry(@TempDir Path writeRoot) throws Exception {
+        System.setProperty("assist.write.root", writeRoot.toString());
+        try {
+            var store = new com.gamma.pipeline.ComponentStore(writeRoot.resolve("registry"));
+            store.write("dataset", "orders_ds", Map.of("description", "orders"));
+            store.write("widget", "orders_bar", Map.of("vizType", "bar", "datasetId", "orders_ds"));
+            store.write("dashboard", "board", Map.of("tiles", List.of(Map.of("widgetId", "orders_bar", "span", 1))));
+
+            JobResult r = new MaintenanceJob(job(Map.of("task", "metadata_validate"))).run();
+            assertTrue(r.message().contains("0 finding(s)"), r.message());
+            assertTrue(r.message().contains("healthy"), r.message());
+        } finally {
+            System.clearProperty("assist.write.root");
+        }
+    }
+
+    // ── cleanup min_keep (MNT-2c, Phase 2) ───────────────────────────────────────
+
+    @Test
+    void cleanupMinKeepProtectsTheNewestFilesFromEveryLimit(@TempDir Path dir) throws Exception {
+        Path oldest = aged(dir, "a.zip", "x", 40);
+        Path middle = aged(dir, "b.zip", "x", 35);
+        Path newest = aged(dir, "c.zip", "x", 30);
+
+        // Retention alone would delete all three — min_keep pins the newest two.
+        JobResult r = new MaintenanceJob(job(Map.of("task", "cleanup", "dir", dir.toString(),
+                "retention_days", "7", "min_keep", "2"))).run();
+
+        assertTrue(r.message().contains("deleted 1 file(s)"), r.message());
+        assertFalse(Files.exists(oldest));
+        assertTrue(Files.exists(middle) && Files.exists(newest), "the newest min_keep files survive");
+    }
+
     // ── db_maintenance ───────────────────────────────────────────────────────────
+
+    @Test
+    void dbMaintenanceCoversTheHostsProjectionStores(@TempDir Path audit) throws Exception {
+        DuckDbUtil.loadDriver();
+        try (DbJobRunStore runStore = DbJobRunStore.open("jdbc:duckdb:");
+             com.gamma.service.Scheduler s = new com.gamma.service.Scheduler();
+             JobService js = new JobService(List.of(), new com.gamma.service.BatchEventBus(), s, null,
+                     audit.toString(), runStore)) {
+            JobResult r = new MaintenanceJob(job(Map.of("task", "db_maintenance")),
+                    null, null, runStore, js).run();
+            assertTrue(r.message().contains("2 store(s) maintenance completed"), r.message());
+        }
+    }
+
+    // ── db_maintenance (ledger) ──────────────────────────────────────────────────
 
     @Test
     void dbMaintenanceRunsOnDbLedger(@TempDir Path dir) throws Exception {

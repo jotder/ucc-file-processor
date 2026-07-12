@@ -121,19 +121,20 @@ manually + on cron + dry-run; `spaces/demo` gained `jobs/runlog_retention_job.to
 signal fires are always real); `max_count` does not apply to `inspecto_job_runs` rows (retention
 governs those); agent-session retention still blocked on AGT-5 persistence.
 
-### Phase 2 — Backup/Restore + Integrity
+### Phase 2 — Backup/Restore + Integrity — ✅ SHIPPED 2026-07-12
 
-| Step | Verify |
-|---|---|
-| 1. MNT-5 `backup` task (config/ [+ duckdb/ after CHECKPOINT] → timestamped zip + SHA-256 manifest) | live: archive restorable by unzip; manifest hashes match `ContentHash` |
-| 2. MNT-5 `backup_verify` task + MNT-10 catalog Dataset | corrupt a byte → verify fails + signal; catalog queryable via BI |
-| 3. MNT-6 restore path: feed a backup archive through bundle preview/import; document space-level restore-into-new-space | e2e: export space A → restore into fresh space B → smoke passes on B |
-| 4. MNT-7 `metadata_validate` task | fixtures: orphan, broken ref, duplicate each reported; clean space reports zero |
-| 5. MNT-9 extend `db_maintenance` to all per-space DuckDB stores | test: CHECKPOINT runs on jobs_report + provenance; WAL files shrink |
-| 6. MNT-2 backup-dir retention (policy from Phase 1 applied to backups) | oldest archives pruned per policy, never the last N |
+| Step | Verify | Status |
+|---|---|---|
+| 1. MNT-5 `backup` task (timestamped zip + SHA-256 manifest) | archive restorable; manifest hashes verifiable | ✅ `BackupTask.backup`: zip + inner manifest + **sidecar** `<archive>.manifest.json` (per-entry SHA-256 via `Checksums` + archive hash); dry-run previews count/bytes; `dir`/`backup_dir`/`prefix` params. DuckDB inclusion = run `db_maintenance` (CHECKPOINT) first, then back up the space root — runbook documents the order |
+| 2. MNT-5 `backup_verify` + MNT-10 catalog Dataset | corrupt a byte → verify fails + signal; catalog queryable | ✅ archive hash first (fail-closed), then every entry hash; failure → FAILED Run + `maintenance.backup.verify_failed` CRITICAL. Catalog: one single-row Parquet per backup into `<dataDir>/maintenance_backups/` (glob-union rows, the materialize idiom) + idempotent `maintenance_backups` dataset component |
+| 3. MNT-6 restore + document restore-into-new-space | e2e round trip | ✅ `restore` task: manifest+hash validation before any write, zip-slip jail, conflict preview on dry run, blocks on conflicts unless `overwrite: true`, post-extraction re-hash. Round-trip + conflict + overwrite covered in tests. Runbook: `docs/ops/backup-restore-runbook.md` (incl. new-space procedure + rollback). NOTE: restore is archive-based, not routed through bundle import — bundle covers 8 component kinds only; the zip covers the whole config tree |
+| 4. MNT-7 `metadata_validate` task | fixtures per finding class; clean space zero | ✅ `MetadataValidateTask`: broken refs (widget→dataset/query, dashboard tile→widget — grounded in the real registry shapes), duplicate definitions (content-identical apart from name), missing physical data (dataset `physicalRef` vs data root). Findings → Run Log + `maintenance.metadata.findings`. Ref checks for other kinds deferred until their shapes are declared |
+| 5. MNT-9 `db_maintenance` all stores | CHECKPOINT beyond the ledger | ✅ `DbJobRunStore.maintenance()` + `DbProvenanceStore.maintenance()` (CHECKPOINT/VACUUM best-effort over the live single-writer connections), invoked via the host seams |
+| 6. MNT-2 backup-dir retention | never the last N | ✅ `min_keep` knob on `cleanup` (MNT-2c): the newest N files are never retired, whatever retention/max limits say |
 
-Exit: nightly-able backup+verify with catalog; restore proven cross-space; integrity findings
-alertable.
+Exit met: demo ships a nightly `config_backup` job chained to `backup_verify` via
+`on_signal: maintenance.backup.completed` (a first taste of the Phase-3 composed pipeline);
+integrity + verify failures are alertable signals.
 
 ### Phase 3 — Composition + Surface + Depth
 

@@ -47,6 +47,11 @@ import java.util.stream.Stream;
  *       recorded as Run Artifacts; optional {@code warn_bytes} threshold signal (MNT-3).</li>
  *   <li>{@code scheduler_audit} — read-only hygiene audit of the Job registry: disabled jobs, duplicate
  *       names/specs, orphan triggers (MNT-4).</li>
+ *   <li>{@code backup} / {@code backup_verify} / {@code restore} — zip + SHA-256-manifest archive of a
+ *       directory, hash verification against the sidecar manifest, and fail-closed restore with preview
+ *       and conflict detection (MNT-5/MNT-6). See {@link BackupTask}.</li>
+ *   <li>{@code metadata_validate} — read-only cross-component integrity audit: broken references,
+ *       duplicate definitions, missing physical data (MNT-7). See {@link MetadataValidateTask}.</li>
  *   <li>{@code db_maintenance} — backend maintenance (CHECKPOINT/VACUUM) on the acquisition-ledger DB
  *       over its own live connection (DuckDB is single-writer; a second connection cannot attach).</li>
  *   <li>{@code compact} — merge the many small per-batch Parquet output files inside each partition
@@ -116,6 +121,11 @@ final class MaintenanceJob implements Job {
             // Read-only tasks: a dry run and a real run are the same thing.
             case "storage_report"     -> storageReport(ctx);
             case "scheduler_audit"    -> schedulerAudit(ctx);
+            case "backup_verify"      -> BackupTask.verify(cfg, ctx);
+            case "metadata_validate"  -> MetadataValidateTask.run(ctx, dataDir);
+            // Phase-2 write tasks with real previews (MNT-5/MNT-6).
+            case "backup"             -> BackupTask.backup(cfg, ctx, dryRun, dataDir);
+            case "restore"            -> BackupTask.restore(cfg, ctx, dryRun);
             case "db_maintenance"     -> dryRun
                     ? JobResult.ok("db_maintenance[dry-run]: would run CHECKPOINT/VACUUM on the ledger store", 0L)
                     : dbMaintenance();
@@ -339,11 +349,27 @@ final class MaintenanceJob implements Job {
                 (System.nanoTime() - t0) / 1_000_000L);
     }
 
-    /** {@code db_maintenance}: CHECKPOINT/VACUUM the acquisition-ledger DB via its live connection. */
+    /** {@code db_maintenance}: CHECKPOINT/VACUUM every per-space DuckDB store over its own live
+     *  connection (single-writer — never a second connection): the acquisition ledger, plus — when the
+     *  hosting service configured them — the job-run and provenance projections (MNT-9). */
     private JobResult dbMaintenance() {
         long t0 = System.nanoTime();
         com.gamma.acquire.AcquisitionLedgers.shared().maintenance();
-        return JobResult.ok("db_maintenance: ledger store maintenance completed",
+        int stores = 1;
+        if (host != null) {
+            var jobRuns = host.runStore();
+            if (jobRuns.isPresent()) {
+                jobRuns.get().maintenance();
+                stores++;
+            }
+            var provenance = host.provenanceStore();
+            if (provenance.isPresent()) {
+                provenance.get().maintenance();
+                stores++;
+            }
+        }
+        return JobResult.ok("db_maintenance: " + stores + " store(s) maintenance completed"
+                + (stores > 1 ? " (ledger + reporting/provenance projections)" : " (ledger)"),
                 (System.nanoTime() - t0) / 1_000_000L);
     }
 
@@ -353,6 +379,9 @@ final class MaintenanceJob implements Job {
         String glob = cfg.opt("glob", "*");
         int maxCount = Integer.parseInt(cfg.opt("max_count", "0"));    // 0 = no count cap
         long maxSize = Long.parseLong(cfg.opt("max_size", "0"));       // bytes; 0 = no size cap
+        // MNT-2c: the newest min_keep files are never retired, whatever the other limits say — so a
+        // retention policy on a backup dir can never delete the last remaining backups.
+        int minKeep = Integer.parseInt(cfg.opt("min_keep", "0"));
         boolean archive = Boolean.parseBoolean(cfg.opt("archive_instead_of_delete", "false"));
         // Archiving needs an explicit destination — no silent default that a later cleanup would re-walk.
         Path archiveDir = archive ? Path.of(cfg.require("archive_dir")) : null;
@@ -385,9 +414,10 @@ final class MaintenanceJob implements Job {
                 log.warn("cleanup: could not size {}: {}", p, e.getMessage());
                 continue;
             }
-            boolean victim = olderThan(p, cutoff)
-                    || (maxCount > 0 && i >= maxCount)
-                    || (maxSize > 0 && kept + size > maxSize);
+            boolean victim = i >= minKeep
+                    && (olderThan(p, cutoff)
+                        || (maxCount > 0 && i >= maxCount)
+                        || (maxSize > 0 && kept + size > maxSize));
             if (!victim) {
                 kept += size;
                 continue;

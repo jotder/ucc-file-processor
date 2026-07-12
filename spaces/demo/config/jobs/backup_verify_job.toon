@@ -1,0 +1,6 @@
+job:
+  name: backup_verify
+  type: maintenance
+  task: backup_verify
+  on_signal: maintenance.backup.completed
+  backup_dir: spaces/demo/data/backups

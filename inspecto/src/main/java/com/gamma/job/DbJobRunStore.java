@@ -180,6 +180,19 @@ public final class DbJobRunStore implements AutoCloseable {
         }
     }
 
+    /** CHECKPOINT + VACUUM over the live connection, each best-effort — the {@code db_maintenance}
+     *  task (System Maintenance MNT-9). DuckDB is single-writer, so maintenance must ride this
+     *  store's own connection, never a second one. */
+    public synchronized void maintenance() {
+        for (String stmt : new String[]{"CHECKPOINT", "VACUUM"}) {
+            try (Statement st = conn.createStatement()) {
+                st.execute(stmt);
+            } catch (SQLException e) {
+                log.warn("job-run store maintenance: {} failed (continuing): {}", stmt, e.getMessage());
+            }
+        }
+    }
+
     /**
      * Delete projected runs started before {@code cutoff} ({@code yyyy-MM-dd HH:mm:ss} — lexicographic
      * on the VARCHAR {@code start_time}) — the {@code runlog_prune} maintenance task (MNT-2a).

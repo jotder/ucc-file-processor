@@ -55,6 +55,19 @@ public final class DbProvenanceStore implements AutoCloseable {
         }
     }
 
+    /** CHECKPOINT + VACUUM over the live connection, each best-effort — the {@code db_maintenance}
+     *  task (System Maintenance MNT-9). DuckDB is single-writer, so maintenance must ride this
+     *  store's own connection, never a second one. */
+    public synchronized void maintenance() {
+        for (String stmt : new String[]{"CHECKPOINT", "VACUUM"}) {
+            try (Statement st = conn.createStatement()) {
+                st.execute(stmt);
+            } catch (SQLException e) {
+                log.warn("provenance store maintenance: {} failed (continuing): {}", stmt, e.getMessage());
+            }
+        }
+    }
+
     /** Append all rows of one flow run. Best-effort: a write failure is logged, never thrown. */
     public synchronized void record(List<ProvenanceRow> rows) {
         if (rows == null || rows.isEmpty()) return;

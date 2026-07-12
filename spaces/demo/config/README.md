@@ -57,6 +57,7 @@ into the consumed inbox). Everything under `../data/` except `samples/` is gener
 | Job: template | `jobs/retention_job_template.toon` + instance `jobs/backup_retention_job.toon` | `*_job_template.toon` / `*_job.toon` | Workbench → Jobs |
 | Job: cron maintenance | `jobs/db_maintenance_job.toon` | `*_job.toon` | Workbench → Jobs |
 | Job: retention (System Maintenance P1) | `jobs/runlog_retention_job.toon` (`runlog_prune`, 90d; preview via `POST …/trigger?dryRun=true`) | `*_job.toon` | Workbench → Jobs |
+| Job: backup + verify chain (System Maintenance P2) | `jobs/config_backup_job.toon` (nightly `backup` of `config/` → `data/backups`, SHA-256 manifest + `maintenance_backups` catalog Dataset) chained by `jobs/backup_verify_job.toon` (`on_signal: maintenance.backup.completed`) | `*_job.toon` | Workbench → Jobs |
 | Job: sql.template | `jobs/orders_summary_sql_job.toon` (`$status` param, Run Artifact + `job.dataset.produced` signal) | `*_job.toon` | Workbench → Jobs |
 | Job: on-signal | `jobs/orders_summary_followup_job.toon` (`on_signal` + `when` guard; `args`/`bind` shapes above) | `*_job.toon` | Workbench → Jobs |
 | Job: authored Pipeline | `jobs/orders_rollup_job.toon` runs `flows/orders_rollup_flow.toon` on each orders commit | `*_job.toon` + `flows/` | Pipelines (authored) |
