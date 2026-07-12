@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -71,6 +72,9 @@ public final class JobService implements AutoCloseable {
     private static final DateTimeFormatter TS     = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter RUN_TS  = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
+    /** Mutable so job CRUD ({@link #upsertJob}/{@link #removeJob}) can add/replace/remove a config at
+     *  runtime — every dispatch loop below (event/signal/catch-up) re-derives from this list on each
+     *  firing, so mutating it is sufficient for those trigger kinds; only cron needs separate re-arming. */
     private final List<JobConfig> configs;
     private final BatchEventBus bus;
     private final Scheduler scheduler;
@@ -168,7 +172,7 @@ public final class JobService implements AutoCloseable {
                       ReportService reports, String auditDir, DbJobRunStore jobRunStore,
                       PipelineStore flowStore, String dataDir,
                       com.gamma.pipeline.exec.DbProvenanceStore provenanceStore) {
-        this.configs   = List.copyOf(configs);
+        this.configs   = new CopyOnWriteArrayList<>(configs);
         this.bus       = bus;
         this.scheduler = scheduler;
         this.reports   = reports;
@@ -258,18 +262,18 @@ public final class JobService implements AutoCloseable {
         }
     }
 
+    /** Whether {@link #start()} has run — {@link #upsertJob} only needs to arm a cron directly (via
+     *  {@link #armCron}) once the service is live; before that, {@link #start()} itself arms every
+     *  enabled config's cron the first time. */
+    private volatile boolean started = false;
+
     /** Wire the event/signal subscribers and arm cron schedules. */
     public void start() {
         bus.subscribe(this::onBatchEvent);
         int cronCount = 0, eventCount = 0, signalCount = 0;
         for (JobConfig c : configs) {
             if (!c.enabled()) continue;
-            if (c.hasCron()) {
-                CronExpression expr = c.cronExpression();
-                crons.put(c.name(), expr);
-                scheduler.cron("job-" + c.name(), expr, zone, () -> submit(c.name(), "schedule"));
-                cronCount++;
-            }
+            if (c.hasCron()) { armCron(c); cronCount++; }
             if (c.hasEvent()) eventCount++;
             if (c.hasSignal()) { signalCoalescers.put(c.name(), new TriggerCoalescer()); signalCount++; }
         }
@@ -282,9 +286,46 @@ public final class JobService implements AutoCloseable {
             bus.subscribe(this::mirrorPipelineCommit);   // bus is per-space, discarded with this service
         }
         packs.startWatching();   // P2c: react to jars dropped/removed at runtime (settle-delayed rescan)
+        started = true;
         log.info("JobService started: {} job(s) — {} cron-scheduled, {} event-triggered, {} signal-triggered",
                 jobs.size(), cronCount, eventCount, signalCount);
         catchUpMissedFires();
+    }
+
+    /** Arm one config's cron schedule. The fire itself re-checks {@link #jobs} before submitting, so a
+     *  job removed later (Scheduler has no cancel primitive — self-rescheduling recursive timer) becomes
+     *  an inert no-op tick instead of a dangling reference to a live run. */
+    private void armCron(JobConfig c) {
+        CronExpression expr = c.cronExpression();
+        crons.put(c.name(), expr);
+        scheduler.cron("job-" + c.name(), expr, zone, () -> {
+            if (jobs.containsKey(c.name())) submit(c.name(), "schedule");
+        });
+    }
+
+    /**
+     * Hot-register a Job at runtime (Scheduler write actions — job CRUD): create or replace the config
+     * under {@code c.name()}, build+arm it immediately. Event/signal triggers self-derive from
+     * {@link #configs} on each dispatch, so appending here is sufficient for those; cron needs an explicit
+     * {@link #armCron}. A disabled config ({@code enabled=false}) is recorded but not armed/built.
+     */
+    public synchronized void upsertJob(JobConfig c) {
+        removeJob(c.name());
+        configs.add(c);
+        if (!c.enabled()) return;
+        jobs.put(c.name(), build(c));
+        if (c.hasSignal()) signalCoalescers.put(c.name(), new TriggerCoalescer());
+        if (c.hasCron() && started) armCron(c);
+    }
+
+    /** Unregister a Job — {@code jobs}/{@code crons}/coalescer entries are removed so listings, manual
+     *  trigger and dispatch loops stop seeing it; see {@link #armCron} for how an already-scheduled cron
+     *  tick self-disarms. */
+    public synchronized void removeJob(String name) {
+        configs.removeIf(c -> c.name().equals(name));
+        jobs.remove(name);
+        crons.remove(name);
+        signalCoalescers.remove(name);
     }
 
     /** Bind this service to its space's event ledger (the on-signal Trigger source). Call before {@link #start()}. */

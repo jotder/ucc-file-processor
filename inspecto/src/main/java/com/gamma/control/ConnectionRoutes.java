@@ -29,6 +29,10 @@ final class ConnectionRoutes implements RouteModule {
         // Writes require canAuthorWorkbench (W6; a no-op on Personal — no Subject is ever attached there).
         api.post("/connections", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> createConnection(api, api.body(e))));
         api.post("/connections/([^/]+)/test", (e, m) -> testConnection(api, ApiContext.name(m)));
+        // Test an UNSAVED profile straight from the create/edit form — no persistence, no capability gate
+        // (a read-only network probe, same as the saved-profile test above). ?target= connection|tunnel
+        // selects which hop to probe; 'proxy' isn't backed by ConnectionProfile yet (no proxy field), 422s.
+        api.post("/connections/test", (e, m) -> testUnsavedProfile(api.body(e), ApiContext.query(e, "target")));
         api.put("/connections/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> updateConnection(api, ApiContext.name(m), api.body(e))));
         api.delete("/connections/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> deleteConnection(api, ApiContext.name(m))));
         api.get("/connections/([^/]+)", (e, m) -> connectionById(api, ApiContext.name(m)));
@@ -51,6 +55,31 @@ final class ConnectionRoutes implements RouteModule {
         ConnectionProfile p = api.service().connection(id)
                 .orElseThrow(() -> new ApiException(404, "no connection profile '" + id + "'"));
         return ConnectionTester.test(p).toMap();
+    }
+
+    /**
+     * {@code POST /connections/test?target=connection|tunnel} — TCP-reachability + secret-resolution test of
+     * a profile that hasn't been saved yet (the create/edit form's "Test connection"/"Test tunnel" actions).
+     * {@code target=connection} always probes the target host directly, even when a tunnel is configured
+     * (unlike the saved-profile test, which prioritises the tunnel hop — {@link ConnectionProfile#testEndpoint()});
+     * {@code target=tunnel} requires a tunnel block and probes its host. {@code target=proxy} 422s: proxy isn't
+     * a {@link ConnectionProfile} field yet, so there is nothing to test.
+     */
+    private Object testUnsavedProfile(Map<String, Object> body, String target) {
+        ConnectionProfile p = connectionFromBody(
+                ApiContext.str(body, "id") == null || ApiContext.str(body, "id").isBlank()
+                        ? "unsaved-test" : ApiContext.str(body, "id"), body, null);
+        String t = target == null || target.isBlank() ? "connection" : target;
+        return switch (t) {
+            case "connection" -> ConnectionTester.test(new ConnectionProfile(p.id(), p.connector(), p.host(),
+                    p.port(), p.database(), p.basePath(), p.username(), p.password(), p.options(), null)).toMap();
+            case "tunnel" -> {
+                if (p.tunnel() == null || p.tunnel().host() == null || p.tunnel().host().isBlank())
+                    throw new ApiException(422, "no tunnel configured to test");
+                yield ConnectionTester.test(p).toMap();
+            }
+            default -> throw new ApiException(422, "unsupported test target '" + t + "' (connection|tunnel)");
+        };
     }
 
     /** {@code POST /connections} — create a new connection profile (write-root gated); 409 if the id exists. */

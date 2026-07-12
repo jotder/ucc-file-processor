@@ -22,6 +22,53 @@
 | `ControlApiConnectionsTest.java` | Another session's deliverable — **hands off, do not commit** | `SESSION_STATUS.local.md` |
 | Full `package.ps1` bundle (npm+jlink) not re-run since the `spaces/` migration | Smoke-test the built artifact before any release | `HANDOVER-multi-space.md` |
 
+**FIXED (2026-07-10) — space MDC silently fell back to the `default` space (cross-space data leak).**
+Root cause was **not** application code: `.claude/launch.json`'s hand-rolled `inspector-backend`
+classpath pinned `slf4j-simple-2.0.9.jar`, whose `SimpleServiceProvider` wires a `NOPMDCAdapter` (a
+complete no-op — confirmed via `javap`: `MDC.put` followed immediately by `MDC.get` on the same
+thread returned `null`). `inspecto/pom.xml:53-65` already replaced `slf4j-simple` with
+`logback-classic` at 4.2.0 for exactly this reason and explicitly excludes it transitively — the
+Maven-built artifact was never affected, only this dev launch config. Every `/spaces/{id}/...`
+request was silently served by the `default` space's `SpaceContext` (`orElseGet(spaces::current)`
+in `ControlApi.currentContext()`) regardless of the id in the URL. This also explains the
+`/spaces/demo/enrichment` 404 filed earlier — same bug, not a missing route (confirmed 200 after
+the fix). **Fix applied:** regenerated `.claude/launch.json`'s classpath via
+`mvn dependency:build-classpath` (now `logback-classic 1.5.18` + `slf4j-api 2.0.17`, no
+`slf4j-simple`). Verified: `/spaces/demo/jobs` now returns demo's real 5 jobs, `/spaces/demo/connections`
+vs `/spaces/default/connections` now return genuinely different per-space data.
+
+**DONE (2026-07-11) — `/connections/test` (unsaved-profile probe) implemented.** Was the one
+remaining documented scaffolding gap ("until the real library + control routes land (B2)" —
+`environment.ts` comment): `ConnectionRoutes.java` gained `POST /connections/test?target=connection|tunnel`,
+testing an unsaved profile straight from the create/edit form (no persistence, no capability gate —
+a read-only network probe like the saved-profile test). `target=connection` always probes the target
+host directly even when a tunnel is configured (bypasses `ConnectionProfile#testEndpoint()`'s
+tunnel-priority); `target=tunnel` requires a tunnel block and probes its host; `target=proxy` 422s
+(proxy isn't a `ConnectionProfile` field yet — a smaller, separate gap, not fixed here). Live-verified
+via curl (host-vs-tunnel hop selection confirmed with distinct ports) and the real "New connection"
+dialog's Test connection button — the exact reported 405 now returns 200. Reactor 1143/0/0/3, no regressions.
+
+### Component CRUD audit (2026-07-10, mocks-off real-backend drive)
+
+Live-tested create/view/edit/save/delete per component against the real backend (after the MDC fix
+above). Table: component | GET | POST | PUT | DELETE | notes.
+
+| Component | GET | POST | PUT | DELETE | Notes |
+|---|---|---|---|---|---|
+| Connections | ✓ | ✓ | ✓ | ✓ | **Live-verified full CRUD cycle** (create/edit/delete all round-tripped correctly, scoped to the right space). Only the unsaved-profile test route is missing (above). |
+| Expectations | ✓ | ✓ | ✓ | ✓ | **Live-verified create + delete** (`ExpectationRoutes.java:44-51`). Full CRUD wired. |
+| Jobs (Scheduler) | ✓ | ✓ | ✓ | ✓ | **DONE (2026-07-10)** — was a real gap (see below), now closed: `JobRoutes.java` gained `POST /jobs` / `PUT /jobs/{id}` / `DELETE /jobs/{id}`, writing `<space>/config/jobs/<name>_job.toon` and hot-registering on the live `JobService` (`JobService.upsertJob`/`removeJob`, new; `JobConfig.toMap()`, new) — no restart needed. `SourceService.jobServiceOrCreate()` lazily builds a `JobService` for a space that had zero jobs before the first write. Live-verified via curl + the real UI dialog (create/update/delete all round-tripped); reactor 1143/0/0/3, no regressions. Known limitation: `Scheduler` has no cron-cancel primitive, so a deleted job's recursive timer keeps ticking as an inert no-op (self-checks `jobs.containsKey` before firing) rather than truly unscheduling — acceptable, documented in code, revisit if job churn ever gets heavy. |
+| Enrichment | ✓ (views/runs/lineage/report) | ✗ | ✗ | ✗ | Read-only stub (`EnrichmentRoutes.java:18-22`). Covered by the `mockOps` comment — documented, not a regression. |
+| **Decision Rules** | ✓ | ✓ | ✓ | ✓ | **DONE (2026-07-10)** — was a genuine gap (no route class existed at all, distinct from `AlertRoutes`'s `/alerts/rules` per `docs/GLOSSARY.md:150`), now closed: new `DecisionRoutes.java` (`/decision-rules*`), persisted as a `decision-rule` component (widened `ComponentStore.WRITABLE_TYPES` + `ComponentRegistry.TYPE_BY_DIR`) — same store/gates as `ExpectationRoutes`. `simulate` is an honest dry-run stub (0-matched; no condition-tree evaluator exists yet, client or server side — matches the mock reference implementation's own scope, which also doesn't evaluate `when` for real). `apply` executes each consequence against whatever real primitive exists: `emit-signal` → this space's Signal Ledger, `start-job` → `JobService.triggerRun`, `trigger-pipeline` → `SourceService.triggerRunAsync` (both **live-verified actually firing**, not stubs); `create-alert`/`render-widget`/`generate-report`/`invoke-api` emit a descriptive stub signal (mock parity); routing actions (`route`/`tag`/`quarantine`/`drop`) are record-level with no immediate side effect until a real evaluator exists. Live-verified full CRUD + simulate + apply via curl and the real UI form; reactor green. |
+| Alert Rules | ✓ | ✓ | ✓ | ✓ | Full CRUD already shipped 2026-07-09 (`AlertRoutes.java:33-47`) — unaffected by the above; just don't confuse with Decision Rules. |
+| Studio Components (dataset/chart/dashboard) | ✓ | ✓ | ✓ | ✓ | Full CRUD + versions/restore wired (`ComponentRoutes.java:30-38`). The `mockStudio` environment.ts comment ("gated pending backend storage enum widened") is now stale — routes are complete; safe to leave `mockStudio: false`. |
+| Pipelines / Flows editor | ✓ | ✓ | ✓ | ✓ | Full CRUD + dry-run + node/edge mutation wired (`PipelineRoutes.java:35-48`). |
+| Exchange (cross-space) | ✓ | ✓ (lifecycle actions) | — | — | No PUT/DELETE verbs, but approve/deny/revoke/pin/expiry are POST-based lifecycle actions by design — not a gap. |
+| Spaces | ✓ | ✓ | ✓ | ✓ | Full CRUD wired (`SpaceRoutes.java:42-57`). |
+
+**Remaining action item from this audit:** `mockStudio`'s environment.ts comment is stale and should
+be updated to reflect that Studio CRUD is fully live (Jobs and Decision Rules gaps above are now closed).
+
 ## 2. MUST — release-gating remainder (product)
 
 | ID | Item | Status / blocker | Source |

@@ -65,8 +65,13 @@ describe('DatasetResultService', () => {
 
     it('mock mode (mockStudio=true) stays offline — the BI endpoint is never called', async () => {
         const { svc, biRun } = setup();
-        await svc.run(spec(), ROWS, COLS);
-        expect(biRun).not.toHaveBeenCalled();
+        environment.mockStudio = true; // explicit, like every live-branch test below — never rely on the default
+        try {
+            await svc.run(spec(), ROWS, COLS);
+            expect(biRun).not.toHaveBeenCalled();
+        } finally {
+            environment.mockStudio = false;
+        }
     });
 
     // ── M2 live branch (mockStudio=false → POST /bi/query) ─────────────────────

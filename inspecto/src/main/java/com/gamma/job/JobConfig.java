@@ -153,6 +153,25 @@ public record JobConfig(String name, String type, String cron, String onPipeline
         return new JobConfig(name, type, cron, onPipeline, enabled, catchUp, params, onSignal, when, args, bind);
     }
 
+    /** Reverse of {@link #fromMap} — the {@code job:} section content this config writes back to TOON
+     *  (job CRUD write endpoints). Key set mirrors {@link #fromMap}'s recognised keys, then {@link #params()}
+     *  verbatim; omits blank/default-valued optional fields so a round-tripped file stays minimal. */
+    public Map<String, Object> toMap() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", name);
+        m.put("type", type);
+        if (hasCron()) m.put("cron", cron);
+        if (hasEvent()) m.put("on_pipeline", onPipeline);
+        if (hasSignal()) m.put("on_signal", onSignal);
+        if (hasWhen()) m.put("when", when);
+        m.put("enabled", enabled);
+        if (catchUp) m.put("catch_up", true);
+        if (!args.isEmpty()) m.put("args", new LinkedHashMap<>(args));
+        if (!bind.isEmpty()) m.put("bind", new LinkedHashMap<>(bind));
+        params.forEach(m::put);
+        return m;
+    }
+
     /** Coerce a decoded nested section ({@code args:}/{@code bind:}) into a string-valued map; empty when absent. */
     @SuppressWarnings("unchecked")
     private static Map<String, String> subMap(Object raw) {

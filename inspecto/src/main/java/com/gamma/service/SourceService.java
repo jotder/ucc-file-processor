@@ -134,7 +134,7 @@ public final class SourceService implements AutoCloseable {
     /** Aggregates audit into status / batch-audit reports for the Control API (v2.8.0). */
     private final ReportService reports = new ReportService(this);
     /** Config-driven cron/event jobs (v2.8.0); null when none are registered. */
-    private final JobService jobs;
+    private volatile JobService jobs;
     private final MetricsService metrics =
             new MetricsService(this, com.gamma.metrics.MetricRegistry.global());
     /** Pipeline names an operator has paused; the poll cycle skips them (Control API, M3). */
@@ -912,6 +912,29 @@ public final class SourceService implements AutoCloseable {
     /** The config-driven job registry, or empty when no jobs are registered (v2.8.0). */
     public Optional<JobService> jobService() {
         return Optional.ofNullable(jobs);
+    }
+
+    /**
+     * {@link #jobService()}, lazily constructing an empty, started {@link JobService} the first time a
+     * space with no pre-existing {@code *_job.toon} configs needs one (Scheduler write actions — job
+     * CRUD; {@code JobRoutes} create/update). Wiring mirrors the constructor's job-service setup exactly
+     * (deletion fence, spaceId MDC, this space's event ledger); {@code provenanceStore} is left {@code
+     * null} for a lazily-created instance (a pipeline-type job authored this way won't get per-edge
+     * provenance recording until the space is restarted — the constructor path is unaffected).
+     */
+    public synchronized JobService jobServiceOrCreate() {
+        if (jobs == null) {
+            JobService created = new JobService(List.of(), bus, scheduler, reports,
+                    System.getProperty("jobs.audit.dir", root.auditDir()), ServiceStores.openJobRunStore(root),
+                    flowStore, System.getProperty("data.dir", root.dataDir()), null);
+            created.deletionGuard(this::checkDeletion);
+            created.spaceId(spaceId);
+            created.eventLog(eventLog);
+            created.knownPipelines(this::pipelineNamesForAudit);   // MNT-4: orphan on_pipeline detection
+            created.start();
+            jobs = created;
+        }
+        return jobs;
     }
 
     /** Live pipeline names, lowercased to match {@code BatchEvent.pipeline()} — the valid

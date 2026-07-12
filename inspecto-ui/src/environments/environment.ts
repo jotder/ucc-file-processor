@@ -15,35 +15,35 @@ export const environment = {
     // Prototype-only: serve mocked connect/explore/test/sample for the connection workbench until the
     // real library + control routes land (B2). Gates the connections handler in the unified mock store
     // (inspecto/mock/); flip false in B2.
-    mockConnectionProbe: true,
+    mockConnectionProbe: false,
     // Prototype-only (W5): serve the server-global /spaces surface (meta/list/create/delete/datasources)
     // + the /spaces/templates catalog from the mock store, making the multi-space runtime + the
     // Space-Templates gallery fully demoable offline. Flip false against a real multi-space backend.
-    mockSpaces: true,
+    mockSpaces: false,
     // Prototype-only: serve the Pipelines graph editor fully offline (node-type palette, authored-flow
     // CRUD, dry-run, per-processor test) from an in-memory store. Flip false / remove the interceptor
     // once the real flow backend is wired.
-    mockFlows: true,
+    mockFlows: false,
     // Prototype-only: serve the operational-intelligence surfaces (events / alerts / objects / enrichment)
     // fully offline from in-memory datasets, so the reusable query panel can be exercised with no backend.
     // Gates the ops handler in the unified mock store; flip false once wired to the real backend.
-    mockOps: true,
+    mockOps: false,
     // Prototype-only: serve Studio's new component kinds (dataset/chart/dashboard) from an in-memory store
     // until the backend storage enum is widened. Flip false once wired to the real backend (gates the studio kinds in the unified mock store).
-    mockStudio: true,
+    mockStudio: false,
     // Prototype-only: serve the Scheduler's write actions (create/edit/delete/enable/disable/reschedule) and
     // per-run logs/events. The read endpoints (list/runs/trigger) already exist on the backend; the mock
     // seeds jobs so the page works offline. Gates the jobs handler in the unified mock store; flip false
     // once the real Java endpoints land (see the plan's follow-on).
-    mockJobs: true,
+    mockJobs: false,
     // Prototype-only (§3.6): serve the cross-space Exchange (/exchange/* offers, grants, requests,
     // snapshots) from the mock store so the Catalog sharing surfaces work offline. Flip false against
     // a real multi-space backend (-Dspaces.root). Gates the exchange handler in the unified mock store.
-    mockExchange: true,
+    mockExchange: false,
     // Master demo-mode flag: mocks every remaining endpoint (health, status, pipelines, sources,
     // notifications, catalog, diagnoses, config) so the full UI works with no backend at all.
     // Gates the demo handler in the unified mock store (inspecto/mock/).
-    mockDemo: true,
+    mockDemo: false,
     // W6d edition switch (offline): 'none' → the mock /bootstrap reports Personal, so the app boots
     // with NO login (byte-for-byte as before). Flip to 'oidc' (or localStorage['inspecto.mockAuthMode'])
     // to exercise the whole Standard sign-in UX offline against the mock (auth.handler mints fake tokens).
@@ -80,9 +80,6 @@ export const environment = {
     appClientSecret: 'c6ef2c22-134b-4c13-bcaa-4a36a7b5462c',
     appLogoutLogo: 'assets/images/logo/inspecto-logo.svg',
     chatLogo: 'assets/images/logos/assistant.png',
-    iamAppUrl: 'https://app1.pronto.lebara.sa/iam-server',
-    promptoUrl: 'http://68.183.16.242/apps/newchat',
-    caseTrackerGuiUrl: '/casetracker/',
     authServerAuthentication: true,
     //iam details
     iamClientId: "1070682796450139008",
@@ -91,13 +88,3 @@ export const environment = {
     notificationSount: 'assets/sound/notification_2.mp3'
 };
 
-// c6ef2c22-134b-4c13-bcaa-4a36a7b5462c
-
-/*
- * For easier debugging in development mode, you can import the following file
- * to ignore zone related error stack frames such as `zone.run`, `zoneDelegate.invokeTask`.
- *
- * This import should be commented out in production mode because it will have a negative impact
- * on performance if an error is thrown.
- */
-// import 'zone.js/plugins/zone-error';  // Included with Angular CLI.

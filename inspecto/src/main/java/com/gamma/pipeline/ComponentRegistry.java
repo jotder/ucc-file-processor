@@ -54,7 +54,8 @@ public final class ComponentRegistry {
             Map.entry("expectations", "expectation"),// ING-6: data-quality Expectations — /expectations*
             Map.entry("requirements", "requirement"),// UI-6/SEC-7(c): Requirements intake — /requirements*
             Map.entry("link-analysis-views", "link-analysis-view"), // INV-1: saved Link-Analysis Views
-            Map.entry("geo-map-views", "geo-map-view"));            // INV-2: saved Geo Views
+            Map.entry("geo-map-views", "geo-map-view"),             // INV-2: saved Geo Views
+            Map.entry("decision-rules", "decision-rule"));          // DecisionRoutes: business-logic/routing rules
 
     /** The on-disk sub-directory (plural) for a component {@code type} (e.g. {@code grammar} → {@code grammars}). */
     public static Optional<String> dirForType(String type) {
