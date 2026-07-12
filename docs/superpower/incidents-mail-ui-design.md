@@ -126,16 +126,28 @@ Tags are **user-created** (registry, per space) and applied **manually or by rul
   the old `objects.component.*` is deleted (orphaned by the swap). Nav: `Cases` → `Case Manager`.
 - **Docs**: `GLOSSARY.md` §9 lifecycle + §13 touchpoint row; this design doc.
 
-## 7. Backend follow-ups (NOT in this change — backlog)
+## 7. Backend follow-ups — ✅ SHIPPED (backend pass, 2026-07-12)
 
-1. **`PATCH /objects/{id}`** on `ObjectRoutes` (priority / severity / assignee / attributes merge)
-   — today only transition/assign/watch mutate; the UI's Prioritize/tags/postmortem need this
-   against a real backend (mock provides it now).
-1b. **Tag registry + Tag Rules routes** (`/tags`, `/tags/rules`, `/tags/rules/{name}/apply`) and
-   the create-time auto-apply hook in `ObjectService` — all mock-only today (§5b).
-2. **Built-in INCIDENT workflow** → `IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED` with actions
-   `accept/resolve/archive/reopen` (or ship a default `incident_workflow.toon`); UI normalization
-   keeps the old statuses rendering meanwhile.
-3. First-class `category`/`tags` query params on `GET /objects` (client-side filtering until then).
-4. `docs/BACKLOG.md` entry deferred — the file has uncommitted edits from another shift; carry
-   these three items there on a clean tree.
+1. ✅ **`PATCH /objects/{id}`** — `ObjectRoutes.patchObject` → `ObjectService.patch` (priority /
+   severity / assignee replace + attributes merge; 400 empty body, 404 unknown, SEC-7d scoped).
+   `PATCH` added to the `ApiContext`/`ControlApi` routing seam + CORS.
+1b. ✅ **Tags + Tag Rules** — `TagRoutes` (`GET/POST /tags`, `GET/POST /tags/rules`,
+   `DELETE /tags/rules/{name}`, `POST /tags/rules/{name}/apply`), domain records
+   `com.gamma.ops.tag.{Tag,TagRule}` (filter matcher folds legacy incident statuses), registry on
+   `ObjectService` with the **auto-apply hook in `open()`**. Writes ride the `WriteGates` fail-closed
+   chain and persist `<name>_tag.toon` / `<name>_tagrule.toon` under the write root
+   (`-Dassist.write.root`), rescanned by `ServiceBootstrap` — **runtime-created tags survive restart**
+   (unlike queues). Saving a rule implicitly registers its tag.
+2. ✅ **Built-in INCIDENT workflow** → `IDENTIFIED →(accept) DIAGNOSING →(resolve) RESOLVED
+   →(archive) ARCHIVED` (+ resolve/archive from earlier states, reopen: `RESOLVED|ARCHIVED →
+   DIAGNOSING`); only ARCHIVED terminal; **reopen clears `closedAt`** (`withStatus` non-terminal now
+   resets it). `assign` no longer moves status (no ASSIGNED state). `/ack` stays alert-only; the UI
+   drives `/transition`. UI normalization retained for TOON-overridden deployments.
+3. ⏳ First-class `category`/`tags` query params on `GET /objects` — still open, low value (the UI
+   loads and folders client-side).
+4. `docs/BACKLOG.md` entry no longer needed for 1/1b/2; item 3 can be carried there on a clean tree.
+
+Tests: `ControlApiTagRoutesTest` (every gate: 503/422/409/404 + apply idempotence + auto-apply),
+`TagRuleTest` (matcher semantics + TOON round-trip), PATCH block in `ControlApiObjectsTest`;
+lifecycle tests updated (`WorkflowTest`, `ObjectServiceTest`, `ObjectServiceQueueTest`,
+`ControlApiObjectsTest`, `ControlApiQueueRoutesTest`).

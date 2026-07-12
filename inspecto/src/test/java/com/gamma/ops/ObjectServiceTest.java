@@ -96,23 +96,26 @@ class ObjectServiceTest {
 
     @Test
     void incidentLifecycleWalk() {
+        // The mail lifecycle (GLOSSARY §9): IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED, with reopen.
         ObjectService svc = new ObjectService(new InMemoryObjectStore());
         OperationalObject o = svc.open(ObjectType.INCIDENT, "bad rows", "investigate", "HIGH", "P1",
                 null, "alice", "pipeC", Map.of());
-        assertEquals("OPEN", o.status());
+        assertEquals("IDENTIFIED", o.status());
         assertEquals("P1", o.priority(), "the fuller open() carries priority");
         assertEquals("alice", o.assignee(), "the fuller open() carries assignee");
 
-        assertEquals("ASSIGNED", svc.transition(o.id(), "assign", "alice").status());
-        assertEquals("IN_PROGRESS", svc.transition(o.id(), "start", "alice").status());
+        assertEquals("DIAGNOSING", svc.transition(o.id(), "accept", "alice").status());
         OperationalObject resolved = svc.transition(o.id(), "resolve", "alice");
         assertEquals("RESOLVED", resolved.status());
         assertEquals(0, resolved.closedAt(), "RESOLVED is not terminal for an INCIDENT");
-        OperationalObject closed = svc.transition(o.id(), "close", "bob");
-        assertEquals("CLOSED", closed.status());
-        assertTrue(closed.isClosed(), "CLOSED is terminal → closedAt set");
-        assertThrows(IllegalStateException.class, () -> svc.transition(o.id(), "start", null),
-                "cannot reopen a closed incident");
+        OperationalObject archived = svc.transition(o.id(), "archive", "bob");
+        assertEquals("ARCHIVED", archived.status());
+        assertTrue(archived.isClosed(), "ARCHIVED is terminal → closedAt set");
+        OperationalObject reopened = svc.transition(o.id(), "reopen", "carol");
+        assertEquals("DIAGNOSING", reopened.status());
+        assertFalse(reopened.isClosed(), "reopen clears closedAt — the incident is live again");
+        assertThrows(IllegalStateException.class, () -> svc.transition(o.id(), "accept", null),
+                "accept is only legal from IDENTIFIED");
     }
 
     @Test
@@ -145,11 +148,10 @@ class ObjectServiceTest {
         long now = System.currentTimeMillis();
         OperationalObject o = svc.open(ObjectType.INCIDENT, "fixed in time", "d", "HIGH", "pipeG",
                 Map.of(ObjectService.ATTR_DUE_AT, Long.toString(now - 60_000)));
-        svc.transition(o.id(), "assign", "a");
-        svc.transition(o.id(), "start", "a");
+        svc.transition(o.id(), "accept", "a");
         svc.transition(o.id(), "resolve", "a");   // RESOLVED — the SLA clock has stopped
         assertEquals(0, svc.sweepIncidentSla(now), "a resolved incident past its due time does not breach");
-        svc.transition(o.id(), "close", "a");      // CLOSED — still no breach
+        svc.transition(o.id(), "archive", "a");    // ARCHIVED — still no breach
         assertEquals(0, svc.sweepIncidentSla(now));
     }
 

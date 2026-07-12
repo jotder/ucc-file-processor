@@ -362,7 +362,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                 new SpaceRoutes(), new ExchangeRoutes(), new DataSourceRoutes(),
                 new RunRoutes(),
                 new ConnectionRoutes(), new ViewRoutes(), new PipelineRoutes(), new ComponentRoutes(), new BundleRoutes(),
-                new EventRoutes(), new ObjectRoutes(), new QueueRoutes(), new CatalogRoutes(), new ConfigRoutes(),
+                new EventRoutes(), new ObjectRoutes(), new QueueRoutes(), new TagRoutes(), new CatalogRoutes(), new ConfigRoutes(),
                 new QueryRoutes(), new BiRoutes(), new ShareRoutes(), new InvRoutes(),
                 new ExpectationRoutes(), new RequirementRoutes(),
                 new JobRoutes(), new SignalRoutes(), new LineageRoutes(), new EnrichmentRoutes(), new AlertRoutes(), new AcquisitionRoutes(),
@@ -536,7 +536,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     private void applyCors(HttpExchange ex) {
         var h = ex.getResponseHeaders();
         h.set("Access-Control-Allow-Origin", corsOrigin);
-        h.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        h.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
         h.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Api-Token, Correlation-ID");
         h.set("Access-Control-Expose-Headers", "Correlation-ID");
         h.set("Access-Control-Max-Age", "600");
@@ -647,6 +647,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     @Override public void get (String pattern, Handler h) { routes.add(new Route("GET",    Pattern.compile("^" + pattern + "$"), h)); }
     @Override public void post(String pattern, Handler h) { routes.add(new Route("POST",   Pattern.compile("^" + pattern + "$"), h)); }
     @Override public void put   (String pattern, Handler h) { routes.add(new Route("PUT",    Pattern.compile("^" + pattern + "$"), h)); }
+    @Override public void patch (String pattern, Handler h) { routes.add(new Route("PATCH",  Pattern.compile("^" + pattern + "$"), h)); }
     @Override public void delete(String pattern, Handler h) { routes.add(new Route("DELETE", Pattern.compile("^" + pattern + "$"), h)); }
 
     /**

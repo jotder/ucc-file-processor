@@ -104,6 +104,8 @@ interface ApiContext {
 
     void put(String pattern, Handler h);
 
+    void patch(String pattern, Handler h);
+
     void delete(String pattern, Handler h);
 
     /** Parse the request body as a JSON object map (an empty map when the body is empty). */

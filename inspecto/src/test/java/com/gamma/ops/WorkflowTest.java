@@ -29,16 +29,20 @@ class WorkflowTest {
 
     @Test
     void defaultIncidentLifecycle() {
+        // The mail lifecycle (GLOSSARY §9): IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED (+ reopen).
         Workflow wf = Workflow.defaultFor(ObjectType.INCIDENT);
-        assertEquals("OPEN", wf.initialState());
-        assertEquals("ASSIGNED", wf.apply("OPEN", "assign").orElseThrow());
-        assertEquals("IN_PROGRESS", wf.apply("ASSIGNED", "start").orElseThrow());
-        assertEquals("RESOLVED", wf.apply("IN_PROGRESS", "resolve").orElseThrow());
-        assertEquals("CLOSED", wf.apply("RESOLVED", "close").orElseThrow());
-        assertTrue(wf.isTerminal("CLOSED"));
-        assertFalse(wf.isTerminal("RESOLVED"), "RESOLVED is not terminal — an incident can still be closed");
-        assertTrue(wf.apply("OPEN", "resolve").isEmpty(), "cannot resolve an unstarted incident");
-        assertTrue(wf.apply("CLOSED", "close").isEmpty(), "terminal state has no outgoing transitions");
+        assertEquals("IDENTIFIED", wf.initialState());
+        assertEquals("DIAGNOSING", wf.apply("IDENTIFIED", "accept").orElseThrow());
+        assertEquals("RESOLVED", wf.apply("DIAGNOSING", "resolve").orElseThrow());
+        assertEquals("RESOLVED", wf.apply("IDENTIFIED", "resolve").orElseThrow(), "resolve without accepting");
+        assertEquals("ARCHIVED", wf.apply("RESOLVED", "archive").orElseThrow());
+        assertEquals("ARCHIVED", wf.apply("IDENTIFIED", "archive").orElseThrow(), "archive from anywhere (the mail Trash)");
+        assertEquals("DIAGNOSING", wf.apply("RESOLVED", "reopen").orElseThrow());
+        assertEquals("DIAGNOSING", wf.apply("ARCHIVED", "reopen").orElseThrow(), "reopen leaves the terminal state");
+        assertTrue(wf.isTerminal("ARCHIVED"));
+        assertFalse(wf.isTerminal("RESOLVED"), "RESOLVED is not terminal — an incident can still be archived");
+        assertTrue(wf.apply("DIAGNOSING", "accept").isEmpty(), "accept is only legal from IDENTIFIED");
+        assertTrue(wf.apply("IDENTIFIED", "bogus").isEmpty());
     }
 
     @Test

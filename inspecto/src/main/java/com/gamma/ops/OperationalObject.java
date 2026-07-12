@@ -40,10 +40,14 @@ public record OperationalObject(String id, ObjectType objectType, String title, 
         attributes = attributes == null || attributes.isEmpty() ? Map.of() : Map.copyOf(attributes);
     }
 
-    /** A copy in a new {@code status}; {@code now} updates {@code updatedAt}, and {@code closedAt} when terminal. */
+    /**
+     * A copy in a new {@code status}; {@code now} updates {@code updatedAt}. A terminal target stamps
+     * {@code closedAt}; a non-terminal target clears it — moving out of a terminal state (the incident
+     * {@code reopen} action, GLOSSARY §9) re-opens the object, so {@link #isClosed()} tracks the state.
+     */
     public OperationalObject withStatus(String newStatus, long now, boolean terminal) {
         return new OperationalObject(id, objectType, title, description, newStatus, severity, priority,
-                owner, assignee, correlationId, attributes, createdAt, now, terminal ? now : closedAt);
+                owner, assignee, correlationId, attributes, createdAt, now, terminal ? now : 0);
     }
 
     /** A copy reassigned to {@code newAssignee} (touches {@code updatedAt}). */
@@ -55,6 +59,12 @@ public record OperationalObject(String id, ObjectType objectType, String title, 
     /** A copy at a new {@code severity} (INC-4 escalation bump); touches {@code updatedAt}. */
     public OperationalObject withSeverity(String newSeverity, long now) {
         return new OperationalObject(id, objectType, title, description, status, newSeverity, priority,
+                owner, assignee, correlationId, attributes, createdAt, now, closedAt);
+    }
+
+    /** A copy at a new {@code priority} (operator triage — the {@code PATCH /objects/{id}} Prioritize); touches {@code updatedAt}. */
+    public OperationalObject withPriority(String newPriority, long now) {
+        return new OperationalObject(id, objectType, title, description, status, severity, newPriority,
                 owner, assignee, correlationId, attributes, createdAt, now, closedAt);
     }
 

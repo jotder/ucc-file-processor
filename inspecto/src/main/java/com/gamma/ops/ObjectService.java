@@ -17,10 +17,13 @@ import com.gamma.ops.queue.Queue;
 import com.gamma.ops.queue.QueueRouter;
 import com.gamma.ops.queue.QueueStore;
 import com.gamma.ops.rca.RcaTemplate;
+import com.gamma.ops.tag.Tag;
+import com.gamma.ops.tag.TagRule;
 import com.gamma.ops.workflow.Workflow;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -30,6 +33,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The Object Engine + Workflow Engine, wired together — the orchestrator behind the Alert Center
@@ -56,6 +60,8 @@ public final class ObjectService {
     public static final String ATTR_SLA_BREACHED_AT = "slaBreachedAt";
     /** Attribute key holding an object's comma-separated watcher list (INC-4). */
     public static final String ATTR_WATCHERS = "watchers";
+    /** Attribute key holding an object's comma-separated tag list (GLOSSARY §9 — Tag / Tag Rule). */
+    public static final String ATTR_TAGS = "tags";
 
     private final ObjectStore store;
     private final LinkStore links;
@@ -63,6 +69,8 @@ public final class ObjectService {
     private final QueueStore queues = new InMemoryQueueStore();     // INC-4: work queues (config-authored)
     private volatile EscalationPolicy escalationPolicy;             // INC-4: applied on SLA breach; null = breach-only
     private final Map<ObjectType, Workflow> workflows = new EnumMap<>(ObjectType.class);
+    private final Map<String, Tag> tags = new ConcurrentHashMap<>();          // user-created tag registry
+    private final Map<String, TagRule> tagRules = new ConcurrentHashMap<>();  // Gmail-filter Tag Rules, by name
 
     /** Build with the built-in default workflows and in-memory link + note stores. */
     public ObjectService(ObjectStore store) {
@@ -131,6 +139,7 @@ public final class ObjectService {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
+        obj = autoApplyTagRules(obj, now);   // Tag Rules tag incoming objects (GLOSSARY §9, Gmail-filter semantics)
         OperationalObject stored = store.create(obj);
         EventLog.current().emit(Event.builder(EventType.OBJECT_OPENED)
                 .level(EventLevel.INFO)
@@ -171,6 +180,26 @@ public final class ObjectService {
             throw new IllegalStateException("illegal transition: " + obj.status() + " -> " + targetState
                     + " (" + obj.objectType() + ")");
         return commit(obj, wf, targetState, "transition", actor);
+    }
+
+    /**
+     * Patch the operator-mutable fields ({@code PATCH /objects/{id}}): any non-null argument is applied —
+     * {@code priority}/{@code severity}/{@code assignee} replace, {@code attributes} merge over the stored
+     * bag (updates win, existing keys survive). No workflow involvement; a no-op patch returns the object
+     * unchanged without a write.
+     *
+     * @throws NoSuchElementException if no object has this id
+     */
+    public OperationalObject patch(String id, String priority, String severity, String assignee,
+                                   Map<String, String> attributes) {
+        OperationalObject obj = require(id);
+        long now = System.currentTimeMillis();
+        OperationalObject next = obj;
+        if (priority != null) next = next.withPriority(priority, now);
+        if (severity != null) next = next.withSeverity(severity, now);
+        if (assignee != null) next = next.withAssignee(assignee, now);
+        if (attributes != null && !attributes.isEmpty()) next = next.withAttributes(attributes, now);
+        return next == obj ? obj : store.update(next);
     }
 
     /** Convenience: acknowledge an object (the {@code ack} action). */
@@ -217,6 +246,101 @@ public final class ObjectService {
     /** Every registered queue. */
     public List<Queue> queues() {
         return queues.all();
+    }
+
+    // ── tags & Tag Rules (GLOSSARY §9) ────────────────────────────────────────────────
+
+    /** Register (create or replace) a {@link Tag}; loaded from {@code *_tag.toon} at boot or {@code POST /tags}. */
+    public Tag registerTag(Tag tag) {
+        tags.put(tag.name(), tag);
+        return tag;
+    }
+
+    /** The registered tag with this name, or empty. */
+    public Optional<Tag> tag(String name) {
+        return Optional.ofNullable(name == null ? null : tags.get(name.trim()));
+    }
+
+    /** Every registered tag, sorted by name. */
+    public List<Tag> tags() {
+        return tags.values().stream().sorted(Comparator.comparing(Tag::name)).toList();
+    }
+
+    /**
+     * Register (create or replace) a {@link TagRule}; loaded from {@code *_tagrule.toon} at boot or
+     * {@code POST /tags/rules}. Saving a rule implicitly registers its tag (Gmail creates the label
+     * with the filter).
+     */
+    public TagRule registerTagRule(TagRule rule) {
+        tags.computeIfAbsent(rule.tag(), n -> new Tag(n, System.currentTimeMillis()));
+        tagRules.put(rule.name(), rule);
+        return rule;
+    }
+
+    /** The Tag Rule with this name, or empty. */
+    public Optional<TagRule> tagRule(String name) {
+        return Optional.ofNullable(name == null ? null : tagRules.get(name.trim()));
+    }
+
+    /** Every registered Tag Rule, sorted by name. */
+    public List<TagRule> tagRules() {
+        return tagRules.values().stream().sorted(Comparator.comparing(TagRule::name)).toList();
+    }
+
+    /** Remove a Tag Rule; {@code false} when no rule had that name. */
+    public boolean removeTagRule(String name) {
+        return name != null && tagRules.remove(name.trim()) != null;
+    }
+
+    /** Bulk-apply outcome: how many objects matched the rule, and how many were newly tagged. */
+    public record TagRuleApplication(int matched, int updated) {}
+
+    /**
+     * Apply a saved Tag Rule to every existing match ({@code POST /tags/rules/{name}/apply}) — the
+     * Gmail "also apply to existing" semantics. Idempotent: objects already carrying the tag count as
+     * matched but are not rewritten.
+     *
+     * @throws NoSuchElementException if no rule has this name
+     */
+    public TagRuleApplication applyTagRule(String name) {
+        TagRule rule = tagRule(name).orElseThrow(() -> new NoSuchElementException("no tag rule named '" + name + "'"));
+        int matched = 0;
+        int updated = 0;
+        for (OperationalObject o : store.query(ObjectQuery.builder().limit(ObjectQuery.MAX_LIMIT).build())) {
+            if (!rule.matches(o)) continue;
+            matched++;
+            List<String> current = csvTags(o.attributes().get(ATTR_TAGS));
+            if (current.contains(rule.tag())) continue;
+            current.add(rule.tag());
+            store.update(o.withAttributes(Map.of(ATTR_TAGS, String.join(",", current)), System.currentTimeMillis()));
+            updated++;
+        }
+        return new TagRuleApplication(matched, updated);
+    }
+
+    /** Merge every matching Tag Rule's tag into a not-yet-stored object's {@link #ATTR_TAGS} CSV. */
+    private OperationalObject autoApplyTagRules(OperationalObject obj, long now) {
+        if (tagRules.isEmpty()) return obj;
+        List<String> merged = csvTags(obj.attributes().get(ATTR_TAGS));
+        boolean changed = false;
+        for (TagRule rule : tagRules.values()) {
+            if (!merged.contains(rule.tag()) && rule.matches(obj)) {
+                merged.add(rule.tag());
+                changed = true;
+            }
+        }
+        return changed ? obj.withAttributes(Map.of(ATTR_TAGS, String.join(",", merged)), now) : obj;
+    }
+
+    /** The comma-separated tag attribute parsed into a mutable, trimmed, non-empty list. */
+    private static List<String> csvTags(String csv) {
+        List<String> out = new ArrayList<>();
+        if (csv == null || csv.isBlank()) return out;
+        for (String s : csv.split(",")) {
+            String t = s.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
     }
 
     /** Install the SLA {@link EscalationPolicy} the sweep applies on breach; {@code null} = breach-event only. */

@@ -64,7 +64,8 @@ class ControlApiQueueRoutesTest {
 
             JsonNode a1 = json(send(c.port, "POST", "/objects/" + i1.id() + "/assign", "{\"queue\":\"triage\"}"));
             assertEquals("alice", a1.get("assignee").asText());
-            assertEquals("ASSIGNED", a1.get("status").asText(), "assign also advances the workflow");
+            assertEquals("IDENTIFIED", a1.get("status").asText(),
+                    "the mail lifecycle has no 'assign' action — assignment doesn't move status");
             assertEquals("bob", json(send(c.port, "POST", "/objects/" + i2.id() + "/assign",
                     "{\"queue\":\"triage\"}")).get("assignee").asText(), "round-robin advances");
         }

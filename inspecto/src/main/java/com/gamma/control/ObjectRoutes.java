@@ -42,6 +42,7 @@ final class ObjectRoutes implements RouteModule {
         api.post("/objects/([^/]+)/attachments", scoped(api, (e, m) -> addAttachment(api, ApiContext.name(m), api.body(e))));
         api.get("/objects/([^/]+)/attachments", scoped(api, (e, m) -> toNoteMaps(api.service().objects().notesOf(ApiContext.name(m), NoteKind.ATTACHMENT))));
         api.post("/objects/([^/]+)/rca", scoped(api, (e, m) -> applyRca(api, ApiContext.name(m), api.body(e))));
+        api.patch("/objects/([^/]+)", scoped(api, (e, m) -> patchObject(api, ApiContext.name(m), api.body(e))));
         api.get("/objects/([^/]+)", scoped(api, (e, m) -> objectById(api, ApiContext.name(m))));
         api.get("/rca/templates", (e, m) -> rcaTemplateList(api));
     }
@@ -298,6 +299,32 @@ final class ObjectRoutes implements RouteModule {
             throw new ApiException(422, illegal.getMessage());
         } catch (IllegalArgumentException bad) {
             throw new ApiException(400, bad.getMessage());
+        }
+    }
+
+    /**
+     * {@code PATCH /objects/{id}} — partial update of the operator-mutable fields; body any of
+     * {@code {priority?, severity?, assignee?, attributes?}} (attributes merge over the stored bag,
+     * updates win). The mail view's Prioritize / tagging / postmortem saves ride this. At least one
+     * field → else 400; unknown id → 404. No workflow involvement — status changes stay on
+     * {@code /objects/{id}/transition}.
+     */
+    private Object patchObject(ApiContext api, String id, Map<String, Object> body) {
+        Map<String, String> attrs = null;
+        if (body.get("attributes") instanceof Map<?, ?> bag) {
+            Map<String, String> collected = new LinkedHashMap<>();
+            bag.forEach((k, v) -> { if (k != null && v != null) collected.put(k.toString(), v.toString()); });
+            attrs = collected;
+        }
+        String priority = ApiContext.str(body, "priority");
+        String severity = ApiContext.str(body, "severity");
+        String assignee = ApiContext.str(body, "assignee");
+        if (priority == null && severity == null && assignee == null && attrs == null)
+            throw new ApiException(400, "body must include at least one of 'priority', 'severity', 'assignee', 'attributes'");
+        try {
+            return api.service().objects().patch(id, priority, severity, assignee, attrs).toMap();
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
         }
     }
 

@@ -92,10 +92,12 @@ public record Workflow(ObjectType objectType, String initialState, Set<Transitio
      * <ul>
      *   <li>{@link ObjectType#ALERT} (Phase 2): {@code OPEN → ACKNOWLEDGED → RESOLVED} (with a direct
      *       {@code OPEN → RESOLVED} for "resolve without acking"); {@code RESOLVED} is terminal.</li>
-     *   <li>{@link ObjectType#INCIDENT} (Phase 3): {@code OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED}
-     *       (actions {@code assign}/{@code start}/{@code resolve}/{@code close}); only {@code CLOSED} is
-     *       terminal, so a {@code RESOLVED} incident can still be reopened-then-closed by config if desired,
-     *       and the SLA clock (which stops at {@code RESOLVED}) is distinct from closure.</li>
+     *   <li>{@link ObjectType#INCIDENT} (mail lifecycle, GLOSSARY §9):
+     *       {@code IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED} (actions {@code accept}/{@code resolve}/
+     *       {@code archive}, with {@code resolve}/{@code archive} also legal straight from earlier states —
+     *       Gmail's "trash anything"), plus {@code reopen}: {@code RESOLVED|ARCHIVED → DIAGNOSING}. Only
+     *       {@code ARCHIVED} is terminal; reopening out of it clears {@code closedAt}. The SLA clock still
+     *       stops at {@code RESOLVED}, distinct from archival.</li>
      *   <li>{@link ObjectType#CASE} (Phase 4): {@code OPEN → INVESTIGATING → ESCALATED → RESOLVED → CLOSED}
      *       (actions {@code investigate}/{@code escalate}/{@code resolve}/{@code close}, plus a direct
      *       {@code INVESTIGATING → RESOLVED} for "resolve without escalating"); only {@code CLOSED} is
@@ -113,12 +115,16 @@ public record Workflow(ObjectType objectType, String initialState, Set<Transitio
                     Set.of("RESOLVED"));
         }
         if (type == ObjectType.INCIDENT) {
-            return new Workflow(ObjectType.INCIDENT, "OPEN",
-                    Set.of(new Transition("OPEN", "ASSIGNED", "assign"),
-                            new Transition("ASSIGNED", "IN_PROGRESS", "start"),
-                            new Transition("IN_PROGRESS", "RESOLVED", "resolve"),
-                            new Transition("RESOLVED", "CLOSED", "close")),
-                    Set.of("CLOSED"));
+            return new Workflow(ObjectType.INCIDENT, "IDENTIFIED",
+                    Set.of(new Transition("IDENTIFIED", "DIAGNOSING", "accept"),
+                            new Transition("IDENTIFIED", "RESOLVED", "resolve"),
+                            new Transition("IDENTIFIED", "ARCHIVED", "archive"),
+                            new Transition("DIAGNOSING", "RESOLVED", "resolve"),
+                            new Transition("DIAGNOSING", "ARCHIVED", "archive"),
+                            new Transition("RESOLVED", "ARCHIVED", "archive"),
+                            new Transition("RESOLVED", "DIAGNOSING", "reopen"),
+                            new Transition("ARCHIVED", "DIAGNOSING", "reopen")),
+                    Set.of("ARCHIVED"));
         }
         if (type == ObjectType.CASE) {
             return new Workflow(ObjectType.CASE, "OPEN",

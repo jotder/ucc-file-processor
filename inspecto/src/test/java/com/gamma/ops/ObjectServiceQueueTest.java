@@ -31,7 +31,7 @@ class ObjectServiceQueueTest {
     }
 
     @Test
-    void roundRobinCyclesMembersAndAssignAdvancesWorkflow() {
+    void roundRobinCyclesMembersAndAssignLeavesStatusAlone() {
         InMemoryEventStore events = new InMemoryEventStore();
         EventLog.global().installStore(events);
         ObjectService svc = new ObjectService(new InMemoryObjectStore());
@@ -40,7 +40,8 @@ class ObjectServiceQueueTest {
         OperationalObject i1 = incident(svc, "one");
         OperationalObject a1 = svc.assign(i1.id(), null, "triage", "sys");
         assertEquals("alice", a1.assignee());
-        assertEquals("ASSIGNED", a1.status(), "assign advances OPEN → ASSIGNED via the workflow");
+        assertEquals("IDENTIFIED", a1.status(),
+                "the mail lifecycle (GLOSSARY §9) has no 'assign' action — assignment doesn't move status");
         assertEquals(1, eventsFor(events, EventType.OBJECT_ASSIGNED, i1.id()).size());
 
         OperationalObject i2 = incident(svc, "two");

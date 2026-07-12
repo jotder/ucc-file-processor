@@ -77,6 +77,12 @@ final class ServiceBootstrap {
         for (com.gamma.ops.queue.Queue q : loadQueues(resolveBySuffix(paths, "_queue.toon")))
             svc.objects().registerQueue(q);
         loadEscalation(resolveBySuffix(paths, "_escalation.toon")).ifPresent(svc.objects()::escalationPolicy);
+        // Tags + Tag Rules (GLOSSARY §9): authored as *_tag.toon / *_tagrule.toon, or written by the
+        // /tags routes at runtime — this rescan is what makes runtime-created tags survive a restart.
+        for (com.gamma.ops.tag.Tag t : loadTags(resolveBySuffix(paths, "_tag.toon")))
+            svc.objects().registerTag(t);
+        for (com.gamma.ops.tag.TagRule r : loadTagRules(resolveBySuffix(paths, "_tagrule.toon")))
+            svc.objects().registerTagRule(r);
         return svc;
     }
 
@@ -168,6 +174,36 @@ final class ServiceBootstrap {
                         q.id(), q.members().size(), q.routing(), p);
             } catch (Exception e) {
                 log.warn("Could not load queue {}: {}", p, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    /** Load each {@code *_tag.toon} (GLOSSARY §9); a bad one is warned and skipped (others still register). */
+    static List<com.gamma.ops.tag.Tag> loadTags(List<Path> paths) {
+        List<com.gamma.ops.tag.Tag> out = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                com.gamma.ops.tag.Tag t = com.gamma.ops.tag.Tag.load(p);
+                out.add(t);
+                log.info("Loaded tag '{}' from {}", t.name(), p);
+            } catch (Exception e) {
+                log.warn("Could not load tag {}: {}", p, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    /** Load each {@code *_tagrule.toon} (GLOSSARY §9); a bad one is warned and skipped (others still register). */
+    static List<com.gamma.ops.tag.TagRule> loadTagRules(List<Path> paths) {
+        List<com.gamma.ops.tag.TagRule> out = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                com.gamma.ops.tag.TagRule r = com.gamma.ops.tag.TagRule.load(p);
+                out.add(r);
+                log.info("Loaded tag rule '{}' (tags \"{}\") from {}", r.name(), r.tag(), p);
+            } catch (Exception e) {
+                log.warn("Could not load tag rule {}: {}", p, e.getMessage());
             }
         }
         return out;

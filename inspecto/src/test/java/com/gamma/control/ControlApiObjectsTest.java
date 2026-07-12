@@ -100,28 +100,53 @@ class ControlApiObjectsTest {
                     "{\"title\":\"bad rows\",\"severity\":\"HIGH\",\"assignee\":\"alice\",\"dueInMinutes\":30}"));
             String id = created.get("id").asText();
             assertEquals("INCIDENT", created.get("objectType").asText());
-            assertEquals("OPEN", created.get("status").asText());
+            assertEquals("IDENTIFIED", created.get("status").asText());
             assertEquals("alice", created.get("assignee").asText());
             assertTrue(created.get("attributes").has("dueAt"), "dueInMinutes sets a dueAt attribute");
 
-            // walk OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED via the generic transition route
-            assertEquals("ASSIGNED", transition(c.port, id, "assign"));
-            assertEquals("IN_PROGRESS", transition(c.port, id, "start"));
+            // walk IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED (GLOSSARY §9) via the generic transition route
+            assertEquals("DIAGNOSING", transition(c.port, id, "accept"));
             assertEquals("RESOLVED", transition(c.port, id, "resolve"));
-            JsonNode closed = json(send(c.port, "POST", "/objects/" + id + "/transition",
-                    "{\"action\":\"close\",\"actor\":\"bob\"}"));
-            assertEquals("CLOSED", closed.get("status").asText());
-            assertTrue(closed.get("closedAt").asLong() > 0, "CLOSED is terminal → closedAt set");
+            JsonNode archived = json(send(c.port, "POST", "/objects/" + id + "/transition",
+                    "{\"action\":\"archive\",\"actor\":\"bob\"}"));
+            assertEquals("ARCHIVED", archived.get("status").asText());
+            assertTrue(archived.get("closedAt").asLong() > 0, "ARCHIVED is terminal → closedAt set");
 
             // it lists under a type filter; an illegal next move → 422
             JsonNode incidents = json(send(c.port, "GET", "/objects?type=INCIDENT", null));
             assertTrue(incidents.isArray() && incidents.size() == 1 && id.equals(incidents.get(0).get("id").asText()));
             assertEquals(422, send(c.port, "POST", "/objects/" + id + "/transition",
-                    "{\"action\":\"start\"}").statusCode());
+                    "{\"action\":\"accept\"}").statusCode());
 
             // missing title → 400; unknown type → 400
             assertEquals(400, send(c.port, "POST", "/objects", "{\"severity\":\"LOW\"}").statusCode());
             assertEquals(400, send(c.port, "POST", "/objects", "{\"title\":\"x\",\"type\":\"bogus\"}").statusCode());
+        }
+    }
+
+    @Test
+    void patchUpdatesOperatorFieldsAndMergesAttributes(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            OperationalObject seed = c.svc.objects().open(ObjectType.INCIDENT, "bad rows", "d", "HIGH",
+                    null, null, null, "corr", Map.of("category", "Pipeline / Ingest / Parse failure"));
+
+            // priority + attribute merge in one PATCH; pre-existing attributes survive the merge
+            JsonNode patched = json(send(c.port, "PATCH", "/objects/" + seed.id(),
+                    "{\"priority\":\"MAJOR\",\"attributes\":{\"tags\":\"urgent\"}}"));
+            assertEquals("MAJOR", patched.get("priority").asText());
+            assertEquals("urgent", patched.get("attributes").get("tags").asText());
+            assertEquals("Pipeline / Ingest / Parse failure", patched.get("attributes").get("category").asText(),
+                    "attributes merge — existing keys survive");
+            assertEquals("IDENTIFIED", patched.get("status").asText(), "PATCH never moves the workflow");
+
+            // a later single-field PATCH leaves the earlier fields alone
+            JsonNode reassigned = json(send(c.port, "PATCH", "/objects/" + seed.id(), "{\"assignee\":\"dana\"}"));
+            assertEquals("dana", reassigned.get("assignee").asText());
+            assertEquals("MAJOR", reassigned.get("priority").asText());
+
+            // gates: empty body → 400; unknown id → 404
+            assertEquals(400, send(c.port, "PATCH", "/objects/" + seed.id(), "{}").statusCode());
+            assertEquals(404, send(c.port, "PATCH", "/objects/nope", "{\"priority\":\"LOW\"}").statusCode());
         }
     }
 
