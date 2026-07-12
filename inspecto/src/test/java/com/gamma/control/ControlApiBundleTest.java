@@ -90,6 +90,46 @@ class ControlApiBundleTest {
         }
     }
 
+    // ── referential-integrity import gate (System Maintenance MNT-16) ───────────────
+
+    @Test
+    void importRejectsABundleThatIntroducesBrokenReferences(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, dir.resolve("wr"))) {
+            String bad = "{\"format\":\"inspecto-metadata-bundle\",\"version\":2,\"items\":["
+                    + "{\"kind\":\"widget\",\"id\":\"lonely\",\"content\":{\"vizType\":\"bar\",\"datasetId\":\"ghost_ds\"}}]}";
+            HttpResponse<String> r = send(c.port, "POST", "/bundle/import", bad);
+            assertEquals(422, r.statusCode(), r.body());
+            assertTrue(r.body().contains("ghost_ds"), "the finding names the broken ref: " + r.body());
+            assertEquals(404, send(c.port, "GET", "/components/widget/lonely", null).statusCode(),
+                    "fail-closed: nothing was written");
+        }
+    }
+
+    @Test
+    void importAcceptsABundleWhoseItemsResolveEachOther(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, dir.resolve("wr"))) {
+            // The widget's dataset travels IN the same bundle — the union resolves, so the gate passes.
+            String good = "{\"format\":\"inspecto-metadata-bundle\",\"version\":2,\"items\":["
+                    + "{\"kind\":\"widget\",\"id\":\"lonely\",\"content\":{\"vizType\":\"bar\",\"datasetId\":\"ghost_ds\"}},"
+                    + "{\"kind\":\"dataset\",\"id\":\"ghost_ds\",\"content\":{\"title\":\"Ghost\"}}]}";
+            JsonNode out = json(send(c.port, "POST", "/bundle/import", good));
+            assertEquals(2, out.get("imported").asInt(), out.toString());
+            assertEquals(0, out.get("failed").asInt(), out.toString());
+        }
+    }
+
+    @Test
+    void preExistingBrokenRefsNeverBlockAnUnrelatedImport(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir, dir.resolve("wr"))) {
+            seed(c.port, "widget", "old_broken", "datasetId", "long_gone");   // broken ref already on disk
+            String unrelated = "{\"format\":\"inspecto-metadata-bundle\",\"version\":2,\"items\":["
+                    + "{\"kind\":\"dataset\",\"id\":\"newcomer\",\"content\":{\"title\":\"New\"}}]}";
+            JsonNode out = json(send(c.port, "POST", "/bundle/import", unrelated));
+            assertEquals(1, out.get("imported").asInt(),
+                    "an old broken ref is the registry's problem, not this bundle's: " + out);
+        }
+    }
+
     @Test
     void previewClassifiesNewUnchangedDriftedAndRequires(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir, dir.resolve("wr"))) {

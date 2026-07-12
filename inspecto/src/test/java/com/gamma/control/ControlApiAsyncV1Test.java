@@ -356,6 +356,45 @@ class ControlApiAsyncV1Test {
         }
     }
 
+    // ── composed maintenance chain (System Maintenance MNT-13) ───────────────────────
+
+    @Test
+    void maintenanceChainCascadesOnSuccessAndHaltsOnFailure(@TempDir Path cfg, @TempDir Path root,
+                                                            @TempDir Path junk) throws Exception {
+        // Success chain: head → second → third, each guarded on the predecessor's SUCCESS.
+        JobConfig head = new JobConfig("chainhead", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"), null, null);
+        JobConfig second = new JobConfig("chainsecond", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"),
+                "job.run.completed", "$signal.job == chainhead && $signal.outcome == SUCCESS");
+        JobConfig third = new JobConfig("chainthird", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"),
+                "job.run.completed", "$signal.job == chainsecond && $signal.outcome == SUCCESS");
+        // Halt branch: a head whose Run completes FAILED (not thrown) — restore of a missing archive.
+        JobConfig failhead = new JobConfig("failhead", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "restore", "archive", junk.resolve("missing.zip").toString(),
+                        "target_dir", junk.toString()), null, null);
+        JobConfig failfollow = new JobConfig("failfollow", JobType.MAINTENANCE, null, null, true, false,
+                Map.of("task", "heartbeat"),
+                "job.run.completed", "$signal.job == failhead && $signal.outcome == SUCCESS");
+        try (Ctx c = open(cfg, root, List.of(head, second, third, failhead, failfollow))) {
+            c.svc().start();
+
+            post(c.port, "/api/v1/jobs/chainhead/trigger", null);
+            JsonNode tail = awaitRun(c, "chainthird", r -> "SUCCESS".equals(r.get("status").asText()));
+            assertTrue(tail.get("trigger").asText().startsWith("signal:job.run.completed"),
+                    "the tail fired off the chain, not a manual trigger: " + tail);
+
+            post(c.port, "/api/v1/jobs/failhead/trigger", null);
+            JsonNode skipped = awaitRun(c, "failfollow", r -> "SKIPPED".equals(r.get("status").asText()));
+            assertTrue(skipped.get("message").asText().contains("guard"), skipped.toString());
+            JsonNode runs = JSON.readTree(get(c.port, "/jobs/failfollow/runs").body());
+            for (JsonNode r : runs)
+                assertNotEquals("SUCCESS", r.get("status").asText(),
+                        "a failed predecessor halts the chain — the follower never executes: " + runs);
+        }
+    }
+
     // ── async pipeline trigger + poll (W5b) ──────────────────────────────────────────
 
     @Test

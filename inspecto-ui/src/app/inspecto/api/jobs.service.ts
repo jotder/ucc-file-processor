@@ -98,6 +98,19 @@ export interface JobRunRow {
   message: string;
 }
 
+/** One recorded Run Artifact (R7) — a produced Dataset or file, from `/jobs/{name}/artifacts/latest`. */
+export interface RunArtifactRow {
+  runId: string;
+  job: string;
+  seq: number;
+  name: string;
+  kind: 'dataset' | 'file' | string;
+  ref: string | null;
+  rows: number;
+  bytes: number;
+  at: string;
+}
+
 /** A day in the failure trend (GET /jobs/failures): total runs and how many failed that day. */
 export interface JobFailureDay {
   day: string; // yyyy-MM-dd
@@ -154,6 +167,10 @@ export class JobsService {
   /** C6: the generated artifact behind a `type:'report'` job's completed run. */
   runArtifact(name: string, runId: string): Observable<ReportArtifact> {
     return this.http.get<ReportArtifact>(apiUrl(`/jobs/${encodeURIComponent(name)}/runs/${encodeURIComponent(runId)}/artifact`));
+  }
+  /** Run Artifacts of a job's latest successful run (R7) — empty array when it never succeeded. */
+  latestArtifacts(name: string): Observable<RunArtifactRow[]> {
+    return this.http.get<RunArtifactRow[]>(apiUrl(`/jobs/${encodeURIComponent(name)}/artifacts/latest`));
   }
 
   // ── T27 reporting (404 unless the DuckDB backend is on: -Djobs.backend=duckdb) ──

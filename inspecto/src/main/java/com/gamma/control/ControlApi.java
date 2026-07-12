@@ -351,6 +351,8 @@ public final class ControlApi implements AutoCloseable, ApiContext {
 
     private void registerRoutes() {
         get ("/health", (e, m) -> Map.of("status", "UP"));
+        // MNT-15: per-subsystem health — deeper than the liveness probe, auth-gated (not a public path).
+        get ("/health/details", (e, m) -> HealthDetails.of(this));
         get ("/ready",  (e, m) -> Map.of("status", "READY", "pipelines", service().pipelines().size()));
         // Prometheus scrape endpoint — text exposition, open (scrapers don't carry tokens)
         get("/metrics", (e, m) ->

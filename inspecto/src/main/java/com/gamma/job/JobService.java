@@ -212,7 +212,7 @@ public final class JobService implements AutoCloseable {
         registry.register(JobTypeProvider.of(new JobTypeDescriptor("maintenance", "Maintenance",
                 "Built-in housekeeping task (cleanup / ledger_prune / runlog_prune / storage_report / "
                         + "scheduler_audit / backup / backup_verify / restore / metadata_validate / "
-                        + "db_maintenance / compact / materialize).",
+                        + "file_repository_audit / db_maintenance / compact / materialize).",
                 List.of(ParameterDecl.optional("task", ParamType.STRING, "cleanup", "Which maintenance task"),
                         ParameterDecl.optional("dir", ParamType.STRING, null, "Target directory (cleanup / compact / storage_report / backup source)"),
                         ParameterDecl.optional("retention_days", ParamType.INTEGER, "7", "Age threshold in days (required for the *_prune tasks)"),
@@ -229,11 +229,13 @@ public final class JobService implements AutoCloseable {
                         ParameterDecl.optional("all", ParamType.BOOLEAN, "false", "backup_verify: verify every archive, not just the newest"),
                         ParameterDecl.optional("target_dir", ParamType.STRING, null, "restore: destination directory"),
                         ParameterDecl.optional("overwrite", ParamType.BOOLEAN, "false", "restore: replace existing files instead of blocking on conflicts"),
+                        ParameterDecl.optional("min_age_days", ParamType.INTEGER, "1", "compact / file_repository_audit: quiet window in days"),
                         ParameterDecl.optional("source", ParamType.STRING, null, "ledger_prune: scope to one Source"),
                         ParameterDecl.optional("store", ParamType.STRING, null, "Store(s) a delete task targets (fenced)")),
                 List.of("maintenance.storage.threshold", "maintenance.scheduler.findings",
                         "maintenance.backup.completed", "maintenance.backup.verify_failed",
-                        "maintenance.restore.completed", "maintenance.metadata.findings"), List.of()),
+                        "maintenance.restore.completed", "maintenance.metadata.findings",
+                        "maintenance.filerepo.findings"), List.of()),
                 c -> new MaintenanceJob(c, dataDir, auditDir, ledger.runStore().orElse(null), this)));
         registry.register(JobTypeProvider.of(new JobTypeDescriptor("pipeline", "Pipeline",
                 "Runs an authored Pipeline over data at rest; emits a commit downstream jobs can chain on.",

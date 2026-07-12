@@ -7,7 +7,6 @@ import com.gamma.signal.Severity;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +48,8 @@ final class MetadataValidateTask {
             total += list.size();
         }
         List<String> findings = new ArrayList<>();
-        brokenRefs(byType, findings);
-        duplicates(byType, findings);
+        findings.addAll(com.gamma.pipeline.ComponentIntegrity.brokenRefs(byType));
+        findings.addAll(com.gamma.pipeline.ComponentIntegrity.duplicates(byType));
         missingPhysical(byType.get("dataset"), dataDir, findings);
         if (ctx != null) {
             for (String f : findings) ctx.log().warn(f);
@@ -64,45 +63,6 @@ final class MetadataValidateTask {
                 (System.nanoTime() - t0) / 1_000_000L);
     }
 
-    /** Widget → Dataset/Query and dashboard tile → Widget reference checks. */
-    private static void brokenRefs(Map<String, List<ComponentRegistry.Component>> byType, List<String> findings) {
-        var datasets = names(byType.get("dataset"));
-        var queries = names(byType.get("query"));
-        var widgets = names(byType.get("widget"));
-        for (ComponentRegistry.Component w : byType.get("widget")) {
-            String datasetId = str(w.content().get("datasetId"));
-            if (datasetId != null && !datasets.contains(datasetId))
-                findings.add("broken reference: widget '" + w.name() + "' → missing dataset '" + datasetId + "'");
-            String queryId = str(w.content().get("queryId"));
-            if (queryId != null && !queries.contains(queryId))
-                findings.add("broken reference: widget '" + w.name() + "' → missing query '" + queryId + "'");
-        }
-        for (ComponentRegistry.Component d : byType.get("dashboard")) {
-            if (!(d.content().get("tiles") instanceof List<?> tiles)) continue;
-            for (Object t : tiles) {
-                if (!(t instanceof Map<?, ?> tile)) continue;
-                String widgetId = str(tile.get("widgetId"));
-                if (widgetId != null && !widgets.contains(widgetId))
-                    findings.add("broken reference: dashboard '" + d.name() + "' tile → missing widget '" + widgetId + "'");
-            }
-        }
-    }
-
-    /** Two components of one type with identical content apart from {@code name}. */
-    private static void duplicates(Map<String, List<ComponentRegistry.Component>> byType, List<String> findings) {
-        for (Map.Entry<String, List<ComponentRegistry.Component>> e : byType.entrySet()) {
-            Map<Map<String, Object>, String> seen = new HashMap<>();
-            for (ComponentRegistry.Component c : e.getValue()) {
-                Map<String, Object> body = new HashMap<>(c.content());
-                body.remove("name");
-                String first = seen.putIfAbsent(body, c.name());
-                if (first != null && !first.equals(c.name()))
-                    findings.add("duplicate definition: " + e.getKey() + "s '" + first + "' and '"
-                            + c.name() + "' are identical apart from the name");
-            }
-        }
-    }
-
     /** A Dataset whose {@code physicalRef} has no store dir/file under the data root. */
     private static void missingPhysical(List<ComponentRegistry.Component> datasets, String dataDir,
                                         List<String> findings) {
@@ -114,12 +74,6 @@ final class MetadataValidateTask {
                 findings.add("missing physical data: dataset '" + d.name() + "' → no store '" + ref
                         + "' under the data root");
         }
-    }
-
-    private static java.util.Set<String> names(List<ComponentRegistry.Component> list) {
-        java.util.Set<String> out = new java.util.HashSet<>();
-        for (ComponentRegistry.Component c : list) out.add(c.name());
-        return out;
     }
 
     private static String str(Object o) {

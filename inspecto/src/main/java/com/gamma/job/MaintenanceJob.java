@@ -52,6 +52,8 @@ import java.util.stream.Stream;
  *       and conflict detection (MNT-5/MNT-6). See {@link BackupTask}.</li>
  *   <li>{@code metadata_validate} — read-only cross-component integrity audit: broken references,
  *       duplicate definitions, missing physical data (MNT-7). See {@link MetadataValidateTask}.</li>
+ *   <li>{@code file_repository_audit} — read-only data-root audit: unregistered stores + stale
+ *       partial/temp files from interrupted writes (MNT-12).</li>
  *   <li>{@code db_maintenance} — backend maintenance (CHECKPOINT/VACUUM) on the acquisition-ledger DB
  *       over its own live connection (DuckDB is single-writer; a second connection cannot attach).</li>
  *   <li>{@code compact} — merge the many small per-batch Parquet output files inside each partition
@@ -123,6 +125,7 @@ final class MaintenanceJob implements Job {
             case "scheduler_audit"    -> schedulerAudit(ctx);
             case "backup_verify"      -> BackupTask.verify(cfg, ctx);
             case "metadata_validate"  -> MetadataValidateTask.run(ctx, dataDir);
+            case "file_repository_audit" -> fileRepositoryAudit(ctx);
             // Phase-2 write tasks with real previews (MNT-5/MNT-6).
             case "backup"             -> BackupTask.backup(cfg, ctx, dryRun, dataDir);
             case "restore"            -> BackupTask.restore(cfg, ctx, dryRun);
@@ -347,6 +350,65 @@ final class MaintenanceJob implements Job {
         return JobResult.ok("scheduler_audit: " + findings.size() + " finding(s) across " + all.size()
                 + " job(s)" + (findings.isEmpty() ? " — healthy" : ""),
                 (System.nanoTime() - t0) / 1_000_000L);
+    }
+
+    /**
+     * {@code file_repository_audit} (MNT-12): read-only audit of the data root. Finding classes:
+     * store directories with no owning Dataset component (informational — a sink may legitimately
+     * write an unregistered store; checked only when a component registry is configured, never
+     * guessed) and stale partial/temporary files left by interrupted writes ({@code *.tmp},
+     * {@code *.compacting}, {@code .compact-journal}) older than {@code min_age_days} (default 1 —
+     * the quiet window, so an in-flight write is never flagged). Findings go to the Run Log and one
+     * {@code maintenance.filerepo.findings} WARNING signal.
+     */
+    private JobResult fileRepositoryAudit(JobContext ctx) {
+        long t0 = System.nanoTime();
+        if (dataDir == null || dataDir.isBlank() || !Files.isDirectory(Path.of(dataDir))) {
+            return JobResult.ok("file_repository_audit: no data root — nothing to audit", 0L);
+        }
+        Path dataRoot = Path.of(dataDir);
+        long minAgeDays = Long.parseLong(cfg.opt("min_age_days", "1"));
+        Instant cutoff = Instant.now().minus(Duration.ofDays(minAgeDays));
+        List<String> findings = new ArrayList<>();
+        String writeRoot = System.getProperty("assist.write.root");
+        if (writeRoot != null && !writeRoot.isBlank()) {
+            Set<String> refs = new HashSet<>();
+            var store = new com.gamma.pipeline.ComponentStore(Path.of(writeRoot).resolve("registry"));
+            for (var d : store.list("dataset")) {
+                Object ref = d.content().get("physicalRef");
+                if (ref != null) refs.add(String.valueOf(ref));
+            }
+            try (Stream<Path> s = Files.list(dataRoot)) {
+                for (Path p : s.filter(Files::isDirectory).toList()) {
+                    String name = p.getFileName().toString();
+                    if (!name.startsWith(".") && !refs.contains(name))
+                        findings.add("store '" + name + "' has no owning dataset component");
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException("file_repository_audit list failed under " + dataRoot, e);
+            }
+        } else if (ctx != null) {
+            ctx.log().info("unregistered-store check skipped (no component registry configured)");
+        }
+        try (Stream<Path> walk = Files.walk(dataRoot)) {
+            for (Path p : walk.filter(Files::isRegularFile).toList()) {
+                String name = p.getFileName().toString();
+                boolean partial = name.endsWith(".tmp") || name.endsWith(".compacting")
+                        || name.equals(".compact-journal");
+                if (partial && olderThan(p, cutoff))
+                    findings.add("stale partial file (older than " + minAgeDays + "d): " + dataRoot.relativize(p));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("file_repository_audit walk failed under " + dataRoot, e);
+        }
+        if (ctx != null) {
+            for (String f : findings) ctx.log().warn(f);
+            if (!findings.isEmpty())
+                ctx.signals().emit("maintenance.filerepo.findings", Severity.WARNING,
+                        Map.of("count", findings.size(), "findings", findings));
+        }
+        return JobResult.ok("file_repository_audit: " + findings.size() + " finding(s) under " + dataRoot
+                + (findings.isEmpty() ? " — healthy" : ""), (System.nanoTime() - t0) / 1_000_000L);
     }
 
     /** {@code db_maintenance}: CHECKPOINT/VACUUM every per-space DuckDB store over its own live

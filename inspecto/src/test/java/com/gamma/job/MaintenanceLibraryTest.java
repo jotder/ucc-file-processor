@@ -473,6 +473,47 @@ class MaintenanceLibraryTest {
         }
     }
 
+    // ── file_repository_audit (MNT-12, Phase 3) ──────────────────────────────────
+
+    @Test
+    void fileRepositoryAuditFlagsUnregisteredStoresAndStalePartials(@TempDir Path dataDir,
+                                                                    @TempDir Path writeRoot) throws Exception {
+        System.setProperty("assist.write.root", writeRoot.toString());
+        try {
+            var store = new com.gamma.pipeline.ComponentStore(writeRoot.resolve("registry"));
+            store.write("dataset", "orders_ds", Map.of("physicalRef", "orders"));
+            Files.createDirectories(dataDir.resolve("orders"));
+            Files.createDirectories(dataDir.resolve("mystery"));               // no owning dataset
+            aged(dataDir.resolve("orders"), "b0_out.parquet.tmp", "x", 3);     // stale partial
+            Files.writeString(dataDir.resolve("orders").resolve("fresh.tmp"), "x");   // inside quiet window
+
+            JobResult r = new MaintenanceJob(job(Map.of("task", "file_repository_audit")),
+                    dataDir.toString()).run();
+
+            assertTrue(r.message().contains("2 finding(s)"), r.message());
+        } finally {
+            System.clearProperty("assist.write.root");
+        }
+    }
+
+    @Test
+    void fileRepositoryAuditIsHealthyOnACleanDataRoot(@TempDir Path dataDir, @TempDir Path writeRoot) throws Exception {
+        System.setProperty("assist.write.root", writeRoot.toString());
+        try {
+            var store = new com.gamma.pipeline.ComponentStore(writeRoot.resolve("registry"));
+            store.write("dataset", "orders_ds", Map.of("physicalRef", "orders"));
+            Files.writeString(Files.createDirectories(dataDir.resolve("orders")).resolve("d_out.parquet"), "x");
+
+            JobResult r = new MaintenanceJob(job(Map.of("task", "file_repository_audit")),
+                    dataDir.toString()).run();
+
+            assertTrue(r.message().contains("0 finding(s)"), r.message());
+            assertTrue(r.message().contains("healthy"), r.message());
+        } finally {
+            System.clearProperty("assist.write.root");
+        }
+    }
+
     // ── cleanup min_keep (MNT-2c, Phase 2) ───────────────────────────────────────
 
     @Test

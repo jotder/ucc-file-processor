@@ -1,0 +1,15 @@
+job_template:
+  name: chained-backup
+  params:
+    after:
+    dir:
+    backup_dir:
+    prefix: backup
+  job:
+    type: maintenance
+    task: backup
+    on_signal: job.run.completed
+    when: "$signal.job == ${after} && $signal.outcome == SUCCESS"
+    dir: ${dir}
+    backup_dir: ${backup_dir}
+    prefix: ${prefix}

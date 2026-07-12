@@ -184,6 +184,14 @@ final class BundleRoutes implements RouteModule {
         List<Map<String, Object>> ordered = new ArrayList<>(asMapList(bundle.get("items")));
         ordered.sort((a, b) -> Integer.compare(orderOf(str(a, "kind")), orderOf(str(b, "kind"))));
 
+        // Gate 3 — referential integrity (System Maintenance MNT-16) → 422, fail-closed, before any
+        // write: an import may not INTRODUCE broken references. Findings are computed over
+        // (registry ∪ incoming) minus the registry's pre-existing findings, so a bundle whose items
+        // resolve each other passes and an old broken ref already on disk never blocks a new import.
+        List<String> introduced = introducedIntegrityFindings(store, ordered);
+        if (!introduced.isEmpty())
+            throw new ApiException(422, "bundle fails referential integrity — import would introduce: " + introduced);
+
         List<Map<String, Object>> results = new ArrayList<>();
         int imported = 0, overwritten = 0, skipped = 0, unchanged = 0, failed = 0;
         for (Map<String, Object> item : ordered) {
@@ -243,6 +251,32 @@ final class BundleRoutes implements RouteModule {
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────────
+
+    /** The integrity kinds the shared rules cover (see {@link com.gamma.pipeline.ComponentIntegrity}). */
+    private static final List<String> INTEGRITY_KINDS = List.of("dataset", "query", "widget", "dashboard");
+
+    /** Broken-reference findings the incoming items would introduce: findings over
+     *  (registry ∪ incoming) minus the findings the registry already has on its own. */
+    private static List<String> introducedIntegrityFindings(ComponentStore store, List<Map<String, Object>> items) {
+        Map<String, List<ComponentRegistry.Component>> existing = new LinkedHashMap<>();
+        Map<String, List<ComponentRegistry.Component>> union = new LinkedHashMap<>();
+        for (String kind : INTEGRITY_KINDS) {
+            List<ComponentRegistry.Component> current = store.list(kind);
+            existing.put(kind, current);
+            union.put(kind, new ArrayList<>(current));
+        }
+        for (Map<String, Object> item : items) {
+            String kind = str(item, "kind"), id = str(item, "id");
+            if (kind == null || id == null || !INTEGRITY_KINDS.contains(kind)) continue;
+            if (!(item.get("content") instanceof Map<?, ?>)) continue;
+            List<ComponentRegistry.Component> list = union.get(kind);
+            list.removeIf(c -> c.name().equals(id));   // an overwrite replaces the stored copy
+            list.add(new ComponentRegistry.Component(kind, id, null, cast(item.get("content"))));
+        }
+        List<String> introduced = new ArrayList<>(com.gamma.pipeline.ComponentIntegrity.brokenRefs(union));
+        introduced.removeAll(com.gamma.pipeline.ComponentIntegrity.brokenRefs(existing));
+        return introduced;
+    }
 
     private static Path componentRootOrNull(ApiContext api) {
         return api.writeRoot() == null ? null : api.writeRoot().resolve("registry");

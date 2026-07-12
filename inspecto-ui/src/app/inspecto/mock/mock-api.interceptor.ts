@@ -12,6 +12,7 @@ import { demoHandler } from './handlers/demo.handler';
 import { decisionRulesHandler } from './handlers/decision-rules.handler';
 import { exchangeHandler } from './handlers/exchange.handler';
 import { expectationsHandler } from './handlers/expectations.handler';
+import { healthHandler } from './handlers/health.handler';
 import { invHandler } from './handlers/inv.handler';
 import { jobsHandler } from './handlers/jobs.handler';
 import { opsHandler } from './handlers/ops.handler';
@@ -64,6 +65,7 @@ const HANDLERS: MockHandler[] = [
     biTemplatesHandler(flags),
     requirementsHandler(flags),
     decisionRulesHandler(flags),
+    healthHandler(flags), // /health/details only — the bare /health probe stays real (connectivity banner)
     jobsHandler(flags),
     assistHandler(flags),
     settingsHandler(flags),

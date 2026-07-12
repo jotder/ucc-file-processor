@@ -136,19 +136,19 @@ Exit met: demo ships a nightly `config_backup` job chained to `backup_verify` vi
 `on_signal: maintenance.backup.completed` (a first taste of the Phase-3 composed pipeline);
 integrity + verify failures are alertable signals.
 
-### Phase 3 — Composition + Surface + Depth
+### Phase 3 — Composition + Surface + Depth — ✅ SHIPPED 2026-07-12 (MNT-14 deferred, see below)
 
-| Step | Verify |
-|---|---|
-| 1. MNT-13 nightly composed maintenance pipeline as Job Template + demo example | live: chain fires end-to-end via signals; failure mid-chain halts + alerts |
-| 2. MNT-11 Maintenance dashboard pane (angular-ui skill rules apply) | UI DoD; renders backup status/storage/failed runs from real endpoints |
-| 3. MNT-15 `/health/details` per-subsystem checks | smoke: each subsystem togglable to DOWN in test, reflected in payload |
-| 4. MNT-14 archive-instead-of-delete axis + Archived-Incident sweep | archived items in `archive/`, restorable; delete path untouched |
-| 5. MNT-12 file-repository tasks (orphan/missing/partial/checksum) | fixtures per failure class |
-| 6. MNT-16 `metadata_validate` as bundle-import pre-check | import of a broken bundle 422s with findings |
+| Step | Verify | Status |
+|---|---|---|
+| 1. MNT-13 nightly composed maintenance pipeline | chain fires end-to-end via signals; failure mid-chain halts | ✅ demo chain `runlog_retention` (cron head) → `db_maintenance` → `config_backup` → `backup_verify` → `maintenance_report`, each link `on_signal: job.run.completed` + `when: "$signal.job == <prev> && $signal.outcome == SUCCESS"` (halt-on-failure is the guard; a thrown failure additionally emits `job.run.failed` for Alert Rules). `chained_backup_job_template.toon` = the parameterized chain-step Job Template (`after`/`dir`/`backup_dir`/`prefix`); `config_backup` is its instance. HTTP test proves cascade + halt |
+| 2. MNT-11 Maintenance Overview pane | UI DoD; real endpoints | ✅ `modules/admin/maintenance/` + new top-level **System Maintenance** nav group (§5 IA — sibling of Operations): health subsystems (`/health/details`), maintenance job fleet + last backup (from `/jobs` + `/jobs/{name}/artifacts/latest`), failed maintenance runs (`/jobs/runs`, degrades to a note when the projection is off), storage axes (latest `storage_report` artifacts). Mock: `health.handler` (details only — the bare `/health` probe deliberately stays real for the connectivity banner) + artifacts/latest in `jobs.handler` |
+| 3. MNT-15 `/health/details` | subsystems togglable to DOWN in test | ✅ `HealthDetails` (control): configStore/dataStore/pipelines/scheduler/jobRunsProjection, each UP/DOWN/NOT_CONFIGURED + detail; overall DOWN iff any subsystem DOWN (unconfigured ≠ failure); auth-gated, NOT on the public-path allowlist (exposes paths). Real-HTTP tests incl. a forced configStore DOWN |
+| 4. MNT-14 Archived-Incident sweep | archived items restorable | ⛔ **DEFERRED — blocked**: the Identified/Diagnosing/Resolved/Archived lifecycle is Angular-mock-only; the backend `Workflow` still runs OPEN→…→CLOSED and `ObjectStore` has no delete API (GLOSSARY §13 marks the backend rename pending; gaps doc: `superpower/incidents-mail-ui-design.md` §7). Revisit when the incidents backend workflow ships |
+| 5. MNT-12 file-repository audit | fixtures per failure class | ✅ `file_repository_audit` task: unregistered stores (only when a registry is configured — never guessed) + stale partial/temp files (`*.tmp`/`*.compacting`/`.compact-journal` outside the `min_age_days` quiet window); findings → Run Log + `maintenance.filerepo.findings` |
+| 6. MNT-16 integrity pre-check on bundle import | broken bundle 422s | ✅ shared rules extracted to `com.gamma.pipeline.ComponentIntegrity`; `BundleRoutes.import` Gate 3 blocks (422, before any write) only findings the import would INTRODUCE — computed over (registry ∪ incoming) minus pre-existing findings, so bundles that resolve themselves pass and old broken refs never block |
 
-Exit: operator can run the platform's routine maintenance entirely from the UI/scheduler; COULD
-items (trends, comparison, profiles) unblocked by the accumulated data.
+Exit met (minus deferred MNT-14): routine maintenance is authorable, schedulable, chainable, and
+observable from the UI; COULD items (trends, comparison, profiles) now have their data sources.
 
 ## 5. Navigation & IA — Operations vs System Maintenance (two menus)
 

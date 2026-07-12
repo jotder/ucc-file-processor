@@ -1,0 +1,99 @@
+<div class="flex flex-col gap-6 p-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-semibold">System Maintenance — Overview</h1>
+            <p class="text-secondary mt-1">
+                Platform health, the maintenance job fleet, and storage — observation only; author jobs in
+                Workbench → Jobs.
+            </p>
+        </div>
+        <button mat-stroked-button aria-label="Refresh maintenance overview" (click)="refresh()">
+            <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+            Refresh
+        </button>
+    </div>
+
+    <!-- Health (MNT-15) -->
+    <section aria-labelledby="mnt-health">
+        <h2 id="mnt-health" class="text-lg font-medium mb-3">Health</h2>
+        @if (healthError()) {
+            <inspecto-empty-state
+                icon="heroicons_outline:heart"
+                title="Health details unavailable"
+                [message]="healthError()!" />
+        } @else if (!health()) {
+            <inspecto-skeleton [lines]="3" />
+        } @else {
+            <div class="flex flex-wrap gap-3">
+                @for (s of subsystems(); track s.key) {
+                    <div class="rounded-lg border border-gray-300 dark:border-gray-700 px-4 py-3 min-w-52">
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="font-medium">{{ s.key }}</span>
+                            <inspecto-status-badge [value]="s.status" />
+                        </div>
+                        <div class="text-secondary text-sm mt-1 break-all">{{ s.detail }}</div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <!-- Maintenance jobs (backup status rides the fleet's last/next runs) -->
+    <section aria-labelledby="mnt-jobs">
+        <h2 id="mnt-jobs" class="text-lg font-medium mb-3">Maintenance jobs</h2>
+        @if (lastBackup(); as backup) {
+            <p class="text-secondary text-sm mb-2">
+                Last backup: <span class="font-mono">{{ backup.ref }}</span> ({{ formatBytes(backup.bytes) }})
+            </p>
+        }
+        <inspecto-data-table
+            tier="mini"
+            sourceName="maintenance-jobs"
+            [rows]="maintenanceJobs()"
+            [columns]="jobColumns"
+            [loading]="loading()"
+            [autoHeight]="true"
+            noRowsTitle="No maintenance jobs"
+            noRowsHint="Author maintenance jobs (cleanup, backup, audits) in Workbench → Jobs." />
+    </section>
+
+    <!-- Recent failed maintenance runs -->
+    <section aria-labelledby="mnt-failed">
+        <h2 id="mnt-failed" class="text-lg font-medium mb-3">Recent failed runs</h2>
+        @if (runsNote()) {
+            <p class="text-secondary text-sm">{{ runsNote() }}</p>
+        } @else {
+            <inspecto-data-table
+                tier="mini"
+                sourceName="maintenance-failed-runs"
+                [rows]="failedRuns()"
+                [columns]="failedRunColumns"
+                [autoHeight]="true"
+                noRowsTitle="No failed maintenance runs"
+                noRowsHint="Failures and rejections of maintenance jobs land here (and fire alertable signals)." />
+        }
+    </section>
+
+    <!-- Storage (latest storage_report series, MNT-3) -->
+    <section aria-labelledby="mnt-storage">
+        <h2 id="mnt-storage" class="text-lg font-medium mb-3">Storage</h2>
+        @if (storageAxes().length === 0) {
+            <p class="text-secondary text-sm">
+                No storage report yet — add a <span class="font-mono">storage_report</span> maintenance job to
+                populate this section.
+            </p>
+        } @else {
+            <ul class="flex flex-col gap-1">
+                @for (a of storageAxes(); track a.axis) {
+                    <li class="flex items-baseline gap-3">
+                        <span class="font-mono min-w-32">{{ a.axis }}</span>
+                        <span class="font-medium">{{ formatBytes(a.bytes) }}</span>
+                        @if (a.ref) {
+                            <span class="text-secondary text-sm break-all">{{ a.ref }}</span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+</div>

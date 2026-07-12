@@ -2,4 +2,5 @@ job:
   name: db_maintenance
   type: maintenance
   task: db_maintenance
-  cron: "30 5 * * 0"
+  on_signal: job.run.completed
+  when: "$signal.job == runlog_retention && $signal.outcome == SUCCESS"

@@ -1,0 +1,8 @@
+job:
+  name: maintenance_report
+  type: report
+  scope: status
+  format: json
+  out_dir: spaces/demo/data/reports
+  on_signal: job.run.completed
+  when: "$signal.job == backup_verify && $signal.outcome == SUCCESS"

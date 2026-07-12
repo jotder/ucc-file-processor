@@ -88,6 +88,19 @@ export const defaultNavigation: GammaNavigationItem[] = [
         ]
     },
     {
+        // System Maintenance (plan §5): the platform maintaining ITSELF — sibling of Operations (which is
+        // the platform working for the business). Items appear with the phase that produces their data;
+        // Phase 3 ships the Overview (health, job fleet, failed runs, storage). Platform nav, not a
+        // Menu Builder artifact (the builder edits custom menus only).
+        id      : 'system-maintenance-group',
+        title   : 'System Maintenance',
+        type    : 'collapsable',
+        icon    : 'heroicons_outline:wrench-screwdriver',
+        children: [
+            { id: 'maintenance-overview', title: 'Overview', type: 'basic', icon: 'heroicons_outline:heart', link: '/maintenance' }
+        ]
+    },
+    {
         id   : 'settings',
         title: 'Settings',
         type : 'basic',

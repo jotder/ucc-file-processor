@@ -93,6 +93,7 @@ const JOB_TYPES = /\/jobs\/types$/;
 const JOB_TYPE_ONE = /\/jobs\/types\/([^/]+)$/;
 const JOB_RUN_LOGS = /\/jobs\/([^/]+)\/runs\/([^/]+)\/logs$/;
 const JOB_RUN_ARTIFACT = /\/jobs\/([^/]+)\/runs\/([^/]+)\/artifact$/;
+const JOB_ARTIFACTS_LATEST = /\/jobs\/([^/]+)\/artifacts\/latest$/;
 const JOB_RUNS = /\/jobs\/([^/]+)\/runs$/;
 const JOB_TRIGGER = /\/jobs\/([^/]+)\/trigger$/;
 const JOB_TOGGLE = /\/jobs\/([^/]+)\/(enable|disable)$/;
@@ -108,6 +109,24 @@ export function jobsHandler(flags: MockFlags): MockHandler {
         if (method === 'GET' && (m = match(url, JOB_RUN_ARTIFACT))) {
             const artifact = store.get<ReportArtifact>(space, REPORT_ARTIFACTS_COLL, m[2]);
             return artifact ? json(artifact) : error(404, `no artifact for run ${m[2]}`);
+        }
+        // Run Artifacts of the latest successful run (R7) — feeds the Maintenance Overview (MNT-11).
+        // Name-keyed demo shapes: a *backup* job shows an archive, a *storage* job the axis series.
+        if (method === 'GET' && (m = match(url, JOB_ARTIFACTS_LATEST))) {
+            const job = m[1];
+            const base = { runId: `${job}-latest`, job, at: new Date().toISOString(), rows: 0, ref: null as string | null };
+            if (job.includes('backup')) {
+                return json([{ ...base, seq: 1, name: 'backup', kind: 'file',
+                    ref: `data/backups/${job}_20260712.zip`, bytes: 48_213 }]);
+            }
+            if (job.includes('storage')) {
+                return json([
+                    { ...base, seq: 1, name: 'axis:config', kind: 'file', ref: 'config', bytes: 182_000 },
+                    { ...base, seq: 2, name: 'axis:data', kind: 'file', ref: 'data', bytes: 9_412_000 },
+                    { ...base, seq: 3, name: 'axis:audit', kind: 'file', ref: 'audit', bytes: 731_000 },
+                ]);
+            }
+            return json([]);
         }
         if (method === 'GET' && JOB_TYPES.test(url)) return json(JOB_TYPE_DESCRIPTORS);
         if (method === 'GET' && (m = match(url, JOB_TYPE_ONE))) {
