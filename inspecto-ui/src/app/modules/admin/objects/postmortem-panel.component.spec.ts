@@ -38,7 +38,11 @@ const INCIDENT: OperationalObject = {
 };
 
 function create(object: OperationalObject = INCIDENT) {
-    const api = { update: vi.fn(() => of(object)) };
+    // graph() feeds the CaseContentsComponent child the CASE-object tests render.
+    const api = {
+        update: vi.fn(() => of(object)),
+        graph: vi.fn(() => of({ root: object.id, depth: 1, nodes: [], edges: [] })),
+    };
     const toastr = { success: vi.fn(), error: vi.fn() };
     const confirm = { confirm: vi.fn(() => Promise.resolve(true)) };
     TestBed.configureTestingModule({
@@ -58,17 +62,19 @@ function create(object: OperationalObject = INCIDENT) {
 }
 
 describe('PostmortemPanelComponent', () => {
-    it('populates the postmortem template from attributes.postmortem', () => {
+    it('populates the postmortem template, migrating the legacy fiveWhys shape onto causeAnalysis (I2)', () => {
         const { c } = create();
         expect(c.form.controls.commander.value).toBe('alice');
         expect(c.timeline.length).toBe(1);
-        expect(c.fiveWhys.length).toBe(5); // always padded to 5 whys
+        expect(c.causeAnalysis.length).toBe(5); // legacy fiveWhys rows carried over 1:1
+        expect(c.form.controls.causeMethod.value).toBe('The 5 Whys'); // the default method label
         expect(c.actionsArr.length).toBe(1);
     });
 
-    it('saves the edited postmortem as an attributes patch', () => {
+    it('saves the edited postmortem as an attributes patch (causeAnalysis shape)', () => {
         const { c, api } = create();
         c.form.controls.downtime.setValue('2 hours');
+        c.removeCause(4); // rows are add/removable now — not pinned to exactly five
         c.form.markAsDirty();
         c.save();
         expect(api.update).toHaveBeenCalledTimes(1);
@@ -77,7 +83,38 @@ describe('PostmortemPanelComponent', () => {
         const saved = JSON.parse(patch.attributes.postmortem);
         expect(saved.downtime).toBe('2 hours');
         expect(saved.commander).toBe('alice');
-        expect(saved.fiveWhys).toHaveLength(5);
+        expect(saved.causeMethod).toBe('The 5 Whys');
+        expect(saved.causeAnalysis).toHaveLength(4);
+        expect(saved.fiveWhys).toBeUndefined();
+    });
+
+    it('round-trips case Findings + team + target date as one attributes patch (C3/C6)', () => {
+        const CASE: OperationalObject = {
+            ...INCIDENT,
+            id: 'c1',
+            objectType: 'CASE',
+            status: 'INVESTIGATING',
+            attributes: { assignees: 'alice,bob', targetDate: '2026-07-01' },
+        };
+        const { c, api } = create(CASE);
+        expect(c.findingsForm.controls.team.value).toBe('alice, bob');
+        expect(c.findingsForm.controls.targetDate.value).toBe('2026-07-01');
+        expect(c.isTargetOverdue(CASE)).toBe(true); // past target on an active case → overdue hint
+
+        c.findingsForm.patchValue({ disposition: 'RECOVERED', impactAmount: '99', team: 'alice, carol ' });
+        c.findingsForm.markAsDirty();
+        c.saveFindings();
+        const [id, patch] = (api.update as ReturnType<typeof vi.fn>).mock.calls[0];
+        expect(id).toBe('c1');
+        expect(patch.attributes.assignees).toBe('alice,carol');
+        expect(patch.attributes.targetDate).toBe('2026-07-01');
+        expect(JSON.parse(patch.attributes.findings).disposition).toBe('RECOVERED');
+    });
+
+    it('case quick actions derive from the effective workflow (C6)', () => {
+        const CASE: OperationalObject = { ...INCIDENT, id: 'c2', objectType: 'CASE', status: 'INVESTIGATING', attributes: {} };
+        const { c } = create(CASE);
+        expect(c.quickActions.map((a) => a.id).sort()).toEqual(['escalate', 'resolve']); // built-in fallback
     });
 
     it('offers the lifecycle quick actions for the object status', () => {

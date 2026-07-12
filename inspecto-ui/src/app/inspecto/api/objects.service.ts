@@ -65,6 +65,26 @@ export interface RcaTemplate {
     sections: string[];
 }
 
+/** One legal workflow move (GET /workflows/{type}). */
+export interface WorkflowTransition {
+    from: string;
+    to: string;
+    action: string;
+}
+
+/**
+ * The effective (possibly `*_workflow.toon`-overridden) lifecycle of an object type
+ * (GET /workflows/{type}) — `states` come initial-first in presentation order, so a pane can derive
+ * its folders and action verbs instead of hardcoding lifecycles.
+ */
+export interface WorkflowDef {
+    type: string;
+    initial: string;
+    states: string[];
+    terminal: string[];
+    transitions: WorkflowTransition[];
+}
+
 /** Merge outcome (POST /objects/{id}/merge) — GLOSSARY §9 case group management. */
 export interface MergeResult {
     survivor: OperationalObject;
@@ -204,6 +224,11 @@ export class ObjectsService {
     link(id: string, to: string, relationship: string, actor?: string): Observable<ObjectLink> {
         return this.http.post<ObjectLink>(
             apiUrl(`/objects/${encodeURIComponent(id)}/links`), { to, relationship, actor });
+    }
+
+    /** The effective lifecycle for an object type — drives workflow-derived folders/actions (C6). */
+    workflow(type: string): Observable<WorkflowDef> {
+        return this.http.get<WorkflowDef>(apiUrl(`/workflows/${encodeURIComponent(type)}`));
     }
 
     /** Remove one correlation edge (e.g. a member incident out of a Case's Contents). */

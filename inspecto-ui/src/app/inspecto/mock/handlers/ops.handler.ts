@@ -52,6 +52,7 @@ const OBJECT_COMMENTS = /\/objects\/([^/]+)\/comments$/;
 const OBJECT_ATTACHMENTS = /\/objects\/([^/]+)\/attachments$/;
 const OBJECT_RCA = /\/objects\/([^/]+)\/rca$/;
 const RCA_TEMPLATES = /\/rca\/templates$/;
+const WORKFLOW_ONE = /\/workflows\/([^/]+)$/;
 const TAGS = /\/tags$/;
 const TAG_RULES = /\/tags\/rules$/;
 const TAG_RULE_ONE = /\/tags\/rules\/([^/]+)$/;
@@ -74,6 +75,47 @@ const OBJECT_ACTION_STATUS: Record<string, string> = {
 
 /** Terminal statuses that stamp `closedAt`. */
 const CLOSING_STATUSES = new Set(['CLOSED', 'ARCHIVED']);
+
+/** The effective lifecycles (GET /workflows/{type}) — mirrors the backend built-ins (C6). */
+const WORKFLOWS: Record<string, unknown> = {
+    INCIDENT: {
+        type: 'INCIDENT', initial: 'IDENTIFIED',
+        states: ['IDENTIFIED', 'ARCHIVED', 'DIAGNOSING', 'RESOLVED'],
+        terminal: ['ARCHIVED'],
+        transitions: [
+            { from: 'IDENTIFIED', to: 'DIAGNOSING', action: 'accept' },
+            { from: 'IDENTIFIED', to: 'ARCHIVED', action: 'archive' },
+            { from: 'IDENTIFIED', to: 'RESOLVED', action: 'resolve' },
+            { from: 'DIAGNOSING', to: 'ARCHIVED', action: 'archive' },
+            { from: 'DIAGNOSING', to: 'RESOLVED', action: 'resolve' },
+            { from: 'RESOLVED', to: 'ARCHIVED', action: 'archive' },
+            { from: 'RESOLVED', to: 'DIAGNOSING', action: 'reopen' },
+            { from: 'ARCHIVED', to: 'DIAGNOSING', action: 'reopen' },
+        ],
+    },
+    CASE: {
+        type: 'CASE', initial: 'OPEN',
+        states: ['OPEN', 'INVESTIGATING', 'ESCALATED', 'RESOLVED', 'CLOSED'],
+        terminal: ['CLOSED'],
+        transitions: [
+            { from: 'OPEN', to: 'INVESTIGATING', action: 'investigate' },
+            { from: 'INVESTIGATING', to: 'ESCALATED', action: 'escalate' },
+            { from: 'INVESTIGATING', to: 'RESOLVED', action: 'resolve' },
+            { from: 'ESCALATED', to: 'RESOLVED', action: 'resolve' },
+            { from: 'RESOLVED', to: 'CLOSED', action: 'close' },
+        ],
+    },
+    ALERT: {
+        type: 'ALERT', initial: 'OPEN',
+        states: ['OPEN', 'ACKNOWLEDGED', 'RESOLVED'],
+        terminal: ['RESOLVED'],
+        transitions: [
+            { from: 'OPEN', to: 'ACKNOWLEDGED', action: 'ack' },
+            { from: 'OPEN', to: 'RESOLVED', action: 'resolve' },
+            { from: 'ACKNOWLEDGED', to: 'RESOLVED', action: 'resolve' },
+        ],
+    },
+};
 
 const RCA_TEMPLATE_CATALOG = [
     { name: 'incident-default', sections: ['Summary', 'Timeline', 'Root cause', 'Impact', 'Remediation'] },
@@ -301,6 +343,10 @@ export function opsHandler(flags: MockFlags): MockHandler {
             return json(sections.map((s) => putNote(store, space, id, 'COMMENT', 'rca', `## ${s}\n`)));
         }
         if (method === 'GET' && RCA_TEMPLATES.test(url)) return json(RCA_TEMPLATE_CATALOG);
+        if (method === 'GET' && (m = match(url, WORKFLOW_ONE))) {
+            const wf = WORKFLOWS[m[1].toUpperCase()];
+            return wf ? json(wf) : error(400, `unknown object type '${m[1]}'`);
+        }
         // ── tag registry + Tag Rules (design §7 follow-up on the real backend) ───────────────
         if (method === 'GET' && TAGS.test(url)) {
             return json(store.list<Tag>(space, TAGS_COLL).sort((a, b) => a.name.localeCompare(b.name)));

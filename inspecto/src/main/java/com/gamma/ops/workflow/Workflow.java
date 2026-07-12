@@ -6,7 +6,11 @@ import com.gamma.ops.ObjectType;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -83,6 +87,58 @@ public record Workflow(ObjectType objectType, String initialState, Set<Transitio
         all.addAll(terminalStates);
         for (Transition t : transitions) { all.add(t.from()); all.add(t.to()); }
         return all;
+    }
+
+    /**
+     * Every state in a stable, presentation-friendly order: the initial state first, then BFS over
+     * the transitions (ties broken alphabetically), unreachable stragglers last — what a UI renders
+     * as lifecycle folders/columns without hardcoding the state list ({@code GET /workflows/{type}}).
+     */
+    public List<String> orderedStates() {
+        List<String> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        Deque<String> frontier = new ArrayDeque<>();
+        seen.add(initialState);
+        frontier.add(initialState);
+        while (!frontier.isEmpty()) {
+            String cur = frontier.poll();
+            out.add(cur);
+            transitions.stream()
+                    .filter(t -> t.from().equals(cur))
+                    .sorted(Comparator.comparing(Transition::to))
+                    .forEach(t -> { if (seen.add(t.to())) frontier.add(t.to()); });
+        }
+        for (String s : states()) if (seen.add(s)) out.add(s);
+        return out;
+    }
+
+    /**
+     * JSON-ready view (stable key + state order) — backs {@code GET /workflows/{type}} so the UI can
+     * derive its folders and action verbs from the <em>effective</em> (possibly TOON-overridden)
+     * workflow instead of hardcoding lifecycles.
+     */
+    public Map<String, Object> toMap() {
+        List<String> ordered = orderedStates();
+        List<Map<String, Object>> moves = new ArrayList<>();
+        for (String from : ordered) {
+            transitions.stream()
+                    .filter(t -> t.from().equals(from))
+                    .sorted(Comparator.comparing(Transition::action).thenComparing(Transition::to))
+                    .forEach(t -> {
+                        Map<String, Object> mv = new LinkedHashMap<>();
+                        mv.put("from", t.from());
+                        mv.put("to", t.to());
+                        mv.put("action", t.action());
+                        moves.add(mv);
+                    });
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("type", objectType.name());
+        m.put("initial", initialState);
+        m.put("states", ordered);
+        m.put("terminal", terminalStates.stream().sorted().toList());
+        m.put("transitions", moves);
+        return m;
     }
 
     // ── built-in defaults ─────────────────────────────────────────────────────────

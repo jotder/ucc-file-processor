@@ -150,6 +150,24 @@ class ControlApiObjectsTest {
         }
     }
 
+    @Test
+    void workflowReadServesTheEffectiveLifecycle(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            JsonNode caseWf = json(send(c.port, "GET", "/workflows/CASE", null));
+            assertEquals("OPEN", caseWf.get("initial").asText());
+            java.util.List<String> states = new java.util.ArrayList<>();
+            caseWf.get("states").forEach(n -> states.add(n.asText()));
+            assertEquals(List.of("OPEN", "INVESTIGATING", "ESCALATED", "RESOLVED", "CLOSED"), states,
+                    "BFS order from the initial state — what the UI renders as folders");
+            assertEquals("CLOSED", caseWf.get("terminal").get(0).asText());
+            assertTrue(caseWf.get("transitions").size() >= 5);
+
+            // the type parses case-insensitively; the incident mail lifecycle rides the same route
+            assertEquals("IDENTIFIED", json(send(c.port, "GET", "/workflows/incident", null)).get("initial").asText());
+            assertEquals(400, send(c.port, "GET", "/workflows/bogus", null).statusCode());
+        }
+    }
+
     /** POST a generic {action} transition and return the resulting status. */
     private String transition(int port, String id, String action) throws Exception {
         return json(send(port, "POST", "/objects/" + id + "/transition",

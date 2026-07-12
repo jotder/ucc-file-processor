@@ -1,8 +1,18 @@
 # Case Management — business differentiation + Split & Merge
 
-_Status: C1 + C2 **SHIPPED** (2026-07-12); C3–C6/I1–I2 proposed. Companion to
-`incidents-mail-ui-design.md` (the mail shell both panes share). GLOSSARY §9 chain:
-**Alert → Incident → Case**._
+_Status: C1 + C2 + **I1 + I2 + C3 + C6 SHIPPED** (2026-07-12); C4 (analytics) + C5 (rule-raised
+cases) proposed. Companion to `incidents-mail-ui-design.md` (the mail shell both panes share).
+GLOSSARY §9 chain: **Alert → Incident → Case**._
+
+> **As-built note (I1/I2/C3/C6):** I1 = UI soft-warn on Resolve (panel + bulk toolbar) checking
+> timeline/cause-analysis/corrective-actions/`dueAt`; the backend workflow guard is the next
+> hardening step. I2 = `postmortem.causeAnalysis[]` + `causeMethod` (legacy `fiveWhys` migrates on
+> parse). C3 = Findings form (`attributes.findings` JSON: disposition/impact/records/summary) with
+> a soft no-disposition prompt on case resolve; deployment-configurable extra sections + the
+> auto member-timeline are follow-ups. C6 = `attributes.assignees` team + `targetDate` (overdue
+> hint, no sweep) + **`GET /workflows/{type}`** (`Workflow.toMap`, BFS-ordered states) with case
+> folders, toolbar verbs and panel quick actions all derived from the effective workflow
+> (built-in fallback in `mail-model.ts`; mock mirrors the endpoint)._
 
 > **As-built note (C1/C2):** membership stays on `CONTAINS` links. To support re-pointing, the
 > `LinkStore` append-only contract was **deliberately amended** with `remove()` (links = *current*

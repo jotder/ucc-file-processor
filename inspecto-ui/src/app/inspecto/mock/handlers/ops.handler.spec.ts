@@ -275,6 +275,19 @@ describe('opsHandler', () => {
             { members: ['incident-104'] }), store)?.status).toBe(400);
     });
 
+    it('serves the effective lifecycle per type (C6 workflow-driven folders)', () => {
+        const store = seededStore();
+        const caseWf = handler(req('GET', '/api/workflows/CASE'), store)?.body as {
+            initial: string; states: string[]; terminal: string[];
+        };
+        expect(caseWf.initial).toBe('OPEN');
+        expect(caseWf.states).toEqual(['OPEN', 'INVESTIGATING', 'ESCALATED', 'RESOLVED', 'CLOSED']);
+        expect(caseWf.terminal).toEqual(['CLOSED']);
+        expect((handler(req('GET', '/api/workflows/incident'), store)?.body as { initial: string }).initial)
+            .toBe('IDENTIFIED');
+        expect(handler(req('GET', '/api/workflows/bogus'), store)?.status).toBe(400);
+    });
+
     it('deletes a single link and 404s when it is already gone', () => {
         const store = seededStore();
         expect(handler(req('DELETE', '/api/objects/case-102/links', null,

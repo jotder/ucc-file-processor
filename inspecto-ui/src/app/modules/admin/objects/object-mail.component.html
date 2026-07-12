@@ -24,7 +24,7 @@
         </div>
 
         <nav class="min-h-0 flex-auto overflow-y-auto px-2 pb-3" aria-label="Folders">
-            @for (f of folders; track f.id) {
+            @for (f of folders(); track f.id) {
                 <button
                     type="button"
                     (click)="selectFolder(f.id)"
@@ -141,11 +141,6 @@
                         <mat-icon class="icon-size-5" svgIcon="heroicons_outline:check"></mat-icon>
                         <span class="ml-1">Accept</span>
                     </button>
-                } @else {
-                    <button mat-stroked-button [disabled]="!canInvestigate()" (click)="investigate()">
-                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
-                        <span class="ml-1">Investigate</span>
-                    </button>
                 }
                 <button mat-stroked-button [disabled]="!selected().length" [matMenuTriggerFor]="prioMenu" matTooltip="Set priority">
                     <mat-icon class="icon-size-5" svgIcon="heroicons_outline:flag"></mat-icon>
@@ -161,15 +156,15 @@
                     <mat-icon class="icon-size-5" svgIcon="heroicons_outline:tag"></mat-icon>
                     <span class="ml-1">Tag</span>
                 </button>
-                <button mat-stroked-button [disabled]="!canEscalate()" (click)="escalate()">
-                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-trending-up"></mat-icon>
-                    <span class="ml-1">{{ escalateLabel() }}</span>
-                </button>
-                <button mat-stroked-button [disabled]="!canResolve()" (click)="resolve()" matTooltip="Requires a resolution comment">
-                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:paper-airplane"></mat-icon>
-                    <span class="ml-1">Resolve</span>
-                </button>
                 @if (isIncident) {
+                    <button mat-stroked-button [disabled]="!canEscalate()" (click)="escalate()">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-trending-up"></mat-icon>
+                        <span class="ml-1">{{ escalateLabel() }}</span>
+                    </button>
+                    <button mat-stroked-button [disabled]="!canResolve()" (click)="resolve()" matTooltip="Requires a resolution comment; warns when the resolution pattern is incomplete">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:paper-airplane"></mat-icon>
+                        <span class="ml-1">Resolve</span>
+                    </button>
                     <button mat-stroked-button [disabled]="!canArchive()" (click)="archive()">
                         <mat-icon class="icon-size-5" svgIcon="heroicons_outline:archive-box"></mat-icon>
                         <span class="ml-1">Archive</span>
@@ -179,10 +174,14 @@
                         <span class="ml-1">Reopen</span>
                     </button>
                 } @else {
-                    <button mat-stroked-button [disabled]="!canClose()" (click)="closeCases()">
-                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:archive-box"></mat-icon>
-                        <span class="ml-1">Close</span>
-                    </button>
+                    <!-- C6: verbs derived from the effective workflow — a TOON-overridden lifecycle
+                         changes these buttons with zero UI change. -->
+                    @for (a of caseActions(); track a) {
+                        <button mat-stroked-button (click)="runCaseAction(a)"
+                                [matTooltip]="a === 'resolve' ? 'Requires a resolution comment' : ''">
+                            <span>{{ stateLabel(a) }}</span>
+                        </button>
+                    }
                     <button
                         mat-stroked-button
                         [disabled]="selected().length < 2"
@@ -223,6 +222,7 @@
             class="block h-full w-[30rem] shrink-0 border-l"
             style="border-color: var(--gamma-border)"
             [object]="d"
+            [workflow]="isIncident ? null : workflowDef()"
             (closed)="detail.set(null)"
             (act)="onPanelAction($event)"
             (changed)="reload()"

@@ -317,9 +317,12 @@ preferences in Settings.
 manually. Status lifecycle **Identified → Diagnosing → Resolved → Archived** (mail metaphor: Inbox →
 Draft → Sent → Trash; *reopen* returns a Resolved/Archived Incident to Diagnosing). Created with a
 **3-layer categorization** (Category / Subcategory / Detail — enforced at latest on *Accept*, the
-Identified → Diagnosing transition); Resolving requires a resolution comment. Priority ladder
-**Critical · Major · Minor · Low**. ⛔ never "Issue". *(Lifecycle renamed from open → in-progress →
-resolved with the mail-like Incidents UI, 2026-07-12 — see §13.)*
+Identified → Diagnosing transition); Resolving requires a resolution comment **and the mandatory
+resolution pattern** (Timeline of Events · **Cause Analysis** — a method-labelled list, usually The
+5 Whys · Corrective Actions & Preventative Tasks · a defined SLA) — incomplete patterns soft-warn
+on Resolve. One **Incident Commander** (`assignee`). Priority ladder **Critical · Major · Minor ·
+Low**. ⛔ never "Issue". *(Lifecycle renamed from open → in-progress → resolved with the mail-like
+Incidents UI, 2026-07-12 — see §13.)*
 
 **Tag** — A **user-created** label attached to an Incident or Case for cross-cutting
 grouping/filtering (the mail metaphor's "labels"). Applied **manually** (in bulk over a selection)
@@ -340,6 +343,14 @@ marker. ⛔ never "consolidate/combine" in UI text.
 
 **Split** *(of a Case)* — Carve chosen member Incidents out of a Case into a **new** Case managed
 individually, tied back by a `SPLIT_FROM` trace link; the original keeps its remaining members.
+
+**Findings** — A Case's resolution artifact (the loose, business counterpart of the Incident
+**Postmortem**): **Disposition** + impact (amount, records/customers affected) + summary. A Case
+also carries a **Team** (`assignees`, the lead stays `assignee`) and a loose-SLA **target date**
+(overdue hint only — no breach sweep, unlike the Incident's hard `dueAt` SLA).
+
+**Disposition** — The decided outcome a Case resolves with (built-in ladder: confirmed ·
+false-positive · recovered · written-off · inconclusive). ⛔ never "verdict/outcome" in UI text.
 
 **Diagnosis** — An AI-assisted root-cause analysis of a failing Run or Source that produces an **Incident** with
 a suggested fix.

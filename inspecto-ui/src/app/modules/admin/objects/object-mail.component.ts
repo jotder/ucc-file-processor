@@ -12,7 +12,7 @@ import { ColDef, ICellRendererParams, ValueGetterParams } from 'ag-grid-communit
 import { forkJoin, Observable, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, ObjectsService, OperationalObject, Tag, TagRule, UpdateObject } from 'app/inspecto/api';
+import { apiErrorMessage, ObjectsService, OperationalObject, Tag, TagRule, UpdateObject, WorkflowDef } from 'app/inspecto/api';
 import {
     STATUS_BADGE_BASE,
     statusBadgeClasses,
@@ -21,8 +21,9 @@ import {
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import {
-    CASE_FOLDERS,
+    caseFoldersFrom,
     currentOperator,
+    DEFAULT_CASE_WORKFLOW,
     displayStatus,
     INCIDENT_FOLDERS,
     INCIDENT_PRIORITIES,
@@ -30,6 +31,8 @@ import {
     MailFolder,
     objectCategory,
     objectTags,
+    postmortemGaps,
+    stateLabel,
 } from './mail-model';
 import { CategorizeDialog } from './categorize.dialog';
 import { MergeCasesDialog } from './merge-cases.dialog';
@@ -98,9 +101,14 @@ export class ObjectMailComponent implements OnInit {
     readonly type = (this.route.snapshot.data['type'] as string) ?? 'INCIDENT';
     readonly title = (this.route.snapshot.data['title'] as string) ?? 'Incidents';
     readonly isIncident = this.type === 'INCIDENT';
-    readonly folders: MailFolder[] = this.isIncident ? INCIDENT_FOLDERS : CASE_FOLDERS;
     readonly priorities = INCIDENT_PRIORITIES;
     readonly me = currentOperator();
+
+    /** The effective CASE lifecycle (C6) — folders + toolbar verbs derive from it; TOON overrides win. */
+    readonly workflowDef = signal<WorkflowDef>(DEFAULT_CASE_WORKFLOW);
+    readonly folders = computed<MailFolder[]>(() =>
+        this.isIncident ? INCIDENT_FOLDERS : caseFoldersFrom(this.workflowDef()),
+    );
 
     get createLabel(): string {
         return this.isIncident ? 'incident' : 'case';
@@ -129,13 +137,13 @@ export class ObjectMailComponent implements OnInit {
     readonly rows = computed<OperationalObject[]>(() => {
         const tag = this.tagFilter();
         if (tag) return this.objects().filter((o) => objectTags(o).includes(tag));
-        const f = this.folders.find((x) => x.id === this.folderId());
+        const f = this.folders().find((x) => x.id === this.folderId());
         return f ? this.objects().filter((o) => f.match(o, this.me)) : this.objects();
     });
 
     readonly counts = computed<Map<string, number>>(() => {
         const all = this.objects();
-        return new Map(this.folders.map((f) => [f.id, all.filter((o) => f.match(o, this.me)).length]));
+        return new Map(this.folders().map((f) => [f.id, all.filter((o) => f.match(o, this.me)).length]));
     });
 
     /** Registry tags (zero-count ones stay visible) merged with tags found on the loaded rows. */
@@ -151,25 +159,37 @@ export class ObjectMailComponent implements OnInit {
     readonly activeLabel = computed(() => {
         const tag = this.tagFilter();
         if (tag) return `Tag: ${tag}`;
-        return this.folders.find((f) => f.id === this.folderId())?.label ?? '';
+        return this.folders().find((f) => f.id === this.folderId())?.label ?? '';
     });
 
-    // Toolbar enablement (per the lifecycle each action is legal from).
+    /**
+     * C6: the case toolbar's action verbs — the union of legal workflow actions across the
+     * selection (each button applies to the selected cases it is legal for). Incidents keep the
+     * fixed mail-metaphor toolbar.
+     */
+    readonly caseActions = computed<string[]>(() => {
+        if (this.isIncident) return [];
+        const wf = this.workflowDef();
+        const out: string[] = [];
+        for (const o of this.selected()) {
+            for (const t of wf.transitions) {
+                if (t.from === displayStatus(o) && !out.includes(t.action)) out.push(t.action);
+            }
+        }
+        return out;
+    });
+    readonly stateLabel = stateLabel;
+
+    // Incident toolbar enablement (fixed mail-metaphor verbs; cases use the dynamic caseActions()).
     readonly canAccept = computed(() => this.isIncident && this.selected().some((o) => displayStatus(o) === 'IDENTIFIED'));
-    readonly canInvestigate = computed(() => !this.isIncident && this.selected().some((o) => displayStatus(o) === 'OPEN'));
     readonly canResolve = computed(() =>
-        this.selected().some((o) =>
-            (this.isIncident ? ['IDENTIFIED', 'DIAGNOSING'] : ['INVESTIGATING', 'ESCALATED']).includes(displayStatus(o)),
-        ),
+        this.isIncident && this.selected().some((o) => ['IDENTIFIED', 'DIAGNOSING'].includes(displayStatus(o))),
     );
     readonly canArchive = computed(() => this.isIncident && this.selected().some((o) => displayStatus(o) !== 'ARCHIVED'));
-    readonly canClose = computed(() => !this.isIncident && this.selected().some((o) => displayStatus(o) === 'RESOLVED'));
     readonly canReopen = computed(() =>
         this.isIncident && this.selected().some((o) => ['RESOLVED', 'ARCHIVED'].includes(displayStatus(o))),
     );
-    readonly canEscalate = computed(() =>
-        this.isIncident ? this.selected().length > 0 : this.selected().some((o) => displayStatus(o) === 'INVESTIGATING'),
-    );
+    readonly canEscalate = computed(() => this.isIncident && this.selected().length > 0);
     readonly escalateLabel = computed(() =>
         this.isIncident && this.selected().length > 0 && this.selected().every(isEscalated) ? 'De-escalate' : 'Escalate',
     );
@@ -237,6 +257,17 @@ export class ObjectMailComponent implements OnInit {
     ];
 
     ngOnInit(): void {
+        if (!this.isIncident) {
+            // C6: fetch the effective (possibly TOON-overridden) lifecycle; the built-in stays the fallback.
+            this.api.workflow('CASE').subscribe({
+                next: (wf) => {
+                    this.workflowDef.set(wf);
+                    if (!this.folders().some((f) => f.id === this.folderId()))
+                        this.folderId.set(wf.initial.toLowerCase());
+                },
+                error: () => undefined,
+            });
+        }
         this.reload();
     }
 
@@ -347,14 +378,16 @@ export class ObjectMailComponent implements OnInit {
         const o = this.detail();
         if (!o) return;
         const one = [o];
+        if (!this.isIncident && id !== 'resolve') {
+            void this.runCaseAction(id, one);   // case panel verbs are workflow actions (C6)
+            return;
+        }
         switch (id) {
             case 'accept': return this.accept(one);
-            case 'resolve': return this.resolve(one);
+            case 'resolve': void this.resolve(one); return;
             case 'archive': void this.archive(one); return;
             case 'reopen': return this.reopen(one);
             case 'escalate': return this.escalate(one);
-            case 'investigate': return this.investigate(one);
-            case 'close': void this.closeCases(one); return;
         }
     }
 
@@ -460,29 +493,42 @@ export class ObjectMailComponent implements OnInit {
             });
     }
 
-    /** Incidents toggle the `escalated` flag; cases run the `escalate` transition. */
+    /** Incidents toggle the `escalated` flag (the mail "star"); case escalation is a workflow action. */
     escalate(targets = this.selected()): void {
-        if (this.isIncident) {
-            const clear = targets.length > 0 && targets.every(isEscalated);
-            this.bulk(
-                targets,
-                (o) => this.api.update(o.id, { attributes: { escalated: clear ? 'false' : 'true' } }),
-                clear ? 'De-escalated' : 'Escalated',
-            );
-        } else {
-            this.bulk(
-                targets.filter((o) => displayStatus(o) === 'INVESTIGATING'),
-                (o) => this.api.transition(o.id, 'escalate', this.me),
-                'Escalated',
-            );
-        }
+        const clear = targets.length > 0 && targets.every(isEscalated);
+        this.bulk(
+            targets,
+            (o) => this.api.update(o.id, { attributes: { escalated: clear ? 'false' : 'true' } }),
+            clear ? 'De-escalated' : 'Escalated',
+        );
     }
 
-    /** Resolved requires a resolution comment — appended to each object before the transition. */
-    resolve(targets?: OperationalObject[]): void {
-        const legal = this.isIncident ? ['IDENTIFIED', 'DIAGNOSING'] : ['INVESTIGATING', 'ESCALATED'];
-        const list = (targets ?? this.selected()).filter((o) => legal.includes(displayStatus(o)));
+    /**
+     * Resolved requires a resolution comment — appended to each object before the transition.
+     * I1 soft gate: incidents whose mandatory resolution pattern (timeline · cause analysis ·
+     * corrective actions · SLA) is incomplete warn first — never block.
+     */
+    async resolve(targets?: OperationalObject[]): Promise<void> {
+        const caseLegal = new Set(
+            this.workflowDef().transitions.filter((t) => t.action === 'resolve').map((t) => t.from),
+        );
+        const list = (targets ?? this.selected()).filter((o) =>
+            this.isIncident ? ['IDENTIFIED', 'DIAGNOSING'].includes(displayStatus(o)) : caseLegal.has(displayStatus(o)),
+        );
         if (!list.length) return;
+        if (this.isIncident) {
+            const incomplete = list.map((o) => postmortemGaps(o)).filter((gaps) => gaps.length);
+            if (incomplete.length) {
+                const missing = [...new Set(incomplete.flat())].join(', ');
+                const ok = await this.confirm.confirm(
+                    `${incomplete.length} of ${list.length} selected incident${list.length === 1 ? '' : 's'} ` +
+                        `${incomplete.length === 1 ? 'has' : 'have'} an incomplete resolution pattern ` +
+                        `(missing: ${missing}) — resolve anyway?`,
+                    'Resolution pattern',
+                );
+                if (!ok) return;
+            }
+        }
         this.dialog
             .open(ResolveDialog, { width: '560px', data: { count: list.length, label: this.createLabel } })
             .afterClosed()
@@ -499,6 +545,25 @@ export class ObjectMailComponent implements OnInit {
             });
     }
 
+    /** C6: run one workflow action over the selected cases it is legal for (the dynamic toolbar). */
+    async runCaseAction(action: string, targets = this.selected()): Promise<void> {
+        const wf = this.workflowDef();
+        const moves = wf.transitions.filter((t) => t.action === action);
+        const legalFrom = new Set(moves.map((t) => t.from));
+        const list = targets.filter((o) => legalFrom.has(displayStatus(o)));
+        if (!list.length) return;
+        if (action === 'resolve') return this.resolve(list);
+        const landsTerminal = moves.length > 0 && moves.every((t) => wf.terminal.includes(t.to));
+        if (landsTerminal) {
+            const ok = await this.confirm.confirm(
+                `${stateLabel(action)} ${list.length} case${list.length === 1 ? '' : 's'}? This is a terminal move.`,
+                stateLabel(action),
+            );
+            if (!ok) return;
+        }
+        this.bulk(list, (o) => this.api.transition(o.id, action, this.me), `${stateLabel(action)}: ${list.length}`);
+    }
+
     async archive(targets?: OperationalObject[]): Promise<void> {
         const list = (targets ?? this.selected()).filter((o) => displayStatus(o) !== 'ARCHIVED');
         if (!list.length) return;
@@ -509,18 +574,6 @@ export class ObjectMailComponent implements OnInit {
     reopen(targets?: OperationalObject[]): void {
         const list = (targets ?? this.selected()).filter((o) => ['RESOLVED', 'ARCHIVED'].includes(displayStatus(o)));
         this.bulk(list, (o) => this.api.transition(o.id, 'reopen', this.me), 'Reopened — back to Diagnosing');
-    }
-
-    investigate(targets?: OperationalObject[]): void {
-        const list = (targets ?? this.selected()).filter((o) => displayStatus(o) === 'OPEN');
-        this.bulk(list, (o) => this.api.transition(o.id, 'investigate', this.me), 'Investigating');
-    }
-
-    async closeCases(targets?: OperationalObject[]): Promise<void> {
-        const list = (targets ?? this.selected()).filter((o) => displayStatus(o) === 'RESOLVED');
-        if (!list.length) return;
-        if (!(await this.confirm.confirm(`Close ${list.length} case${list.length === 1 ? '' : 's'}?`, 'Close'))) return;
-        this.bulk(list, (o) => this.api.transition(o.id, 'close', this.me), `Closed ${list.length}`);
     }
 
     private bulk(

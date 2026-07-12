@@ -168,7 +168,8 @@ export function seedOperations(store: MockStore, space: string): void {
             { time: '12:15 UTC', text: 'Accepted; parser regression suspected' },
             { time: '13:10 UTC', text: 'Rollback deployed; ingest recovered' },
         ],
-        fiveWhys: [
+        causeMethod: 'The 5 Whys',
+        causeAnalysis: [
             'Batch loads failed — the parser rejected every record.',
             'Schema drift: the upstream feed added a column.',
             'The contract check did not cover optional columns.',
@@ -179,6 +180,13 @@ export function seedOperations(store: MockStore, space: string): void {
             { done: true, text: 'Roll back parser to v1.4.2', owner: 'ops', due: '2026-07-10' },
             { done: false, text: 'Add optional-column expectation to the feed schema', owner: 'data', due: '2026-07-20' },
         ],
+    });
+    // A resolved case's Findings (C3) + an overdue-target investigating case with a team (C6).
+    const sampleFindings = JSON.stringify({
+        disposition: 'RECOVERED',
+        impactAmount: '12500.00',
+        recordsAffected: '4200',
+        summary: 'Duplicate billing traced to the retry path; funds recovered after reconciliation.',
     });
     for (let i = 0; i < 15; i++) {
         const objectType = ['ALERT', 'INCIDENT', 'CASE'][i % 3];
@@ -203,7 +211,11 @@ export function seedOperations(store: MockStore, space: string): void {
                 ...(isIncident && incidentCategories[i % 4] ? { category: incidentCategories[i % 4] } : {}),
                 ...(isIncident && incidentTags[i % 4] ? { tags: incidentTags[i % 4] } : {}),
                 ...(isIncident && i % 6 === 1 ? { escalated: 'true' } : {}),
-                ...(isIncident && status === 'RESOLVED' ? { postmortem: samplePostmortem } : {}),
+                ...(isIncident && status === 'RESOLVED' ? { postmortem: samplePostmortem, dueAt: String(now) } : {}),
+                ...(objectType === 'CASE' && status === 'RESOLVED' ? { findings: sampleFindings } : {}),
+                ...(objectType === 'CASE' && status === 'INVESTIGATING'
+                    ? { assignees: 'alice,bob', targetDate: '2026-07-01' }
+                    : {}),
             },
             createdAt: ts,
             updatedAt: ts + 600_000,

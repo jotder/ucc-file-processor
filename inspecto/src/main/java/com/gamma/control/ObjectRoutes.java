@@ -48,6 +48,14 @@ final class ObjectRoutes implements RouteModule {
         api.patch("/objects/([^/]+)", scoped(api, (e, m) -> patchObject(api, ApiContext.name(m), api.body(e))));
         api.get("/objects/([^/]+)", scoped(api, (e, m) -> objectById(api, ApiContext.name(m))));
         api.get("/rca/templates", (e, m) -> rcaTemplateList(api));
+        // The effective (possibly *_workflow.toon-overridden) lifecycle for a type — lets the UI derive
+        // folders + action verbs instead of hardcoding state lists (case-management-design.md C6).
+        api.get("/workflows/([^/]+)", (e, m) -> workflowOf(api, ApiContext.name(m)));
+    }
+
+    /** {@code GET /workflows/{type}} — the effective workflow definition; unknown type → 400. */
+    private Object workflowOf(ApiContext api, String type) {
+        return api.service().objects().workflow(parseObjectType(type)).toMap();
     }
 
     // ── SEC-7d data-scoped grants ("a fraud analyst sees fraud cases") ───────────────

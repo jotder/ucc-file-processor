@@ -43,8 +43,21 @@
                 <dd>{{ objectTags(object()).join(', ') }}</dd>
             }
             @if (object().assignee) {
-                <dt class="font-semibold">Assignee</dt>
+                <dt class="font-semibold">{{ isIncident ? 'Commander' : 'Lead' }}</dt>
                 <dd>{{ object().assignee }}</dd>
+            }
+            @if (!isIncident && objectTeam(object()).length) {
+                <dt class="font-semibold">Team</dt>
+                <dd>{{ objectTeam(object()).join(', ') }}</dd>
+            }
+            @if (!isIncident && targetDateOf(object())) {
+                <dt class="font-semibold">Target</dt>
+                <dd class="flex items-center gap-2">
+                    {{ targetDateOf(object()) }}
+                    @if (isTargetOverdue(object())) {
+                        <inspecto-status-badge value="WARNING" label="OVERDUE" />
+                    }
+                </dd>
             }
             <dt class="font-semibold">Updated</dt>
             <dd>{{ fmtDateTime(object().updatedAt) }}</dd>
@@ -73,6 +86,47 @@
                 (changed)="changed.emit()"
                 (membersChange)="memberRollup.set($event)"
             />
+
+            <!-- C3 + C6: Findings (the case's loose resolution artifact) + team + target date -->
+            <form [formGroup]="findingsForm" class="mb-4 flex flex-col gap-3">
+                <h3 class="text-sm font-bold uppercase tracking-wider opacity-60">Findings</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Disposition</mat-label>
+                        <mat-select formControlName="disposition">
+                            <mat-option value="">— none yet —</mat-option>
+                            @for (d of dispositions; track d) {
+                                <mat-option [value]="d">{{ d }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Impact amount</mat-label>
+                        <input matInput formControlName="impactAmount" placeholder="e.g. 12500.00" />
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Records / customers affected</mat-label>
+                        <input matInput formControlName="recordsAffected" placeholder="e.g. 4200" />
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Target date (loose SLA)</mat-label>
+                        <input matInput formControlName="targetDate" placeholder="YYYY-MM-DD" />
+                    </mat-form-field>
+                </div>
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Team</mat-label>
+                    <input matInput formControlName="team" placeholder="comma-separated, e.g. alice, bob" />
+                </mat-form-field>
+                <mat-form-field subscriptSizing="dynamic">
+                    <mat-label>Findings summary</mat-label>
+                    <textarea matInput rows="3" formControlName="summary" placeholder="what was found, what was decided"></textarea>
+                </mat-form-field>
+                <div class="flex justify-end">
+                    <button mat-flat-button color="primary" [disabled]="saving || findingsForm.pristine" (click)="saveFindings()">
+                        Save findings
+                    </button>
+                </div>
+            </form>
         }
 
         @if (isIncident) {
@@ -140,17 +194,45 @@
                     }
                 </section>
 
-                <!-- 5 Whys -->
-                <section formArrayName="fiveWhys">
-                    <h3 class="mb-2 text-sm font-bold uppercase tracking-wider opacity-60">Root Cause Analysis (The 5 Whys)</h3>
-                    @for (row of fiveWhys.controls; track row; let i = $index) {
+                <!-- Cause Analysis (I2: variable-length; The 5 Whys is the default method) -->
+                <section formArrayName="causeAnalysis">
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                        <h3 class="text-sm font-bold uppercase tracking-wider opacity-60">Cause Analysis</h3>
+                        <div class="flex items-center gap-1">
+                            <mat-form-field class="w-40" subscriptSizing="dynamic">
+                                <mat-label>Method</mat-label>
+                                <input matInput [formControl]="form.controls.causeMethod" placeholder="The 5 Whys" />
+                            </mat-form-field>
+                            <button
+                                mat-icon-button
+                                type="button"
+                                (click)="addCause()"
+                                matTooltip="Add a cause-analysis point"
+                                aria-label="Add a cause-analysis point"
+                            >
+                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:plus"></mat-icon>
+                            </button>
+                        </div>
+                    </div>
+                    @for (row of causeAnalysis.controls; track row; let i = $index) {
                         <div [formGroupName]="i" class="mb-2 flex items-baseline gap-2">
                             <span class="text-secondary w-4 shrink-0 text-sm font-bold">{{ i + 1 }}.</span>
                             <mat-form-field class="flex-auto" subscriptSizing="dynamic">
-                                <mat-label>Why?</mat-label>
+                                <mat-label>Why / cause</mat-label>
                                 <input matInput formControlName="why" />
                             </mat-form-field>
+                            <button
+                                mat-icon-button
+                                type="button"
+                                (click)="removeCause(i)"
+                                matTooltip="Remove point"
+                                aria-label="Remove cause-analysis point"
+                            >
+                                <mat-icon class="icon-size-4" svgIcon="heroicons_outline:trash"></mat-icon>
+                            </button>
                         </div>
+                    } @empty {
+                        <p class="text-secondary text-sm">No cause analysis yet — walk the whys from symptom to root.</p>
                     }
                 </section>
 
