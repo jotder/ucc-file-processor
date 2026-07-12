@@ -69,6 +69,10 @@ topic docs (each cites its authoritative doc); they don't replace them. *(Consol
 - [`operations.md`](operations.md) — running the service, batch processing, operational procedures. *(Some overlap
   with ADVANCED_GUIDE §3–5; ADVANCED_GUIDE is authoritative for internals.)*
 - [`troubleshooting.md`](troubleshooting.md) — focused fixes (DuckDB/pg_duckdb view quirks, partition extraction).
+- [`ops/backup-restore-runbook.md`](ops/backup-restore-runbook.md) — backup/verify/restore via maintenance jobs
+  (System Maintenance MNT-5/6), incl. restore-into-new-space.
+- [`ops/uat-seeding.md`](ops/uat-seeding.md) — seed the gitignored `uat` space with realistic volume
+  (`tools/seed-uat.ps1`): ~20k orders through the real pipeline, incidents/cases, maintenance history.
 - [`integrations.md`](integrations.md) — warehouse query layer (pg_duckdb), remote connectors, external systems.
 - [`parsing-options-reference.md`](parsing-options-reference.md) — parsing options reference
   (+ [`Parsing Options Reference.pdf`](Parsing%20Options%20Reference.pdf)).

@@ -45,6 +45,8 @@
 /spaces/*/audit/
 /spaces/*/duckdb/
 /spaces/*/flows/
+# The UAT space is fully GENERATED (config cloned from spaces/demo by tools/seed-uat.ps1) — never commit it.
+/spaces/uat/
 
 # Dry-run and audit outputs produced by ad-hoc local runs in the module root
 /inspecto/available_files.csv*
