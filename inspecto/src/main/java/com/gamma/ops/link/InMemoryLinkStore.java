@@ -23,6 +23,12 @@ public final class InMemoryLinkStore implements LinkStore {
     }
 
     @Override
+    public synchronized boolean remove(String from, String to, String relationship) {
+        return links.removeIf(l -> l.fromId().equals(from) && l.toId().equals(to)
+                && l.relationship().equalsIgnoreCase(relationship));
+    }
+
+    @Override
     public synchronized List<ObjectLink> incident(String objectId) {
         List<ObjectLink> out = new ArrayList<>();
         for (int i = links.size() - 1; i >= 0; i--) {

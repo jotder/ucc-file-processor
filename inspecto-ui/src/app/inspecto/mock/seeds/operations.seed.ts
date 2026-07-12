@@ -9,7 +9,7 @@ import { DECISION_RULES_COLL, MockDecisionRule } from '../handlers/decision-rule
 import { MockExpectation, seedExpectation } from '../handlers/expectations.handler';
 import { NOTIFICATIONS_COLL, seedNotifications } from '../handlers/demo.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
-import { ALERT_RULES_COLL, ENRICHMENT_COLL, OPS_OBJECTS_COLL, TAG_RULES_COLL, TAGS_COLL } from '../handlers/ops.handler';
+import { ALERT_RULES_COLL, ENRICHMENT_COLL, OBJECT_LINKS_COLL, OPS_OBJECTS_COLL, TAG_RULES_COLL, TAGS_COLL } from '../handlers/ops.handler';
 import { alertToSignal, eventToSignal } from '../../signal/signal';
 import { SIGNALS_COLL } from '../signals';
 import { MockStore } from '../mock-store';
@@ -210,6 +210,20 @@ export function seedOperations(store: MockStore, space: string): void {
             closedAt: status === 'CLOSED' || status === 'ARCHIVED' ? ts + 1_200_000 : 0,
         };
         store.put(space, OPS_OBJECTS_COLL, obj.id, obj);
+    }
+
+    // ── Case membership (GLOSSARY §9: a Case CONTAINS the Incidents it groups) ──────────────────
+    // Gives the Case Manager's Contents section + Split/Merge something real to operate on.
+    const memberships: Array<[string, string]> = [
+        ['case-102', 'incident-101'],
+        ['case-102', 'incident-104'],
+        ['case-108', 'incident-107'],
+    ];
+    for (const [caseId, incidentId] of memberships) {
+        store.put(space, OBJECT_LINKS_COLL, `${caseId}->${incidentId}:CONTAINS`, {
+            from: caseId, fromType: 'CASE', to: incidentId, toType: 'INCIDENT',
+            relationship: 'CONTAINS', createdAt: now,
+        });
     }
 
     // ── Tag registry + Tag Rules (mail-view labels; GLOSSARY §9) ────────────────────────────────

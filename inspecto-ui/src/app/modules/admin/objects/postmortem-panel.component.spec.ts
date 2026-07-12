@@ -4,6 +4,7 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { ObjectsService, OperationalObject } from 'app/inspecto/api';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { ToastrService } from 'ngx-toastr';
 import { PostmortemPanelComponent } from './postmortem-panel.component';
@@ -39,6 +40,7 @@ const INCIDENT: OperationalObject = {
 function create(object: OperationalObject = INCIDENT) {
     const api = { update: vi.fn(() => of(object)) };
     const toastr = { success: vi.fn(), error: vi.fn() };
+    const confirm = { confirm: vi.fn(() => Promise.resolve(true)) };
     TestBed.configureTestingModule({
         imports: [PostmortemPanelComponent],
         providers: [
@@ -46,6 +48,7 @@ function create(object: OperationalObject = INCIDENT) {
             provideRouter([]),
             { provide: ObjectsService, useValue: api },
             { provide: ToastrService, useValue: toastr },
+            { provide: InspectoConfirmService, useValue: confirm },
         ],
     });
     const fixture = TestBed.createComponent(PostmortemPanelComponent);

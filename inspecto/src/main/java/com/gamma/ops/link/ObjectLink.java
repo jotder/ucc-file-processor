@@ -14,11 +14,12 @@ import java.util.Map;
  * Alert}, {@code Alert CAUSED_BY Event}. The shape mirrors the requirement's link model
  * {@code {from, from_type, to, to_type, relationship}}.
  *
- * <p>Like an {@link com.gamma.event.Event}, a link is an <b>immutable, append-only fact</b> — created
- * and queried, never mutated — so its store ({@link LinkStore}) has no {@code update}. The
- * {@link #relationship()} is normalised to upper-case (see {@link LinkRelationship}) so matching is
- * case-insensitive; the endpoints carry their {@link ObjectType} so a rendered graph needs no extra
- * lookup.
+ * <p>A link <em>value</em> is immutable — created and queried, never mutated — so its store
+ * ({@link LinkStore}) has no {@code update}; since case group management (2026-07-12) an edge may
+ * however be <b>removed</b> (membership {@code CONTAINS} edges are re-pointed by Split &amp; Merge —
+ * see the {@link LinkStore} contract note). The {@link #relationship()} is normalised to upper-case
+ * (see {@link LinkRelationship}) so matching is case-insensitive; the endpoints carry their
+ * {@link ObjectType} so a rendered graph needs no extra lookup.
  *
  * @since 4.5.0
  */

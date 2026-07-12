@@ -183,6 +183,15 @@
                         <mat-icon class="icon-size-5" svgIcon="heroicons_outline:archive-box"></mat-icon>
                         <span class="ml-1">Close</span>
                     </button>
+                    <button
+                        mat-stroked-button
+                        [disabled]="selected().length < 2"
+                        (click)="mergeSelection()"
+                        matTooltip="Combine the selected cases into one (pick the survivor)"
+                    >
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrows-pointing-in"></mat-icon>
+                        <span class="ml-1">Merge</span>
+                    </button>
                 }
                 @if (selected().length) {
                     <span class="text-secondary ml-1 text-sm" role="status">{{ selected().length }} selected</span>

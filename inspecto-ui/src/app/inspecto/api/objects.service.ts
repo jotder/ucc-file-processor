@@ -65,6 +65,19 @@ export interface RcaTemplate {
     sections: string[];
 }
 
+/** Merge outcome (POST /objects/{id}/merge) — GLOSSARY §9 case group management. */
+export interface MergeResult {
+    survivor: OperationalObject;
+    merged: string[];
+    membersMoved: number;
+}
+
+/** Split outcome (POST /objects/{id}/split) — GLOSSARY §9 case group management. */
+export interface SplitResult {
+    case: OperationalObject;
+    membersMoved: number;
+}
+
 /** A user-created tag in the registry (GET /tags). Objects carry tags as a CSV in `attributes.tags`. */
 export interface Tag {
     name: string;
@@ -191,6 +204,24 @@ export class ObjectsService {
     link(id: string, to: string, relationship: string, actor?: string): Observable<ObjectLink> {
         return this.http.post<ObjectLink>(
             apiUrl(`/objects/${encodeURIComponent(id)}/links`), { to, relationship, actor });
+    }
+
+    /** Remove one correlation edge (e.g. a member incident out of a Case's Contents). */
+    unlink(id: string, to: string, relationship: string, actor?: string): Observable<{ deleted: boolean }> {
+        return this.http.delete<{ deleted: boolean }>(apiUrl(`/objects/${encodeURIComponent(id)}/links`), {
+            params: toParams({ to, relationship, actor }),
+        });
+    }
+
+    /** Merge `sources` cases into the surviving case `id` (GLOSSARY §9 — Merge). */
+    mergeCases(id: string, sources: string[], actor?: string): Observable<MergeResult> {
+        return this.http.post<MergeResult>(apiUrl(`/objects/${encodeURIComponent(id)}/merge`), { sources, actor });
+    }
+
+    /** Split the listed member incidents out of case `id` into a new case (GLOSSARY §9 — Split). */
+    splitCase(id: string, body: { title: string; members: string[]; assignee?: string; actor?: string }):
+        Observable<SplitResult> {
+        return this.http.post<SplitResult>(apiUrl(`/objects/${encodeURIComponent(id)}/split`), body);
     }
 
     graph(id: string, depth = 2): Observable<ObjectGraph> {

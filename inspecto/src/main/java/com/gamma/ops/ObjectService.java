@@ -62,6 +62,8 @@ public final class ObjectService {
     public static final String ATTR_WATCHERS = "watchers";
     /** Attribute key holding an object's comma-separated tag list (GLOSSARY §9 — Tag / Tag Rule). */
     public static final String ATTR_TAGS = "tags";
+    /** Attribute key stamped on an absorbed case: the surviving case it was merged into (GLOSSARY §9). */
+    public static final String ATTR_MERGED_INTO = "mergedInto";
 
     private final ObjectStore store;
     private final LinkStore links;
@@ -556,6 +558,174 @@ public final class ObjectService {
     /** Every link touching {@code id} at either end, newest-first (the object's correlations). */
     public List<ObjectLink> linksOf(String id) {
         return links.incident(id);
+    }
+
+    /**
+     * Remove the edge {@code fromId → toId} via {@code relationship} (case group management: e.g.
+     * removing a member incident from a Case). The removal is audited as an {@link EventType#OBJECT_ACTIVITY}
+     * event; {@code false} when no such edge exists. Unknown {@code fromId} → {@link NoSuchElementException}.
+     */
+    public boolean unlink(String fromId, String toId, String relationship, String actor) {
+        OperationalObject from = require(fromId);
+        String rel = (relationship == null || relationship.isBlank()) ? LinkRelationship.RELATED_TO : relationship;
+        boolean removed = links.remove(fromId, toId, rel);
+        if (removed) {
+            EventLog.current().emit(Event.builder(EventType.OBJECT_ACTIVITY)
+                    .level(EventLevel.INFO)
+                    .source(SOURCE)
+                    .correlationId(from.correlationId())
+                    .message(from.objectType() + " " + fromId + " unlinked " + rel.toUpperCase() + " " + toId
+                            + (actor == null ? "" : " (by " + actor + ")"))
+                    .attr("objectId", fromId)
+                    .attr("from", fromId)
+                    .attr("to", toId)
+                    .attr("relationship", rel.toUpperCase())
+                    .attr("action", "unlink")
+                    .attr("actor", actor));
+        }
+        return removed;
+    }
+
+    // ── case group management: Split & Merge (GLOSSARY §9) ───────────────────────────
+
+    /** Merge outcome: the updated survivor, the absorbed case ids, and how many member links moved. */
+    public record MergeResult(OperationalObject survivor, List<String> merged, int membersMoved) {}
+
+    /** Split outcome: the newly opened case and how many member links moved to it. */
+    public record SplitResult(OperationalObject part, int membersMoved) {}
+
+    /**
+     * <b>Merge</b> {@code sources} into the surviving case {@code survivorId} — likely-similar cases
+     * become one group managed as one. Per source: its {@code CONTAINS} members are re-pointed to the
+     * survivor (idempotent), tags + watchers union onto the survivor, a {@code MERGED_INTO} trace link
+     * + {@link #ATTR_MERGED_INTO} marker + comments record the merge, and the source is closed
+     * (direct terminal move — an administrative action, deliberately outside the workflow). History,
+     * comments and attachments stay on the source, reachable via the trace link.
+     *
+     * @throws NoSuchElementException   unknown survivor/source id
+     * @throws IllegalArgumentException empty {@code sources}
+     * @throws IllegalStateException    a non-CASE participant, self-merge, or an already-closed/merged source
+     */
+    public MergeResult mergeCases(String survivorId, List<String> sources, String actor) {
+        if (sources == null || sources.isEmpty())
+            throw new IllegalArgumentException("merge needs at least one source case");
+        OperationalObject survivor = requireActiveCase(survivorId, "merge survivor");
+        List<OperationalObject> absorbed = new ArrayList<>();
+        for (String id : new LinkedHashSet<>(sources)) {
+            if (id.equals(survivorId)) throw new IllegalStateException("a case cannot be merged into itself");
+            absorbed.add(requireActiveCase(id, "merge source"));
+        }
+        long now = System.currentTimeMillis();
+        int moved = 0;
+        Set<String> tags = new LinkedHashSet<>(csvTags(survivor.attributes().get(ATTR_TAGS)));
+        Set<String> watchers = new LinkedHashSet<>(survivor.watchers());
+        for (OperationalObject src : absorbed) {
+            moved += movePart(src.id(), survivorId, null);
+            tags.addAll(csvTags(src.attributes().get(ATTR_TAGS)));
+            watchers.addAll(src.watchers());
+            link(src.id(), survivorId, LinkRelationship.MERGED_INTO, actor);
+            store.update(src.withAttributes(Map.of(ATTR_MERGED_INTO, survivorId), now)
+                    .withStatus("CLOSED", now, true));
+            comment(src.id(), actor, "Merged into " + survivorId + (actor == null ? "" : " by " + actor) + ".");
+            comment(survivorId, actor, "Absorbed " + src.id() + " (\"" + src.title() + "\")"
+                    + (actor == null ? "" : " by " + actor) + ".");
+            EventLog.current().emit(Event.builder(EventType.OBJECT_ACTIVITY)
+                    .level(EventLevel.INFO)
+                    .source(SOURCE)
+                    .correlationId(src.correlationId())
+                    .message("CASE " + src.id() + " merged into " + survivorId
+                            + (actor == null ? "" : " by " + actor))
+                    .attr("objectId", src.id())
+                    .attr("action", "merge")
+                    .attr("survivor", survivorId)
+                    .attr("actor", actor));
+        }
+        Map<String, String> union = new LinkedHashMap<>();
+        if (!tags.isEmpty()) union.put(ATTR_TAGS, String.join(",", tags));
+        if (!watchers.isEmpty()) union.put(ATTR_WATCHERS, String.join(",", watchers));
+        OperationalObject updated = union.isEmpty() ? require(survivorId)
+                : store.update(require(survivorId).withAttributes(union, now));
+        return new MergeResult(updated, absorbed.stream().map(OperationalObject::id).toList(), moved);
+    }
+
+    /**
+     * <b>Split</b> the listed {@code members} out of case {@code caseId} into a newly opened case
+     * titled {@code title}, managed individually from here on. The new part inherits the original's
+     * category + tags, the members' {@code CONTAINS} links move over, a {@code SPLIT_FROM} trace link
+     * + comments record the split, and the original stays active with its remaining members. An
+     * optional {@code assignee}/{@code queueId} routes the new part.
+     *
+     * @throws NoSuchElementException   unknown case id
+     * @throws IllegalArgumentException blank title / empty members
+     * @throws IllegalStateException    a non-CASE or closed case, or a member the case does not contain
+     */
+    public SplitResult splitCase(String caseId, String title, List<String> members,
+                                 String assignee, String queueId, String actor) {
+        if (title == null || title.isBlank()) throw new IllegalArgumentException("split needs a 'title' for the new case");
+        if (members == null || members.isEmpty()) throw new IllegalArgumentException("split needs at least one member");
+        OperationalObject original = requireActiveCase(caseId, "split");
+        Set<String> contained = new LinkedHashSet<>();
+        for (ObjectLink l : links.incident(caseId)) {
+            if (l.fromId().equals(caseId) && LinkRelationship.CONTAINS.equalsIgnoreCase(l.relationship()))
+                contained.add(l.toId());
+        }
+        for (String m : members) {
+            if (!contained.contains(m))
+                throw new IllegalStateException("case " + caseId + " does not contain member '" + m + "'");
+        }
+        Map<String, String> attrs = new LinkedHashMap<>();
+        String category = original.attributes().get("category");
+        String tags = original.attributes().get(ATTR_TAGS);
+        if (category != null) attrs.put("category", category);
+        if (tags != null) attrs.put(ATTR_TAGS, tags);
+        OperationalObject part = open(ObjectType.CASE, title, "Split from " + caseId + ": " + original.title(),
+                original.severity(), original.priority(), original.owner(), null, original.correlationId(), attrs);
+        int moved = movePart(caseId, part.id(), new LinkedHashSet<>(members));
+        link(part.id(), caseId, LinkRelationship.SPLIT_FROM, actor);
+        comment(caseId, actor, "Split " + moved + " member(s) out into " + part.id() + " (\"" + title + "\")"
+                + (actor == null ? "" : " by " + actor) + ".");
+        comment(part.id(), actor, "Split from " + caseId + (actor == null ? "" : " by " + actor) + ".");
+        if ((assignee != null && !assignee.isBlank()) || (queueId != null && !queueId.isBlank()))
+            assign(part.id(), assignee, queueId, actor);
+        EventLog.current().emit(Event.builder(EventType.OBJECT_ACTIVITY)
+                .level(EventLevel.INFO)
+                .source(SOURCE)
+                .correlationId(original.correlationId())
+                .message("CASE " + part.id() + " split from " + caseId + " (" + moved + " member(s))"
+                        + (actor == null ? "" : " by " + actor))
+                .attr("objectId", part.id())
+                .attr("action", "split")
+                .attr("original", caseId)
+                .attr("membersMoved", moved)
+                .attr("actor", actor));
+        return new SplitResult(require(part.id()), moved);
+    }
+
+    /**
+     * Re-point {@code CONTAINS} member edges from {@code fromCase} to {@code toCase} — all of them, or
+     * only {@code onlyMembers} when non-null. Idempotent per member; returns how many edges moved.
+     */
+    private int movePart(String fromCase, String toCase, Set<String> onlyMembers) {
+        int moved = 0;
+        for (ObjectLink l : links.incident(fromCase)) {
+            if (!l.fromId().equals(fromCase) || !LinkRelationship.CONTAINS.equalsIgnoreCase(l.relationship())) continue;
+            if (onlyMembers != null && !onlyMembers.contains(l.toId())) continue;
+            links.remove(fromCase, l.toId(), LinkRelationship.CONTAINS);
+            link(toCase, l.toId(), LinkRelationship.CONTAINS, null);   // idempotent add + OBJECT_LINKED audit
+            moved++;
+        }
+        return moved;
+    }
+
+    /** The object must exist, be a CASE, and not be closed/merged — the precondition for group operations. */
+    private OperationalObject requireActiveCase(String id, String what) {
+        OperationalObject o = require(id);
+        if (o.objectType() != ObjectType.CASE)
+            throw new IllegalStateException(what + " must be a CASE, but " + id + " is a " + o.objectType());
+        if (o.isClosed() || o.attributes().containsKey(ATTR_MERGED_INTO))
+            throw new IllegalStateException(what + " " + id + " is closed"
+                    + (o.attributes().containsKey(ATTR_MERGED_INTO) ? " (already merged)" : ""));
+        return o;
     }
 
     /**

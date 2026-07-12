@@ -53,7 +53,7 @@
         @if (quickActions.length) {
             <div class="mt-3 flex flex-wrap gap-2">
                 @for (a of quickActions; track a.id) {
-                    <button mat-stroked-button (click)="act.emit(a.id)">{{ a.label }}</button>
+                    <button mat-stroked-button (click)="onAct(a.id)">{{ a.label }}</button>
                 }
             </div>
         }
@@ -63,6 +63,16 @@
     <div class="min-h-0 flex-auto overflow-y-auto p-4">
         @if (object().description) {
             <p class="text-secondary mb-4 text-sm">{{ object().description }}</p>
+        }
+
+        @if (!isIncident) {
+            <!-- C1: the case's Contents (member incidents) + the C2 Split entry point -->
+            <app-case-contents
+                class="mb-4 block"
+                [object]="object()"
+                (changed)="changed.emit()"
+                (membersChange)="memberRollup.set($event)"
+            />
         }
 
         @if (isIncident) {

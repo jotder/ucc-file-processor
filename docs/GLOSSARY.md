@@ -331,6 +331,15 @@ created Incidents/Cases that match its criteria and can be **applied in bulk** t
 
 **Case** — A group of related **Incidents** managed as one larger investigation with a shared resolution.
 Managed in the **Case Manager** pane; lifecycle open → investigating → escalated → resolved → closed.
+Its **Contents** are the member Incidents it `CONTAINS` (correlation links); business-flavoured vs the
+operational Incident (see `superpower/case-management-design.md`).
+
+**Merge** *(of Cases)* — Combine two or more Cases into one **surviving** Case managed as one: members,
+tags and watchers move to the survivor; the absorbed Cases close with a `MERGED_INTO` trace link and
+marker. ⛔ never "consolidate/combine" in UI text.
+
+**Split** *(of a Case)* — Carve chosen member Incidents out of a Case into a **new** Case managed
+individually, tied back by a `SPLIT_FROM` trace link; the original keeps its remaining members.
 
 **Diagnosis** — An AI-assisted root-cause analysis of a failing Run or Source that produces an **Incident** with
 a suggested fix.

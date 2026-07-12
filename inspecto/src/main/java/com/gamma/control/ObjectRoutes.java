@@ -36,6 +36,9 @@ final class ObjectRoutes implements RouteModule {
         api.get("/objects/([^/]+)/watchers", scoped(api, (e, m) -> watchersOf(api, ApiContext.name(m))));
         api.post("/objects/([^/]+)/links", scoped(api, (e, m) -> createLink(api, ApiContext.name(m), api.body(e))));
         api.get("/objects/([^/]+)/links", scoped(api, (e, m) -> toLinkMaps(api.service().objects().linksOf(ApiContext.name(m)))));
+        api.delete("/objects/([^/]+)/links", scoped(api, (e, m) -> deleteLink(api, ApiContext.name(m), e)));
+        api.post("/objects/([^/]+)/merge", scoped(api, (e, m) -> mergeCases(api, ApiContext.name(m), api.body(e))));
+        api.post("/objects/([^/]+)/split", scoped(api, (e, m) -> splitCase(api, ApiContext.name(m), api.body(e))));
         api.get("/objects/([^/]+)/graph", scoped(api, (e, m) -> objectGraph(api, ApiContext.name(m), e)));
         api.post("/objects/([^/]+)/comments", scoped(api, (e, m) -> addComment(api, ApiContext.name(m), api.body(e))));
         api.get("/objects/([^/]+)/comments", scoped(api, (e, m) -> toNoteMaps(api.service().objects().notesOf(ApiContext.name(m), NoteKind.COMMENT))));
@@ -184,6 +187,89 @@ final class ObjectRoutes implements RouteModule {
 
     private static List<Map<String, Object>> toLinkMaps(List<ObjectLink> links) {
         return links.stream().map(ObjectLink::toMap).toList();
+    }
+
+    /**
+     * {@code DELETE /objects/{id}/links?to=&relationship=} (case group management) — remove one edge
+     * (e.g. taking a member incident out of a Case's Contents). Missing {@code to} → 400; unknown
+     * object or edge → 404. The removal is audited on the Event Log.
+     */
+    private Object deleteLink(ApiContext api, String fromId, HttpExchange ex) {
+        String to = ApiContext.query(ex, "to");
+        String relationship = ApiContext.query(ex, "relationship");
+        if (to == null || to.isBlank()) throw new ApiException(400, "query must include 'to'");
+        try {
+            if (!api.service().objects().unlink(fromId, to, relationship, ApiContext.query(ex, "actor")))
+                throw new ApiException(404, "no such link " + fromId + " -> " + to);
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        }
+        return Map.of("from", fromId, "to", to, "deleted", true);
+    }
+
+    /**
+     * {@code POST /objects/{id}/merge} (GLOSSARY §9 — Merge) — absorb the body's {@code sources} cases
+     * into this surviving case: members re-point, tags/watchers union, sources close with a
+     * {@code MERGED_INTO} trace. Body {@code {sources:[caseId…], actor?}}. Empty sources → 400;
+     * unknown ids → 404; non-CASE / self-merge / already-closed-or-merged → 422.
+     */
+    private Object mergeCases(ApiContext api, String survivorId, Map<String, Object> body) {
+        List<String> sources = stringList(body.get("sources"));
+        if (sources.isEmpty()) throw new ApiException(400, "body must include non-empty 'sources'");
+        try {
+            var result = api.service().objects().mergeCases(survivorId, sources, ApiContext.str(body, "actor"));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("survivor", result.survivor().toMap());
+            out.put("merged", result.merged());
+            out.put("membersMoved", result.membersMoved());
+            return out;
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        } catch (IllegalStateException illegal) {
+            throw new ApiException(422, illegal.getMessage());
+        } catch (IllegalArgumentException bad) {
+            throw new ApiException(400, bad.getMessage());
+        }
+    }
+
+    /**
+     * {@code POST /objects/{id}/split} (GLOSSARY §9 — Split) — carve the listed member incidents out of
+     * this case into a new case managed individually. Body {@code {title, members:[incidentId…],
+     * assignee?|queue?, actor?}}; repeat the call for multi-way splits. Blank title / empty members →
+     * 400; unknown case → 404; non-CASE / closed case / a member not contained → 422.
+     */
+    private Object splitCase(ApiContext api, String caseId, Map<String, Object> body) {
+        String title = ApiContext.str(body, "title");
+        List<String> members = stringList(body.get("members"));
+        if (title == null || title.isBlank()) throw new ApiException(400, "body must include 'title'");
+        if (members.isEmpty()) throw new ApiException(400, "body must include non-empty 'members'");
+        try {
+            var result = api.service().objects().splitCase(caseId, title, members,
+                    ApiContext.str(body, "assignee"), ApiContext.str(body, "queue"), ApiContext.str(body, "actor"));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("case", result.part().toMap());
+            out.put("membersMoved", result.membersMoved());
+            return out;
+        } catch (java.util.NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        } catch (IllegalStateException illegal) {
+            throw new ApiException(422, illegal.getMessage());
+        } catch (IllegalArgumentException bad) {
+            throw new ApiException(400, bad.getMessage());
+        }
+    }
+
+    /** The body value as a trimmed, non-empty string list (a JSON array of ids). */
+    private static List<String> stringList(Object v) {
+        List<String> out = new java.util.ArrayList<>();
+        if (v instanceof List<?> list) {
+            for (Object o : list) {
+                if (o == null) continue;
+                String s = o.toString().trim();
+                if (!s.isEmpty()) out.add(s);
+            }
+        }
+        return out;
     }
 
     /**

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, output, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -10,7 +10,9 @@ import { RouterLink } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, ObjectsService, OperationalObject } from 'app/inspecto/api';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { fmtDateTime } from 'app/inspecto/grid';
+import { CaseContentsComponent, MemberRollup } from './case-contents.component';
 import {
     displayStatus,
     emptyPostmortem,
@@ -44,6 +46,7 @@ import {
         MatInputModule,
         MatTooltipModule,
         StatusBadgeComponent,
+        CaseContentsComponent,
     ],
     templateUrl: './postmortem-panel.component.html',
 })
@@ -51,6 +54,10 @@ export class PostmortemPanelComponent {
     private api = inject(ObjectsService);
     private toastr = inject(ToastrService);
     private fb = inject(FormBuilder);
+    private confirm = inject(InspectoConfirmService);
+
+    /** Member roll-up from the Contents section (cases only) — feeds the soft close-gate (C1). */
+    readonly memberRollup = signal<MemberRollup>({ total: 0, open: 0 });
 
     readonly object = input.required<OperationalObject>();
 
@@ -115,6 +122,22 @@ export class PostmortemPanelComponent {
             default:
                 return [];
         }
+    }
+
+    /**
+     * Quick-action click — the C1 soft gate: resolving/closing a case that still has open member
+     * incidents asks for confirmation first (never blocks; the operator decides).
+     */
+    async onAct(id: string): Promise<void> {
+        const open = this.memberRollup().open;
+        if (!this.isIncident && (id === 'resolve' || id === 'close') && open > 0) {
+            const ok = await this.confirm.confirm(
+                `This case still has ${open} open member incident${open === 1 ? '' : 's'} — ${id} anyway?`,
+                'Open members',
+            );
+            if (!ok) return;
+        }
+        this.act.emit(id);
     }
 
     // ── postmortem form ───────────────────────────────────────────────────────────

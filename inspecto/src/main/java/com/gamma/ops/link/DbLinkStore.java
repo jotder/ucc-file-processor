@@ -68,6 +68,20 @@ public final class DbLinkStore implements LinkStore {
     }
 
     @Override
+    public synchronized boolean remove(String from, String to, String relationship) {
+        String sql = "DELETE FROM " + TABLE + " WHERE from_id = ? AND to_id = ? AND UPPER(relationship) = UPPER(?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, from);
+            ps.setString(2, to);
+            ps.setString(3, relationship);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new IllegalStateException("could not remove link " + from + "->" + to
+                    + ": " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public synchronized List<ObjectLink> incident(String objectId) {
         String sql = "SELECT " + COLS + " FROM " + TABLE
                 + " WHERE from_id = ? OR to_id = ? ORDER BY created_at DESC";

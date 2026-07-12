@@ -26,4 +26,8 @@ public final class LinkRelationship {
     public static final String CAUSED_BY = "CAUSED_BY";
     /** Generic correlation when no stronger relationship applies. */
     public static final String RELATED_TO = "RELATED_TO";
+    /** Case group management (GLOSSARY §9): an absorbed {@code Case MERGED_INTO} the surviving Case. */
+    public static final String MERGED_INTO = "MERGED_INTO";
+    /** Case group management (GLOSSARY §9): a carved-out {@code Case SPLIT_FROM} its original Case. */
+    public static final String SPLIT_FROM = "SPLIT_FROM";
 }

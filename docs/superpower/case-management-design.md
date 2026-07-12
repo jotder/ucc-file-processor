@@ -1,7 +1,17 @@
 # Case Management — business differentiation + Split & Merge
 
-_Status: PROPOSED (2026-07-12). Companion to `incidents-mail-ui-design.md` (the mail shell both panes
-share). GLOSSARY §9 chain: **Alert → Incident → Case**._
+_Status: C1 + C2 **SHIPPED** (2026-07-12); C3–C6/I1–I2 proposed. Companion to
+`incidents-mail-ui-design.md` (the mail shell both panes share). GLOSSARY §9 chain:
+**Alert → Incident → Case**._
+
+> **As-built note (C1/C2):** membership stays on `CONTAINS` links. To support re-pointing, the
+> `LinkStore` append-only contract was **deliberately amended** with `remove()` (links = *current*
+> correlation state; the immutable audit trail is the Event Log, which records every link change).
+> Rejected alternative: membership as an `attributes.caseId` field — it would have created a second,
+> competing representation next to the links the glossary/UI/graph already use. Backend:
+> `ObjectService.mergeCases/splitCase/unlink` + `POST /objects/{id}/merge|split`,
+> `DELETE /objects/{id}/links`; UI: `case-contents.component` (Contents + roll-up + soft close-gate)
+> + merge/split/add-member dialogs; mock mirrors all of it (store key v17 seeds memberships).
 
 ## 1. As-built today: how Cases and Incidents actually differ
 

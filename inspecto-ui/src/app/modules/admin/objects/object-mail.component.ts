@@ -32,6 +32,7 @@ import {
     objectTags,
 } from './mail-model';
 import { CategorizeDialog } from './categorize.dialog';
+import { MergeCasesDialog } from './merge-cases.dialog';
 import { ObjectCreateDialog } from './object-create.dialog';
 import { PostmortemPanelComponent } from './postmortem-panel.component';
 import { ResolveDialog } from './resolve.dialog';
@@ -424,6 +425,18 @@ export class ObjectMailComponent implements OnInit {
                     },
                     'Tags updated',
                 );
+            });
+    }
+
+    /** Merge the selected cases into one survivor (C2, GLOSSARY §9 — the dialog picks the survivor). */
+    mergeSelection(): void {
+        const cases = this.selected();
+        if (cases.length < 2) return;
+        this.dialog
+            .open(MergeCasesDialog, { width: '520px', data: { cases } })
+            .afterClosed()
+            .subscribe((merged?: boolean) => {
+                if (merged) this.reload();
             });
     }
 

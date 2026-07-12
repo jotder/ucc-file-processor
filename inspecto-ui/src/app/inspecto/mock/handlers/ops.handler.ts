@@ -45,6 +45,8 @@ const OBJECTS = /\/objects$/;
 const OBJECT_ONE = /\/objects\/([^/]+)$/;
 const OBJECT_TRANSITION = /\/objects\/([^/]+)\/transition$/;
 const OBJECT_LINKS = /\/objects\/([^/]+)\/links$/;
+const OBJECT_MERGE = /\/objects\/([^/]+)\/merge$/;
+const OBJECT_SPLIT = /\/objects\/([^/]+)\/split$/;
 const OBJECT_GRAPH = /\/objects\/([^/]+)\/graph$/;
 const OBJECT_COMMENTS = /\/objects\/([^/]+)\/comments$/;
 const OBJECT_ATTACHMENTS = /\/objects\/([^/]+)\/attachments$/;
@@ -239,6 +241,26 @@ export function opsHandler(flags: MockFlags): MockHandler {
             };
             return json(store.put(space, OBJECT_LINKS_COLL, `${link.from}->${link.to}:${link.relationship}`, link));
         }
+        if (method === 'DELETE' && (m = match(url, OBJECT_LINKS))) {
+            const from = m[1];
+            if (!store.get(space, OPS_OBJECTS_COLL, from)) return error(404, `object ${from} not found`);
+            const to = req.params['to'];
+            if (!to) return error(400, "query must include 'to'");
+            const rel = (req.params['relationship'] ?? 'RELATED_TO').toUpperCase();
+            const key = `${from}->${to}:${rel}`;
+            if (!store.has(space, OBJECT_LINKS_COLL, key)) return error(404, `no such link ${from} -> ${to}`);
+            store.delete(space, OBJECT_LINKS_COLL, key);
+            return json({ from, to, deleted: true });
+        }
+        // Case group management (GLOSSARY §9 — Split & Merge); mirrors ObjectService.mergeCases/splitCase.
+        if (method === 'POST' && (m = match(url, OBJECT_MERGE))) {
+            return mergeCases(store, space, m[1], (req.body ?? {}) as { sources?: string[]; actor?: string });
+        }
+        if (method === 'POST' && (m = match(url, OBJECT_SPLIT))) {
+            return splitCase(store, space, m[1], (req.body ?? {}) as {
+                title?: string; members?: string[]; assignee?: string; actor?: string;
+            });
+        }
         if (method === 'GET' && (m = match(url, OBJECT_GRAPH))) {
             return json(objectGraph(
                 m[1],
@@ -366,6 +388,122 @@ export function opsHandler(flags: MockFlags): MockHandler {
 /** Split the `attributes.tags` CSV. */
 function csvTags(csv: string | undefined): string[] {
     return (csv ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+}
+
+// ── case group management (GLOSSARY §9 — Split & Merge; mirrors ObjectService) ──────────────────
+
+/** The ids a case CONTAINS (its member incidents). */
+function membersOf(store: MockStore, space: string, caseId: string): string[] {
+    return store.list<ObjectLink>(space, OBJECT_LINKS_COLL)
+        .filter((l) => l.from === caseId && l.relationship === 'CONTAINS')
+        .map((l) => l.to);
+}
+
+/** A case usable in a group operation: exists, is a CASE, and is not closed/merged. */
+function activeCase(store: MockStore, space: string, id: string):
+    { ok: OperationalObject } | { err: ReturnType<typeof error> } {
+    const o = store.get<OperationalObject>(space, OPS_OBJECTS_COLL, id);
+    if (!o) return { err: error(404, `object ${id} not found`) };
+    if (o.objectType !== 'CASE') return { err: error(422, `${id} is not a CASE`) };
+    if (o.closedAt > 0 || o.attributes?.['mergedInto'])
+        return { err: error(422, `case ${id} is closed${o.attributes?.['mergedInto'] ? ' (already merged)' : ''}`) };
+    return { ok: o };
+}
+
+/** Re-point a member CONTAINS edge (idempotent on the target side). */
+function moveMember(store: MockStore, space: string, fromCase: string, toCase: string, member: string): void {
+    store.delete(space, OBJECT_LINKS_COLL, `${fromCase}->${member}:CONTAINS`);
+    store.put(space, OBJECT_LINKS_COLL, `${toCase}->${member}:CONTAINS`, {
+        from: toCase, fromType: 'CASE', to: member, toType: 'INCIDENT',
+        relationship: 'CONTAINS', createdAt: Date.now(),
+    } satisfies ObjectLink);
+}
+
+function mergeCases(store: MockStore, space: string, survivorId: string,
+                    body: { sources?: string[]; actor?: string }) {
+    const sources = (body.sources ?? []).filter(Boolean);
+    if (!sources.length) return error(400, "body must include non-empty 'sources'");
+    const survivorCheck = activeCase(store, space, survivorId);
+    if ('err' in survivorCheck) return survivorCheck.err;
+    const absorbed: OperationalObject[] = [];
+    for (const id of new Set(sources)) {
+        if (id === survivorId) return error(422, 'a case cannot be merged into itself');
+        const check = activeCase(store, space, id);
+        if ('err' in check) return check.err;
+        absorbed.push(check.ok);
+    }
+    const now = Date.now();
+    let moved = 0;
+    const tags = new Set(csvTags(survivorCheck.ok.attributes?.['tags']));
+    for (const src of absorbed) {
+        for (const memberId of membersOf(store, space, src.id)) {
+            moveMember(store, space, src.id, survivorId, memberId);
+            moved++;
+        }
+        csvTags(src.attributes?.['tags']).forEach((t) => tags.add(t));
+        store.put(space, OBJECT_LINKS_COLL, `${src.id}->${survivorId}:MERGED_INTO`, {
+            from: src.id, fromType: 'CASE', to: survivorId, toType: 'CASE',
+            relationship: 'MERGED_INTO', createdAt: now,
+        } satisfies ObjectLink);
+        store.put(space, OPS_OBJECTS_COLL, src.id, {
+            ...src, status: 'CLOSED', closedAt: now, updatedAt: now,
+            attributes: { ...(src.attributes ?? {}), mergedInto: survivorId },
+        });
+        putNote(store, space, src.id, 'COMMENT', body.actor ?? 'operator', `Merged into ${survivorId}.`);
+        putNote(store, space, survivorId, 'COMMENT', body.actor ?? 'operator',
+            `Absorbed ${src.id} ("${src.title}").`);
+    }
+    const survivor = store.get<OperationalObject>(space, OPS_OBJECTS_COLL, survivorId)!;
+    const updated = store.put(space, OPS_OBJECTS_COLL, survivorId, {
+        ...survivor, updatedAt: now,
+        attributes: { ...(survivor.attributes ?? {}), ...(tags.size ? { tags: [...tags].join(',') } : {}) },
+    });
+    return json({ survivor: updated, merged: absorbed.map((s) => s.id), membersMoved: moved });
+}
+
+function splitCase(store: MockStore, space: string, caseId: string,
+                   body: { title?: string; members?: string[]; assignee?: string; actor?: string }) {
+    const title = (body.title ?? '').trim();
+    const members = (body.members ?? []).filter(Boolean);
+    if (!title) return error(400, "body must include 'title'");
+    if (!members.length) return error(400, "body must include non-empty 'members'");
+    const check = activeCase(store, space, caseId);
+    if ('err' in check) return check.err;
+    const contained = new Set(membersOf(store, space, caseId));
+    for (const memberId of members) {
+        if (!contained.has(memberId)) return error(422, `case ${caseId} does not contain member '${memberId}'`);
+    }
+    const now = Date.now();
+    const original = check.ok;
+    const part: OperationalObject = {
+        id: 'obj-' + now,
+        objectType: 'CASE',
+        title,
+        description: `Split from ${caseId}: ${original.title}`,
+        status: 'OPEN',
+        severity: original.severity,
+        priority: original.priority,
+        owner: original.owner,
+        assignee: body.assignee || undefined,
+        correlationId: original.correlationId,
+        attributes: {
+            ...(original.attributes?.['category'] ? { category: original.attributes['category'] } : {}),
+            ...(original.attributes?.['tags'] ? { tags: original.attributes['tags'] } : {}),
+        },
+        createdAt: now,
+        updatedAt: now,
+        closedAt: 0,
+    };
+    store.put(space, OPS_OBJECTS_COLL, part.id, part);
+    for (const memberId of members) moveMember(store, space, caseId, part.id, memberId);
+    store.put(space, OBJECT_LINKS_COLL, `${part.id}->${caseId}:SPLIT_FROM`, {
+        from: part.id, fromType: 'CASE', to: caseId, toType: 'CASE',
+        relationship: 'SPLIT_FROM', createdAt: now,
+    } satisfies ObjectLink);
+    putNote(store, space, caseId, 'COMMENT', body.actor ?? 'operator',
+        `Split ${members.length} member(s) out into ${part.id} ("${title}").`);
+    putNote(store, space, part.id, 'COMMENT', body.actor ?? 'operator', `Split from ${caseId}.`);
+    return json({ case: part, membersMoved: members.length });
 }
 
 /** Every set Tag-Rule criterion must match; incident statuses are compared on the mail lifecycle. */

@@ -234,6 +234,58 @@ describe('opsHandler', () => {
         expect(minor.attributes?.['tags']).toBeUndefined();
     });
 
+    it('merges cases (members re-point, tags union, source closes) and splits them back out', () => {
+        const store = seededStore();
+        // seeded membership: case-102 CONTAINS incident-101 + incident-104; case-108 CONTAINS incident-107
+        const merged = handler(req('POST', '/api/objects/case-102/merge', { sources: ['case-108'] }), store)
+            ?.body as { survivor: OperationalObject; merged: string[]; membersMoved: number };
+        expect(merged.membersMoved).toBe(1);
+        expect(merged.merged).toEqual(['case-108']);
+
+        const absorbed = handler(req('GET', '/api/objects/case-108'), store)?.body as OperationalObject;
+        expect(absorbed.status).toBe('CLOSED');
+        expect(absorbed.attributes?.['mergedInto']).toBe('case-102');
+        // the survivor now contains all three members
+        const graph = handler(req('GET', '/api/objects/case-102/graph', null, { depth: '1' }), store)
+            ?.body as { edges: Array<{ from: string; to: string; relationship: string }> };
+        const members = graph.edges.filter((e) => e.from === 'case-102' && e.relationship === 'CONTAINS');
+        expect(members.map((e) => e.to).sort()).toEqual(['incident-101', 'incident-104', 'incident-107']);
+
+        // gates: merged-again → 422; self-merge → 422; empty sources → 400; non-CASE → 422
+        expect(handler(req('POST', '/api/objects/case-102/merge', { sources: ['case-108'] }), store)?.status).toBe(422);
+        expect(handler(req('POST', '/api/objects/case-102/merge', { sources: ['case-102'] }), store)?.status).toBe(422);
+        expect(handler(req('POST', '/api/objects/case-102/merge', { sources: [] }), store)?.status).toBe(400);
+        expect(handler(req('POST', '/api/objects/case-102/merge', { sources: ['incident-101'] }), store)?.status).toBe(422);
+
+        // split two members back out into a new case
+        const split = handler(req('POST', '/api/objects/case-102/split',
+            { title: 'part B', members: ['incident-101', 'incident-107'], assignee: 'dana' }), store)
+            ?.body as { case: OperationalObject; membersMoved: number };
+        expect(split.membersMoved).toBe(2);
+        expect(split.case.objectType).toBe('CASE');
+        expect(split.case.assignee).toBe('dana');
+        const after = handler(req('GET', '/api/objects/case-102/graph', null, { depth: '1' }), store)
+            ?.body as { edges: Array<{ from: string; to: string; relationship: string }> };
+        expect(after.edges.filter((e) => e.from === 'case-102' && e.relationship === 'CONTAINS')
+            .map((e) => e.to)).toEqual(['incident-104']);
+        // foreign member now → 422; missing title → 400
+        expect(handler(req('POST', '/api/objects/case-102/split',
+            { title: 'x', members: ['incident-101'] }), store)?.status).toBe(422);
+        expect(handler(req('POST', '/api/objects/case-102/split',
+            { members: ['incident-104'] }), store)?.status).toBe(400);
+    });
+
+    it('deletes a single link and 404s when it is already gone', () => {
+        const store = seededStore();
+        expect(handler(req('DELETE', '/api/objects/case-102/links', null,
+            { to: 'incident-101', relationship: 'CONTAINS' }), store)?.status).toBe(200);
+        expect(handler(req('DELETE', '/api/objects/case-102/links', null,
+            { to: 'incident-101', relationship: 'CONTAINS' }), store)?.status).toBe(404);
+        expect(handler(req('DELETE', '/api/objects/case-102/links', null, {}), store)?.status).toBe(400);
+        expect(handler(req('DELETE', '/api/objects/nope/links', null,
+            { to: 'x', relationship: 'CONTAINS' }), store)?.status).toBe(404);
+    });
+
     it('patches priority and merges attributes without touching the rest', () => {
         const store = seededStore();
         const [o] = handler(req('GET', '/api/objects', null, { type: 'incident' }), store)?.body as OperationalObject[];
@@ -259,8 +311,12 @@ describe('opsHandler', () => {
             nodes: Array<{ id: string }>;
             edges: unknown[];
         };
-        expect(graph.nodes.map((n) => n.id).sort()).toEqual([a.id, b.id].sort());
-        expect(graph.edges.length).toBe(1);
+        const ids = graph.nodes.map((n) => n.id);
+        expect(ids).toContain(a.id);
+        expect(ids).toContain(b.id);
+        // Depth 2 also reaches the seeded case that CONTAINS incident-101 (case membership, GLOSSARY §9).
+        expect(ids).toContain('case-102');
+        expect(graph.edges.length).toBeGreaterThanOrEqual(2);
     });
 
     it('round-trips comments and attachments and seeds an RCA skeleton', () => {
