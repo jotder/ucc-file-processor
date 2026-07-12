@@ -48,6 +48,10 @@
 # The UAT space is fully GENERATED (config cloned from spaces/demo by tools/seed-uat.ps1) — never commit it.
 /spaces/uat/
 
+# Stray root-level DuckDB files written by ad-hoc local backend runs (jobs_report, provenance, …)
+/inspecto/*.duckdb
+/inspecto/*.duckdb.wal
+
 # Dry-run and audit outputs produced by ad-hoc local runs in the module root
 /inspecto/available_files.csv*
 /inspecto/missing_files.csv*
