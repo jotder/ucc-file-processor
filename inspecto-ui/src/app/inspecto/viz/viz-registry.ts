@@ -26,3 +26,15 @@ export function allViz(): VizPlugin[] {
 export function clearViz(): void {
     PLUGINS.clear();
 }
+
+/** Test-only: capture the current plugin set so a spec can restore it after mutating the shared
+ *  (per-worker) registry. Pair with {@link restoreViz} to keep the suite order-independent. */
+export function snapshotViz(): VizPlugin[] {
+    return [...PLUGINS.values()];
+}
+
+/** Test-only: restore a {@link snapshotViz} result, replacing the current contents. */
+export function restoreViz(plugins: VizPlugin[]): void {
+    PLUGINS.clear();
+    for (const p of plugins) PLUGINS.set(p.meta.type, p);
+}

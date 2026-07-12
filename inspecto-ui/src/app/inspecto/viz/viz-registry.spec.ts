@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { allViz, clearViz, getViz, registerViz } from './viz-registry';
+import { allViz, clearViz, getViz, registerViz, restoreViz, snapshotViz } from './viz-registry';
 import { VizPlugin } from './viz-types';
 
 function fakePlugin(type: string): VizPlugin {
@@ -13,8 +13,14 @@ function fakePlugin(type: string): VizPlugin {
 }
 
 describe('viz-registry', () => {
-    beforeEach(() => clearViz()); // start empty — builtins may have leaked into the shared (per-worker) registry
-    afterEach(() => clearViz());
+    let saved: VizPlugin[];
+    // Snapshot then start empty; restore afterwards so builtins registered in the shared (per-worker)
+    // registry survive for other specs (e.g. result-set.spec's Show-Me recommender check).
+    beforeEach(() => {
+        saved = snapshotViz();
+        clearViz();
+    });
+    afterEach(() => restoreViz(saved));
 
     it('registers and retrieves plugins', () => {
         registerViz(fakePlugin('line'));
