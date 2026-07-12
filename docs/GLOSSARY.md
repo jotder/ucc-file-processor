@@ -352,6 +352,12 @@ also carries a **Team** (`assignees`, the lead stays `assignee`) and a loose-SLA
 **Disposition** — The decided outcome a Case resolves with (built-in ladder: confirmed ·
 false-positive · recovered · written-off · inconclusive). ⛔ never "verdict/outcome" in UI text.
 
+**Case Rule** — A saved search that **auto-groups Incidents into a Case** (C5): when ≥ *threshold*
+Incidents match its filter within a *window*, they are grouped under one Case (opened, or attached
+to the rule's still-open Case). The mechanical tail of the **Alert → Incident → Case** chain.
+⛔ never bare "Rule" (§0 — Rule is always qualified: Expectation / Alert Rule / Decision Rule /
+Tag Rule / Case Rule).
+
 **Diagnosis** — An AI-assisted root-cause analysis of a failing Run or Source that produces an **Incident** with
 a suggested fix.
 

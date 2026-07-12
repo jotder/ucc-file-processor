@@ -124,6 +124,14 @@
                     <div class="text-secondary mt-1 text-sm">{{ activeLabel() }} · {{ rows().length }} item{{ rows().length === 1 ? '' : 's' }}</div>
                 </div>
                 <div class="flex items-center gap-2">
+                    @if (!isIncident) {
+                        <button mat-icon-button (click)="openAnalytics()" matTooltip="Case analytics" aria-label="Case analytics">
+                            <mat-icon svgIcon="heroicons_outline:chart-bar"></mat-icon>
+                        </button>
+                        <button mat-icon-button (click)="openCaseRules()" matTooltip="Case rules (auto-group incidents)" aria-label="Case rules">
+                            <mat-icon svgIcon="heroicons_outline:bolt"></mat-icon>
+                        </button>
+                    }
                     <button mat-icon-button (click)="reload()" matTooltip="Refresh" aria-label="Refresh">
                         <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
                     </button>

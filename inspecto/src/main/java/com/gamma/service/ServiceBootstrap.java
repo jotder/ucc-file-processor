@@ -83,6 +83,8 @@ final class ServiceBootstrap {
             svc.objects().registerTag(t);
         for (com.gamma.ops.tag.TagRule r : loadTagRules(resolveBySuffix(paths, "_tagrule.toon")))
             svc.objects().registerTagRule(r);
+        for (com.gamma.ops.tag.CaseRule r : loadCaseRules(resolveBySuffix(paths, "_caserule.toon")))
+            svc.objects().registerCaseRule(r);
         return svc;
     }
 
@@ -204,6 +206,21 @@ final class ServiceBootstrap {
                 log.info("Loaded tag rule '{}' (tags \"{}\") from {}", r.name(), r.tag(), p);
             } catch (Exception e) {
                 log.warn("Could not load tag rule {}: {}", p, e.getMessage());
+            }
+        }
+        return out;
+    }
+
+    /** Load each {@code *_caserule.toon} (GLOSSARY §9, C5); a bad one is warned and skipped (others still register). */
+    static List<com.gamma.ops.tag.CaseRule> loadCaseRules(List<Path> paths) {
+        List<com.gamma.ops.tag.CaseRule> out = new ArrayList<>();
+        for (Path p : paths) {
+            try {
+                com.gamma.ops.tag.CaseRule r = com.gamma.ops.tag.CaseRule.load(p);
+                out.add(r);
+                log.info("Loaded case rule '{}' (raises \"{}\") from {}", r.name(), r.title(), p);
+            } catch (Exception e) {
+                log.warn("Could not load case rule {}: {}", p, e.getMessage());
             }
         }
         return out;

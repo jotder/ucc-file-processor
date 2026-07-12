@@ -85,6 +85,38 @@ export interface WorkflowDef {
     transitions: WorkflowTransition[];
 }
 
+/** A Case Rule (GET /cases/rules) — auto-groups matching incidents into a case (GLOSSARY §9, C5). */
+export interface CaseRule {
+    name: string;
+    title: string;
+    filter: TagRuleFilter;
+    threshold: number;
+    windowMinutes: number;
+    category?: string;
+    tags?: string;
+    createdAt?: number;
+}
+
+/** Evaluate outcome (POST /cases/rules/{name}/evaluate). */
+export interface CaseRuleEvaluation {
+    matched: number;
+    grouped: number;
+    caseId: string | null;
+    opened: boolean;
+}
+
+/** Case analytics rollup (GET /objects/analytics?type=CASE) — C4. */
+export interface ObjectAnalytics {
+    type: string;
+    total: number;
+    backlog: number;
+    byStatus: Record<string, number>;
+    byCategory: Record<string, number>;
+    byPriority: Record<string, number>;
+    cycleTime: { count: number; avgMs: number };
+    impact: { impactAmount: number; recordsAffected: number };
+}
+
 /** Merge outcome (POST /objects/{id}/merge) — GLOSSARY §9 case group management. */
 export interface MergeResult {
     survivor: OperationalObject;
@@ -229,6 +261,30 @@ export class ObjectsService {
     /** The effective lifecycle for an object type — drives workflow-derived folders/actions (C6). */
     workflow(type: string): Observable<WorkflowDef> {
         return this.http.get<WorkflowDef>(apiUrl(`/workflows/${encodeURIComponent(type)}`));
+    }
+
+    // ── rule-raised cases (C5) + analytics (C4) ─────────────────────────────────────────────
+
+    caseRules(): Observable<CaseRule[]> {
+        return this.http.get<CaseRule[]>(apiUrl('/cases/rules'));
+    }
+
+    saveCaseRule(rule: CaseRule): Observable<CaseRule> {
+        return this.http.post<CaseRule>(apiUrl('/cases/rules'), rule);
+    }
+
+    deleteCaseRule(name: string): Observable<{ deleted: string }> {
+        return this.http.delete<{ deleted: string }>(apiUrl(`/cases/rules/${encodeURIComponent(name)}`));
+    }
+
+    /** Auto-group matching incidents into a case (open or attach); returns the grouping outcome. */
+    evaluateCaseRule(name: string): Observable<CaseRuleEvaluation> {
+        return this.http.post<CaseRuleEvaluation>(apiUrl(`/cases/rules/${encodeURIComponent(name)}/evaluate`), {});
+    }
+
+    /** Case (or any object type) analytics rollup — cycle time, backlog, impact totals (C4). */
+    analytics(type: string): Observable<ObjectAnalytics> {
+        return this.http.get<ObjectAnalytics>(apiUrl('/objects/analytics'), { params: toParams({ type }) });
     }
 
     /** Remove one correlation edge (e.g. a member incident out of a Case's Contents). */

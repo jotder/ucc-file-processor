@@ -1,5 +1,6 @@
 package com.gamma.control;
 
+import com.gamma.config.io.ConfigCodec;
 import com.gamma.ops.ObjectQuery;
 import com.gamma.ops.ObjectService;
 import com.gamma.ops.ObjectType;
@@ -8,11 +9,18 @@ import com.gamma.ops.link.ObjectLink;
 import com.gamma.ops.note.NoteKind;
 import com.gamma.ops.note.ObjectNote;
 import com.gamma.ops.rca.RcaTemplate;
+import com.gamma.ops.tag.CaseRule;
+import com.gamma.util.AtomicFiles;
 import com.sun.net.httpserver.HttpExchange;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 /**
  * Alert Center / operational-object routes ({@code /objects*}, {@code /rca/templates}; v4.3.0
@@ -24,6 +32,8 @@ final class ObjectRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/objects", (e, m) -> toObjectMaps(visibleOnly(api.service().objects().query(objectQuery(e)), e)));
+        // Registered before the /objects/{id} catch-all so "analytics" is not read as an id (C4).
+        api.get("/objects/analytics", (e, m) -> api.service().objects().analytics(parseObjectType(ApiContext.query(e, "type"))));
         api.post("/objects", (e, m) -> createObject(api, api.body(e)));
         // Every by-id route runs behind the SEC-7d data-scope guard: an object whose caseType is outside
         // the caller's dataScopes answers 404, indistinguishable from absence (existence-hiding).
@@ -51,6 +61,68 @@ final class ObjectRoutes implements RouteModule {
         // The effective (possibly *_workflow.toon-overridden) lifecycle for a type — lets the UI derive
         // folders + action verbs instead of hardcoding state lists (case-management-design.md C6).
         api.get("/workflows/([^/]+)", (e, m) -> workflowOf(api, ApiContext.name(m)));
+        // Rule-raised cases (C5): auto-group Incidents into a Case. CRUD is capability-gated (config);
+        // evaluate mutates objects (an operational action, like transition), so it is ungated.
+        api.get("/cases/rules", (e, m) -> api.service().objects().caseRules().stream().map(CaseRule::toMap).toList());
+        api.post("/cases/rules", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> saveCaseRule(api, api.body(e))));
+        api.delete("/cases/rules/([^/]+)", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> deleteCaseRule(api, ApiContext.name(m))));
+        api.post("/cases/rules/([^/]+)/evaluate", (e, m) -> evaluateCaseRule(api, ApiContext.name(m)));
+    }
+
+    // ── rule-raised cases (C5) ────────────────────────────────────────────────────────
+
+    /**
+     * {@code POST /cases/rules} — save (create or replace) a Case Rule; body {@code {name, title,
+     * filter:{…}, threshold?, windowMinutes?, category?, tags?}}. At least one filter criterion is
+     * required (422); persisted as {@code <name>_caserule.toon} under the write root.
+     */
+    private Object saveCaseRule(ApiContext api, Map<String, Object> body) throws IOException {
+        WriteGates.requireWriteRoot(api, "case rule write");
+        CaseRule rule;
+        try {
+            rule = CaseRule.fromMap(body);
+        } catch (IllegalArgumentException bad) {
+            throw new ApiException(422, bad.getMessage());
+        }
+        Path file = caseRuleFile(api, rule.name());
+        byte[] bytes = ConfigCodec.toToon(Map.of("case_rule", rule.toMap())).getBytes(StandardCharsets.UTF_8);
+        AtomicFiles.write(file, bytes, ".caserule-");
+        return api.service().objects().registerCaseRule(rule).toMap();
+    }
+
+    /** {@code DELETE /cases/rules/{name}} — remove a rule (registry + persisted file); 404 if unknown. */
+    private Object deleteCaseRule(ApiContext api, String name) throws IOException {
+        WriteGates.requireWriteRoot(api, "case rule write");
+        if (api.service().objects().caseRule(name).isEmpty())
+            throw new ApiException(404, "no case rule named '" + name + "'");
+        boolean fileRemoved = Files.deleteIfExists(caseRuleFile(api, name));
+        api.service().objects().removeCaseRule(name);
+        return Map.of("deleted", name, "fileRemoved", fileRemoved);
+    }
+
+    /**
+     * {@code POST /cases/rules/{name}/evaluate} — auto-group matching Incidents into a Case (C5).
+     * Returns {@code {matched, grouped, caseId, opened}}; unknown rule → 404.
+     */
+    private Object evaluateCaseRule(ApiContext api, String name) {
+        try {
+            ObjectService.CaseRuleEvaluation r = api.service().objects().evaluateCaseRule(name);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("matched", r.matched());
+            out.put("grouped", r.grouped());
+            out.put("caseId", r.caseId());
+            out.put("opened", r.opened());
+            return out;
+        } catch (NoSuchElementException notFound) {
+            throw new ApiException(404, notFound.getMessage());
+        }
+    }
+
+    /** The jailed {@code <name>_caserule.toon} path under the write root; 422 on an unsafe name, 403 on escape. */
+    private static Path caseRuleFile(ApiContext api, String name) {
+        String safe = WriteGates.safeName(name, "case rule name");
+        Path root = api.writeRoot();
+        return WriteGates.jail(root, root.resolve(safe + "_caserule.toon"), "resolved path");
     }
 
     /** {@code GET /workflows/{type}} — the effective workflow definition; unknown type → 400. */

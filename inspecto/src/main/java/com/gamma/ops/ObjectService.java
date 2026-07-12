@@ -17,6 +17,7 @@ import com.gamma.ops.queue.Queue;
 import com.gamma.ops.queue.QueueRouter;
 import com.gamma.ops.queue.QueueStore;
 import com.gamma.ops.rca.RcaTemplate;
+import com.gamma.ops.tag.CaseRule;
 import com.gamma.ops.tag.Tag;
 import com.gamma.ops.tag.TagRule;
 import com.gamma.ops.workflow.Workflow;
@@ -64,6 +65,8 @@ public final class ObjectService {
     public static final String ATTR_TAGS = "tags";
     /** Attribute key stamped on an absorbed case: the surviving case it was merged into (GLOSSARY §9). */
     public static final String ATTR_MERGED_INTO = "mergedInto";
+    /** Attribute key stamped on a rule-raised case: the {@link CaseRule} name that opened it (GLOSSARY §9, C5). */
+    public static final String ATTR_RAISED_BY_RULE = "raisedByRule";
 
     private final ObjectStore store;
     private final LinkStore links;
@@ -73,6 +76,7 @@ public final class ObjectService {
     private final Map<ObjectType, Workflow> workflows = new EnumMap<>(ObjectType.class);
     private final Map<String, Tag> tags = new ConcurrentHashMap<>();          // user-created tag registry
     private final Map<String, TagRule> tagRules = new ConcurrentHashMap<>();  // Gmail-filter Tag Rules, by name
+    private final Map<String, CaseRule> caseRules = new ConcurrentHashMap<>(); // rule-raised-case rules, by name (C5)
 
     /** Build with the built-in default workflows and in-memory link + note stores. */
     public ObjectService(ObjectStore store) {
@@ -233,6 +237,78 @@ public final class ObjectService {
                 .stream().filter(o -> !wf.isTerminal(o.status())).toList();
     }
 
+    // ── analytics (GLOSSARY §9, C4) ───────────────────────────────────────────────────
+
+    /**
+     * A rollup over all objects of {@code type} (C4 — the business-lens numbers): totals, backlog
+     * (non-terminal count), breakdowns by status / L1-category / priority, cycle-time stats over the
+     * terminal objects ({@code closedAt − createdAt}), and impact totals summed from the flat
+     * {@code impactAmount} / {@code recordsAffected} attributes (the queryable columns the Findings
+     * form writes alongside its JSON blob). Shaped as a JSON-ready map so the UI renders it directly
+     * and a later Studio-dataset binding can read the same surface.
+     */
+    public Map<String, Object> analytics(ObjectType type) {
+        Workflow wf = workflow(type);
+        List<OperationalObject> all = store.query(ObjectQuery.builder()
+                .objectType(type).limit(ObjectQuery.MAX_LIMIT).build());
+        Map<String, Integer> byStatus = new LinkedHashMap<>();
+        Map<String, Integer> byCategory = new LinkedHashMap<>();
+        Map<String, Integer> byPriority = new LinkedHashMap<>();
+        int backlog = 0;
+        long cycleSum = 0;
+        int cycleCount = 0;
+        double impactAmount = 0;
+        long recordsAffected = 0;
+        for (OperationalObject o : all) {
+            bump(byStatus, o.status() == null ? "UNKNOWN" : o.status().toUpperCase(java.util.Locale.ROOT));
+            bump(byCategory, categoryL1(o.attributes().get("category")));
+            bump(byPriority, o.priority() == null || o.priority().isBlank() ? "NONE" : o.priority().toUpperCase(java.util.Locale.ROOT));
+            if (!wf.isTerminal(o.status())) backlog++;
+            if (o.closedAt() > 0 && o.closedAt() >= o.createdAt()) {
+                cycleSum += o.closedAt() - o.createdAt();
+                cycleCount++;
+            }
+            impactAmount += parseDoubleOr(o.attributes().get("impactAmount"), 0);
+            recordsAffected += parseEpoch(o.attributes().get("recordsAffected")); // long-or-0 parse
+        }
+        Map<String, Object> cycle = new LinkedHashMap<>();
+        cycle.put("count", cycleCount);
+        cycle.put("avgMs", cycleCount == 0 ? 0 : cycleSum / cycleCount);
+        Map<String, Object> impact = new LinkedHashMap<>();
+        impact.put("impactAmount", impactAmount);
+        impact.put("recordsAffected", recordsAffected);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("type", type.name());
+        out.put("total", all.size());
+        out.put("backlog", backlog);
+        out.put("byStatus", byStatus);
+        out.put("byCategory", byCategory);
+        out.put("byPriority", byPriority);
+        out.put("cycleTime", cycle);
+        out.put("impact", impact);
+        return out;
+    }
+
+    private static void bump(Map<String, Integer> m, String key) {
+        m.merge(key, 1, Integer::sum);
+    }
+
+    /** The first level of a "L1 / L2 / L3" category path, or "UNCATEGORIZED". */
+    private static String categoryL1(String category) {
+        if (category == null || category.isBlank()) return "UNCATEGORIZED";
+        int slash = category.indexOf('/');
+        return (slash < 0 ? category : category.substring(0, slash)).trim();
+    }
+
+    private static double parseDoubleOr(String s, double def) {
+        if (s == null || s.isBlank()) return def;
+        try {
+            return Double.parseDouble(s.trim());
+        } catch (NumberFormatException e) {
+            return def;
+        }
+    }
+
     // ── queues, assignment, watchers (INC-4) ─────────────────────────────────────────
 
     /** Register (create or replace) a work {@link Queue}; loaded from {@code *_queue.toon} at boot or {@code POST /queues}. */
@@ -343,6 +419,90 @@ public final class ObjectService {
             if (!t.isEmpty()) out.add(t);
         }
         return out;
+    }
+
+    // ── rule-raised cases (GLOSSARY §9, C5) ───────────────────────────────────────────
+
+    /** Register (create or replace) a {@link CaseRule}; loaded from {@code *_caserule.toon} at boot or {@code POST /cases/rules}. */
+    public CaseRule registerCaseRule(CaseRule rule) {
+        caseRules.put(rule.name(), rule);
+        return rule;
+    }
+
+    /** The Case Rule with this name, or empty. */
+    public Optional<CaseRule> caseRule(String name) {
+        return Optional.ofNullable(name == null ? null : caseRules.get(name.trim()));
+    }
+
+    /** Every registered Case Rule, sorted by name. */
+    public List<CaseRule> caseRules() {
+        return caseRules.values().stream().sorted(Comparator.comparing(CaseRule::name)).toList();
+    }
+
+    /** Remove a Case Rule; {@code false} when no rule had that name. */
+    public boolean removeCaseRule(String name) {
+        return name != null && caseRules.remove(name.trim()) != null;
+    }
+
+    /** Evaluate outcome: matching in-window incidents, how many were newly grouped, and the target case. */
+    public record CaseRuleEvaluation(int matched, int grouped, String caseId, boolean opened) {}
+
+    /**
+     * Evaluate a Case Rule ({@code POST /cases/rules/{name}/evaluate}) — the auto-grouping step of the
+     * Alert → Incident → Case chain (C5). Finds Incidents that match the rule's {@link TagRule.Filter},
+     * were created within {@link CaseRule#windowMinutes} of {@code now}, and are not already a member of
+     * any Case. If a still-open Case previously raised by this rule exists, the matches are attached to
+     * it; otherwise, once at least {@link CaseRule#threshold} matches accrue, a new Case is opened
+     * (inheriting the rule's title / category / tags) and the matches are grouped under it. Idempotent:
+     * already-grouped incidents are skipped, so re-evaluation only attaches new ones.
+     *
+     * @throws NoSuchElementException if no rule has this name
+     */
+    public CaseRuleEvaluation evaluateCaseRule(String name) {
+        CaseRule rule = caseRule(name).orElseThrow(() -> new NoSuchElementException("no case rule named '" + name + "'"));
+        long now = System.currentTimeMillis();
+        long cutoff = rule.windowMinutes() <= 0 ? 0 : now - rule.windowMinutes() * 60_000L;
+        List<OperationalObject> matches = store.query(ObjectQuery.builder()
+                        .objectType(ObjectType.INCIDENT).limit(ObjectQuery.MAX_LIMIT).build())
+                .stream()
+                .filter(o -> o.createdAt() >= cutoff)
+                .filter(rule::matches)
+                .filter(o -> !isCaseMember(o.id()))   // not already grouped under any case
+                .toList();
+        if (matches.isEmpty()) return new CaseRuleEvaluation(0, 0, null, false);
+
+        String existing = openCaseRaisedBy(name);
+        boolean opened = false;
+        String caseId = existing;
+        if (caseId == null) {
+            if (matches.size() < rule.threshold())
+                return new CaseRuleEvaluation(matches.size(), 0, null, false);  // below threshold, no case yet
+            Map<String, String> attrs = new LinkedHashMap<>();
+            attrs.put(ATTR_RAISED_BY_RULE, name);
+            if (rule.category() != null) attrs.put("category", rule.category());
+            if (rule.tags() != null) attrs.put(ATTR_TAGS, rule.tags());
+            caseId = open(ObjectType.CASE, rule.title(), "Auto-raised by case rule '" + name + "'",
+                    null, null, null, null, matches.get(0).correlationId(), attrs).id();
+            opened = true;
+        }
+        for (OperationalObject inc : matches) link(caseId, inc.id(), LinkRelationship.CONTAINS, "case-rule:" + name);
+        return new CaseRuleEvaluation(matches.size(), matches.size(), caseId, opened);
+    }
+
+    /** Whether {@code incidentId} is already a {@code CONTAINS} member of some case. */
+    private boolean isCaseMember(String incidentId) {
+        return links.incident(incidentId).stream()
+                .anyMatch(l -> l.toId().equals(incidentId) && LinkRelationship.CONTAINS.equalsIgnoreCase(l.relationship()));
+    }
+
+    /** The id of a still-open case previously raised by {@code ruleName}, or null. */
+    private String openCaseRaisedBy(String ruleName) {
+        return store.query(ObjectQuery.builder().objectType(ObjectType.CASE).limit(ObjectQuery.MAX_LIMIT).build())
+                .stream()
+                .filter(c -> ruleName.equals(c.attributes().get(ATTR_RAISED_BY_RULE)))
+                .filter(c -> !workflow(ObjectType.CASE).isTerminal(c.status()))
+                .map(OperationalObject::id)
+                .findFirst().orElse(null);
     }
 
     /** Install the SLA {@link EscalationPolicy} the sweep applies on breach; {@code null} = breach-event only. */

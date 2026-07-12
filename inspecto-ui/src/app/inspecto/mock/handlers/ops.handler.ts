@@ -6,9 +6,11 @@ import {
     type ObjectGraph,
     type ObjectLink,
     type ObjectNote,
+    type CaseRule,
     type OperationalObject,
     type Tag,
     type TagRule,
+    type TagRuleFilter,
 } from '../../api/objects.service';
 import { type Signal, alertToSignal, isAlertSignal, signalToAlert, signalToEvent } from '../../signal/signal';
 import { MockFlags } from '../mock-flags';
@@ -32,6 +34,7 @@ export const OBJECT_NOTES_COLL = 'object-note';
 export const ENRICHMENT_COLL = 'enrichment-job';
 export const TAGS_COLL = 'tag';
 export const TAG_RULES_COLL = 'tag-rule';
+export const CASE_RULES_COLL = 'case-rule';
 
 const EVENTS_SEARCH = /\/events\/search$/;
 const EVENTS_EXPORT = /\/events\/export$/;
@@ -42,6 +45,10 @@ const ALERTS_RULE_ONE = /\/alerts\/rules\/([^/]+)$/;
 const ALERTS_EVAL = /\/alerts\/evaluate$/;
 const ALERTS = /\/alerts$/;
 const OBJECTS = /\/objects$/;
+const OBJECTS_ANALYTICS = /\/objects\/analytics$/;
+const CASE_RULES = /\/cases\/rules$/;
+const CASE_RULE_ONE = /\/cases\/rules\/([^/]+)$/;
+const CASE_RULE_EVAL = /\/cases\/rules\/([^/]+)\/evaluate$/;
 const OBJECT_ONE = /\/objects\/([^/]+)$/;
 const OBJECT_TRANSITION = /\/objects\/([^/]+)\/transition$/;
 const OBJECT_LINKS = /\/objects\/([^/]+)\/links$/;
@@ -197,8 +204,41 @@ export function opsHandler(flags: MockFlags): MockHandler {
             const limit = Number(req.params['limit']);
             return json(Number.isFinite(limit) && limit > 0 ? sorted.slice(0, limit) : sorted);
         }
+        // Checked before the /objects list + /objects/{id} routes so "analytics" isn't read as an id (C4).
+        if (method === 'GET' && OBJECTS_ANALYTICS.test(url)) {
+            return json(objectAnalytics(store.list<OperationalObject>(space, OPS_OBJECTS_COLL), req.params['type']));
+        }
         if (method === 'GET' && OBJECTS.test(url)) {
             return json(filterObjects(store.list<OperationalObject>(space, OPS_OBJECTS_COLL), req.params));
+        }
+        // Rule-raised cases (C5): checked before /objects/{id} (path prefix is /cases, no collision).
+        if (method === 'GET' && CASE_RULES.test(url)) {
+            return json(store.list<CaseRule>(space, CASE_RULES_COLL).sort((a, b) => a.name.localeCompare(b.name)));
+        }
+        if (method === 'POST' && CASE_RULES.test(url)) {
+            const b = (req.body ?? {}) as Partial<CaseRule>;
+            const filter = (b.filter ?? {}) as TagRuleFilter;
+            if (!b.name || !b.title) return error(422, 'name and title are required');
+            const hasCriterion = ['type', 'q', 'status', 'priority', 'severity', 'category']
+                .some((k) => (filter as Record<string, string>)[k]);
+            if (!hasCriterion) return error(422, 'a case rule needs at least one criterion');
+            return json(store.put(space, CASE_RULES_COLL, b.name, {
+                name: b.name, title: b.title, filter,
+                threshold: b.threshold ?? 2, windowMinutes: b.windowMinutes ?? 1440,
+                ...(b.category ? { category: b.category } : {}),
+                ...(b.tags ? { tags: b.tags } : {}),
+                createdAt: Date.now(),
+            } satisfies CaseRule));
+        }
+        if (method === 'POST' && (m = match(url, CASE_RULE_EVAL))) {
+            const rule = store.get<CaseRule>(space, CASE_RULES_COLL, m[1]);
+            if (!rule) return error(404, `no case rule "${m[1]}"`);
+            return evaluateCaseRule(store, space, rule);
+        }
+        if (method === 'DELETE' && (m = match(url, CASE_RULE_ONE))) {
+            if (!store.has(space, CASE_RULES_COLL, m[1])) return error(404, `no case rule "${m[1]}"`);
+            store.delete(space, CASE_RULES_COLL, m[1]);
+            return json({ deleted: m[1], fileRemoved: true });
         }
         if (method === 'POST' && OBJECTS.test(url)) {
             const b = (req.body ?? {}) as Record<string, unknown> & { title?: string };
@@ -206,7 +246,7 @@ export function opsHandler(flags: MockFlags): MockHandler {
             const now = Date.now();
             const objectType = String(b['type'] ?? 'INCIDENT').toUpperCase();
             const obj: OperationalObject = {
-                id: 'obj-' + now,
+                id: newObjId(),
                 objectType,
                 title: b.title,
                 description: String(b['description'] ?? ''),
@@ -522,7 +562,7 @@ function splitCase(store: MockStore, space: string, caseId: string,
     const now = Date.now();
     const original = check.ok;
     const part: OperationalObject = {
-        id: 'obj-' + now,
+        id: newObjId(),
         objectType: 'CASE',
         title,
         description: `Split from ${caseId}: ${original.title}`,
@@ -552,9 +592,8 @@ function splitCase(store: MockStore, space: string, caseId: string,
     return json({ case: part, membersMoved: members.length });
 }
 
-/** Every set Tag-Rule criterion must match; incident statuses are compared on the mail lifecycle. */
-export function tagRuleMatches(rule: TagRule, o: OperationalObject): boolean {
-    const f = rule.filter ?? {};
+/** Every set filter criterion must match; incident statuses are compared on the mail lifecycle. */
+export function filterMatches(f: TagRuleFilter, o: OperationalObject): boolean {
     const status = o.objectType === 'INCIDENT' ? normalizeIncidentStatus(o.status) : (o.status ?? '').toUpperCase();
     if (f.type && o.objectType !== f.type.toUpperCase()) return false;
     if (f.status && status !== f.status.toUpperCase()) return false;
@@ -563,6 +602,95 @@ export function tagRuleMatches(rule: TagRule, o: OperationalObject): boolean {
     if (f.category && !(o.attributes?.['category'] ?? '').startsWith(f.category)) return false;
     if (f.q && !(o.title + ' ' + o.description).toLowerCase().includes(f.q.toLowerCase())) return false;
     return true;
+}
+
+/** Every set Tag-Rule criterion must match (delegates to {@link filterMatches}). */
+export function tagRuleMatches(rule: TagRule, o: OperationalObject): boolean {
+    return filterMatches(rule.filter ?? {}, o);
+}
+
+/** Case analytics rollup (C4) — mirrors ObjectService.analytics. */
+function objectAnalytics(rows: OperationalObject[], type: string | undefined): Record<string, unknown> {
+    const t = (type ?? 'CASE').toUpperCase();
+    const terminal = t === 'INCIDENT' ? ['ARCHIVED'] : t === 'CASE' ? ['CLOSED'] : ['RESOLVED', 'CLOSED', 'ARCHIVED'];
+    const all = rows.filter((o) => o.objectType === t);
+    const byStatus: Record<string, number> = {};
+    const byCategory: Record<string, number> = {};
+    const byPriority: Record<string, number> = {};
+    let backlog = 0;
+    let cycleSum = 0;
+    let cycleCount = 0;
+    let impactAmount = 0;
+    let recordsAffected = 0;
+    for (const o of all) {
+        const st = (o.status ?? 'UNKNOWN').toUpperCase();
+        byStatus[st] = (byStatus[st] ?? 0) + 1;
+        const cat = (o.attributes?.['category'] ?? '').split('/')[0].trim() || 'UNCATEGORIZED';
+        byCategory[cat] = (byCategory[cat] ?? 0) + 1;
+        const pr = (o.priority ?? '').toUpperCase() || 'NONE';
+        byPriority[pr] = (byPriority[pr] ?? 0) + 1;
+        if (!terminal.includes(st)) backlog++;
+        if (o.closedAt > 0 && o.closedAt >= o.createdAt) {
+            cycleSum += o.closedAt - o.createdAt;
+            cycleCount++;
+        }
+        impactAmount += Number(o.attributes?.['impactAmount']) || 0;
+        recordsAffected += Number(o.attributes?.['recordsAffected']) || 0;
+    }
+    return {
+        type: t,
+        total: all.length,
+        backlog,
+        byStatus,
+        byCategory,
+        byPriority,
+        cycleTime: { count: cycleCount, avgMs: cycleCount === 0 ? 0 : Math.floor(cycleSum / cycleCount) },
+        impact: { impactAmount, recordsAffected },
+    };
+}
+
+/** Evaluate a Case Rule (C5) — mirrors ObjectService.evaluateCaseRule (open/attach, idempotent). */
+function evaluateCaseRule(store: MockStore, space: string, rule: CaseRule): ReturnType<typeof json> {
+    const now = Date.now();
+    const cutoff = rule.windowMinutes <= 0 ? 0 : now - rule.windowMinutes * 60_000;
+    const allObjects = store.list<OperationalObject>(space, OPS_OBJECTS_COLL);
+    const contained = new Set(
+        store.list<ObjectLink>(space, OBJECT_LINKS_COLL)
+            .filter((l) => l.relationship === 'CONTAINS')
+            .map((l) => l.to),
+    );
+    const matches = allObjects.filter(
+        (o) => o.objectType === 'INCIDENT' && o.createdAt >= cutoff && filterMatches(rule.filter, o) && !contained.has(o.id),
+    );
+    if (!matches.length) return json({ matched: 0, grouped: 0, caseId: null, opened: false });
+
+    let caseId = allObjects.find(
+        (o) => o.objectType === 'CASE' && o.attributes?.['raisedByRule'] === rule.name && o.closedAt === 0,
+    )?.id ?? null;
+    let opened = false;
+    if (!caseId) {
+        if (matches.length < rule.threshold) return json({ matched: matches.length, grouped: 0, caseId: null, opened: false });
+        caseId = newObjId();
+        store.put(space, OPS_OBJECTS_COLL, caseId, {
+            id: caseId, objectType: 'CASE', title: rule.title,
+            description: `Auto-raised by case rule '${rule.name}'`, status: 'OPEN',
+            correlationId: matches[0].correlationId,
+            attributes: {
+                raisedByRule: rule.name,
+                ...(rule.category ? { category: rule.category } : {}),
+                ...(rule.tags ? { tags: rule.tags } : {}),
+            },
+            createdAt: now, updatedAt: now, closedAt: 0,
+        } as OperationalObject);
+        opened = true;
+    }
+    for (const inc of matches) {
+        store.put(space, OBJECT_LINKS_COLL, `${caseId}->${inc.id}:CONTAINS`, {
+            from: caseId, fromType: 'CASE', to: inc.id, toType: 'INCIDENT',
+            relationship: 'CONTAINS', createdAt: now,
+        } satisfies ObjectLink);
+    }
+    return json({ matched: matches.length, grouped: matches.length, caseId, opened });
 }
 
 /** Merge every matching Tag Rule's tag into a (new, not yet stored) object's `attributes.tags`. */
@@ -612,6 +740,12 @@ export function objectGraph(root: string, depth: number, objects: OperationalObj
     }));
     const edges = links.filter((l) => included.has(l.from) && included.has(l.to));
     return { root, depth, nodes, edges };
+}
+
+let objSeq = 0;
+/** Collision-proof object id — a bare `obj-<now>` collides when two objects are created in the same ms. */
+function newObjId(): string {
+    return `obj-${Date.now()}-${++objSeq}`;
 }
 
 let noteSeq = 0;

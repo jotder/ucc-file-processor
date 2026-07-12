@@ -1,8 +1,20 @@
 # Case Management — business differentiation + Split & Merge
 
-_Status: C1 + C2 + **I1 + I2 + C3 + C6 SHIPPED** (2026-07-12); C4 (analytics) + C5 (rule-raised
-cases) proposed. Companion to `incidents-mail-ui-design.md` (the mail shell both panes share).
-GLOSSARY §9 chain: **Alert → Incident → Case**._
+_Status: **C1–C6 + I1 + I2 all SHIPPED** (2026-07-12) — the case-management roadmap is complete.
+Companion to `incidents-mail-ui-design.md` (the mail shell both panes share). GLOSSARY §9 chain:
+**Alert → Incident → Case**._
+
+> **As-built note (C4/C5):** C5 = `com.gamma.ops.tag.CaseRule` (reuses `TagRule.Filter` + threshold
+> + windowMinutes) with `ObjectService.evaluateCaseRule` (open-or-attach an open rule-raised case
+> marked `attributes.raisedByRule`, idempotent — already-grouped incidents skipped) behind
+> `GET/POST/DELETE /cases/rules` + `POST /cases/rules/{name}/evaluate` (TOON-persisted, boot-rescanned);
+> UI Case Rules manager dialog (nav bolt icon) with "Evaluate now". **Scheduler auto-evaluation is
+> the documented follow-up** — evaluation is manual/on-demand today, mirroring the AlertRule sweep.
+> C4 = `ObjectService.analytics(type)` (counts by status/category/priority, cycle-time over closed
+> objects, impact summed from the flat `impactAmount`/`recordsAffected` attributes the Findings form
+> now writes alongside its JSON) behind `GET /objects/analytics?type=`; UI analytics dialog (nav
+> chart icon) with stat tiles + a by-category bar (`inspecto-chart`). **Full Studio-dataset binding
+> of the same surface is the documented follow-up** — the endpoint gives the numbers now._
 
 > **As-built note (I1/I2/C3/C6):** I1 = UI soft-warn on Resolve (panel + bulk toolbar) checking
 > timeline/cause-analysis/corrective-actions/`dueAt`; the backend workflow guard is the next

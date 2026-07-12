@@ -34,6 +34,8 @@ import {
     postmortemGaps,
     stateLabel,
 } from './mail-model';
+import { CaseAnalyticsDialog } from './case-analytics.dialog';
+import { CaseRulesDialog } from './case-rules.dialog';
 import { CategorizeDialog } from './categorize.dialog';
 import { MergeCasesDialog } from './merge-cases.dialog';
 import { ObjectCreateDialog } from './object-create.dialog';
@@ -459,6 +461,25 @@ export class ObjectMailComponent implements OnInit {
                     'Tags updated',
                 );
             });
+    }
+
+    /** Case Rules manager (C5) — saved searches that auto-group incidents into cases. */
+    openCaseRules(): void {
+        this.dialog
+            .open(CaseRulesDialog, { width: '680px', maxHeight: '85vh' })
+            .afterClosed()
+            .subscribe((changed?: boolean) => {
+                if (changed) this.reload();
+            });
+    }
+
+    /** Case analytics (C4) — cycle time / backlog / impact rollup. */
+    openAnalytics(): void {
+        this.dialog.open(CaseAnalyticsDialog, {
+            width: '640px',
+            maxHeight: '85vh',
+            data: { type: this.type, typeLabel: this.title },
+        });
     }
 
     /** Merge the selected cases into one survivor (C2, GLOSSARY §9 — the dialog picks the survivor). */

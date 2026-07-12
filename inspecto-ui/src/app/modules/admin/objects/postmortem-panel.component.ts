@@ -288,6 +288,9 @@ export class PostmortemPanelComponent {
                     recordsAffected: v.recordsAffected ?? '',
                     summary: v.summary ?? '',
                 }),
+                // Flat, queryable copies so case analytics (C4) can sum impact without parsing the blob.
+                impactAmount: (v.impactAmount ?? '').trim(),
+                recordsAffected: (v.recordsAffected ?? '').trim(),
                 assignees: team,
                 targetDate: (v.targetDate ?? '').trim(),
             },

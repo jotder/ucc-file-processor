@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FiredAlert } from '../../api/alerts.service';
 import type { EventRow } from '../../api/events.service';
-import type { OperationalObject } from '../../api/objects.service';
+import type { ObjectLink, OperationalObject } from '../../api/objects.service';
 import { MockRequest } from '../mock-http';
 import { MockStore } from '../mock-store';
 import { NOTIFICATION_CHANNELS_COLL, NOTIFICATION_DELIVERIES_COLL } from '../notify';
@@ -273,6 +273,50 @@ describe('opsHandler', () => {
             { title: 'x', members: ['incident-101'] }), store)?.status).toBe(422);
         expect(handler(req('POST', '/api/objects/case-102/split',
             { members: ['incident-104'] }), store)?.status).toBe(400);
+    });
+
+    it('evaluates a case rule — groups matching incidents once the threshold is met (C5)', () => {
+        const store = seededStore();
+        // Seeded rule "critical-cluster": >=2 CRITICAL incidents → one case. Seed data has CRITICAL incidents.
+        const first = handler(req('POST', '/api/cases/rules/critical-cluster/evaluate', {}), store)
+            ?.body as { matched: number; grouped: number; caseId: string | null; opened: boolean };
+        if (first.grouped > 0) {
+            expect(first.opened).toBe(true);
+            expect(first.caseId).toBeTruthy();
+            // re-evaluate: already grouped → idempotent no-op
+            const again = handler(req('POST', '/api/cases/rules/critical-cluster/evaluate', {}), store)
+                ?.body as { grouped: number };
+            expect(again.grouped).toBe(0);
+        }
+        // create two fresh CRITICAL incidents, then a bespoke rule groups them
+        handler(req('POST', '/api/objects', { type: 'incident', title: 'x1', priority: 'CRITICAL' }), store);
+        handler(req('POST', '/api/objects', { type: 'incident', title: 'x2', priority: 'CRITICAL' }), store);
+        handler(req('POST', '/api/cases/rules', {
+            name: 'r2', title: 'Cluster 2', threshold: 2, windowMinutes: 1440,
+            filter: { type: 'INCIDENT', priority: 'CRITICAL' },
+        }), store);
+        const r2 = handler(req('POST', '/api/cases/rules/r2/evaluate', {}), store)
+            ?.body as { grouped: number; caseId: string };
+        expect(r2.grouped).toBeGreaterThanOrEqual(2);
+        const links = handler(req('GET', `/api/objects/${r2.caseId}/links`), store)?.body as ObjectLink[];
+        expect(links.filter((l) => l.from === r2.caseId && l.relationship === 'CONTAINS').length)
+            .toBeGreaterThanOrEqual(2);
+
+        // gates: no criterion → 422; unknown rule evaluate → 404
+        expect(handler(req('POST', '/api/cases/rules', { name: 'bad', title: 't', filter: {} }), store)?.status).toBe(422);
+        expect(handler(req('POST', '/api/cases/rules/ghost/evaluate', {}), store)?.status).toBe(404);
+    });
+
+    it('rolls up case analytics (C4)', () => {
+        const store = seededStore();
+        const a = handler(req('GET', '/api/objects/analytics', null, { type: 'CASE' }), store)?.body as {
+            type: string; total: number; backlog: number; byCategory: Record<string, number>;
+            impact: { impactAmount: number; recordsAffected: number };
+        };
+        expect(a.type).toBe('CASE');
+        expect(a.total).toBeGreaterThan(0);
+        expect(typeof a.backlog).toBe('number');
+        expect(a.impact.impactAmount).toBeGreaterThanOrEqual(12500); // the seeded resolved case
     });
 
     it('serves the effective lifecycle per type (C6 workflow-driven folders)', () => {

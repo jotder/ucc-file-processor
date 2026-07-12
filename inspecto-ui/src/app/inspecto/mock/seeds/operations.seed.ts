@@ -9,7 +9,7 @@ import { DECISION_RULES_COLL, MockDecisionRule } from '../handlers/decision-rule
 import { MockExpectation, seedExpectation } from '../handlers/expectations.handler';
 import { NOTIFICATIONS_COLL, seedNotifications } from '../handlers/demo.handler';
 import { JOBS_COLL, recordRun } from '../handlers/jobs.handler';
-import { ALERT_RULES_COLL, ENRICHMENT_COLL, OBJECT_LINKS_COLL, OPS_OBJECTS_COLL, TAG_RULES_COLL, TAGS_COLL } from '../handlers/ops.handler';
+import { ALERT_RULES_COLL, CASE_RULES_COLL, ENRICHMENT_COLL, OBJECT_LINKS_COLL, OPS_OBJECTS_COLL, TAG_RULES_COLL, TAGS_COLL } from '../handlers/ops.handler';
 import { alertToSignal, eventToSignal } from '../../signal/signal';
 import { SIGNALS_COLL } from '../signals';
 import { MockStore } from '../mock-store';
@@ -212,7 +212,9 @@ export function seedOperations(store: MockStore, space: string): void {
                 ...(isIncident && incidentTags[i % 4] ? { tags: incidentTags[i % 4] } : {}),
                 ...(isIncident && i % 6 === 1 ? { escalated: 'true' } : {}),
                 ...(isIncident && status === 'RESOLVED' ? { postmortem: samplePostmortem, dueAt: String(now) } : {}),
-                ...(objectType === 'CASE' && status === 'RESOLVED' ? { findings: sampleFindings } : {}),
+                ...(objectType === 'CASE' && status === 'RESOLVED'
+                    ? { findings: sampleFindings, impactAmount: '12500.00', recordsAffected: '4200' }
+                    : {}),
                 ...(objectType === 'CASE' && status === 'INVESTIGATING'
                     ? { assignees: 'alice,bob', targetDate: '2026-07-01' }
                     : {}),
@@ -247,6 +249,17 @@ export function seedOperations(store: MockStore, space: string): void {
         name: 'critical-is-urgent',
         tag: 'urgent',
         filter: { type: 'INCIDENT', priority: 'CRITICAL' },
+        createdAt: now,
+    });
+    // Sample Case Rule (C5): ≥2 CRITICAL incidents in a day auto-group into one case.
+    store.put(space, CASE_RULES_COLL, 'critical-cluster', {
+        name: 'critical-cluster',
+        title: 'Critical incident cluster',
+        filter: { type: 'INCIDENT', priority: 'CRITICAL' },
+        threshold: 2,
+        windowMinutes: 1440,
+        category: 'Pipeline / Ingest / Parse failure',
+        tags: 'urgent',
         createdAt: now,
     });
 
