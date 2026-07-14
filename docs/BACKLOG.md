@@ -69,6 +69,26 @@ above). Table: component | GET | POST | PUT | DELETE | notes.
 **Remaining action item from this audit:** `mockStudio`'s environment.ts comment is stale and should
 be updated to reflect that Studio CRUD is fully live (Jobs and Decision Rules gaps above are now closed).
 
+### Real-backend gap sweep (2026-07-15, "all spaces + default UI on the real backend" shift)
+
+Closed this shift: the four **ungated** mock handlers (inv / dashboard-share / public-dashboards /
+bi-templates) that shadowed real routes even with all flags off — now `mockStudio`-gated; real
+`GET|PUT /settings/geo` (`SettingsRoutes` + `GeoSettings`, was mock-only); real `GET /spaces/templates`
++ template-seeded `POST /spaces {template}` (`SpaceManager.createFromTemplate`, `${SPACE}` rewrite;
+shipped gallery entry `spaces/_templates/orders-starter/`); Scheduler live path — `GET /jobs/{name}`,
+`POST /jobs/{name}/enable|disable|reschedule`, UI-shaped `GET …/runs/{id}/logs` (`JobRoutes`); per-space
+`duckdb/` auto-mint (`DirSpaceRoot` — fresh checkouts silently degraded every DB store to in-memory).
+
+**Still mock-only against a real backend (UI degrades; no real route):**
+
+| Surface | Endpoints | Notes |
+|---|---|---|
+| Connection workbench probe/explore/sample | `/connections/{id}/probe\|explore\|sample` | B2 never landed; `mockConnectionProbe` gates the mock. Real CRUD + `/test` work. |
+| Notification channels admin | `/notifications/channels*`, `/notifications/deliveries` | Backend channels are JVM flags (INC-3); a CRUD store is a real feature ask. Feed/read/preferences are live. |
+| Pipeline editor extras | `POST /pipelines/authored/{id}/run` (run-to-here), `/config/icon-map`, `/asn1/modules` | Palette/CRUD/dry-run/graph are live. |
+| Report-run artifact download | `GET /jobs/{n}/runs/{id}/artifact` | Backend records artifact *metadata* (`/artifacts`); serving file *content* needs a download route. |
+| Workflow TOON overrides | `*_workflow.toon` | `Workflow.load` exists but no boot scan wires overrides into `ObjectService` (built-in defaults serve `GET /workflows/{type}`). |
+
 ## 2. MUST — release-gating remainder (product)
 
 | ID | Item | Status / blocker | Source |

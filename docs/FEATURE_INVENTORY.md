@@ -199,8 +199,12 @@ authored-flow TOON shape lives only in test Java strings: `ControlApiFlowCrudTes
 | `connections/cdr_sftp_connection.toon` | SFTP: key auth, bastion tunnel, `${ENV:…}` secret |
 | `connections/local_demo_connection.toon` | Local/demo SFTP stub |
 
-**Sample input data** lives under each space's own `data/` dir (`spaces/<id>/data/…`, created on first
-run; gitignored). No committed sample data exists for subscriber `.dat`, events/CALL, connections, jobs, or flows.
+**Sample input data**: every space now commits pristine samples under `spaces/<id>/data/samples/`
+(the gitignore carve-out) with a `seed-inbox.ps1|sh` that copies them into the consumed inbox —
+demo (orders CSVs + `ref/region_dim.csv`), default (subscriber `.dat` + events CSVs + `ref/event_dim.csv`),
+ucc (voucher 76/116/537-column CSVs exercising the multi-schema dispatch). The demo space also ships
+`seed-ops.ps1|sh` (operational objects through the real routes). Plugin/CALL binary samples remain
+unsynthesized. The rest of `data/` is created on first run and gitignored.
 
 ---
 
@@ -211,8 +215,11 @@ Builds `file-processor-deploy.zip`. Bundle layout:
 ```
 file-processor-deploy/
   file-processor.jar          shaded fat JAR
-  spaces/{default,ucc}/       per-space config trees + space.toon (bundled verbatim; configs use
-                              repo/bundle-root-relative spaces/<id>/… paths — no rewrite, no flat config/)
+  spaces/                     every committed space (default/demo/ucc) + the _templates gallery;
+                              config trees + space.toon + data/samples/ ship, runtime state
+                              (audit/duckdb/data-other-than-samples) and the generated uat /
+                              runtime _shared trees are pruned. Configs use repo/bundle-root-relative
+                              spaces/<id>/… paths — no rewrite, no flat config/.
   examples/                   the runnable example suite (run-example.ps1|sh + catalog)   ← added 2026-06-20
   run.(bat|sh)                one-shot ETL launcher
   serve.(bat|sh)              long-running ControlApi + UI
