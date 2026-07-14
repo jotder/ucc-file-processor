@@ -56,7 +56,9 @@ public final class ComponentRegistry {
             Map.entry("link-analysis-views", "link-analysis-view"), // INV-1: saved Link-Analysis Views
             Map.entry("geo-map-views", "geo-map-view"),             // INV-2: saved Geo Views
             Map.entry("decision-rules", "decision-rule"),           // DecisionRoutes: business-logic/routing rules
-            Map.entry("reconciliations", "reconciliation"));        // DAT-7: Reconciliation Board — ReconRoutes
+            Map.entry("reconciliations", "reconciliation"),         // DAT-7: Reconciliation Board — ReconRoutes
+            Map.entry("access-catalog", "access-catalog"),          // Lens access config — AccessRoutes (singleton)
+            Map.entry("access-profiles", "access-profile"));        // Lens access config — one per subject
 
     /** The on-disk sub-directory (plural) for a component {@code type} (e.g. {@code grammar} → {@code grammars}). */
     public static Optional<String> dirForType(String type) {

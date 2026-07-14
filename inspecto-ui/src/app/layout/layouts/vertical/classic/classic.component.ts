@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, ViewEncapsulation, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewEncapsulation, effect, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
@@ -20,6 +20,7 @@ import { NotificationBellComponent } from 'app/layout/common/notifications/notif
 import { SearchComponent } from 'app/layout/common/search/search.component';
 import { SpaceSwitcherComponent } from 'app/layout/common/space-switcher/space-switcher.component';
 import { UserComponent } from 'app/layout/common/user/user.component';
+import { AccessStateService } from 'app/inspecto/access/access-state.service';
 import { BrandingService } from 'app/inspecto/api';
 import { Subject, takeUntil } from 'rxjs';
 
@@ -54,6 +55,8 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
     private _unsubscribeAll: Subject<any> = new Subject<any>();
     /** Active-space branding (logo / caption / footer), falling back to the shipped defaults. */
     protected readonly branding = inject(BrandingService);
+    /** Lens Access Profiles — filters the sidebar per lens (identity when none saved). */
+    private readonly _accessState = inject(AccessStateService);
 
 
     /**
@@ -65,7 +68,11 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
         private _navigationService: NavigationService,
         private _gammaMediaWatcherService: GammaMediaWatcherService,
         private _gammaNavigationService: GammaNavigationService
-    ) {}
+    ) {
+        // Re-filter the sidebar when the lens or the saved Access Profiles change (both signals
+        // are read inside _applyNavSearch via AccessStateService.filterNav).
+        effect(() => this._applyNavSearch());
+    }
 
     // -----------------------------------------------------------------------------------------------------
     // @ Accessors
@@ -178,7 +185,7 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
      * @private
      */
     private _applyNavSearch(): void {
-        const full = this.navigation?.default ?? [];
+        const full = this._accessState.filterNav(this.navigation?.default ?? []);
         this.displayedNavigation = this.navSearchActive
             ? flattenNavForSearch(full, this.navSearchQuery)
             : full;

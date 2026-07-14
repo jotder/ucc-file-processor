@@ -85,6 +85,20 @@ auth-free core a Capability is derived from the active Lens (honor-system previe
 signals are re-derived from the subject's Role grants and no pane changes. Panes gate on a Capability,
 never on Lens identity. *(Added 2026-07-03.)*
 
+**Access Catalog** — The canonical tree of gateable surface: menu groups → panes → functionalities
+(action nodes, each bound to exactly one Capability). Derived from the navigation config + the Capability
+seam; persisted per Space (`access-catalog` component kind). *(Added 2026-07-14; design:
+`superpower/lens-access-config-design.md`.)*
+
+**Access Profile** — One subject's sparse **Grant** map over the Access Catalog; `subjectType` is `lens`
+today (Builder/Ops/Business visibility shaping) and `role` under RBAC — same document, same editor, only
+the subject and the enforcement change. One profile per subject (`access-profile` component kind). Not a
+permission while the subject is a Lens (see Lens ⛔ above). *(Added 2026-07-14.)*
+
+**Grant** — An Access Profile entry `nodeId → allow | deny`; absent = inherit from the nearest explicit
+ancestor, root default allow. Same word as the Role model's "named grant set" — intentionally aligned.
+UI copy in the Lens era says **Shown / Hidden / Inherit**. *(Added 2026-07-14.)*
+
 **Workbench** — The Builder surface for acquisition + processing authoring: Connections, Collectors, and
 Pipelines. *(Formalizes the informal use in §3 Stream.)*
 

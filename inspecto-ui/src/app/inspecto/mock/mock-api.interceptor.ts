@@ -4,6 +4,7 @@ import { of, throwError, timer } from 'rxjs';
 import { delay, mergeMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { SpacesService } from '../api/spaces.service';
+import { accessHandler } from './handlers/access.handler';
 import { assistHandler } from './handlers/assist.handler';
 import { authHandler } from './handlers/auth.handler';
 import { componentsHandler } from './handlers/components.handler';
@@ -55,6 +56,7 @@ const HANDLERS: MockHandler[] = [
     spacesHandler(flags), // server-global /spaces — ahead of the per-space domains
     exchangeHandler(flags), // installation-scope /exchange/* (cross-space sharing) — also un-prefixed
     dbBrowserHandler(flags), // /db/* raw table browser — ahead of demoHandler (its /catalog$ regex also matches /db/catalog)
+    accessHandler(flags), // /access/* lens access config — same /catalog$ collision, so also ahead of demoHandler
     demoHandler(flags),
     connectionsHandler(flags),
     componentsHandler(flags),

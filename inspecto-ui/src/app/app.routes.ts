@@ -112,6 +112,7 @@ export const appRoutes: Route[] = [
             { path: 'settings/icons', loadChildren: () => import('app/modules/admin/icon-settings/icon-settings.routes') },
             { path: 'settings/map', loadChildren: () => import('app/modules/admin/map-settings/map-settings.routes') },
             { path: 'settings/transfer', loadChildren: () => import('app/modules/admin/transfer/transfer.routes') },
+            { path: 'settings/access', loadChildren: () => import('app/modules/admin/access/access.routes') },
             { path: 'notification-center', loadChildren: () => import('app/modules/admin/notification-center/notification-center.routes') },
             // Menu Builder: the authoring pane + the dynamic host every custom menu leaf links to (`/w/<nodeId>`).
             { path: 'settings/menus', loadComponent: () => import('app/modules/admin/menu/menu-builder.component').then((m) => m.MenuBuilderComponent) },

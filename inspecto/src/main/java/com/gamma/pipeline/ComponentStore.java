@@ -53,7 +53,10 @@ public final class ComponentStore {
                     "decision-rule",
                     // Reconciliation (DAT-7, docs/superpower/reconciliation-board-design.md): the UI's
                     // ReconciliationsService already speaks /components/reconciliation — execution is ReconRoutes.
-                    "reconciliation");
+                    "reconciliation",
+                    // Lens access config (docs/superpower/lens-access-config-design.md — AccessRoutes):
+                    // the Access Catalog (singleton id "catalog") + one Access Profile per subject.
+                    "access-catalog", "access-profile");
 
     private static final String TOON = ".toon";
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");

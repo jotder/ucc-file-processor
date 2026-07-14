@@ -29,8 +29,10 @@ interface TreeNode {
 Flattening → `FlatTreeRow { __id, __depth, __hasChildren, __expanded, __label, __icon, ...values }`.
 Expand state is a **parent-owned `Set<id>`** of expanded nodes (borrowed from `connection-tree`); a child
 row is emitted only while all ancestors are expanded. `seedExpanded(nodes, depth)` seeds it from
-`groupDefaultExpanded` (+ `node.expanded` hints); the component holds it in a `linkedSignal` keyed on
-`nodes` so new data reseeds but user toggles persist.
+`groupDefaultExpanded` (+ `node.expanded` hints); the component holds it in a `linkedSignal` whose
+computation **keeps the previous expanded set** once one exists — so user toggles survive `nodes`
+refreshes (hosts rebuild the forest on cell edits — the Access matrix — or after row actions —
+reconciliation Resolve); only the first data delivery seeds. Vanished ids are inert in the set.
 
 ## Component — `<inspecto-tree-table>` (`app/inspecto/tree-table/`)
 

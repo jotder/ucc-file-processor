@@ -11,6 +11,7 @@ export interface MockFlags {
     mockOps?: boolean;
     mockDemo?: boolean;
     mockDb?: boolean;
+    mockAccess?: boolean;
     mockConnectionProbe?: boolean;
     /** W6d edition switch: 'oidc' makes the mock /bootstrap advertise Standard + a local (mock) OIDC
      *  login so the sign-in UX runs offline; 'none'/absent = Personal (no login), the default. */

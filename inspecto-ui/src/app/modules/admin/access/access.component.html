@@ -1,0 +1,77 @@
+<div class="flex min-h-0 flex-col gap-4 p-6">
+    <!-- Header: title + search + save bar -->
+    <div class="flex flex-wrap items-start gap-4">
+        <div class="min-w-64">
+            <h1 class="text-2xl font-semibold">Access</h1>
+            <p class="text-secondary mt-1 max-w-2xl">
+                Choose what each lens shows — menus, panes and functionalities. Lenses are views, not
+                security: roles enforce the same configuration when RBAC lands.
+            </p>
+        </div>
+        <span class="flex-1"></span>
+        <mat-form-field subscriptSizing="dynamic" class="w-64">
+            <mat-icon matPrefix class="icon-size-5" svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+            <input
+                matInput
+                type="text"
+                placeholder="Find a menu or functionality"
+                aria-label="Find a menu or functionality"
+                [value]="search()"
+                (input)="onSearch($any($event.target).value)" />
+        </mat-form-field>
+        @if (dirty()) {
+            <div class="flex items-center gap-2">
+                <button mat-stroked-button type="button" (click)="discard()" [disabled]="saving()">
+                    Discard
+                </button>
+                <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="saving()">
+                    {{ saving() ? 'Saving…' : 'Save' }}
+                </button>
+            </div>
+        }
+    </div>
+
+    @if (!canEdit()) {
+        <inspecto-alert variant="info" title="Read-only">
+            The Business lens is read-only — switch lens via "View as" in the header to edit access.
+        </inspecto-alert>
+    }
+
+    <!-- Legend + per-lens summary -->
+    <div class="text-secondary flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <span class="flex items-center gap-1">
+            <mat-icon class="icon-size-4" svgIcon="heroicons_outline:eye"></mat-icon> Shown
+        </span>
+        <span class="flex items-center gap-1">
+            <mat-icon class="icon-size-4" svgIcon="heroicons_outline:eye-slash"></mat-icon> Hidden
+        </span>
+        <span>Faded = inherited from the group above — click a cell to cycle.</span>
+        <span class="flex-1"></span>
+        @for (s of subjects; track s.id) {
+            <span class="flex items-center gap-1">
+                <mat-icon class="icon-size-4" [svgIcon]="s.icon"></mat-icon>
+                {{ s.label }}: {{ hiddenCounts()[s.id] }} hidden
+            </span>
+        }
+        <button
+            mat-button
+            type="button"
+            (click)="resetAll()"
+            [disabled]="!canEdit() || saving()"
+            aria-label="Reset every explicit grant back to Shown">
+            Reset all
+        </button>
+    </div>
+
+    <!-- The matrix -->
+    <inspecto-tree-table
+        [nodes]="nodes()"
+        [columns]="columns"
+        [loading]="loading()"
+        treeHeader="Menu / functionality"
+        [treeMinWidth]="320"
+        [groupDefaultExpanded]="-1"
+        exportName="access-matrix"
+        noRowsTitle="Nothing matches your search"
+        noRowsHint="Try a different menu or functionality name." />
+</div>

@@ -46,22 +46,41 @@ export class LensService {
      *  capabilities below — gate on a capability, not on this. */
     readonly readOnly = computed(() => this.currentLens() === 'business');
 
+    /** Action-node grants pushed by {@code AccessStateService} once the saved lens Access Profiles
+     *  load (`docs/superpower/lens-access-config-design.md` §7 — this is the "one file re-derives
+     *  these signals" seam from rbac-groundwork, exercised with lens subjects). `null` = no config
+     *  loaded ⇒ every action allowed, exactly the pre-profile behavior. */
+    private readonly actionGrants =
+        signal<Record<string, Partial<Record<Lens, boolean>>> | null>(null);
+
+    /** Called by {@code AccessStateService} whenever lens Access Profiles (re)load. */
+    setActionGrants(grants: Record<string, Partial<Record<Lens, boolean>>> | null): void {
+        this.actionGrants.set(grants);
+    }
+
+    private allows(actionNodeId: string): boolean {
+        return this.actionGrants()?.[actionNodeId]?.[this.currentLens()] ?? true;
+    }
+
     /** May author in the Workbench (Connections / Pipelines / Jobs create-edit-delete). RBAC: Pipeline
      *  Developer, Power user, Super user. */
-    readonly canAuthorWorkbench = computed(() => !this.readOnly());
+    readonly canAuthorWorkbench = computed(() => !this.readOnly() && this.allows('workbench.author'));
 
     /** May operate runs (trigger / pause / resume / reprocess) — the plan's "read-only observe"
      *  exception for Business on the Runs pane. RBAC: Operations, Pipeline Developer, Power/Super. */
-    readonly canOperateRuns = computed(() => !this.readOnly());
+    readonly canOperateRuns = computed(() => !this.readOnly() && this.allows('runs.operate'));
 
     /** May triage Requirements (accept / reject / deliver) — the Builder-facing intake queue (C1).
      *  RBAC: Pipeline Developer, Operations, Power/Super. */
-    readonly canTriageRequirements = computed(() => !this.readOnly());
+    readonly canTriageRequirements = computed(() => !this.readOnly() && this.allows('requirements.triage'));
 
     /** May author Alert Rules (create / edit / delete on the Alerts pane — audit C3). A distinct
      *  question from Workbench authoring: monitoring config is Ops-owned. RBAC: Operations,
      *  Power/Super. */
-    readonly canAuthorAlertRules = computed(() => !this.readOnly());
+    readonly canAuthorAlertRules = computed(() => !this.readOnly() && this.allows('alerts.author'));
+
+    /** May configure lens access (the Settings ▸ Access matrix). RBAC: Admin, Super. */
+    readonly canConfigureAccess = computed(() => !this.readOnly() && this.allows('access.configure'));
 
     /** Set the active lens and persist it across reloads. */
     selectLens(lens: Lens): void {

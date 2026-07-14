@@ -55,4 +55,18 @@ describe('LensService', () => {
     it('exposes the three lenses in display order', () => {
         expect(LensService.LENSES.map((l) => l.id)).toEqual(['business', 'builder', 'ops']);
     });
+
+    it('action grants pushed from Access Profiles re-derive the capabilities per lens', () => {
+        const service = TestBed.inject(LensService);
+        service.selectLens('ops');
+        expect(service.canAuthorWorkbench()).toBe(true);
+        service.setActionGrants({ 'workbench.author': { ops: false, builder: true } });
+        expect(service.canAuthorWorkbench()).toBe(false); // denied for ops by the profile
+        expect(service.canConfigureAccess()).toBe(true); // unlisted actions stay allowed
+        service.selectLens('builder');
+        expect(service.canAuthorWorkbench()).toBe(true); // grants are per lens
+        service.setActionGrants(null); // profiles gone → pre-profile behavior
+        service.selectLens('ops');
+        expect(service.canAuthorWorkbench()).toBe(true);
+    });
 });

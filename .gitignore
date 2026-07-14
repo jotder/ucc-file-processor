@@ -75,3 +75,4 @@ graphify-out/
 # lives in inspecto-ui/ and IS tracked)
 /package-lock.json
 /inspecto-issues/
+/spaces/_shared/

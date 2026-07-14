@@ -40,6 +40,9 @@ export const environment = {
     // snapshots) from the mock store so the Catalog sharing surfaces work offline. Flip false against
     // a real multi-space backend (-Dspaces.root). Gates the exchange handler in the unified mock store.
     mockExchange: false,
+    // Prototype-only: serve the lens access configuration (/access/catalog + /access/profiles) from the
+    // mock store so Settings ▸ Access works offline. Flip false against a real backend (AccessRoutes).
+    mockAccess: false,
     // Master demo-mode flag: mocks every remaining endpoint (health, status, pipelines, sources,
     // notifications, catalog, diagnoses, config) so the full UI works with no backend at all.
     // Gates the demo handler in the unified mock store (inspecto/mock/).
