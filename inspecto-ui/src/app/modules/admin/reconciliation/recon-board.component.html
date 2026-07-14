@@ -1,0 +1,112 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 sm:p-8">
+    <!-- Breadcrumb + header -->
+    <nav class="text-secondary mb-1 text-sm" aria-label="Breadcrumb">
+        <a routerLink="/reconciliation" class="hover:underline">Reconciliation</a>
+        <span class="px-1">/</span>
+        <span>{{ recon()?.name ?? '…' }}</span>
+    </nav>
+
+    @if (recon(); as r) {
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h1 class="text-2xl font-semibold tracking-tight">{{ r.name }}</h1>
+                <div class="text-secondary mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span>A <span class="font-mono">{{ r.leftDataset }}</span></span>
+                    <mat-icon svgIcon="heroicons_outline:arrows-right-left" class="icon-size-4" aria-hidden="true"></mat-icon>
+                    <span>B <span class="font-mono">{{ r.rightDataset }}</span></span>
+                    <span aria-hidden="true">·</span>
+                    <span>tree <span class="font-mono">{{ r.keyColumns.join(' › ') }}</span></span>
+                    <span aria-hidden="true">·</span>
+                    <span>bands ok &lt; {{ bands().warnPct }}% · warn {{ bands().warnPct }}–{{ bands().breachPct }}% · breach &gt; {{ bands().breachPct }}%</span>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button mat-stroked-button (click)="edit()">
+                    <mat-icon svgIcon="heroicons_outline:pencil-square"></mat-icon>
+                    <span class="ml-1">Edit</span>
+                </button>
+                <button mat-flat-button color="primary" (click)="run()" [disabled]="running() || loading()">
+                    @if (running()) { <mat-progress-spinner diameter="16" mode="indeterminate" class="mr-2" /> }
+                    <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
+                    <span class="ml-1">Run</span>
+                </button>
+            </div>
+        </div>
+
+        @if (result(); as res) {
+            <!-- Summary chips -->
+            <div class="text-secondary mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                <span>{{ res.summary.groups }} groups</span>
+                <span>{{ res.summary.matchedKeys }} matched</span>
+                <span>only in A: {{ res.summary.byType.missing_right }}</span>
+                <span>only in B: {{ res.summary.byType.missing_left }}</span>
+                <span>value breaks: {{ res.summary.byType.value_break }}</span>
+                @if (res.statistics.truncated) {
+                    <span class="text-amber-600 dark:text-amber-400">! truncated — add a filter or drop a dimension</span>
+                }
+                <button mat-button (click)="viewBreaks()">
+                    <mat-icon svgIcon="heroicons_outline:magnifying-glass"></mat-icon>
+                    <span class="ml-1">All breaks</span>
+                </button>
+            </div>
+
+            <!-- TOTAL strip: exact side totals + banded Δ% per measure -->
+            <div class="bg-card mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl p-4 shadow" aria-label="Reconciliation totals">
+                <span class="text-secondary text-xs font-semibold uppercase tracking-wider">Total</span>
+                @for (t of totalLines(); track t.label) {
+                    <span class="text-sm">
+                        <span class="text-secondary">{{ t.label }}</span>
+                        <span class="ml-2 font-mono">{{ t.a }}</span>
+                        <span class="text-secondary mx-1">vs</span>
+                        <span class="font-mono">{{ t.b }}</span>
+                        <span class="ml-2 {{ t.tone }}">{{ t.glyph }} {{ t.pct }}</span>
+                    </span>
+                }
+            </div>
+
+            <!-- Board tree -->
+            <div class="mt-4">
+                <div class="mb-2 flex flex-wrap items-center justify-end gap-2">
+                    <mat-slide-toggle [checked]="breachesOnly()" (change)="breachesOnly.set($event.checked)">
+                        Expand breaches
+                    </mat-slide-toggle>
+                    <button mat-icon-button (click)="expandAll()" matTooltip="Expand all" aria-label="Expand all">
+                        <mat-icon svgIcon="heroicons_outline:chevron-double-down"></mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="collapseAll()" matTooltip="Collapse all" aria-label="Collapse all">
+                        <mat-icon svgIcon="heroicons_outline:chevron-double-up"></mat-icon>
+                    </button>
+                    <button mat-icon-button (click)="exportCsv()" matTooltip="Export CSV" aria-label="Export CSV">
+                        <mat-icon svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+                    </button>
+                </div>
+                <inspecto-tree-table
+                    [treeHeader]="recon()?.keyColumns?.join(' › ') ?? 'Dimension'"
+                    exportName="reconciliation-board"
+                    [nodes]="treeNodes()"
+                    [columns]="treeColumns()"
+                    [rowActions]="rowActions"
+                    [groupDefaultExpanded]="breachesOnly() ? 0 : 1"
+                    [loading]="running()"
+                    [autoHeight]="true"
+                    noRowsTitle="No key groups"
+                    noRowsHint="Both datasets returned no rows for this configuration."
+                />
+            </div>
+        } @else if (!running() && !loading()) {
+            <div class="mt-8">
+                <inspecto-empty-state
+                    icon="heroicons_outline:play"
+                    title="Not run yet"
+                    message="Run the reconciliation to compute the Board."
+                />
+            </div>
+        }
+    } @else if (!loading()) {
+        <inspecto-empty-state
+            icon="heroicons_outline:exclamation-triangle"
+            title="Reconciliation not found"
+            message="It may have been deleted — go back to the list."
+        />
+    }
+</div>

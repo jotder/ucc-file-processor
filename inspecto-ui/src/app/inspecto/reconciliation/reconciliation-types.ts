@@ -12,13 +12,27 @@
 
 export type ToleranceType = 'exact' | 'absolute' | 'percent';
 
+/** How a compare column aggregates on the Board (record-grain break truth stays the tolerance). */
+export type MeasureAgg = 'sum' | 'count';
+
 /** One column compared between the two sides, with the tolerance under which a difference is NOT a break. */
 export interface CompareColumn {
     column: string;
     toleranceType: ToleranceType;
     /** Ignored for `exact`. For `absolute`: max |left-right|. For `percent`: max |left-right| / |left| * 100. */
     tolerance: number;
+    /** Board rollup aggregation (default `sum`). */
+    agg?: MeasureAgg;
 }
+
+/** Board display severity for |Δ%| vs the anchor — independent of a column's record-level tolerance. */
+export interface ReconBands {
+    warnPct: number;
+    breachPct: number;
+}
+
+/** The locked defaults: < 1 % ok · 1–2 % warn · > 2 % breach. */
+export const DEFAULT_BANDS: ReconBands = { warnPct: 1, breachPct: 2 };
 
 export type BreakType = 'missing_left' | 'missing_right' | 'value_break';
 export type BreakStatus = 'open' | 'resolved' | 'auto_closed';
@@ -44,6 +58,8 @@ export interface ReconciliationConfig {
     rightDataset: string;
     keyColumns: string[];
     compareColumns: CompareColumn[];
+    /** Board severity bands (defaults to {@link DEFAULT_BANDS} when absent). */
+    bands?: ReconBands;
     /** Last run's breaks, kept for the lifecycle merge (auto-close / preserved manual resolutions). */
     breaks: ReconBreak[];
     lastRunAt?: string | null;

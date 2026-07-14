@@ -45,3 +45,4 @@ export * from './shared-ref';
 export * from './bi-query.service';
 export * from './bi-templates.service';
 export * from './db-browser.service';
+export * from './recon.service';

@@ -3,7 +3,13 @@
     <nav class="text-secondary mb-1 text-sm" aria-label="Breadcrumb">
         <a routerLink="/reconciliation" class="hover:underline">Reconciliation</a>
         <span class="px-1">/</span>
-        <span>{{ recon()?.name ?? '…' }}</span>
+        @if (recon(); as r) {
+            <a [routerLink]="['/reconciliation', r.id]" class="hover:underline">{{ r.name }}</a>
+        } @else {
+            <span>…</span>
+        }
+        <span class="px-1">/</span>
+        <span>Breaks</span>
     </nav>
 
     @if (recon(); as r) {

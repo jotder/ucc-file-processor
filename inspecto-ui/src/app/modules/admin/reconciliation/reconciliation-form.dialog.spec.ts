@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
@@ -48,8 +48,43 @@ describe('ReconciliationFormDialog', () => {
         const result = ref.close.mock.calls[0][0] as ReconciliationFormResult;
         expect(result).toEqual({
             name: 'switch vs billing', leftDataset: 'switch_cdr', rightDataset: 'billing_cdr',
-            keyColumns: ['id'], compareColumns: [{ column: 'cost_usd', toleranceType: 'absolute', tolerance: 0.02 }],
+            keyColumns: ['id'],
+            compareColumns: [{ column: 'cost_usd', agg: 'sum', toleranceType: 'absolute', tolerance: 0.02 }],
+            bands: { warnPct: 1, breachPct: 2 },
         });
+    });
+
+    it('prefills from an existing reconciliation in edit mode and keeps its bands', () => {
+        const ref = { close: vi.fn() };
+        TestBed.configureTestingModule({
+            imports: [ReconciliationFormDialog],
+            providers: [
+                provideNoopAnimations(),
+                { provide: MatDialogRef, useValue: ref },
+                { provide: DatasetsService, useValue: { list: () => of([DS('switch_cdr'), DS('billing_cdr')]) } },
+                {
+                    provide: MAT_DIALOG_DATA,
+                    useValue: {
+                        recon: {
+                            id: 'r1', name: 'edit me', leftDataset: 'switch_cdr', rightDataset: 'billing_cdr',
+                            keyColumns: ['id'],
+                            compareColumns: [{ column: 'cost_usd', agg: 'count', toleranceType: 'percent', tolerance: 0.5 }],
+                            bands: { warnPct: 0.5, breachPct: 3 }, breaks: [], lastRunAt: null,
+                        },
+                    },
+                },
+            ],
+        });
+        const fixture = TestBed.createComponent(ReconciliationFormDialog);
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        expect(c.editing).toBe(true);
+        expect(c.name).toBe('edit me');
+        expect(c.keyColumns).toEqual(['id']);
+        expect(c.compareRows()[0].agg).toBe('count');
+        expect(c.warnPct).toBe(0.5);
+        expect(c.breachPct).toBe(3);
+        expect(c.valid()).toBe(true);
     });
 
     it('offers the left dataset columns as key/compare options after selection', () => {

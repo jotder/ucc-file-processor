@@ -40,6 +40,7 @@ function toContent(r: Reconciliation): Record<string, unknown> {
         rightDataset: r.rightDataset,
         keyColumns: r.keyColumns,
         compareColumns: r.compareColumns,
+        ...(r.bands ? { bands: r.bands } : {}),
         breaks: r.breaks,
         lastRunAt: r.lastRunAt ?? null,
     };
@@ -54,6 +55,7 @@ function fromContent(name: string, content: Record<string, unknown>): Reconcilia
         rightDataset: c.rightDataset ?? '',
         keyColumns: (c.keyColumns as string[]) ?? [],
         compareColumns: (c.compareColumns as CompareColumn[]) ?? [],
+        bands: c.bands,
         breaks: (c.breaks as ReconBreak[]) ?? [],
         lastRunAt: c.lastRunAt ?? null,
     };

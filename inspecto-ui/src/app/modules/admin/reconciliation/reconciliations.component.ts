@@ -72,7 +72,10 @@ export class ReconciliationsComponent implements OnInit {
             .afterClosed()
             .subscribe((result?: ReconciliationFormResult) => {
                 if (!result) return;
-                const r = buildReconciliation(result.name, result.leftDataset, result.rightDataset, result.keyColumns, result.compareColumns);
+                const r: Reconciliation = {
+                    ...buildReconciliation(result.name, result.leftDataset, result.rightDataset, result.keyColumns, result.compareColumns),
+                    bands: result.bands,
+                };
                 this.api.create(r).subscribe({
                     next: () => this.router.navigate(['/reconciliation', r.id]),
                     error: (e) => this.toastr.error(apiErrorMessage(e, 'Could not create the reconciliation')),
