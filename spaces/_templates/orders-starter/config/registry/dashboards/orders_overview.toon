@@ -1,0 +1,4 @@
+name: orders_overview
+tiles[2]{widgetId,span}:
+  orders_kpi_total,1
+  orders_revenue_by_region,2

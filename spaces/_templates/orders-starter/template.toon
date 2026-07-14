@@ -1,0 +1,5 @@
+name: Orders starter
+tagline: "A tiny retail-orders feed - pipeline, quality rule, dataset and a live dashboard"
+description: "Everything a first space needs, wired together over a 3-day retail-orders CSV feed: a Stage-1 pipeline with schema + derived GROSS column, a non-null quality expectation, a queryable dataset, and a dashboard with a KPI and a revenue-by-region chart. Pristine sample files land in data/samples/orders - copy them into data/inbox/orders to ingest."
+icon: heroicons_outline:shopping-cart
+contents[4]: "Pipeline + schema", "Quality expectation", "Dataset", "Dashboard (KPI + bar)"

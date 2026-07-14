@@ -27,3 +27,8 @@ processing:
     retention_days: 90
   grammar:     spaces/default/config/subscriber/subscriber.grammar.toon
   schema_file: spaces/default/config/subscriber/subscriber_schema.toon
+
+collector:
+  gap_detection:
+    enabled: true
+    sequence: "SUBSCRIBER_{yyyyMMdd}"

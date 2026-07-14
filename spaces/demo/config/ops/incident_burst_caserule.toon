@@ -1,0 +1,10 @@
+case_rule:
+  name: incident_burst
+  title: "Correlated critical-incident burst"
+  threshold: 2
+  windowMinutes: 240
+  category: data-quality
+  tags: hot
+  filter:
+    type: INCIDENT
+    priority: CRITICAL

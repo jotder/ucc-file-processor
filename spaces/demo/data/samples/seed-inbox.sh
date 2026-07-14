@@ -4,8 +4,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 for d in inbox/orders orders/database orders/backup orders/temp orders/errors \
-         orders/quarantine orders/markers orders/status orders/logs reports/orders_daily; do
+         orders/quarantine orders/markers orders/status orders/logs reports/orders_daily ref; do
   mkdir -p "../$d"
 done
 cp orders/* ../inbox/orders/
-echo "Seeded $(cd ../inbox/orders && pwd) - restart the server or wait for the next poll cycle."
+cp ref/* ../ref/
+echo "Seeded $(cd ../inbox/orders && pwd) + ref/ - restart the server or wait for the next poll cycle."

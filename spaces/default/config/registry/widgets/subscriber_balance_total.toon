@@ -1,0 +1,7 @@
+vizType: kpi
+datasetId: subscriber_dataset
+controls:
+  value[1]{field,agg}:
+    balance,sum
+options:
+  title: Total subscriber balance

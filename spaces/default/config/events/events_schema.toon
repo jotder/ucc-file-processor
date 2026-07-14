@@ -1,0 +1,25 @@
+partitions[4]{column,source,type}:
+  event_type,EVENT_TYPE,VARCHAR
+  year,EVENT_DATE,DATE_YEAR
+  month,EVENT_DATE,DATE_MONTH
+  day,EVENT_DATE,DATE_DAY
+raw:
+  name: EVENTS
+  format: CSV
+  fields[6]{name,selector,type}:
+    EVENT_ID,"0",VARCHAR
+    EVENT_TYPE,"1",VARCHAR
+    EVENT_DATE,"2",DATE
+    MSISDN,"3",VARCHAR
+    DURATION_S,"4",INTEGER
+    CHARGE,"5",DOUBLE
+mapping:
+  canonicalName: events
+  rawName: EVENTS
+  rules[6]{targetColumn,sourceExpression,transformType}:
+    EVENT_ID,EVENT_ID,DIRECT
+    EVENT_TYPE,"UPPER(TRIM(EVENT_TYPE))",EXPR
+    EVENT_DATE,EVENT_DATE,DIRECT
+    MSISDN,MSISDN,DIRECT
+    DURATION_S,DURATION_S,DIRECT
+    CHARGE,CHARGE,DIRECT

@@ -1,0 +1,6 @@
+tag_rule:
+  name: critical_incidents
+  tag: hot
+  filter:
+    type: INCIDENT
+    priority: CRITICAL

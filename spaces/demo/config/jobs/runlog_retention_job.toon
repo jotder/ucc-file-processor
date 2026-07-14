@@ -1,6 +1,7 @@
 job:
   name: runlog_retention
   type: maintenance
+  cron: 15 3 * * *
+  enabled: true
   task: runlog_prune
-  cron: "15 3 * * *"
   retention_days: "90"

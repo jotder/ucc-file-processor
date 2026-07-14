@@ -1,0 +1,5 @@
+name: orders_regional_recon
+datasets[3]: orders_dataset, orders_enriched_dataset, orders_rollup_dataset
+keyColumns[1]: REGION
+compareColumns[1]{column,agg}:
+  GROSS,sum

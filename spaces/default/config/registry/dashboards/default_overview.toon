@@ -1,0 +1,4 @@
+name: default_overview
+tiles[2]{widgetId,span}:
+  subscriber_balance_total,1
+  events_by_type,2

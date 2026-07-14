@@ -6,6 +6,11 @@ input:
   format: PARQUET
   partitions[3]: year, month, day
 
+references:
+  region_dim:
+    path: spaces/demo/data/ref/region_dim.csv
+    format: CSV
+
 output:
   database: spaces/demo/data/reports/orders_daily
   format: PARQUET
@@ -16,4 +21,4 @@ triggers:
   on_pipeline: orders
   schedule_seconds: 3600
 
-transform: "SELECT i.year, i.month, i.day, i.REGION, COUNT(*) AS ORDER_COUNT, ROUND(SUM(i.GROSS), 2) AS REVENUE FROM input i GROUP BY i.year, i.month, i.day, i.REGION"
+transform: "SELECT i.year, i.month, i.day, i.REGION, ANY_VALUE(r.zone) AS ZONE, COUNT(*) AS ORDER_COUNT, ROUND(SUM(i.GROSS), 2) AS REVENUE FROM input i LEFT JOIN region_dim r ON i.REGION = r.region GROUP BY i.year, i.month, i.day, i.REGION"

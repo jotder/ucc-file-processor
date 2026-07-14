@@ -1,0 +1,24 @@
+name: EVENTS_DAILY_KPI
+version: 1
+
+input:
+  database: spaces/default/data/events_etl/database
+  format: PARQUET
+  partitions[4]: event_type, year, month, day
+
+references:
+  event_dim:
+    path: spaces/default/data/ref/event_dim.csv
+    format: CSV
+
+output:
+  database: spaces/default/data/reports/events_daily
+  format: PARQUET
+  compression: snappy
+  partitions[4]: event_type, year, month, day
+
+triggers:
+  on_pipeline: events
+  schedule_seconds: 3600
+
+transform: "SELECT i.event_type, i.year, i.month, i.day, ANY_VALUE(d.category) AS CATEGORY, COUNT(*) AS EVENT_COUNT, ROUND(SUM(i.CHARGE), 2) AS TOTAL_CHARGE FROM input i LEFT JOIN event_dim d ON i.event_type = d.event_type GROUP BY i.event_type, i.year, i.month, i.day"

@@ -37,3 +37,8 @@ processing:
     memory_limit: ""
     max_temp_directory_size: ""
   grammar: spaces/ucc/config/voucher/voucher.grammar.toon
+
+collector:
+  stability:
+    window: 10s
+    size_checks: 2

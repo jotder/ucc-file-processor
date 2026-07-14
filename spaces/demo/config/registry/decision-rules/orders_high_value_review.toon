@@ -1,0 +1,14 @@
+name: orders_high_value_review
+description: "Very large orders are held for a manual review and tagged"
+targetType: pipeline
+target: orders
+priority: 10
+enabled: true
+when:
+  kind: group
+  op: AND
+  items[1]{kind,field,operator,value}:
+    condition,GROSS,">","400"
+consequences[2]{action,destination}:
+  quarantine,"manual review - high value"
+  tag,high_value

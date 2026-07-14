@@ -72,6 +72,12 @@ into the consumed inbox). Everything under `../data/` except `samples/` is gener
 | Grammar / Schema / Transform / Sink (reusable parts) | `registry/grammars/pipe_delimited.toon`, `registry/schemas/payments_schema.toon`, `registry/transforms/mask_pii.toon`, `registry/sinks/parquet_sink.toon` | `registry/<type>/` | Studio → Components |
 | Requirement | `registry/requirements/orders_kpi_requirement.toon` | `registry/requirements/` | Requirements |
 | Saved views | `registry/link-analysis-views/orders_link_view.toon`, `registry/geo-map-views/orders_geo_view.toon` (freeform content) | `registry/<type>/` | Link Analysis / Geo Map studios |
+| Reconciliation (DAT-7) | `registry/reconciliations/orders_regional_recon.toon` (3-way anchor: raw vs enriched vs SHIPPED-only rollup, keyed by REGION — the rollup side shows real breaks) | `registry/reconciliations/` | Reconciliation |
+| Decision Rule | `registry/decision-rules/orders_high_value_review.toon` (quarantine + tag consequences) | `registry/decision-rules/` | Decision Rules |
+| Reference Dataset | `orders/orders_daily_enrich.toon` `references:` block joins `data/ref/region_dim.csv` (seeded from `../data/samples/ref/`) | enrichment `references:` | Catalog → References |
+| Tag | `ops/hot_tag.toon` | `*_tag.toon` | Incidents (tags) |
+| Tag Rule | `ops/critical_incidents_tagrule.toon` (CRITICAL incidents auto-tag `hot`) | `*_tagrule.toon` | Incidents → Tag Rules |
+| Case Rule | `ops/incident_burst_caserule.toon` (2+ CRITICAL incidents in 4h raise a correlated case) | `*_caserule.toon` | Case Manager → Case Rules |
 
 UI saves land in these exact locations: registry kinds → `registry/<type>/<id>.toon` (with
 version history in `registry/<type>/.history/`), connections → `<id>_connection.toon`, authored
@@ -94,12 +100,20 @@ pipelines → `flows/<name>.toon`.
   `{"dataset":"orders_dataset","measures":[{"agg":"sum","field":"gross"}],"groupBy":["region"]}` —
   or just open the demo Dashboard in the UI.
 
+## Operational sample data (incidents / cases / tags in action)
+
+Incidents and cases are runtime objects (DB rows, not TOON) — seed a demo spread through the REAL
+routes with `pwsh spaces/demo/data/samples/seed-ops.ps1` (or `bash …/seed-ops.sh`) once the server is
+up: 8 incidents across the priority ladder (the shipped tag rule auto-tags the CRITICAL ones `hot`),
+2 cases with linked members, and one `incident_burst` case-rule evaluation (a rule-raised case).
+Durable across restarts only with `-Dobjects.backend=db`.
+
 ## Not represented here (by design)
 
 - **Notification channels (webhook/SMTP)** are JVM flags, not config files:
   `-Dnotify.webhook.url=… -Dnotify.webhook.token=…` / `-Dnotify.smtp.host=… -Dnotify.smtp.from=…
   -Dnotify.smtp.to=…` on the serve command.
-- **Decision Rules** exist in the UI only; the backend component kind is not implemented yet
-  (GLOSSARY §4 R5 is the spec of record) — no on-disk sample is possible today.
 - **Runnable feature-by-feature examples** (one folder per feature, batch runner) live in
   `inspecto/examples/` — this space instead shows every kind wired together and editable in one place.
+- **Space templates** are server-shipped, not per-space: `spaces/_templates/<id>/` (gallery =
+  `GET /spaces/templates`; `POST /spaces {id, template}` clones one with `${SPACE}` rewritten).

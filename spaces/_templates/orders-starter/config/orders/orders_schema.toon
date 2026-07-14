@@ -1,0 +1,24 @@
+partitionKey: ORDER_DATE
+raw:
+  name: ORDERS
+  format: CSV
+  fields[7]{name,selector,type,description,unit,classification}:
+    ORDER_ID,"0",VARCHAR,"Order identifier from the source system","","INTERNAL"
+    ORDER_DATE,"1",DATE,"Business date of the order","","INTERNAL"
+    REGION,"2",VARCHAR,"Sales region code","","INTERNAL"
+    PRODUCT,"3",VARCHAR,"Product code","","INTERNAL"
+    QUANTITY,"4",INTEGER,"Units ordered","count","INTERNAL"
+    UNIT_PRICE,"5",DOUBLE,"Price per unit before tax","USD","INTERNAL"
+    STATUS,"6",VARCHAR,"Order lifecycle status (NEW/SHIPPED/CANCELLED)","","INTERNAL"
+mapping:
+  canonicalName: orders
+  rawName: ORDERS
+  rules[8]{targetColumn,sourceExpression,transformType}:
+    ORDER_ID,ORDER_ID,DIRECT
+    ORDER_DATE,ORDER_DATE,DIRECT
+    REGION,"UPPER(TRIM(REGION))",EXPR
+    PRODUCT,PRODUCT,DIRECT
+    QUANTITY,QUANTITY,DIRECT
+    UNIT_PRICE,UNIT_PRICE,DIRECT
+    STATUS,STATUS,DIRECT
+    GROSS,"ROUND(TRY_CAST(QUANTITY AS DOUBLE) * TRY_CAST(UNIT_PRICE AS DOUBLE), 2)",EXPR

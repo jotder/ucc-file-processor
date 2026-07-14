@@ -1,0 +1,36 @@
+name: orders
+active: true
+version: 1
+
+dirs:
+  poll:       spaces/${SPACE}/data/inbox/orders
+  database:   spaces/${SPACE}/data/orders/database
+  backup:     spaces/${SPACE}/data/orders/backup
+  temp:       spaces/${SPACE}/data/orders/temp
+  errors:     spaces/${SPACE}/data/orders/errors
+  quarantine: spaces/${SPACE}/data/orders/quarantine
+  markers:    spaces/${SPACE}/data/orders/markers
+  status_dir: spaces/${SPACE}/data/orders/status
+  log_dir:    spaces/${SPACE}/data/orders/logs
+
+output:
+  format: PARQUET
+  compression: snappy
+
+processing:
+  threads: 2
+  file_pattern: "glob:**/*.csv"
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+    retention_days: 30
+  schema_file: spaces/${SPACE}/config/orders/orders_schema.toon
+  csv_settings:
+    delimiter: ","
+    date_formats[1]: "%Y-%m-%d"
+    timestamp_formats[1]: "%Y-%m-%d %H:%M:%S"
+
+collector:
+  gap_detection:
+    enabled: true
+    sequence: "ORDERS_{yyyyMMdd}"

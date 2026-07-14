@@ -1,0 +1,5 @@
+name: voucher_transaction_id_non_null
+targetType: pipeline
+target: VOUCHER_UNKNOWN_ETL
+column: TRANSACTION_ID
+kind: non_null

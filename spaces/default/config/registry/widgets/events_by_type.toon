@@ -1,0 +1,9 @@
+vizType: bar
+datasetId: events_dataset
+controls:
+  x[1]{field}:
+    event_type
+  y[1]{field,agg}:
+    charge,sum
+options:
+  title: Charge by event type

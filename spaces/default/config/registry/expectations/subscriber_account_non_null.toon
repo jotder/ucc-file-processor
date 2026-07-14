@@ -1,0 +1,5 @@
+name: subscriber_account_non_null
+targetType: pipeline
+target: SUBSCRIBER_ETL
+column: ACCOUNT_NUMBER
+kind: non_null

@@ -1,0 +1,36 @@
+name: events
+active: true
+version: 1
+
+dirs:
+  poll:       spaces/default/data/inbox/events
+  database:   spaces/default/data/events_etl/database
+  backup:     spaces/default/data/events_etl/backup
+  temp:       spaces/default/data/events_etl/temp
+  errors:     spaces/default/data/events_etl/errors
+  quarantine: spaces/default/data/events_etl/quarantine
+  markers:    spaces/default/data/events_etl/markers
+  status_dir: spaces/default/data/events_etl/status
+  log_dir:    spaces/default/data/events_etl/logs
+
+output:
+  format: PARQUET
+  compression: snappy
+
+processing:
+  threads: 2
+  file_pattern: "glob:**/*.csv"
+  duplicate_check:
+    enabled: true
+    marker_extension: .processed
+    retention_days: 30
+  schema_file: spaces/default/config/events/events_schema.toon
+  csv_settings:
+    delimiter: ","
+    date_formats[1]: "%Y-%m-%d"
+    timestamp_formats[1]: "%Y-%m-%d %H:%M:%S"
+
+collector:
+  gap_detection:
+    enabled: true
+    sequence: "EVENTS_{yyyyMMdd}"

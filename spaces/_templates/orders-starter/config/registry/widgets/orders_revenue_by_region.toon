@@ -1,0 +1,9 @@
+vizType: bar
+datasetId: orders_dataset
+controls:
+  x[1]{field}:
+    region
+  y[1]{field,agg}:
+    gross,sum
+options:
+  title: Revenue by region
