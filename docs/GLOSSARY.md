@@ -26,20 +26,20 @@
 | Issue | **Incident** | aligns Alert → Incident → Case |
 | Rule *(bare)* | **Expectation** \| **Alert Rule** \| **Decision Rule** | one word hid three engines |
 | Metric *(for a BI aggregation)* | **Measure** | "metric" is reserved for the observability time-series |
-| Collector *(as a noun/entity)* | **Source** | "collect" stays a verb; Source is the entity |
+| Source *(acquisition entity)* / Poller | **Collector** | frees "Source" from the *data origin* (Stream/Reference) collision; runtime is the "collection engine"; "Poller" is too narrow (misses push/event inputs) |
 
 ---
 
 ## 1. Tenancy
 
 **Space** — A fully isolated project environment in one Inspecto installation. Owns its own Connections,
-Sources, Schemas, Pipelines, Jobs, Datasets, Widgets, Dashboards, Incidents, Config, and audit trail. Activity in
-one Space is invisible to another.
+Collectors, Schemas, Pipelines, Jobs, Datasets, Widgets, Dashboards, Incidents, Config, and audit trail. Activity
+in one Space is invisible to another.
 
 **Config** — The JSON specification of any Component, stored in **TOON** format. *Every* Component has a Config;
 its **Component Type** decides the Config's shape. Think of a Component as a manifest: `{ kind, name, config }`.
 
-**Space Template** — A reusable blueprint bundle of Components (Sources, Pipelines, Schemas, Datasets, Widgets,
+**Space Template** — A reusable blueprint bundle of Components (Collectors, Pipelines, Schemas, Datasets, Widgets,
 Dashboards, Rules, optional seed data) that instantiates a new **Space**. Type→Instance: the Template is the
 Type; the Space created from it is the Instance. Shipped verticals: Telecom Revenue Assurance, Fraud
 Management, Financial Auditing, Link Analysis. *(Added Wave 0, 2026-07-02.)*
@@ -85,7 +85,7 @@ auth-free core a Capability is derived from the active Lens (honor-system previe
 signals are re-derived from the subject's Role grants and no pane changes. Panes gate on a Capability,
 never on Lens identity. *(Added 2026-07-03.)*
 
-**Workbench** — The Builder surface for acquisition + processing authoring: Connections, Sources, and
+**Workbench** — The Builder surface for acquisition + processing authoring: Connections, Collectors, and
 Pipelines. *(Formalizes the informal use in §3 Stream.)*
 
 **Studio** — The Builder surface for BI authoring: Datasets, Widgets, Dashboards, plus the Link Analysis
@@ -104,13 +104,15 @@ it. *(Lifecycle simplified from the Wave-0 draft per the product-owner decision 
 ## 2. Connectivity & Ingestion
 
 **Connection** — Named endpoint + credentials for reaching a remote system (SFTP/FTP/FTPS, a database, cloud
-storage). Defined once, reused by many Sources. Holds *how to reach it*, never *what to collect*.
+storage). Defined once, reused by many Collectors. Holds *how to reach it*, never *what to collect*.
 
-**Source** — A configured collection task bound to one Connection: what to collect (paths/queries), how often,
-filename patterns, dedup policy. *(The runtime engine that executes Sources may be called the collector — a role,
-lowercase, never a noun entity. ⛔ "Collector" as a model/UI name.)*
+**Collector** — A configured collection task bound to one Connection: what to collect (paths/queries), how
+often, filename patterns, dedup policy. Covers both scheduled-pull and push/event inputs (SFTP poll, Kafka
+topic, webhook, cloud-storage notification). *(The runtime engine that executes Collectors is the **collection
+engine** — "collect" stays a verb. ⛔ "Source" as the acquisition entity: that word now names a **data origin**,
+Stream/Reference §3. ⛔ "Poller" — too narrow, it misses push/event inputs.)*
 
-**Feed** *(optional)* — A Source bound to a recurring inbound delivery cadence. Use only when the recurring
+**Feed** *(optional)* — A Collector bound to a recurring inbound delivery cadence. Use only when the recurring
 delivery itself must be named.
 
 **Batch** — A set of one or more files ingested and processed together as one unit of work.
@@ -133,10 +135,22 @@ Type, and optional rules.
 
 **Catalog** — The library/index of all Schemas (and Datasets) in a Space, with version history and usage.
 
-**Stream** — A named external **data origin** as seen in the **Catalog**: one feed (a database, Kafka topic,
-file drop, …) together with the Schemas and Tables it produces — browsable and groupable for lineage. A Stream
-is *populated by* a **Connection** (the endpoint) + one or more **Sources** (the collection tasks) authored in
-the Workbench; it is the **data-plane view of an origin**, not the acquisition config. ⛔ never "Data Source".
+**Stream** — A named external **event / fact data origin** as seen in the **Catalog**: one business sub-system
+(mediation, switch, VAS, …) whose files are **time-series, append-only, non-editable** records (XDR-style),
+meant to be summarized/rolled up. **One sub-system = one Stream**; the several file types, Schemas and Tables it
+drops are **grouped under that Stream** (this membership *is* the Catalog grouping key — ⛔ not a "Tag", which is
+reserved for Incidents/Cases, §9). A Stream is *populated by* a **Connection** (the endpoint) + one or more
+**Collectors** (the collection tasks) authored in the Workbench; its files run through **Pipelines / Jobs**, and
+**many Datasets derive from it**. It is the **data-plane view of an origin**, not the acquisition config.
+⛔ never "Data Source".
+
+**Reference** — A named external **dimension data origin**, the slow-changing counterpart to a **Stream**:
+lookup / master data (rate plans, cell sites, customer master). Its nature differs from a Stream — it is
+**mutable**, arriving **incrementally (updated rows) or as a full dump**, is **deduplicated**, and is
+**cached / versioned** (slowly-changing dimensions). It **may skip the Pipeline** (loaded roughly as-is) rather
+than being parsed and rolled up. A Reference materializes as a **Reference Dataset** (§6-B) that a
+**Transform / Enrichment joins into** a Stream's facts to produce **Datasets**. Also *populated by* a
+**Connection** + **Collector**. ⛔ not a "Stream" — its nature is lookup, not flow.
 
 ---
 
@@ -205,14 +219,22 @@ defines *when*, not *what*.
 
 ## 6-B. Data plane (Lakehouse)
 
+> The **origins** that feed this plane are the Catalog's **Stream** (event/fact) and **Reference** (dimension)
+> — §3. The relations *produced* from them live here.
+
 **Dataset** — The umbrella for any queryable relation the BI layer can bind to: **Table** \| **Derived Table** \|
-**View**. ⛔ never "Data Store" (that means the physical backend).
+**Reference Dataset** \| **View**. ⛔ never "Data Store" (that means the physical backend).
 
 **Table** — A Hive-style root directory of **Parquet** files, **partitioned by date / partition key** and
 **split by event type**. Its structure is described by a **Schema**. (≈ Iceberg/Hive table.)
 
 **Derived Table** — A materialized Table produced by a Transform or cube/rollup. (≈ materialized view / mart /
 OLAP cube.)
+
+**Reference Dataset** — A **Dataset produced from a Reference origin** (§3): cached / versioned **dimension**
+data (SCD), deduplicated from incremental or full-dump loads. It is the **lookup side of a join** — a
+Transform / Enrichment joins it into a Stream's facts. (Lineage NodeKind `REFERENCE_DATASET`; ≈ dimension
+table.)
 
 **Matrix** — The **user-facing name** for a summary / cube / roll-up data asset. It **is a Derived Table**
 (so it lives inside the **Dataset** umbrella) — "Matrix" is the label the Catalog and Studio show, not a new
@@ -358,7 +380,7 @@ to the rule's still-open Case). The mechanical tail of the **Alert → Incident 
 ⛔ never bare "Rule" (§0 — Rule is always qualified: Expectation / Alert Rule / Decision Rule /
 Tag Rule / Case Rule).
 
-**Diagnosis** — An AI-assisted root-cause analysis of a failing Run or Source that produces an **Incident** with
+**Diagnosis** — An AI-assisted root-cause analysis of a failing Run or Collector that produces an **Incident** with
 a suggested fix.
 
 **Audit Log** — The immutable *who-did-what* trail (logins, config changes, permission grants, data exports).
@@ -492,14 +514,14 @@ touchpoint before renaming; the backend hits below are *known examples*, not an 
 |---|---|---|
 | Flow | **Pipeline** | ✅ **UI DONE** (`feat/rename-flow-pipeline-runs`): authored-DAG editor FE renamed `Flow*`→`Pipeline*`, `modules/admin/flows/`→`pipelines/`, route `/flows`→`/pipelines`, `FlowsService`→`PipelinesService` + `Flow*` types, `flow-mock`→`pipeline-mock`. **Collision resolved** (full restructure): the *ingest ops* page took `/pipelines`, so it moved to **Runs** (`modules/admin/{pipelines→runs, pipeline-detail→run-detail}`, `Pipeline*`→`Run*` (`RunView`/`RunResult`/`RunStatus`), route `/pipelines`→`/runs`) — matches glossary §5 (Run = one execution). ✅ **Backend DONE** (`refactor/rename-flow-pipeline-backend`): `com.gamma.flow{,.exec}`→`com.gamma.pipeline{,.exec}` + the 18 `Flow*` types→`Pipeline*`; `JobType.FLOW`→`PIPELINE`; routes `/flows`→`/pipelines` (`FlowRoutes`→`PipelineRoutes`) and `/pipelines`→`/runs` (old `PipelineRoutes`→`RunRoutes`); FE service paths + mock-interceptor regexes re-aligned. Audit action names kept as `pipeline.*` (the audited entity is a pipeline config) via an `AuditTrail.resource()` override mapping `/runs`→`pipeline`. Kept: authored-flow storage dir `flows/` + JSON response keys. **No version bump** (nothing shipped on 4.x → no contract/data in the wild). Plans: `docs/superpower/flow-pipeline-runs-rename.md` (UI) + `flow-pipeline-backend-rename.md` (backend). |
 | Data Store | **Dataset** | Studio datasets UI; `dataset-types.ts` (already "Dataset" — verify no "store" labels); backend `ComponentStore` stays = *physical store*, not a Dataset |
-| Data Source *(browsable origin)* | **Stream** | **Additive, not a model rename.** New Catalog data-origin concept (§3); the acquisition *config* stays **Connection** + **Source**. Touchpoints so far: nav + Catalog labels (Phase A of `superpower/ia-vocabulary-reorg.md`). Backend Stream read-model is Phase B. |
+| Data Source *(browsable origin)* | **Stream** (event/fact) + **Reference** (dimension) | **Additive, not a model rename.** Two Catalog data-origin concepts (§3): **Stream** = time-series/append-only event origin; **Reference** = mutable/versioned dimension origin → **Reference Dataset** (§6-B). The acquisition *config* stays **Connection** + **Collector** for both. Touchpoints so far: nav + Catalog labels (Phase A of `superpower/ia-vocabulary-reorg.md`). Backend Stream/Reference read-model is Phase B. |
 | Cube *(noun / summary asset)* | **Matrix** | **Additive label, not a model rename.** User-facing name for a summary **Derived Table** (§6-B); the model type stays `Derived Table` / `NodeKind.DERIVED_TABLE`. Touchpoints: Catalog/Studio UI labels; persisted materialization is Phase C. |
 | Issue | **Incident** | ✅ **DONE** (`2878b31`, breaking → 5.0): `ObjectType.INCIDENT`, `/objects?type=INCIDENT` + `objectType` value, UI `/issues`→`/incidents` (route file renamed), ops-mock seeds INCIDENT. No DB migration (in-memory `ObjectStore`). |
 | Incident lifecycle `OPEN → ASSIGNED → IN_PROGRESS → RESOLVED → CLOSED` | **`IDENTIFIED → DIAGNOSING → RESOLVED → ARCHIVED`** (§9) | ✅ **DONE end-to-end** (2026-07-12, mail-like Incidents/Case Manager — `docs/superpower/incidents-mail-ui-design.md`): UI `object-mail.component` + mock (`128aeaa`/`175a6e7`); backend pass shipped the built-in INCIDENT `Workflow` (actions `accept/resolve/archive/reopen`; ARCHIVED terminal; reopen clears `closedAt`; `assign` no longer moves status) + `PATCH /objects/{id}`. Still config-replaceable via `*_workflow.toon`; UI keeps normalizing legacy names for overridden deployments. |
 | Label *(on an Incident)* | **Tag** (§9) | ✅ **DONE end-to-end**: UI Tags CSV in `attributes.tags`; backend `com.gamma.ops.tag.{Tag,TagRule}` + `/tags*` routes with `*_tag.toon`/`*_tagrule.toon` persistence and the create-time Tag-Rule auto-apply hook (design §5b/§7). |
 | Rule *(bare)* | **Expectation** / **Alert Rule** / **Decision Rule** | rule builder UI; `AlertRule`, rule services — split by purpose |
 | Metric *(BI sense)* | **Measure** | ✅ **UI DONE** (`feat/rename-bi-metric-to-measure`): Studio/viz FE renamed — `DatasetRole`/`FieldRole` `'metric'`→`'measure'`, `NamedMetric`→`NamedMeasure`, `QueryMetric`→`QueryMeasure`, `buildMetric`/`metricId`, `isMetric`, `DatasetConfig.metrics`/`QuerySpec.measures`, plugins, mock data + specs. ✅ **Backend = NO-OP** (verified 2026-06-30): the backend BI concept is **KPI** (`kpis:` / `KpiMeta` / `NodeKind.KPI` / `IdScheme.kpi()`) — a *distinct canonical term* (a single-number Measure with a target), **not** renamed. There is no server-side "Metric" in the BI sense. Kept ops `MetricRegistry`/`MetricsService`/`AcquisitionTelemetry` as **Metric**. |
-| Collector *(noun)* | **Source** | any "Collector" labels → "Source"; keep `collect()` verbs |
+| Source *(acquisition entity)* | **Collector** | **Reverses the 2026-06-29 lock (decided 2026-07-14):** "Source" collided with the new **Stream**/**Reference** data origins (§3), so the acquisition task is now **Collector** and its runtime role is the **collection engine**. Touchpoints to audit: UI Sources pane/labels/routes, FE `Source*` models/services, backend `Source*` classes + `/sources*` routes + config keys; keep `collect()` verbs. |
 | `USES` *(lineage edge)* | **`CONSUMES`** | ✅ **DONE** (breaking → 5.0): `EdgeKind.CONSUMES`, `MetadataGraphBuilder` report→kpi edge; FE `models.ts` `EdgeKind` already `CONSUMES`. ⚠️ `/catalog/graph` emits the new value (no alias). |
 | `EVENT_TABLE` / `TRANSFORMED_TABLE` / `REFERENCE_TABLE` | **`TABLE`** / **`DERIVED_TABLE`** / **`REFERENCE_DATASET`** | ✅ **DONE** (breaking → 5.0): `NodeKind` enum + all usages (`IdScheme`, `CatalogOverlay`, `MetadataGraphService`, `KpiToSqlSkill`, `SuggestConfigSkill`) + 5 test files; FE `models.ts` union + `node-detail.dialog.ts` `isStore()` + `catalog-graph.ts` shape/glyph. Id tokens (`event`/`xform`/`ref`) unchanged. ⚠️ `/catalog/graph` emits the new enum values (no alias). |
 | `LineageRow` *(file→partition rows)* | **Provenance** *(concept)* | `inspecto/etl/LineageRow.java`, `BatchAuditWriter`; the asset graph keeps the name *Lineage* |
