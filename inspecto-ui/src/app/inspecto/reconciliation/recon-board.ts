@@ -1,7 +1,7 @@
 import { ICellRendererParams } from 'ag-grid-community';
 import { TreeNode } from 'app/inspecto/tree-table';
 import {
-    CompareColumn, DEFAULT_BANDS, ReconBands, Reconciliation, withinTolerance,
+    CompareColumn, DEFAULT_BANDS, ReconBands, Reconciliation, ReconBreak, withinTolerance,
 } from './reconciliation-types';
 
 /**
@@ -100,6 +100,45 @@ function groupSide(rows: Record<string, unknown>[], keyColumns: string[], compar
 function aggWithin(a: number | null, b: number | null, c: CompareColumn): boolean {
     if (a === null || b === null) return a === b;
     return withinTolerance(a, b, c);
+}
+
+/** Human-readable break key for a grain row (also the {@code breakId} identity component). */
+export function breakKeyOf(key: Record<string, unknown>, keyColumns: string[]): string {
+    return keyColumns.map((k) => String(key[k] ?? '')).join(' · ');
+}
+
+/**
+ * Map `/recon/breaks` sets to the C9 record model {@link ReconBreak} (all `open`) so the locked
+ * lifecycle — {@code mergeBreaks} auto-close + preserved manual resolutions — keeps working unchanged
+ * over server-computed breaks. A value-break grain row expands to one break per compare column that is
+ * actually outside its tolerance.
+ */
+export function breaksFromSets(
+    recon: Pick<Reconciliation, 'keyColumns' | 'compareColumns'>,
+    sets: ReconBreakSets,
+): ReconBreak[] {
+    const out: ReconBreak[] = [];
+    for (const row of sets.missing_right?.rows ?? [])
+        out.push({ key: breakKeyOf(row.key, recon.keyColumns), type: 'missing_right', status: 'open' });
+    for (const row of sets.missing_left?.rows ?? [])
+        out.push({ key: breakKeyOf(row.key, recon.keyColumns), type: 'missing_left', status: 'open' });
+    for (const row of sets.value_break?.rows ?? []) {
+        for (const c of recon.compareColumns) {
+            const a = row.a?.[c.column] ?? null;
+            const b = row.b?.[c.column] ?? null;
+            if (aggWithin(a, b, c)) continue;
+            out.push({
+                key: breakKeyOf(row.key, recon.keyColumns),
+                type: 'value_break',
+                column: c.column,
+                leftValue: a,
+                rightValue: b,
+                diff: a !== null && b !== null ? a - b : undefined,
+                status: 'open',
+            });
+        }
+    }
+    return out;
 }
 
 /** The in-browser mirror of `POST /recon/run` over already-resolved side rows. */

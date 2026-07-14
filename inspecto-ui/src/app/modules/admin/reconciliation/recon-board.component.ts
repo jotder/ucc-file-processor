@@ -13,8 +13,9 @@ import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state
 import { InspectoRowAction } from 'app/inspecto/grid';
 import { FlatTreeRow, TreeNode, TreeTableComponent } from 'app/inspecto/tree-table';
 import {
-    bandCell, bandFor, buildBoardTree, DEFAULT_BANDS, deltaPct, fmtMeasure, markBreachesExpanded,
-    ReconBand, Reconciliation, ReconciliationsService, ReconRunResult, RECON_RECORDS,
+    bandCell, bandFor, breaksFromSets, buildBoardTree, DEFAULT_BANDS, deltaPct, fmtMeasure,
+    markBreachesExpanded, mergeBreaks, ReconBand, Reconciliation, ReconciliationsService,
+    ReconRunResult, RECON_RECORDS,
 } from 'app/inspecto/reconciliation';
 import { ReconExecService } from './recon-exec.service';
 import { ReconciliationFormDialog, ReconciliationFormResult } from './reconciliation-form.dialog';
@@ -135,12 +136,28 @@ export class ReconBoardComponent implements OnInit {
         });
     }
 
+    /**
+     * Run the aggregate comparison AND refresh the persisted Break lifecycle (the locked C9 semantics:
+     * fresh breaks merge with the previous run — re-matched keys auto-close, manual resolutions carry
+     * forward). The Board run is the one full-scope run, so the merge happens here; the Breaks page is
+     * a live viewer. A failed lifecycle save degrades gracefully — the Board still renders.
+     */
     async run(): Promise<void> {
         const r = this.recon();
         if (!r || this.running()) return;
         this.running.set(true);
         try {
-            this.result.set(await this.exec.run(r));
+            const [result, sets] = await Promise.all([this.exec.run(r), this.exec.breaks(r)]);
+            this.result.set(result);
+            const updated: Reconciliation = {
+                ...r,
+                breaks: mergeBreaks(r.breaks, breaksFromSets(r, sets)),
+                lastRunAt: new Date().toISOString(),
+            };
+            this.reconApi.save(updated).subscribe({
+                next: () => this.recon.set(updated),
+                error: (e) => this.toastr.error(apiErrorMessage(e, 'Could not persist the break lifecycle')),
+            });
         } catch (e) {
             this.result.set(null);
             this.toastr.error(apiErrorMessage(e, 'Reconciliation run failed'));

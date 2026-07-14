@@ -6,7 +6,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ColDef, ICellRendererParams } from 'ag-grid-community';
-import { forkJoin } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage } from 'app/inspecto/api';
 import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
@@ -15,69 +14,92 @@ import { DataTableComponent } from 'app/inspecto/data-table';
 import { FlatTreeRow, TreeNode, TreeTableComponent, varianceCell } from 'app/inspecto/tree-table';
 import { InspectoRowAction } from 'app/inspecto/grid';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
-import { evaluateRows } from 'app/inspecto/query';
 import {
-    matchedKeyCount, mergeBreaks, ReconBreak, Reconciliation, ReconciliationsService,
-    resolveBreak, runReconciliation, ReconSummary, summarize,
+    breakId, breaksFromSets, decodePath, Reconciliation, ReconciliationsService, ReconBreak,
+    resolveBreak,
 } from 'app/inspecto/reconciliation';
-import { Dataset } from '../studio/datasets/dataset-types';
-import { DatasetsService } from '../studio/datasets/datasets.service';
-import { SAMPLE_SOURCES } from '../studio/datasets/dataset-sources';
-
-/** Resolve an authored dataset to its (mock) rows — its source rows, filtered by its Query Core when virtual. */
-function datasetRows(ds: Dataset | null): Record<string, unknown>[] {
-    if (!ds) return [];
-    const rows = SAMPLE_SOURCES[ds.sourceName] ?? [];
-    if (ds.kind === 'virtual' && ds.query) return evaluateRows(ds.query, { name: ds.sourceName, rows });
-    return rows;
-}
+import { ReconExecService } from './recon-exec.service';
 
 /**
- * Reconciliation detail (C9) — load one reconciliation, resolve both datasets to rows, run the engine on
- * demand, and show the break report (cards) + a break drill grid. Running merges the fresh breaks with the
- * previous run so re-matched keys auto-close and manual resolutions carry forward; the result is persisted.
+ * Breaks page (`/reconciliation/:id/breaks?path=…`) — the record sets behind one Board cell: three
+ * tables (only in A / only in B / matched-but-different), computed live at the recon grain by
+ * {@link ReconExecService} (server DuckDB, or the offline mirror under mock Studio) and optionally
+ * scoped to a Board dimension path. The persisted Break lifecycle overlays by identity — resolve /
+ * re-open persists here; auto-close happens on the Board's full-scope run (C9 semantics unchanged).
+ * The grouped tree stays as a display toggle. Design §5.
  */
 @Component({
     selector: 'app-reconciliation-detail',
     standalone: true,
-    imports: [RouterLink, MatButtonModule, MatButtonToggleModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, DataTableComponent, TreeTableComponent, InspectoEmptyStateComponent],
+    imports: [RouterLink, MatButtonModule, MatButtonToggleModule, MatIconModule, MatProgressSpinnerModule,
+        MatTooltipModule, DataTableComponent, TreeTableComponent, InspectoEmptyStateComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './reconciliation-detail.component.html',
 })
 export class ReconciliationDetailComponent implements OnInit {
     private api = inject(ReconciliationsService);
-    private datasetsApi = inject(DatasetsService);
+    private exec = inject(ReconExecService);
     private route = inject(ActivatedRoute);
     private toastr = inject(ToastrService);
     private confirm = inject(InspectoConfirmService);
 
     readonly recon = signal<Reconciliation | null>(null);
-    readonly loading = signal(false);
-    readonly running = signal(false);
-    private leftRows: Record<string, unknown>[] = [];
-    private rightRows: Record<string, unknown>[] = [];
+    readonly loading = signal(true);
+    readonly computing = signal(false);
+    /** Live breaks (all `open` from the engine) — persisted statuses overlay by identity below. */
+    private readonly liveBreaks = signal<ReconBreak[] | null>(null);
 
-    /** Report cards — null until the reconciliation has been run at least once. */
-    readonly summary = signal<ReconSummary | null>(null);
+    /** The Board dimension path this page is scoped to (from `?path=`), or null for the whole recon. */
+    readonly path = signal<Record<string, string> | null>(null);
+    readonly pathEntries = computed(() => Object.entries(this.path() ?? {}));
 
-    /** Only the actionable (non-auto-closed) breaks show in the drill grid. */
-    readonly drillBreaks = computed(() => (this.recon()?.breaks ?? []).filter((b) => b.status !== 'auto_closed'));
+    readonly viewMode = signal<'tables' | 'grouped'>('tables');
 
-    readonly columns: ColDef<ReconBreak>[] = [
-        { field: 'key', headerName: 'Key', width: 120 },
+    /** Persisted break status/note by identity. */
+    private readonly persistedById = computed(() => {
+        const m = new Map<string, ReconBreak>();
+        for (const b of this.recon()?.breaks ?? []) m.set(breakId(b), b);
+        return m;
+    });
+
+    /** Live breaks with the persisted lifecycle overlaid. */
+    readonly drillBreaks = computed<ReconBreak[]>(() => {
+        const live = this.liveBreaks() ?? [];
+        const persisted = this.persistedById();
+        return live.map((b) => {
+            const p = persisted.get(breakId(b));
+            return p && p.status !== 'auto_closed' ? { ...b, status: p.status, note: p.note } : b;
+        });
+    });
+
+    readonly missingA = computed(() => this.drillBreaks().filter((b) => b.type === 'missing_right'));
+    readonly missingB = computed(() => this.drillBreaks().filter((b) => b.type === 'missing_left'));
+    readonly valueBreaks = computed(() => this.drillBreaks().filter((b) => b.type === 'value_break'));
+    readonly resolvedCount = computed(() => this.drillBreaks().filter((b) => b.status === 'resolved').length);
+
+    /** Key + status (+ actions) — the shape of the two missing-side tables. */
+    readonly missingColumns: ColDef<ReconBreak>[] = [
+        { field: 'key', headerName: 'Key', flex: 1 },
         {
-            field: 'type', headerName: 'Break', width: 150,
-            cellRenderer: (p: ICellRendererParams<ReconBreak>) => statusBadgeHtml(breakLabel(p.value as string)),
-        },
-        { field: 'column', headerName: 'Column', width: 130, valueFormatter: (p) => p.value ?? '—' },
-        { field: 'leftValue', headerName: 'Left', flex: 1, valueFormatter: (p) => fmtVal(p.value) },
-        { field: 'rightValue', headerName: 'Right', flex: 1, valueFormatter: (p) => fmtVal(p.value) },
-        { field: 'diff', headerName: 'Diff', width: 110, valueFormatter: (p) => (p.value == null ? '—' : String(p.value)) },
-        {
-            field: 'status', headerName: 'Status', width: 120,
+            field: 'status', headerName: 'Status', width: 130,
             cellRenderer: (p: ICellRendererParams<ReconBreak>) => statusBadgeHtml(p.value as string),
         },
     ];
+
+    readonly valueColumns = computed<ColDef<ReconBreak>[]>(() => {
+        const r = this.recon();
+        return [
+            { field: 'key', headerName: 'Key', flex: 1 },
+            { field: 'column', headerName: 'Column', width: 140 },
+            { field: 'leftValue', headerName: r?.leftDataset || 'A', width: 140, valueFormatter: (p) => fmtVal(p.value) },
+            { field: 'rightValue', headerName: r?.rightDataset || 'B', width: 140, valueFormatter: (p) => fmtVal(p.value) },
+            { field: 'diff', headerName: 'Δ', width: 120, cellRenderer: varianceCell() },
+            {
+                field: 'status', headerName: 'Status', width: 130,
+                cellRenderer: (p: ICellRendererParams<ReconBreak>) => statusBadgeHtml(p.value as string),
+            },
+        ];
+    });
 
     readonly rowActions: InspectoRowAction<ReconBreak>[] = [
         {
@@ -87,17 +109,13 @@ export class ReconciliationDetailComponent implements OnInit {
         },
     ];
 
-    // ── grouped (tree-table) view: breaks grouped by type, sources aligned as columns + Δ ──────────
-    readonly viewMode = signal<'grouped' | 'flat'>('grouped');
-
-    /** Leaf-row-id → break, for the tree's resolve action (leaf node id = {@link breakRowId}). */
+    // ── grouped (tree-table) toggle: breaks grouped by type, aligned columns + Δ ────────
     private readonly breaksById = computed(() => {
         const m = new Map<string, ReconBreak>();
-        for (const b of this.drillBreaks()) m.set(this.breakRowId(b), b);
+        for (const b of this.drillBreaks()) m.set(breakId(b), b);
         return m;
     });
 
-    /** Breaks grouped by type into an aligned tree: parent = break type (count + Σ diff), leaves = breaks. */
     readonly treeNodes = computed<TreeNode[]>(() => {
         const groups = new Map<string, ReconBreak[]>();
         for (const b of this.drillBreaks()) {
@@ -115,7 +133,7 @@ export class ReconciliationDetailComponent implements OnInit {
                 expanded: true,
                 values: { diff: sumDiff || undefined },
                 children: list.map((b) => ({
-                    id: this.breakRowId(b),
+                    id: breakId(b),
                     label: b.key,
                     values: {
                         column: b.column ?? '—',
@@ -144,7 +162,6 @@ export class ReconciliationDetailComponent implements OnInit {
         ];
     });
 
-    /** Resolve/re-open a break from the tree — gated to leaf rows (a group row maps to no break). */
     readonly treeActions: InspectoRowAction<FlatTreeRow>[] = [
         {
             icon: (row) => (this.breakOf(row)?.status === 'resolved' ? 'heroicons_outline:arrow-uturn-left' : 'heroicons_outline:check'),
@@ -160,18 +177,15 @@ export class ReconciliationDetailComponent implements OnInit {
     private breakOf(row: FlatTreeRow): ReconBreak | undefined {
         return this.breaksById().get(row.__id);
     }
-    private breakRowId(b: ReconBreak): string {
-        return `${b.type}|${b.key}|${b.column ?? ''}`;
-    }
 
     ngOnInit(): void {
         const id = this.route.snapshot.paramMap.get('id') ?? '';
-        this.loading.set(true);
+        this.path.set(decodePath(this.route.snapshot.queryParamMap.get('path')));
         this.api.get(id).subscribe({
             next: (r) => {
                 this.recon.set(r);
-                this.loadRows(r);
-                if (r.breaks.length) this.recomputeSummary();
+                this.loading.set(false);
+                void this.compute();
             },
             error: (e) => {
                 this.loading.set(false);
@@ -180,59 +194,34 @@ export class ReconciliationDetailComponent implements OnInit {
         });
     }
 
-    private loadRows(r: Reconciliation): void {
-        forkJoin({ left: this.datasetsApi.get(r.leftDataset), right: this.datasetsApi.get(r.rightDataset) }).subscribe({
-            next: ({ left, right }) => {
-                this.leftRows = datasetRows(left);
-                this.rightRows = datasetRows(right);
-                this.loading.set(false);
-            },
-            error: () => {
-                this.leftRows = [];
-                this.rightRows = [];
-                this.loading.set(false);
-            },
-        });
-    }
-
-    run(): void {
+    /** (Re)compute the live break sets for the current scope. */
+    async compute(): Promise<void> {
         const r = this.recon();
-        if (!r) return;
-        this.running.set(true);
-        const fresh = runReconciliation(r, this.leftRows, this.rightRows);
-        const merged = mergeBreaks(r.breaks, fresh);
-        const updated: Reconciliation = { ...r, breaks: merged, lastRunAt: new Date().toISOString() };
-        this.api.save(updated).subscribe({
-            next: () => {
-                this.recon.set(updated);
-                this.recomputeSummary();
-                this.running.set(false);
-                this.toastr.success(`Reconciliation run — ${this.summary()?.open ?? 0} open break(s)`);
-            },
-            error: (e) => {
-                this.running.set(false);
-                this.toastr.error(apiErrorMessage(e, 'Reconciliation run failed'));
-            },
-        });
+        if (!r || this.computing()) return;
+        this.computing.set(true);
+        try {
+            this.liveBreaks.set(breaksFromSets(r, await this.exec.breaks(r, this.path())));
+        } catch (e) {
+            this.liveBreaks.set(null);
+            this.toastr.error(apiErrorMessage(e, 'Could not compute the break sets'));
+        } finally {
+            this.computing.set(false);
+        }
     }
 
-    private recomputeSummary(): void {
-        const r = this.recon();
-        if (!r) return;
-        this.summary.set(summarize(r.breaks, this.leftRows.length, this.rightRows.length, matchedKeyCount(r.keyColumns, this.leftRows, this.rightRows)));
-    }
-
+    /** Resolve / re-open one break — persisted by identity (a fresh live break is appended on first touch). */
     async toggleResolve(b: ReconBreak): Promise<void> {
         const r = this.recon();
         if (!r) return;
         const resolving = b.status !== 'resolved';
         if (resolving && !(await this.confirm.confirm(`Mark this ${breakLabel(b.type)} for key "${b.key}" resolved?`, 'Resolve break'))) return;
-        const updated: Reconciliation = { ...r, breaks: resolveBreak(r.breaks, b, resolving) };
+        const known = this.persistedById().has(breakId(b));
+        const breaks = known
+            ? resolveBreak(r.breaks, b, resolving)
+            : [...r.breaks, { ...b, status: resolving ? ('resolved' as const) : ('open' as const) }];
+        const updated: Reconciliation = { ...r, breaks };
         this.api.save(updated).subscribe({
-            next: () => {
-                this.recon.set(updated);
-                this.recomputeSummary();
-            },
+            next: () => this.recon.set(updated),
             error: (e) => this.toastr.error(apiErrorMessage(e, 'Could not update the break')),
         });
     }
@@ -242,5 +231,7 @@ function breakLabel(type: string): string {
     return type === 'missing_left' ? 'missing left' : type === 'missing_right' ? 'missing right' : type === 'value_break' ? 'value break' : type;
 }
 function fmtVal(v: unknown): string {
-    return v == null ? '—' : String(v);
+    if (v == null) return '—';
+    const n = Number(v);
+    return Number.isNaN(n) ? String(v) : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }

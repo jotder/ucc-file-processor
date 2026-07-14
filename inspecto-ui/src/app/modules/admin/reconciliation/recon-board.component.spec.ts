@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ToastrService } from 'ngx-toastr';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
-import { aggregateRecon, Reconciliation, ReconciliationsService } from 'app/inspecto/reconciliation';
+import { aggregateRecon, Reconciliation, ReconciliationsService, reconBreakSets } from 'app/inspecto/reconciliation';
 import { ReconBoardComponent } from './recon-board.component';
 import { ReconExecService } from './recon-exec.service';
 
@@ -19,25 +19,34 @@ const RECON: Reconciliation = {
     breaks: [], lastRunAt: null,
 };
 
-const RESULT = aggregateRecon(RECON, [
+const LEFT = [
     { region: 'EU', product: 'voice', amount: 100 },
     { region: 'EU', product: 'data', amount: 118 },
     { region: 'MEA', product: 'voice', amount: 10 },
-], [
+];
+const RIGHT = [
     { region: 'EU', product: 'voice', amount: 100 },
     { region: 'EU', product: 'data', amount: 114 },
-]);
+];
+const RESULT = aggregateRecon(RECON, LEFT, RIGHT);
 
 async function create() {
     const navigate = vi.fn();
+    const save = vi.fn((r: Reconciliation) => of(r));
     TestBed.configureTestingModule({
         imports: [ReconBoardComponent],
         providers: [
             provideNoopAnimations(),
             { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ id: RECON.id }) } } },
             { provide: Router, useValue: { navigate, createUrlTree: () => ({}), serializeUrl: () => '', events: EMPTY } },
-            { provide: ReconciliationsService, useValue: { get: () => of(RECON), save: (r: Reconciliation) => of(r) } },
-            { provide: ReconExecService, useValue: { run: vi.fn(async () => RESULT) } },
+            { provide: ReconciliationsService, useValue: { get: () => of(RECON), save } },
+            {
+                provide: ReconExecService,
+                useValue: {
+                    run: vi.fn(async () => RESULT),
+                    breaks: vi.fn(async () => reconBreakSets(RECON, LEFT, RIGHT)),
+                },
+            },
             { provide: MatDialog, useValue: { open: vi.fn() } },
             { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined } },
             { provide: InspectoGridThemeService, useValue: { theme: () => ({}) } },
@@ -47,7 +56,7 @@ async function create() {
     fixture.detectChanges();           // ngOnInit — load + auto-run
     await fixture.whenStable();        // the async exec.run
     fixture.detectChanges();
-    return { fixture, c: fixture.componentInstance, navigate };
+    return { fixture, c: fixture.componentInstance, navigate, save };
 }
 
 describe('ReconBoardComponent', () => {
@@ -65,6 +74,16 @@ describe('ReconBoardComponent', () => {
         expect(c.treeNodes().map((n) => n.label)).toEqual(['MEA', 'EU']);
         expect(c.treeColumns().map((col) => col.field)).toEqual(
             ['a_amount', 'b_amount', 'pct_amount', 'a___records', 'b___records', 'pct___records']);
+    });
+
+    it('a run refreshes the persisted break lifecycle (C9 merge semantics)', async () => {
+        const { c, save } = await create();
+        expect(save).toHaveBeenCalledTimes(1);
+        const persisted = save.mock.calls[0][0] as Reconciliation;
+        // MEA/voice only in A + EU/data amount outside 0.5% — both fresh, both open.
+        expect(persisted.breaks.map((b) => b.type).sort()).toEqual(['missing_right', 'value_break']);
+        expect(persisted.lastRunAt).toBeTruthy();
+        expect(c.recon()?.breaks).toHaveLength(2);
     });
 
     it('the details action navigates to the Breaks page with the encoded path', async () => {

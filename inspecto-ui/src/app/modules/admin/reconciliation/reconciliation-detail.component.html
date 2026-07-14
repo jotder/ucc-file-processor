@@ -15,77 +15,116 @@
     @if (recon(); as r) {
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
-                <h1 class="text-2xl font-semibold tracking-tight">{{ r.name }}</h1>
-                <div class="text-secondary mt-1 text-sm">
-                    <span class="font-mono">{{ r.leftDataset }}</span> vs <span class="font-mono">{{ r.rightDataset }}</span>
-                    · keys <span class="font-mono">{{ r.keyColumns.join(', ') }}</span>
+                <h1 class="text-2xl font-semibold tracking-tight">Breaks — {{ r.name }}</h1>
+                <div class="text-secondary mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span>A <span class="font-mono">{{ r.leftDataset }}</span></span>
+                    <span aria-hidden="true">vs</span>
+                    <span>B <span class="font-mono">{{ r.rightDataset }}</span></span>
+                    @for (p of pathEntries(); track p[0]) {
+                        <span class="rounded-full border px-2 py-0.5 text-xs">{{ p[0] }} = {{ p[1] }}</span>
+                    }
                 </div>
             </div>
-            <button mat-flat-button color="primary" (click)="run()" [disabled]="running() || loading()">
-                @if (running()) { <mat-progress-spinner diameter="16" mode="indeterminate" class="mr-2" /> }
-                <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
-                <span class="ml-2">Run reconciliation</span>
-            </button>
+            <div class="flex items-center gap-2">
+                <mat-button-toggle-group [value]="viewMode()" (change)="viewMode.set($event.value)"
+                                         hideSingleSelectionIndicator aria-label="Break view mode">
+                    <mat-button-toggle value="tables">Tables</mat-button-toggle>
+                    <mat-button-toggle value="grouped">Grouped</mat-button-toggle>
+                </mat-button-toggle-group>
+                <button mat-stroked-button (click)="compute()" [disabled]="computing()">
+                    @if (computing()) { <mat-progress-spinner diameter="16" mode="indeterminate" class="mr-2" /> }
+                    <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
+                    <span class="ml-1">Refresh</span>
+                </button>
+            </div>
         </div>
 
-        <!-- Report cards -->
-        @if (summary(); as s) {
-            <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-                <div class="bg-card rounded-2xl p-4 shadow">
-                    <div class="text-secondary text-sm">Matched keys</div>
-                    <div class="mt-1 text-2xl font-bold">{{ s.matchedKeys }}</div>
-                    <div class="text-secondary mt-1 text-xs">{{ s.leftRows }} left · {{ s.rightRows }} right</div>
-                </div>
-                <div class="bg-card rounded-2xl p-4 shadow">
-                    <div class="text-secondary text-sm">Open breaks</div>
-                    <div class="mt-1 text-2xl font-bold">{{ s.open }}</div>
-                </div>
-                <div class="bg-card rounded-2xl p-4 shadow">
-                    <div class="text-secondary text-sm">Value breaks</div>
-                    <div class="mt-1 text-2xl font-bold">{{ s.byType.value_break }}</div>
-                </div>
-                <div class="bg-card rounded-2xl p-4 shadow">
-                    <div class="text-secondary text-sm">Missing right</div>
-                    <div class="mt-1 text-2xl font-bold">{{ s.byType.missing_right }}</div>
-                </div>
-                <div class="bg-card rounded-2xl p-4 shadow">
-                    <div class="text-secondary text-sm">Missing left</div>
-                    <div class="mt-1 text-2xl font-bold">{{ s.byType.missing_left }}</div>
-                </div>
-                <div class="bg-card rounded-2xl p-4 shadow">
-                    <div class="text-secondary text-sm">Resolved</div>
-                    <div class="mt-1 text-2xl font-bold">{{ s.resolved }}</div>
-                    <div class="text-secondary mt-1 text-xs">{{ s.autoClosed }} auto-closed</div>
-                </div>
+        <!-- Count cards -->
+        <div class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="bg-card rounded-2xl p-4 shadow">
+                <div class="text-secondary text-sm">Only in A</div>
+                <div class="mt-1 text-2xl font-bold">{{ missingA().length }}</div>
+                <div class="text-secondary mt-1 text-xs">missing right</div>
             </div>
-        }
+            <div class="bg-card rounded-2xl p-4 shadow">
+                <div class="text-secondary text-sm">Only in B</div>
+                <div class="mt-1 text-2xl font-bold">{{ missingB().length }}</div>
+                <div class="text-secondary mt-1 text-xs">missing left</div>
+            </div>
+            <div class="bg-card rounded-2xl p-4 shadow">
+                <div class="text-secondary text-sm">Matched, different</div>
+                <div class="mt-1 text-2xl font-bold">{{ valueBreaks().length }}</div>
+                <div class="text-secondary mt-1 text-xs">value breaks</div>
+            </div>
+            <div class="bg-card rounded-2xl p-4 shadow">
+                <div class="text-secondary text-sm">Resolved</div>
+                <div class="mt-1 text-2xl font-bold">{{ resolvedCount() }}</div>
+            </div>
+        </div>
 
-        <!-- Break drill grid -->
-        <div class="mt-6">
-            <div class="mb-2 flex flex-wrap items-center justify-between gap-3">
-                <div class="text-secondary text-xs font-semibold uppercase tracking-wider">Breaks ({{ drillBreaks().length }})</div>
-                @if (summary() && drillBreaks().length) {
-                    <mat-button-toggle-group [value]="viewMode()" (change)="viewMode.set($event.value)"
-                                             hideSingleSelectionIndicator aria-label="Break view mode">
-                        <mat-button-toggle value="grouped">Grouped</mat-button-toggle>
-                        <mat-button-toggle value="flat">Flat</mat-button-toggle>
-                    </mat-button-toggle-group>
-                }
-            </div>
-            @if (!summary()) {
-                <inspecto-empty-state
-                    icon="heroicons_outline:play"
-                    title="Not run yet"
-                    message="Run the reconciliation to compute the report and breaks."
-                />
-            } @else if (drillBreaks().length === 0) {
+        @if (drillBreaks().length === 0 && !computing()) {
+            <div class="mt-8">
                 <inspecto-empty-state
                     icon="heroicons_outline:check-circle"
-                    title="No open breaks"
-                    message="Both sides agree within tolerance for every key."
+                    title="No breaks"
+                    message="Both sides agree within tolerance for every key in this scope."
                 />
-            } @else if (viewMode() === 'grouped') {
-                <!-- Aligned tree-table: breaks grouped by type; the two sources + Δ as aligned columns. -->
+            </div>
+        } @else if (viewMode() === 'tables') {
+            <!-- The three record sets (design §5) -->
+            <div class="mt-6 flex flex-col gap-6">
+                @if (missingA().length) {
+                    <section aria-label="Only in A">
+                        <h2 class="text-secondary mb-2 text-xs font-semibold uppercase tracking-wider">
+                            Only in A — {{ recon()?.leftDataset }} ({{ missingA().length }})
+                        </h2>
+                        <inspecto-data-table
+                            tier="standard"
+                            sourceName="recon-only-in-a"
+                            exportName="recon-only-in-a"
+                            [rows]="missingA()"
+                            [columns]="missingColumns"
+                            [rowActions]="rowActions"
+                            [autoHeight]="true"
+                        />
+                    </section>
+                }
+                @if (missingB().length) {
+                    <section aria-label="Only in B">
+                        <h2 class="text-secondary mb-2 text-xs font-semibold uppercase tracking-wider">
+                            Only in B — {{ recon()?.rightDataset }} ({{ missingB().length }})
+                        </h2>
+                        <inspecto-data-table
+                            tier="standard"
+                            sourceName="recon-only-in-b"
+                            exportName="recon-only-in-b"
+                            [rows]="missingB()"
+                            [columns]="missingColumns"
+                            [rowActions]="rowActions"
+                            [autoHeight]="true"
+                        />
+                    </section>
+                }
+                @if (valueBreaks().length) {
+                    <section aria-label="Matched but different">
+                        <h2 class="text-secondary mb-2 text-xs font-semibold uppercase tracking-wider">
+                            Matched, different values ({{ valueBreaks().length }})
+                        </h2>
+                        <inspecto-data-table
+                            tier="standard"
+                            sourceName="recon-value-breaks"
+                            exportName="recon-value-breaks"
+                            [rows]="valueBreaks()"
+                            [columns]="valueColumns()"
+                            [rowActions]="rowActions"
+                            [autoHeight]="true"
+                        />
+                    </section>
+                }
+            </div>
+        } @else {
+            <!-- Grouped toggle: breaks by type in the aligned tree-table -->
+            <div class="mt-6">
                 <inspecto-tree-table
                     treeHeader="Break / Key"
                     exportName="reconciliation-breaks"
@@ -94,19 +133,9 @@
                     [rowActions]="treeActions"
                     [groupDefaultExpanded]="1"
                     [autoHeight]="true"
-                    noRowsTitle="No open breaks"
+                    noRowsTitle="No breaks"
                 />
-            } @else {
-                <inspecto-data-table
-                    tier="standard"
-                    sourceName="reconciliation-breaks"
-                    exportName="reconciliation-breaks"
-                    [rows]="drillBreaks()"
-                    [columns]="columns"
-                    [rowActions]="rowActions"
-                    [autoHeight]="true"
-                />
-            }
-        </div>
+            </div>
+        }
     }
 </div>
