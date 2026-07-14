@@ -121,12 +121,17 @@ export class DataTableComponent {
     readonly exportable = input<boolean | undefined>(undefined);
     readonly queryable = input<boolean | undefined>(undefined);
     readonly savable = input<boolean | undefined>(undefined);
+    /** Opt-in: when true, the SQL editor / filter builder show a "Run on server" action that emits
+     *  {@link runOnServer} (the host runs it against its backend and feeds results back via `rows`). */
+    readonly serverRun = input(false);
 
     readonly rowClick = output<Record<string, unknown>>();
     /** Multi-select: the currently checked rows, re-emitted on every selection change. */
     readonly selectionChange = output<Record<string, unknown>[]>();
     /** Pro Max: emitted after a rule template is saved via the built-in save dialog. */
     readonly ruleSaved = output<RuleTemplate>();
+    /** Emitted when "Run on server" is pressed — the SQL to execute against the host's backend. */
+    readonly runOnServer = output<string>();
 
     /** ag-Grid selection config: checkbox multi-row wins over legacy single-select. */
     readonly rowSelectionValue = computed<RowSelectionOptions | 'single' | undefined>(() =>
@@ -142,6 +147,8 @@ export class DataTableComponent {
     readonly searchOpen = signal(false);
     /** Chosen columns (null ⇒ all). Drives grid visibility (standard) and SQL projection (pro). */
     readonly chosen = signal<string[] | null>(null);
+    /** Pro: whether the SQL-editor panel is expanded (hidden by default; toggled from the toolbar). */
+    readonly sqlOpen = signal(false);
     /** Pro: whether the filter-builder panel is expanded. */
     readonly filterOpen = signal(false);
 
@@ -251,11 +258,20 @@ export class DataTableComponent {
     onChosen(cols: string[]): void {
         this.chosen.set(cols);
     }
+    toggleSql(): void {
+        this.sqlOpen.update((v) => !v);
+    }
     toggleFilter(): void {
         this.filterOpen.update((v) => !v);
     }
     onWhereChanged(): void {
         this.where.update((w) => ({ ...w })); // new root ref so generatedSql recomputes
+    }
+
+    /** "Run on server": clear any client-run overlay (so the host's fresh rows show) and emit the SQL. */
+    onRunSqlBackend(sql: string): void {
+        this.proResult.set(null);
+        this.runOnServer.emit(sql);
     }
 
     // ── pro: run / save ──────────────────────────────────────────────────────────

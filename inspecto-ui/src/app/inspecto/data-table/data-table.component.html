@@ -25,6 +25,10 @@
         }
 
         @if (canQuery()) {
+            <button mat-icon-button type="button" (click)="toggleSql()" [class.text-primary]="sqlOpen()"
+                    matTooltip="SQL editor" aria-label="SQL editor">
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:command-line"></mat-icon>
+            </button>
             <button mat-icon-button type="button" (click)="toggleFilter()" [class.text-primary]="filterOpen()"
                     matTooltip="Filter builder" aria-label="Filter builder">
                 <mat-icon class="icon-size-5" svgIcon="heroicons_outline:funnel"></mat-icon>
@@ -47,22 +51,26 @@
     </div>
 }
 
-@if (canQuery()) {
-    <!-- Pro / Pro Max: the SQL editor is shown by default; the filter builder toggles in on demand. -->
+@if (canQuery() && (sqlOpen() || filterOpen())) {
+    <!-- Pro / Pro Max: SQL editor + filter builder, each toggled from the toolbar (hidden by default). -->
     <div class="mb-3 space-y-3">
-        @defer (when canQuery()) {
-            <inspecto-sql-editor
-                [sql]="generatedSql()"
-                [sourceName]="sourceName()"
-                [running]="running()"
-                [error]="proError()"
-                (sqlChange)="currentSql.set($event)"
-                (run)="onRunSql($event)"
-            />
-        } @placeholder {
-            <div class="text-secondary rounded-lg border p-3 text-sm" style="border-color: var(--gamma-border)">
-                Loading SQL editor…
-            </div>
+        @if (sqlOpen()) {
+            @defer (when sqlOpen()) {
+                <inspecto-sql-editor
+                    [sql]="generatedSql()"
+                    [sourceName]="sourceName()"
+                    [running]="running()"
+                    [error]="proError()"
+                    [serverRun]="serverRun()"
+                    (sqlChange)="currentSql.set($event)"
+                    (run)="onRunSql($event)"
+                    (runBackend)="onRunSqlBackend($event)"
+                />
+            } @placeholder {
+                <div class="text-secondary rounded-lg border p-3 text-sm" style="border-color: var(--gamma-border)">
+                    Loading SQL editor…
+                </div>
+            }
         }
 
         @if (filterOpen()) {
@@ -74,6 +82,20 @@
                     [root]="true"
                     (changed)="onWhereChanged()"
                 />
+                <div class="mt-2 flex items-center gap-2">
+                    <button mat-flat-button color="primary" type="button" (click)="onRunSql(currentSql())"
+                            [disabled]="running()" matTooltip="Run over the loaded rows">
+                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:play"></mat-icon>
+                        <span class="ml-1">Run</span>
+                    </button>
+                    @if (serverRun()) {
+                        <button mat-stroked-button type="button" (click)="onRunSqlBackend(currentSql())"
+                                [disabled]="running()" matTooltip="Run on the server over the full dataset">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:circle-stack"></mat-icon>
+                            <span class="ml-1">Run on server</span>
+                        </button>
+                    }
+                </div>
             </div>
         }
     </div>

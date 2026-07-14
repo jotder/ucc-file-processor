@@ -39,11 +39,15 @@ export class SqlEditorComponent {
     readonly sourceName = input('data');
     readonly running = input(false);
     readonly error = input<string | null>(null);
+    /** When true, show a second "Run on server" button (host wires it to a backend query). */
+    readonly serverRun = input(false);
 
     /** Emits the current editor text on every edit (so the host can track it for "save as rule"). */
     readonly sqlChange = output<string>();
-    /** Emits the SQL to execute when Run is pressed. */
+    /** Emits the SQL to execute client-side (over the loaded rows) when Run is pressed. */
     readonly run = output<string>();
+    /** Emits the SQL to execute on the server (full dataset) when "Run on server" is pressed. */
+    readonly runBackend = output<string>();
 
     /** Editor contents: derived from `sql`, locally editable, reset when `sql` changes. */
     readonly draft = linkedSignal(() => this.sql());
@@ -69,6 +73,10 @@ export class SqlEditorComponent {
 
     onRun(): void {
         this.run.emit(this.draft());
+    }
+
+    onRunBackend(): void {
+        this.runBackend.emit(this.draft());
     }
 
     /** Collapse a multi-line query to one line for the menu. */

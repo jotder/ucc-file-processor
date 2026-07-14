@@ -49,9 +49,23 @@ describe('DataTableComponent', () => {
         expect(c.generatedSql()).toContain('FROM');
         expect(c.proResult()).toBeNull();
         expect(c.displayRows().length).toBe(2);
+        // both panels are hidden by default; each toggles independently
+        expect(c.sqlOpen()).toBe(false);
         expect(c.filterOpen()).toBe(false);
+        c.toggleSql();
+        expect(c.sqlOpen()).toBe(true);
         c.toggleFilter();
         expect(c.filterOpen()).toBe(true);
+    });
+
+    it('onRunSqlBackend clears the client-run overlay and emits the SQL for the host', async () => {
+        const c = (await create('pro')).componentInstance;
+        c.proResult.set([{ id: 9 }]); // a prior client-run (AlaSQL) overlay
+        let emitted: string | undefined;
+        c.runOnServer.subscribe((s: string) => (emitted = s));
+        c.onRunSqlBackend('SELECT * FROM "data"');
+        expect(c.proResult()).toBeNull(); // overlay cleared so the host's fresh rows show
+        expect(emitted).toBe('SELECT * FROM "data"');
     });
 
     it('proMax = pro + save-as-rule always available', async () => {

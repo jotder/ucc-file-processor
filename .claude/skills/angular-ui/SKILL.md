@@ -101,8 +101,13 @@ src/app/
   (the app-wide offline/backend-down strip, already mounted in the layout — distinct from `<inspecto-alert>`).
 - **Tabular surfaces → `<inspecto-data-table [tier]>`** (`app/inspecto/data-table`), the consolidation of
   every ag-Grid host. Tiers: **mini** (grid) · **standard** (+ icon-only toolbar: column chooser · search ·
-  CSV export) · **pro** (+ an always-on **CodeMirror SQL editor** that runs real SQL offline via **AlaSQL**
-  and re-renders the grid, + an icon-toggled filter builder that regenerates the SQL) · **proMax** (+ "save
+  CSV export) · **pro** (+ an **icon-toggled CodeMirror SQL editor — hidden by default** — that runs real SQL
+  offline via **AlaSQL** over the loaded rows and re-renders the grid, + an icon-toggled filter builder that
+  regenerates the SQL; both toolbar toggles mirror each other). Both panels also expose an **opt-in "Run on
+  server"** action: set `[serverRun]="true"` and handle `(runOnServer)="…"` — the host runs that SQL against
+  its own backend and feeds results back via `[rows]` (the data-table clears its client-run overlay first).
+  Default off, so the ~4 client-side-only hosts (alerts/events/audit-logs/enrichment) are unaffected; the
+  Data Browser wires it to `POST /db/query`. · **proMax** (+ "save
   as rule" → a parameterized `:fieldValue` template via the rule store). Reusable logic is framework-free in
   `core/` (csv · quick-filter · column-resolve) and `sql/` (`runSql` lazy-loads AlaSQL; `SqlHistoryService` =
   per-source history/favorites in `localStorage`; `codemirror-setup.ts` themes CM6 entirely with `--gamma-*`

@@ -41,9 +41,18 @@
             <mat-icon class="icon-size-5" [svgIcon]="isFavorite() ? 'heroicons_solid:star' : 'heroicons_outline:star'"></mat-icon>
         </button>
 
-        <!-- Run -->
+        <!-- Run on server (opt-in): full dataset via the host's backend query -->
+        @if (serverRun()) {
+            <button mat-stroked-button type="button" class="ml-1" (click)="onRunBackend()" [disabled]="running()"
+                    matTooltip="Run on the server over the full dataset">
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:circle-stack"></mat-icon>
+                <span class="ml-1">Run on server</span>
+            </button>
+        }
+
+        <!-- Run (client-side, over the rows already loaded) -->
         <button mat-flat-button color="primary" type="button" class="ml-1" (click)="onRun()" [disabled]="running()"
-                matTooltip="Run the query and render the results">
+                matTooltip="Run over the loaded rows and render the results">
             @if (running()) {
                 <mat-spinner diameter="16" class="mr-2"></mat-spinner>
             } @else {
