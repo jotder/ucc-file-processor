@@ -138,6 +138,12 @@ topic docs (each cites its authoritative doc); they don't replace them. *(Consol
   authoring pane** (audit C3): schema-form dialog + rules CRUD on the Alerts pane, `canAuthorAlertRules`
   capability, mock-first contract mirroring `/decision-rules`. **UI shipped 2026-07-07**; backend writes
   are backlog §4.
+- [`superpower/reconciliation-board-design.md`](superpower/reconciliation-board-design.md) —
+  **Reconciliation Board**: N-way (2–3, anchor-based) aggregate compare — dimension-order tree × banded
+  Δ% Measures over the existing `reconciliation` component, drill to the three Break sets, real backend
+  (`/recon/columns|run|breaks`), view-bound Widget + bundle export, presence patterns for 3-way.
+  Extends C9 ([`superpower/reviews/reconciliation.md`](superpower/reviews/reconciliation.md)).
+  **Active (design, 2026-07-14).**
 - [`superpower/geo-map-analysis-plan.md`](superpower/geo-map-analysis-plan.md) — **Geo Map Analysis studio**:
   revised MoSCoW + phased plan (offline MapLibre basemap, GeoSource seam, shared investigation lib).
   **Phases 0–3a shipped** (mock-first); review sheet

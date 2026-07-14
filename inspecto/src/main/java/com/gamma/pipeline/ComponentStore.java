@@ -50,7 +50,10 @@ public final class ComponentStore {
                     // speaks the /components contract — widening here is what moves them off the mock store.
                     "link-analysis-view", "geo-map-view",
                     // Decision Rule (the business-logic/routing third of the Rules triad — DecisionRoutes).
-                    "decision-rule");
+                    "decision-rule",
+                    // Reconciliation (DAT-7, docs/superpower/reconciliation-board-design.md): the UI's
+                    // ReconciliationsService already speaks /components/reconciliation — execution is ReconRoutes.
+                    "reconciliation");
 
     private static final String TOON = ".toon";
     private static final Pattern SAFE_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]*");
