@@ -89,6 +89,9 @@ topic docs (each cites its authoritative doc); they don't replace them. *(Consol
 
 - [`architecture.md`](architecture.md) — Stage-1 M..N multiplexer + Stage-2 enrichment overview, with the
   current platform scope map + multi-space directory layout *(reframed 2026-07-07)*.
+- [`DB_LAYER.md`](DB_LAYER.md) — **database / persistence layer**: the three data classes (business /
+  config / operational), exact operational table schemas (DDL), per-space DuckDB file topology, and the
+  Postgres migration guide. **Active.**
 - [`flow-graph-design.md`](flow-graph-design.md) — pipeline-as-graph design (IR, lift, validator, executor,
   component registry, T-checklist). **Active.**
 - [`flow-live-execution-plan.md`](flow-live-execution-plan.md) — live execution of authored Pipelines as
