@@ -144,11 +144,24 @@ $spacesSrc = Join-Path $sandboxRoot 'spaces'
 if (Test-Path $spacesSrc) {
     $spacesOut = Join-Path $bundleDir 'spaces'
     Copy-Item $spacesSrc $spacesOut -Recurse -Force
-    foreach ($gen in 'data','audit','duckdb','flows') {
-        Get-ChildItem -Path $spacesOut -Recurse -Directory -Filter $gen -ErrorAction SilentlyContinue |
-            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    # Never ship runtime/generated trees: uat is a generated clone (tools/seed-uat.ps1) and _shared
+    # holds the Exchange's runtime ledgers. _templates (the shipped template gallery) DOES ship.
+    foreach ($top in 'uat','_shared') {
+        Remove-Item (Join-Path $spacesOut $top) -Recurse -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "Bundled spaces tree → $spacesOut" -ForegroundColor Green
+    # Per space: prune runtime state but KEEP authored config/flows/ (canonical since the
+    # flows-divergence fix) and the pristine data/samples/ feeds (committed, seed scripts copy them).
+    Get-ChildItem -Path $spacesOut -Directory | ForEach-Object {
+        foreach ($gen in 'audit','duckdb','flows','views') {   # top-level runtime dirs only
+            Remove-Item (Join-Path $_.FullName $gen) -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        $data = Join-Path $_.FullName 'data'
+        if (Test-Path $data) {
+            Get-ChildItem -Path $data -Force | Where-Object { $_.Name -ne 'samples' } |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Write-Host "Bundled spaces tree → $spacesOut (samples + config/flows kept, runtime pruned)" -ForegroundColor Green
 } else {
     Write-Host "  (no spaces/ tree found at $spacesSrc — skipping config bundle)" -ForegroundColor Yellow
 }

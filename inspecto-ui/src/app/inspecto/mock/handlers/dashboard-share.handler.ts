@@ -8,9 +8,11 @@ const SHARE = /\/dashboards\/([^/]+)\/share$/;
  * HMAC-signed token server-side; offline we cannot sign a token the public *resolve* side would accept
  * (that stays 501 — see `public-dashboards.handler.ts`), but the Share dialog only needs a token to
  * display + copy, so we mint a plausible fake here so the authoring UX is demoable with no backend.
+ * Gated on `mockStudio` (the dashboards' flag) so the real HMAC-signed mint is used when mocks are off.
  */
-export function dashboardShareHandler(_flags: MockFlags): MockHandler {
+export function dashboardShareHandler(flags: MockFlags): MockHandler {
     return (req: MockRequest) => {
+        if (!flags.mockStudio) return undefined;
         let m: string[] | null;
         if (req.method === 'POST' && (m = match(req.url, SHARE))) {
             const id = m[1];

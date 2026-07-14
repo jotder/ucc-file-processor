@@ -5,9 +5,9 @@
 export const environment = {
     production: false,
     // Inspecto inspector backend (ControlApi). All API calls are prefixed with '/api':
-    //  - dev (ng serve): proxy.conf.json rewrites '/api' → '' and forwards to :8080.
-    //  - packaged (SPA served same-origin by ControlApi): the backend strips the '/api' prefix
-    //    before route matching, so the same build works without a proxy.
+    //  - dev (ng serve): proxy.conf.json forwards '/api' UNCHANGED to :8080 (the backend strips
+    //    '/api' and '/api/v1' itself — a rewrite here would 404 the versioned routes).
+    //  - packaged (SPA served same-origin by ControlApi via -Dui.dir): same-origin, no proxy.
     // Keep this as '/api' for both modes. (There are no angular.json fileReplacements, so this
     // environment.ts is the one that actually ships.)
     apiBaseUrl: '/api',
@@ -28,8 +28,9 @@ export const environment = {
     // fully offline from in-memory datasets, so the reusable query panel can be exercised with no backend.
     // Gates the ops handler in the unified mock store; flip false once wired to the real backend.
     mockOps: false,
-    // Prototype-only: serve Studio's new component kinds (dataset/chart/dashboard) from an in-memory store
-    // until the backend storage enum is widened. Flip false once wired to the real backend (gates the studio kinds in the unified mock store).
+    // Offline-only: serve Studio's component kinds (dataset/chart/dashboard/recon), settings, and the
+    // BI template/share/public-dashboard/inv shims from the unified mock store. The real backend has
+    // full CRUD for all of these — false (the default) serves them live.
     mockStudio: false,
     // Prototype-only: serve the Scheduler's write actions (create/edit/delete/enable/disable/reschedule) and
     // per-run logs/events. The read endpoints (list/runs/trigger) already exist on the backend; the mock
@@ -47,6 +48,9 @@ export const environment = {
     // notifications, catalog, diagnoses, config) so the full UI works with no backend at all.
     // Gates the demo handler in the unified mock store (inspecto/mock/).
     mockDemo: false,
+    // Prototype-only: serve the per-space Data Browser (/db/catalog|table|query) offline. Flip true
+    // together with mockDemo for a no-backend walk; false = the real DbBrowserRoutes serve it.
+    mockDb: false,
     // W6d edition switch (offline): 'none' → the mock /bootstrap reports Personal, so the app boots
     // with NO login (byte-for-byte as before). Flip to 'oidc' (or localStorage['inspecto.mockAuthMode'])
     // to exercise the whole Standard sign-in UX offline against the mock (auth.handler mints fake tokens).

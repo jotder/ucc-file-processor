@@ -9,9 +9,11 @@ const APPLY = /\/bi\/templates\/[^/]+\/apply$/;
  * offline; APPLY writes real components through the server-side ComponentStore, which the mock layer has
  * no equivalent of — so it answers an honest 501 (the `invHandler` precedent), and the gallery surfaces a
  * clear "applies on the backend" toast rather than faking a partial board.
+ * Gated on `mockStudio` so the backend's curated list + real apply serve when mocks are off.
  */
-export function biTemplatesHandler(_flags: MockFlags): MockHandler {
+export function biTemplatesHandler(flags: MockFlags): MockHandler {
   return (req: MockRequest) => {
+    if (!flags.mockStudio) return undefined;
     if (req.method === 'POST' && match(req.url, APPLY)) {
       return error(501, 'Templates apply on the real backend (they write components server-side); offline mode is browse-only.');
     }

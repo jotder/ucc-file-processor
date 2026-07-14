@@ -9,10 +9,12 @@ const PROJECTION = /\/inv\/projection$/;
  * a feature concern this shared layer must not import). Answering an explicit 501 here keeps the
  * offline path honest: `EntityProjectionGraphSource` catches it and falls back to its client-side
  * sample fold, and no unhandled request ever escapes to the network (which would false-trigger the
- * connectivity banner).
+ * connectivity banner). Gated on `mockStudio` (the dataset/sample seam's flag) so a real backend
+ * serves `/inv/projection` when mocks are off.
  */
-export function invHandler(_flags: MockFlags): MockHandler {
+export function invHandler(flags: MockFlags): MockHandler {
   return (req: MockRequest) => {
+    if (!flags.mockStudio) return undefined;
     if (req.method === 'POST' && match(req.url, PROJECTION)) {
       return error(501, 'Entity projection runs on the real backend; offline mode folds sample rows client-side.');
     }
