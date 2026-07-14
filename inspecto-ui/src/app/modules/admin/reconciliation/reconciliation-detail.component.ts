@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -11,6 +12,7 @@ import { apiErrorMessage } from 'app/inspecto/api';
 import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
+import { FlatTreeRow, TreeNode, TreeTableComponent, varianceCell } from 'app/inspecto/tree-table';
 import { InspectoRowAction } from 'app/inspecto/grid';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { evaluateRows } from 'app/inspecto/query';
@@ -38,7 +40,7 @@ function datasetRows(ds: Dataset | null): Record<string, unknown>[] {
 @Component({
     selector: 'app-reconciliation-detail',
     standalone: true,
-    imports: [RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, DataTableComponent, InspectoEmptyStateComponent],
+    imports: [RouterLink, MatButtonModule, MatButtonToggleModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, DataTableComponent, TreeTableComponent, InspectoEmptyStateComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './reconciliation-detail.component.html',
 })
@@ -84,6 +86,83 @@ export class ReconciliationDetailComponent implements OnInit {
             onClick: (b) => this.toggleResolve(b),
         },
     ];
+
+    // ── grouped (tree-table) view: breaks grouped by type, sources aligned as columns + Δ ──────────
+    readonly viewMode = signal<'grouped' | 'flat'>('grouped');
+
+    /** Leaf-row-id → break, for the tree's resolve action (leaf node id = {@link breakRowId}). */
+    private readonly breaksById = computed(() => {
+        const m = new Map<string, ReconBreak>();
+        for (const b of this.drillBreaks()) m.set(this.breakRowId(b), b);
+        return m;
+    });
+
+    /** Breaks grouped by type into an aligned tree: parent = break type (count + Σ diff), leaves = breaks. */
+    readonly treeNodes = computed<TreeNode[]>(() => {
+        const groups = new Map<string, ReconBreak[]>();
+        for (const b of this.drillBreaks()) {
+            const g = groups.get(b.type) ?? [];
+            g.push(b);
+            groups.set(b.type, g);
+        }
+        const out: TreeNode[] = [];
+        for (const [type, list] of groups) {
+            const sumDiff = list.reduce((s, b) => s + (typeof b.diff === 'number' ? b.diff : 0), 0);
+            out.push({
+                id: `grp:${type}`,
+                label: `${breakLabel(type)} (${list.length})`,
+                icon: 'heroicons_outline:rectangle-stack',
+                expanded: true,
+                values: { diff: sumDiff || undefined },
+                children: list.map((b) => ({
+                    id: this.breakRowId(b),
+                    label: b.key,
+                    values: {
+                        column: b.column ?? '—',
+                        leftValue: b.leftValue,
+                        rightValue: b.rightValue,
+                        diff: b.diff,
+                        status: b.status,
+                    },
+                })),
+            });
+        }
+        return out;
+    });
+
+    readonly treeColumns = computed<ColDef[]>(() => {
+        const r = this.recon();
+        return [
+            { field: 'column', headerName: 'Column', width: 150, valueFormatter: (p) => p.value ?? '—' },
+            { field: 'leftValue', headerName: r?.leftDataset || 'Left', flex: 1, valueFormatter: (p) => fmtVal(p.value) },
+            { field: 'rightValue', headerName: r?.rightDataset || 'Right', flex: 1, valueFormatter: (p) => fmtVal(p.value) },
+            { field: 'diff', headerName: 'Δ', width: 120, cellRenderer: varianceCell() },
+            {
+                field: 'status', headerName: 'Status', width: 120,
+                cellRenderer: (p: ICellRendererParams) => (p.value ? statusBadgeHtml(String(p.value)) : ''),
+            },
+        ];
+    });
+
+    /** Resolve/re-open a break from the tree — gated to leaf rows (a group row maps to no break). */
+    readonly treeActions: InspectoRowAction<FlatTreeRow>[] = [
+        {
+            icon: (row) => (this.breakOf(row)?.status === 'resolved' ? 'heroicons_outline:arrow-uturn-left' : 'heroicons_outline:check'),
+            hint: (row) => (this.breakOf(row)?.status === 'resolved' ? 'Re-open' : 'Resolve'),
+            visible: (row) => !!this.breakOf(row),
+            onClick: (row) => {
+                const b = this.breakOf(row);
+                if (b) void this.toggleResolve(b);
+            },
+        },
+    ];
+
+    private breakOf(row: FlatTreeRow): ReconBreak | undefined {
+        return this.breaksById().get(row.__id);
+    }
+    private breakRowId(b: ReconBreak): string {
+        return `${b.type}|${b.key}|${b.column ?? ''}`;
+    }
 
     ngOnInit(): void {
         const id = this.route.snapshot.paramMap.get('id') ?? '';

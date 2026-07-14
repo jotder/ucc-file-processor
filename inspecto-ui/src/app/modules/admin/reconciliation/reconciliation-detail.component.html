@@ -56,7 +56,16 @@
 
         <!-- Break drill grid -->
         <div class="mt-6">
-            <div class="text-secondary mb-2 text-xs font-semibold uppercase tracking-wider">Breaks ({{ drillBreaks().length }})</div>
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-secondary text-xs font-semibold uppercase tracking-wider">Breaks ({{ drillBreaks().length }})</div>
+                @if (summary() && drillBreaks().length) {
+                    <mat-button-toggle-group [value]="viewMode()" (change)="viewMode.set($event.value)"
+                                             hideSingleSelectionIndicator aria-label="Break view mode">
+                        <mat-button-toggle value="grouped">Grouped</mat-button-toggle>
+                        <mat-button-toggle value="flat">Flat</mat-button-toggle>
+                    </mat-button-toggle-group>
+                }
+            </div>
             @if (!summary()) {
                 <inspecto-empty-state
                     icon="heroicons_outline:play"
@@ -68,6 +77,18 @@
                     icon="heroicons_outline:check-circle"
                     title="No open breaks"
                     message="Both sides agree within tolerance for every key."
+                />
+            } @else if (viewMode() === 'grouped') {
+                <!-- Aligned tree-table: breaks grouped by type; the two sources + Δ as aligned columns. -->
+                <inspecto-tree-table
+                    treeHeader="Break / Key"
+                    exportName="reconciliation-breaks"
+                    [nodes]="treeNodes()"
+                    [columns]="treeColumns()"
+                    [rowActions]="treeActions"
+                    [groupDefaultExpanded]="1"
+                    [autoHeight]="true"
+                    noRowsTitle="No open breaks"
                 />
             } @else {
                 <inspecto-data-table
