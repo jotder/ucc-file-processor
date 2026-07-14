@@ -6,7 +6,7 @@ import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SecretResolver;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -33,10 +33,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.gamma.acquire.SourceConnector.Capability.*;
+import static com.gamma.acquire.CollectorConnector.Capability.*;
 
 /**
- * An S3-compatible object-storage {@link SourceConnector} (ACQ-4) speaking the S3 REST API directly over the
+ * An S3-compatible object-storage {@link CollectorConnector} (ACQ-4) speaking the S3 REST API directly over the
  * JDK {@link HttpClient} with {@link AwsSigV4} header signing — <b>no AWS SDK</b>, so the air-gapped build and
  * the small SBOM are preserved. One implementation covers AWS S3, MinIO, and any S3-compatible store
  * (GCS in interoperability mode included); requests use path-style addressing
@@ -54,7 +54,7 @@ import static com.gamma.acquire.SourceConnector.Capability.*;
  * {@code READY} and the engine skips size/mtime stabilization. MOVE/RENAME are CopyObject+DeleteObject
  * (object storage has no rename); TAG is PutObjectTagging.
  */
-public final class S3Connector implements SourceConnector {
+public final class S3Connector implements CollectorConnector {
 
     private static final Logger log = LoggerFactory.getLogger(S3Connector.class);
     private static final int MAX_KEYS_PAGE = 1000;

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.config.io.ConfigLoader;
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -33,7 +33,7 @@ class ControlApiConfigWriteTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -43,7 +43,7 @@ class ControlApiConfigWriteTest {
         if (writeRoot != null) System.setProperty("assist.write.root", writeRoot.toString());
         else System.clearProperty("assist.write.root");
         try {
-            SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+            CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
             // The write root is read in the constructor, so it is captured here regardless of the
             // clear in finally (which only keeps the JVM-wide property from leaking to other tests).
             ControlApi api = new ControlApi(svc, 0);

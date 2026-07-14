@@ -9,7 +9,7 @@ import com.gamma.intelligence.AgentAskResult;
 import com.gamma.intelligence.AgentSessionRequest;
 import com.gamma.intelligence.AgentSessionResult;
 import com.gamma.intelligence.spi.IntelligenceAgent;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -34,13 +34,13 @@ class AgentRoutesTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
     private Ctx open(Path dir, IntelligenceAgent agent) throws Exception {
         Path toon = TestConfigs.csv(dir, PipelineConfigBatchTest.miniSchema()).write();
-        SourceService svc = new SourceService(List.of(toon), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(toon), 3600, 1);
         if (agent != null) svc.registerIntelligenceAgent(agent);
         ControlApi api = new ControlApi(svc, 0);
         api.start();
@@ -130,7 +130,7 @@ class AgentRoutesTest {
         private final Map<String, String> sessions = new ConcurrentHashMap<>();
 
         @Override public String name() { return "fake-intelligence"; }
-        @Override public void init(SourceService service) {}
+        @Override public void init(CollectorService service) {}
 
         @Override
         public AgentSessionResult openSession(AgentSessionRequest request) {

@@ -28,18 +28,18 @@ import java.util.stream.Stream;
  * it does not carry correctness — dedup/stability still decide what is ingested).
  *
  * <p>A source opts in with {@code source.discovery: watch}; only local sources qualify (a remote connector
- * has no local tree to watch — its push analogue is {@code POST /sources/{id}/notify}). Directories created
+ * has no local tree to watch — its push analogue is {@code POST /collectors/{id}/notify}). Directories created
  * under the root are registered as they appear; an {@link StandardWatchEventKinds#OVERFLOW} simply marks the
  * pipeline dirty (the triggered run is a full scan cycle anyway, so lost events cannot lose files).
  *
  * <p>Events are debounced: a burst of creates/modifies coalesces into one trigger once the tree has been
  * quiet for {@link #QUIET_MS}. Triggers run on this watcher's own thread via the supplied callback
- * (normally {@code SourceService::runPipeline}, which serializes on the ingest lock), so a trigger can never
+ * (normally {@code CollectorService::runPipeline}, which serializes on the ingest lock), so a trigger can never
  * overlap the scheduled cycle.
  */
-final class SourceWatcher implements AutoCloseable {
+final class CollectorWatcher implements AutoCloseable {
 
-    private static final Logger log = LoggerFactory.getLogger(SourceWatcher.class);
+    private static final Logger log = LoggerFactory.getLogger(CollectorWatcher.class);
     private static final long QUIET_MS = Long.getLong("service.watch.quiet.millis", 1000L);
 
     private final WatchService watchService;
@@ -54,28 +54,28 @@ final class SourceWatcher implements AutoCloseable {
      * Start a watcher for every registered pipeline with a local {@code source.discovery: watch} source, or
      * return {@code null} when none opts in (the common case — no thread, no OS watch handles).
      */
-    static SourceWatcher startFor(List<ConfigRegistry.Entry> entries, Consumer<String> trigger) {
+    static CollectorWatcher startFor(List<ConfigRegistry.Entry> entries, Consumer<String> trigger) {
         Map<Path, String> roots = new HashMap<>();
         for (var e : entries) {
-            PipelineConfig.Source s = e.config().source();
+            PipelineConfig.Collector s = e.config().collector();
             if (s == null || !"watch".equals(s.discovery())) continue;
             if (s.hasConnection() || !"local".equals(s.connector())) {
                 log.warn("[CONFIG] source '{}' declares discovery=watch but is not local — ignored "
-                        + "(remote push = POST /sources/{}/notify)", s.id(), s.id());
+                        + "(remote push = POST /collectors/{}/notify)", s.id(), s.id());
                 continue;
             }
             roots.put(Paths.get(e.config().dirs().poll()).toAbsolutePath().normalize(), e.id());
         }
         if (roots.isEmpty()) return null;
         try {
-            return new SourceWatcher(roots, trigger);
+            return new CollectorWatcher(roots, trigger);
         } catch (IOException ex) {
             log.warn("Could not start filesystem watcher — falling back to interval polling only: {}", ex.getMessage());
             return null;
         }
     }
 
-    private SourceWatcher(Map<Path, String> rootPipelines, Consumer<String> trigger) throws IOException {
+    private CollectorWatcher(Map<Path, String> rootPipelines, Consumer<String> trigger) throws IOException {
         this.rootPipelines = rootPipelines;
         this.trigger = trigger;
         this.watchService = FileSystems.getDefault().newWatchService();

@@ -179,7 +179,7 @@ public class PartitionSummarizer {
         if (partitions.isEmpty()) return;
 
         // ── 2. process in parallel via fixed thread pool ──────────────────────
-        // Matches the SourceProcessor concurrency pattern: a bounded pool queues
+        // Matches the CollectorProcessor concurrency pattern: a bounded pool queues
         // all submitted tasks internally; no semaphore or Future list needed.
         AtomicInteger processed = new AtomicInteger();
         AtomicInteger skipped   = new AtomicInteger();

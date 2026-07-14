@@ -6,7 +6,7 @@ import com.gamma.agent.model.FakeModelProvider;
 import com.gamma.agent.kernel.model.ModelRouter;
 import com.gamma.control.ControlApi;
 import com.gamma.etl.BatchEvent;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -32,13 +32,13 @@ class AssistEndToEndTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
     private Ctx open(Path dir, ModelRouter router) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        SourceService svc = new SourceService(List.of(pipe), 60, 1);
+        CollectorService svc = new CollectorService(List.of(pipe), 60, 1);
         svc.registerAgent(new UccAssistAgent(router));   // bypass ServiceLoader; inject the fake
         ControlApi api = new ControlApi(svc, 0);
         api.start();

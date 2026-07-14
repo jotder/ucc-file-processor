@@ -31,7 +31,7 @@ import java.util.UUID;
  * DecisionSimulationResult 0-matched} result so the UI's simulate action has a real endpoint to call.
  * {@code apply} executes each consequence against the platform primitive that already exists —
  * {@code emit-signal} onto this space's Signal Ledger, {@code start-job} via {@link JobService},
- * {@code trigger-pipeline} via {@code SourceService#triggerRunAsync} — and emits a descriptive stub
+ * {@code trigger-pipeline} via {@code CollectorService#triggerRunAsync} — and emits a descriptive stub
  * signal for the remaining platform actions ({@code create-alert}, {@code render-widget},
  * {@code generate-report}, {@code invoke-api}), matching the mock's own scope; the routing actions
  * ({@code route}/{@code tag}/{@code quarantine}/{@code drop}) are record-level and have no immediate

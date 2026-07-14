@@ -1,6 +1,6 @@
 package com.gamma.agent;
 
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -12,14 +12,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Proves the v3.0 (M0) cross-module assist SPI wiring end-to-end: the optional agent module
- * implements {@code AssistAgent} (from core) and {@link SourceService} accepts and binds it.
+ * implements {@code AssistAgent} (from core) and {@link CollectorService} accepts and binds it.
  * No engine work, no I/O — just the injection point.
  */
 class NoopAssistAgentTest {
 
     @Test
-    void wiresIntoSourceServiceViaTheSpi() {
-        SourceService svc = new SourceService(List.of(), 60, 1);
+    void wiresIntoCollectorServiceViaTheSpi() {
+        CollectorService svc = new CollectorService(List.of(), 60, 1);
         assertFalse(svc.assistAgent().isPresent(), "no agent before registration");
 
         NoopAssistAgent agent = new NoopAssistAgent();
@@ -32,7 +32,7 @@ class NoopAssistAgentTest {
 
     @Test
     void secondRegistrationIsIgnored() {
-        SourceService svc = new SourceService(List.of(), 60, 1);
+        CollectorService svc = new CollectorService(List.of(), 60, 1);
         NoopAssistAgent first = new NoopAssistAgent();
         NoopAssistAgent second = new NoopAssistAgent();
 

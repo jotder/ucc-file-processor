@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -25,19 +25,19 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Data Acquisition: the {@code /connections} routes over real HTTP — masked list/by-id + a live
  *  reachability test against a local listening socket + the 404 gates on update/delete of an unknown
  *  id. (The write-root 503 gate, success path, 409 duplicate-on-create and 409 in-use-on-delete are
- *  covered by {@link ControlApiSourcesAndConnectionsTest}.) */
+ *  covered by {@link ControlApiCollectorsAndConnectionsTest}.) */
 class ControlApiConnectionsTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
     private Ctx open(Path dir, ConnectionProfile... profiles) throws Exception {
         Path toon = TestConfigs.csv(dir, PipelineConfigBatchTest.miniSchema()).write();
-        SourceService svc = new SourceService(List.of(toon), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(toon), 3600, 1);
         for (ConnectionProfile p : profiles) svc.registerConnection(p);
         ControlApi api = new ControlApi(svc, 0);
         api.start();

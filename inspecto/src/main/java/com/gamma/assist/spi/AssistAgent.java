@@ -4,7 +4,7 @@ import com.gamma.api.PublicApi;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.assist.Diagnosis;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 
 import java.util.List;
 import java.util.Map;
@@ -15,15 +15,15 @@ import java.util.Map;
  * <p>The agent implementation lives in the separate {@code file-processor-agent} module so
  * the core fat-JAR stays dependency-lean. When that module — and a provider declared via
  * {@code META-INF/services/com.gamma.assist.spi.AssistAgent} — is on the classpath,
- * {@link SourceService} discovers it with {@link java.util.ServiceLoader} at startup and
+ * {@link CollectorService} discovers it with {@link java.util.ServiceLoader} at startup and
  * wires it <em>in-process</em>. A provider can also be supplied explicitly via
- * {@link SourceService#registerAgent(AssistAgent)} (used by tests).
+ * {@link CollectorService#registerAgent(AssistAgent)} (used by tests).
  *
  * <h3>Lifecycle</h3>
  * <ol>
- *   <li>{@link #init(SourceService)} — called once, <b>before</b> {@link SourceService#start()},
- *       so the agent can subscribe to {@link SourceService#eventBus()} before the first poll
- *       cycle and capture the typed handles it needs ({@link SourceService#reports()},
+ *   <li>{@link #init(CollectorService)} — called once, <b>before</b> {@link CollectorService#start()},
+ *       so the agent can subscribe to {@link CollectorService#eventBus()} before the first poll
+ *       cycle and capture the typed handles it needs ({@link CollectorService#reports()},
  *       {@code enrichmentService()}, {@code jobService()}, {@code statusStore()}).</li>
  *   <li>{@link #start()} — called after the service has started.</li>
  *   <li>{@link #close()} — called on service shutdown.</li>
@@ -42,14 +42,14 @@ public interface AssistAgent extends AutoCloseable {
 
     /**
      * Wire the agent to the running service. Called exactly once, before
-     * {@link SourceService#start()}. Implementations should capture only what they need and
+     * {@link CollectorService#start()}. Implementations should capture only what they need and
      * return quickly; defer any heavy work (model warm-up, etc.) to {@link #start()}.
      *
      * @param service the host service, for typed access to its subsystems and event bus
      */
-    void init(SourceService service);
+    void init(CollectorService service);
 
-    /** Called after {@link SourceService#start()}. Default no-op. */
+    /** Called after {@link CollectorService#start()}. Default no-op. */
     default void start() {}
 
     /**

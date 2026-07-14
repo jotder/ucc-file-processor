@@ -11,7 +11,7 @@ import {
 
 /**
  * The demo catch-all mock domain — the port of the old `demo-mock` interceptor: every endpoint not
- * owned by a feature-specific handler (health, status, report, metrics, sources, pipeline runtime
+ * owned by a feature-specific handler (health, status, report, metrics, collectors, pipeline runtime
  * views, notifications, catalog, diagnoses, config specs) so the full UI works offline for
  * stakeholder demos. Notifications now live in the {@link MockStore} (read / read-all / delete
  * genuinely round-trip and survive a reload); the read-only reporting surfaces stay canned,
@@ -155,9 +155,9 @@ const ACQ_METRICS: Record<string, unknown> = {
     },
 };
 
-// ── sources ─────────────────────────────────────────────────────────────────
+// ── collectors ──────────────────────────────────────────────────────────────
 
-const SOURCES = [
+const COLLECTORS = [
     { pipeline: 'cdr_ingest', id: 'sftp_cdr', connector: 'sftp', connection: 'prod-sftp', includes: ['*.csv'], excludes: [], recursiveDepth: 1, duplicateMode: 'checksum', duplicateOnChange: 'reprocess', guarantee: 'at-least-once', incrementalWatermark: 'last_modified', fetchParallel: 4, fetchRateLimit: 0, postAction: 'archive', dbWatermarkCurrent: null },
     { pipeline: 'subscriber_load', id: 's3_subscribers', connector: 's3', connection: 'aws-prod', includes: ['subscribers/*.parquet'], excludes: [], recursiveDepth: 2, duplicateMode: 'name', duplicateOnChange: 'skip', guarantee: 'exactly-once', incrementalWatermark: 'last_modified', fetchParallel: 8, fetchRateLimit: 0, postAction: 'none', dbWatermarkCurrent: null },
     { pipeline: 'voucher_etl', id: 'local_vouchers', connector: 'local', connection: null, includes: ['vouchers/**/*.json'], excludes: ['*.tmp'], recursiveDepth: 3, duplicateMode: 'checksum', duplicateOnChange: 'reprocess', guarantee: 'at-least-once', incrementalWatermark: null, fetchParallel: 1, fetchRateLimit: 0, postAction: 'delete', dbWatermarkCurrent: null },
@@ -260,7 +260,7 @@ const CATALOG_TABLES = [
     { id: 'fraud_scores', kind: 'TABLE', label: 'fraud_scores', description: { text: 'Real-time fraud scoring output', source: 'schema' }, overlay: { lastSeen: new Date(NOW - 600_000).toISOString(), rowCount: 95_000, freshness: 'FRESH' } },
 ];
 
-// A Stream is the Catalog's data-origin lens over a Source (+ its Connection) — same identity, catalog view.
+// A Stream is the Catalog's data-origin lens over a Collector (+ its Connection) — same identity, catalog view.
 const PIPELINE_OUTPUT_TABLE: Record<string, string> = {
     cdr_ingest: 'cdr_output',
     subscriber_load: 'subscriber_master',
@@ -269,12 +269,27 @@ const PIPELINE_OUTPUT_TABLE: Record<string, string> = {
     fraud_events: 'fraud_scores',
 };
 
-const CATALOG_STREAMS = SOURCES.map((s) => ({
+const CATALOG_STREAMS = COLLECTORS.map((s) => ({
     id: s.id,
-    kind: 'SOURCE',
+    kind: 'STREAM',
     label: s.id,
-    description: { text: `${s.connector} source feeding ${s.pipeline}`, source: 'source' },
+    description: { text: `${s.connector} collector feeding ${s.pipeline}`, source: 'source' },
     attrs: { connector: s.connector, connection: s.connection, pipeline: s.pipeline },
+}));
+
+// References are the Catalog's dimension-origin lens (REFERENCE_DATASET nodes) — lookup/master tables
+// joined into pipelines, browsed by name alongside Streams.
+const CATALOG_REFERENCES = [
+    { id: 'country_codes', connector: 'local', connection: null, pipeline: 'subscriber_load', text: 'ISO country + dialing-code reference' },
+    { id: 'currency_rates', connector: 'jdbc', connection: 'billing-db', pipeline: 'billing_daily', text: 'Daily FX rate reference' },
+    { id: 'imsi_ranges', connector: 's3', connection: 'aws-prod', pipeline: 'cdr_ingest', text: 'IMSI operator-range dimension' },
+    { id: 'fraud_watchlist', connector: 'local', connection: null, pipeline: 'fraud_events', text: 'Known-fraud subscriber watchlist' },
+].map((r) => ({
+    id: r.id,
+    kind: 'REFERENCE_DATASET',
+    label: r.id,
+    description: { text: r.text, source: 'reference' },
+    attrs: { connector: r.connector, connection: r.connection, pipeline: r.pipeline },
 }));
 
 const CATALOG_EDGES = CATALOG_STREAMS
@@ -317,10 +332,10 @@ const CONFIG_SPECS: Record<string, unknown> = {
         type: 'pipeline',
         fields: [
             { path: 'pipeline', type: 'STRING', required: true, description: 'Pipeline name (unique identifier)' },
-            { path: 'source.connector', type: 'STRING', required: true, description: 'Source connector type', options: ['sftp', 's3', 'local', 'jdbc', 'kafka'] },
-            { path: 'source.connection', type: 'STRING', required: false, description: 'Connection profile reference' },
-            { path: 'source.includes', type: 'ARRAY', required: true, description: 'File include globs' },
-            { path: 'source.excludes', type: 'ARRAY', required: false, description: 'File exclude globs' },
+            { path: 'collector.connector', type: 'STRING', required: true, description: 'Collector connector type', options: ['sftp', 's3', 'local', 'jdbc', 'kafka'] },
+            { path: 'collector.connection', type: 'STRING', required: false, description: 'Connection profile reference' },
+            { path: 'collector.includes', type: 'ARRAY', required: true, description: 'File include globs' },
+            { path: 'collector.excludes', type: 'ARRAY', required: false, description: 'File exclude globs' },
             { path: 'parser.format', type: 'STRING', required: true, description: 'Input format', options: ['csv', 'json', 'parquet', 'avro', 'xml', 'fixed', 'asn1', 'edi', 'custom'] },
             { path: 'parser.delimiter', type: 'STRING', required: false, description: 'Field delimiter (CSV)' },
             { path: 'parser.header', type: 'BOOLEAN', required: false, description: 'First row is header', default: true },
@@ -329,7 +344,7 @@ const CONFIG_SPECS: Record<string, unknown> = {
             { path: 'batch.maxFiles', type: 'INTEGER', required: false, description: 'Max files per batch', default: 100, minValue: 1, maxValue: 10000 },
         ],
         rules: [
-            { description: 'JDBC connector requires a connection profile', affectedFields: ['source.connector', 'source.connection'], condition: 'source.connector == "jdbc" => source.connection != null' },
+            { description: 'JDBC connector requires a connection profile', affectedFields: ['collector.connector', 'collector.connection'], condition: 'collector.connector == "jdbc" => collector.connection != null' },
         ],
     },
 };
@@ -342,7 +357,7 @@ const STATUS = /\/status$/;
 const REPORT = /\/report$/;
 const METRICS = /\/metrics$/;
 const METRICS_ACQ = /\/metrics\/acquisition$/;
-const SOURCES_RE = /\/sources$/;
+const COLLECTORS_RE = /\/collectors$/;
 const PIPELINES_LIST = /\/runs$/;
 const PIPELINE_BATCHES = /\/runs\/([^/]+)\/batches$/;
 const PIPELINE_FILES = /\/runs\/([^/]+)\/files$/;
@@ -368,6 +383,7 @@ const NOTIF_DELIVERIES = /\/notifications\/deliveries$/;
 const CATALOG_TABLES_RE = /\/catalog$/;
 const CATALOG_KPIS_RE = /\/catalog\/kpis$/;
 const CATALOG_STREAMS_RE = /\/catalog\/streams$/;
+const CATALOG_REFERENCES_RE = /\/catalog\/references$/;
 const CATALOG_NODE = /\/catalog\/tables\/([^/]+)$/;
 const CATALOG_GRAPH = /\/catalog\/graph$/;
 const DIAGNOSES_RE = /\/diagnoses$/;
@@ -388,8 +404,8 @@ export function demoHandler(flags: MockFlags): MockHandler {
         if (method === 'GET' && METRICS.test(url) && !METRICS_ACQ.test(url)) return json(METRICS_TEXT);
         if (method === 'GET' && METRICS_ACQ.test(url)) return json(ACQ_METRICS);
 
-        // ── sources ──
-        if (method === 'GET' && SOURCES_RE.test(url)) return json(SOURCES);
+        // ── collectors ──
+        if (method === 'GET' && COLLECTORS_RE.test(url)) return json(COLLECTORS);
 
         // ── pipelines ──
         if (method === 'GET' && PIPELINES_LIST.test(url)) return json(PIPELINE_VIEWS);
@@ -483,6 +499,7 @@ export function demoHandler(flags: MockFlags): MockHandler {
         // ── catalog ──
         if (method === 'GET' && CATALOG_KPIS_RE.test(url)) return json(CATALOG_KPIS);
         if (method === 'GET' && CATALOG_STREAMS_RE.test(url)) return json(CATALOG_STREAMS);
+        if (method === 'GET' && CATALOG_REFERENCES_RE.test(url)) return json(CATALOG_REFERENCES);
         if (method === 'GET' && CATALOG_TABLES_RE.test(url)) return json(CATALOG_TABLES);
         if (method === 'GET' && (m = match(url, CATALOG_NODE))) {
             const id = m[1];

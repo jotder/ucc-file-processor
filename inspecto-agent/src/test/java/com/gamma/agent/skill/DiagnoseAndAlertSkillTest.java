@@ -10,7 +10,7 @@ import com.gamma.agent.kernel.agent.AgentResult;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
 import com.gamma.config.io.ConfigCodec;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -31,7 +31,7 @@ class DiagnoseAndAlertSkillTest {
 
     private final DiagnoseAndAlertSkill skill = new DiagnoseAndAlertSkill();
 
-    private UccAgentContext context(SourceService svc, ModelRouter router) {
+    private UccAgentContext context(CollectorService svc, ModelRouter router) {
         return new UccAgentContext(svc.catalog(), svc.reports(), svc.statusStore(),
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
@@ -43,7 +43,7 @@ class DiagnoseAndAlertSkillTest {
     @Test
     void validRequestProducesValidatedDraftThatRoundTrips(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                     "{\"name\":\"high-error-rate\",\"metric\":\"error_rate\",\"comparator\":\"gt\","
                             + "\"threshold\":0.05,\"window\":\"1h\",\"severity\":\"CRITICAL\",\"on_pipeline\":null}"));
@@ -75,8 +75,8 @@ class DiagnoseAndAlertSkillTest {
     @Test
     void groundsAndCitesPipeline(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
-            MetadataNode source = svc.catalog().nodesOfKind(NodeKind.SOURCE).get(0);
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
+            MetadataNode source = svc.catalog().nodesOfKind(NodeKind.STREAM).get(0);
             String pipeName = source.label();
             String pipeId = source.id();
 
@@ -99,7 +99,7 @@ class DiagnoseAndAlertSkillTest {
     @Test
     void outOfRangeThresholdIsRepairedNotSurfaced(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AtomicInteger round = new AtomicInteger();
             // Round 1: error_rate threshold 5 (>1) is rejected. Round 2: 0.05 is valid.
             ModelRouter router = ModelRouter.of(FakeModelProvider.responding((ModelRequest r) ->
@@ -120,7 +120,7 @@ class DiagnoseAndAlertSkillTest {
     @Test
     void hallucinatedPipelineIsRejectedByGrounding(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AtomicInteger round = new AtomicInteger();
             ModelRouter router = ModelRouter.of(FakeModelProvider.responding((ModelRequest r) ->
                     round.incrementAndGet() == 1
@@ -141,7 +141,7 @@ class DiagnoseAndAlertSkillTest {
     @Test
     void modelUnavailableYieldsUnavailableNotError(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.down());
             AgentResult res = skill.run(ask("warn on errors"), context(svc, router));
             assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
@@ -152,7 +152,7 @@ class DiagnoseAndAlertSkillTest {
     @Test
     void blankRequestIsRejectedCleanly(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned("{}"));
             AgentResult res = skill.run(ask("   "), context(svc, router));
             assertEquals(AgentResult.Status.UNAVAILABLE, res.status());

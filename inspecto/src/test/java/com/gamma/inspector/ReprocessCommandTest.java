@@ -24,7 +24,7 @@ class ReprocessCommandTest {
         Files.writeString(inbox.resolve("a.csv"), "ID,AMT,EVENT_DATE\na,1.0,2020-04-03\n");
         Files.writeString(inbox.resolve("b.csv"), "ID,AMT,EVENT_DATE\nb,2.0,2020-04-03\n");
 
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
 
         // Find the batch id from the single manifest written.
         String batchId;

@@ -3,7 +3,7 @@ package com.gamma.control;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -19,30 +19,30 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Real-HTTP tests for {@code POST /sources/{id}/notify} (ACQ-6 push discovery): v1 202+runId+Location with
+ * Real-HTTP tests for {@code POST /collectors/{id}/notify} (ACQ-6 push discovery): v1 202+runId+Location with
  * the {@code notify} trigger label, unchanged legacy 200, 404 for an unknown source id, and the audit
  * classification. Mirrors the {@code /runs/{name}/trigger} coverage in {@link ControlApiAsyncV1Test}.
  */
-class ControlApiSourceNotifyTest {
+class ControlApiCollectorNotifyTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
     private Ctx open(Path cfg) throws Exception {
         Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
-        SourceService svc = new SourceService(List.of(pipe), List.of(), List.of(), 3600L, 1, null);
+        CollectorService svc = new CollectorService(List.of(pipe), List.of(), List.of(), 3600L, 1, null);
         ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port());
     }
 
-    /** The registered pipeline's source id, read the way an external notifier would: {@code GET /sources}. */
+    /** The registered pipeline's source id, read the way an external notifier would: {@code GET /collectors}. */
     private String sourceId(Ctx c) throws Exception {
-        HttpResponse<String> sources = get(c.port, "/sources");
+        HttpResponse<String> sources = get(c.port, "/collectors");
         assertEquals(200, sources.statusCode());
         return JSON.readTree(sources.body()).get(0).get("id").asText();
     }
@@ -61,7 +61,7 @@ class ControlApiSourceNotifyTest {
     void notifyIsAcceptedWithRunIdAndNotifyTrigger(@TempDir Path cfg) throws Exception {
         try (Ctx c = open(cfg)) {
             String source = sourceId(c);
-            HttpResponse<String> accepted = post(c.port, "/api/v1/sources/" + source + "/notify");
+            HttpResponse<String> accepted = post(c.port, "/api/v1/collectors/" + source + "/notify");
             assertEquals(202, accepted.statusCode(), accepted.body());
             JsonNode data = JSON.readTree(accepted.body()).get("data");
             String runId = data.get("runId").asText();
@@ -90,7 +90,7 @@ class ControlApiSourceNotifyTest {
     @Test
     void legacyNotifyIsSynchronousRunResult(@TempDir Path cfg) throws Exception {
         try (Ctx c = open(cfg)) {
-            HttpResponse<String> r = post(c.port, "/sources/" + sourceId(c) + "/notify");   // unversioned surface
+            HttpResponse<String> r = post(c.port, "/collectors/" + sourceId(c) + "/notify");   // unversioned surface
             assertEquals(200, r.statusCode(), r.body());
             JsonNode body = JSON.readTree(r.body());
             assertTrue(body.has("total") && body.has("failed"), "legacy body is the raw RunResult");
@@ -100,16 +100,16 @@ class ControlApiSourceNotifyTest {
     @Test
     void unknownSourceIs404(@TempDir Path cfg) throws Exception {
         try (Ctx c = open(cfg)) {
-            assertEquals(404, post(c.port, "/api/v1/sources/ghost/notify").statusCode());
-            assertEquals(404, post(c.port, "/sources/ghost/notify").statusCode());
+            assertEquals(404, post(c.port, "/api/v1/collectors/ghost/notify").statusCode());
+            assertEquals(404, post(c.port, "/collectors/ghost/notify").statusCode());
         }
     }
 
     @Test
-    void notifyIsAuditedAsSourceMutation() {
-        AuditTrail.Action a = AuditTrail.classify("POST", "/sources/feed-a/notify");
+    void notifyIsAuditedAsCollectorMutation() {
+        AuditTrail.Action a = AuditTrail.classify("POST", "/collectors/feed-a/notify");
         assertNotNull(a);
-        assertEquals("source.notified", a.name());
+        assertEquals("collector.notified", a.name());
         assertEquals("data_mutation", a.category());
     }
 }

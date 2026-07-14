@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * An in-memory, thread-safe index of loaded pipeline configs keyed by their <b>in-file identity</b>
  * ({@code config.identity().pipelineName()}) — the fix for the O(n) re-parse scans that
- * {@code SourceService.pathFor}/{@code configFor}/{@code activeRegistry} performed on every call.
+ * {@code CollectorService.pathFor}/{@code configFor}/{@code activeRegistry} performed on every call.
  *
  * <p>{@link #rebuild} parses each path <em>once</em> and snapshots the result, so subsequent lookups
  * are O(1) map reads with no disk I/O. It is also <b>mtime-cached</b>: a rebuild re-parses a config only

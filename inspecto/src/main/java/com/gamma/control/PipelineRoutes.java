@@ -10,7 +10,7 @@ import com.gamma.pipeline.PipelineStore;
 import com.gamma.pipeline.PipelineValidator;
 import com.gamma.pipeline.PipelineLift;
 import com.gamma.pipeline.exec.PipelineDryRun;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +51,7 @@ final class PipelineRoutes implements RouteModule {
     /** Lift every registered pipeline to a {@link PipelineGraph} and project a compact summary (GET /pipelines). */
     private Object flowSummaries(ApiContext api) {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (SourceService.PipelineView pv : api.service().pipelines()) {
+        for (CollectorService.PipelineView pv : api.service().pipelines()) {
             api.service().configFor(pv.name())
                     .ifPresent(c -> out.add(PipelineProjection.summary(PipelineLift.lift(c))));
         }
@@ -64,9 +64,9 @@ final class PipelineRoutes implements RouteModule {
     }
 
     /** Every registered pipeline lifted to a {@link PipelineGraph} (shared with the component safe-delete check). */
-    static List<PipelineGraph> liftedFlows(SourceService service) {
+    static List<PipelineGraph> liftedFlows(CollectorService service) {
         List<PipelineGraph> graphs = new ArrayList<>();
-        for (SourceService.PipelineView pv : service.pipelines()) {
+        for (CollectorService.PipelineView pv : service.pipelines()) {
             service.configFor(pv.name()).ifPresent(c -> graphs.add(PipelineLift.lift(c)));
         }
         return graphs;

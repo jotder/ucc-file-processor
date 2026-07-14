@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** {@link ServiceBootstrap#loadRcaTemplates} scans {@code *_rca.toon}, registering the valid ones and
  *  warning + skipping any that fail to parse (mirrors the {@code loadAlerts} robustness contract). */
-class SourceServiceRcaTest {
+class CollectorServiceRcaTest {
 
     @Test
     void loadsValidTemplatesAndSkipsBad(@TempDir Path dir) throws Exception {

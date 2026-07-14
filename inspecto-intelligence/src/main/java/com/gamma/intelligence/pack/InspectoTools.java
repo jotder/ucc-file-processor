@@ -6,7 +6,7 @@ import com.eoiagent.core.ToolCall;
 import com.eoiagent.core.ToolResult;
 import com.eoiagent.core.ToolSpec;
 import com.eoiagent.tool.Tool;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,7 +22,7 @@ import java.util.stream.Stream;
 /**
  * The read tool belt v1 (plan §3, L0 "read/ground"): {@code glossary_lookup} and {@code docs_search}
  * ground answers in {@code docs/} (the canonical vocabulary + product docs); {@code status_get}
- * grounds them in the live {@link SourceService}. All read-only, evidence-producing, never throw —
+ * grounds them in the live {@link CollectorService}. All read-only, evidence-producing, never throw —
  * an expected failure (unknown term, no matches) is an {@code ok=false} {@link ToolResult}.
  */
 final class InspectoTools {
@@ -33,7 +33,7 @@ final class InspectoTools {
     private InspectoTools() {
     }
 
-    static List<Tool> tools(SourceService service) {
+    static List<Tool> tools(CollectorService service) {
         return List.of(glossaryLookup(), docsSearch(), statusGet(service));
     }
 
@@ -70,14 +70,14 @@ final class InspectoTools {
         });
     }
 
-    private static Tool statusGet(SourceService service) {
+    private static Tool statusGet(CollectorService service) {
         ToolSpec spec = new ToolSpec("status_get",
                 "Live pipeline status: paused state and committed-batch count, one or all pipelines",
                 "{\"type\":\"object\",\"properties\":{\"pipelineId\":{\"type\":\"string\"}}}",
                 false, Role.USER, Capability.READ_METADATA);
         return new FunctionTool(spec, call -> {
             String pipelineId = arg(call, "pipelineId");
-            List<SourceService.PipelineView> views = service.pipelines();
+            List<CollectorService.PipelineView> views = service.pipelines();
             if (pipelineId == null || pipelineId.isBlank()) {
                 return ok(Map.of("pipelines", views.stream()
                         .map(v -> Map.of("name", v.name(), "paused", v.paused(),

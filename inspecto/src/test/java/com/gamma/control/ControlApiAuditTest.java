@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -31,7 +31,7 @@ class ControlApiAuditTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port, String name) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port, String name) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -41,7 +41,7 @@ class ControlApiAuditTest {
         Files.createDirectories(inbox);
         Files.writeString(inbox.resolve("data.csv"),
                 "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n2,20,2020-02-05\n");
-        SourceService svc = new SourceService(List.of(toon), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(toon), 3600, 1);
         ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port(), "test_etl");

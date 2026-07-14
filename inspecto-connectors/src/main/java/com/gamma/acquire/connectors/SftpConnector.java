@@ -7,7 +7,7 @@ import com.gamma.acquire.PostAction;
 import com.gamma.acquire.ReadyMarker;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SecretResolver;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import net.schmizz.sshj.SSHClient;
 import net.schmizz.sshj.sftp.FileAttributes;
 import net.schmizz.sshj.sftp.RemoteResourceInfo;
@@ -28,10 +28,10 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-import static com.gamma.acquire.SourceConnector.Capability.*;
+import static com.gamma.acquire.CollectorConnector.Capability.*;
 
 /**
- * An SFTP {@link SourceConnector} (Data Acquisition roadmap Phase E) built on <a href="https://github.com/hierynomus/sshj">sshj</a>.
+ * An SFTP {@link CollectorConnector} (Data Acquisition roadmap Phase E) built on <a href="https://github.com/hierynomus/sshj">sshj</a>.
  * Lives in the optional connector module so the SSH/BouncyCastle dependencies never touch the lean core.
  *
  * <p>Reachability and credentials come from the bound {@link ConnectionProfile}: {@code host}/{@code port}
@@ -44,7 +44,7 @@ import static com.gamma.acquire.SourceConnector.Capability.*;
  * then released by {@link #close()}. {@link #fetchTo} resumes a partial download (the {@link Capability#RESUMABLE}
  * contract); {@link #open} streams directly with no local copy.
  */
-public final class SftpConnector implements SourceConnector {
+public final class SftpConnector implements CollectorConnector {
 
     private static final Logger log = LoggerFactory.getLogger(SftpConnector.class);
     private static final int DEFAULT_PORT = 22;

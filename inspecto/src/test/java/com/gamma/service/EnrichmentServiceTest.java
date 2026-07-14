@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * enrichment engine to the M1 event bus (freshness) and scheduler (completeness):
  * event-scoped incremental recompute, scheduled full recompute, Stage-2 → Stage-2
  * chains, idempotency under event+schedule overlap, and end-to-end from a real
- * Stage-1 batch commit via {@link SourceService}.
+ * Stage-1 batch commit via {@link CollectorService}.
  */
 class EnrichmentServiceTest {
 
@@ -312,7 +312,7 @@ class EnrichmentServiceTest {
         assertThrows(IllegalArgumentException.class, () -> es.runs("GHOST"));
     }
 
-    // ── end-to-end: a real Stage-1 batch commit drives enrichment through SourceService ─
+    // ── end-to-end: a real Stage-1 batch commit drives enrichment through CollectorService ─
 
     @Test
     void stage1CommitTriggersEnrichmentEndToEnd(@TempDir Path dir) throws Exception {
@@ -336,7 +336,7 @@ class EnrichmentServiceTest {
                 new Triggers("test_etl", 0));   // pipeline name is lower-cased by identity
 
         List<BatchEvent> seen = Collections.synchronizedList(new ArrayList<>());
-        try (SourceService svc = new SourceService(List.of(toon), List.of(job), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(toon), List.of(job), 3600, 1)) {
             svc.eventBus().subscribe(seen::add);
             // start() wires the enrichment subscriber and then schedules an immediate poll
             // (initialDelay 0); that single cycle commits Stage-1 → event → enrichment.

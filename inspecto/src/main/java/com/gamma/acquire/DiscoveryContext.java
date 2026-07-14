@@ -3,7 +3,7 @@ package com.gamma.acquire;
 import java.util.List;
 
 /**
- * The engine-computed parameters for one {@link SourceConnector#discover} call.
+ * The engine-computed parameters for one {@link CollectorConnector#discover} call.
  *
  * <p>{@code includes}/{@code excludes} are pattern strings. A pattern may carry an explicit
  * {@code glob:}/{@code regex:} syntax prefix (passed straight to

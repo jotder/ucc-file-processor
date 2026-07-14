@@ -20,7 +20,7 @@ import java.util.Set;
  * {@code sink.materialized}) can be a deletion hazard, so a store with no resting producer (e.g. a
  * {@code sink.view}, which persists nothing and is re-derived on demand) is never a conflict. A delete
  * is <em>clear</em> when the store's producers/consumers are all idle — the "quiet window" the model
- * relies on. This is pure over the IR + a running-set; the live wiring ({@code SourceService}) supplies
+ * relies on. This is pure over the IR + a running-set; the live wiring ({@code CollectorService}) supplies
  * the running flows and surfaces a {@code STORE_DELETE_CONFLICT} event/alert per conflict.
  */
 @PublicApi(since = "4.3.0")

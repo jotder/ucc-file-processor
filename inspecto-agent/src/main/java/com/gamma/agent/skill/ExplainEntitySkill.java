@@ -143,7 +143,7 @@ public final class ExplainEntitySkill implements Capability {
             if (explicit.contains(":") && catalog.node(explicit) != null) return explicit;
             String entityType = req.context("entityType");
             if ("pipeline".equalsIgnoreCase(entityType) || "source".equalsIgnoreCase(entityType)) {
-                String src = IdScheme.source(explicit);
+                String src = IdScheme.stream(explicit);
                 if (catalog.node(src) != null) return src;
             }
             if (catalog.node(explicit) != null) return explicit; // last-chance literal match

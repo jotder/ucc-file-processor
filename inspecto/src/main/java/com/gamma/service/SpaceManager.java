@@ -19,14 +19,14 @@ import java.util.stream.Stream;
 
 /**
  * The top-level container that hosts many isolated {@link SpaceContext spaces} in one process — the runtime
- * replacement for the single {@link SourceService} that {@code ControlApi.main} used to build. Each space is
+ * replacement for the single {@link CollectorService} that {@code ControlApi.main} used to build. Each space is
  * fully isolated (its own service, stores, scheduler, event log); cross-space routing of the per-process
  * singletons (event log / metric label / connection registry / stability gate / acquisition ledger) is by the
  * space MDC the execution paths set (Stage 3a).
  *
  * <p>Two boot modes:
  * <ul>
- *   <li>{@link #single(SourceService)} — wrap one already-built service as the {@code default} space. The
+ *   <li>{@link #single(CollectorService)} — wrap one already-built service as the {@code default} space. The
  *       long-standing single-tenant / CLI path and every existing test; behaviour is unchanged.</li>
  *   <li>{@link #discover(Path)} — scan a container root ({@code -Dspaces.root}) for {@code spaces/<id>/} dirs
  *       (a dir with a {@code config/} subtree) and boot each via {@link SpaceBootstrap}, warning-and-skipping a
@@ -39,7 +39,7 @@ import java.util.stream.Stream;
  * request resolves {@link #current()} (the {@code default} or sole space).
  *
  * <p>{@link AutoCloseable}: {@link #close()} drains every space in turn (the existing drain-first
- * {@link SourceService#close()}).
+ * {@link CollectorService#close()}).
  */
 public final class SpaceManager implements AutoCloseable {
 
@@ -59,7 +59,7 @@ public final class SpaceManager implements AutoCloseable {
     private SpaceManager() {}
 
     /** Wrap a single already-built service as the {@code default} space (single-tenant / CLI / tests). */
-    public static SpaceManager single(SourceService service) {
+    public static SpaceManager single(CollectorService service) {
         SpaceManager m = new SpaceManager();
         SpaceContext ctx = new SpaceContext(DEFAULT, SpaceRoot.legacy(),
                 new SpaceContext.SpaceManifest(DEFAULT.value(), "", ""), service);
@@ -212,7 +212,7 @@ public final class SpaceManager implements AutoCloseable {
 
     /**
      * Remove a hosted space: deregister it first (new requests {@code 404} at once), then drain-and-close its service
-     * (the existing {@link SourceService#close()}). When {@code purge} is set, the space's directory tree
+     * (the existing {@link CollectorService#close()}). When {@code purge} is set, the space's directory tree
      * ({@code config/data/audit/duckdb/flows} + manifest) is then deleted from disk; otherwise the files are left for
      * a later manual cleanup or re-discovery. Serialised with {@link #create}.
      *

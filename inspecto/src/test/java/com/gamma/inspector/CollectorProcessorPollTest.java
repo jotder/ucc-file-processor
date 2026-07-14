@@ -11,7 +11,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class SourceProcessorPollTest {
+class CollectorProcessorPollTest {
 
     @Test
     void consolidatesManySmallFilesIntoOneBatch(@TempDir Path dir) throws Exception {
@@ -29,7 +29,7 @@ class SourceProcessorPollTest {
             Files.writeString(inbox.resolve("f" + i + ".csv"),
                     "ID,AMT,EVENT_DATE\nr" + i + ",1.0,2020-04-03\n");
 
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
 
         // All 6 tiny files consolidate into ONE partition's single output file.
         try (Stream<Path> w = Files.walk(Path.of(cfg.dirs().database()))) {
@@ -39,7 +39,7 @@ class SourceProcessorPollTest {
         String batches = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
         assertEquals(2, batches.split("\n").length, "header + 1 batch row");
         // Re-running is a no-op: markers skip all files (still exactly one output file).
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
         try (Stream<Path> w = Files.walk(Path.of(cfg.dirs().database()))) {
             assertEquals(1, w.filter(p -> p.getFileName().toString().endsWith("_out.csv")).count());
         }
@@ -56,7 +56,7 @@ class SourceProcessorPollTest {
         PipelineConfig cfg = PipelineConfig.load(toon.toString());
 
         // No inbox yet → read-only scan returns 0 (and creates nothing).
-        assertEquals(0, SourceProcessor.countPending(cfg), "no inbox → nothing pending");
+        assertEquals(0, CollectorProcessor.countPending(cfg), "no inbox → nothing pending");
         assertFalse(Files.exists(Path.of(cfg.dirs().batchesFilePath())), "counting must not write audit");
 
         Path inbox = Path.of(cfg.dirs().poll());
@@ -66,17 +66,17 @@ class SourceProcessorPollTest {
                     "ID,AMT,EVENT_DATE\nr" + i + ",1.0,2020-04-03\n");
 
         // All 6 are pending before any run; the scan is read-only (no batch rows written).
-        assertEquals(6, SourceProcessor.countPending(cfg), "6 unprocessed files pending");
+        assertEquals(6, CollectorProcessor.countPending(cfg), "6 unprocessed files pending");
         assertFalse(Files.exists(Path.of(cfg.dirs().batchesFilePath())), "counting must not process");
 
-        SourceProcessor.run(cfg);                              // process all 6 → markers written
-        assertEquals(0, SourceProcessor.countPending(cfg), "all processed → none pending");
+        CollectorProcessor.run(cfg);                              // process all 6 → markers written
+        assertEquals(0, CollectorProcessor.countPending(cfg), "all processed → none pending");
 
         // New arrivals are pending again; previously-marked files stay excluded.
         for (int i = 0; i < 2; i++)
             Files.writeString(inbox.resolve("g" + i + ".csv"),
                     "ID,AMT,EVENT_DATE\nn" + i + ",2.0,2020-04-04\n");
-        assertEquals(2, SourceProcessor.countPending(cfg), "only the 2 new files pending");
+        assertEquals(2, CollectorProcessor.countPending(cfg), "only the 2 new files pending");
     }
 
     @Test
@@ -99,12 +99,12 @@ class SourceProcessorPollTest {
             Files.writeString(inbox.resolve("a" + i + ".csv"),
                     "ID,AMT,EVENT_DATE\nr" + i + ",1.0,2020-04-03\n");
 
-        SourceProcessor.run(cfg);                              // processes all 30 → 1 batch
+        CollectorProcessor.run(cfg);                              // processes all 30 → 1 batch
         String afterFirst = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
         assertEquals(2, afterFirst.split("\n").length, "header + 1 batch row");
 
         // No new files: parallel scan finds every candidate already marked → no-op.
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
         assertEquals(afterFirst, Files.readString(Path.of(cfg.dirs().batchesFilePath())),
                 "re-run with all files marked must add no batch rows");
 
@@ -112,7 +112,7 @@ class SourceProcessorPollTest {
         for (int i = 0; i < 4; i++)
             Files.writeString(inbox.resolve("b" + i + ".csv"),
                     "ID,AMT,EVENT_DATE\nn" + i + ",2.0,2020-04-04\n");
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
         String afterThird = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
         assertEquals(3, afterThird.split("\n").length, "header + 2 batch rows (1 per run that found work)");
     }
@@ -156,7 +156,7 @@ class SourceProcessorPollTest {
                 skip_header_lines: 0
                 date_formats[1]: "%%Y-%%m-%%d"
                 timestamp_formats[1]: "%%Y-%%m-%%d"
-            source:
+            collector:
               duplicate:
                 mode: checksum
                 algorithm: SHA256
@@ -172,7 +172,7 @@ class SourceProcessorPollTest {
 
         // v1 → processed; its fingerprint is recorded in the ledger.
         Files.writeString(inbox.resolve("ORDERS.csv"), "ID,AMT,EVENT_DATE\nr0,1.0,2020-04-03\n");
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
 
         // The marker write must be skipped in checksum mode — no <file>.processed sentinel.
         Path markersDir = Path.of(cfg.dirs().markers());
@@ -186,7 +186,7 @@ class SourceProcessorPollTest {
         // v2 → same path, CHANGED content (extra row) → checksum differs from the ledger → CHANGED → reprocess.
         Files.writeString(inbox.resolve("ORDERS.csv"),
                 "ID,AMT,EVENT_DATE\nr0,1.0,2020-04-03\nr1,2.0,2020-04-03\n");
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
 
         String batches = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
         assertFalse(batches.contains("FAILED"),
@@ -208,7 +208,7 @@ class SourceProcessorPollTest {
         Path emptyFile = inbox.resolve("empty.csv");
         Files.writeString(emptyFile, "ID,AMT,EVENT_DATE\n");   // header only → zero data rows
 
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
 
         // Consumed: moved out of the inbox into quarantine/<reason=empty>/empty.csv.
         assertFalse(Files.exists(emptyFile), "0-row file must be moved out of the inbox");
@@ -221,7 +221,7 @@ class SourceProcessorPollTest {
 
         // Second poll: the inbox is empty, so no new batch is planned — the loop is broken.
         int linesAfterFirst = batchLineCount(cfg);
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
         assertEquals(linesAfterFirst, batchLineCount(cfg),
                 "the quarantined empty file must not be rediscovered and reprocessed");
     }

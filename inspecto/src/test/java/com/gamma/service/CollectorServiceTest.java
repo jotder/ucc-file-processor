@@ -4,7 +4,7 @@ import com.gamma.etl.BatchEvent;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
-import com.gamma.inspector.MultiSourceProcessor;
+import com.gamma.inspector.MultiCollectorProcessor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -18,10 +18,10 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * End-to-end tests for {@link SourceService} (M1) — registry runs, batch-commit
+ * End-to-end tests for {@link CollectorService} (M1) — registry runs, batch-commit
  * events, recovery via the commit log, and the scheduled poll cycle.
  */
-class SourceServiceTest {
+class CollectorServiceTest {
 
     private static Path source(Path root, String inboxCsv) throws Exception {
         Path toon = TestConfigs.csv(root, PipelineConfigBatchTest.miniSchema()).write();
@@ -45,10 +45,10 @@ class SourceServiceTest {
         Path b = source(dir.resolve("b"), "ID,AMT,EVENT_DATE\n3,30,2020-02-01\n");
 
         List<BatchEvent> events = Collections.synchronizedList(new ArrayList<>());
-        try (SourceService svc = new SourceService(List.of(a, b), 3600, 2)) {
+        try (CollectorService svc = new CollectorService(List.of(a, b), 3600, 2)) {
             svc.eventBus().subscribe(events::add);
 
-            MultiSourceProcessor.RunResult r = svc.runAllOnce();
+            MultiCollectorProcessor.RunResult r = svc.runAllOnce();
 
             assertEquals(2, r.total());
             assertEquals(0, r.failed());
@@ -65,7 +65,7 @@ class SourceServiceTest {
     @Test
     void committedBatchesVisibleViaStatusStoreAfterRun(@TempDir Path dir) throws Exception {
         Path a = source(dir.resolve("a"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n");
-        try (SourceService svc = new SourceService(List.of(a), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(a), 3600, 1)) {
             svc.runAllOnce();
         }
         // Reload (fresh run timestamp) — the commit log is persistent, so committed
@@ -80,8 +80,8 @@ class SourceServiceTest {
         Path a = source(dir.resolve("a"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n");
         // Flip the activation gate off on disk (TestConfigs emits `active: true`).
         Files.writeString(a, Files.readString(a).replace("active: true", "active: false"));
-        try (SourceService svc = new SourceService(List.of(a), 3600, 1)) {
-            MultiSourceProcessor.RunResult r = svc.runAllOnce();
+        try (CollectorService svc = new CollectorService(List.of(a), 3600, 1)) {
+            MultiCollectorProcessor.RunResult r = svc.runAllOnce();
             assertEquals(0, r.total(), "an inactive (active:false) pipeline is not run");
             assertEquals(0, outputCsvCount(dir.resolve("a")), "an inactive pipeline produces no output");
         }
@@ -92,7 +92,7 @@ class SourceServiceTest {
         Path a = source(dir.resolve("a"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n");
         // Remove the activation key entirely — the default is OFF (opt-in).
         Files.writeString(a, Files.readString(a).replace("active: true\n", ""));
-        try (SourceService svc = new SourceService(List.of(a), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(a), 3600, 1)) {
             assertEquals(0, svc.runAllOnce().total(), "absent `active` key defaults to not-run");
         }
     }
@@ -100,7 +100,7 @@ class SourceServiceTest {
     @Test
     void startSchedulesAPollCycle(@TempDir Path dir) throws Exception {
         Path a = source(dir.resolve("a"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n");
-        try (SourceService svc = new SourceService(List.of(a), 1, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(a), 1, 1)) {
             svc.start();   // schedules an immediate (initialDelay 0) cycle
             // Wait up to 5s for the scheduled cycle to produce output.
             long deadline = System.nanoTime() + 5_000_000_000L;

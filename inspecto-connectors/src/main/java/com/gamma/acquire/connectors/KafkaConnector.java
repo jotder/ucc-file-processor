@@ -7,7 +7,7 @@ import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SecretResolver;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -33,10 +33,10 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static com.gamma.acquire.SourceConnector.Capability.STREAM;
+import static com.gamma.acquire.CollectorConnector.Capability.STREAM;
 
 /**
- * A <b>Kafka topic</b> {@link SourceConnector} (ACQ-5 — streaming source consumer). Each scan cycle drains the
+ * A <b>Kafka topic</b> {@link CollectorConnector} (ACQ-5 — streaming source consumer). Each scan cycle drains the
  * unconsumed backlog of a topic partition into a file, which then flows through the normal Inspecto batch path
  * exactly like any other acquired file — the {@link DbExportConnector} virtual-file pattern applied to a stream.
  *
@@ -74,7 +74,7 @@ import static com.gamma.acquire.SourceConnector.Capability.STREAM;
  * no source-side file, so the connector is {@link Capability#STREAM}-only and any post-action except RETAIN is
  * rejected. Payloads are treated as text (UTF-8); binary values need a decode step downstream.
  */
-public final class KafkaConnector implements SourceConnector {
+public final class KafkaConnector implements CollectorConnector {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaConnector.class);
 

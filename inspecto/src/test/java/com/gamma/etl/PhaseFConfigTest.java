@@ -49,7 +49,7 @@ class PhaseFConfigTest {
 
     @Test
     void defaultsWhenNoPhaseFBlocks(@TempDir Path dir) throws Exception {
-        PipelineConfig.Source s = PipelineConfig.load(writePipeline(dir, "").toString()).source();
+        PipelineConfig.Collector s = PipelineConfig.load(writePipeline(dir, "").toString()).collector();
         assertEquals(1, s.fetch().parallelFetch());
         assertFalse(s.fetch().parallel());
         assertFalse(s.fetch().rateLimited());
@@ -62,7 +62,7 @@ class PhaseFConfigTest {
     @Test
     void parsesAllPhaseFBlocks(@TempDir Path dir) throws Exception {
         String src = """
-            source:
+            collector:
               connector: local
               fetch:
                 mode: STAGE
@@ -81,7 +81,7 @@ class PhaseFConfigTest {
                 archive_path: archive/yyyy/MM/dd
                 on_unsupported: WARN_AND_CONTINUE
             """;
-        PipelineConfig.Source s = PipelineConfig.load(writePipeline(dir, src).toString()).source();
+        PipelineConfig.Collector s = PipelineConfig.load(writePipeline(dir, src).toString()).collector();
 
         assertEquals(8, s.fetch().parallelFetch());
         assertTrue(s.fetch().parallel());

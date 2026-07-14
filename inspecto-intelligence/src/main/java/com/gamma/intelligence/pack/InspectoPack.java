@@ -10,7 +10,7 @@ import com.eoiagent.app.PolicyProfile;
 import com.eoiagent.app.PromptProfile;
 import com.eoiagent.app.ToolProvider;
 import com.eoiagent.core.AppId;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 
 import java.util.List;
 
@@ -34,9 +34,9 @@ import java.util.List;
  */
 public final class InspectoPack implements ApplicationPack {
 
-    private final SourceService service;
+    private final CollectorService service;
 
-    public InspectoPack(SourceService service) {
+    public InspectoPack(CollectorService service) {
         this.service = service;
     }
 
@@ -52,7 +52,7 @@ public final class InspectoPack implements ApplicationPack {
 
     @Override
     public List<KnowledgeSource> knowledgeSources() {
-        return InspectoKnowledgeSources.sources();
+        return InspectoKnowledgeSources.collectors();
     }
 
     @Override

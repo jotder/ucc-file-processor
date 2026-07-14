@@ -111,7 +111,7 @@ final class AuditTrail {
                 case "approve" -> "approved";     // POST /exchange/grants/{id}/approve
                 case "deny" -> "denied";
                 case "revoke" -> "revoked";
-                case "notify" -> "notified";      // POST /sources/{id}/notify (ACQ-6 push discovery)
+                case "notify" -> "notified";      // POST /collectors/{id}/notify (ACQ-6 push discovery)
                 case "ack" -> "acknowledged";
                 case "resolve" -> "resolved";
                 case "transition" -> "transitioned";

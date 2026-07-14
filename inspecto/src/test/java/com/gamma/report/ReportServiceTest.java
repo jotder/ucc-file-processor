@@ -7,7 +7,7 @@ import com.gamma.enrich.EnrichmentConfig.Triggers;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import com.gamma.service.StatusStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -39,7 +39,7 @@ class ReportServiceTest {
     @Test
     void statusAndBatchReportsReflectARun(@TempDir Path dir) throws Exception {
         Path toon = seed(dir);
-        try (SourceService svc = new SourceService(List.of(toon), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(toon), 3600, 1)) {
             svc.runAllOnce();
 
             ReportService reports = svc.reports();
@@ -71,7 +71,7 @@ class ReportServiceTest {
     @Test
     void batchReportForUnknownPipelineThrows(@TempDir Path dir) throws Exception {
         Path toon = seed(dir);
-        try (SourceService svc = new SourceService(List.of(toon), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(toon), 3600, 1)) {
             assertThrows(IllegalArgumentException.class, () -> svc.reports().batchReport("ghost"));
         }
     }
@@ -79,7 +79,7 @@ class ReportServiceTest {
     @Test
     void freshServiceReportsZeroedRollup(@TempDir Path dir) throws Exception {
         Path toon = seed(dir);
-        try (SourceService svc = new SourceService(List.of(toon), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(toon), 3600, 1)) {
             // before any run: pipeline registered, nothing committed
             ReportService.StatusReport status = svc.reports().statusReport();
             assertEquals(1, status.pipelineCount());
@@ -100,7 +100,7 @@ class ReportServiceTest {
                 new Output(reports.toString().replace("\\", "/"), "CSV", null, List.of("year", "month", "day")),
                 "SELECT year, month, day, COUNT(*) AS n FROM input GROUP BY year, month, day",
                 new Triggers("test_etl", 0));
-        try (SourceService svc = new SourceService(List.of(toon), List.of(enrich), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(toon), List.of(enrich), 3600, 1)) {
             svc.start();   // immediate poll → Stage-1 commit → enrichment recompute
             // recompute runs asynchronously off the poll cycle — poll the rollup until it lands
             long deadline = System.nanoTime() + 15_000_000_000L;
@@ -121,7 +121,7 @@ class ReportServiceTest {
     @Test
     void enrichmentReportThrowsWhenNoEnrichmentOrUnknownJob(@TempDir Path dir) throws Exception {
         Path toon = seed(dir);
-        try (SourceService svc = new SourceService(List.of(toon), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(toon), 3600, 1)) {
             // no enrichment registered at all
             assertThrows(IllegalArgumentException.class, () -> svc.reports().enrichmentReport("DAILY_KPI"));
         }
@@ -160,7 +160,7 @@ class ReportServiceTest {
                 batch("2026-05-14 09:00:00", 500),
                 batch("2026-06-01 09:00:00", 1000), batch("2026-06-02 09:00:00", 2000));
         StatusStore store = new FakeStore(rows);
-        try (SourceService svc = new SourceService(List.of(toon), List.of(), 3600, 1, store)) {
+        try (CollectorService svc = new CollectorService(List.of(toon), List.of(), 3600, 1, store)) {
             // unbounded: all 7, nearest-rank percentiles over [100..500,1000,2000]
             ReportService.BatchAuditReport all = svc.reports().batchReport("test_etl");
             assertEquals(7, all.totalBatches());

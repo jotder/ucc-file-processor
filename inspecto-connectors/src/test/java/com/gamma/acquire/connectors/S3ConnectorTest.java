@@ -4,7 +4,7 @@ import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -123,7 +123,7 @@ class S3ConnectorTest {
         assertEquals("etag-a", a.etag(), "listing ETag lands on RemoteFile (feeds ACQ-7 etag dedup)");
         assertEquals(13, a.size());
         assertNotNull(a.lastModified());
-        assertEquals(SourceConnector.Readiness.READY, connector.readiness(a), "listed S3 objects are complete");
+        assertEquals(CollectorConnector.Readiness.READY, connector.readiness(a), "listed S3 objects are complete");
 
         // Both listing pages requested, second with the continuation token.
         List<String> lists = requests.stream().filter(r -> r.startsWith("GET /bucket?")).toList();

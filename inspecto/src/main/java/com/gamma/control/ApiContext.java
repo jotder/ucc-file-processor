@@ -1,7 +1,7 @@
 package com.gamma.control;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import com.gamma.service.SpaceManager;
 import com.sun.net.httpserver.HttpExchange;
 
@@ -112,7 +112,7 @@ interface ApiContext {
     Map<String, Object> body(HttpExchange ex) throws IOException;
 
     /** The running service host the routes act on (the request's bound space, per the {@code /spaces/{id}} seam). */
-    SourceService service();
+    CollectorService service();
 
     /** The container of all hosted spaces — for the server-global {@code SpaceRoutes} CRUD group only. */
     SpaceManager spaces();

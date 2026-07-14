@@ -64,7 +64,7 @@ public final class AcquisitionLedgers {
     }
 
     // ── checksum handoff (Phase C3) ────────────────────────────────────────────────
-    // CHECKSUM dedup hashes each candidate once on the run path (in SourceProcessor.collect); this transient
+    // CHECKSUM dedup hashes each candidate once on the run path (in CollectorProcessor.collect); this transient
     // cache hands that hash to BatchProcessor.commit so the post-commit ledger record reuses it instead of
     // re-reading the file. Keyed by absolute path; entries are removed on take. A batch that never commits
     // leaves a small orphan entry (harmless — recomputed on the next successful run). Stays process-wide
@@ -87,7 +87,7 @@ public final class AcquisitionLedgers {
 
     // ── listing-identity handoff (ACQ-7) ───────────────────────────────────────────
     // Mirrors the checksum handoff: the connector's listing etag/version live on the RemoteFile, which
-    // BatchProcessor.commit never sees (it works on local Files) — so SourceProcessor stashes them here at
+    // BatchProcessor.commit never sees (it works on local Files) — so CollectorProcessor stashes them here at
     // dedup time and the post-commit ledger record picks them up. Same orphan semantics as above.
 
     /** A stashed listing identity: the connector-supplied {@code etag} and object {@code version} (either nullable). */

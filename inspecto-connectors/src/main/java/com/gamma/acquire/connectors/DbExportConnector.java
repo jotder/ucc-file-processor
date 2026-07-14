@@ -7,7 +7,7 @@ import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SecretResolver;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,10 +32,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-import static com.gamma.acquire.SourceConnector.Capability.STREAM;
+import static com.gamma.acquire.CollectorConnector.Capability.STREAM;
 
 /**
- * A <b>DB-export</b> {@link SourceConnector} (Data Acquisition — database-export source). Runs a SQL query against
+ * A <b>DB-export</b> {@link CollectorConnector} (Data Acquisition — database-export source). Runs a SQL query against
  * a JDBC database and materialises the result as a CSV file, which then flows through the normal Inspecto batch
  * path exactly like any other acquired file. Lives in the optional {@code inspecto-connectors} module; the
  * PostgreSQL driver ships here, but the connector is JDBC-generic — any driver on the classpath works (the tests
@@ -68,7 +68,7 @@ import static com.gamma.acquire.SourceConnector.Capability.STREAM;
  * <p>The result is a single logical "file" per cycle, so this connector is {@link Capability#STREAM}-only — there
  * is no source-side file to delete/move/rename, and (with {@code source.post_action} unset) nothing tries to.
  */
-public final class DbExportConnector implements SourceConnector {
+public final class DbExportConnector implements CollectorConnector {
 
     private static final Logger log = LoggerFactory.getLogger(DbExportConnector.class);
     private static final int DEFAULT_PG_PORT = 5432;

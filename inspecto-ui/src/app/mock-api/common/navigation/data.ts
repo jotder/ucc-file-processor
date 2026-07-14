@@ -57,7 +57,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
                     { id: 'components',  title: 'Components',  type: 'basic', icon: 'heroicons_outline:puzzle-piece',     link: '/components' },
                     { id: 'enrichment',  title: 'Enrichment',  type: 'basic', icon: 'heroicons_outline:funnel',          link: '/enrichment' },
                     { id: 'connections', title: 'Connections', type: 'basic', icon: 'heroicons_outline:server-stack',     link: '/connections' },
-                    { id: 'sources',     title: 'Sources',     type: 'basic', icon: 'heroicons_outline:inbox-arrow-down', link: '/sources' },
+                    { id: 'collectors',  title: 'Collectors',  type: 'basic', icon: 'heroicons_outline:inbox-arrow-down', link: '/collectors' },
                 ]
             },
             {

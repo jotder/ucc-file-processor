@@ -1,16 +1,16 @@
 package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.ConnectionProfile;
-import com.gamma.acquire.SourceConnector;
-import com.gamma.acquire.SourceConnectorFactory;
+import com.gamma.acquire.CollectorConnector;
+import com.gamma.acquire.CollectorConnectorFactory;
 import com.gamma.etl.PipelineConfig;
 
 /**
- * {@link SourceConnectorFactory} for the {@code ftps} scheme — FTP over TLS (security hardening). Reuses
+ * {@link CollectorConnectorFactory} for the {@code ftps} scheme — FTP over TLS (security hardening). Reuses
  * {@link FtpConnector}, defaulting to {@link TlsMode#EXPLICIT} (FTPES); a profile's {@code options.tls=implicit}
  * still switches to implicit FTPS. Discovered via {@code META-INF/services} when this module is on the classpath.
  */
-public final class FtpsConnectorFactory implements SourceConnectorFactory {
+public final class FtpsConnectorFactory implements CollectorConnectorFactory {
 
     @Override
     public String scheme() {
@@ -18,15 +18,15 @@ public final class FtpsConnectorFactory implements SourceConnectorFactory {
     }
 
     @Override
-    public SourceConnector create(PipelineConfig cfg) {
+    public CollectorConnector create(PipelineConfig cfg) {
         return create(cfg, null);
     }
 
     @Override
-    public SourceConnector create(PipelineConfig cfg, ConnectionProfile profile) {
+    public CollectorConnector create(PipelineConfig cfg, ConnectionProfile profile) {
         if (profile == null)
-            throw new IllegalArgumentException("ftps source '" + cfg.source().id()
+            throw new IllegalArgumentException("ftps source '" + cfg.collector().id()
                     + "' requires source.connection to reference a *_connection.toon profile (host/credentials)");
-        return new FtpConnector(profile, cfg.source().stability().readyMarker(), TlsMode.EXPLICIT);
+        return new FtpConnector(profile, cfg.collector().stability().readyMarker(), TlsMode.EXPLICIT);
     }
 }

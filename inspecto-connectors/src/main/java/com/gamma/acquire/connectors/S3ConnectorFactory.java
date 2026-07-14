@@ -1,16 +1,16 @@
 package com.gamma.acquire.connectors;
 
 import com.gamma.acquire.ConnectionProfile;
-import com.gamma.acquire.SourceConnector;
-import com.gamma.acquire.SourceConnectorFactory;
+import com.gamma.acquire.CollectorConnector;
+import com.gamma.acquire.CollectorConnectorFactory;
 import com.gamma.etl.PipelineConfig;
 
 /**
- * {@link SourceConnectorFactory} for the {@code s3} scheme (ACQ-4) — AWS S3, MinIO, and any S3-compatible
- * store. Discovered via {@code META-INF/services/com.gamma.acquire.SourceConnectorFactory} when this module
+ * {@link CollectorConnectorFactory} for the {@code s3} scheme (ACQ-4) — AWS S3, MinIO, and any S3-compatible
+ * store. Discovered via {@code META-INF/services/com.gamma.acquire.CollectorConnectorFactory} when this module
  * is on the classpath.
  */
-public final class S3ConnectorFactory implements SourceConnectorFactory {
+public final class S3ConnectorFactory implements CollectorConnectorFactory {
 
     @Override
     public String scheme() {
@@ -18,14 +18,14 @@ public final class S3ConnectorFactory implements SourceConnectorFactory {
     }
 
     @Override
-    public SourceConnector create(PipelineConfig cfg) {
+    public CollectorConnector create(PipelineConfig cfg) {
         return create(cfg, null);
     }
 
     @Override
-    public SourceConnector create(PipelineConfig cfg, ConnectionProfile profile) {
+    public CollectorConnector create(PipelineConfig cfg, ConnectionProfile profile) {
         if (profile == null)
-            throw new IllegalArgumentException("s3 source '" + cfg.source().id()
+            throw new IllegalArgumentException("s3 source '" + cfg.collector().id()
                     + "' requires source.connection to reference a *_connection.toon profile (endpoint/credentials)");
         return new S3Connector(profile);
     }

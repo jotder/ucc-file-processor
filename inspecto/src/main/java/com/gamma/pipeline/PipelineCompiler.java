@@ -23,7 +23,7 @@ import java.util.Optional;
  * parity gate</b> (the IR loses nothing).
  *
  * <p><b>Scope (Phase 1):</b> this recovers the inputs; it does not yet <em>invoke</em>
- * {@code SourceProcessor} from them — driving the engine from a {@code PipelineGraph} (so the existing
+ * {@code CollectorProcessor} from them — driving the engine from a {@code PipelineGraph} (so the existing
  * suite literally runs through the lifted path) needs the branch-aware executor scheduled for Phase 3
  * (doc §13 R3 / §14 T12). Until then the lossless round-trip below is the gate.
  */

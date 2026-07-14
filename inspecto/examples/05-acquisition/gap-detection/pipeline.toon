@@ -29,7 +29,7 @@ processing:
     date_formats[1]: "%Y-%m-%d"
     timestamp_formats[1]: "%Y-%m-%d %H:%M:%S"
 
-source:
+collector:
   gap_detection:
     enabled: true
     sequence: "FEED_{yyyyMMdd}"

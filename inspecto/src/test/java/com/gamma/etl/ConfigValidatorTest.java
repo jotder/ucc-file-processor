@@ -101,7 +101,7 @@ class ConfigValidatorTest {
     @Test
     void warnsAutoDuckdbThreadsBlindSpotUnderMultiSource(@TempDir Path dir) throws Exception {
         // duckdb_threads unset → 0 (auto). The auto cap (cores ÷ threads) ignores sources.max,
-        // so under MultiSourceProcessor with sources.max > 1 it still oversubscribes — surface it.
+        // so under MultiCollectorProcessor with sources.max > 1 it still oversubscribes — surface it.
         Path schema = writeMinimalSchema(dir);
         Path pipeline = dir.resolve("pipeline.toon");
         Files.writeString(pipeline, basePipeline(dir, schema.toString().replace("\\", "/"))

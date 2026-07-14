@@ -10,7 +10,7 @@ const edge = (from: string, to: string, kind: string): MetadataEdge =>
 
 describe('nodeShape', () => {
   it('maps known kinds to built-in G6 node types', () => {
-    expect(nodeShape('SOURCE')).toBe('circle');
+    expect(nodeShape('STREAM')).toBe('circle');
     expect(nodeShape('TABLE')).toBe('rect');
     expect(nodeShape('KPI')).toBe('diamond');
     expect(nodeShape('REPORT')).toBe('hexagon');
@@ -24,12 +24,12 @@ describe('nodeShape', () => {
 
 describe('nodeColor', () => {
   it('returns a hex colour for known and unknown kinds', () => {
-    expect(nodeColor('SOURCE')).toMatch(/^#[0-9A-F]{6}$/i);
+    expect(nodeColor('STREAM')).toMatch(/^#[0-9A-F]{6}$/i);
     expect(nodeColor('WIDGET' as NodeKind)).toMatch(/^#[0-9A-F]{6}$/i);
   });
 
   it('gives each known kind a distinct colour', () => {
-    const kinds: NodeKind[] = ['SOURCE', 'SCHEMA', 'TABLE', 'COLUMN', 'KPI', 'REPORT', 'ENRICHMENT'];
+    const kinds: NodeKind[] = ['STREAM', 'SCHEMA', 'TABLE', 'COLUMN', 'KPI', 'REPORT', 'ENRICHMENT'];
     expect(new Set(kinds.map(nodeColor)).size).toBe(kinds.length);
   });
 });
@@ -60,9 +60,9 @@ describe('toG6Data', () => {
 describe('legendFor', () => {
   it('lists each distinct kind once, in first-seen order', () => {
     const legend = legendFor([
-      node('t1', 'TABLE'), node('c1', 'COLUMN'), node('t2', 'TABLE'), node('s1', 'SOURCE'),
+      node('t1', 'TABLE'), node('c1', 'COLUMN'), node('t2', 'TABLE'), node('s1', 'STREAM'),
     ]);
-    expect(legend.map((l) => l.kind)).toEqual(['TABLE', 'COLUMN', 'SOURCE']);
+    expect(legend.map((l) => l.kind)).toEqual(['TABLE', 'COLUMN', 'STREAM']);
     expect(legend[0].fill).toBe(nodeColor('TABLE'));
   });
 });

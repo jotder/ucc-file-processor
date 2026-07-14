@@ -67,7 +67,7 @@ export function nodeStatusStroke(status: string): string | null {
 
 /** Categorical accent per catalog node kind — drives the legend and node outlines. */
 export const NODE_KIND_COLORS: Record<NodeKind, string> = {
-    SOURCE: '#5B8FF9',
+    STREAM: '#5B8FF9',
     SCHEMA: '#61DDAA',
     TABLE: '#65789B',
     COLUMN: '#F6BD16',

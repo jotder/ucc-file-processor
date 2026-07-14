@@ -17,7 +17,7 @@ import java.util.zip.ZipInputStream;
  * Reads a {@link BundleExporter}-produced bundle zip and unpacks its config files into a space's
  * {@code config/} tree. Pure plumbing — parsing, the zip-slip jail, and the atomic writes; deciding
  * conflicts and making the configs live (register / rebuild) is the caller's job (the HTTP route, which
- * has the {@link SourceService}).
+ * has the {@link CollectorService}).
  *
  * <p>Config entries are written under their bundle path (relative to {@code config/}); the
  * {@code bundle.toon} manifest and any {@code space.toon} are split out and never land in {@code config/}.

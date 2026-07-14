@@ -56,7 +56,7 @@ public final class ReprocessCommand {
         ManifestStore.supersede(cfg.dirs().manifestsDir(), batchId);
 
         // 5. re-run a normal poll on the restored set (fresh batch id)
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
         log.info("[REPROCESS] {} complete.", batchId);
     }
 }

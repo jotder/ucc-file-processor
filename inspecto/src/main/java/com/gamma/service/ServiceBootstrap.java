@@ -2,7 +2,7 @@ package com.gamma.service;
 
 import com.gamma.catalog.SemanticModel;
 import com.gamma.enrich.EnrichmentConfig;
-import com.gamma.inspector.MultiSourceProcessor;
+import com.gamma.inspector.MultiCollectorProcessor;
 import com.gamma.job.JobConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,18 +16,18 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Builds a fully-wired {@link SourceService} from CLI-style args by scanning each path
+ * Builds a fully-wired {@link CollectorService} from CLI-style args by scanning each path
  * (file or dir) for the various {@code *.toon} config types. This is the service's
  * <em>bootstrap</em> concern — discovering and parsing configuration off disk — kept
- * separate from {@link SourceService}'s runtime responsibilities (poll loop, scheduling,
+ * separate from {@link CollectorService}'s runtime responsibilities (poll loop, scheduling,
  * event wiring, lifecycle).
  *
  * <p>Each loader warns-and-skips a bad file so one malformed config never blocks the
- * others. Logs under {@link SourceService}'s category so existing log output is unchanged.
+ * others. Logs under {@link CollectorService}'s category so existing log output is unchanged.
  */
 final class ServiceBootstrap {
 
-    private static final Logger log = LoggerFactory.getLogger(SourceService.class);
+    private static final Logger log = LoggerFactory.getLogger(CollectorService.class);
 
     private ServiceBootstrap() {}
 
@@ -37,7 +37,7 @@ final class ServiceBootstrap {
      * {@code -Dservice.max.runs} (default = source count). Shared by the service and Control API entry points.
      * Exits the JVM with a message if no sources are found.
      */
-    static SourceService build(String[] args) throws IOException {
+    static CollectorService build(String[] args) throws IOException {
         return buildFrom(SpaceRoot.legacy(), args, true);
     }
 
@@ -48,8 +48,8 @@ final class ServiceBootstrap {
      * CLI), a config-less invocation exits the JVM; a space tolerates an empty {@code config/} (a freshly created
      * space has no sources yet), so {@code SpaceBootstrap} passes {@code false}.
      */
-    static SourceService buildFrom(SpaceRoot root, String[] paths, boolean exitIfEmpty) throws IOException {
-        List<Path> registry = MultiSourceProcessor.resolveConfigs(paths);
+    static CollectorService buildFrom(SpaceRoot root, String[] paths, boolean exitIfEmpty) throws IOException {
+        List<Path> registry = MultiCollectorProcessor.resolveConfigs(paths);
         List<EnrichmentConfig> enrichJobs = loadEnrichJobs(resolveBySuffix(paths, "_enrich.toon"));
         // Job templates (PIP-6) resolve at load: jobs referencing `template:` are expanded here, so the
         // scheduler only ever sees plain JobConfigs. (The *_job_template.toon suffix does not match the
@@ -66,7 +66,7 @@ final class ServiceBootstrap {
         }
         long pollSeconds = Long.getLong("service.poll.seconds", 60L);
         int  maxRuns     = Integer.getInteger("service.max.runs", Math.max(1, registry.size()));
-        SourceService svc = new SourceService(registry, enrichJobs, jobConfigs, semantics, alertRules,
+        CollectorService svc = new CollectorService(registry, enrichJobs, jobConfigs, semantics, alertRules,
                 pollSeconds, maxRuns, ServiceStores.openStatusStore(root), root);
         for (com.gamma.ops.rca.RcaTemplate t : loadRcaTemplates(resolveBySuffix(paths, "_rca.toon")))
             svc.registerRcaTemplate(t);

@@ -1,7 +1,7 @@
 package com.gamma.control;
 
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -33,11 +33,11 @@ class ControlApiLegacySunsetTest {
     @Test
     void legacyResponsesCarryDeprecationSignalling(@TempDir Path cfg) throws Exception {
         Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
-        SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
         ControlApi api = new ControlApi(svc, 0);
         api.start();
         try {
-            HttpResponse<String> legacy = get(api, "/sources");
+            HttpResponse<String> legacy = get(api, "/collectors");
             assertEquals(200, legacy.statusCode(), legacy.body());
             assertEquals("@1783382400", legacy.headers().firstValue("Deprecation").orElse(null),
                     "legacy call must announce its deprecation (RFC 9745)");
@@ -46,7 +46,7 @@ class ControlApiLegacySunsetTest {
             assertTrue(legacy.headers().firstValue("Sunset").isEmpty(),
                     "no Sunset header until an operator signs a date");
 
-            HttpResponse<String> v1 = get(api, "/api/v1/sources");
+            HttpResponse<String> v1 = get(api, "/api/v1/collectors");
             assertEquals(200, v1.statusCode(), v1.body());
             assertTrue(v1.headers().firstValue("Deprecation").isEmpty(), "the v1 surface is not deprecated");
 
@@ -63,13 +63,13 @@ class ControlApiLegacySunsetTest {
     @Test
     void sunsetHeaderAppearsOnceADateIsSigned(@TempDir Path cfg) throws Exception {
         Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
-        SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
         System.setProperty("api.legacy.sunset", "2026-12-31");
         try {
             ControlApi api = new ControlApi(svc, 0);   // property is read at construction
             api.start();
             try {
-                HttpResponse<String> legacy = get(api, "/sources");
+                HttpResponse<String> legacy = get(api, "/collectors");
                 assertEquals(200, legacy.statusCode());
                 assertEquals("Thu, 31 Dec 2026 00:00:00 GMT",
                         legacy.headers().firstValue("Sunset").orElse(null));
@@ -85,17 +85,17 @@ class ControlApiLegacySunsetTest {
     @Test
     void offModeRetiresOnlyTheLegacySurface(@TempDir Path cfg) throws Exception {
         Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
-        SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
         System.setProperty("api.legacy.routes", "off");
         try {
             ControlApi api = new ControlApi(svc, 0);
             api.start();
             try {
-                HttpResponse<String> legacy = get(api, "/sources");
+                HttpResponse<String> legacy = get(api, "/collectors");
                 assertEquals(410, legacy.statusCode(), "legacy business route must be Gone in off mode");
                 assertTrue(legacy.body().contains("/api/v1"), legacy.body());
 
-                assertEquals(200, get(api, "/api/v1/sources").statusCode(), "v1 must be untouched");
+                assertEquals(200, get(api, "/api/v1/collectors").statusCode(), "v1 must be untouched");
                 assertEquals(200, get(api, "/health").statusCode(), "infra probes must be untouched");
 
                 // The soak signal keeps counting residual demand through the off-window.

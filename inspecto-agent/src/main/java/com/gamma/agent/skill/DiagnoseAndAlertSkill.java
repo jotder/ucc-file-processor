@@ -189,7 +189,7 @@ public final class DiagnoseAndAlertSkill implements Capability {
     private static Map<String, String> knownPipelines(MetadataGraphService catalog) {
         Map<String, String> byName = new LinkedHashMap<>();
         if (catalog == null) return byName;
-        for (MetadataNode s : catalog.nodesOfKind(NodeKind.SOURCE)) byName.put(s.label(), s.id());
+        for (MetadataNode s : catalog.nodesOfKind(NodeKind.STREAM)) byName.put(s.label(), s.id());
         return byName;
     }
 

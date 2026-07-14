@@ -1,4 +1,4 @@
-# Remote source connectors (Data Acquisition roadmap Phase E) — discovered by SourceConnectors.forConfig
+# Remote collector connectors (Data Acquisition roadmap Phase E) — discovered by CollectorConnectors.forConfig
 # when this optional module is on the classpath.
 com.gamma.acquire.connectors.SftpConnectorFactory
 com.gamma.acquire.connectors.FtpConnectorFactory

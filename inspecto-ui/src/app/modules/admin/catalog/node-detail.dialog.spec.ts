@@ -14,7 +14,7 @@ import { NodeDetailDialog } from './node-detail.dialog';
 const DETAIL: NodeDetail = {
     node: {
         id: 'source/cdr',
-        kind: 'SOURCE',
+        kind: 'STREAM',
         label: 'cdr',
         description: { text: 'CDR drop folder' },
         attrs: { path: '/data/in/cdr' },

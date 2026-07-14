@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * <p>Activation requires {@code output.ducklake.enabled: true} in the pipeline
  * config.  The method is a no-op otherwise.
  *
- * <p>Extracted from {@link com.gamma.inspector.SourceProcessor#registerInDuckLake}.
+ * <p>Extracted from {@link com.gamma.inspector.CollectorProcessor#registerInDuckLake}.
  */
 public final class DuckLakeRegistrar {
 

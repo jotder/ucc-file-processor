@@ -55,7 +55,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * same job can't race on the same output partitions; different jobs still run in parallel.
  * {@code OVERWRITE_OR_IGNORE} writes make any overlap converge to the same result.
  *
- * <p>The {@link Scheduler} is <b>borrowed</b> (owned by the hosting {@link SourceService});
+ * <p>The {@link Scheduler} is <b>borrowed</b> (owned by the hosting {@link CollectorService});
  * {@link #close()} shuts down only the executor this service created.
  */
 @PublicApi(since = "2.3.0")

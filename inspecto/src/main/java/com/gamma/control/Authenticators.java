@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 
 /**
- * Resolves the edition's {@link Authenticator}, mirroring {@code com.gamma.acquire.SourceConnectors}'
+ * Resolves the edition's {@link Authenticator}, mirroring {@code com.gamma.acquire.CollectorConnectors}'
  * "absent module ⇒ no-op wins" pattern: Personal ships no {@code META-INF/services} registration, so
  * {@link #active()} is empty and {@link ControlApi#dispatch} skips authentication entirely. Cached
  * after the first lookup (the classpath does not change at runtime). At most one implementation is

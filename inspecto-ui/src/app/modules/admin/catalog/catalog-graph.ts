@@ -17,7 +17,7 @@ export { ICON_COLOR_SWATCHES };
 /** Built-in G6 node type per metadata kind. Unknown kinds fall back to a circle. */
 export function nodeShape(kind: NodeKind): string {
     switch (kind) {
-        case 'SOURCE':     return 'circle';
+        case 'STREAM':     return 'circle';
         case 'SCHEMA':     return 'rect';
         case 'TABLE':      return 'rect';
         case 'DERIVED_TABLE': return 'rect';
@@ -65,7 +65,7 @@ export const GLYPH_LIBRARY: Record<string, string> = {
 
 /** Default glyph name per catalog node kind (the fallback when the icon map has no entry). */
 const KIND_GLYPH: Record<string, string> = {
-    SOURCE: 'arrow-in', SCHEMA: 'lines', ENRICHMENT: 'transform', TABLE: 'cylinder',
+    STREAM: 'arrow-in', SCHEMA: 'lines', ENRICHMENT: 'transform', TABLE: 'cylinder',
     DERIVED_TABLE: 'transform', REFERENCE_DATASET: 'database',
     KPI: 'bell', REPORT: 'report', COLUMN: 'columns',
 };

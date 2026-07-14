@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
 import com.gamma.pipeline.ComponentStore;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import com.gamma.service.SpaceManager;
 import com.gamma.util.DuckDbUtil;
 import org.junit.jupiter.api.Test;
@@ -164,7 +164,7 @@ class ControlApiDbBrowserTest {
         Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
         String prior = System.getProperty("assist.write.root");
         System.clearProperty("assist.write.root");
-        SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
         try {
             ControlApi api = new ControlApi(svc, 0);
             api.start();

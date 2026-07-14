@@ -41,7 +41,7 @@ import java.util.Set;
  * write-time source of truth and survive a DB outage). This store is a <em>projection</em>
  * of those artifacts: {@link #sync(StatusStore, Collection)} reads them through a source
  * {@link StatusStore} and rewrites each pipeline's rows transactionally
- * (DELETE-then-INSERT — idempotent, so a re-sync is a refresh). {@code SourceService}
+ * (DELETE-then-INSERT — idempotent, so a re-sync is a refresh). {@code CollectorService}
  * calls it at startup and after each poll cycle, so the DB always reflects the latest
  * committed state by the time anything queries it.
  *

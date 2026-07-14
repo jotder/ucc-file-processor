@@ -162,7 +162,7 @@ export interface EnrichmentRunReport {
 }
 
 // ── catalog / metadata graph ─────────────────────────────────────────────────
-export type NodeKind = 'SOURCE' | 'SCHEMA' | 'COLUMN' | 'TABLE' | 'DERIVED_TABLE' | 'REFERENCE_DATASET' | 'KPI' | 'REPORT' | 'ENRICHMENT' | string;
+export type NodeKind = 'STREAM' | 'SCHEMA' | 'COLUMN' | 'TABLE' | 'DERIVED_TABLE' | 'REFERENCE_DATASET' | 'KPI' | 'REPORT' | 'ENRICHMENT' | string;
 export type EdgeKind = 'EMITS' | 'CONSUMES' | 'COMPUTED_FROM' | 'REFERENCES' | string;
 export type Freshness = 'FRESH' | 'STALE' | 'MISSING' | string;
 

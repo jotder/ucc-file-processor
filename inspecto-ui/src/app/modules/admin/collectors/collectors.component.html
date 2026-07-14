@@ -2,8 +2,8 @@
     <!-- Header -->
     <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
         <div>
-            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Acquisition &amp; Sources</h1>
-            <div class="text-secondary mt-1.5">Configured acquisition sources and collection metrics</div>
+            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Acquisition &amp; Collectors</h1>
+            <div class="text-secondary mt-1.5">Configured acquisition collectors and collection metrics</div>
         </div>
         <div class="mt-4 flex items-center gap-3 sm:mt-0">
             <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
@@ -38,14 +38,14 @@
         @if (unavailable) {
             <inspecto-empty-state
                 icon="heroicons_outline:inbox-arrow-down"
-                message="No acquisition sources are configured (no pipeline declares a source block)."
+                message="No acquisition collectors are configured (no pipeline declares a collector block)."
             ></inspecto-empty-state>
         } @else {
             <inspecto-data-table
                 tier="standard"
-                sourceName="sources"
-                exportName="sources"
-                [rows]="sources"
+                sourceName="collectors"
+                exportName="collectors"
+                [rows]="collectors"
                 [columns]="columnDefs"
                 [rowActions]="rowActions"
                 [loading]="loading"

@@ -30,9 +30,9 @@ class PipelineCompilerTest {
 
         // acquisition: source sub-records + dirs.poll recovered identically
         PipelineNode acq = c.acquisition().orElseThrow();
-        assertSame(cfg.source().guarantee(), acq.cfg("guarantee"));
-        assertSame(cfg.source().stability(), acq.cfg("stability"));
-        assertSame(cfg.source().postAction(), acq.cfg("post_action"));
+        assertSame(cfg.collector().guarantee(), acq.cfg("guarantee"));
+        assertSame(cfg.collector().stability(), acq.cfg("stability"));
+        assertSame(cfg.collector().postAction(), acq.cfg("post_action"));
         assertEquals(cfg.dirs().poll(), acq.cfg("poll"));
 
         // parser: the whole CsvSettings record + the single schema map, by identity

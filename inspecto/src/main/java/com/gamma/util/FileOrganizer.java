@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * <p>The copy destination is {@code dirs.poll} from the same toon file.
  * Files are placed at {@code dirs.poll/<YYYYMMDD>/<filename>} — the same layout
- * that {@code SourceProcessor} expects to find when it polls the inbox.
+ * that {@code CollectorProcessor} expects to find when it polls the inbox.
  *
  * <p>Two run modes:
  * <ul>

@@ -10,7 +10,7 @@ import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobType;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,8 +37,8 @@ class ControlApiTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    /** Wires a SourceService over one seeded pipeline + a started ControlApi. */
-    private record Ctx(SourceService svc, ControlApi api, int port, String name) implements AutoCloseable {
+    /** Wires a CollectorService over one seeded pipeline + a started ControlApi. */
+    private record Ctx(CollectorService svc, ControlApi api, int port, String name) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -48,7 +48,7 @@ class ControlApiTest {
         Files.createDirectories(inbox);
         Files.writeString(inbox.resolve("data.csv"),
                 "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n2,20,2020-01-01\n3,30,2020-02-05\n");
-        SourceService svc = new SourceService(List.of(toon), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(toon), 3600, 1);
         ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port(), "test_etl");
@@ -63,7 +63,7 @@ class ControlApiTest {
         JobConfig hb = new JobConfig("hb", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "heartbeat"));
         // keep the job audit under the test's temp dir, not the working directory
         System.setProperty("jobs.audit.dir", dir.resolve("jobs_audit").toString());
-        SourceService svc = new SourceService(List.of(toon), List.of(), List.of(hb), 3600, 1, null);
+        CollectorService svc = new CollectorService(List.of(toon), List.of(), List.of(hb), 3600, 1, null);
         ControlApi api = new ControlApi(svc, 0);
         api.start();
         return new Ctx(svc, api, api.port(), "test_etl");
@@ -85,7 +85,7 @@ class ControlApiTest {
                 new Output(reports.toString().replace("\\", "/"), "CSV", null, List.of("year", "month", "day")),
                 "SELECT year, month, day, COUNT(*) AS n FROM input GROUP BY year, month, day",
                 new Triggers("test_etl", 0));
-        SourceService svc = new SourceService(List.of(toon), List.of(enrich), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(toon), List.of(enrich), 3600, 1);
         ControlApi api = new ControlApi(svc, 0);
         api.start();
         svc.start();   // immediate poll cycle: Stage-1 commit → event → enrichment recompute

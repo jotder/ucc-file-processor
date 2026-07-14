@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** ACQ-6 push discovery: a file landing in a {@code source.discovery: watch} inbox triggers a run. */
-class SourceWatcherTest {
+class CollectorWatcherTest {
 
     /** Registry over one pipeline toon, with an optional appended top-level {@code source:} block. */
     private static ConfigRegistry registry(Path dir, String sourceBlock) throws Exception {
@@ -30,18 +30,18 @@ class SourceWatcherTest {
     @Test
     void noWatchSourcesMeansNoWatcher(@TempDir Path dir) throws Exception {
         ConfigRegistry reg = registry(dir, null);   // default discovery: poll
-        assertNull(SourceWatcher.startFor(reg.all(), p -> fail("no trigger expected")),
+        assertNull(CollectorWatcher.startFor(reg.all(), p -> fail("no trigger expected")),
                 "poll-only registries start no watcher thread");
     }
 
     @Test
     void fileLandingInWatchedInboxTriggersThePipeline(@TempDir Path dir) throws Exception {
-        ConfigRegistry reg = registry(dir, "source:\n  discovery: watch\n");
+        ConfigRegistry reg = registry(dir, "collector:\n  discovery: watch\n");
         Path inbox = Path.of(reg.all().get(0).config().dirs().poll());
         Files.createDirectories(inbox);
 
         BlockingQueue<String> triggered = new LinkedBlockingQueue<>();
-        SourceWatcher watcher = SourceWatcher.startFor(reg.all(), triggered::add);
+        CollectorWatcher watcher = CollectorWatcher.startFor(reg.all(), triggered::add);
         assertNotNull(watcher, "a watch source must start the watcher");
         try {
             Files.writeString(inbox.resolve("feed.csv"), "ID,AMT,EVENT_DATE\n1,2,2020-04-03\n");
@@ -54,12 +54,12 @@ class SourceWatcherTest {
 
     @Test
     void burstsCoalesceIntoOneTrigger(@TempDir Path dir) throws Exception {
-        ConfigRegistry reg = registry(dir, "source:\n  discovery: watch\n");
+        ConfigRegistry reg = registry(dir, "collector:\n  discovery: watch\n");
         Path inbox = Path.of(reg.all().get(0).config().dirs().poll());
         Files.createDirectories(inbox);
 
         BlockingQueue<String> triggered = new LinkedBlockingQueue<>();
-        SourceWatcher watcher = SourceWatcher.startFor(reg.all(), triggered::add);
+        CollectorWatcher watcher = CollectorWatcher.startFor(reg.all(), triggered::add);
         assertNotNull(watcher);
         try {
             for (int i = 0; i < 5; i++) Files.writeString(inbox.resolve("f" + i + ".csv"), "ID\n" + i + "\n");

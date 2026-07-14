@@ -14,17 +14,17 @@ import java.util.function.Consumer;
  * Process-wide entry point for emitting {@link Event}s — the event-engine analogue of
  * {@link MetricRegistry#global()}. Any layer (ingest worker, scheduler, the SLF4J capture appender,
  * the batch-event bridge) records facts through {@link #global()} without threading a store through
- * constructors; the Control API reads them back through the same store via {@code SourceService.events()}.
+ * constructors; the Control API reads them back through the same store via {@code CollectorService.events()}.
  *
  * <h3>Per-space routing</h3>
  * When one server hosts many {@code space}s, each owns its own {@code EventLog} instance ({@link #create()})
- * {@linkplain #register registered} under its space id. Code with a direct handle (a {@code SourceService})
+ * {@linkplain #register registered} under its space id. Code with a direct handle (a {@code CollectorService})
  * emits to its own instance; code without one (the capture appender, deep poll-path emitters) calls
  * {@link #current()}, which routes by the thread's {@link #SPACE_MDC_KEY} MDC and falls back to {@link #global()}.
  *
  * <h3>Store swap with no lost startup events</h3>
  * The global instance starts with a small {@link InMemoryEventStore} so the very first log lines at
- * JVM start are captured. {@code SourceService} later {@linkplain #installStore(EventStore) installs}
+ * JVM start are captured. {@code CollectorService} later {@linkplain #installStore(EventStore) installs}
  * the configured backend (e.g. {@code ParquetEventStore}); {@link #installStore} <b>drains</b> the
  * outgoing store's buffered events into the new one (oldest-first) so nothing emitted before the swap
  * is dropped.

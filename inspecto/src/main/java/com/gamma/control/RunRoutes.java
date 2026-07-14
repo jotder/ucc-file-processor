@@ -9,7 +9,7 @@ import com.gamma.config.spec.Severity;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.inspector.ReprocessCommand;
 import com.gamma.report.ReportService;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import com.sun.net.httpserver.HttpExchange;
 
 import java.io.IOException;
@@ -84,7 +84,7 @@ final class RunRoutes implements RouteModule {
     /**
      * {@code POST /runs/{name}/trigger} — fire a pipeline. On the v1 surface returns {@code 202} + {@code {runId,…}}
      * + a {@code Location} to poll (async, off the ingest lock — mirrors the job trigger); the legacy surface keeps
-     * its unchanged {@code 200} {@link com.gamma.inspector.MultiSourceProcessor.RunResult} body. 404 if no such pipeline.
+     * its unchanged {@code 200} {@link com.gamma.inspector.MultiCollectorProcessor.RunResult} body. 404 if no such pipeline.
      */
     private Object triggerPipeline(ApiContext api, HttpExchange e, String name) throws IOException {
         if (ApiContext.v1(e)) {
@@ -97,7 +97,7 @@ final class RunRoutes implements RouteModule {
 
     /** {@code GET /runs/runs/{runId}} — poll one manual pipeline run's status (W5b); 404 once evicted or unknown. */
     private Object pipelineRunById(ApiContext api, String runId) {
-        SourceService.PipelineRun r = api.service().pipelineRunById(runId)
+        CollectorService.PipelineRun r = api.service().pipelineRunById(runId)
                 .orElseThrow(() -> new ApiException(404, "no run '" + runId + "'"));
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("runId", r.runId());
@@ -138,7 +138,7 @@ final class RunRoutes implements RouteModule {
      * {@code configPath} → 400; a path resolving outside the root → 403; no file there → 404; a
      * config that fails spec / hard-fail safety (R6) validation → 422 (findings returned); an id
      * colliding with a <em>different</em> registered pipeline → 409. On success the new pipeline's
-     * {@link SourceService.PipelineView} is returned.
+     * {@link CollectorService.PipelineView} is returned.
      */
     private Object createPipeline(ApiContext api, HttpExchange ex, Map<String, Object> body) throws IOException {
         Path writeRoot = WriteGates.requireWriteRoot(api, "pipeline registration");
@@ -181,7 +181,7 @@ final class RunRoutes implements RouteModule {
             throw new ApiException(422, "config is not a valid pipeline: " + invalid.getMessage());
         }
 
-        SourceService.PipelineView view = api.service().pipelines().stream()
+        CollectorService.PipelineView view = api.service().pipelines().stream()
                 .filter(p -> p.name().equals(id)).findFirst().orElse(null);
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("registered", true);

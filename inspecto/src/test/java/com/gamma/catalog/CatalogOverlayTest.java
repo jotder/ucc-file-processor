@@ -40,7 +40,7 @@ class CatalogOverlayTest {
     }
 
     private static MetadataNode src() {
-        return new MetadataNode("source:mini_etl", NodeKind.SOURCE, "MINI_ETL", Description.EMPTY, Map.of());
+        return new MetadataNode("stream:mini_etl", NodeKind.STREAM, "MINI_ETL", Description.EMPTY, Map.of());
     }
 
     @Test

@@ -1,6 +1,6 @@
 package com.gamma.acquire;
 
-import com.gamma.acquire.SourceConnector.Capability;
+import com.gamma.acquire.CollectorConnector.Capability;
 
 import java.nio.file.Path;
 import java.util.EnumSet;
@@ -22,7 +22,7 @@ import java.util.EnumSet;
  *
  * <p>Pure function — no I/O, fully unit-testable. <b>Phase A status:</b> this codifies the policy now (so the
  * remote connectors of Phase E implement retrieval correctly from day one); the local run path still reads
- * files in place, so the planner is not yet wired into {@code SourceProcessor}. Wiring lands with the first
+ * files in place, so the planner is not yet wired into {@code CollectorProcessor}. Wiring lands with the first
  * connector that actually fetches over a network.
  */
 public final class RetrievalPlanner {

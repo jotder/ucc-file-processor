@@ -22,14 +22,14 @@ export function putComponent(
 export function seedIconMap(store: MockStore, space: string): void {
     const C = NODE_KIND_COLORS; // category accent colours, sourced from the canvas token owner
     const iconMap: IconMap = {
-        SOURCE: { glyph: 'arrow-in', color: C.SOURCE },
+        SOURCE: { glyph: 'arrow-in', color: C.STREAM},
         PARSE: { glyph: 'lines', color: C.SCHEMA },
         TRANSFORM: { glyph: 'transform', color: C.ENRICHMENT },
         SINK: { glyph: 'cylinder', color: C.TABLE },
         CONTROL: { glyph: 'bell', color: C.KPI },
-        'collector.file': { glyph: 'file', color: C.SOURCE },
-        'collector.database': { glyph: 'database', color: C.SOURCE },
-        'collector.stream': { glyph: 'stream', color: C.SOURCE },
+        'collector.file': { glyph: 'file', color: C.STREAM},
+        'collector.database': { glyph: 'database', color: C.STREAM},
+        'collector.stream': { glyph: 'stream', color: C.STREAM},
         'transform.filter': { glyph: 'filter', color: C.ENRICHMENT },
         'transform.route': { glyph: 'route', color: C.ENRICHMENT },
         'transform.aggregate': { glyph: 'sigma', color: C.ENRICHMENT },

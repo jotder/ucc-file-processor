@@ -7,8 +7,8 @@ import com.gamma.acquire.LedgerEntry;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RateLimiter;
 import com.gamma.acquire.RemoteFile;
-import com.gamma.acquire.SourceConnector;
-import com.gamma.acquire.SourceConnectors;
+import com.gamma.acquire.CollectorConnector;
+import com.gamma.acquire.CollectorConnectors;
 import com.gamma.acquire.retry.RetryPolicy;
 import com.gamma.etl.MarkerManager;
 import com.gamma.etl.PipelineConfig;
@@ -23,19 +23,19 @@ import java.util.List;
 import java.util.concurrent.*;
 
 /**
- * Remote-source acquisition (Phase E/F) for {@link SourceProcessor}: materialise the bytes of files
- * listed by a remote {@link SourceConnector} (SFTP/FTP/…) into the local staging tree so the rest of
+ * Remote-source acquisition (Phase E/F) for {@link CollectorProcessor}: materialise the bytes of files
+ * listed by a remote {@link CollectorConnector} (SFTP/FTP/…) into the local staging tree so the rest of
  * the engine — dedup, markers, ledger, backup — treats them exactly like local files. Covers pre-fetch
  * dedup, rate-limited (optionally parallel) fetch + integrity verification, mtime preservation,
  * source-side post-actions, and dead-lettering of corrupt downloads. Observability is delegated to
  * {@link AcquisitionTelemetry}.
  *
- * <p>Package-private; called only from {@code SourceProcessor.collect}. The logger keeps
- * {@code SourceProcessor}'s category so log output is unchanged from when this code lived there.
+ * <p>Package-private; called only from {@code CollectorProcessor.collect}. The logger keeps
+ * {@code CollectorProcessor}'s category so log output is unchanged from when this code lived there.
  */
 final class RemoteAcquisitionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(SourceProcessor.class);
+    private static final Logger log = LoggerFactory.getLogger(CollectorProcessor.class);
 
     private RemoteAcquisitionHandler() {}
 
@@ -47,11 +47,11 @@ final class RemoteAcquisitionHandler {
      * so {@code dedupLocal} and the downstream batch path handle them with no special-casing. The
      * {@code inspecto_active_connections} gauge is held at 1 for the duration.
      */
-    static List<RemoteFile> materializeRemote(PipelineConfig cfg, SourceConnector primary,
+    static List<RemoteFile> materializeRemote(PipelineConfig cfg, CollectorConnector primary,
                                               List<RemoteFile> ready, RetryPolicy retry) {
         Path pollRoot = Paths.get(cfg.dirs().poll()).toAbsolutePath().normalize();
-        String etagAlgo = cfg.source().duplicate().algorithm();
-        PipelineConfig.Fetch fetch = cfg.source().fetch();
+        String etagAlgo = cfg.collector().duplicate().algorithm();
+        PipelineConfig.Fetch fetch = cfg.collector().fetch();
 
         // Resolve + capability-validate the post-action once. on_unsupported=FAIL stops the cycle here, before any
         // bytes move; WARN_AND_CONTINUE/IGNORE degrade to RETAIN (null ⇒ apply nothing).
@@ -88,12 +88,12 @@ final class RemoteAcquisitionHandler {
         // a POOL of independent sessions, not shared reuse. The primary (already open, used for discovery) is one
         // pool member and is closed by the caller; the extras are owned and closed here. Taking from a bounded
         // pool naturally caps concurrency to the pool size — no separate semaphore needed.
-        java.util.concurrent.BlockingQueue<SourceConnector> pool = new java.util.concurrent.LinkedBlockingQueue<>();
-        List<SourceConnector> extras = new ArrayList<>();
+        java.util.concurrent.BlockingQueue<CollectorConnector> pool = new java.util.concurrent.LinkedBlockingQueue<>();
+        List<CollectorConnector> extras = new ArrayList<>();
         pool.add(primary);
         try {
             for (int i = 1; i < parallelism; i++) {
-                SourceConnector c = SourceConnectors.forConfig(cfg);
+                CollectorConnector c = CollectorConnectors.forConfig(cfg);
                 extras.add(c);
                 pool.add(c);
             }
@@ -102,7 +102,7 @@ final class RemoteAcquisitionHandler {
                 List<Future<?>> futures = new ArrayList<>(toFetch.size());
                 for (RemoteFile rf : toFetch) {
                     futures.add(ex.submit(() -> {
-                        SourceConnector c = pool.take();   // blocks until a session frees up ⇒ bounds concurrency
+                        CollectorConnector c = pool.take();   // blocks until a session frees up ⇒ bounds concurrency
                         try {
                             fetchOne(cfg, c, rf, pollRoot, etagAlgo, retry, limiter, postAction, staged);
                         } finally {
@@ -118,7 +118,7 @@ final class RemoteAcquisitionHandler {
             }
         } finally {
             AcquisitionTelemetry.setActiveConnections(cfg, 0);
-            for (SourceConnector c : extras) {
+            for (CollectorConnector c : extras) {
                 try { c.close(); } catch (Exception ignore) { /* best-effort: each extra session is owned here */ }
             }
         }
@@ -131,7 +131,7 @@ final class RemoteAcquisitionHandler {
      * failure is already logged, metered and (for a corrupt download) quarantined inside {@link #fetchAndVerify};
      * the file is simply skipped. Called from one connector session that the caller has confined to this thread.
      */
-    private static void fetchOne(PipelineConfig cfg, SourceConnector connector, RemoteFile rf, Path pollRoot,
+    private static void fetchOne(PipelineConfig cfg, CollectorConnector connector, RemoteFile rf, Path pollRoot,
                                  String etagAlgo, RetryPolicy retry, RateLimiter limiter, PostAction postAction,
                                  List<RemoteFile> staged) {
         if (limiter != null && rf.hasSize()) {
@@ -154,12 +154,12 @@ final class RemoteAcquisitionHandler {
     /**
      * Resolve the configured {@code source.post_action} into a concrete {@link PostAction} for this cycle, or
      * {@code null} when nothing should be applied (RETAIN, an unknown kind, or an unsupported action under
-     * {@code on_unsupported != FAIL}). The required {@link SourceConnector.Capability} is validated against the
+     * {@code on_unsupported != FAIL}). The required {@link CollectorConnector.Capability} is validated against the
      * connector; {@code on_unsupported=FAIL} throws to stop the cycle, the others degrade to RETAIN. A MOVE's
      * {@code archive_path} template is date-resolved against now.
      */
-    private static PostAction resolvePostAction(PipelineConfig cfg, SourceConnector connector) {
-        PipelineConfig.PostActionConfig pac = cfg.source().postAction();
+    private static PostAction resolvePostAction(PipelineConfig cfg, CollectorConnector connector) {
+        PipelineConfig.PostActionConfig pac = cfg.collector().postAction();
         if (!pac.active()) return null;
         PostAction.Kind kind;
         try {
@@ -171,11 +171,11 @@ final class RemoteAcquisitionHandler {
         }
         if (kind == PostAction.Kind.RETAIN) return null;
 
-        SourceConnector.Capability needed = switch (kind) {
-            case DELETE -> SourceConnector.Capability.DELETE;
-            case MOVE   -> SourceConnector.Capability.MOVE;
-            case RENAME -> SourceConnector.Capability.RENAME;
-            case TAG    -> SourceConnector.Capability.TAG;
+        CollectorConnector.Capability needed = switch (kind) {
+            case DELETE -> CollectorConnector.Capability.DELETE;
+            case MOVE   -> CollectorConnector.Capability.MOVE;
+            case RENAME -> CollectorConnector.Capability.RENAME;
+            case TAG    -> CollectorConnector.Capability.TAG;
             case RETAIN -> null;
         };
         if (needed != null && !connector.capabilities().contains(needed)) {
@@ -197,7 +197,7 @@ final class RemoteAcquisitionHandler {
      * safely staged locally — it is logged + metered and the file proceeds to ingest. Emits {@code FILE_ARCHIVED}
      * on success.
      */
-    private static void applyPostAction(PipelineConfig cfg, SourceConnector connector, RemoteFile rf, PostAction action) {
+    private static void applyPostAction(PipelineConfig cfg, CollectorConnector connector, RemoteFile rf, PostAction action) {
         if (action == null) return;
         try {
             connector.post(rf, action);
@@ -232,18 +232,18 @@ final class RemoteAcquisitionHandler {
      */
     private static boolean isKnownDuplicate(PipelineConfig cfg, RemoteFile rf, Path pollRoot) {
         if (!cfg.processing().duplicateCheckEnabled()) return false;
-        PipelineConfig.Duplicate dup = cfg.source().duplicate();
+        PipelineConfig.Duplicate dup = cfg.collector().duplicate();
         if (!dup.contentBased())
             return MarkerManager.isAlreadyProcessed(pollRoot.resolve(rf.relativePath()).toFile(), cfg);
         DuplicatePolicy.Mode mode = DuplicatePolicy.Mode.from(dup.mode());
         boolean hasMetadata = rf.hasSize() && rf.lastModified() != null;
         if (mode == DuplicatePolicy.Mode.METADATA && hasMetadata) {
-            LedgerEntry prior = AcquisitionLedgers.shared().find(cfg.source().id(), rf.relativePath()).orElse(null);
+            LedgerEntry prior = AcquisitionLedgers.shared().find(cfg.collector().id(), rf.relativePath()).orElse(null);
             return DuplicatePolicy.decide(DuplicatePolicy.Mode.METADATA, prior, rf.size(),
                     rf.lastModified().toEpochMilli(), null) == DuplicatePolicy.Decision.DUPLICATE;
         }
         if (mode == DuplicatePolicy.Mode.ETAG && (rf.etag() != null || rf.version() != null || hasMetadata)) {
-            LedgerEntry prior = AcquisitionLedgers.shared().find(cfg.source().id(), rf.relativePath()).orElse(null);
+            LedgerEntry prior = AcquisitionLedgers.shared().find(cfg.collector().id(), rf.relativePath()).orElse(null);
             long mtime = rf.lastModified() != null ? rf.lastModified().toEpochMilli() : Long.MIN_VALUE;
             return DuplicatePolicy.decide(DuplicatePolicy.Mode.ETAG, prior, rf.size(), mtime,
                     null, rf.etag(), rf.version()) == DuplicatePolicy.Decision.DUPLICATE;
@@ -258,7 +258,7 @@ final class RemoteAcquisitionHandler {
      * returned so the file is skipped this cycle rather than processed corrupt. {@code AcquisitionException}
      * extends {@code IOException}, so the single catch covers protocol and local-IO faults alike.
      */
-    private static Path fetchAndVerify(PipelineConfig cfg, SourceConnector connector, RemoteFile rf,
+    private static Path fetchAndVerify(PipelineConfig cfg, CollectorConnector connector, RemoteFile rf,
                                        Path target, String etagAlgo, RetryPolicy retry) {
         long t0 = System.nanoTime();
         try {

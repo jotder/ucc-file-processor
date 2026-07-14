@@ -266,7 +266,7 @@ public final class KpiToSqlSkill implements Capability {
                 String fmt = formatOr(n, "PARQUET");
                 yield new SqlOracle.ViewSpec(n.label(), fmt, glob(root, fmt), true);
             }
-            default -> null; // SOURCE / RAW_SCHEMA / COLUMN / KPI / REPORT are not data views
+            default -> null; // STREAM / RAW_SCHEMA / COLUMN / KPI / REPORT are not data views
         };
     }
 

@@ -31,7 +31,7 @@ import java.util.zip.GZIPInputStream;
  *   <li>Delete the error file if no errors occurred.</li>
  * </ol>
  *
- * <p>Extracted from {@link com.gamma.inspector.SourceProcessor#ingestRawData}.
+ * <p>Extracted from {@link com.gamma.inspector.CollectorProcessor#ingestRawData}.
  */
 public final class CsvIngester {
 

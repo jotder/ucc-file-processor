@@ -13,12 +13,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static com.gamma.acquire.SourceConnector.Capability.*;
+import static com.gamma.acquire.CollectorConnector.Capability.*;
 
 /**
  * The built-in connector for the local filesystem — and the parity baseline for the whole SPI.
  *
- * <p>{@link #discover} reproduces the legacy {@link com.gamma.inspector.SourceProcessor#collectCandidates}
+ * <p>{@link #discover} reproduces the legacy {@link com.gamma.inspector.CollectorProcessor#collectCandidates}
  * tree-walk exactly: regular files under the poll root, excluding the engine-managed {@code errors/} and
  * {@code quarantine/} subtrees, matched against the include patterns. With the legacy defaults
  * (includes = the single {@code processing.file_pattern} glob, no excludes, unbounded depth) the candidate
@@ -28,7 +28,7 @@ import static com.gamma.acquire.SourceConnector.Capability.*;
  * {@code isRegularFile} check is the only one, as before) and creates nothing when the poll root is absent,
  * preserving the read-only, side-effect-free contract that {@code countPending} relies on.
  */
-public final class LocalFileSystemConnector implements SourceConnector {
+public final class LocalFileSystemConnector implements CollectorConnector {
 
     private final Path pollRoot;
     private final Path errorsDir;

@@ -9,13 +9,13 @@ import java.util.List;
  * A pluggable source of files — the acquisition seam (Data Acquisition roadmap Phase A).
  *
  * <p>Inspecto historically had exactly one, hard-wired source: the local filesystem under
- * {@code dirs.poll}, scanned by {@link com.gamma.inspector.SourceProcessor#collectCandidates}. This SPI
+ * {@code dirs.poll}, scanned by {@link com.gamma.inspector.CollectorProcessor#collectCandidates}. This SPI
  * extracts that behaviour so additional protocols (SFTP/FTP/S3/…) become plugins discovered via
- * {@link SourceConnectorFactory} + {@link java.util.ServiceLoader} <em>without modifying the core engine</em>
+ * {@link CollectorConnectorFactory} + {@link java.util.ServiceLoader} <em>without modifying the core engine</em>
  * — the requirement's extensibility clause. The built-in {@link LocalFileSystemConnector} reproduces the
  * legacy behaviour byte-for-byte, so a pipeline with no {@code source:} block is unaffected.
  *
- * <p>One instance is created per configured {@code source:} block (see {@link SourceConnectors#forConfig}),
+ * <p>One instance is created per configured {@code source:} block (see {@link CollectorConnectors#forConfig}),
  * so an implementation may hold a connection/session for its lifetime; the engine closes it when the scan
  * cycle ends. Implementations need not be thread-safe across instances — each pipeline gets its own.
  *
@@ -32,7 +32,7 @@ import java.util.List;
  * In particular: <em>do not</em> download to temp, read, then move to backup. Either stream
  * ({@code open}) when there is nothing to keep, or write directly to the destination ({@code fetchTo}).
  */
-public interface SourceConnector extends AutoCloseable {
+public interface CollectorConnector extends AutoCloseable {
 
     /** Stable scheme id used in config ({@code source.connector}) and {@code ServiceLoader} lookup. */
     String scheme();

@@ -7,7 +7,7 @@ import com.gamma.assist.AssistResult;
 import com.gamma.assist.Diagnosis;
 import com.gamma.assist.spi.AssistAgent;
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,14 +37,14 @@ class ControlApiAssistTest {
     /** A minimal in-core agent: answers {@code echo}, reports {@code down} unavailable, else unsupported. */
     private static final class StubAgent implements AssistAgent {
         @Override public String name() { return "stub"; }
-        @Override public void init(SourceService service) { /* no handles needed */ }
+        @Override public void init(CollectorService service) { /* no handles needed */ }
         @Override public AssistResult assist(AssistRequest req) {
             return switch (req.intent()) {
                 case "echo" -> AssistResult.answer("echo", "you said: " + req.userText(),
                         List.of(new AssistResult.Citation("test", "node:1")), List.of("http://x/1"));
                 case "down" -> AssistResult.unavailable("down", "model offline");
                 case "draft" -> AssistResult.draft("draft", "every weekday at 06:00",
-                        List.of(new AssistResult.Citation("catalog", "source:adjustment_etl")), List.of(),
+                        List.of(new AssistResult.Citation("catalog", "stream:adjustment_etl")), List.of(),
                         Map.of("cron", "0 6 * * MON-FRI",
                                "onPipeline", "adjustment_etl",
                                "nextRuns", List.of("2026-06-01 06:00:00", "2026-06-02 06:00:00"),
@@ -57,18 +57,18 @@ class ControlApiAssistTest {
                     "B7", "mini_etl", Diagnosis.Severity.CRITICAL,
                     "all member files rejected: schema selector mismatch",
                     null, true, 1_000L,
-                    List.of(new AssistResult.Citation("catalog", "source:mini_etl"))));
+                    List.of(new AssistResult.Citation("catalog", "stream:mini_etl"))));
         }
     }
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
     /** Open a service+API; when {@code withAgent}, register the stub agent before serving. */
     private Ctx open(Path dir, boolean withAgent) throws Exception {
         Path pipe = PipelineConfigBatchTest.writePipeline(dir, "");
-        SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
         if (withAgent) svc.registerAgent(new StubAgent());
         ControlApi api = new ControlApi(svc, 0);
         api.start();
@@ -160,7 +160,7 @@ class ControlApiAssistTest {
             assertEquals("B7", d.get("batchId").asText());
             assertEquals("CRITICAL", d.get("severity").asText());
             assertTrue(d.get("heuristicOnly").asBoolean());
-            assertEquals("source:mini_etl", d.get("citations").get(0).get("ref").asText());
+            assertEquals("stream:mini_etl", d.get("citations").get(0).get("ref").asText());
         }
     }
 

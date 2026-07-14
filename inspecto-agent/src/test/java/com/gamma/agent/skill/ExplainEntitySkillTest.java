@@ -7,7 +7,7 @@ import com.gamma.agent.kernel.agent.AgentResult;
 import com.gamma.agent.kernel.model.ModelRequest;
 import com.gamma.agent.kernel.model.ModelRouter;
 import com.gamma.agent.kernel.retrieve.DocRetriever;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -27,7 +27,7 @@ class ExplainEntitySkillTest {
 
     private static final String EVENT_ID = "event:mini_etl/mini";
 
-    private UccAgentContext context(SourceService svc, ModelRouter router) {
+    private UccAgentContext context(CollectorService svc, ModelRouter router) {
         return new UccAgentContext(svc.catalog(), svc.reports(), svc.statusStore(),
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
@@ -40,7 +40,7 @@ class ExplainEntitySkillTest {
     @Test
     void answersFromCatalogWithDerivedCitations(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             // The fake echoes the prompt back, so we can assert the catalog grounding reached the model.
             ModelRouter router = ModelRouter.of(FakeModelProvider.responding(ModelRequest::prompt));
             AgentResult res = new ExplainEntitySkill().run(explain("what is this table?"), context(svc, router));
@@ -57,7 +57,7 @@ class ExplainEntitySkillTest {
 
             // ...and the grounding (node id + the source neighbour) actually reached the model prompt.
             assertTrue(res.answer().contains(EVENT_ID), "node grounded into prompt");
-            assertTrue(res.answer().contains("source:mini_etl"),
+            assertTrue(res.answer().contains("stream:mini_etl"),
                     "neighbour grounded into prompt: " + res.answer());
         }
     }
@@ -65,7 +65,7 @@ class ExplainEntitySkillTest {
     @Test
     void cannedModelOutputIsReturnedVerbatim(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned("This table stores mini events."));
             AgentResult res = new ExplainEntitySkill().run(explain("explain"), context(svc, router));
             assertEquals("This table stores mini events.", res.answer());
@@ -75,7 +75,7 @@ class ExplainEntitySkillTest {
     @Test
     void modelUnavailableYieldsUnavailableNotAnError(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.down());
             AgentResult res = new ExplainEntitySkill().run(explain("explain"), context(svc, router));
             assertEquals(AgentResult.Status.UNAVAILABLE, res.status());

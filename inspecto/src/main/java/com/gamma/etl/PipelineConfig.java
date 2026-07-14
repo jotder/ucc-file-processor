@@ -232,18 +232,18 @@ public final class PipelineConfig {
      * pipeline with no {@code source:} block defaults to the local filesystem reading {@code dirs.poll} with
      * {@code includes = [processing.file_pattern]}, no excludes and unbounded depth: exactly the legacy scan.
      *
-     * <p>{@code connector} selects the {@link com.gamma.acquire.SourceConnector} ({@code "local"} built-in;
+     * <p>{@code connector} selects the {@link com.gamma.acquire.CollectorConnector} ({@code "local"} built-in;
      * other schemes via the optional connector module). {@code includes}/{@code excludes} are glob/regex
      * patterns (see {@link com.gamma.acquire.DiscoveryContext}); {@code recursiveDepth} of {@code -1} is
      * unbounded.
      */
     @PublicApi(since = "4.2.0")
-    public record Source(String id, String connector, List<String> includes,
+    public record Collector(String id, String connector, List<String> includes,
                          List<String> excludes, int recursiveDepth, Stability stability, String connection,
                          Duplicate duplicate, Guarantee guarantee, GapDetection gapDetection,
                          Fetch fetch, Retry retry, CircuitBreaker circuitBreaker, PostActionConfig postAction,
                          Incremental incremental, String discovery) {
-        public Source {
+        public Collector {
             includes = List.copyOf(includes);
             excludes = List.copyOf(excludes);
             // ACQ-6: how new files are noticed — interval "poll" (default) or filesystem-event "watch"
@@ -457,7 +457,7 @@ public final class PipelineConfig {
      * Source-side post-processing action applied after a fetched file is integrity-validated and staged
      * (Data Acquisition roadmap Phase F; additive, {@code source.post_action:}). {@code onSuccess} ∈
      * {@code RETAIN|DELETE|MOVE|RENAME|TAG} (validated against the connector's
-     * {@link com.gamma.acquire.SourceConnector.Capability capabilities}); {@code onUnsupported} ∈
+     * {@link com.gamma.acquire.CollectorConnector.Capability capabilities}); {@code onUnsupported} ∈
      * {@code FAIL|WARN_AND_CONTINUE|IGNORE} decides what happens when the connector can't perform it.
      * {@code archivePath} (a {@code yyyy/MM/dd}-style template) is used by {@code MOVE}; {@code tags} by {@code TAG}.
      *
@@ -491,7 +491,7 @@ public final class PipelineConfig {
     private final FixedWidth     fixedWidth;
     private final Json           json;
     private final TextRegex      textRegex;
-    private final Source         source;
+    private final Collector      collector;
 
     /**
      * Whether this pipeline is activated for execution ({@code active:} top-level key, v4.7.0). Only
@@ -506,7 +506,7 @@ public final class PipelineConfig {
     /**
      * The optional entry-node {@code trigger:} block (T13 / §3.6) verbatim, or {@code null} when absent.
      * Absent ⇒ the pipeline rides the default poll cycle exactly as before; present ⇒ the live loop
-     * ({@link com.gamma.service.SourceService}) classifies it via {@code com.gamma.pipeline.PipelineTrigger}
+     * ({@link com.gamma.service.CollectorService}) classifies it via {@code com.gamma.pipeline.PipelineTrigger}
      * into {@code schedule}(every/cron) / {@code event} / {@code manual}. Carried onto the lifted
      * acquisition node so the flow projection and the live driver agree on the schedule.
      */
@@ -544,7 +544,7 @@ public final class PipelineConfig {
     /** Text/regex frontend config, or {@code null} unless {@code frontend: text_regex}. */
     public TextRegex      textRegex()  { return textRegex; }
     /** Data-acquisition source binding; never null (defaults to local-FS over {@code dirs.poll}). */
-    public Source         source()     { return source; }
+    public Collector      collector()  { return collector; }
     /** Whether this pipeline is activated for execution ({@code active:}, default {@code false}). */
     public boolean        active()     { return active; }
     /** The raw entry-node {@code trigger:} block (T13), or {@code null} when absent (⇒ default poll). */
@@ -584,7 +584,7 @@ public final class PipelineConfig {
         this.fixedWidth = b.fixedWidth;
         this.json = b.json;
         this.textRegex = b.textRegex;
-        this.source = new Source(b.sourceId, b.sourceConnector, b.sourceIncludes,
+        this.collector = new Collector(b.sourceId, b.collectorConnector, b.sourceIncludes,
                 b.sourceExcludes, b.sourceDepth, b.sourceStability, b.sourceConnection, b.sourceDuplicate,
                 b.sourceGuarantee, b.sourceGapDetection,
                 b.sourceFetch, b.sourceRetry, b.sourceCircuitBreaker, b.sourcePostAction, b.sourceIncremental,
@@ -628,7 +628,7 @@ public final class PipelineConfig {
         this.fixedWidth = src.fixedWidth;
         this.json = src.json;
         this.textRegex = src.textRegex;
-        this.source = src.source;
+        this.collector = src.collector;
         this.statusDirToPrepare = src.statusDirToPrepare;
         this.active = src.active;
         this.trigger = src.trigger;
@@ -753,7 +753,7 @@ public final class PipelineConfig {
         Json         json;                // null unless frontend: json
         TextRegex    textRegex;           // null unless frontend: text_regex
         String       sourceId;
-        String       sourceConnector = "local";
+        String       collectorConnector = "local";
         List<String> sourceIncludes  = new ArrayList<>();
         List<String> sourceExcludes  = new ArrayList<>();
         int          sourceDepth     = -1;

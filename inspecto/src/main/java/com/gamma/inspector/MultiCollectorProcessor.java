@@ -23,7 +23,7 @@ import java.util.stream.Stream;
 /**
  * Top-level orchestrator that runs <b>multiple data sources</b> (each its own
  * {@code pipeline.toon}) concurrently in one JVM. This is the outer layer of the
- * framework's parallelism model; {@link SourceProcessor#run(PipelineConfig)} is
+ * framework's parallelism model; {@link CollectorProcessor#run(PipelineConfig)} is
  * the per-source unit it composes.
  *
  * <h3>Concurrency model</h3>
@@ -37,7 +37,7 @@ import java.util.stream.Stream;
  *
  * <h3>CLI</h3>
  * <pre>
- *   java -cp file-processor.jar com.gamma.inspector.MultiSourceProcessor \
+ *   java -cp file-processor.jar com.gamma.inspector.MultiCollectorProcessor \
  *        [-Dsources.max=N] &lt;path&gt; [&lt;path&gt; ...]
  * </pre>
  * Each {@code path} is either a {@code *_pipeline.toon} file or a directory, which
@@ -45,17 +45,17 @@ import java.util.stream.Stream;
  * defaults to the number of resolved sources (all in parallel). Exits non-zero if
  * any source fails so a wrapper/cron can detect partial-failure runs.
  *
- * <p>Unlike {@link SourceProcessor#main}, this does not reconfigure the global
+ * <p>Unlike {@link CollectorProcessor#main}, this does not reconfigure the global
  * {@code LogSetup} tee per source (that would clobber across concurrent sources);
  * operational output flows through SLF4J, where each line carries its logger and
  * the relevant batch/source id.
  */
 @PublicApi(since = "1.6.0")
-public final class MultiSourceProcessor {
+public final class MultiCollectorProcessor {
 
-    private static final Logger log = LoggerFactory.getLogger(MultiSourceProcessor.class);
+    private static final Logger log = LoggerFactory.getLogger(MultiCollectorProcessor.class);
 
-    private MultiSourceProcessor() {}
+    private MultiCollectorProcessor() {}
 
     /** Outcome of a multi-source run. */
     public record RunResult(int total, int failed) {
@@ -64,7 +64,7 @@ public final class MultiSourceProcessor {
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
-            System.err.println("Usage: MultiSourceProcessor [-Dsources.max=N] <pipeline.toon | dir> [more ...]");
+            System.err.println("Usage: MultiCollectorProcessor [-Dsources.max=N] <pipeline.toon | dir> [more ...]");
             System.exit(1);
         }
         List<Path> paths = resolveConfigs(args);
@@ -141,9 +141,9 @@ public final class MultiSourceProcessor {
                         permits.acquire();
                         try {
                             PipelineConfig cfg = PipelineConfig.load(cfgPath.toString());
-                            SourceProcessor.run(cfg, onCommit);
+                            CollectorProcessor.run(cfg, onCommit);
                             log.info("Source '{}' completed", cfg.identity().pipelineName());
-                        } catch (SourceProcessor.BatchProcessingException e) {
+                        } catch (CollectorProcessor.BatchProcessingException e) {
                             failed.incrementAndGet();
                             log.error("Source {} had batch failures: {}", cfgPath, e.getMessage());
                         } catch (Exception e) {
@@ -192,9 +192,9 @@ public final class MultiSourceProcessor {
                     try {
                         permits.acquire();
                         try {
-                            SourceProcessor.run(cfg, onCommit);
+                            CollectorProcessor.run(cfg, onCommit);
                             log.info("Source '{}' completed", cfg.identity().pipelineName());
-                        } catch (SourceProcessor.BatchProcessingException e) {
+                        } catch (CollectorProcessor.BatchProcessingException e) {
                             failed.incrementAndGet();
                             log.error("Source '{}' had batch failures: {}",
                                     cfg.identity().pipelineName(), e.getMessage());

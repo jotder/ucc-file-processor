@@ -49,7 +49,7 @@ class DbStatusStoreTest {
         Files.createDirectories(inbox);
         Files.writeString(inbox.resolve("data.csv"),
                 "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n2,20,2020-01-01\n3,30,2020-02-05\n");
-        try (SourceService svc = new SourceService(List.of(toon), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(toon), 3600, 1)) {
             assertEquals(0, svc.runAllOnce().failed(), "the seeded batch should commit cleanly");
         }
         return PipelineConfig.load(toon.toString());
@@ -108,7 +108,7 @@ class DbStatusStoreTest {
     }
 
     @Test
-    void sourceServiceWithDbBackendServesDataThroughTheReadSurface(@TempDir Path dir) throws Exception {
+    void collectorServiceWithDbBackendServesDataThroughTheReadSurface(@TempDir Path dir) throws Exception {
         Path toon = TestConfigs.csv(dir, PipelineConfigBatchTest.miniSchema()).write();
         Path inbox = dir.resolve("inbox");
         Files.createDirectories(inbox);
@@ -116,12 +116,12 @@ class DbStatusStoreTest {
                 "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n2,20,2020-01-01\n3,30,2020-02-05\n");
         PipelineConfig cfg = PipelineConfig.load(toon.toString());
 
-        // a dedicated connection: SourceService.close() owns and closes the DB store
+        // a dedicated connection: CollectorService.close() owns and closes the DB store
         Class.forName("org.duckdb.DuckDBDriver");
         Connection svcConn = DriverManager.getConnection("jdbc:duckdb:");
         DbStatusStore backend = new DbStatusStore(svcConn);
-        try (SourceService svc =
-                     new SourceService(List.of(toon), List.of(), 3600, 1, backend)) {
+        try (CollectorService svc =
+                     new CollectorService(List.of(toon), List.of(), 3600, 1, backend)) {
             assertEquals(0, svc.runAllOnce().failed());
             // runAllOnce projects the new commit into the DB; the API/observability read here
             assertSame(backend, svc.statusStore(), "the DB store is the service's read surface");

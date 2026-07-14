@@ -1,7 +1,7 @@
 package com.gamma.intelligence;
 
 import com.eoiagent.model.StubLlmGateway;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,7 +17,7 @@ class InspectoIntelligenceAgentTest {
 
     private InspectoIntelligenceAgent open(StubLlmGateway gateway) {
         InspectoIntelligenceAgent agent = new InspectoIntelligenceAgent(gateway);
-        agent.init(new SourceService(List.of(), 3600, 1));
+        agent.init(new CollectorService(List.of(), 3600, 1));
         agent.start();
         return agent;
     }

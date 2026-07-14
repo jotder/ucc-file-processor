@@ -1,6 +1,6 @@
 package com.gamma.control;
 
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,7 +26,7 @@ class ControlApiStaticAndCorsTest {
 
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -39,7 +39,7 @@ class ControlApiStaticAndCorsTest {
         if (uiDir != null) System.setProperty("ui.dir", uiDir);  else System.clearProperty("ui.dir");
         if (cors  != null) System.setProperty("control.cors", cors); else System.clearProperty("control.cors");
         try {
-            SourceService svc = new SourceService(List.of(), 3600, 1);
+            CollectorService svc = new CollectorService(List.of(), 3600, 1);
             ControlApi api = new ControlApi(svc, 0);
             api.start();
             return new Ctx(svc, api, api.port());

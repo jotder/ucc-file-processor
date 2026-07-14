@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.catalog.SemanticModel;
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,7 +26,7 @@ class ControlApiCatalogTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -39,7 +39,7 @@ class ControlApiCatalogTest {
 
     private Ctx open(Path dir) throws Exception {
         Path pipe = PipelineConfigBatchTest.writePipeline(dir, "");
-        SourceService svc = new SourceService(List.of(pipe), List.of(), List.of(),
+        CollectorService svc = new CollectorService(List.of(pipe), List.of(), List.of(),
                 List.of(semantics()), 3600, 1, null);
         ControlApi api = new ControlApi(svc, 0);
         api.start();
@@ -70,7 +70,7 @@ class ControlApiCatalogTest {
             assertEquals(200, r.statusCode());
             JsonNode g = JSON.readTree(r.body());
             boolean reachesSource = false;
-            for (JsonNode n : g.get("nodes")) if ("source:mini_etl".equals(n.get("id").asText())) reachesSource = true;
+            for (JsonNode n : g.get("nodes")) if ("stream:mini_etl".equals(n.get("id").asText())) reachesSource = true;
             assertTrue(reachesSource, "KPI traversal reaches the source: " + g.get("nodes"));
         }
     }

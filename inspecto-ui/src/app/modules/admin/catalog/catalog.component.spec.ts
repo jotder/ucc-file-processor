@@ -19,6 +19,7 @@ function create(overrides: Partial<CatalogService> = {}) {
     const api = {
         tables: () => of([TABLE]),
         streams: () => of([]),
+        references: () => of([]),
         kpis: () => of({ kpis: [] }),
         graph: () => of(GRAPH),
         ...overrides,
@@ -61,7 +62,7 @@ describe('CatalogComponent', () => {
 
     it('switching to a tab loads its data', () => {
         const c = create().componentInstance;
-        c.tabIndex = 2; // kpis
+        c.tabIndex = 3; // kpis
         c.loadTab();
         expect(c.activeTab).toBe('kpis');
         expect(c.kpis).toEqual([]);
@@ -83,7 +84,7 @@ describe('CatalogComponent', () => {
     it('renders the empty-graph state with no a11y violations', async () => {
         const fixture = create({ graph: () => of(EMPTY_GRAPH) });
         const c = fixture.componentInstance;
-        c.tabIndex = 3; // graph
+        c.tabIndex = 4; // graph
         c.loadTab();
         c.runGraph();
         fixture.detectChanges();

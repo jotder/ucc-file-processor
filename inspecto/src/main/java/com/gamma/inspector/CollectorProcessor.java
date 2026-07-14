@@ -10,8 +10,8 @@ import com.gamma.acquire.GapDetector;
 import com.gamma.acquire.GapTracker;
 import com.gamma.acquire.LedgerEntry;
 import com.gamma.acquire.RemoteFile;
-import com.gamma.acquire.SourceConnector;
-import com.gamma.acquire.SourceConnectors;
+import com.gamma.acquire.CollectorConnector;
+import com.gamma.acquire.CollectorConnectors;
 import com.gamma.acquire.StabilityGate;
 import com.gamma.acquire.retry.RetryPolicy;
 import com.gamma.api.PublicApi;
@@ -43,13 +43,13 @@ import java.util.stream.Collectors;
  * <p>Run via: {@code java -jar file-processor.jar <pipeline.toon>}
  */
 @PublicApi(since = "1.0.0")
-public class SourceProcessor {
+public class CollectorProcessor {
 
-    private static final Logger log = LoggerFactory.getLogger(SourceProcessor.class);
+    private static final Logger log = LoggerFactory.getLogger(CollectorProcessor.class);
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
-            System.err.println("Usage: SourceProcessor <pipeline_config_path>");
+            System.err.println("Usage: CollectorProcessor <pipeline_config_path>");
             System.exit(1);
         }
         PipelineConfig cfg = PipelineConfig.load(args[0]);
@@ -120,7 +120,7 @@ public class SourceProcessor {
 
         // Propagate the caller's space (MDC) onto each batch worker: the commit listener (the service's event-bus
         // sink), the per-batch metrics and the event log all fire on these threads, so without this their per-space
-        // routing would fall back to "default". Mirrors MultiSourceProcessor.runAll/runConfigs (Stage 3a).
+        // routing would fall back to "default". Mirrors MultiCollectorProcessor.runAll/runConfigs (Stage 3a).
         Map<String, String> mdc = MDC.getCopyOfContextMap();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<?>> futures = new ArrayList<>();
@@ -183,7 +183,7 @@ public class SourceProcessor {
      *                    {@code false} so a dashboard poll stays side-effect-free.
      */
     private static List<File> collect(PipelineConfig cfg, boolean emitSignals) throws java.io.IOException {
-        PipelineConfig.Source src = cfg.source();
+        PipelineConfig.Collector src = cfg.collector();
         PipelineConfig.Stability st = src.stability();
 
         // When stability gating is on, fold the temp/in-flight excludes (*.tmp/*.partial/…) into discovery so
@@ -198,7 +198,7 @@ public class SourceProcessor {
 
         // The connector stays open through materialisation: a remote connector holds a session for the lifetime
         // of the cycle, and fetchTo() needs it. (The local connector holds nothing — close is a no-op.)
-        try (SourceConnector connector = SourceConnectors.forConfig(cfg)) {
+        try (CollectorConnector connector = CollectorConnectors.forConfig(cfg)) {
             boolean remote = !"local".equalsIgnoreCase(connector.scheme());
 
             // Circuit breaker (Phase F): if this source's breaker is OPEN (repeated connectivity failures), skip
@@ -238,14 +238,14 @@ public class SourceProcessor {
 
             // Gap detection (Phase D): over the full discovery listing (not the dedup-filtered candidates) so a
             // hole in the expected series is reported even when nothing new is ingestable this cycle. Run path only.
-            if (emitSignals && cfg.source().gapDetection().active() && !discovered.isEmpty())
+            if (emitSignals && cfg.collector().gapDetection().active() && !discovered.isEmpty())
                 detectGaps(cfg, discovered);
 
             // Incremental discovery (Phase C4): when source.incremental.watermark is set, drop candidates modified
             // strictly before the source's high-watermark (the max last_modified the ledger has recorded). Applied
             // BEFORE the remote/local split so a remote source spends no fetch bandwidth on old objects; gap
             // detection above already saw the full listing, so a hole is still reported.
-            if (cfg.source().incremental().enabled() && !ready.isEmpty())
+            if (cfg.collector().incremental().enabled() && !ready.isEmpty())
                 ready = watermarkFilter(cfg, ready, emitSignals);
 
             if (ready.isEmpty()) return List.of();
@@ -274,7 +274,7 @@ public class SourceProcessor {
     private static List<File> dedupLocal(PipelineConfig cfg, List<RemoteFile> ready, boolean emitSignals)
             throws java.io.IOException {
         if (!cfg.processing().duplicateCheckEnabled()) return toFiles(ready);   // dedup off
-        if (cfg.source().duplicate().contentBased())
+        if (cfg.collector().duplicate().contentBased())
             return ledgerFilter(cfg, ready, emitSignals);
 
         List<File> matched = toFiles(ready);
@@ -311,7 +311,7 @@ public class SourceProcessor {
      */
     private static List<File> ledgerFilter(PipelineConfig cfg, List<RemoteFile> ready, boolean emitSignals)
             throws java.io.IOException {
-        PipelineConfig.Source src = cfg.source();
+        PipelineConfig.Collector src = cfg.collector();
         PipelineConfig.Duplicate dup = src.duplicate();
         AcquisitionLedger ledger = AcquisitionLedgers.shared();
         DuplicatePolicy.Mode mode = DuplicatePolicy.Mode.from(dup.mode());
@@ -372,7 +372,7 @@ public class SourceProcessor {
      * passes through to the ledger for exact dedup, so the newest slice is never blindly dropped.
      */
     private static List<RemoteFile> watermarkFilter(PipelineConfig cfg, List<RemoteFile> ready, boolean emitSignals) {
-        java.util.OptionalLong wm = AcquisitionLedgers.shared().highWatermark(cfg.source().id());
+        java.util.OptionalLong wm = AcquisitionLedgers.shared().highWatermark(cfg.collector().id());
         if (wm.isEmpty()) return ready;            // nothing recorded yet — the first run sees everything
         long watermark = wm.getAsLong();
         List<RemoteFile> out = new ArrayList<>(ready.size());
@@ -410,7 +410,7 @@ public class SourceProcessor {
      * gap once its file lands. A malformed sequence template is logged and skipped (never disturbs ingest).
      */
     private static void detectGaps(PipelineConfig cfg, List<RemoteFile> discovered) {
-        PipelineConfig.GapDetection gd = cfg.source().gapDetection();
+        PipelineConfig.GapDetection gd = cfg.collector().gapDetection();
         List<String> names = new ArrayList<>(discovered.size());
         for (RemoteFile f : discovered) names.add(f.name());
 
@@ -422,7 +422,7 @@ public class SourceProcessor {
             return;
         }
         // Reconcile against what was already reported: only fire for keys newly missing this cycle.
-        List<String> fresh = GapTracker.shared().newGaps(cfg.source().id(), report.missing());
+        List<String> fresh = GapTracker.shared().newGaps(cfg.collector().id(), report.missing());
         if (fresh.isEmpty()) return;
 
         MetricRegistry.global().inc("inspecto_sequence_gaps_total", "Missing files detected in a configured sequence",

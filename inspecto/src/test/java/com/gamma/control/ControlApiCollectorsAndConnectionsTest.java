@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.metrics.MetricRegistry;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -22,17 +22,17 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests over real HTTP for the Acquisition/Sources UI backend: {@code GET /sources} (flattened source
+ * Integration tests over real HTTP for the Acquisition/Sources UI backend: {@code GET /collectors} (flattened source
  * config), {@code GET /metrics/acquisition} (JSON metric snapshot), and the connection CRUD
  * ({@code POST/PUT/DELETE /connections}) write-back loop — including the {@code -Dassist.write.root} gate, masked-
  * secret preservation on update, and the in-use delete guard.
  */
-class ControlApiSourcesAndConnectionsTest {
+class ControlApiCollectorsAndConnectionsTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -42,7 +42,7 @@ class ControlApiSourcesAndConnectionsTest {
         if (writeRoot != null) System.setProperty("assist.write.root", writeRoot.toString());
         else System.clearProperty("assist.write.root");
         try {
-            SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+            CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
             ControlApi api = new ControlApi(svc, 0);   // writeRoot captured in the constructor
             api.start();
             return new Ctx(svc, api, api.port());
@@ -65,7 +65,7 @@ class ControlApiSourcesAndConnectionsTest {
               errors: %1$s/errors
               status_dir: %1$s/status
               log_dir: %1$s/logs
-            source:
+            collector:
               connector: db
               connection: %2$s
             output:
@@ -96,12 +96,12 @@ class ControlApiSourcesAndConnectionsTest {
         return client.send(b.method(method, pub).build(), BodyHandlers.ofString());
     }
 
-    // ── GET /sources ────────────────────────────────────────────────────────────
+    // ── GET /collectors ────────────────────────────────────────────────────────────
 
     @Test
     void sourcesEndpointFlattensSourceConfig(@TempDir Path cfg) throws Exception {
         try (Ctx c = open(cfg, null)) {
-            HttpResponse<String> r = send(c.port, "GET", "/sources", null);
+            HttpResponse<String> r = send(c.port, "GET", "/collectors", null);
             assertEquals(200, r.statusCode(), r.body());
             JsonNode arr = JSON.readTree(r.body());
             assertTrue(arr.isArray() && arr.size() >= 1, "one row per pipeline source");

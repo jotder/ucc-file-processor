@@ -199,7 +199,7 @@ public class SchemaExtractor {
             pipelineConfig.put("version", 1);
 
             // Full dirs block — all managed directories included so the pipeline
-            // is ready to use with SourceProcessor without manual editing.
+            // is ready to use with CollectorProcessor without manual editing.
             Map<String, String> dirs = new LinkedHashMap<>();
             dirs.put("poll",       "inbox/"      + sourceName);
             dirs.put("database",   "database/"   + sourceName);

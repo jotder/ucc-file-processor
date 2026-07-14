@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.api.PublicApi;
 import com.gamma.event.EventLog;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import com.gamma.service.SpaceContext;
 import com.gamma.service.SpaceId;
 import com.gamma.service.SpaceManager;
@@ -29,7 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Embedded REST control plane for a running {@link SourceService} (M3). Built on the
+ * Embedded REST control plane for a running {@link CollectorService} (M3). Built on the
  * JDK's {@link HttpServer} (no extra dependencies — keeps the lean fat-JAR) with
  * Jackson for JSON. Every CLI operation has an HTTP equivalent: list/trigger/pause/
  * resume pipelines, query runs/batches/files/lineage/quarantine via the
@@ -224,7 +224,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
      * @param service the running service to control
      * @param port    TCP port (0 = ephemeral; read back via {@link #port()})
      */
-    public ControlApi(SourceService service, int port) throws IOException {
+    public ControlApi(CollectorService service, int port) throws IOException {
         this(SpaceManager.single(service), port);
     }
 
@@ -331,7 +331,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
                         + "[-Dservice.poll.seconds=N] [-Dservice.max.runs=M] <pipeline.toon | dir> [more ...]");
                 System.exit(1);
             }
-            spaces = SpaceManager.single(SourceService.fromArgs(args));
+            spaces = SpaceManager.single(CollectorService.fromArgs(args));
         }
         int port = Integer.getInteger("control.port", 8080);
         ControlApi api = new ControlApi(spaces, port);
@@ -622,7 +622,7 @@ public final class ControlApi implements AutoCloseable, ApiContext {
     }
 
     @Override
-    public SourceService service() { return currentContext().service(); }
+    public CollectorService service() { return currentContext().service(); }
 
     @Override
     public SpaceManager spaces() { return spaces; }

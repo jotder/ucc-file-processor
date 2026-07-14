@@ -30,7 +30,7 @@ import java.util.Set;
  * consuming node, and at the {@code sink} nodes drives the {@link BranchCommitCoordinator} commit-split
  * (T11) — each sink is a branch, and the source is finalised only once every branch has committed.
  *
- * <p>Scheduling is the new piece (R3): the legacy {@code MultiSourceProcessor} fan-out is per-config with
+ * <p>Scheduling is the new piece (R3): the legacy {@code MultiCollectorProcessor} fan-out is per-config with
  * no intra-pipeline branch concept; here a single batch fans across the flow's branches. This first cut is
  * a deterministic sequential topological walk (correct + ordered); running independent branches on the
  * existing vthread pool/permit pattern is a follow-up optimisation.

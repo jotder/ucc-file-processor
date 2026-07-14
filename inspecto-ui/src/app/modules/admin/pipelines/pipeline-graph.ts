@@ -154,7 +154,7 @@ export function resolveNodeIcon(
 /** Map a flow node category onto a catalog NodeKind for shape/colour reuse (cosmetic only). */
 export function categoryVisualKind(category: string): NodeKind {
     switch (category) {
-        case 'SOURCE':    return 'SOURCE';
+        case 'SOURCE':    return 'STREAM';
         case 'PARSE':     return 'SCHEMA';
         case 'TRANSFORM': return 'ENRICHMENT';
         case 'SINK':      return 'TABLE';

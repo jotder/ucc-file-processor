@@ -1,7 +1,7 @@
 package com.gamma.service;
 
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.inspector.MultiSourceProcessor;
+import com.gamma.inspector.MultiCollectorProcessor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * trigger gates the loop by its own cadence; {@code manual}/{@code event} flows are driven off the loop
  * (the trigger endpoint / an upstream batch-commit), never by the poll cycle.
  */
-class SourceServiceTriggerTest {
+class CollectorServiceTriggerTest {
 
     private static final String CSV = "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n2,20,2020-02-02\n";
 
@@ -85,7 +85,7 @@ class SourceServiceTriggerTest {
     void noTriggerRidesEveryPollCycle(@TempDir Path dir) throws Exception {
         // DEFAULT_POLL: a pipeline with no trigger runs on every cycle, exactly as before T13.
         Path a = pipeline(dir.resolve("a"), "PLAIN", null);
-        try (SourceService svc = new SourceService(List.of(a), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(a), 3600, 1)) {
             assertEquals(1, svc.runAllOnce().total(), "untriggered pipeline runs on the first tick");
             assertEquals(1, svc.runAllOnce().total(), "...and on the very next tick too (no cadence gate)");
         }
@@ -94,7 +94,7 @@ class SourceServiceTriggerTest {
     @Test
     void intervalTriggerGatesTheLoopByItsOwnCadence(@TempDir Path dir) throws Exception {
         Path a = pipeline(dir.resolve("a"), "EVERY_HOUR", "trigger:\n  type: schedule\n  every: 3600s\n");
-        try (SourceService svc = new SourceService(List.of(a), 1, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(a), 1, 1)) {
             assertEquals(1, svc.runAllOnce().total(), "first tick: never run, so it is due");
             assertEquals(0, svc.runAllOnce().total(),
                     "immediate second tick: 3600s has not elapsed, so the interval gate skips it");
@@ -104,11 +104,11 @@ class SourceServiceTriggerTest {
     @Test
     void manualTriggerIsExcludedFromTheLoopButRunsOnDemand(@TempDir Path dir) throws Exception {
         Path a = pipeline(dir.resolve("a"), "ON_DEMAND", "trigger:\n  type: manual\n");
-        try (SourceService svc = new SourceService(List.of(a), 3600, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(a), 3600, 1)) {
             assertEquals(0, svc.runAllOnce().total(), "a manual pipeline is never run by the poll cycle");
             assertEquals(0, outputCount(dir.resolve("a")), "...so it produced no output from the loop");
 
-            MultiSourceProcessor.RunResult r = svc.runPipeline("on_demand").orElseThrow();
+            MultiCollectorProcessor.RunResult r = svc.runPipeline("on_demand").orElseThrow();
             assertEquals(1, r.total(), "runPipeline drives it on demand");
             assertTrue(outputCount(dir.resolve("a")) >= 1, "the on-demand run produced output");
         }
@@ -119,7 +119,7 @@ class SourceServiceTriggerTest {
         // A far-future cron (Jan 1 00:00) is never due within the test window; the plain pipeline still runs.
         Path cron  = pipeline(dir.resolve("c"), "YEARLY", "trigger:\n  type: schedule\n  cron: \"0 0 1 1 *\"\n");
         Path plain = pipeline(dir.resolve("p"), "PLAIN", null);
-        try (SourceService svc = new SourceService(List.of(cron, plain), 3600, 2)) {
+        try (CollectorService svc = new CollectorService(List.of(cron, plain), 3600, 2)) {
             assertEquals(1, svc.runAllOnce().total(),
                     "only the untriggered pipeline runs; the cron flow is not yet due");
             assertEquals(0, outputCount(dir.resolve("c")), "the cron pipeline did not run");
@@ -133,7 +133,7 @@ class SourceServiceTriggerTest {
         Path up   = pipeline(dir.resolve("up"),   "UP_STREAM", "trigger:\n  type: manual\n");
         Path down = pipeline(dir.resolve("down"), "DOWN_STREAM",
                 "trigger:\n  type: event\n  on: commit\n  from: up_stream\n");
-        try (SourceService svc = new SourceService(List.of(up, down), 3600, 2)) {
+        try (CollectorService svc = new CollectorService(List.of(up, down), 3600, 2)) {
             svc.start();   // wires the upstream-commit bus subscriber (poll interval 3600s won't interfere)
 
             assertEquals(0, svc.runAllOnce().total(), "neither flow is loop-driven (manual + event)");

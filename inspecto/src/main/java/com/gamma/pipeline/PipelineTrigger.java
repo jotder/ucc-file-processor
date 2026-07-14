@@ -70,7 +70,7 @@ public record PipelineTrigger(Kind kind, long everyMs, String cron, String on, S
     }
 
     /**
-     * Parse a raw {@code trigger:} block directly (the live {@code SourceService} path holds the config
+     * Parse a raw {@code trigger:} block directly (the live {@code CollectorService} path holds the config
      * map, not a {@link PipelineNode}). {@code null}/empty ⇒ {@link Kind#DEFAULT_POLL} so an un-triggered
      * pipeline behaves exactly as today's poll loop.
      */

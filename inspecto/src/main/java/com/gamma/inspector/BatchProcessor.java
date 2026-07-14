@@ -107,15 +107,15 @@ public final class BatchProcessor {
         // its inbox path (the backup step below moves it), and record it to the ledger LAST — alongside the
         // markers, after every other side-effect is durable — so a crash mid-commit doesn't leave a stranded
         // "already processed" fingerprint. PATH mode records nothing (it uses marker sentinels).
-        boolean ledgerRecord = cfg.processing().duplicateCheckEnabled() && cfg.source().duplicate().contentBased();
-        boolean checksumMode = ledgerRecord && "checksum".equals(cfg.source().duplicate().mode());
+        boolean ledgerRecord = cfg.processing().duplicateCheckEnabled() && cfg.collector().duplicate().contentBased();
+        boolean checksumMode = ledgerRecord && "checksum".equals(cfg.collector().duplicate().mode());
         // Path-marker sentinels are the dedup mechanism only in PATH mode. In content-based mode
         // (checksum/metadata) the fingerprint ledger is the source of truth and the marker is dead
         // weight that actively breaks reprocessing: a CHANGED file re-ingested at a known path would
         // hit the prior commit's marker (FileAlreadyExistsException). So skip markers when ledgerRecord.
         boolean writeMarkers = cfg.dirs().markers() != null && !ledgerRecord;
-        String dupAlgorithm = cfg.source().duplicate().algorithm();
-        String sourceId = cfg.source().id();
+        String dupAlgorithm = cfg.collector().duplicate().algorithm();
+        String sourceId = cfg.collector().id();
         List<LedgerEntry> ledgerEntries = ledgerRecord ? new ArrayList<>() : null;
 
         List<BatchManifest.MemberEntry> memberEntries = new ArrayList<>();
@@ -130,7 +130,7 @@ public final class BatchProcessor {
             if (ledgerRecord) {
                 try {
                     // CHECKSUM mode: reuse the hash computed during the run-path dedup (stashed by
-                    // SourceProcessor), or compute it now from the still-in-inbox file if absent.
+                    // CollectorProcessor), or compute it now from the still-in-inbox file if absent.
                     String checksum = null;
                     if (checksumMode) {
                         checksum = AcquisitionLedgers.takeChecksum(filePath);

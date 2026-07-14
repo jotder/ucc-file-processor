@@ -12,7 +12,7 @@ import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
 import com.gamma.config.io.ConfigCodec;
 import com.gamma.job.JobConfig;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -33,7 +33,7 @@ class NlToScheduleSkillTest {
 
     private final NlToScheduleSkill skill = new NlToScheduleSkill(ZoneId.of("UTC"));
 
-    private UccAgentContext context(SourceService svc, ModelRouter router) {
+    private UccAgentContext context(CollectorService svc, ModelRouter router) {
         return new UccAgentContext(svc.catalog(), svc.reports(), svc.statusStore(),
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
@@ -45,7 +45,7 @@ class NlToScheduleSkillTest {
     @Test
     void plainCaseProducesValidatedDraftThatRoundTrips(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                     "{\"name\":\"nightly-clean\",\"cron\":\"0 2 * * *\",\"job_type\":\"maintenance\"}"));
             AgentResult res = skill.run(ask("clean up every day at 2am"), context(svc, router));
@@ -80,8 +80,8 @@ class NlToScheduleSkillTest {
     @Test
     void compositionalCaseGroundsAndCitesPipeline(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
-            MetadataNode source = svc.catalog().nodesOfKind(NodeKind.SOURCE).get(0);
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
+            MetadataNode source = svc.catalog().nodesOfKind(NodeKind.STREAM).get(0);
             String pipeName = source.label();   // the real pipeline name the model must reuse
             String pipeId = source.id();
 
@@ -108,7 +108,7 @@ class NlToScheduleSkillTest {
     @Test
     void invalidCronFromModelIsRepairedNotSurfaced(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AtomicInteger round = new AtomicInteger();
             // Round 1: hour 99 is out of range -> the cron oracle rejects it. Round 2: valid.
             ModelRouter router = ModelRouter.of(FakeModelProvider.responding((ModelRequest r) ->
@@ -127,7 +127,7 @@ class NlToScheduleSkillTest {
     @Test
     void hallucinatedPipelineIsRejectedByGrounding(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AtomicInteger round = new AtomicInteger();
             // Round 1 invents a pipeline that isn't in the catalog -> rejected. Round 2 drops it.
             ModelRouter router = ModelRouter.of(FakeModelProvider.responding((ModelRequest r) ->
@@ -147,7 +147,7 @@ class NlToScheduleSkillTest {
     @Test
     void modelUnavailableYieldsUnavailableNotError(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.down());
             AgentResult res = skill.run(ask("daily at 2am"), context(svc, router));
             assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
@@ -159,7 +159,7 @@ class NlToScheduleSkillTest {
     @Test
     void blankRequestIsRejectedCleanly(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned("{}"));
             AgentResult res = skill.run(ask("   "), context(svc, router));
             assertEquals(AgentResult.Status.UNAVAILABLE, res.status());

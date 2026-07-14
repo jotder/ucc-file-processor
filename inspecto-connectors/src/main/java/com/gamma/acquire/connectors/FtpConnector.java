@@ -7,7 +7,7 @@ import com.gamma.acquire.PostAction;
 import com.gamma.acquire.ReadyMarker;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SecretResolver;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import net.schmizz.sshj.SSHClient;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
@@ -31,10 +31,10 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 
-import static com.gamma.acquire.SourceConnector.Capability.*;
+import static com.gamma.acquire.CollectorConnector.Capability.*;
 
 /**
- * An FTP {@link SourceConnector} (Data Acquisition roadmap Phase E) built on Apache
+ * An FTP {@link CollectorConnector} (Data Acquisition roadmap Phase E) built on Apache
  * <a href="https://commons.apache.org/proper/commons-net/">commons-net</a>. Lives in the optional connector
  * module; commons-net never touches the lean core.
  *
@@ -62,7 +62,7 @@ import static com.gamma.acquire.SourceConnector.Capability.*;
  * must be configured with that fixed passive range.) Active mode cannot traverse a tunnel, so a tunnelled
  * connection is always passive.
  */
-public final class FtpConnector implements SourceConnector {
+public final class FtpConnector implements CollectorConnector {
 
     private static final Logger log = LoggerFactory.getLogger(FtpConnector.class);
 

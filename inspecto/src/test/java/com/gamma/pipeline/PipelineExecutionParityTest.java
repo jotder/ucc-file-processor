@@ -4,7 +4,7 @@ import com.gamma.config.io.ConfigCodec;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
-import com.gamma.inspector.MultiSourceProcessor;
+import com.gamma.inspector.MultiCollectorProcessor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -39,7 +39,7 @@ class PipelineExecutionParityTest {
         Path dirA = root.resolve("a");
         Path toonA = TestConfigs.csv(dirA, PipelineConfigBatchTest.miniSchema()).write();
         seedInbox(dirA, CSV);
-        MultiSourceProcessor.runAll(List.of(toonA), 1);
+        MultiCollectorProcessor.runAll(List.of(toonA), 1);
         Map<String, String> outA = readDb(dirA.resolve("db"));
         assertFalse(outA.isEmpty(), "the direct run produced data output");
 
@@ -57,7 +57,7 @@ class PipelineExecutionParityTest {
         Path toonB = dirB.resolve("rebuilt_pipeline.toon");
         Files.writeString(toonB, ConfigCodec.toToon(rebuilt));
         seedInbox(dirB, CSV);
-        MultiSourceProcessor.RunResult rB = MultiSourceProcessor.runAll(List.of(toonB), 1);
+        MultiCollectorProcessor.RunResult rB = MultiCollectorProcessor.runAll(List.of(toonB), 1);
         assertEquals(0, rB.failed(), "the rebuilt pipeline must run cleanly");
         Map<String, String> outB = readDb(dirB.resolve("db"));
 
@@ -73,7 +73,7 @@ class PipelineExecutionParityTest {
         Path dirA = root.resolve("a");
         Path toonA = writeSelectorPipeline(dirA);
         seedSelectorInbox(dirA);
-        MultiSourceProcessor.runAll(List.of(toonA), 1);
+        MultiCollectorProcessor.runAll(List.of(toonA), 1);
         Map<String, String> outA = readDb(dirA.resolve("db"));
         assertTrue(outA.keySet().stream().anyMatch(k -> k.startsWith("three/")), "3-col file routed to 'three'");
         assertTrue(outA.keySet().stream().anyMatch(k -> k.startsWith("four/")), "4-col file routed to 'four'");
@@ -91,7 +91,7 @@ class PipelineExecutionParityTest {
         Path toonB = dirB.resolve("rebuilt_pipeline.toon");
         Files.writeString(toonB, ConfigCodec.toToon(rebuilt));
         seedSelectorInbox(dirB);
-        MultiSourceProcessor.RunResult rB = MultiSourceProcessor.runAll(List.of(toonB), 1);
+        MultiCollectorProcessor.RunResult rB = MultiCollectorProcessor.runAll(List.of(toonB), 1);
         assertEquals(0, rB.failed(), "the rebuilt selector pipeline must run cleanly");
         Map<String, String> outB = readDb(dirB.resolve("db"));
 
@@ -227,7 +227,7 @@ class PipelineExecutionParityTest {
         Path dirA = root.resolve("a");
         Path toonA = writeRowFilterPipeline(dirA);
         seedInbox(dirA, csv);
-        MultiSourceProcessor.RunResult rA = MultiSourceProcessor.runAll(List.of(toonA), 1);
+        MultiCollectorProcessor.RunResult rA = MultiCollectorProcessor.runAll(List.of(toonA), 1);
         assertEquals(0, rA.failed(), "direct row-filter run must succeed");
         Map<String, String> outA = readDb(dirA.resolve("db"));
         assertFalse(outA.isEmpty(), "direct run produced data output");
@@ -243,7 +243,7 @@ class PipelineExecutionParityTest {
         Path toonB = dirB.resolve("rebuilt_rf.toon");
         Files.writeString(toonB, ConfigCodec.toToon(rebuilt));
         seedInbox(dirB, csv);
-        MultiSourceProcessor.RunResult rB = MultiSourceProcessor.runAll(List.of(toonB), 1);
+        MultiCollectorProcessor.RunResult rB = MultiCollectorProcessor.runAll(List.of(toonB), 1);
         assertEquals(0, rB.failed(), "rebuilt row-filter pipeline must run cleanly");
         Map<String, String> outB = readDb(dirB.resolve("db"));
 

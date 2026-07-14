@@ -3,7 +3,7 @@ package com.gamma.control;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -103,7 +103,7 @@ class ApiContractTest {
         List<String> probed = new ArrayList<>();
         Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
         System.clearProperty("assist.write.root");
-        try (SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+        try (CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
              ControlApi api = new ControlApi(svc, 0)) {
             api.start();
             var paths = contract.path("paths");

@@ -14,7 +14,7 @@ import { ComponentRegistryGraphSource, LineageGraphSource, PipelineGraphSource }
  */
 
 const metaNodes: MetadataNode[] = [
-    { id: 'src1', label: 'Files', kind: 'SOURCE' } as MetadataNode,
+    { id: 'src1', label: 'Files', kind: 'STREAM' } as MetadataNode,
     { id: 'tbl1', label: 'cdr', kind: 'TABLE' } as MetadataNode,
 ];
 const metaEdges: MetadataEdge[] = [
@@ -27,9 +27,9 @@ describe('LineageGraphSource', () => {
         let seen: unknown;
         const catalog = { graph: (q: unknown) => { seen = q; return of({ nodes: metaNodes, edges: metaEdges }); } };
         const src = new LineageGraphSource(catalog as never);
-        const out = await src.query({ from: 'src1', depth: 2, direction: 'out', kinds: ['SOURCE'], edgeKinds: ['FEEDS'], overlay: true });
+        const out = await src.query({ from: 'src1', depth: 2, direction: 'out', kinds: ['STREAM'], edgeKinds: ['FEEDS'], overlay: true });
         expect(out).toEqual(toG6Data(metaNodes, metaEdges));
-        expect(seen).toEqual({ from: 'src1', depth: 2, direction: 'out', kinds: ['SOURCE'], edgeKinds: ['FEEDS'], overlay: true });
+        expect(seen).toEqual({ from: 'src1', depth: 2, direction: 'out', kinds: ['STREAM'], edgeKinds: ['FEEDS'], overlay: true });
     });
 });
 

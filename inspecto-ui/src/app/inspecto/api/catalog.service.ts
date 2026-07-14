@@ -15,9 +15,13 @@ export class CatalogService {
   kpis(): Observable<KpiCatalog> {
     return this.http.get<KpiCatalog>(apiUrl('/catalog/kpis'));
   }
-  /** Streams — the Catalog's data-origin lens (a Source + its Connection, browsed by name). */
+  /** Streams — the Catalog's event/fact data-origin lens (a Collector + its Connection, browsed by name). */
   streams(): Observable<MetadataNode[]> {
     return this.http.get<MetadataNode[]>(apiUrl('/catalog/streams'));
+  }
+  /** References — the Catalog's dimension data-origin lens (REFERENCE_DATASET nodes, browsed by name). */
+  references(): Observable<MetadataNode[]> {
+    return this.http.get<MetadataNode[]>(apiUrl('/catalog/references'));
   }
   node(id: string): Observable<NodeDetail> {
     return this.http.get<NodeDetail>(apiUrl(`/catalog/tables/${encodeURIComponent(id)}`));

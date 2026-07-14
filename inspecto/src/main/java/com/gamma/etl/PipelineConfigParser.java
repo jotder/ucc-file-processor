@@ -57,12 +57,12 @@ final class PipelineConfigParser {
                                        .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
 
         // ── activation gate (additive, v4.7.0; absent ⇒ false = not executed) ──
-        // Only an activated pipeline is run by the poll cycle / MultiSourceProcessor. The default is
+        // Only an activated pipeline is run by the poll cycle / MultiCollectorProcessor. The default is
         // OFF so a freshly-dropped or half-edited config never executes until explicitly armed.
         b.active = Boolean.parseBoolean(String.valueOf(raw.getOrDefault("active", "false")));
 
         // ── entry-node trigger (T13 / §3.6; absent ⇒ default poll = today's behaviour) ──
-        // Carried verbatim; the live loop (SourceService) classifies it via PipelineTrigger into
+        // Carried verbatim; the live loop (CollectorService) classifies it via PipelineTrigger into
         // schedule(every/cron) / event / manual. Absent leaves the pipeline on the global poll cycle.
         if (raw.get("trigger") instanceof Map<?, ?> trig) b.trigger = (Map<String, Object>) trig;
 
@@ -311,10 +311,10 @@ final class PipelineConfigParser {
         // connector and overrides discovery (include/exclude/recursive_depth).
         b.sourceId       = b.pipelineName;
         b.sourceIncludes = new ArrayList<>(List.of(b.filePattern));
-        Map<String, Object> src = (Map<String, Object>) raw.get("source");
+        Map<String, Object> src = (Map<String, Object>) raw.get("collector");
         if (src != null) {
             b.sourceId        = opt(src, "id", b.pipelineName);
-            b.sourceConnector = opt(src, "connector", "local").toLowerCase();
+            b.collectorConnector = opt(src, "connector", "local").toLowerCase();
             List<String> inc  = strList(src.get("include"));
             if (!inc.isEmpty()) b.sourceIncludes = inc;
             b.sourceExcludes  = strList(src.get("exclude"));

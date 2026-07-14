@@ -18,7 +18,7 @@ import com.eoiagent.platform.AgentPlatform;
 import com.eoiagent.platform.PlatformBuilder;
 import com.gamma.intelligence.pack.InspectoPack;
 import com.gamma.intelligence.spi.IntelligenceAgent;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,11 +40,11 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
 
     private final Map<String, AgentSession> sessions = new ConcurrentHashMap<>();
     private final LlmGateway gatewayOverride;
-    private SourceService service;
+    private CollectorService service;
     private InspectoPack pack;
     private AgentPlatform platform;
 
-    /** Discovered/registered via {@link SourceService}; builds its gateway from {@link GatewayFactory}. */
+    /** Discovered/registered via {@link CollectorService}; builds its gateway from {@link GatewayFactory}. */
     public InspectoIntelligenceAgent() {
         this(null);
     }
@@ -60,7 +60,7 @@ public final class InspectoIntelligenceAgent implements IntelligenceAgent {
     }
 
     @Override
-    public void init(SourceService service) {
+    public void init(CollectorService service) {
         this.service = service;
     }
 

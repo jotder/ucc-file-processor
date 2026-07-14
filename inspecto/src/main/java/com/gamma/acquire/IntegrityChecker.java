@@ -5,7 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Verifies that a file fetched from a {@link SourceConnector} arrived intact (Data Acquisition roadmap Phase E,
+ * Verifies that a file fetched from a {@link CollectorConnector} arrived intact (Data Acquisition roadmap Phase E,
  * requirement §11). Two independent, cheap-to-skip checks, applied to the staged local copy:
  *
  * <ul>

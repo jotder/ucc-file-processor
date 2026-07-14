@@ -30,7 +30,7 @@ final class SpaceBootstrap {
         SpaceLayoutContract.verify(root);
 
         // Discover the space's configs from its own config/ tree; an empty space is allowed (no exit).
-        SourceService service = ServiceBootstrap.buildFrom(root, new String[]{root.config().toString()}, false);
+        CollectorService service = ServiceBootstrap.buildFrom(root, new String[]{root.config().toString()}, false);
 
         // The space's own acquisition (dedup) ledger — its own DuckDB file when the backend is `db`; the default
         // memory backend yields an isolated in-memory instance. Keyed by space id (the poll path resolves by MDC).

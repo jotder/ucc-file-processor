@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Cross-space isolation proof for the Stage-4 {@code /spaces/{id}} request seam, over real HTTP. Two spaces host the
- * <em>same</em> pipeline id ({@code TEST_ETL}); the seam must route each request to its own {@code SourceService} so
+ * <em>same</em> pipeline id ({@code TEST_ETL}); the seam must route each request to its own {@code CollectorService} so
  * audit/commits, events and the {@code space}-labelled metrics never bleed across spaces, while an unknown id 404s and
  * the un-prefixed {@code /health}/{@code /metrics} stay server-global. The companion unit tests cover the per-space
  * isolation of each singleton in isolation ({@code ConnectionRegistryTest}, {@code MetricRegistryTest}, …); this test

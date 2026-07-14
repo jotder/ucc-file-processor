@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.etl.TestConfigs;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -31,13 +31,13 @@ class ControlApiBundleTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
     private Ctx open(Path dir, Path writeRoot) throws Exception {
         Path toon = TestConfigs.csv(dir, PipelineConfigBatchTest.miniSchema()).write();
-        SourceService svc = new SourceService(List.of(toon), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(toon), 3600, 1);
         String prior = System.getProperty("assist.write.root");
         if (writeRoot != null) System.setProperty("assist.write.root", writeRoot.toString());
         else System.clearProperty("assist.write.root");

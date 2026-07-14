@@ -14,7 +14,7 @@ class SpaceManagerTest {
 
     @Test
     void singleWrapsOneServiceAsTheDefaultSpace() {
-        SourceService svc = new SourceService(List.of(), 60, 1);
+        CollectorService svc = new CollectorService(List.of(), 60, 1);
         try (SpaceManager mgr = SpaceManager.single(svc)) {   // mgr.close() drains svc — don't double-close it
             assertEquals(1, mgr.size());
             assertSame(svc, mgr.current().service(), "current() resolves the wrapped service");
@@ -96,7 +96,7 @@ class SpaceManagerTest {
 
     @Test
     void crudIsUnsupportedInSingleTenantMode() {
-        SourceService svc = new SourceService(List.of(), 60, 1);
+        CollectorService svc = new CollectorService(List.of(), 60, 1);
         try (SpaceManager mgr = SpaceManager.single(svc)) {   // mgr.close() drains svc — don't double-close it
             assertFalse(mgr.supportsCrud());
             assertThrows(IllegalStateException.class, () -> mgr.create(SpaceId.of("acme"), null, null));

@@ -10,8 +10,8 @@ import {
     AcquisitionMetricsService,
     apiErrorMessage,
     RunsService,
-    SourceView,
-    SourcesService,
+    CollectorView,
+    CollectorsService,
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { ToastrService } from 'ngx-toastr';
@@ -21,7 +21,7 @@ import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoRowAction } from 'app/inspecto/grid';
 import { fmtBytes, fmtInt } from 'app/inspecto/format';
 import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
-import { SourceDetailDialog } from './source-detail.dialog';
+import { CollectorDetailDialog } from './collector-detail.dialog';
 
 /** A summary card above the grid. */
 interface MetricCard {
@@ -30,12 +30,12 @@ interface MetricCard {
 }
 
 /**
- * Acquisition / Sources — every configured source across all pipelines (GET /sources) with an
+ * Acquisition / Collectors — every configured collector across all pipelines (GET /collectors) with an
  * acquisition-metrics strip (GET /metrics/acquisition). Run-now triggers the owning pipeline; the
- * details action opens the full source config + live inbox status.
+ * details action opens the full collector config + live inbox status.
  */
 @Component({
-    selector: 'app-sources',
+    selector: 'app-collectors',
     standalone: true,
     imports: [
         MatButtonModule,
@@ -45,27 +45,27 @@ interface MetricCard {
         InspectoChartComponent,
         InspectoEmptyStateComponent,
     ],
-    templateUrl: './sources.component.html',
+    templateUrl: './collectors.component.html',
     encapsulation: ViewEncapsulation.None,
 })
-export class SourcesComponent implements OnInit {
-    private api = inject(SourcesService);
+export class CollectorsComponent implements OnInit {
+    private api = inject(CollectorsService);
     private metricsApi = inject(AcquisitionMetricsService);
     private runs = inject(RunsService);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
 
-    sources: SourceView[] = [];
+    collectors: CollectorView[] = [];
     loading = false;
     unavailable = false;
 
     cards: MetricCard[] = [];
     discoveredData: ChartData | null = null;
 
-    readonly columnDefs: ColDef<SourceView>[] = [
+    readonly columnDefs: ColDef<CollectorView>[] = [
         { field: 'pipeline', headerName: 'Pipeline', flex: 1 },
-        { field: 'id', headerName: 'Source', flex: 1 },
+        { field: 'id', headerName: 'Collector', flex: 1 },
         { field: 'connector', headerName: 'Connector', width: 120 },
         { field: 'connection', headerName: 'Connection', flex: 1, valueFormatter: (p) => p.value ?? '—' },
         { field: 'duplicateMode', headerName: 'Dedup', width: 120 },
@@ -83,7 +83,7 @@ export class SourcesComponent implements OnInit {
         { field: 'guarantee', headerName: 'Guarantee', width: 140 },
     ];
 
-    readonly rowActions: InspectoRowAction<SourceView>[] = [
+    readonly rowActions: InspectoRowAction<CollectorView>[] = [
         {
             icon: 'heroicons_outline:play',
             hint: 'Run now',
@@ -105,12 +105,12 @@ export class SourcesComponent implements OnInit {
         this.unavailable = false;
         this.api.list().subscribe({
             next: (s) => {
-                this.sources = s;
+                this.collectors = s;
                 this.loading = false;
             },
             error: (e) => {
                 this.loading = false;
-                this.sources = [];
+                this.collectors = [];
                 this.unavailable = e?.status === 404;
             },
         });
@@ -158,19 +158,19 @@ export class SourcesComponent implements OnInit {
         };
     }
 
-    async trigger(source: SourceView): Promise<void> {
-        if (!(await this.confirm.confirm(`Run pipeline "${source.pipeline}" now?`, 'Run now'))) return;
-        this.runs.trigger(source.pipeline).subscribe({
+    async trigger(collector: CollectorView): Promise<void> {
+        if (!(await this.confirm.confirm(`Run pipeline "${collector.pipeline}" now?`, 'Run now'))) return;
+        this.runs.trigger(collector.pipeline).subscribe({
             // v1 async contract (W5b): the trigger returns 202 + runId; the refreshed list shows the outcome.
             next: () => {
-                this.toastr.success(`Pipeline "${source.pipeline}" run started.`);
+                this.toastr.success(`Pipeline "${collector.pipeline}" run started.`);
                 this.load();
             },
-            error: (e) => this.toastr.error(apiErrorMessage(e, `Run failed for ${source.pipeline}`)),
+            error: (e) => this.toastr.error(apiErrorMessage(e, `Run failed for ${collector.pipeline}`)),
         });
     }
 
-    openDetail(source: SourceView): void {
-        this.dialog.open(SourceDetailDialog, { data: source, width: '680px', maxHeight: '85vh' });
+    openDetail(collector: CollectorView): void {
+        this.dialog.open(CollectorDetailDialog, { data: collector, width: '680px', maxHeight: '85vh' });
     }
 }

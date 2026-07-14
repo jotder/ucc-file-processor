@@ -3,16 +3,16 @@ package com.gamma.intelligence.pack;
 import com.eoiagent.app.McpServerRef;
 import com.eoiagent.app.ToolProvider;
 import com.eoiagent.tool.Tool;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 
 import java.util.List;
 
 /** Exposes the P0 read tool belt to the core {@code ToolRegistry}. No MCP servers yet (Feature.MCP_TOOLS is off). */
 final class InspectoToolProvider implements ToolProvider {
 
-    private final SourceService service;
+    private final CollectorService service;
 
-    InspectoToolProvider(SourceService service) {
+    InspectoToolProvider(CollectorService service) {
         this.service = service;
     }
 

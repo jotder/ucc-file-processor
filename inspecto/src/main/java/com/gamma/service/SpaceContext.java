@@ -14,11 +14,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * One space's live runtime: its {@link SourceService}, the {@link SpaceRoot} that decides where its state lives,
+ * One space's live runtime: its {@link CollectorService}, the {@link SpaceRoot} that decides where its state lives,
  * and the display metadata from its {@code space.toon} manifest. A single Inspecto server hosts many of these
  * concurrently (see {@code SpaceManager}), each fully isolated.
  *
- * <p>{@link AutoCloseable}: {@link #close()} delegates to the existing drain-first {@link SourceService#close()}.
+ * <p>{@link AutoCloseable}: {@link #close()} delegates to the existing drain-first {@link CollectorService#close()}.
  * Built (un-started) by {@link SpaceBootstrap#load(SpaceRoot)}; {@code SpaceManager} calls {@link #start()}.
  */
 public final class SpaceContext implements AutoCloseable {
@@ -26,9 +26,9 @@ public final class SpaceContext implements AutoCloseable {
     private final SpaceId id;
     private final SpaceRoot root;
     private volatile SpaceManifest manifest;
-    private final SourceService service;
+    private final CollectorService service;
 
-    SpaceContext(SpaceId id, SpaceRoot root, SpaceManifest manifest, SourceService service) {
+    SpaceContext(SpaceId id, SpaceRoot root, SpaceManifest manifest, CollectorService service) {
         this.id = id;
         this.root = root;
         this.manifest = manifest;
@@ -44,10 +44,10 @@ public final class SpaceContext implements AutoCloseable {
     /** Swap the display metadata after a rename ({@link SpaceManager#update}); id/root/service are unchanged. */
     void updateManifest(SpaceManifest updated) { this.manifest = updated; }
 
-    /** This space's engine + control-plane facade (the existing per-instance {@link SourceService}). */
-    public SourceService service() { return service; }
+    /** This space's engine + control-plane facade (the existing per-instance {@link CollectorService}). */
+    public CollectorService service() { return service; }
 
-    /** Arm this space's poll loop / schedules (delegates to {@link SourceService#start()}). */
+    /** Arm this space's poll loop / schedules (delegates to {@link CollectorService#start()}). */
     public void start() { service.start(); }
 
     @Override

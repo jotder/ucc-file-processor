@@ -7,7 +7,7 @@ import com.gamma.agent.kernel.model.ModelRouter;
 import com.gamma.agent.kernel.retrieve.DocRetriever;
 import com.gamma.agent.kernel.agent.AgentRequest;
 import com.gamma.agent.kernel.agent.AgentResult;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,7 +30,7 @@ class ReportNarrativeSkillTest {
 
     private final ReportNarrativeSkill skill = new ReportNarrativeSkill();
 
-    private UccAgentContext ctx(SourceService svc, ModelRouter router) {
+    private UccAgentContext ctx(CollectorService svc, ModelRouter router) {
         return new UccAgentContext(svc == null ? null : svc.catalog(),
                 svc == null ? null : svc.reports(),
                 svc == null ? null : svc.statusStore(),
@@ -109,7 +109,7 @@ class ReportNarrativeSkillTest {
     @Test
     void selectorModeResolvesAndNarratesARealReport(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             // A fresh service has run nothing → the service report is all zeros (grounded numbers).
             String canned = "No batches have run yet: 0 total, 0 succeeded, 0 failed.";
             AgentRequest req = new AgentRequest(ReportNarrativeSkill.ID, Map.of(),

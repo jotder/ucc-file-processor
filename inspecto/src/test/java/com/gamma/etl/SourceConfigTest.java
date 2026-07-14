@@ -5,9 +5,9 @@ import com.gamma.acquire.Checksums;
 import com.gamma.acquire.InMemoryAcquisitionLedger;
 import com.gamma.acquire.LedgerEntry;
 import com.gamma.acquire.LocalFileSystemConnector;
-import com.gamma.acquire.SourceConnector;
-import com.gamma.acquire.SourceConnectors;
-import com.gamma.inspector.SourceProcessor;
+import com.gamma.acquire.CollectorConnector;
+import com.gamma.acquire.CollectorConnectors;
+import com.gamma.inspector.CollectorProcessor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -61,13 +61,13 @@ class SourceConfigTest {
     @Test
     void noSourceBlockDefaultsToLocalWithLegacyDiscovery(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, "").toString());
-        PipelineConfig.Source s = cfg.source();
+        PipelineConfig.Collector s = cfg.collector();
         assertEquals("src_etl", s.id());
         assertEquals("local", s.connector());
         assertEquals(List.of("glob:**/*.csv"), s.includes(), "includes default to processing.file_pattern");
         assertTrue(s.excludes().isEmpty());
         assertEquals(-1, s.recursiveDepth(), "unbounded by default");
-        try (SourceConnector c = SourceConnectors.forConfig(cfg)) {
+        try (CollectorConnector c = CollectorConnectors.forConfig(cfg)) {
             assertInstanceOf(LocalFileSystemConnector.class, c);
         }
     }
@@ -75,7 +75,7 @@ class SourceConfigTest {
     @Test
     void sourceBlockOverridesDiscovery(@TempDir Path dir) throws Exception {
         String block = """
-            source:
+            collector:
               id: CDR_LOCAL
               connector: local
               include[1]: "glob:**/*.dat"
@@ -83,7 +83,7 @@ class SourceConfigTest {
               recursive_depth: 2
             """;
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, block).toString());
-        PipelineConfig.Source s = cfg.source();
+        PipelineConfig.Collector s = cfg.collector();
         assertEquals("CDR_LOCAL", s.id());
         assertEquals("local", s.connector());
         assertEquals(List.of("glob:**/*.dat"), s.includes());
@@ -94,28 +94,28 @@ class SourceConfigTest {
     @Test
     void unknownConnectorFailsFastWithClearMessage(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-            source:
+            collector:
               connector: sftp
             """).toString());
-        assertEquals("sftp", cfg.source().connector());
+        assertEquals("sftp", cfg.collector().connector());
         IllegalArgumentException ex =
-                assertThrows(IllegalArgumentException.class, () -> SourceConnectors.forConfig(cfg));
+                assertThrows(IllegalArgumentException.class, () -> CollectorConnectors.forConfig(cfg));
         assertTrue(ex.getMessage().contains("sftp"), ex.getMessage());
     }
 
     @Test
     void sourceConnectionBindingParses(@TempDir Path dir) throws Exception {
         PipelineConfig none = PipelineConfig.load(writePipeline(dir, "").toString());
-        assertNull(none.source().connection(), "no source block ⇒ no connection binding");
-        assertFalse(none.source().hasConnection());
+        assertNull(none.collector().connection(), "no source block ⇒ no connection binding");
+        assertFalse(none.collector().hasConnection());
 
         PipelineConfig bound = PipelineConfig.load(writePipeline(dir, """
-            source:
+            collector:
               connector: sftp
               connection: CDR_SFTP_PROD
             """).toString());
-        assertEquals("CDR_SFTP_PROD", bound.source().connection());
-        assertTrue(bound.source().hasConnection());
+        assertEquals("CDR_SFTP_PROD", bound.collector().connection());
+        assertTrue(bound.collector().hasConnection());
     }
 
     @Test
@@ -124,7 +124,7 @@ class SourceConfigTest {
         AcquisitionLedgers.use(ledger);
         try {
             PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-                source:
+                collector:
                   id: META_SRC
                   duplicate:
                     mode: METADATA
@@ -141,7 +141,7 @@ class SourceConfigTest {
             ledger.record(LedgerEntry.metadata("META_SRC", "a.csv", "a.csv",
                     Files.size(f), Files.getLastModifiedTime(f).toMillis(), 1L));
             // unchanged ⇒ DUPLICATE ⇒ skipped
-            assertTrue(SourceProcessor.collectCandidates(cfg).isEmpty(), "unchanged file is a duplicate");
+            assertTrue(CollectorProcessor.collectCandidates(cfg).isEmpty(), "unchanged file is a duplicate");
 
             // content changes (size differs) ⇒ CHANGED ⇒ reprocessed (default on_change = reprocess)
             Files.writeString(f, "xxxxx");
@@ -157,7 +157,7 @@ class SourceConfigTest {
         AcquisitionLedgers.use(ledger);
         try {
             PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-                source:
+                collector:
                   id: RUN_SRC
                   duplicate:
                     mode: METADATA
@@ -166,7 +166,7 @@ class SourceConfigTest {
             Files.createDirectories(inbox);
             Files.writeString(inbox.resolve("a.csv"), "ID,AMT,EVENT_DATE\nr,1,2020-04-03\n");
 
-            SourceProcessor.run(cfg);   // a full ingest cycle
+            CollectorProcessor.run(cfg);   // a full ingest cycle
 
             assertTrue(ledger.find("RUN_SRC", "a.csv").isPresent(),
                     "the fingerprint is recorded once the batch commits");
@@ -181,7 +181,7 @@ class SourceConfigTest {
         AcquisitionLedgers.use(ledger);
         try {
             PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-                source:
+                collector:
                   id: CS_SRC
                   duplicate:
                     mode: CHECKSUM
@@ -205,7 +205,7 @@ class SourceConfigTest {
             assertEquals(size, Files.size(f));
 
             // the real run path hashes the file, sees a different digest ⇒ CHANGED ⇒ reprocessed + re-recorded
-            SourceProcessor.run(cfg);
+            CollectorProcessor.run(cfg);
 
             String afterCs = ledger.find("CS_SRC", "a.csv").orElseThrow().checksum();
             assertNotEquals(originalCs, afterCs,
@@ -221,7 +221,7 @@ class SourceConfigTest {
         AcquisitionLedgers.use(ledger);
         try {
             PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-                source:
+                collector:
                   id: CSRUN_SRC
                   duplicate:
                     mode: CHECKSUM
@@ -230,7 +230,7 @@ class SourceConfigTest {
             Files.createDirectories(inbox);
             Files.writeString(inbox.resolve("a.csv"), "ID,AMT,EVENT_DATE\nr,1,2020-04-03\n");
 
-            SourceProcessor.run(cfg);
+            CollectorProcessor.run(cfg);
 
             LedgerEntry e = ledger.find("CSRUN_SRC", "a.csv").orElseThrow();
             assertNotNull(e.checksum(), "CHECKSUM mode records the content hash post-commit");
@@ -241,7 +241,7 @@ class SourceConfigTest {
     }
 
     private static List<String> candidateNames(PipelineConfig cfg) throws Exception {
-        return SourceProcessor.collectCandidates(cfg).stream().map(File::getName).sorted().toList();
+        return CollectorProcessor.collectCandidates(cfg).stream().map(File::getName).sorted().toList();
     }
 
     // ── Phase C4: incremental high-watermark ──────────────────────────────────────────────────
@@ -249,18 +249,18 @@ class SourceConfigTest {
     @Test
     void incrementalBlockParsesWatermark(@TempDir Path dir) throws Exception {
         PipelineConfig none = PipelineConfig.load(writePipeline(dir, "").toString());
-        assertFalse(none.source().incremental().enabled(), "absent ⇒ full listing");
-        assertEquals(PipelineConfig.Incremental.DISABLED, none.source().incremental());
+        assertFalse(none.collector().incremental().enabled(), "absent ⇒ full listing");
+        assertEquals(PipelineConfig.Incremental.DISABLED, none.collector().incremental());
 
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-            source:
+            collector:
               duplicate:
                 mode: METADATA
               incremental:
                 watermark: last_modified
             """).toString());
-        assertTrue(cfg.source().incremental().enabled());
-        assertEquals("last_modified", cfg.source().incremental().watermark());
+        assertTrue(cfg.collector().incremental().enabled());
+        assertEquals("last_modified", cfg.collector().incremental().watermark());
     }
 
     @Test
@@ -269,7 +269,7 @@ class SourceConfigTest {
         AcquisitionLedgers.use(ledger);
         try {
             PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-                source:
+                collector:
                   id: WM_SRC
                   include[1]: "glob:**/*.csv"
                   duplicate:
@@ -299,7 +299,7 @@ class SourceConfigTest {
         AcquisitionLedgers.use(ledger);
         try {
             PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-                source:
+                collector:
                   id: NOWM_SRC
                   include[1]: "glob:**/*.csv"
                   duplicate:
@@ -325,17 +325,17 @@ class SourceConfigTest {
     @Test
     void duplicateBlockParsesModeAlgorithmAndOnChange(@TempDir Path dir) throws Exception {
         PipelineConfig none = PipelineConfig.load(writePipeline(dir, "").toString());
-        assertEquals("path", none.source().duplicate().mode(), "absent block ⇒ path (legacy)");
-        assertFalse(none.source().duplicate().contentBased());
+        assertEquals("path", none.collector().duplicate().mode(), "absent block ⇒ path (legacy)");
+        assertFalse(none.collector().duplicate().contentBased());
 
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-            source:
+            collector:
               duplicate:
                 mode: CHECKSUM
                 algorithm: SHA256
                 on_change: REPROCESS
             """).toString());
-        PipelineConfig.Duplicate d = cfg.source().duplicate();
+        PipelineConfig.Duplicate d = cfg.collector().duplicate();
         assertEquals("checksum", d.mode());
         assertEquals("SHA256", d.algorithm());
         assertEquals("reprocess", d.onChange());
@@ -345,21 +345,21 @@ class SourceConfigTest {
     @Test
     void noStabilityBlockIsDisabled(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, "").toString());
-        assertFalse(cfg.source().stability().enabled());
-        assertEquals(PipelineConfig.Stability.DISABLED, cfg.source().stability());
+        assertFalse(cfg.collector().stability().enabled());
+        assertEquals(PipelineConfig.Stability.DISABLED, cfg.collector().stability());
     }
 
     @Test
     void stabilityBlockParsesWindowChecksMarkerAndTempExclusion(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-            source:
+            collector:
               stability:
                 window: 5m
                 size_checks: 3
                 ready_marker: "{name}.ok"
                 exclude_temp_files: true
             """).toString());
-        PipelineConfig.Stability st = cfg.source().stability();
+        PipelineConfig.Stability st = cfg.collector().stability();
         assertTrue(st.enabled());
         assertEquals(300_000L, st.windowMillis(), "5m → 300_000ms");
         assertEquals(3, st.sizeChecks());
@@ -371,7 +371,7 @@ class SourceConfigTest {
     @Test
     void collectCandidatesGatesByReadyMarkerAndExcludesTempFiles(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-            source:
+            collector:
               include[1]: "glob:**/*"
               stability:
                 ready_marker: "{name}.done"
@@ -384,7 +384,7 @@ class SourceConfigTest {
         Files.writeString(inbox.resolve("pending.csv"), "x");    // no sentinel ⇒ held (NOT_READY)
         Files.writeString(inbox.resolve("scratch.tmp"), "x");    // temp-file ⇒ excluded at discovery
 
-        List<String> names = SourceProcessor.collectCandidates(cfg).stream()
+        List<String> names = CollectorProcessor.collectCandidates(cfg).stream()
                 .map(File::getName).sorted().toList();
         assertEquals(List.of("data.csv"), names,
                 "only the marked file is ready; pending is held, the .tmp is excluded, the .done sentinel is not a candidate");
@@ -393,7 +393,7 @@ class SourceConfigTest {
     @Test
     void collectCandidatesHonoursExcludeAndRecursiveDepth(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-            source:
+            collector:
               include[1]: "glob:**/*"
               exclude[1]: "*.tmp"
               recursive_depth: 1
@@ -405,7 +405,7 @@ class SourceConfigTest {
         Files.writeString(inbox.resolve("skip.tmp"), "x");         // depth 1, excluded by *.tmp
         Files.writeString(inbox.resolve("sub/deep.csv"), "x");     // depth 2, excluded by recursive_depth:1
 
-        List<String> names = SourceProcessor.collectCandidates(cfg).stream()
+        List<String> names = CollectorProcessor.collectCandidates(cfg).stream()
                 .map(File::getName).sorted().toList();
         assertEquals(List.of("top.csv"), names);
     }
@@ -415,21 +415,21 @@ class SourceConfigTest {
     @Test
     void guaranteeAndGapDetectionParse(@TempDir Path dir) throws Exception {
         PipelineConfig none = PipelineConfig.load(writePipeline(dir, "").toString());
-        assertEquals(PipelineConfig.Guarantee.BEST_EFFORT, none.source().guarantee(), "absent ⇒ best-effort");
-        assertFalse(none.source().gapDetection().active(), "absent ⇒ no gap detection");
+        assertEquals(PipelineConfig.Guarantee.BEST_EFFORT, none.collector().guarantee(), "absent ⇒ best-effort");
+        assertFalse(none.collector().gapDetection().active(), "absent ⇒ no gap detection");
 
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-            source:
+            collector:
               guarantee: EXACTLY_ONCE
               duplicate:
                 mode: CHECKSUM
               gap_detection:
                 sequence: "CDR_{yyyyMMddHH}"
             """).toString());
-        assertEquals(PipelineConfig.Guarantee.EXACTLY_ONCE, cfg.source().guarantee());
-        assertTrue(cfg.source().guarantee().requiresLedger());
-        assertTrue(cfg.source().gapDetection().active());
-        assertEquals("CDR_{yyyyMMddHH}", cfg.source().gapDetection().sequence());
+        assertEquals(PipelineConfig.Guarantee.EXACTLY_ONCE, cfg.collector().guarantee());
+        assertTrue(cfg.collector().guarantee().requiresLedger());
+        assertTrue(cfg.collector().gapDetection().active());
+        assertEquals("CDR_{yyyyMMddHH}", cfg.collector().gapDetection().sequence());
     }
 
     @Test
@@ -439,7 +439,7 @@ class SourceConfigTest {
         com.gamma.acquire.GapTracker.shared().reset("GAP_SRC");
 
         PipelineConfig cfg = PipelineConfig.load(writePipeline(dir, """
-            source:
+            collector:
               id: GAP_SRC
               gap_detection:
                 sequence: "cdr_{yyyyMMddHH}.csv"
@@ -449,7 +449,7 @@ class SourceConfigTest {
         for (String hh : List.of("00", "01", "03"))   // the 02:00 file is missing
             Files.writeString(inbox.resolve("cdr_20260614" + hh + ".csv"), "ID,AMT,EVENT_DATE\nr,1,2020-04-03\n");
 
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
 
         List<com.gamma.event.Event> gaps = events.recent(1000).stream()
                 .filter(e -> com.gamma.event.EventType.SEQUENCE_GAP.equals(e.type()))
@@ -458,7 +458,7 @@ class SourceConfigTest {
         assertEquals("cdr_2026061402.csv", String.valueOf(gaps.get(0).attributes().get("expected")));
 
         // the poll loop re-runs each cycle; a persistent gap must not re-fire
-        SourceProcessor.run(cfg);
+        CollectorProcessor.run(cfg);
         long after = events.recent(1000).stream()
                 .filter(e -> com.gamma.event.EventType.SEQUENCE_GAP.equals(e.type())).count();
         assertEquals(1, after, "a persistent gap fires once, not every poll cycle");

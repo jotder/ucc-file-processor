@@ -11,7 +11,7 @@ import java.util.function.Consumer;
 /**
  * In-process publish/subscribe bus for {@link BatchEvent}s — the trigger backbone
  * of the service. The ingest path emits a committed-batch event via the {@link #sink()}
- * {@link Consumer} (handed to {@code SourceProcessor.run}); subscribers (e.g. the
+ * {@link Consumer} (handed to {@code CollectorProcessor.run}); subscribers (e.g. the
  * Stage-2 enrichment trigger in M2) react.
  *
  * <p>Synchronous, fan-out delivery: a listener that throws is logged and skipped so
@@ -29,7 +29,7 @@ public final class BatchEventBus {
         listeners.add(listener);
     }
 
-    /** A sink to hand to the ingest layer (e.g. {@code SourceProcessor.run(cfg, bus.sink())}). */
+    /** A sink to hand to the ingest layer (e.g. {@code CollectorProcessor.run(cfg, bus.sink())}). */
     public Consumer<BatchEvent> sink() {
         return this::publish;
     }

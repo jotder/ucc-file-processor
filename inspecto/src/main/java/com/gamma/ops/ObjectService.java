@@ -600,7 +600,7 @@ public final class ObjectService {
      * never re-fire) and emits an {@link EventType#OBJECT_SLA_BREACH} event onto {@link EventLog#global()},
      * so the breach surfaces in the Event Viewer next to the incident's {@code OBJECT_ACTIVITY} history.
      *
-     * <p>Intended to be driven by {@link com.gamma.service.Scheduler} (see {@code SourceService}); {@code now}
+     * <p>Intended to be driven by {@link com.gamma.service.Scheduler} (see {@code CollectorService}); {@code now}
      * is injected so the schedule and tests evaluate against the same clock. Safe to call with no incidents.
      *
      * @param now the wall-clock instant (epoch millis) to evaluate deadlines against

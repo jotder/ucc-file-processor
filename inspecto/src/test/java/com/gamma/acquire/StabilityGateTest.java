@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class StabilityGateTest {
 
     /** A fake source whose readiness is fixed; the other SPI methods are never called by the gate. */
-    private static final class FakeConnector implements SourceConnector {
+    private static final class FakeConnector implements CollectorConnector {
         private final Readiness readiness;
         FakeConnector(Readiness r) { this.readiness = r; }
         public String scheme() { return "fake"; }
@@ -45,7 +45,7 @@ class StabilityGateTest {
     void growingFileIsHeldThenReleasedOnceQuiescent() throws Exception {
         var stats = new java.util.HashMap<String, StabilityGate.FileStat>();
         StabilityGate gate = gate(stats);
-        SourceConnector conn = new FakeConnector(SourceConnector.Readiness.UNKNOWN);
+        CollectorConnector conn = new FakeConnector(CollectorConnector.Readiness.UNKNOWN);
         RemoteFile f = file("feed.dat");
         long window = 10_000, checks = 2;
 
@@ -74,7 +74,7 @@ class StabilityGateTest {
     void sizeChecksGateReleaseEvenWhenQuiescent() throws Exception {
         var stats = new java.util.HashMap<String, StabilityGate.FileStat>();
         StabilityGate gate = gate(stats);
-        SourceConnector conn = new FakeConnector(SourceConnector.Readiness.UNKNOWN);
+        CollectorConnector conn = new FakeConnector(CollectorConnector.Readiness.UNKNOWN);
         RemoteFile f = file("q.dat");
         NOW[0] = 5_000;
         stats.put("q.dat", new StabilityGate.FileStat(true, 50, 500));   // mtime old ⇒ always quiescent (window 0)
@@ -89,7 +89,7 @@ class StabilityGateTest {
     void recentlyModifiedFileStaysHeldNoMatterHowOftenPolled() throws Exception {
         var stats = new java.util.HashMap<String, StabilityGate.FileStat>();
         StabilityGate gate = gate(stats);
-        SourceConnector conn = new FakeConnector(SourceConnector.Readiness.UNKNOWN);
+        CollectorConnector conn = new FakeConnector(CollectorConnector.Readiness.UNKNOWN);
         RemoteFile f = file("hot.dat");
         NOW[0] = 100_000;
         stats.put("hot.dat", new StabilityGate.FileStat(true, 10, 100_000));   // modified "now"
@@ -106,11 +106,11 @@ class StabilityGateTest {
         StabilityGate gate = new StabilityGate(() -> NOW[0], rf -> { throw new AssertionError("probed!"); });
         RemoteFile f = file("native.dat");
 
-        var ready = gate.filter("S", List.of(f), new FakeConnector(SourceConnector.Readiness.READY), 10_000, 2);
+        var ready = gate.filter("S", List.of(f), new FakeConnector(CollectorConnector.Readiness.READY), 10_000, 2);
         assertEquals(List.of(f), ready.ready());
         assertTrue(ready.newlyStable().isEmpty(), "a connector-native READY is not a gate transition");
 
-        var held = gate.filter("S", List.of(f), new FakeConnector(SourceConnector.Readiness.NOT_READY), 10_000, 2);
+        var held = gate.filter("S", List.of(f), new FakeConnector(CollectorConnector.Readiness.NOT_READY), 10_000, 2);
         assertEquals(List.of(f), held.waiting());
         assertTrue(held.ready().isEmpty());
     }
@@ -119,7 +119,7 @@ class StabilityGateTest {
     void vanishedFileIsDroppedFromBothLists() throws Exception {
         StabilityGate gate = gate(Map.of());   // every probe ⇒ FileStat.NONE
         RemoteFile f = file("gone.dat");
-        var r = gate.filter("S", List.of(f), new FakeConnector(SourceConnector.Readiness.UNKNOWN), 10_000, 1);
+        var r = gate.filter("S", List.of(f), new FakeConnector(CollectorConnector.Readiness.UNKNOWN), 10_000, 1);
         assertTrue(r.ready().isEmpty());
         assertTrue(r.waiting().isEmpty(), "a file that disappeared between discover and gate is simply dropped");
     }
@@ -128,7 +128,7 @@ class StabilityGateTest {
     void distinctSourceIdsDoNotShareObservations() throws Exception {
         var stats = new java.util.HashMap<String, StabilityGate.FileStat>();
         StabilityGate gate = gate(stats);
-        SourceConnector conn = new FakeConnector(SourceConnector.Readiness.UNKNOWN);
+        CollectorConnector conn = new FakeConnector(CollectorConnector.Readiness.UNKNOWN);
         RemoteFile f = file("same.dat");
         NOW[0] = 9_000;
         stats.put("same.dat", new StabilityGate.FileStat(true, 1, 0));   // quiescent (window 0)
@@ -148,7 +148,7 @@ class StabilityGateTest {
         long old = Instant.now().toEpochMilli() - 60_000;   // a minute ago ⇒ quiescent under any small window
         RemoteFile f = new RemoteFile("r.dat", "phaseB/r.dat", 123, Instant.ofEpochMilli(old), "etag", null,
                 Path.of("does-not-exist.dat"));
-        SourceConnector conn = new FakeConnector(SourceConnector.Readiness.UNKNOWN);
+        CollectorConnector conn = new FakeConnector(CollectorConnector.Readiness.UNKNOWN);
         gate.filter("META", List.of(f), conn, 1_000, 2);                         // first sighting
         assertEquals(List.of(f), gate.filter("META", List.of(f), conn, 1_000, 2).ready(),
                 "listing metadata (size+mtime) drives stabilization with no disk stat");

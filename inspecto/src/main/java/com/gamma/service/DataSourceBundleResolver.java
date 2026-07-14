@@ -20,7 +20,7 @@ import java.util.stream.Stream;
  * everything it references: the connection profile it binds to, the schema / grammar files it read at parse
  * time, and any job that targets it.
  *
- * <p>Scoped to one space: parsed configs come from that space's {@link SourceService}; the connection / job
+ * <p>Scoped to one space: parsed configs come from that space's {@link CollectorService}; the connection / job
  * files are found by scanning that space's {@code config/} tree, because they are addressed by their in-file
  * id ({@code connection.id} / {@code on_pipeline}), not by their filename. Bad / unreadable connection or job
  * files are warned-and-skipped (mirroring boot discovery) so one malformed file never breaks resolution.
@@ -29,10 +29,10 @@ public final class DataSourceBundleResolver {
 
     private static final Logger log = LoggerFactory.getLogger(DataSourceBundleResolver.class);
 
-    private final SourceService service;
+    private final CollectorService service;
     private final Path configDir;
 
-    public DataSourceBundleResolver(SourceService service, Path configDir) {
+    public DataSourceBundleResolver(CollectorService service, Path configDir) {
         this.service   = Objects.requireNonNull(service, "service");
         this.configDir = Objects.requireNonNull(configDir, "configDir");
     }
@@ -40,7 +40,7 @@ public final class DataSourceBundleResolver {
     /** The data-source ids (pipeline names) that resolve to a bundle in this space, sorted. */
     public List<String> dataSourceIds() {
         return service.pipelines().stream()
-                .map(SourceService.PipelineView::name)
+                .map(CollectorService.PipelineView::name)
                 .sorted()
                 .toList();
     }
@@ -57,8 +57,8 @@ public final class DataSourceBundleResolver {
         Path pipelineFile = service.pathFor(dataSourceId)
                 .orElseThrow(() -> new NoSuchElementException("no config file for pipeline '" + dataSourceId + "'"));
 
-        Path connection = cfg.source().hasConnection()
-                ? findConnectionFile(cfg.source().connection())
+        Path connection = cfg.collector().hasConnection()
+                ? findConnectionFile(cfg.collector().connection())
                 : null;
 
         return new DataSourceBundle(

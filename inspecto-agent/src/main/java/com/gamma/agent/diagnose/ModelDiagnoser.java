@@ -92,7 +92,7 @@ public final class ModelDiagnoser implements FailureReactor.Diagnoser {
     private List<Citation> groundPipeline(String pipeline) {
         List<Citation> citations = new ArrayList<>();
         if (catalog == null || pipeline == null) return citations;
-        for (MetadataNode s : catalog.nodesOfKind(NodeKind.SOURCE)) {
+        for (MetadataNode s : catalog.nodesOfKind(NodeKind.STREAM)) {
             if (pipeline.equals(s.label())) {
                 citations.add(new Citation("catalog", s.id()));
                 break;

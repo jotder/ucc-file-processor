@@ -24,10 +24,12 @@ final class CatalogRoutes implements RouteModule {
     @Override
     public void register(ApiContext api) {
         api.get("/catalog", (e, m) -> api.service().catalog().tables());
-        // MET-4 (2026-07-08): Streams — the Catalog's browsable data origins: each pipeline's Source
-        // (+ its Connection binding) as a catalog node. A pure projection of the sources read-model,
+        // MET-4 (2026-07-08): Streams — the Catalog's browsable data origins: each pipeline's Collector
+        // (+ its Connection binding) as a catalog node. A pure projection of the collectors read-model,
         // shaped exactly like the UI's MetadataNode contract (the mock's CATALOG_STREAMS twin).
         api.get("/catalog/streams", (e, m) -> streams(api));
+        // References — the Catalog's dimension origins: every REFERENCE_DATASET node joined into a transform.
+        api.get("/catalog/references", (e, m) -> references(api));
         api.get("/catalog/kpis", (e, m) -> catalogKpis(api));
         api.get("/catalog/graph", (e, m) -> api.service().catalog().traverse(
                 ApiContext.query(e, "from"),
@@ -39,17 +41,17 @@ final class CatalogRoutes implements RouteModule {
         api.get("/catalog/tables/(.+)", (e, m) -> catalogNodeDetail(api, ApiContext.name(m)));
     }
 
-    /** {@code GET /catalog/streams} — every Source as a browsable data-origin node (MET-4). */
+    /** {@code GET /catalog/streams} — every Collector's data-origin stream as a browsable node (MET-4). */
     private List<Map<String, Object>> streams(ApiContext api) {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (Map<String, Object> s : api.service().sources()) {
+        for (Map<String, Object> s : api.service().collectors()) {
             Map<String, Object> node = new LinkedHashMap<>();
             node.put("id", s.get("id"));
-            node.put("kind", "SOURCE");
+            node.put("kind", "STREAM");
             node.put("label", s.get("id"));
             node.put("description", Map.of(
-                    "text", s.get("connector") + " source feeding " + s.get("pipeline"),
-                    "source", "source"));
+                    "text", s.get("connector") + " collector feeding " + s.get("pipeline"),
+                    "source", "collector"));
             Map<String, Object> attrs = new LinkedHashMap<>();
             attrs.put("connector", s.get("connector"));
             attrs.put("connection", s.get("connection"));
@@ -59,6 +61,11 @@ final class CatalogRoutes implements RouteModule {
             out.add(node);
         }
         return out;
+    }
+
+    /** {@code GET /catalog/references} — every Reference (dimension) origin as a catalog node. */
+    private List<MetadataNode> references(ApiContext api) {
+        return api.service().catalog().nodesOfKind(NodeKind.REFERENCE_DATASET);
     }
 
     /** A node (any kind) with its operational overlay + immediate neighbours, or 404. */

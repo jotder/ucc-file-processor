@@ -6,7 +6,7 @@ import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
 import com.gamma.acquire.SecretResolver;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -32,10 +32,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.gamma.acquire.SourceConnector.Capability.*;
+import static com.gamma.acquire.CollectorConnector.Capability.*;
 
 /**
- * An <b>Azure Blob Storage</b> {@link SourceConnector} (ACQ-4) speaking the Blob REST API directly over the
+ * An <b>Azure Blob Storage</b> {@link CollectorConnector} (ACQ-4) speaking the Blob REST API directly over the
  * JDK {@link HttpClient} with {@link AzureSharedKey} signing — <b>no Azure SDK</b>, the same discipline as
  * {@link S3Connector}. Covers real Azure and Azurite/emulator endpoints.
  *
@@ -52,7 +52,7 @@ import static com.gamma.acquire.SourceConnector.Capability.*;
  * same-account fast path; a {@code pending} copy fails the post-action rather than risking the source);
  * TAG is Set Blob Tags.
  */
-public final class AzureBlobConnector implements SourceConnector {
+public final class AzureBlobConnector implements CollectorConnector {
 
     private static final int MAX_RESULTS_PAGE = 5000;
 

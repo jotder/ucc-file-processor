@@ -53,9 +53,9 @@ public final class PipelineLift {
 
         // 1. acquisition (entry) + optional gap control edge
         nodes.add(acquisitionNode(cfg));
-        if (cfg.source().gapDetection().active()) {
+        if (cfg.collector().gapDetection().active()) {
             Map<String, Object> gap = new LinkedHashMap<>();
-            put(gap, "sequence", cfg.source().gapDetection().sequence());
+            put(gap, "sequence", cfg.collector().gapDetection().sequence());
             nodes.add(new PipelineNode(GAP, BuiltinNodeType.GAP.type(), "Gap detection", null, gap, null));
             edges.add(new PipelineEdge(ACQ, PipelineRel.GAP, GAP));
         }
@@ -67,7 +67,7 @@ public final class PipelineLift {
             edges.add(PipelineEdge.data(upstream, DEDUP_MARKER));
             upstream = DEDUP_MARKER;
         }
-        if (cfg.source().duplicate().contentBased()) {
+        if (cfg.collector().duplicate().contentBased()) {
             nodes.add(dedupFingerprintNode(cfg));
             edges.add(PipelineEdge.data(upstream, DEDUP_FINGERPRINT));
             upstream = DEDUP_FINGERPRINT;
@@ -106,7 +106,7 @@ public final class PipelineLift {
     // ── node builders ──────────────────────────────────────────────────────────
 
     private static PipelineNode acquisitionNode(PipelineConfig cfg) {
-        PipelineConfig.Source src = cfg.source();
+        PipelineConfig.Collector src = cfg.collector();
         Map<String, Object> c = new LinkedHashMap<>();
         put(c, "connector", src.connector());
         put(c, "poll", cfg.dirs().poll());
@@ -139,8 +139,8 @@ public final class PipelineLift {
 
     private static PipelineNode dedupFingerprintNode(PipelineConfig cfg) {
         Map<String, Object> c = new LinkedHashMap<>();
-        c.put("duplicate", cfg.source().duplicate());       // the fingerprint policy (mode/algorithm/on_change)
-        c.put("incremental", cfg.source().incremental());   // watermark is derived alongside the ledger (G4)
+        c.put("duplicate", cfg.collector().duplicate());       // the fingerprint policy (mode/algorithm/on_change)
+        c.put("incremental", cfg.collector().incremental());   // watermark is derived alongside the ledger (G4)
         return new PipelineNode(DEDUP_FINGERPRINT, BuiltinNodeType.TRANSFORM_DEDUP_FINGERPRINT.type(),
                 "Dedup (fingerprint)", null, c, null);
     }

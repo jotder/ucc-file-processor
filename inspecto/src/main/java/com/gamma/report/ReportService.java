@@ -3,7 +3,7 @@ package com.gamma.report;
 import com.gamma.api.PublicApi;
 import com.gamma.etl.PipelineConfig;
 import com.gamma.service.EnrichmentService;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import com.gamma.service.StatusStore;
 
 import java.time.LocalDateTime;
@@ -41,9 +41,9 @@ public final class ReportService {
 
     private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private final SourceService service;
+    private final CollectorService service;
 
-    public ReportService(SourceService service) {
+    public ReportService(CollectorService service) {
         this.service = service;
     }
 
@@ -121,7 +121,7 @@ public final class ReportService {
         List<PipelineStatus> rows = new ArrayList<>();
         int paused = 0;
         long committed = 0, quarantined = 0;
-        for (SourceService.PipelineView v : service.pipelines()) {
+        for (CollectorService.PipelineView v : service.pipelines()) {
             PipelineConfig cfg = service.configFor(v.name()).orElse(null);
             int quarantine = 0;
             String lastId = "", lastStatus = "", lastTime = "";
@@ -168,7 +168,7 @@ public final class ReportService {
         List<BatchAuditReport> perPipeline = new ArrayList<>();
         List<Long> allDurations = new ArrayList<>();
         long batches = 0, success = 0, failed = 0, outRows = 0;
-        for (SourceService.PipelineView v : service.pipelines()) {
+        for (CollectorService.PipelineView v : service.pipelines()) {
             PipelineConfig cfg = service.configFor(v.name()).orElse(null);
             if (cfg == null) continue;
             List<Map<String, String>> rows = service.statusStore().batches(cfg);

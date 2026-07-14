@@ -11,7 +11,7 @@ import com.gamma.service.BundleExporter;
 import com.gamma.service.BundleImporter;
 import com.gamma.service.DataSourceBundle;
 import com.gamma.service.DataSourceBundleResolver;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import com.sun.net.httpserver.HttpExchange;
 
 import java.io.IOException;
@@ -75,7 +75,7 @@ final class DataSourceRoutes implements RouteModule {
 
         List<String> dataSources = BundleImporter.pipelineIds(bundle);
         Set<String> existing = api.service().pipelines().stream()
-                .map(SourceService.PipelineView::name).collect(Collectors.toSet());
+                .map(CollectorService.PipelineView::name).collect(Collectors.toSet());
         List<String> conflicts = dataSources.stream().filter(existing::contains).sorted().toList();
 
         Map<String, List<Finding>> findings = new LinkedHashMap<>();
@@ -128,7 +128,7 @@ final class DataSourceRoutes implements RouteModule {
 
         // Conflict = a bundle pipeline id that already exists in this space's registry.
         Set<String> existing = api.service().pipelines().stream()
-                .map(SourceService.PipelineView::name).collect(Collectors.toSet());
+                .map(CollectorService.PipelineView::name).collect(Collectors.toSet());
         List<String> conflicts = BundleImporter.pipelineIds(bundle).stream()
                 .filter(existing::contains).sorted().toList();
         if (!conflicts.isEmpty() && !overwrite)

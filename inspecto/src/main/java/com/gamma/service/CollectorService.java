@@ -23,8 +23,8 @@ import com.gamma.event.EventLog;
 import com.gamma.event.EventStore;
 import com.gamma.event.EventType;
 import com.gamma.event.SavedViewStore;
-import com.gamma.inspector.MultiSourceProcessor;
-import com.gamma.inspector.SourceProcessor;
+import com.gamma.inspector.MultiCollectorProcessor;
+import com.gamma.inspector.CollectorProcessor;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobService;
 import com.gamma.report.ReportService;
@@ -65,7 +65,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *       Each poll cycle reloads them, so every cycle is a fresh run (new run timestamp)
  *       and config edits are picked up without a restart.</li>
  *   <li><b>Scheduler</b> — one interval-driven cycle that runs the whole registry via
- *       {@link MultiSourceProcessor#runAll(List, int, java.util.function.Consumer)},
+ *       {@link MultiCollectorProcessor#runAll(List, int, java.util.function.Consumer)},
  *       which bounds concurrent sources to the global run budget.</li>
  *   <li><b>Recovery</b> — on startup, report each pipeline's previously committed
  *       batches from the commit log via {@link StatusStore}. Batch atomicity (commit
@@ -79,15 +79,15 @@ import java.util.concurrent.locks.ReentrantLock;
  *       schedule. See {@link EnrichmentService}.</li>
  * </ul>
  *
- * <p>CLI: {@code java -cp file-processor.jar com.gamma.service.SourceService
+ * <p>CLI: {@code java -cp file-processor.jar com.gamma.service.CollectorService
  * [-Dservice.poll.seconds=N] [-Dservice.max.runs=M] <config.toon | dir> [more ...]}.
  * Paths are scanned for {@code *_pipeline.toon} (Stage-1 sources) and
  * {@code *_enrich.toon} (Stage-2 enrichment jobs).
  */
 @PublicApi(since = "2.2.0")
-public final class SourceService implements AutoCloseable {
+public final class CollectorService implements AutoCloseable {
 
-    private static final Logger log = LoggerFactory.getLogger(SourceService.class);
+    private static final Logger log = LoggerFactory.getLogger(CollectorService.class);
 
     /**
      * The active set of pipeline config paths. A {@link CopyOnWriteArrayList} (not an immutable copy)
@@ -188,7 +188,7 @@ public final class SourceService implements AutoCloseable {
                 }
             });
     /** One manual pipeline run's identity + outcome, for the W5b async-trigger poll. {@code total}/{@code failed}
-     *  are the {@link MultiSourceProcessor.RunResult} counts once terminal; {@code -1} while {@code RUNNING}. */
+     *  are the {@link MultiCollectorProcessor.RunResult} counts once terminal; {@code -1} while {@code RUNNING}. */
     public record PipelineRun(String runId, String pipeline, String trigger, String startedAt, String finishedAt,
                               String status, int total, int failed, String message) {}
     /** Zone for evaluating {@code cron} triggers (mirrors {@link JobService}). */
@@ -205,7 +205,7 @@ public final class SourceService implements AutoCloseable {
     private volatile IntelligenceAgent intelligenceAgent;
     /** Push discovery for local {@code source.discovery: watch} sources (ACQ-6); {@code null} when no
      *  source opts in. Started in {@link #start()}, closed first in {@link #close()}. */
-    private SourceWatcher watcher;
+    private CollectorWatcher watcher;
     /** Loaded {@code *_meta.toon} semantic models (KPI catalog + domain notes) feeding the catalog. */
     private final List<SemanticModel> semanticModels;
     /** The metadata graph / data catalog (M2): config-derived structure + lazy operational overlay. */
@@ -222,11 +222,11 @@ public final class SourceService implements AutoCloseable {
     /** A pipeline's identity + current state, for the Control API's listing. */
     public record PipelineView(String name, String configPath, boolean paused, int committedBatches) {}
 
-    public SourceService(List<Path> registry, long pollSeconds, int maxConcurrentRuns) {
+    public CollectorService(List<Path> registry, long pollSeconds, int maxConcurrentRuns) {
         this(registry, List.of(), pollSeconds, maxConcurrentRuns);
     }
 
-    public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+    public CollectorService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          long pollSeconds, int maxConcurrentRuns) {
         this(registry, enrichJobs, pollSeconds, maxConcurrentRuns, null);
     }
@@ -237,7 +237,7 @@ public final class SourceService implements AutoCloseable {
      *                    into it at startup and after each poll cycle; {@code null} falls
      *                    back to the file-backed store (the on-disk audit read directly).
      */
-    public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+    public CollectorService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
         this(registry, enrichJobs, List.of(), pollSeconds, maxConcurrentRuns, statusStore);
     }
@@ -249,7 +249,7 @@ public final class SourceService implements AutoCloseable {
      *
      * @param jobConfigs config-driven jobs; empty disables the job layer
      */
-    public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+    public CollectorService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          List<JobConfig> jobConfigs, long pollSeconds, int maxConcurrentRuns,
                          StatusStore statusStore) {
         this(registry, enrichJobs, jobConfigs, List.of(), pollSeconds, maxConcurrentRuns, statusStore);
@@ -263,7 +263,7 @@ public final class SourceService implements AutoCloseable {
      *
      * @param semanticModels loaded {@code *_meta.toon} models (KPI catalog + domain notes); empty is fine
      */
-    public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+    public CollectorService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          List<JobConfig> jobConfigs, List<SemanticModel> semanticModels,
                          long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
         this(registry, enrichJobs, jobConfigs, semanticModels, List.of(), pollSeconds,
@@ -277,7 +277,7 @@ public final class SourceService implements AutoCloseable {
      *
      * @param alertRules loaded alert rules; empty is fine
      */
-    public SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+    public CollectorService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                          List<JobConfig> jobConfigs, List<SemanticModel> semanticModels,
                          List<com.gamma.alert.AlertRule> alertRules,
                          long pollSeconds, int maxConcurrentRuns, StatusStore statusStore) {
@@ -290,7 +290,7 @@ public final class SourceService implements AutoCloseable {
      * read/write — {@link SpaceRoot#legacy()} for the single-tenant entry points above, or a per-space
      * directory when hosted by a {@code SpaceManager}. All earlier constructors delegate here.
      */
-    SourceService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
+    CollectorService(List<Path> registry, List<EnrichmentConfig> enrichJobs,
                   List<JobConfig> jobConfigs, List<SemanticModel> semanticModels,
                   List<com.gamma.alert.AlertRule> alertRules,
                   long pollSeconds, int maxConcurrentRuns, StatusStore statusStore, SpaceRoot root) {
@@ -332,7 +332,7 @@ public final class SourceService implements AutoCloseable {
             public List<EnrichmentConfig> enrichments() {
                 return enrichment != null ? enrichment.configs() : List.of();
             }
-            public List<SemanticModel> semantics() { return SourceService.this.semanticModels; }
+            public List<SemanticModel> semantics() { return CollectorService.this.semanticModels; }
         };
         this.configSource = configSource;
         // Object Engine (Phase 2, v4.3.0): the mutable Layer-2 store for managed objects (alerts now;
@@ -480,7 +480,7 @@ public final class SourceService implements AutoCloseable {
     public void registerConnection(com.gamma.acquire.ConnectionProfile profile) {
         if (profile != null) {
             connections.put(profile.id(), profile);
-            // Also publish into the process-wide registry so the static poll path (SourceConnectors.forConfig)
+            // Also publish into the process-wide registry so the static poll path (CollectorConnectors.forConfig)
             // can resolve a pipeline's source.connection binding to a remote connector (Phase E). Publish under
             // THIS service's space so the per-space registry namespaces it correctly regardless of caller thread.
             underSpace(() -> com.gamma.acquire.ConnectionRegistry.register(profile));
@@ -532,7 +532,7 @@ public final class SourceService implements AutoCloseable {
         boolean ok = "SUCCESS".equalsIgnoreCase(e.status());
         Event.Builder b = Event.builder(ok ? EventType.BATCH_COMMITTED : EventType.BATCH_FAILED)
                 .level(ok ? EventLevel.INFO : EventLevel.ERROR)
-                .source(SourceService.class.getName())
+                .source(CollectorService.class.getName())
                 .pipeline(e.pipeline())
                 .correlationId(e.batchId())
                 .message((ok ? "Batch committed: " : "Batch failed: ") + e.pipeline() + "/" + e.batchId())
@@ -548,7 +548,7 @@ public final class SourceService implements AutoCloseable {
     }
 
     /**
-     * Wire an embedded {@link AssistAgent} (v3.0, M0). Calls {@link AssistAgent#init(SourceService)}
+     * Wire an embedded {@link AssistAgent} (v3.0, M0). Calls {@link AssistAgent#init(CollectorService)}
      * immediately so the agent can subscribe to the bus and capture typed handles <em>before</em>
      * {@link #start()} schedules the first poll. Idempotent-ish: a second registration is ignored
      * with a warning (one agent per service). Normally invoked automatically by {@link #start()}
@@ -575,7 +575,7 @@ public final class SourceService implements AutoCloseable {
 
     /**
      * Wire an embedded {@link IntelligenceAgent} (AGT-5, P0) — mirrors {@link #registerAgent}.
-     * Calls {@link IntelligenceAgent#init(SourceService)} immediately, before publishing the
+     * Calls {@link IntelligenceAgent#init(CollectorService)} immediately, before publishing the
      * reference. A second registration is ignored with a warning (one agent per service).
      *
      * @param a the agent provider; {@code null} is a no-op
@@ -634,7 +634,7 @@ public final class SourceService implements AutoCloseable {
         scheduler.everySeconds("poll-all", 0, pollSeconds, this::runAllOnce);
         // ACQ-6 push discovery: filesystem events on local `source.discovery: watch` poll roots trigger an
         // immediate single-pipeline run (same ingestLock as the loop above, which stays on as the backstop).
-        watcher = SourceWatcher.startFor(configRegistry.all(), name -> {
+        watcher = CollectorWatcher.startFor(configRegistry.all(), name -> {
             try { runPipeline(name); }
             catch (RuntimeException ex) { log.warn("Watch-triggered run of '{}' failed: {}", name, ex.getMessage()); }
         });
@@ -645,11 +645,11 @@ public final class SourceService implements AutoCloseable {
         if (slaSweepSeconds > 0)
             scheduler.everySeconds("sla-sweep", slaSweepSeconds, slaSweepSeconds,
                     () -> underSpace(() -> objects.sweepIncidentSla(System.currentTimeMillis())));
-        log.info("SourceService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
+        log.info("CollectorService started: {} pipeline(s), poll every {}s, up to {} concurrent run(s)",
                 registry.size(), pollSeconds, maxConcurrentRuns);
         this.eventLog.emit(Event.builder(EventType.SERVICE_STARTED)
-                .source(SourceService.class.getName())
-                .message("SourceService started")
+                .source(CollectorService.class.getName())
+                .message("CollectorService started")
                 .attr("pipelines", registry.size())
                 .attr("pollSeconds", pollSeconds)
                 .attr("maxConcurrentRuns", maxConcurrentRuns));
@@ -662,11 +662,11 @@ public final class SourceService implements AutoCloseable {
      *
      * @return the run outcome (total / failed source counts)
      */
-    public MultiSourceProcessor.RunResult runAllOnce() {
+    public MultiCollectorProcessor.RunResult runAllOnce() {
         return underSpace(this::runAllOnceInSpace);   // cycle + its parallel workers run under this space's MDC
     }
 
-    private MultiSourceProcessor.RunResult runAllOnceInSpace() {
+    private MultiCollectorProcessor.RunResult runAllOnceInSpace() {
         ingestLock.lock();   // never overlap with another cycle / operator trigger (see field doc)
         try {
             // Re-index configs once per cycle — now an mtime-cached rebuild, so a steady-state cycle
@@ -690,15 +690,15 @@ public final class SourceService implements AutoCloseable {
                 toRun.add(cfg.forNewRun());                                  // fresh per-cycle timestamp
                 activeNames.add(id);
             }
-            if (toRun.isEmpty()) return new MultiSourceProcessor.RunResult(0, 0);
+            if (toRun.isEmpty()) return new MultiCollectorProcessor.RunResult(0, 0);
             activeNames.forEach(id -> lastRunAtMs.put(id, nowMs));           // stamp cadence baseline (start-to-start)
             com.gamma.metrics.MetricRegistry reg = com.gamma.metrics.MetricRegistry.global();
             reg.inc("inspecto_poll_cycles_total", "Poll cycles run", Map.of());
             reg.setGauge("inspecto_active_runs", "Source runs currently executing", Map.of(), toRun.size());
             running.addAll(activeNames);
-            MultiSourceProcessor.RunResult r;
+            MultiCollectorProcessor.RunResult r;
             try {
-                r = MultiSourceProcessor.runConfigs(toRun, maxConcurrentRuns, bus.sink());
+                r = MultiCollectorProcessor.runConfigs(toRun, maxConcurrentRuns, bus.sink());
                 if (r.failed() > 0) {
                     log.warn("Poll cycle: {} of {} source(s) failed", r.failed(), r.total());
                     reg.inc("inspecto_source_run_failures_total", "Source-run failures", Map.of(), r.failed());
@@ -822,7 +822,7 @@ public final class SourceService implements AutoCloseable {
             log.warn("Deletion fence: store '{}' has an active reader/writer — producers={}, consumers={}",
                     c.store(), c.activeProducers(), c.activeConsumers());
             this.eventLog.emit(Event.builder(EventType.STORE_DELETE_CONFLICT)
-                    .source(SourceService.class.getName())
+                    .source(CollectorService.class.getName())
                     .message("Delete of store '" + c.store() + "' races an active flow")
                     .attr("store", c.store())
                     .attr("activeProducers", String.join(",", c.activeProducers()))
@@ -871,7 +871,7 @@ public final class SourceService implements AutoCloseable {
         }
         log.info("Registered pipeline '{}' from {} ({} pipeline(s) now active)", id, norm, registry.size());
         this.eventLog.emit(Event.builder(EventType.PIPELINE_REGISTERED)
-                .source(SourceService.class.getName()).pipeline(id)
+                .source(CollectorService.class.getName()).pipeline(id)
                 .message("Pipeline registered: " + id)
                 .attr("configPath", norm.toString()).attr("activePipelines", registry.size()));
         return id;
@@ -1000,7 +1000,7 @@ public final class SourceService implements AutoCloseable {
         return configFor(pipelineName).map(cfg -> new InboxStatus(
                 pipelineName,
                 java.nio.file.Paths.get(cfg.dirs().poll()).toAbsolutePath().toString(),
-                SourceProcessor.countPending(cfg),
+                CollectorProcessor.countPending(cfg),
                 running.contains(pipelineName),
                 IngestProgress.current(cfg.identity().pipelineName())));
     }
@@ -1022,13 +1022,13 @@ public final class SourceService implements AutoCloseable {
 
     /**
      * Flatten each registered pipeline's source acquisition config for the Acquisition/Sources UI
-     * ({@code GET /sources}). Pure config read (no I/O) plus, for a {@code db} source bound to a connection,
+     * ({@code GET /collectors}). Pure config read (no I/O) plus, for a {@code db} source bound to a connection,
      * the current row-level DB watermark derived from the acquisition ledger.
      */
-    public List<Map<String, Object>> sources() {
+    public List<Map<String, Object>> collectors() {
         List<Map<String, Object>> out = new ArrayList<>();
         for (ConfigRegistry.Entry e : configRegistry.all()) {
-            PipelineConfig.Source s = e.config().source();
+            PipelineConfig.Collector s = e.config().collector();
             if (s == null) continue;
             Map<String, Object> m = new java.util.LinkedHashMap<>();
             m.put("pipeline", e.id());
@@ -1061,7 +1061,7 @@ public final class SourceService implements AutoCloseable {
         if (sourceId == null || sourceId.isBlank()) return Optional.empty();
         String t = sourceId.trim();
         for (ConfigRegistry.Entry e : configRegistry.all()) {
-            PipelineConfig.Source s = e.config().source();
+            PipelineConfig.Collector s = e.config().collector();
             if (s != null && t.equals(s.id())) return Optional.of(e.id());
         }
         return Optional.empty();
@@ -1072,7 +1072,7 @@ public final class SourceService implements AutoCloseable {
         if (id == null) return false;
         String t = id.trim();
         for (ConfigRegistry.Entry e : configRegistry.all()) {
-            PipelineConfig.Source s = e.config().source();
+            PipelineConfig.Collector s = e.config().collector();
             if (s != null && t.equals(s.connection())) return true;
         }
         return false;
@@ -1092,13 +1092,13 @@ public final class SourceService implements AutoCloseable {
     }
 
     /** Run a single registered pipeline once. Empty if no pipeline by that name. */
-    public Optional<MultiSourceProcessor.RunResult> runPipeline(String pipelineName) {
+    public Optional<MultiCollectorProcessor.RunResult> runPipeline(String pipelineName) {
         return underSpace(() -> pathFor(pipelineName).map(p -> {
             ingestLock.lock();   // serialize with the poll cycle / other triggers (see field doc)
             running.add(pipelineName);
             try {
                 lastRunAtMs.put(pipelineName, System.currentTimeMillis());   // T13: any run resets the cadence
-                return MultiSourceProcessor.runAll(List.of(p), 1, bus.sink());
+                return MultiCollectorProcessor.runAll(List.of(p), 1, bus.sink());
             } finally {
                 running.remove(pipelineName);
                 ingestLock.unlock();
@@ -1124,8 +1124,8 @@ public final class SourceService implements AutoCloseable {
         liveRuns.put(runId, new PipelineRun(runId, pipelineName, trigger, start, null, "RUNNING", -1, -1, null));
         triggerWorkers.submit(() -> {
             try {
-                MultiSourceProcessor.RunResult res =
-                        runPipeline(pipelineName).orElse(new MultiSourceProcessor.RunResult(0, 0));
+                MultiCollectorProcessor.RunResult res =
+                        runPipeline(pipelineName).orElse(new MultiCollectorProcessor.RunResult(0, 0));
                 liveRuns.put(runId, new PipelineRun(runId, pipelineName, trigger, start,
                         LocalDateTime.now().format(RUN_AT_TS), "SUCCESS", res.total(), res.failed(),
                         res.failed() + " of " + res.total() + " file(s) failed"));
@@ -1154,7 +1154,7 @@ public final class SourceService implements AutoCloseable {
         paused.add(pipelineName);
         log.info("Pipeline '{}' paused", pipelineName);
         this.eventLog.emit(Event.builder(EventType.PIPELINE_PAUSED)
-                .source(SourceService.class.getName()).pipeline(pipelineName)
+                .source(CollectorService.class.getName()).pipeline(pipelineName)
                 .message("Pipeline paused: " + pipelineName));
         return true;
     }
@@ -1165,7 +1165,7 @@ public final class SourceService implements AutoCloseable {
         paused.remove(pipelineName);
         log.info("Pipeline '{}' resumed", pipelineName);
         this.eventLog.emit(Event.builder(EventType.PIPELINE_RESUMED)
-                .source(SourceService.class.getName()).pipeline(pipelineName)
+                .source(CollectorService.class.getName()).pipeline(pipelineName)
                 .message("Pipeline resumed: " + pipelineName));
         return true;
     }
@@ -1196,7 +1196,7 @@ public final class SourceService implements AutoCloseable {
         try { objectStore.close(); } catch (Exception e) { log.warn("Error closing object store: {}", e.getMessage()); }
         try { linkStore.close(); } catch (Exception e) { log.warn("Error closing link store: {}", e.getMessage()); }
         try { noteStore.close(); } catch (Exception e) { log.warn("Error closing note store: {}", e.getMessage()); }
-        log.info("SourceService stopped");
+        log.info("CollectorService stopped");
         // Close last so the "stopped" log line above is itself captured, then flushed to disk.
         try { events.close(); } catch (Exception e) { log.warn("Error closing event store: {}", e.getMessage()); }
     }
@@ -1205,11 +1205,11 @@ public final class SourceService implements AutoCloseable {
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
-            System.err.println("Usage: SourceService [-Dservice.poll.seconds=N] "
+            System.err.println("Usage: CollectorService [-Dservice.poll.seconds=N] "
                     + "[-Dservice.max.runs=M] <pipeline.toon | dir> [more ...]");
             System.exit(1);
         }
-        SourceService svc = fromArgs(args);
+        CollectorService svc = fromArgs(args);
         CountDownLatch latch = new CountDownLatch(1);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             svc.close();
@@ -1223,7 +1223,7 @@ public final class SourceService implements AutoCloseable {
      * Build a fully-wired service from CLI-style args. Delegates to {@link ServiceBootstrap#build}
      * (the config-discovery/parsing concern). Shared by the service and Control API entry points.
      */
-    public static SourceService fromArgs(String[] args) throws IOException {
+    public static CollectorService fromArgs(String[] args) throws IOException {
         return ServiceBootstrap.build(args);
     }
 }

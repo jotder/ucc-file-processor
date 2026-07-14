@@ -80,7 +80,7 @@ class CommitLogTest {
         assertTrue(log.committedBatchIds().isEmpty(), "only the header exists → no committed ids");
     }
 
-    /** End-to-end: a real SourceProcessor run records a SUCCESS line in the commit log. */
+    /** End-to-end: a real CollectorProcessor run records a SUCCESS line in the commit log. */
     @Test
     void realRunRecordsCommit(@TempDir Path dir) throws Exception {
         PipelineConfig cfg = TestConfigs.csv(dir, PipelineConfigBatchTest.miniSchema()).load();
@@ -88,7 +88,7 @@ class CommitLogTest {
         Files.writeString(inbox.resolve("data.csv"),
                 "ID,AMT,EVENT_DATE\n1,10,2020-04-03\n2,20,2020-04-03\n");
 
-        com.gamma.inspector.SourceProcessor.run(cfg);
+        com.gamma.inspector.CollectorProcessor.run(cfg);
 
         Path commitLog = Path.of(cfg.dirs().commitLogPath());
         assertTrue(Files.exists(commitLog), "commit log should be created by a run");

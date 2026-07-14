@@ -11,13 +11,13 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
 
 /**
- * Backend selection for the pluggable persistence stores {@link SourceService} hosts.
+ * Backend selection for the pluggable persistence stores {@link CollectorService} hosts.
  *
  * <p>Each {@code open*} method reads its {@code -D} backend toggle, opens the chosen backend, and
  * <b>degrades gracefully</b> — a DB/Parquet backend that fails to open is logged and falls back to the
  * lean in-memory default (or {@code null} where the capability is simply off), so observability and the
  * Alert Center never block service startup. This is purely the "how to open a store" half of the service;
- * {@code SourceService} still owns how the opened stores are wired together (EventLog install, bus
+ * {@code CollectorService} still owns how the opened stores are wired together (EventLog install, bus
  * subscriptions, the ObjectService composition).
  *
  * <p>The backend <em>toggle</em> ({@code *.backend}) stays a process-global {@code -D} flag — it chooses
@@ -27,8 +27,8 @@ import java.nio.file.Path;
  */
 final class ServiceStores {
 
-    // Log under SourceService's category so existing log configuration/filtering is unaffected.
-    private static final Logger log = LoggerFactory.getLogger(SourceService.class);
+    // Log under CollectorService's category so existing log configuration/filtering is unaffected.
+    private static final Logger log = LoggerFactory.getLogger(CollectorService.class);
 
     private ServiceStores() {}
 

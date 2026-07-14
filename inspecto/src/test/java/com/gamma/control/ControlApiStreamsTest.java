@@ -3,7 +3,7 @@ package com.gamma.control;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -25,7 +25,7 @@ class ControlApiStreamsTest {
     @Test
     void listsSourcesAsCatalogStreams(@TempDir Path cfg) throws Exception {
         Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
-        SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+        CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
         ControlApi api = new ControlApi(svc, 0);
         api.start();
         try {
@@ -36,10 +36,10 @@ class ControlApiStreamsTest {
             JsonNode data = JSON.readTree(r.body()).get("data");
             assertEquals(1, data.size(), "one pipeline → one stream node");
             JsonNode stream = data.get(0);
-            assertEquals("SOURCE", stream.get("kind").asText());
+            assertEquals("STREAM", stream.get("kind").asText());
             assertEquals(stream.get("id").asText(), stream.get("label").asText());
             assertEquals("local", stream.get("attrs").get("connector").asText());
-            assertTrue(stream.get("description").get("text").asText().contains("source feeding"),
+            assertTrue(stream.get("description").get("text").asText().contains("collector feeding"),
                     stream.toString());
         } finally {
             api.close();

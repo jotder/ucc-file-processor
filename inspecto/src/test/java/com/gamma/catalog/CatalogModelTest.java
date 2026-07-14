@@ -16,7 +16,7 @@ class CatalogModelTest {
 
     @Test
     void idSchemeFormatsEachKind() {
-        assertEquals("source:voucher", IdScheme.source("voucher"));
+        assertEquals("stream:voucher", IdScheme.stream("voucher"));
         assertEquals("schema:voucher/main", IdScheme.schema("voucher", "main"));
         assertEquals("event:events/CALL", IdScheme.event("events", "CALL"));
         assertEquals("col:events/CALL/duration", IdScheme.column("events", "CALL", "duration"));
@@ -103,7 +103,7 @@ class CatalogModelTest {
     @Test
     void recordsAreDefensivelyCopied() {
         var nodes = new java.util.ArrayList<MetadataNode>();
-        nodes.add(new MetadataNode("source:a", NodeKind.SOURCE, "a", Description.EMPTY, Map.of()));
+        nodes.add(new MetadataNode("stream:a", NodeKind.STREAM, "a", Description.EMPTY, Map.of()));
         var edges = new java.util.ArrayList<MetadataEdge>();
         MetadataGraph g = new MetadataGraph(nodes, edges);
 

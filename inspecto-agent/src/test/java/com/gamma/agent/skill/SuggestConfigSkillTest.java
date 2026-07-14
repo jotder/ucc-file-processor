@@ -15,7 +15,7 @@ import com.gamma.config.safety.SafetyPolicy;
 import com.gamma.config.spec.ConfigSpecs;
 import com.gamma.config.spec.Finding;
 import com.gamma.config.spec.Severity;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -38,7 +38,7 @@ class SuggestConfigSkillTest {
         return new SuggestConfigSkill(SafetyPolicy.withRoots(root));
     }
 
-    private UccAgentContext context(SourceService svc, ModelRouter router) {
+    private UccAgentContext context(CollectorService svc, ModelRouter router) {
         return new UccAgentContext(svc.catalog(), svc.reports(), svc.statusStore(),
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
@@ -59,7 +59,7 @@ class SuggestConfigSkillTest {
     @Test
     void pipelineDraftIsValidatedSafeAndRoundTrips(@TempDir Path root) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(root);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned("""
                     {"fields":[
                        {"name":"processing.threads","value":2,"rationale":"~2 cores","confidence":"high"},
@@ -91,7 +91,7 @@ class SuggestConfigSkillTest {
     @Test
     void unsafePathSuggestionIsRejectedAndRepaired(@TempDir Path root) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(root);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             String safeBackup = root.resolve("backup").toString().replace("\\", "/");
             AtomicInteger round = new AtomicInteger();
             // Round 1 suggests a backup dir OUTSIDE the workspace (the safety gate rejects it);
@@ -112,8 +112,8 @@ class SuggestConfigSkillTest {
     @Test
     void enrichmentDraftGroundsAndCitesKnownTable(@TempDir Path root) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(root);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
-            MetadataNode source = svc.catalog().nodesOfKind(NodeKind.SOURCE).get(0);
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
+            MetadataNode source = svc.catalog().nodesOfKind(NodeKind.STREAM).get(0);
             String tableName = source.label();
             String tableId = source.id();
 
@@ -148,7 +148,7 @@ class SuggestConfigSkillTest {
     @Test
     void missingConfigTypeIsRejectedCleanly(@TempDir Path root) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(root);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned("{\"fields\":[]}"));
             AgentResult res = skill(root).run(
                     new AgentRequest(SuggestConfigSkill.ID, Map.of(), Map.of(), null), context(svc, router));
@@ -160,7 +160,7 @@ class SuggestConfigSkillTest {
     @Test
     void modelUnavailableYieldsUnavailable(@TempDir Path root) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(root);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.down());
             AgentResult res = skill(root).run(pipelineReq(root), context(svc, router));
             assertEquals(AgentResult.Status.UNAVAILABLE, res.status());

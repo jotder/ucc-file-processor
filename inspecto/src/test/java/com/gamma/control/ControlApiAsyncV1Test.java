@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobType;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -35,7 +35,7 @@ class ControlApiAsyncV1Test {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -44,7 +44,7 @@ class ControlApiAsyncV1Test {
         System.setProperty("assist.write.root", writeRoot.toString());
         System.setProperty("jobs.audit.dir", writeRoot.resolve("jobs_audit").toString());
         try {
-            SourceService svc = new SourceService(List.of(pipe), List.of(), jobs, 3600L, 1, null);
+            CollectorService svc = new CollectorService(List.of(pipe), List.of(), jobs, 3600L, 1, null);
             ControlApi api = new ControlApi(svc, 0);
             api.start();
             return new Ctx(svc, api, api.port());
@@ -258,7 +258,7 @@ class ControlApiAsyncV1Test {
     @Test
     void jobLifecycleSignalsLandOnTheLedgerWithTheEnvelope(@TempDir Path cfg, @TempDir Path root) throws Exception {
         // Unique job name → unique runId (= correlationId): EventLog.global() is process-wide and drains
-        // forward across the per-test SourceServices, and runIds are only second-precision + a per-instance
+        // forward across the per-test CollectorServices, and runIds are only second-precision + a per-instance
         // seq, so a shared "hb" name would collide with other tests' hb runs in the same second.
         JobConfig hb = new JobConfig("sigjob", JobType.MAINTENANCE, null, null, true, false, Map.of("task", "heartbeat"));
         try (Ctx c = open(cfg, root, List.of(hb))) {

@@ -28,14 +28,15 @@ import { GraphViewComponent } from './graph-view.component';
 import { NodeDetailDialog } from './node-detail.dialog';
 import { SharingComponent } from './sharing.component';
 
-type CatTab = 'tables' | 'streams' | 'kpis' | 'graph' | 'usage' | 'shared-with-me' | 'shared-by-me';
+type CatTab = 'tables' | 'streams' | 'references' | 'kpis' | 'graph' | 'usage' | 'shared-with-me' | 'shared-by-me';
 
 /**
- * Data catalog — the metadata graph surfaced five ways: a Tables grid (with operational
- * overlay), a **Streams** grid (data origins — Source + Connection, browsed by name), a KPIs
- * grid, a **Lineage** traversal tool (AntV G6), and a **Usage/Reuse** lens (the former standalone
- * Registry page, embedded — Catalog's definition includes "usage"). Any node opens a detail
- * dialog (node + 2-hop neighbours). All read-only (ASSIST_READ scope).
+ * Data catalog — the metadata graph surfaced several ways: a Tables grid (with operational
+ * overlay), a **Streams** grid (event/fact data origins — Collector + Connection, browsed by name), a
+ * **References** grid (dimension data origins — REFERENCE_DATASET, browsed by name), a KPIs grid, a
+ * **Lineage** traversal tool (AntV G6), and a **Usage/Reuse** lens (the former standalone Registry
+ * page, embedded — Catalog's definition includes "usage"). Any node opens a detail dialog (node +
+ * 2-hop neighbours). All read-only (ASSIST_READ scope).
  */
 @Component({
     standalone: true,
@@ -66,6 +67,7 @@ export class CatalogComponent implements OnInit {
     readonly tabs: { id: CatTab; label: string }[] = [
         { id: 'tables', label: 'Tables' },
         { id: 'streams', label: 'Streams' },
+        { id: 'references', label: 'References' },
         { id: 'kpis', label: 'KPIs' },
         { id: 'graph', label: 'Lineage' },
         { id: 'usage', label: 'Usage' },
@@ -84,6 +86,7 @@ export class CatalogComponent implements OnInit {
     loading = false;
     nodes: MetadataNode[] = [];
     streams: MetadataNode[] = [];
+    references: MetadataNode[] = [];
     kpis: KpiCatalogEntry[] = [];
 
     // graph traversal
@@ -121,6 +124,14 @@ export class CatalogComponent implements OnInit {
         { field: 'description.text', headerName: 'Description', flex: 2 },
     ];
 
+    readonly referenceColumns: ColDef[] = [
+        { field: 'label', headerName: 'Reference', flex: 1 },
+        { field: 'attrs.connector', headerName: 'Connector', width: 130 },
+        { field: 'attrs.connection', headerName: 'Connection', flex: 1, valueFormatter: (p) => p.value ?? '—' },
+        { field: 'attrs.pipeline', headerName: 'Pipeline', flex: 1 },
+        { field: 'description.text', headerName: 'Description', flex: 2 },
+    ];
+
     readonly kpiColumns: ColDef[] = [
         { field: 'id', headerName: 'Id', width: 170 },
         { field: 'name', headerName: 'Name', flex: 1 },
@@ -146,6 +157,12 @@ export class CatalogComponent implements OnInit {
             this.api.streams().subscribe({
                 next: (s) => { this.streams = s; this.loading = false; },
                 error: () => { this.streams = []; this.loading = false; },
+            });
+        } else if (this.activeTab === 'references') {
+            this.loading = true;
+            this.api.references().subscribe({
+                next: (r) => { this.references = r; this.loading = false; },
+                error: () => { this.references = []; this.loading = false; },
             });
         } else if (this.activeTab === 'kpis') {
             this.loading = true;

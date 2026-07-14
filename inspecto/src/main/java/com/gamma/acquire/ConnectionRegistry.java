@@ -12,16 +12,16 @@ import com.gamma.event.EventLog;
  * / {@link AcquisitionLedgers#shared()}.
  *
  * <p><b>Why this exists.</b> Connection profiles are authored as {@code *_connection.toon} and loaded into the
- * {@code SourceService} instance registry. But the poll cycle that actually builds a connector
- * ({@link SourceConnectors#forConfig}) runs on the <em>static</em> {@code SourceProcessor} path, which has no
- * handle to the service. A remote {@link SourceConnectorFactory} needs the resolved profile (host / port /
+ * {@code CollectorService} instance registry. But the poll cycle that actually builds a connector
+ * ({@link CollectorConnectors#forConfig}) runs on the <em>static</em> {@code CollectorProcessor} path, which has no
+ * handle to the service. A remote {@link CollectorConnectorFactory} needs the resolved profile (host / port /
  * credentials / base path) for the {@code source.connection: <id>} its pipeline binds to. This shared registry
  * is the bridge: the service publishes each loaded profile here, and {@code forConfig} resolves the binding by
  * id and hands the profile to the factory.
  *
  * <p><b>Per-space isolation.</b> The one process hosts many isolated spaces, so profiles are namespaced by
  * {@link EventLog#currentSpaceId()} (same routing as the per-space {@code EventLog} and {@code MetricRegistry}
- * label). The write path ({@code SourceService.registerConnection}) sets the MDC to the service's own space; the
+ * label). The write path ({@code CollectorService.registerConnection}) sets the MDC to the service's own space; the
  * read path ({@code forConfig} on the poll thread) inherits the space the poll cycle runs under. With no space
  * MDC set — single-space and every existing test — everything resolves to the default-space namespace, identical
  * to the flat registry it replaces.

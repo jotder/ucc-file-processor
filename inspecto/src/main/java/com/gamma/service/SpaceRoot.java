@@ -16,7 +16,7 @@ import java.nio.file.Path;
  * <ul>
  *   <li>{@link #legacy()} — the pre-spaces layout: flat files in the working directory under their
  *       historical names, honouring every existing {@code -D} flag. This is the default for the
- *       long-standing single-tenant {@link SourceService} constructors, so their behaviour is unchanged.</li>
+ *       long-standing single-tenant {@link CollectorService} constructors, so their behaviour is unchanged.</li>
  *   <li>{@link #under(Path)} — a self-contained space directory
  *       {@code <base>/{config,data,audit,duckdb}} (authored flows under {@code config/flows/}).</li>
  * </ul>

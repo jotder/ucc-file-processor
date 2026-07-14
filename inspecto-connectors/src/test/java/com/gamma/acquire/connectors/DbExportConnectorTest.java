@@ -7,7 +7,7 @@ import com.gamma.acquire.ConnectionRegistry;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.InMemoryAcquisitionLedger;
 import com.gamma.acquire.RemoteFile;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -54,7 +54,7 @@ class DbExportConnectorTest {
         }
     }
 
-    private static RemoteFile only(SourceConnector c) throws Exception {
+    private static RemoteFile only(CollectorConnector c) throws Exception {
         return c.discover(new DiscoveryContext(List.of(), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
     }
 
@@ -66,7 +66,7 @@ class DbExportConnectorTest {
             """);
         ConnectionProfile p = profile("t", url, "SELECT * FROM cdr ORDER BY ID", "cdr.csv");
 
-        try (SourceConnector c = new DbExportConnector(p)) {
+        try (CollectorConnector c = new DbExportConnector(p)) {
             List<RemoteFile> found = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED));
             assertEquals(1, found.size());
             assertEquals("cdr.csv", found.get(0).relativePath());
@@ -85,7 +85,7 @@ class DbExportConnectorTest {
     void streamsViaOpen(@TempDir Path dir) throws Exception {
         String url = seedDuckDb(dir, "CREATE TABLE t(a INTEGER); INSERT INTO t VALUES (7);");
         ConnectionProfile p = profile("s", url, "SELECT * FROM t", "t.csv");
-        try (SourceConnector c = new DbExportConnector(p)) {
+        try (CollectorConnector c = new DbExportConnector(p)) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of(), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             try (var in = c.open(rf)) {
                 String csv = new String(in.readAllBytes(), StandardCharsets.UTF_8);
@@ -150,7 +150,7 @@ class DbExportConnectorTest {
         try {
             // Cycle 1: floor (initial 0) ⇒ all three rows; a watermark of 3 is stashed but NOT yet persisted.
             Path dest1 = dir.resolve("out/events_1.csv");
-            try (SourceConnector c = new DbExportConnector(p)) { c.fetchTo(only(c), dest1); }
+            try (CollectorConnector c = new DbExportConnector(p)) { c.fetchTo(only(c), dest1); }
             assertEquals(4, Files.readAllLines(dest1).size(), "header + 3 rows on the first cycle");
             assertTrue(AcquisitionLedgers.shared().dbWatermark("inc-db").isEmpty(),
                     "watermark must NOT advance before the batch commits");
@@ -166,7 +166,7 @@ class DbExportConnectorTest {
 
             // Cycle 2: bound watermark 3 ⇒ only rows 4 and 5.
             Path dest2 = dir.resolve("out/events_2.csv");
-            try (SourceConnector c = new DbExportConnector(p)) { c.fetchTo(only(c), dest2); }
+            try (CollectorConnector c = new DbExportConnector(p)) { c.fetchTo(only(c), dest2); }
             List<String> lines2 = Files.readAllLines(dest2, StandardCharsets.UTF_8);
             assertEquals(3, lines2.size(), "header + 2 new rows");
             assertEquals("\"4\",\"d\",\"4\"", lines2.get(1));
@@ -177,7 +177,7 @@ class DbExportConnectorTest {
 
             // Cycle 3: nothing newer than 5 ⇒ header only, and nothing stashed (frontier stays at 5).
             Path dest3 = dir.resolve("out/events_3.csv");
-            try (SourceConnector c = new DbExportConnector(p)) { c.fetchTo(only(c), dest3); }
+            try (CollectorConnector c = new DbExportConnector(p)) { c.fetchTo(only(c), dest3); }
             assertEquals(1, Files.readAllLines(dest3).size(), "header only — no rows past the frontier");
             assertTrue(AcquisitionLedgers.takeDbWatermark(dest3).isEmpty(), "empty result ⇒ nothing stashed");
             assertEquals("5", AcquisitionLedgers.shared().dbWatermark("inc-db").orElseThrow(), "frontier unchanged");
@@ -196,7 +196,7 @@ class DbExportConnectorTest {
         ConnectionRegistry.register(p);
         try {
             com.gamma.etl.PipelineConfig cfg = com.gamma.etl.PipelineConfig.load(writeDbPipeline(dir).toString());
-            com.gamma.inspector.SourceProcessor.run(cfg);
+            com.gamma.inspector.CollectorProcessor.run(cfg);
             try (var w = Files.walk(Path.of(cfg.dirs().database()))) {
                 assertTrue(w.anyMatch(f -> f.getFileName().toString().endsWith("_out.csv")),
                         "the DB export was ingested to an output file");
@@ -238,7 +238,7 @@ class DbExportConnectorTest {
               markers: %s/markers
               status_dir: %s/status
               log_dir: %s/logs
-            source:
+            collector:
               connector: db
               connection: test-db
             output:

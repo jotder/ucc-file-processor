@@ -76,7 +76,7 @@ class DataSourceBundleResolverTest {
     private static String pipeline(String name, Path schemaFile, String connectionId, Path dataRoot) {
         String fwd = dataRoot.toString().replace("\\", "/");
         String source = connectionId == null ? "" : """
-                source:
+                collector:
                   connection: %s
                 """.formatted(connectionId);
         return """

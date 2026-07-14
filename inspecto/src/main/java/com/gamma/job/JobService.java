@@ -115,7 +115,7 @@ public final class JobService implements AutoCloseable {
     private final RunArtifactStore runArtifactStore;
     /** Cap on Run Log entries per run (overflow summarized) — {@code -Djobs.runlog.maxEntries}, default 10 000. */
     private final int runLogMax = Integer.getInteger("jobs.runlog.maxEntries", 10_000);
-    /** This space's event ledger — the on-signal Trigger source (P1c). Set by the host ({@code SourceService});
+    /** This space's event ledger — the on-signal Trigger source (P1c). Set by the host ({@code CollectorService});
      *  {@code null} (e.g. the bare-{@code JobService} test constructors) disables on-signal dispatch. */
     private volatile EventLog eventLog;
     /** One coalescer per on-signal Job, so a burst of matching signals folds into one follow-up Run (§8.4). */
@@ -672,7 +672,7 @@ public final class JobService implements AutoCloseable {
      * Mark a {@link JobType#PIPELINE} job's flow as running for the deletion fence (T32) and return its flow id;
      * {@code null} for a non-flow job. The id is the authored-flow graph name (the job's {@code flow} param),
      * so it matches the flow names {@link DeletionFence#check} derives from the authored flows the live
-     * {@code SourceService} feeds it — a delete racing this flow's store then surfaces as a conflict.
+     * {@code CollectorService} feeds it — a delete racing this flow's store then surfaces as a conflict.
      */
     private String trackFlowStart(Job job, String name) {
         if (!"pipeline".equals(job.type())) return null;
@@ -687,7 +687,7 @@ public final class JobService implements AutoCloseable {
     }
 
     /**
-     * Flow ids of {@link JobType#PIPELINE} jobs currently in flight. The live {@code SourceService} unions this
+     * Flow ids of {@link JobType#PIPELINE} jobs currently in flight. The live {@code CollectorService} unions this
      * into the deletion fence's running-set (T32) so deleting a store an active flow job reads/writes is
      * flagged as a {@code STORE_DELETE_CONFLICT}, just as for a running pipeline.
      */

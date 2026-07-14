@@ -15,8 +15,8 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Verifies SourceService owns and wires the metadata catalog end-to-end (P5). */
-class SourceServiceCatalogTest {
+/** Verifies CollectorService owns and wires the metadata catalog end-to-end (P5). */
+class CollectorServiceCatalogTest {
 
     private static SemanticModel semantics() {
         var kpi = new SemanticModel.KpiMeta("daily", "Daily count", "day", List.of("mini_etl/mini"), List.of());
@@ -27,20 +27,20 @@ class SourceServiceCatalogTest {
     @Test
     void catalogIsBuiltFromRegistryAndSemantics(@TempDir Path dir) throws Exception {
         Path pipe = PipelineConfigBatchTest.writePipeline(dir, "");
-        try (SourceService svc = new SourceService(List.of(pipe), List.of(), List.of(),
+        try (CollectorService svc = new CollectorService(List.of(pipe), List.of(), List.of(),
                 List.of(semantics()), 60, 1, null)) {
             MetadataGraphService catalog = svc.catalog();
             assertNotNull(catalog);
 
             // structural graph derived from the registered pipeline + the semantic model
-            assertNotNull(catalog.node("source:mini_etl"));
+            assertNotNull(catalog.node("stream:mini_etl"));
             assertNotNull(catalog.node("event:mini_etl/mini"));
             assertNotNull(catalog.node("kpi:daily"));
             assertEquals(1, catalog.nodesOfKind(NodeKind.TABLE).size());
 
             // KPI bare-ref resolved down to the event table
             assertTrue(catalog.traverse("kpi:daily", 5, MetadataGraphService.Direction.BOTH, null, null, false)
-                    .nodes().stream().anyMatch(n -> n.id().equals("source:mini_etl")));
+                    .nodes().stream().anyMatch(n -> n.id().equals("stream:mini_etl")));
 
             // overlay wired: no data committed yet -> NO_DATA (not a crash)
             assertEquals("NO_DATA", catalog.hydrated("event:mini_etl/mini").overlay().latestStatus());

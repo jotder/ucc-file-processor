@@ -3,7 +3,7 @@ package com.gamma.control;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -47,7 +47,7 @@ class ControlApiAuthV1Test {
         Authenticators.forTest(null);
     }
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -55,7 +55,7 @@ class ControlApiAuthV1Test {
         Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
         System.setProperty("assist.write.root", writeRoot.toString());
         try {
-            SourceService svc = new SourceService(List.of(pipe), List.of(), List.of(), 3600L, 1, null);
+            CollectorService svc = new CollectorService(List.of(pipe), List.of(), List.of(), 3600L, 1, null);
             ControlApi api = new ControlApi(svc, 0);
             api.start();
             return new Ctx(svc, api, api.port());

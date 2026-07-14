@@ -20,7 +20,7 @@ import java.nio.file.*;
  * placed in {@code dirs.errors}) is relocated alongside the bad file so the
  * rejection evidence stays co-located.
  *
- * <p>Extracted from {@link com.gamma.inspector.SourceProcessor}.
+ * <p>Extracted from {@link com.gamma.inspector.CollectorProcessor}.
  */
 public final class QuarantineManager {
 

@@ -21,7 +21,7 @@ final class InspectoKnowledgeSources {
     private InspectoKnowledgeSources() {
     }
 
-    static List<KnowledgeSource> sources() {
+    static List<KnowledgeSource> collectors() {
         return List.of(new GlossarySource());
     }
 

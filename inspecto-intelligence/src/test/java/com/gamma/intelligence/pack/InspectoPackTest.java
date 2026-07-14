@@ -9,7 +9,7 @@ import com.eoiagent.core.GoalKind;
 import com.eoiagent.core.Role;
 import com.eoiagent.knowledge.DocumentSource;
 import com.eoiagent.tool.Tool;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Shape checks for {@link InspectoPack} (AGT-5 P0) — mirrors eoiagent's own ReferenceApplicationPackTest. */
 class InspectoPackTest {
 
-    private final ApplicationPack pack = new InspectoPack(new SourceService(List.of(), 3600, 1));
+    private final ApplicationPack pack = new InspectoPack(new CollectorService(List.of(), 3600, 1));
 
     @Test
     void metadataIdentifiesInspecto() {

@@ -7,7 +7,7 @@ import com.gamma.assist.Diagnosis;
 import com.gamma.catalog.MetadataNode;
 import com.gamma.catalog.NodeKind;
 import com.gamma.etl.BatchEvent;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -33,11 +33,11 @@ class ModelDiagnoserTest {
     @Test
     void modelDownReturnsHeuristicOnly(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.down());
             ModelDiagnoser diag = new ModelDiagnoser(router, svc.catalog(), () -> EPOCH);
 
-            Diagnosis d = diag.diagnose(failed(svc.catalog().nodesOfKind(NodeKind.SOURCE).get(0).label()));
+            Diagnosis d = diag.diagnose(failed(svc.catalog().nodesOfKind(NodeKind.STREAM).get(0).label()));
             assertTrue(d.heuristicOnly(), "no model contributed");
             assertEquals(Diagnosis.Severity.CRITICAL, d.severity(), "FAILED w/ no output");
             assertTrue(d.rootCause().toLowerCase().contains("schema/selector mismatch"));
@@ -48,8 +48,8 @@ class ModelDiagnoserTest {
     @Test
     void modelAvailableEnrichesProseAndGroundsPipeline(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
-            MetadataNode source = svc.catalog().nodesOfKind(NodeKind.SOURCE).get(0);
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
+            MetadataNode source = svc.catalog().nodesOfKind(NodeKind.STREAM).get(0);
             String pipeName = source.label();
             String pipeId = source.id();
 
@@ -71,7 +71,7 @@ class ModelDiagnoserTest {
     @Test
     void modelThrowingFallsBackToHeuristic(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             // Available-but-broken model (network flake, provider 500): the deterministic
             // heuristic diagnosis must still be recorded, flagged heuristicOnly (B3 gap test, v4.1).
             ModelRouter router = ModelRouter.of(FakeModelProvider.responding(r -> {
@@ -79,7 +79,7 @@ class ModelDiagnoserTest {
             }));
             ModelDiagnoser diag = new ModelDiagnoser(router, svc.catalog(), () -> EPOCH);
 
-            Diagnosis d = diag.diagnose(failed(svc.catalog().nodesOfKind(NodeKind.SOURCE).get(0).label()));
+            Diagnosis d = diag.diagnose(failed(svc.catalog().nodesOfKind(NodeKind.STREAM).get(0).label()));
             assertTrue(d.heuristicOnly(), "model failure must degrade to the heuristic");
             assertEquals(Diagnosis.Severity.CRITICAL, d.severity());
             assertTrue(d.rootCause().toLowerCase().contains("schema/selector mismatch"));

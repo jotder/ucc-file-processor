@@ -19,7 +19,7 @@ import java.util.Set;
  * node, via an injected {@link OverlaySource} that reuses the existing audit reads.
  *
  * <p>The relationship spine the user cares about is explicit in the edges:
- * {@code SOURCE -EMITS-> TABLE}, {@code SOURCE -DECLARES-> RAW_SCHEMA -DESCRIBES-> COLUMN},
+ * {@code STREAM -EMITS-> TABLE}, {@code STREAM -DECLARES-> RAW_SCHEMA -DESCRIBES-> COLUMN},
  * {@code RAW_SCHEMA -MATERIALIZES-> TABLE -FEEDS-> DERIVED_TABLE}, references
  * {@code -JOINS_INTO->} transforms, and {@code KPI -COMPUTED_FROM-> table/column},
  * {@code REPORT -CONSUMES-> kpi/table} — so a consumer can walk from a KPI all the way down to the

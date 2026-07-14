@@ -8,7 +8,7 @@ import com.gamma.agent.kernel.retrieve.DocRetriever;
 import com.gamma.agent.kernel.agent.AgentRequest;
 import com.gamma.agent.kernel.agent.AgentResult;
 import com.gamma.etl.PipelineConfig;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import com.gamma.service.StatusStore;
 import com.gamma.sql.SqlSandboxPolicy;
 import org.junit.jupiter.api.Test;
@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Golden tests for {@code report-sql} (M8), CPU-only via a {@link FakeModelProvider} and a temp-rooted
- * {@link SqlSandboxPolicy}. The pipeline is resolved through a real {@link SourceService}'s read-only
+ * {@link SqlSandboxPolicy}. The pipeline is resolved through a real {@link CollectorService}'s read-only
  * {@code configSource()}; the operational rows come from a stub {@link StatusStore} so the test controls
  * the data. The milestone's point is proven: a model-suggested file-reading query is rejected by the
  * sandbox and repaired — never surfaced; a clean draft is draft-only with authoritative columns.
@@ -67,7 +67,7 @@ class ReportSqlSkillTest {
         };
     }
 
-    private UccAgentContext ctx(SourceService svc, StatusStore store, ModelRouter router) {
+    private UccAgentContext ctx(CollectorService svc, StatusStore store, ModelRouter router) {
         return new UccAgentContext(svc.catalog(), svc.reports(), store,
                 new DocRetriever(Map.of()), router, svc.configSource());
     }
@@ -84,7 +84,7 @@ class ReportSqlSkillTest {
     @Test
     void validQuestionProducesDraftWithAuthoritativeColumns(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AgentResult res = skill.run(ask("MINI_ETL", "how many batches per status?", false),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.canned(GOOD))));
 
@@ -103,7 +103,7 @@ class ReportSqlSkillTest {
     @Test
     void sampleRowsReturnedOnlyWhenRequested(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AgentResult res = skill.run(ask("MINI_ETL", "batches per status", true),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.canned(GOOD))));
 
@@ -116,7 +116,7 @@ class ReportSqlSkillTest {
     @Test
     void fileReadingQueryIsRepairedNotSurfaced(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AtomicInteger round = new AtomicInteger();
             ModelRouter router = ModelRouter.of(FakeModelProvider.responding((ModelRequest r) ->
                     round.incrementAndGet() == 1
@@ -135,7 +135,7 @@ class ReportSqlSkillTest {
     @Test
     void persistentlyUnsafeModelFailsGracefully(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             ModelRouter router = ModelRouter.of(FakeModelProvider.canned(
                     "{\"sql\":\"SELECT * FROM read_csv('/etc/passwd')\"}"));
             AgentResult res = skill.run(ask("MINI_ETL", "x", false), ctx(svc, store(twoBatches()), router));
@@ -149,7 +149,7 @@ class ReportSqlSkillTest {
     @Test
     void unknownPipelineIsGrounded(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AgentResult res = skill.run(ask("NOPE", "how many batches", false),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.canned(GOOD))));
             assertEquals(AgentResult.Status.UNAVAILABLE, res.status(),
@@ -160,7 +160,7 @@ class ReportSqlSkillTest {
     @Test
     void noPipelineOrJobIsGraceful(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AgentResult res = skill.run(ask(null, "how many batches", false),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.canned(GOOD))));
             assertEquals(AgentResult.Status.UNAVAILABLE, res.status());
@@ -170,7 +170,7 @@ class ReportSqlSkillTest {
     @Test
     void modelUnavailableIsGraceful(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             AgentResult res = skill.run(ask("MINI_ETL", "how many batches", false),
                     ctx(svc, store(twoBatches()), ModelRouter.of(FakeModelProvider.down())));
             assertEquals(AgentResult.Status.UNAVAILABLE, res.status());

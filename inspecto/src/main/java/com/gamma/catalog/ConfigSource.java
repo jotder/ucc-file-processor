@@ -9,7 +9,7 @@ import java.util.List;
  * Supplies the configuration the metadata graph is assembled from. This is the seam that lets
  * {@link MetadataGraphService} stay independent of <em>how</em> configs are obtained.
  *
- * <p>Today {@code SourceService} implements this by reloading its configured paths; when the M1
+ * <p>Today {@code CollectorService} implements this by reloading its configured paths; when the M1
  * {@code ConfigRegistry} (O(1), watch/reload) lands it will implement the same interface and the
  * service's constructor argument swaps with no change to {@code MetadataGraphService}.
  */

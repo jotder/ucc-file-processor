@@ -5,17 +5,17 @@ import { Observable, of, throwError } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
-import { AcquisitionMetrics, AcquisitionMetricsService, RunsService, SourceView, SourcesService } from 'app/inspecto/api';
+import { AcquisitionMetrics, AcquisitionMetricsService, RunsService, CollectorView, CollectorsService } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoGridThemeService } from 'app/inspecto/grid';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
-import { SourcesComponent } from './sources.component';
+import { CollectorsComponent } from './collectors.component';
 
-const SOURCE = {
+const COLLECTOR = {
     pipeline: 'cdr_ingest', id: 'sftp_in', connector: 'sftp', connection: 'sftp_edge',
     duplicateMode: 'CONTENT_HASH', incrementalWatermark: 'mtime', dbWatermarkCurrent: null,
     fetchParallel: 4, guarantee: 'AT_LEAST_ONCE', includes: [], excludes: [],
-} as unknown as SourceView;
+} as unknown as CollectorView;
 
 const metric = (v: number) => ({ series: [{ value: v }] });
 const METRICS = {
@@ -30,15 +30,15 @@ const METRICS = {
 let toastr: { success: ReturnType<typeof vi.fn>; warning: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
 function create(
-    list: Observable<SourceView[]> = of([SOURCE]),
+    list: Observable<CollectorView[]> = of([COLLECTOR]),
     metrics: Observable<AcquisitionMetrics> = of(METRICS),
 ) {
     toastr = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
     TestBed.configureTestingModule({
-        imports: [SourcesComponent],
+        imports: [CollectorsComponent],
         providers: [
             provideNoopAnimations(),
-            { provide: SourcesService, useValue: { list: () => list } },
+            { provide: CollectorsService, useValue: { list: () => list } },
             { provide: AcquisitionMetricsService, useValue: { get: () => metrics } },
             { provide: RunsService, useValue: { trigger: () => of({ runId: 'run-1' }) } },
             { provide: MatDialog, useValue: {} },
@@ -48,12 +48,12 @@ function create(
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
         ],
     });
-    const fixture = TestBed.createComponent(SourcesComponent);
+    const fixture = TestBed.createComponent(CollectorsComponent);
     fixture.detectChanges();   // runs ngOnInit (list + metrics load)
     return fixture;
 }
 
-describe('SourcesComponent', () => {
+describe('CollectorsComponent', () => {
     it('builds the acquisition metric cards and the discovered/downloaded/failed chart', () => {
         const c = create().componentInstance;
         expect(c.cards.length).toBe(6);
@@ -61,10 +61,10 @@ describe('SourcesComponent', () => {
         expect(c.discoveredData?.datasets[0].data).toEqual([100, 90, 2]);
     });
 
-    it('flags unavailable when the sources endpoint 404s', () => {
+    it('flags unavailable when the collectors endpoint 404s', () => {
         const c = create(throwError(() => ({ status: 404 }))).componentInstance;
         expect(c.unavailable).toBe(true);
-        expect(c.sources.length).toBe(0);
+        expect(c.collectors.length).toBe(0);
     });
 
     it('renders with no a11y violations', async () => {
@@ -74,7 +74,7 @@ describe('SourcesComponent', () => {
 
     it('trigger toasts that the run started (v1 async contract)', async () => {
         const fixture = create();
-        await fixture.componentInstance.trigger(SOURCE);
+        await fixture.componentInstance.trigger(COLLECTOR);
         expect(toastr.success).toHaveBeenCalledWith('Pipeline "cdr_ingest" run started.');
         expect(toastr.warning).not.toHaveBeenCalled();
     });

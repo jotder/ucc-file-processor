@@ -31,7 +31,7 @@ const node = (over: Partial<PipelineNode>): PipelineNode =>
 
 describe('categoryVisualKind', () => {
     it('maps flow categories onto catalog node kinds for shape/colour reuse', () => {
-        expect(categoryVisualKind('SOURCE')).toBe('SOURCE');
+        expect(categoryVisualKind('SOURCE')).toBe('STREAM');
         expect(categoryVisualKind('PARSE')).toBe('SCHEMA');
         expect(categoryVisualKind('TRANSFORM')).toBe('ENRICHMENT');
         expect(categoryVisualKind('SINK')).toBe('TABLE');
@@ -67,7 +67,7 @@ describe('toPipelineG6Data', () => {
 
     it('maps nodes with the display label + visual kind', () => {
         const { nodes } = toPipelineG6Data(graph);
-        expect(nodes[0]).toEqual({ id: 'acq', data: { label: 'Acquisition', kind: 'SOURCE' } });
+        expect(nodes[0]).toEqual({ id: 'acq', data: { label: 'Acquisition', kind: 'STREAM' } });
         expect(nodes[1].data).toEqual({ label: 'orders', kind: 'TABLE' });   // user name + SINK→TABLE
     });
 
@@ -105,7 +105,7 @@ describe('toCombinedG6Data', () => {
 
     it('maps namespaced flow nodes plus the synthetic store node (as a TABLE)', () => {
         const { nodes } = toCombinedG6Data(combined);
-        expect(nodes.find((n) => n.id === 'orders_etl/acq')?.data.kind).toBe('SOURCE');
+        expect(nodes.find((n) => n.id === 'orders_etl/acq')?.data.kind).toBe('STREAM');
         const store = nodes.find((n) => n.id === 'store:orders');
         expect(store?.data).toEqual({ label: 'orders', kind: 'TABLE' });
     });

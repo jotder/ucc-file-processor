@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Wires observability (M4) onto a running {@link SourceService}: it subscribes to the
+ * Wires observability (M4) onto a running {@link CollectorService}: it subscribes to the
  * batch-commit {@link BatchEventBus} to record throughput / latency / error metrics,
  * registers scrape-time gauge collectors (inbox lag, committed batches, quarantine
  * depth), and emits one structured JSON event log per batch (correlated by
@@ -30,10 +30,10 @@ public final class MetricsService {
     /** Dedicated logger for machine-readable batch events; route/ship separately if desired. */
     private static final Logger events = LoggerFactory.getLogger("inspecto.events");
 
-    private final SourceService svc;
+    private final CollectorService svc;
     private final MetricRegistry reg;
 
-    public MetricsService(SourceService svc, MetricRegistry reg) {
+    public MetricsService(CollectorService svc, MetricRegistry reg) {
         this.svc = svc;
         this.reg = reg;
     }
@@ -69,7 +69,7 @@ public final class MetricsService {
     // ── scrape-time gauges (computed lazily on /metrics) ─────────────────────────
 
     private void collectGauges() {
-        for (SourceService.PipelineView pv : svc.pipelines()) {
+        for (CollectorService.PipelineView pv : svc.pipelines()) {
             PipelineConfig cfg;
             try {
                 cfg = svc.configFor(pv.name()).orElse(null);

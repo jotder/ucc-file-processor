@@ -20,7 +20,7 @@ import java.util.UUID;
  *   <li>{@link #level()} — severity ({@link EventLevel}); drives "everything except DEBUG" capture
  *       and {@link EventQuery} severity filtering.</li>
  *   <li>{@link #type()} — a {@link EventType} constant or any custom string (extensible).</li>
- *   <li>{@link #source()} — origin component (logger/class name, e.g. {@code com.gamma.service.SourceService}).</li>
+ *   <li>{@link #source()} — origin component (logger/class name, e.g. {@code com.gamma.service.CollectorService}).</li>
  *   <li>{@link #pipeline()} — owning pipeline name, or {@code null} (service-wide).</li>
  *   <li>{@link #correlationId()} — batch/run id tying related events together, or {@code null}.</li>
  *   <li>{@link #message()} — human-readable summary (never row content).</li>

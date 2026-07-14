@@ -3,7 +3,7 @@ package com.gamma.acquire.connectors;
 import com.gamma.acquire.ConnectionProfile;
 import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.RemoteFile;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import org.apache.ftpserver.FtpServer;
 import org.apache.ftpserver.FtpServerFactory;
 import org.apache.ftpserver.ftplet.UserManager;
@@ -94,7 +94,7 @@ class FtpTunnelConnectorTest {
     @Test
     void discoversAndFetchesThroughTheBastion(@TempDir Path out) throws Exception {
         Files.writeString(serverRoot.resolve("via_bastion.csv"), "ID,AMT\n1,2\n");
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             List<RemoteFile> found = c.discover(
                     new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED));
             assertEquals(List.of("via_bastion.csv"), found.stream().map(RemoteFile::relativePath).toList(),

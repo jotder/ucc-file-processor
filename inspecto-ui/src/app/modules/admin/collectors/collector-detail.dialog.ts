@@ -4,15 +4,15 @@ import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { InboxStatus, RunsService, SourceView } from 'app/inspecto/api';
+import { InboxStatus, RunsService, CollectorView } from 'app/inspecto/api';
 
 /**
- * Source detail dialog — the full `/sources` config for one source, a link to its bound connection
- * profile, the current DB watermark slice and the live inbox status (pending count + running) from
- * GET /runs/{name}/pending.
+ * Collector detail dialog — the full `/collectors` config for one collector, a link to its bound
+ * connection profile, the current DB watermark slice and the live inbox status (pending count +
+ * running) from GET /runs/{name}/pending.
  */
 @Component({
-    selector: 'app-source-detail-dialog',
+    selector: 'app-collector-detail-dialog',
     standalone: true,
     imports: [RouterLink, MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
     template: `
@@ -104,10 +104,10 @@ import { InboxStatus, RunsService, SourceView } from 'app/inspecto/api';
         </mat-dialog-actions>
     `,
 })
-export class SourceDetailDialog implements OnInit {
-    readonly data = inject<SourceView>(MAT_DIALOG_DATA);
+export class CollectorDetailDialog implements OnInit {
+    readonly data = inject<CollectorView>(MAT_DIALOG_DATA);
     private runs = inject(RunsService);
-    private ref = inject(MatDialogRef<SourceDetailDialog>);
+    private ref = inject(MatDialogRef<CollectorDetailDialog>);
 
     status: InboxStatus | null = null;
     statusLoading = true;

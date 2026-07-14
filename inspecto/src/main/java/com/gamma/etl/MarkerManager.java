@@ -19,7 +19,7 @@ import java.util.stream.Stream;
  *
  * <p>All methods are stateless — they read configuration from the supplied
  * {@link PipelineConfig} on each call.  Extracted from
- * {@link com.gamma.inspector.SourceProcessor} where marker logic was spread
+ * {@link com.gamma.inspector.CollectorProcessor} where marker logic was spread
  * across four private static methods.
  */
 public final class MarkerManager {

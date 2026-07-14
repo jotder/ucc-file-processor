@@ -5,7 +5,7 @@ import com.gamma.intelligence.AgentAskRequest;
 import com.gamma.intelligence.AgentAskResult;
 import com.gamma.intelligence.AgentSessionRequest;
 import com.gamma.intelligence.AgentSessionResult;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 
 /**
  * Service-provider interface for the optional embedded-intelligence agent (AGT-5, P0). Successor
@@ -16,13 +16,13 @@ import com.gamma.service.SourceService;
  * <p>The implementation lives in the separate {@code file-processor-intelligence} module so the
  * core fat-JAR stays dependency-lean. When that module — and a provider declared via
  * {@code META-INF/services/com.gamma.intelligence.spi.IntelligenceAgent} — is on the classpath,
- * {@link SourceService} discovers it with {@link java.util.ServiceLoader} at startup. A provider
- * can also be supplied explicitly via {@link SourceService#registerIntelligenceAgent} (used by
+ * {@link CollectorService} discovers it with {@link java.util.ServiceLoader} at startup. A provider
+ * can also be supplied explicitly via {@link CollectorService#registerIntelligenceAgent} (used by
  * tests).
  *
  * <h3>Lifecycle</h3>
  * <ol>
- *   <li>{@link #init(SourceService)} — called once, before {@link SourceService#start()}.</li>
+ *   <li>{@link #init(CollectorService)} — called once, before {@link CollectorService#start()}.</li>
  *   <li>{@link #start()} — called after the service has started.</li>
  *   <li>{@link #close()} — called on service shutdown.</li>
  * </ol>
@@ -34,12 +34,12 @@ public interface IntelligenceAgent extends AutoCloseable {
 
     /**
      * Wire the agent to the running service. Called exactly once, before
-     * {@link SourceService#start()}. Implementations should capture only what they need and
+     * {@link CollectorService#start()}. Implementations should capture only what they need and
      * return quickly; defer model/platform assembly to {@link #start()}.
      */
-    void init(SourceService service);
+    void init(CollectorService service);
 
-    /** Called after {@link SourceService#start()}. Default no-op. */
+    /** Called after {@link CollectorService#start()}. Default no-op. */
     default void start() {}
 
     /** Open a new session for the caller described by {@code request}. */

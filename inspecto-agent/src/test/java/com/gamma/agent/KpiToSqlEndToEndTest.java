@@ -9,7 +9,7 @@ import com.gamma.agent.kernel.observe.AgentCompleted;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.control.ControlApi;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -46,7 +46,7 @@ class KpiToSqlEndToEndTest {
                     + "\"kpiInterpretation\":\"total number of mini events\","
                     + "\"enrichmentConfigSnippet\":\"SELECT COUNT(*) AS n FROM mini\"}";
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -54,7 +54,7 @@ class KpiToSqlEndToEndTest {
     private Ctx open(Path dir, ModelRouter router) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         seedEventPartition(dir);
-        SourceService svc = new SourceService(List.of(pipe), 60, 1);
+        CollectorService svc = new CollectorService(List.of(pipe), 60, 1);
         svc.registerAgent(new UccAssistAgent(router));
         ControlApi api = new ControlApi(svc, 0);
         api.start();
@@ -116,7 +116,7 @@ class KpiToSqlEndToEndTest {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         seedEventPartition(dir);
         List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
                     ModelRouter.of(FakeModelProvider.canned(GOOD_SQL)), e -> captured.add((AgentCompleted) e));
             agent.init(svc);

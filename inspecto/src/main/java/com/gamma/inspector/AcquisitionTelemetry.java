@@ -11,18 +11,18 @@ import java.util.Map;
 
 /**
  * Observability emitters for the source-acquisition path — the lifecycle {@link Event}s and
- * {@link MetricRegistry} counters/gauges that {@link SourceProcessor} records as it discovers,
+ * {@link MetricRegistry} counters/gauges that {@link CollectorProcessor} records as it discovers,
  * gates, fetches, dedups and finalizes inbox files. Each method is a pure leaf: it only emits an
  * event or bumps a metric (labelled by {@code cfg.identity().pipelineName()}), so it carries no
  * acquisition logic.
  *
- * <p>Lifecycle events keep {@code SourceProcessor}'s class name as their {@code source} so the
- * event stream is byte-identical to before this code moved out of {@code SourceProcessor}.
+ * <p>Lifecycle events keep {@code CollectorProcessor}'s class name as their {@code source} so the
+ * event stream is byte-identical to before this code moved out of {@code CollectorProcessor}.
  */
 final class AcquisitionTelemetry {
 
     /** Event {@code source} identity, preserved as the original emitter's FQN so events are unchanged. */
-    private static final String SOURCE = SourceProcessor.class.getName();
+    private static final String SOURCE = CollectorProcessor.class.getName();
 
     private AcquisitionTelemetry() {}
 
@@ -140,6 +140,6 @@ final class AcquisitionTelemetry {
                 .source(SOURCE)
                 .pipeline(cfg.identity().pipelineName())
                 .message("Source circuit breaker tripped OPEN: " + reason)
-                .attr("source", cfg.source().id()));
+                .attr("source", cfg.collector().id()));
     }
 }

@@ -75,7 +75,7 @@ class MetadataGraphServiceTest {
         MetadataGraphService svc = new MetadataGraphService(fullFixture(dir));
         Set<String> ids = ids(svc.structural().nodes());
 
-        assertTrue(ids.contains("source:mini_etl"), ids.toString());
+        assertTrue(ids.contains("stream:mini_etl"), ids.toString());
         assertTrue(ids.contains("schema:mini_etl/mini"));
         assertTrue(ids.contains("col:mini_etl/mini/ID"));
         assertTrue(ids.contains("col:mini_etl/mini/EVENT_DATE"));
@@ -93,8 +93,8 @@ class MetadataGraphServiceTest {
     void derivesEverySpineEdge(@TempDir Path dir) throws Exception {
         MetadataGraph g = new MetadataGraphService(fullFixture(dir)).structural();
 
-        assertTrue(hasEdge(g, "source:mini_etl", "event:mini_etl/mini", EdgeKind.EMITS));
-        assertTrue(hasEdge(g, "source:mini_etl", "schema:mini_etl/mini", EdgeKind.DECLARES));
+        assertTrue(hasEdge(g, "stream:mini_etl", "event:mini_etl/mini", EdgeKind.EMITS));
+        assertTrue(hasEdge(g, "stream:mini_etl", "schema:mini_etl/mini", EdgeKind.DECLARES));
         assertTrue(hasEdge(g, "schema:mini_etl/mini", "col:mini_etl/mini/ID", EdgeKind.DESCRIBES));
         assertTrue(hasEdge(g, "schema:mini_etl/mini", "event:mini_etl/mini", EdgeKind.MATERIALIZES));
         assertTrue(hasEdge(g, "event:mini_etl/mini", "xform:MINI_DAILY", EdgeKind.FEEDS));
@@ -136,7 +136,7 @@ class MetadataGraphServiceTest {
         MetadataGraph sub = svc.traverse("kpi:daily_count", 6, MetadataGraphService.Direction.BOTH,
                 null, null, false);
         Set<String> ids = ids(sub.nodes());
-        assertTrue(ids.contains("source:mini_etl"), "KPI walks down to the source: " + ids);
+        assertTrue(ids.contains("stream:mini_etl"), "KPI walks down to the source: " + ids);
         assertTrue(ids.contains("col:mini_etl/mini/ID"), "and to its columns: " + ids);
     }
 
@@ -145,7 +145,7 @@ class MetadataGraphServiceTest {
         MetadataGraphService svc = new MetadataGraphService(fullFixture(dir));
 
         // depth 1 OUT from source -> only directly-emitted/declared neighbours
-        MetadataGraph d1 = svc.traverse("source:mini_etl", 1, MetadataGraphService.Direction.OUT,
+        MetadataGraph d1 = svc.traverse("stream:mini_etl", 1, MetadataGraphService.Direction.OUT,
                 null, null, false);
         Set<String> d1ids = ids(d1.nodes());
         assertTrue(d1ids.contains("event:mini_etl/mini"));
@@ -153,7 +153,7 @@ class MetadataGraphServiceTest {
         assertFalse(d1ids.contains("col:mini_etl/mini/ID"), "columns are 2 hops away");
 
         // edgeKinds filter: only EMITS from source -> schema not reached
-        MetadataGraph emitsOnly = svc.traverse("source:mini_etl", 3, MetadataGraphService.Direction.OUT,
+        MetadataGraph emitsOnly = svc.traverse("stream:mini_etl", 3, MetadataGraphService.Direction.OUT,
                 null, EnumSet.of(EdgeKind.EMITS), false);
         assertFalse(ids(emitsOnly.nodes()).contains("schema:mini_etl/mini"));
 

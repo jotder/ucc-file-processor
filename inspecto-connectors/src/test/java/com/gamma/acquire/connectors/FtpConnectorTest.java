@@ -5,7 +5,7 @@ import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.IntegrityChecker;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import org.apache.ftpserver.FtpServer;
 import org.apache.ftpserver.FtpServerFactory;
 import org.apache.ftpserver.ftplet.UserManager;
@@ -70,7 +70,7 @@ class FtpConnectorTest {
         if (server != null) server.stop();
     }
 
-    private SourceConnector connector() {
+    private CollectorConnector connector() {
         ConnectionProfile p = new ConnectionProfile("test-ftp", "ftp", "127.0.0.1", port, null, "",
                 "user", "pw", Map.of(), null);
         return new FtpConnector(p, null);
@@ -83,7 +83,7 @@ class FtpConnectorTest {
         Files.writeString(serverRoot.resolve("sub/b.csv"), "ID,AMT\n3,4\n");
         Files.writeString(serverRoot.resolve("notes.txt"), "ignore");
 
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             List<RemoteFile> found = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED));
             List<String> rels = found.stream().map(RemoteFile::relativePath).sorted().toList();
             assertEquals(List.of("a.csv", "sub/b.csv"), rels);
@@ -96,7 +96,7 @@ class FtpConnectorTest {
         String body = "ID,AMT\n7,42.0\n";
         Files.writeString(serverRoot.resolve("feed.csv"), body);
 
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             Path dest = local.resolve("feed.csv");
             Path got = c.fetchTo(rf, dest);
@@ -109,7 +109,7 @@ class FtpConnectorTest {
     void openStreamsContent() throws Exception {
         String body = "p,q\n1,2\n";
         Files.writeString(serverRoot.resolve("s.csv"), body);
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             try (InputStream in = c.open(rf)) {
                 assertEquals(body, new String(in.readAllBytes(), StandardCharsets.UTF_8));
@@ -122,7 +122,7 @@ class FtpConnectorTest {
     @Test
     void postDeleteRemovesTheSourceFile() throws Exception {
         Files.writeString(serverRoot.resolve("d.csv"), "x\n");
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             c.post(rf, new PostAction(PostAction.Kind.DELETE, null, Map.of()));
             assertFalse(Files.exists(serverRoot.resolve("d.csv")), "DELETE removes the source file");
@@ -132,7 +132,7 @@ class FtpConnectorTest {
     @Test
     void postMoveRelocatesIntoTheArchiveTree() throws Exception {
         Files.writeString(serverRoot.resolve("m.csv"), "y\n");
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             c.post(rf, PostAction.move("archive/2026/06/14"));
             assertFalse(Files.exists(serverRoot.resolve("m.csv")), "moved out of the root");
@@ -143,7 +143,7 @@ class FtpConnectorTest {
     @Test
     void postRenameAddsTheProcessedPrefix() throws Exception {
         Files.writeString(serverRoot.resolve("r.csv"), "z\n");
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             c.post(rf, new PostAction(PostAction.Kind.RENAME, null, Map.of()));
             assertFalse(Files.exists(serverRoot.resolve("r.csv")));

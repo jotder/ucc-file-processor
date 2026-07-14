@@ -6,7 +6,7 @@ import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.pipeline.ComponentStore;
 import com.gamma.pipeline.ViewDefinition;
 import com.gamma.pipeline.ViewStore;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -33,7 +33,7 @@ class ControlApiBiQueryTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port, Path root) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port, Path root) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -41,7 +41,7 @@ class ControlApiBiQueryTest {
         Path pipe = PipelineConfigBatchTest.writePipeline(configDir, "");
         System.setProperty("assist.write.root", writeRoot.toString());
         try {
-            SourceService svc = new SourceService(List.of(pipe), 3600, 1);
+            CollectorService svc = new CollectorService(List.of(pipe), 3600, 1);
             ControlApi api = new ControlApi(svc, 0);
             api.start();
             return new Ctx(svc, api, api.port(), writeRoot);

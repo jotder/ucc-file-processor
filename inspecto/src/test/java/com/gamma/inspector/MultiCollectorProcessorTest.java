@@ -13,11 +13,11 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link MultiSourceProcessor} — the multi-source orchestrator.
+ * Tests for {@link MultiCollectorProcessor} — the multi-source orchestrator.
  * Verifies parallel execution of several sources, failure isolation, and the
  * config-path resolution (file + directory expansion).
  */
-class MultiSourceProcessorTest {
+class MultiCollectorProcessorTest {
 
     private static final String SCHEMA = PipelineConfigBatchTest.miniSchema();
 
@@ -44,7 +44,7 @@ class MultiSourceProcessorTest {
         Path a = source(dir.resolve("a"), "ID,AMT,EVENT_DATE\n1,10,2020-01-01\n2,20,2020-01-02\n");
         Path b = source(dir.resolve("b"), "ID,AMT,EVENT_DATE\n3,30,2020-02-01\n");
 
-        MultiSourceProcessor.RunResult r = MultiSourceProcessor.runAll(List.of(a, b), 2);
+        MultiCollectorProcessor.RunResult r = MultiCollectorProcessor.runAll(List.of(a, b), 2);
 
         assertEquals(2, r.total());
         assertEquals(0, r.failed(), "both sources should succeed");
@@ -78,7 +78,7 @@ class MultiSourceProcessorTest {
                 """.formatted(badRoot, badRoot, badRoot, badRoot, badRoot)
                 .replace("\\", "/"));
 
-        MultiSourceProcessor.RunResult r = MultiSourceProcessor.runAll(List.of(good, bad), 2);
+        MultiCollectorProcessor.RunResult r = MultiCollectorProcessor.runAll(List.of(good, bad), 2);
 
         assertEquals(2, r.total());
         assertEquals(1, r.failed(), "the bad source should be counted as failed");
@@ -98,7 +98,7 @@ class MultiSourceProcessorTest {
         Path loose = dir.resolve("gamma_pipeline.toon");
         Files.writeString(loose, "x");
 
-        List<Path> resolved = MultiSourceProcessor.resolveConfigs(
+        List<Path> resolved = MultiCollectorProcessor.resolveConfigs(
                 new String[]{ d.toString(), loose.toString() });
 
         assertEquals(3, resolved.size(), "two from dir + one file arg");
@@ -112,7 +112,7 @@ class MultiSourceProcessorTest {
     /** Missing paths are skipped, not fatal. */
     @Test
     void resolveConfigsSkipsMissingPaths(@TempDir Path dir) throws Exception {
-        List<Path> resolved = MultiSourceProcessor.resolveConfigs(
+        List<Path> resolved = MultiCollectorProcessor.resolveConfigs(
                 new String[]{ dir.resolve("nope").toString() });
         assertTrue(resolved.isEmpty());
     }

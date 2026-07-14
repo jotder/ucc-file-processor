@@ -7,7 +7,7 @@ import com.gamma.agent.kernel.observe.AgentCompleted;
 import com.gamma.assist.AssistRequest;
 import com.gamma.assist.AssistResult;
 import com.gamma.etl.BatchEvent;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -30,7 +30,7 @@ class AssistAuditTest {
     void emitsOneAuditEventPerCall(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
                     ModelRouter.of(FakeModelProvider.canned("ok")), e -> captured.add((AgentCompleted) e));
             agent.init(svc);
@@ -51,7 +51,7 @@ class AssistAuditTest {
     void nlToScheduleDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
                     "{\"name\":\"j\",\"cron\":\"0 2 * * *\",\"job_type\":\"maintenance\"}")),
                     e -> captured.add((AgentCompleted) e));
@@ -72,7 +72,7 @@ class AssistAuditTest {
     void suggestConfigDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
                     "{\"fields\":[{\"name\":\"job.name\",\"value\":\"nightly\",\"rationale\":\"x\",\"confidence\":\"high\"},"
                             + "{\"name\":\"job.cron\",\"value\":\"0 2 * * *\",\"rationale\":\"x\",\"confidence\":\"high\"},"
@@ -95,7 +95,7 @@ class AssistAuditTest {
     void diagnoseAndAlertDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
                     "{\"name\":\"errs\",\"metric\":\"error_rate\",\"comparator\":\"gt\",\"threshold\":0.05,"
                             + "\"window\":\"1h\",\"severity\":\"WARNING\"}")),
@@ -117,7 +117,7 @@ class AssistAuditTest {
     void reportSqlDraftIsAuditedAsOk(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(ModelRouter.of(FakeModelProvider.canned(
                     "{\"sql\":\"SELECT status, COUNT(*) AS n FROM batches GROUP BY status\","
                             + "\"logicExplanation\":\"count by status\"}")),
@@ -141,7 +141,7 @@ class AssistAuditTest {
     void failedBatchEventIsDiagnosedAndAudited(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
                     ModelRouter.of(FakeModelProvider.canned("Likely a schema drift; reconcile selectors.")),
                     e -> captured.add((AgentCompleted) e));
@@ -172,7 +172,7 @@ class AssistAuditTest {
     void successfulBatchEventIsNotDiagnosed(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
                     ModelRouter.of(FakeModelProvider.canned("ignored")), e -> captured.add((AgentCompleted) e));
             agent.init(svc);
@@ -189,7 +189,7 @@ class AssistAuditTest {
     void unknownIntentIsAuditedAsUnsupported(@TempDir Path dir) throws Exception {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         List<AgentCompleted> captured = new CopyOnWriteArrayList<>();
-        try (SourceService svc = new SourceService(List.of(pipe), 60, 1)) {
+        try (CollectorService svc = new CollectorService(List.of(pipe), 60, 1)) {
             UccAssistAgent agent = new UccAssistAgent(
                     ModelRouter.of(FakeModelProvider.canned("ok")), e -> captured.add((AgentCompleted) e));
             agent.init(svc);

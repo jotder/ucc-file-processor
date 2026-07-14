@@ -82,10 +82,10 @@ public final class ConfigValidator {
         // CPU oversubscription: concurrent batches each open a DuckDB connection that,
         // capped by duckdb_threads, fans out to that many threads. The real worker
         // pressure is sources.max × threads × duckdb_threads (sources.max multiplies when
-        // running under MultiSourceProcessor); its product exceeding the core count
+        // running under MultiCollectorProcessor); its product exceeding the core count
         // oversubscribes the CPU and adds I/O contention.
         int cores = Runtime.getRuntime().availableProcessors();
-        // sources.max is a -D JVM property read by MultiSourceProcessor; only present (and
+        // sources.max is a -D JVM property read by MultiCollectorProcessor; only present (and
         // > 1) when several sources share this JVM. Factor it in when explicitly set.
         Integer sourcesMaxProp = Integer.getInteger("sources.max");
         int srcFactor = (sourcesMaxProp != null && sourcesMaxProp > 1) ? sourcesMaxProp : 1;
@@ -104,7 +104,7 @@ public final class ConfigValidator {
         }
 
         // (b) Multi-source blind spot for the auto cap: the default duckdb_threads=0 derives
-        // cores ÷ threads WITHOUT knowledge of sources.max, so under MultiSourceProcessor with
+        // cores ÷ threads WITHOUT knowledge of sources.max, so under MultiCollectorProcessor with
         // sources.max > 1 the real concurrency is sources.max × threads batches and the auto cap
         // still oversubscribes by ~sources.max×. Surface the fix (set duckdb_threads explicitly
         // or lower sources.max) — this is the one case the auto-derive cannot self-manage.

@@ -138,11 +138,11 @@ class LocalFileSystemConnectorTest {
         List<RemoteFile> found = c.discover(ctx(List.of("glob:**/*.csv"), List.of(), -1));
         assertEquals(Set.of("a.csv"), rel(found));
         RemoteFile a = found.get(0);
-        assertEquals(SourceConnector.Readiness.NOT_READY, c.readiness(a));
+        assertEquals(CollectorConnector.Readiness.NOT_READY, c.readiness(a));
 
         // drop the sentinel ⇒ READY; and the sentinel itself is never offered as a candidate
         Files.writeString(poll.resolve("a.csv.done"), "");
-        assertEquals(SourceConnector.Readiness.READY, c.readiness(a));
+        assertEquals(CollectorConnector.Readiness.READY, c.readiness(a));
         assertEquals(Set.of("a.csv"), rel(c.discover(ctx(List.of("glob:**/*"), List.of(), -1))),
                 "the .done marker is excluded from discovery even under a match-all include");
     }
@@ -154,7 +154,7 @@ class LocalFileSystemConnectorTest {
         Files.writeString(poll.resolve("a.csv"), "x");
         LocalFileSystemConnector c = connector(poll);   // 3-arg ctor ⇒ no ready_marker
         RemoteFile a = c.discover(ctx(List.of("glob:**/*.csv"), List.of(), -1)).get(0);
-        assertEquals(SourceConnector.Readiness.UNKNOWN, c.readiness(a),
+        assertEquals(CollectorConnector.Readiness.UNKNOWN, c.readiness(a),
                 "no ready_marker ⇒ defer to the engine's size/mtime stabilization");
     }
 
@@ -175,9 +175,9 @@ class LocalFileSystemConnectorTest {
         LocalFileSystemConnector c =
                 new LocalFileSystemConnector(Path.of("x"), Path.of("x/errors"), Path.of("x/quarantine"));
         assertEquals("local", c.scheme());
-        assertTrue(c.capabilities().contains(SourceConnector.Capability.STREAM));
-        assertTrue(c.capabilities().contains(SourceConnector.Capability.MOVE));
-        assertEquals(SourceConnector.Readiness.UNKNOWN, c.readiness(
+        assertTrue(c.capabilities().contains(CollectorConnector.Capability.STREAM));
+        assertTrue(c.capabilities().contains(CollectorConnector.Capability.MOVE));
+        assertEquals(CollectorConnector.Readiness.UNKNOWN, c.readiness(
                 new RemoteFile("f", "f", -1, null, null, null, Path.of("x/f"))));
     }
 }

@@ -29,7 +29,7 @@ export * from './connections.service';
 export * from './connection-probe.service';
 export * from './components.service';
 export * from './icon-map.service';
-export * from './sources.service';
+export * from './collectors.service';
 export * from './acquisition-metrics.service';
 export * from './events.service';
 export * from './pipelines.service';

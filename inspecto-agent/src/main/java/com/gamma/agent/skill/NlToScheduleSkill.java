@@ -265,7 +265,7 @@ public final class NlToScheduleSkill implements Capability {
 
     private static Map<String, String> knownPipelines(MetadataGraphService catalog) {
         Map<String, String> byName = new LinkedHashMap<>();
-        for (MetadataNode s : catalog.nodesOfKind(NodeKind.SOURCE)) {
+        for (MetadataNode s : catalog.nodesOfKind(NodeKind.STREAM)) {
             byName.put(s.label(), s.id());
         }
         return byName;

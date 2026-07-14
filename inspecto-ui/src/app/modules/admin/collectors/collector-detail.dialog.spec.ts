@@ -4,11 +4,11 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
-import { InboxStatus, RunsService, SourceView } from 'app/inspecto/api';
+import { InboxStatus, RunsService, CollectorView } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
-import { SourceDetailDialog } from './source-detail.dialog';
+import { CollectorDetailDialog } from './collector-detail.dialog';
 
-const SOURCE: SourceView = {
+const COLLECTOR: CollectorView = {
     pipeline: 'cdr',
     id: 'sftp-main',
     connector: 'sftp',
@@ -31,21 +31,21 @@ const STATUS: InboxStatus = { pipeline: 'cdr', inbox: '/in/cdr', pending: 3, run
 function create() {
     const ref = { close: vi.fn() };
     TestBed.configureTestingModule({
-        imports: [SourceDetailDialog],
+        imports: [CollectorDetailDialog],
         providers: [
             provideNoopAnimations(),
             provideRouter([]),
-            { provide: MAT_DIALOG_DATA, useValue: SOURCE },
+            { provide: MAT_DIALOG_DATA, useValue: COLLECTOR },
             { provide: MatDialogRef, useValue: ref },
             { provide: RunsService, useValue: { pending: vi.fn(() => of(STATUS)) } },
         ],
     });
-    const fixture = TestBed.createComponent(SourceDetailDialog);
+    const fixture = TestBed.createComponent(CollectorDetailDialog);
     fixture.detectChanges();
     return { fixture, ref };
 }
 
-describe('SourceDetailDialog', () => {
+describe('CollectorDetailDialog', () => {
     it('renders the live inbox status and the config grid', () => {
         const { fixture } = create();
         const text = (fixture.nativeElement as HTMLElement).textContent ?? '';

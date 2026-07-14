@@ -7,7 +7,7 @@ import com.gamma.acquire.DiscoveryContext;
 import com.gamma.acquire.IntegrityChecker;
 import com.gamma.acquire.PostAction;
 import com.gamma.acquire.RemoteFile;
-import com.gamma.acquire.SourceConnector;
+import com.gamma.acquire.CollectorConnector;
 import net.schmizz.sshj.common.SecurityUtils;
 import org.apache.sshd.common.keyprovider.KeyPairProvider;
 import org.apache.sshd.server.SshServer;
@@ -91,14 +91,14 @@ class SftpConnectorTest {
     @Test
     void pinnedHostKeyFingerprintAllowsConnect() throws Exception {
         Files.writeString(serverRoot.resolve("a.csv"), "ID\n1\n");
-        try (SourceConnector c = connector(Map.of("host_key", serverFingerprint()))) {
+        try (CollectorConnector c = connector(Map.of("host_key", serverFingerprint()))) {
             assertEquals(1, c.discover(anyCsv()).size(), "the matching pinned fingerprint connects");
         }
     }
 
     @Test
     void wrongHostKeyFingerprintRejectsConnect() {
-        try (SourceConnector c = connector(Map.of(
+        try (CollectorConnector c = connector(Map.of(
                 "host_key", "00:11:22:33:44:55:66:77:88:99:aa:bb:cc:dd:ee:ff"))) {
             assertThrows(AcquisitionException.class, () -> c.discover(anyCsv()),
                     "a host key that doesn't match the pin is refused (MITM defence)");
@@ -109,7 +109,7 @@ class SftpConnectorTest {
 
     @Test
     void strictHostKeyWithoutAnyPinRefusesConnect() {
-        try (SourceConnector c = connector(Map.of("strict_host_key", "true"))) {
+        try (CollectorConnector c = connector(Map.of("strict_host_key", "true"))) {
             assertThrows(AcquisitionException.class, () -> c.discover(anyCsv()),
                     "strict mode refuses accept-on-connect when no host_key/known_hosts is configured");
         } catch (AcquisitionException closeFailure) {
@@ -120,7 +120,7 @@ class SftpConnectorTest {
     @Test
     void noPinStillConnectsAcceptOnConnect() throws Exception {
         Files.writeString(serverRoot.resolve("a.csv"), "ID\n1\n");
-        try (SourceConnector c = connector()) {   // empty options ⇒ legacy accept-on-connect
+        try (CollectorConnector c = connector()) {   // empty options ⇒ legacy accept-on-connect
             assertEquals(1, c.discover(anyCsv()).size(), "unpinned profiles keep working (backward compatible)");
         }
     }
@@ -132,7 +132,7 @@ class SftpConnectorTest {
         Files.writeString(serverRoot.resolve("sub/b.csv"), "ID,AMT\n3,4\n");
         Files.writeString(serverRoot.resolve("notes.txt"), "ignore me");
 
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             List<RemoteFile> found = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED));
             assertEquals(2, found.size(), "two CSVs, the .txt excluded by the include glob");
             RemoteFile a = found.stream().filter(f -> f.relativePath().equals("a.csv")).findFirst().orElseThrow();
@@ -148,7 +148,7 @@ class SftpConnectorTest {
         Files.createDirectories(serverRoot.resolve("d"));
         Files.writeString(serverRoot.resolve("d/deep.csv"), "y\n");
 
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             List<RemoteFile> found = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), 1));
             assertEquals(List.of("top.csv"), found.stream().map(RemoteFile::relativePath).toList());
         }
@@ -159,7 +159,7 @@ class SftpConnectorTest {
         String body = "ID,AMT\n1,9.99\n2,8.88\n";
         Files.writeString(serverRoot.resolve("feed.csv"), body);
 
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             Path dest = local.resolve("feed.csv");
             Path got = c.fetchTo(rf, dest);
@@ -172,7 +172,7 @@ class SftpConnectorTest {
     void openStreamsWithoutALocalCopy() throws Exception {
         String body = "a,b,c\n";
         Files.writeString(serverRoot.resolve("s.csv"), body);
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             try (InputStream in = c.open(rf)) {
                 assertEquals(body, new String(in.readAllBytes(), StandardCharsets.UTF_8));
@@ -188,7 +188,7 @@ class SftpConnectorTest {
         Path dest = local.resolve("big.bin");
         Files.writeString(dest, body.substring(0, 400));   // pretend a prior run got the first 400 bytes
 
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.bin"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             Path got = c.fetchTo(rf, dest);
             assertEquals(body, Files.readString(got, StandardCharsets.UTF_8), "resume appends the remaining bytes exactly");
@@ -207,7 +207,7 @@ class SftpConnectorTest {
         try {
             com.gamma.etl.PipelineConfig cfg = com.gamma.etl.PipelineConfig.load(writeSftpPipeline(dir).toString());
 
-            com.gamma.inspector.SourceProcessor.run(cfg);
+            com.gamma.inspector.CollectorProcessor.run(cfg);
             String afterFirst = Files.readString(Path.of(cfg.dirs().batchesFilePath()));
             assertEquals(2, afterFirst.split("\n").length, "header + 1 batch row from the 2 fetched files");
             try (var w = Files.walk(Path.of(cfg.dirs().database()))) {
@@ -215,7 +215,7 @@ class SftpConnectorTest {
                         "the fetched SFTP files were ingested to an output");
             }
 
-            com.gamma.inspector.SourceProcessor.run(cfg);
+            com.gamma.inspector.CollectorProcessor.run(cfg);
             assertEquals(afterFirst, Files.readString(Path.of(cfg.dirs().batchesFilePath())),
                     "re-run finds the markers → fetches/processes nothing new");
         } finally {
@@ -228,7 +228,7 @@ class SftpConnectorTest {
     @Test
     void postDeleteRemovesTheSourceFile() throws Exception {
         Files.writeString(serverRoot.resolve("d.csv"), "x\n");
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             c.post(rf, PostAction.RETAIN);
             assertTrue(Files.exists(serverRoot.resolve("d.csv")), "RETAIN leaves it");
@@ -240,7 +240,7 @@ class SftpConnectorTest {
     @Test
     void postMoveRelocatesIntoTheArchiveTree() throws Exception {
         Files.writeString(serverRoot.resolve("m.csv"), "y\n");
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             c.post(rf, PostAction.move("archive/2026/06/14"));
             assertFalse(Files.exists(serverRoot.resolve("m.csv")), "moved out of the root");
@@ -251,7 +251,7 @@ class SftpConnectorTest {
     @Test
     void postRenameAddsTheProcessedPrefix() throws Exception {
         Files.writeString(serverRoot.resolve("r.csv"), "z\n");
-        try (SourceConnector c = connector()) {
+        try (CollectorConnector c = connector()) {
             RemoteFile rf = c.discover(new DiscoveryContext(List.of("*.csv"), List.of(), DiscoveryContext.UNBOUNDED)).get(0);
             c.post(rf, new PostAction(PostAction.Kind.RENAME, null, java.util.Map.of()));
             assertFalse(Files.exists(serverRoot.resolve("r.csv")));
@@ -262,7 +262,7 @@ class SftpConnectorTest {
     @Test
     void endToEndParallelFetchWithMovePostAction(@TempDir Path dir) throws Exception {
         // Three CSVs, fetched 2-at-a-time (pool of 2 sessions), then MOVEd into archive/ on the server after each
-        // is ingested. Proves parallel fetch + post-action wiring through SourceProcessor.run.
+        // is ingested. Proves parallel fetch + post-action wiring through CollectorProcessor.run.
         for (int i = 1; i <= 3; i++)
             Files.writeString(serverRoot.resolve("2020040" + i + "_feed.csv"),
                     "ID,AMT,EVENT_DATE\nr" + i + "," + i + ".0,2020-04-0" + i + "\n");
@@ -272,7 +272,7 @@ class SftpConnectorTest {
             com.gamma.etl.PipelineConfig cfg = com.gamma.etl.PipelineConfig.load(
                     writeSftpPipeline(dir, "  fetch:\n    parallel_fetch: 2\n  post_action:\n    on_success: MOVE\n    archive_path: archive\n").toString());
 
-            com.gamma.inspector.SourceProcessor.run(cfg);
+            com.gamma.inspector.CollectorProcessor.run(cfg);
 
             try (var w = Files.walk(Path.of(cfg.dirs().database()))) {
                 long outs = w.filter(p -> p.getFileName().toString().endsWith("_out.csv")).count();
@@ -326,7 +326,7 @@ class SftpConnectorTest {
               markers: %s/markers
               status_dir: %s/status
               log_dir: %s/logs
-            source:
+            collector:
               connector: sftp
               connection: test-sftp
             %s

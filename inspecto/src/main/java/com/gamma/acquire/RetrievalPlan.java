@@ -6,14 +6,14 @@ import java.nio.file.Path;
  * How the engine will retrieve one file — the output of {@link RetrievalPlanner}.
  *
  * <p>{@code destination} is {@code null} for {@link Mode#STREAM} (no bytes land locally) and otherwise the
- * single place the bytes are written ({@link SourceConnector#fetchTo}). The whole point of the plan is to
+ * single place the bytes are written ({@link CollectorConnector#fetchTo}). The whole point of the plan is to
  * write bytes <b>at most once</b>: stream when there's nothing to keep, else fetch straight to the final
  * home — never temp-then-move.
  */
 public record RetrievalPlan(Mode mode, Path destination) {
 
     public enum Mode {
-        /** Read straight from the source, no local copy ({@link SourceConnector#open}). */
+        /** Read straight from the source, no local copy ({@link CollectorConnector#open}). */
         STREAM,
         /** Write once, directly into the backup/archive dir, and read from there (no later move). */
         FETCH_TO_BACKUP,

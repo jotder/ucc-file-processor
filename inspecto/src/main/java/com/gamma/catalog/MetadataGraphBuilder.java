@@ -26,7 +26,7 @@ final class MetadataGraphBuilder {
     /** Order in which a bare ref (no {@code kind:} prefix) is resolved to a concrete node id. */
     private static final NodeKind[] RESOLUTION_ORDER = {
             NodeKind.DERIVED_TABLE, NodeKind.TABLE, NodeKind.KPI,
-            NodeKind.REPORT, NodeKind.COLUMN, NodeKind.SOURCE,
+            NodeKind.REPORT, NodeKind.COLUMN, NodeKind.STREAM,
             NodeKind.RAW_SCHEMA, NodeKind.REFERENCE_DATASET
     };
 
@@ -54,8 +54,8 @@ final class MetadataGraphBuilder {
             srcAttrs.put("pipeline", pipeline);
             if (cfg.dirs().poll() != null) srcAttrs.put("pollDir", cfg.dirs().poll());
             if (dbRoot != null) srcAttrs.put("database", dbRoot);
-            nodes.put(IdScheme.source(pipeline), new MetadataNode(
-                    IdScheme.source(pipeline), NodeKind.SOURCE, cfg.identity().name(),
+            nodes.put(IdScheme.stream(pipeline), new MetadataNode(
+                    IdScheme.stream(pipeline), NodeKind.STREAM, cfg.identity().name(),
                     Description.EMPTY, srcAttrs));
 
             PipelineConfig.Schemas s = cfg.schemas();
@@ -213,7 +213,7 @@ final class MetadataGraphBuilder {
     private void addSchemaAndEvent(String pipeline, String key, Map<String, Object> schema,
                                    String table, String dbRoot, String outputFormat,
                                    Map<String, MetadataNode> nodes, List<MetadataEdge> edges) {
-        String sourceId = IdScheme.source(pipeline);
+        String sourceId = IdScheme.stream(pipeline);
         String schemaId = IdScheme.schema(pipeline, key);
         String eventId = IdScheme.event(pipeline, key);
 

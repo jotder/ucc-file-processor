@@ -5,8 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Path;
 import java.util.EnumSet;
 
-import static com.gamma.acquire.SourceConnector.Capability.RANDOM_ACCESS;
-import static com.gamma.acquire.SourceConnector.Capability.STREAM;
+import static com.gamma.acquire.CollectorConnector.Capability.RANDOM_ACCESS;
+import static com.gamma.acquire.CollectorConnector.Capability.STREAM;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** The I/O-minimisation policy: write bytes at most once — stream when nothing is kept, else fetch
@@ -41,7 +41,7 @@ class RetrievalPlannerTest {
     @Test
     void cannotStreamFallsBackToTempStaging() {
         RetrievalPlan p = RetrievalPlanner.plan(
-                EnumSet.noneOf(SourceConnector.Capability.class), false, null, TEMP, false);
+                EnumSet.noneOf(CollectorConnector.Capability.class), false, null, TEMP, false);
         assertEquals(RetrievalPlan.Mode.STAGE_TEMP, p.mode());
         assertEquals(TEMP, p.destination());
     }

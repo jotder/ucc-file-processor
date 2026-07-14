@@ -9,8 +9,8 @@ package com.gamma.catalog;
  * traverse from a KPI all the way down to the source columns that feed it.
  */
 public enum NodeKind {
-    /** A configured pipeline / data source ({@code source:<pipeline>}). */
-    SOURCE,
+    /** A configured pipeline's data-origin stream ({@code stream:<pipeline>}). */
+    STREAM,
     /** A raw input schema ({@code schema:<pipeline>/<key|table>}); parent of {@link #COLUMN} nodes. */
     RAW_SCHEMA,
     /** A single described column ({@code col:<pipeline>/<KEY>/<COL>}). */

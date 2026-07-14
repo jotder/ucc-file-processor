@@ -9,7 +9,7 @@ import java.util.Optional;
  * is self-describing and a route can validate a {@code from} parameter without a graph lookup:
  *
  * <ul>
- *   <li>{@code source:<pipeline>}</li>
+ *   <li>{@code stream:<pipeline>}</li>
  *   <li>{@code schema:<pipeline>/<key|table>}</li>
  *   <li>{@code event:<pipeline>/<key|table>}</li>
  *   <li>{@code col:<pipeline>/<key|table>/<column>}</li>
@@ -27,8 +27,8 @@ public final class IdScheme {
 
     private IdScheme() {}
 
-    public static String source(String pipeline) {
-        return "source:" + pipeline;
+    public static String stream(String pipeline) {
+        return "stream:" + pipeline;
     }
 
     public static String schema(String pipeline, String keyOrTable) {
@@ -62,7 +62,7 @@ public final class IdScheme {
     /** The id token for a kind, e.g. {@code TABLE} → {@code "event"}. */
     public static String token(NodeKind kind) {
         return switch (kind) {
-            case SOURCE -> "source";
+            case STREAM -> "stream";
             case RAW_SCHEMA -> "schema";
             case COLUMN -> "col";
             case TABLE -> "event";

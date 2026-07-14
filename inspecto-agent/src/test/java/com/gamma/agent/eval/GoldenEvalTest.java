@@ -17,7 +17,7 @@ import com.gamma.agent.kernel.eval.Evals;
 import com.gamma.agent.kernel.eval.FakeModelProvider;
 import com.gamma.agent.kernel.model.ModelRouter;
 import com.gamma.agent.kernel.retrieve.DocRetriever;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -81,7 +81,7 @@ class GoldenEvalTest {
             Map.entry("_cross", ""));
 
     private static Path dir;
-    private static SourceService svc;
+    private static CollectorService svc;
     private static CapabilityRegistry registry;
 
     @BeforeAll
@@ -90,7 +90,7 @@ class GoldenEvalTest {
         Path pipe = AgentTestConfigs.writePipeline(dir);
         Files.createDirectories(dir.resolve("nodocs"));     // empty docs corpus → deterministic grounding
         seedEventPartition(dir);
-        svc = new SourceService(List.of(pipe), 60, 1);
+        svc = new CollectorService(List.of(pipe), 60, 1);
         registry = CapabilityRegistry.of(List.of(
                 new ExplainEntitySkill(),
                 new NlToScheduleSkill(),

@@ -27,7 +27,7 @@ import java.util.concurrent.ForkJoinPool;
  *
  * <ul>
  *   <li>{@link #concurrencyAndAutoDerive} — #1 auto-derive duckdb_threads. End-to-end
- *       {@code SourceProcessor.run} over several concurrent multi-member batches; compares
+ *       {@code CollectorProcessor.run} over several concurrent multi-member batches; compares
  *       single-batch, auto-divided, and deliberately-oversubscribed thread configs.</li>
  *   <li>{@link #parallelInboxScan} — #6. Times a poll cycle whose inbox is entirely
  *       already-processed (pure scan: walk + per-file marker stat), threads=1 vs threads=N.</li>
@@ -77,8 +77,8 @@ class PerfDeepDiveBenchmark {
 
             long t = System.nanoTime();
             try {
-                SourceProcessor.run(cfg);
-            } catch (SourceProcessor.BatchProcessingException e) {
+                CollectorProcessor.run(cfg);
+            } catch (CollectorProcessor.BatchProcessingException e) {
                 System.out.printf("  (warning: %s)%n", e.getMessage());
             }
             System.out.printf("%-46s %8.2fs%n", labels[v], secs(t));
@@ -107,7 +107,7 @@ class PerfDeepDiveBenchmark {
                 MarkerManager.createMarkerFile(f, cfg);
             }
             long t = System.nanoTime();
-            SourceProcessor.run(cfg);   // finds all k already-processed → no candidates
+            CollectorProcessor.run(cfg);   // finds all k already-processed → no candidates
             System.out.printf("threads=%-26d %8.3fs%n", threads, secs(t));
         }
     }

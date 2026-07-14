@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamma.etl.PipelineConfigBatchTest;
 import com.gamma.job.JobConfig;
 import com.gamma.job.JobType;
-import com.gamma.service.SourceService;
+import com.gamma.service.CollectorService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -27,7 +27,7 @@ class ControlApiHealthDetailsTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final HttpClient client = HttpClient.newHttpClient();
 
-    private record Ctx(SourceService svc, ControlApi api, int port) implements AutoCloseable {
+    private record Ctx(CollectorService svc, ControlApi api, int port) implements AutoCloseable {
         public void close() { api.close(); svc.close(); }
     }
 
@@ -36,7 +36,7 @@ class ControlApiHealthDetailsTest {
         Path pipe = PipelineConfigBatchTest.writePipeline(cfg, "");
         System.setProperty("assist.write.root", writeRoot);
         try {
-            SourceService svc = new SourceService(List.of(pipe), List.of(), jobs, 3600L, 1, null);
+            CollectorService svc = new CollectorService(List.of(pipe), List.of(), jobs, 3600L, 1, null);
             ControlApi api = new ControlApi(svc, 0);
             api.start();
             return new Ctx(svc, api, api.port());

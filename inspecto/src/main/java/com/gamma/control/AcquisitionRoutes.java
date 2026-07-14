@@ -6,7 +6,7 @@ import java.util.Set;
 
 /**
  * Acquisition / Sources observability routes: a flat view of every pipeline's source acquisition
- * config ({@code /sources}) and a JSON snapshot of the acquisition metrics ({@code /metrics/acquisition},
+ * config ({@code /collectors}) and a JSON snapshot of the acquisition metrics ({@code /metrics/acquisition},
  * complementing the text-only Prometheus {@code /metrics}). Extracted verbatim from {@link ControlApi}.
  */
 final class AcquisitionRoutes implements RouteModule {
@@ -19,18 +19,18 @@ final class AcquisitionRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/sources", (e, m) -> api.service().sources());
+        api.get("/collectors", (e, m) -> api.service().collectors());
         // ACQ-6 push discovery: an external system (S3 event notification, upload script, upstream job)
         // tells Inspecto a file has landed on a source, triggering an immediate scan cycle instead of
         // waiting out the poll interval. Same operate capability + lock-safe trigger as /runs/{x}/trigger;
         // the scan itself decides what is actually new (dedup/stability), so a spurious notify is harmless.
-        api.post("/sources/([^/]+)/notify", ApiContext.withCapability("canOperateRuns", (e, m) ->
+        api.post("/collectors/([^/]+)/notify", ApiContext.withCapability("canOperateRuns", (e, m) ->
                 notifySource(api, e, ApiContext.name(m))));
         api.get("/metrics/acquisition", (e, m) -> acquisitionMetrics());
     }
 
     /**
-     * {@code POST /sources/{id}/notify} — fire the pipeline owning source {@code id}. v1: {@code 202} +
+     * {@code POST /collectors/{id}/notify} — fire the pipeline owning source {@code id}. v1: {@code 202} +
      * {@code {runId,…}} + a {@code Location} to poll (async, off the ingest lock — mirrors
      * {@code POST /runs/{name}/trigger}); legacy: synchronous {@code 200} run result. 404 for an unknown
      * source id. The request body is ignored: a notify is a hint that something arrived, and the triggered
