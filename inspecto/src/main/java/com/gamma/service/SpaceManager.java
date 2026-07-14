@@ -9,10 +9,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
@@ -183,6 +187,111 @@ public final class SpaceManager implements AutoCloseable {
             log.info("Created space '{}' from bundle at {} ({} config file(s))",
                     id.value(), base, bundle.configEntries().size());
             return ctx;
+        }
+    }
+
+    /** The shipped-template catalog root ({@code <spacesRoot>/_templates}) — an underscore sentinel like
+     *  {@code _shared}, so space discovery never admits it. {@code null} in single-tenant mode. */
+    private Path templatesRoot() {
+        return spacesRoot == null ? null : spacesRoot.resolve("_templates");
+    }
+
+    /**
+     * The space templates this server ships: one gallery entry per {@code _templates/<id>/template.toon}
+     * ({@code {id, name, tagline, description, icon, contents[]}} — the UI's {@code SpaceTemplateInfo} shape).
+     * Empty in single-tenant mode or when no templates directory exists; an unreadable template is warned
+     * and skipped (the rest still list).
+     */
+    public List<Map<String, Object>> templates() throws IOException {
+        Path root = templatesRoot();
+        if (root == null || !Files.isDirectory(root)) return List.of();
+        List<Map<String, Object>> out = new ArrayList<>();
+        try (Stream<Path> dirs = Files.list(root)) {
+            for (Path dir : dirs.filter(Files::isDirectory).sorted().toList()) {
+                Path meta = dir.resolve("template.toon");
+                if (!Files.exists(meta)) continue;
+                try {
+                    Map<String, Object> m = com.gamma.util.ToonHelper.load(meta.toString());
+                    Map<String, Object> info = new LinkedHashMap<>();
+                    info.put("id", dir.getFileName().toString());
+                    info.put("name", com.gamma.util.ToonHelper.opt(m, "name", dir.getFileName().toString()));
+                    info.put("tagline", com.gamma.util.ToonHelper.opt(m, "tagline", ""));
+                    info.put("description", com.gamma.util.ToonHelper.opt(m, "description", ""));
+                    info.put("icon", com.gamma.util.ToonHelper.opt(m, "icon", "heroicons_outline:cube"));
+                    info.put("contents", m.get("contents") instanceof List<?> l ? l : List.of());
+                    out.add(info);
+                } catch (Exception bad) {
+                    log.warn("Skipping unreadable space template {}: {}", dir, bad.toString());
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Create a new space seeded from a shipped template: mint the convention dirs, copy the template's
+     * {@code config/} tree with every {@code ${SPACE}} token in a {@code .toon} rewritten to the new id
+     * (template configs address their own space as {@code spaces/${SPACE}/…}), copy {@code data/} verbatim
+     * (pristine samples), then boot + register — the fresh {@link SpaceBootstrap} discovers every copied
+     * config uniformly, exactly like {@link #createFromBundle}. Serialised with {@link #create}/{@link #delete}.
+     *
+     * @throws IllegalArgumentException when no template with {@code templateId} exists
+     * @throws IllegalStateException    single-tenant mode, or a space with this id / directory already exists
+     */
+    public SpaceContext createFromTemplate(SpaceId id, String displayName, String description,
+                                           String templateId) throws IOException {
+        if (spacesRoot == null)
+            throw new IllegalStateException("This server hosts a single space; set -Dspaces.root to manage many");
+        Path tpl = templatesRoot().resolve(templateId);
+        Path meta = tpl.resolve("template.toon");
+        if (!Files.isDirectory(tpl) || !Files.exists(meta))
+            throw new IllegalArgumentException("no such space template '" + templateId + "'");
+        Map<String, Object> tplMeta = com.gamma.util.ToonHelper.load(meta.toString());
+        synchronized (lifecycleLock) {
+            if (spaces.containsKey(id))
+                throw new IllegalStateException("Space already exists: " + id.value());
+            Path base = spacesRoot.resolve(id.value());
+            if (Files.exists(base))
+                throw new IllegalStateException("Space directory already exists: " + base);
+            for (String sub : SPACE_SUBDIRS) Files.createDirectories(base.resolve(sub));
+            copyTemplateTree(tpl.resolve("config"), base.resolve("config"), id.value(), true);
+            copyTemplateTree(tpl.resolve("data"), base.resolve("data"), id.value(), false);
+            String name = (displayName == null || displayName.isBlank())
+                    ? com.gamma.util.ToonHelper.opt(tplMeta, "name", id.value()) : displayName.trim();
+            String desc = (description == null || description.isBlank())
+                    ? com.gamma.util.ToonHelper.opt(tplMeta, "tagline", "") : description.trim();
+            new SpaceContext.SpaceManifest(name, desc, Instant.now().toString()).write(base.resolve("space.toon"));
+
+            SpaceContext ctx = SpaceBootstrap.load(SpaceRoot.under(base));
+            try {
+                ctx.start();
+            } catch (RuntimeException e) {
+                ctx.close();
+                throw e;
+            }
+            spaces.put(id, ctx);
+            log.info("Created space '{}' from template '{}' at {}", id.value(), templateId, base);
+            return ctx;
+        }
+    }
+
+    /** Copy {@code src/**} to {@code dst/**}; when {@code rewriteToon}, each {@code .toon} is copied as text
+     *  with {@code ${SPACE}} replaced by {@code spaceId} (all other files byte-for-byte). No-op if absent. */
+    private static void copyTemplateTree(Path src, Path dst, String spaceId, boolean rewriteToon) throws IOException {
+        if (!Files.isDirectory(src)) return;
+        try (Stream<Path> walk = Files.walk(src)) {
+            for (Path p : walk.sorted().toList()) {
+                Path target = dst.resolve(src.relativize(p).toString());
+                if (Files.isDirectory(p)) {
+                    Files.createDirectories(target);
+                } else if (rewriteToon && p.getFileName().toString().endsWith(".toon")) {
+                    Files.createDirectories(target.getParent());
+                    Files.writeString(target, Files.readString(p).replace("${SPACE}", spaceId));
+                } else {
+                    Files.createDirectories(target.getParent());
+                    Files.copy(p, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.gamma.service;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -138,7 +139,18 @@ final class DirSpaceRoot implements SpaceRoot {
 
     public Path eventsDir() { return base.resolve("data").resolve("events"); }
 
-    private String duckdb(String file) { return "jdbc:duckdb:" + base.resolve("duckdb").resolve(file); }
+    /** JDBC URL under {@code <base>/duckdb/}, minting the dir first: repo-checked-out spaces gitignore
+     *  {@code duckdb/}, and DuckDB does not create parent dirs — without the mkdir every DB-backed store
+     *  would silently degrade to in-memory on a fresh checkout (ServiceStores' fail-open contract). */
+    private String duckdb(String file) {
+        Path dir = base.resolve("duckdb");
+        try {
+            Files.createDirectories(dir);
+        } catch (IOException e) {
+            // fall through — ServiceStores logs the open failure and degrades to in-memory
+        }
+        return "jdbc:duckdb:" + dir.resolve(file);
+    }
 
     public String jobRunDbUrl() { return duckdb("jobs_report.duckdb"); }
 

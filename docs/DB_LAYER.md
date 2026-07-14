@@ -233,7 +233,12 @@ single-writer-locked (documented in `ServiceStores`). Locations come from
 
 So across N spaces you get N separate sets of these files. Events live under `<dataDir>/events/`
 (`DirSpaceRoot`) or `./inspecto-events/` (legacy). Every `-D<capability>.db.url` flag overrides the
-per-space default explicitly.
+per-space default explicitly — note that a global `-D*.db.url` therefore funnels EVERY space into one
+shared file; leave them unset in multi-space mode so each space keeps its own `duckdb/` set.
+
+`DirSpaceRoot` **mints `<spaceBase>/duckdb/` on first URL build** (`SpaceRoot.java`, guarded by
+`SpaceRootTest`): repo-checked-out spaces gitignore `duckdb/` and DuckDB does not create parent
+dirs, so without the mkdir every DB-backed store silently degraded to in-memory on a fresh checkout.
 
 ---
 

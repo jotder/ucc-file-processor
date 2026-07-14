@@ -61,10 +61,24 @@ final class JobRoutes implements RouteModule {
         // W5 async: poll one run by id (the id returned by the 202 trigger below). Single-segment after
         // /jobs/runs/, so it never collides with the exact /jobs/runs or the /jobs/{name}/runs history route.
         api.get("/jobs/runs/([^/]+)", (e, m) -> runById(api, ApiContext.name(m)));
+        // Single-job detail (the Scheduler's detail page). Registered AFTER every fixed /jobs/<sub-path>
+        // above, so "types"/"packs"/"metrics"/"runs"/"failures" resolve to their own routes first.
+        api.get("/jobs/([^/]+)", (e, m) -> jobDetail(api, ApiContext.name(m)));
         api.get("/jobs/([^/]+)/runs", (e, m) -> jobs(api).runsFor(ApiContext.name(m)));
         // Structured Run Log for one run (R5, job-framework P0). More path segments than the history
         // route above and ends in /log, so the two never collide under full-match routing.
         api.get("/jobs/([^/]+)/runs/([^/]+)/log", (e, m) -> jobs(api).runLog(ApiContext.param(m, 2)));
+        // The UI Scheduler's live-tail shape over the same Run Log: {logs:[{ts,level,message}], events:[]}.
+        api.get("/jobs/([^/]+)/runs/([^/]+)/logs", (e, m) -> runLogs(api, ApiContext.param(m, 2)));
+        // Operational toggle + schedule change (Scheduler write actions). Both persist the job TOON via
+        // the same write-root gate as CRUD; enable/disable is an operational verb (canOperateRuns, the
+        // lens heuristic), reschedule authors the schedule (canAuthorWorkbench).
+        api.post("/jobs/([^/]+)/enable", ApiContext.withCapability("canOperateRuns",
+                (e, m) -> setEnabled(api, ApiContext.name(m), true)));
+        api.post("/jobs/([^/]+)/disable", ApiContext.withCapability("canOperateRuns",
+                (e, m) -> setEnabled(api, ApiContext.name(m), false)));
+        api.post("/jobs/([^/]+)/reschedule", ApiContext.withCapability("canAuthorWorkbench",
+                (e, m) -> reschedule(api, ApiContext.name(m), api.body(e))));
         // Run Artifacts (R7, job-framework P1d, §10/§14): one run's recorded outputs, and the latest
         // successful run's outputs. Both end in fixed segments (/artifacts[/latest]) so they never
         // collide with the /runs history or /trigger routes under full-match routing.
@@ -106,6 +120,52 @@ final class JobRoutes implements RouteModule {
         for (Map.Entry<?, ?> en : p.entrySet())
             if (en.getValue() != null) args.put(String.valueOf(en.getKey()), en.getValue().toString());
         return args;
+    }
+
+    /** {@code GET /jobs/{name}} — one job's full config (the Scheduler detail page); 404 if unknown. */
+    private Object jobDetail(ApiContext api, String name) {
+        return existingJob(api, name).toMap();
+    }
+
+    /** {@code GET /jobs/{name}/runs/{runId}/logs} — the Run Log re-shaped for the UI's live-tail panel:
+     *  {@code {logs:[{ts,level,message}], events:[]}} (the JSONL entries' {@code at} becomes {@code ts}). */
+    private Object runLogs(ApiContext api, String runId) {
+        var logs = jobs(api).runLog(runId).stream().map(en -> {
+            Map<String, Object> line = new LinkedHashMap<String, Object>();
+            line.put("ts", en.at());
+            line.put("level", en.level());
+            line.put("message", en.message());
+            return line;
+        }).toList();
+        return Map.of("logs", logs, "events", java.util.List.of());
+    }
+
+    /** {@code POST /jobs/{name}/enable|disable} — flip the persisted {@code enabled} flag; 404 if unknown. */
+    private Object setEnabled(ApiContext api, String name, boolean enabled) throws IOException {
+        WriteGates.requireWriteRoot(api, "job write");
+        Map<String, Object> m = new LinkedHashMap<>(existingJob(api, name).toMap());
+        m.put("enabled", enabled);
+        JobConfig c = parseJob(m);
+        persistJob(api, c);
+        return c.toMap();
+    }
+
+    /** {@code POST /jobs/{name}/reschedule} — replace the persisted {@code cron}; 422 without one, 404 if unknown. */
+    private Object reschedule(ApiContext api, String name, Map<String, Object> body) throws IOException {
+        WriteGates.requireWriteRoot(api, "job write");
+        String cron = ApiContext.str(body, "cron");
+        if (cron == null || cron.isBlank()) throw new ApiException(422, "'cron' is required");
+        Map<String, Object> m = new LinkedHashMap<>(existingJob(api, name).toMap());
+        m.put("cron", cron);
+        JobConfig c = parseJob(m);
+        persistJob(api, c);
+        return c.toMap();
+    }
+
+    /** The registered job named {@code name}, or a 404. */
+    private JobConfig existingJob(ApiContext api, String name) {
+        return jobs(api).jobConfig(name)
+                .orElseThrow(() -> new ApiException(404, "no job named '" + name + "'"));
     }
 
     /** {@code GET /jobs/runs/{runId}} — poll one run's status (W5); 404 once evicted or unknown. */

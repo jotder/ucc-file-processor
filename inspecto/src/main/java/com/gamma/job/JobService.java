@@ -686,6 +686,11 @@ public final class JobService implements AutoCloseable {
         return configs.stream().filter(c -> c.name().equals(name)).findFirst();
     }
 
+    /** The registered config for {@code name} — the Scheduler detail/enable/reschedule read path. */
+    public Optional<JobConfig> jobConfig(String name) {
+        return configFor(name);
+    }
+
     /**
      * Flow ids of {@link JobType#PIPELINE} jobs currently in flight. The live {@code CollectorService} unions this
      * into the deletion fence's running-set (T32) so deleting a store an active flow job reads/writes is

@@ -15,7 +15,9 @@ import java.util.Map;
  * <pre>
  *   GET    /spaces                 list every hosted space's manifest                              [v4.7.0]
  *   GET    /spaces/_meta           server capabilities: {multiSpace} — true when CRUD is supported [v4.9.0]
- *   POST   /spaces                 body {id, display_name?, description?} — create + boot a space  [v4.7.0]
+ *   GET    /spaces/templates       the shipped template gallery (spaces/_templates/&lt;id&gt;/template.toon)
+ *   POST   /spaces                 body {id, display_name?, description?, template?} — create + boot
+ *                                  a space, optionally seeded from a shipped template               [v4.7.0]
  *   POST   /spaces/import?id={id}  create + boot a new space seeded from an uploaded bundle zip    [v4.8.0]
  *   PUT    /spaces/{id}            body {display_name?, description?} — rename/re-describe a space  [v4.10.0]
  *   DELETE /spaces/{id}[?purge=]   deregister + drain a space; ?purge=true also deletes its files  [v4.7.0]
@@ -48,6 +50,10 @@ final class SpaceRoutes implements RouteModule {
         // single-tenant server without inferring it from the (possibly empty) space list. See class javadoc.
         api.get("/spaces/_meta", (e, m) -> Map.of("multiSpace", api.spaces().supportsCrud()));
 
+        // The shipped-template gallery. Empty (not 409) on a single-tenant server — the UI hides the
+        // gallery there, and an empty list is the honest capability answer either way.
+        api.get("/spaces/templates", (e, m) -> api.spaces().templates());
+
         api.post("/spaces", (e, m) -> createSpace(api, api.body(e)));
 
         api.post("/spaces/import", (e, m) -> importSpace(api, e));
@@ -72,16 +78,23 @@ final class SpaceRoutes implements RouteModule {
         }
     }
 
-    /** Create + boot a space from {@code {id, display_name?, description?}}. */
+    /** Create + boot a space from {@code {id, display_name?, description?, template?}} — a {@code template}
+     *  seeds the new space from {@code spaces/_templates/<template>/} (400 when no such template ships). */
     private Object createSpace(ApiContext api, Map<String, Object> body) throws IOException {
         requireMultiSpace(api);
         String id = ApiContext.str(body, "id");
         if (id == null || !SpaceId.isValid(id))
             throw new ApiException(400, "body must include a valid 'id' ([a-z0-9-], 1-63 chars, not starting with '-')");
+        String template = ApiContext.str(body, "template");
         try {
-            SpaceContext ctx = api.spaces().create(SpaceId.of(id),
-                    ApiContext.str(body, "display_name"), ApiContext.str(body, "description"));
+            SpaceContext ctx = template == null
+                    ? api.spaces().create(SpaceId.of(id),
+                            ApiContext.str(body, "display_name"), ApiContext.str(body, "description"))
+                    : api.spaces().createFromTemplate(SpaceId.of(id),
+                            ApiContext.str(body, "display_name"), ApiContext.str(body, "description"), template);
             return manifest(ctx);
+        } catch (IllegalArgumentException badTemplate) { // unknown template id
+            throw new ApiException(400, badTemplate.getMessage());
         } catch (IllegalStateException conflict) {   // already exists (single-mode was rejected above)
             throw new ApiException(409, conflict.getMessage());
         }

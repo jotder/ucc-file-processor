@@ -76,6 +76,31 @@ class ControlApiSettingsTest {
         }
     }
 
+    @Test
+    void geoSettingsRoundTripAndIsolatePerSpace(@TempDir Path root) throws Exception {
+        try (Ctx c = open(root)) {
+            assertEquals(200, send(c.port, "POST", "/spaces", "{\"id\":\"acme\"}").statusCode());
+            assertEquals(200, send(c.port, "POST", "/spaces", "{\"id\":\"beta\"}").statusCode());
+
+            // default before any save — null (no self-hosted tile server)
+            assertTrue(json(send(c.port, "GET", "/spaces/acme/settings/geo", null)).get("tileServerUrl").isNull());
+
+            // PUT round-trip, persisted as geo.toon in the space's config tree
+            HttpResponse<String> put = send(c.port, "PUT", "/spaces/acme/settings/geo",
+                    "{\"tileServerUrl\":\"http://tiles.example/{z}/{x}/{y}.png\"}");
+            assertEquals(200, put.statusCode(), put.body());
+            assertEquals("http://tiles.example/{z}/{x}/{y}.png", json(put).get("tileServerUrl").asText());
+            assertTrue(Files.exists(root.resolve("acme").resolve("config").resolve("geo.toon")));
+            assertEquals("http://tiles.example/{z}/{x}/{y}.png",
+                    json(send(c.port, "GET", "/spaces/acme/settings/geo", null)).get("tileServerUrl").asText());
+
+            // per-space isolation + blank-folds-to-null on save
+            assertTrue(json(send(c.port, "GET", "/spaces/beta/settings/geo", null)).get("tileServerUrl").isNull());
+            assertTrue(json(send(c.port, "PUT", "/spaces/acme/settings/geo", "{\"tileServerUrl\":\"  \"}"))
+                    .get("tileServerUrl").isNull(), "blank folds to null");
+        }
+    }
+
     private HttpResponse<String> send(int port, String method, String path, String body) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path));
         if (body != null) b.header("Content-Type", "application/json").method(method, BodyPublishers.ofString(body));
