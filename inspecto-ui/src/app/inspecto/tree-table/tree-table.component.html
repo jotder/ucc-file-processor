@@ -1,0 +1,35 @@
+<div class="mb-2 flex flex-wrap items-center gap-1">
+    <button mat-icon-button type="button" (click)="expandAll()"
+            matTooltip="Expand all" aria-label="Expand all rows">
+        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:chevron-double-down"></mat-icon>
+    </button>
+    <button mat-icon-button type="button" (click)="collapseAll()"
+            matTooltip="Collapse all" aria-label="Collapse all rows">
+        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:chevron-double-up"></mat-icon>
+    </button>
+
+    <span class="flex-1"></span>
+
+    <button mat-icon-button type="button" (click)="exportCsv()"
+            matTooltip="Export CSV" aria-label="Export rows to CSV">
+        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:arrow-down-tray"></mat-icon>
+    </button>
+</div>
+
+<ag-grid-angular
+    class="w-full"
+    [style.height]="autoHeight() ? null : height()"
+    [domLayout]="autoHeight() ? 'autoHeight' : 'normal'"
+    [theme]="gridTheme.theme()"
+    [rowData]="flatRows()"
+    [columnDefs]="gridColumns()"
+    [defaultColDef]="defaultColDef()"
+    [getRowId]="getRowId"
+    [rowSelection]="rowSelectionValue()"
+    [loading]="loading()"
+    [overlayNoRowsTemplate]="noRows()"
+    (rowClicked)="onRowClicked($event)"
+    (selectionChanged)="onSelectionChanged($event)"
+    (firstDataRendered)="refresh($event)"
+    (rowDataUpdated)="refresh($event)"
+></ag-grid-angular>

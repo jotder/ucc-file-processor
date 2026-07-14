@@ -248,6 +248,27 @@
             <pre class="bg-default text-secondary mt-3 overflow-x-auto rounded-lg p-4 text-xs leading-relaxed"><code>{{ snippets.dataTable }}</code></pre>
         </section>
 
+        <!-- ── Tree table (aligned hierarchy) ───────────────────────────────────────────── -->
+        <section>
+            <h2 class="mb-3 text-xl font-semibold">Tree table (aligned hierarchy)</h2>
+            <p class="text-secondary mb-4 text-sm">
+                <code>&lt;inspecto-tree-table&gt;</code> — an expandable indented hierarchy on the left with
+                aligned value columns on the right (Community ag-Grid; no Enterprise tree-data). One component
+                for breakdown-by-dimensions, multi-entry comparison, N-way reconciliation and file browsing.
+                Cell plugins are ordinary <code>columns</code> ColDefs (here the Δ column uses
+                <code>varianceCell()</code>); <code>[rowActions]</code> adds action icons and
+                <code>[multiSelect]</code> adds checkbox selection. See <code>tree-table-design.md</code>.
+            </p>
+            <div class="bg-card rounded-2xl p-6 shadow">
+                <inspecto-tree-table
+                    [nodes]="treeNodes"
+                    [columns]="treeColumns"
+                    treeHeader="Region / Product"
+                    [autoHeight]="true"
+                    [groupDefaultExpanded]="1" />
+            </div>
+        </section>
+
         <!-- ── Graph hosts (AntV G6) ────────────────────────────────────────────────────── -->
         <section>
             <h2 class="mb-3 text-xl font-semibold">Graph hosts (AntV G6)</h2>

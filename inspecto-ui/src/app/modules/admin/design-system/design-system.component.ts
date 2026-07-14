@@ -29,6 +29,7 @@ import {
 } from 'app/inspecto/grid';
 import { QuerySource } from 'app/inspecto/query';
 import { DataTableComponent, DataTableTier } from 'app/inspecto/data-table';
+import { TreeTableComponent, TreeNode, varianceCell } from 'app/inspecto/tree-table';
 import { GeoData, MapViewComponent } from 'app/inspecto/geo';
 
 interface DemoRow {
@@ -62,6 +63,7 @@ interface DemoRow {
         InspectoSchemaFormComponent,
         InspectoSkeletonComponent,
         DataTableComponent,
+        TreeTableComponent,
         MapViewComponent,
     ],
     templateUrl: './design-system.component.html',
@@ -115,6 +117,31 @@ export class DesignSystemComponent {
             e.api.refreshCells({ force: true, columns: ['status'] });
         });
     }
+
+    // ── Tree table (aligned hierarchy + multi-entry comparison / variance) ───────────────────
+    readonly treeColumns: ColDef[] = [
+        { field: 'e1', headerName: 'Entry 1', width: 130 },
+        { field: 'e2', headerName: 'Entry 2', width: 130 },
+        { field: 'delta', headerName: 'Δ', width: 120, cellRenderer: varianceCell() },
+    ];
+    readonly treeNodes: TreeNode[] = [
+        {
+            id: 'north', label: 'Region North', icon: 'heroicons_outline:globe-americas',
+            values: { e1: 100, e2: 120, delta: 20 },
+            children: [
+                { id: 'north/a', label: 'Product A', values: { e1: 40, e2: 45, delta: 5 } },
+                { id: 'north/b', label: 'Product B', values: { e1: 60, e2: 75, delta: 15 } },
+            ],
+        },
+        {
+            id: 'south', label: 'Region South', icon: 'heroicons_outline:globe-americas',
+            values: { e1: 200, e2: 190, delta: -10 },
+            children: [
+                { id: 'south/a', label: 'Product A', values: { e1: 120, e2: 110, delta: -10 } },
+                { id: 'south/b', label: 'Product B', values: { e1: 80, e2: 80, delta: 0 } },
+            ],
+        },
+    ];
 
     // ── Reactive form + inline mat-error ─────────────────────────────────────────────────────
     readonly form = this.fb.group({
