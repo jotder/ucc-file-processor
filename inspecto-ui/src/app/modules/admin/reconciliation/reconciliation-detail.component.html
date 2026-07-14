@@ -26,6 +26,13 @@
                 </div>
             </div>
             <div class="flex items-center gap-2">
+                @if (threeWay()) {
+                    <mat-button-toggle-group [value]="side()" (change)="setSide($event.value)"
+                                             hideSingleSelectionIndicator aria-label="Compared side">
+                        <mat-button-toggle value="b">A vs B</mat-button-toggle>
+                        <mat-button-toggle value="c">A vs C</mat-button-toggle>
+                    </mat-button-toggle-group>
+                }
                 <mat-button-toggle-group [value]="viewMode()" (change)="viewMode.set($event.value)"
                                          hideSingleSelectionIndicator aria-label="Break view mode">
                     <mat-button-toggle value="tables">Tables</mat-button-toggle>
@@ -90,9 +97,9 @@
                     </section>
                 }
                 @if (missingB().length) {
-                    <section aria-label="Only in B">
+                    <section aria-label="Only in compared side">
                         <h2 class="text-secondary mb-2 text-xs font-semibold uppercase tracking-wider">
-                            Only in B — {{ recon()?.rightDataset }} ({{ missingB().length }})
+                            Only in {{ side() === 'c' ? 'C' : 'B' }} — {{ sideDataset() }} ({{ missingB().length }})
                         </h2>
                         <inspecto-data-table
                             tier="standard"

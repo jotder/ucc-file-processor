@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ICellRendererParams } from 'ag-grid-community';
 import { CompareColumn } from './reconciliation-types';
 import {
-    aggregateRecon, bandCell, bandFor, buildBoardTree, decodePath, deltaPct, encodePath,
+    aggregateRecon, bandCell, bandFor, buildBoardTree, comparedSides, decodePath, deltaPct, encodePath,
     markBreachesExpanded, RECON_RECORDS, reconBreakSets, ReconRunResult,
 } from './recon-board';
 
@@ -93,6 +93,56 @@ describe('aggregateRecon (backend ReconService parity)', () => {
     });
 });
 
+describe('aggregateRecon 3-way (anchor model, backend parity)', () => {
+    // C: EU/voice 195 (2.5% off A's 200 → value break vs A), EU/data + US equal to A, MEA missing, LATAM only-C.
+    const THIRD = [
+        { region: 'EU', product: 'voice', amount: 195 },
+        { region: 'EU', product: 'data', amount: 118 },
+        { region: 'US', product: 'voice', amount: 50 },
+        { region: 'LATAM', product: 'voice', amount: 5 },
+    ];
+
+    it('compares each non-anchor side against the anchor and reports per-pair summaries', () => {
+        const r = aggregateRecon(CONFIG, LEFT, RIGHT, THIRD);
+        expect(comparedSides(r)).toEqual(['b', 'c']);
+        expect(r.summary.groups).toBe(6);            // union: EU/voice, EU/data, US/voice, MEA/voice, APAC/sms, LATAM/voice
+        expect(r.totals.c!['amount']).toBe(368);     // 195 + 118 + 50 + 5
+
+        const latam = r.rows.find((x) => x.key['region'] === 'LATAM')!;
+        expect(latam.inA).toBe(false);
+        expect(latam.inC).toBe(true);
+
+        expect(r.summary.pairs).toHaveLength(2);
+        const [ab, ac] = r.summary.pairs!;
+        expect(ab.side).toBe('b');
+        expect(ac.side).toBe('c');
+        expect(ac.byType.missing_right).toBe(1);     // MEA in A, not C
+        expect(ac.byType.missing_left).toBe(1);      // LATAM only in C
+        expect(ac.byType.value_break).toBe(1);       // EU/voice 200 vs 195 outside 0.5%
+        // the flat top-level summary mirrors pair A↔B (2-way consumers unchanged)
+        expect(r.summary.matchedKeys).toBe(ab.matchedKeys);
+    });
+
+    it('breaks scope to the chosen compared side', () => {
+        const c = reconBreakSets(CONFIG, LEFT, RIGHT, null, null, 'c', THIRD);
+        expect(c.missing_right!.rows.map((r) => r.key['region'])).toEqual(['MEA']);
+        expect(c.missing_left!.rows.map((r) => r.key['region'])).toEqual(['LATAM']);
+        expect(c.value_break!.rows[0].key['product']).toBe('voice');
+        expect(c.value_break!.rows[0].b!['amount']).toBe(195);   // compared side rides the 'b' role slot
+    });
+
+    it('the Board tree adds c columns and per-side structural marks', () => {
+        const nodes = buildBoardTree(aggregateRecon(CONFIG, LEFT, RIGHT, THIRD));
+        const eu = nodes.find((n) => n.label === 'EU')!;
+        const voice = eu.children!.find((n) => n.label === 'voice')!;
+        expect(voice.values!['c_amount']).toBe(195);
+        expect(voice.values!['pct_c_amount']).toBeCloseTo(-2.5);
+        const latam = nodes.find((n) => n.label === 'LATAM')!;
+        expect(latam.values!['__miss_c']).toBe('c');       // present only in C
+        expect(latam.values!['__anchorMissing']).toBe(true); // no anchor row under this node
+    });
+});
+
 describe('reconBreakSets', () => {
     it('splits the three sets, scopes by path, and filters by type', () => {
         const all = reconBreakSets(CONFIG, LEFT, RIGHT);
@@ -118,16 +168,16 @@ describe('buildBoardTree', () => {
         expect(eu.values!['a_amount']).toBe(318);   // 200 + 118
         expect(eu.values!['b_amount']).toBe(314);   // 200 + 114
         // Δ% from rolled sums: (314-318)/318·100 = −1.258… — NOT the child average (0 + −3.39)/2.
-        expect(eu.values!['pct_amount']).toBeCloseTo(-1.2579, 3);
-        expect(eu.values!['__structural']).toBeNull();
+        expect(eu.values!['pct_b_amount']).toBeCloseTo(-1.2579, 3);
+        expect(eu.values!['__miss_b']).toBeNull();
 
         // children sorted worst-severity first: BOTH breach — voice on the implicit record count
         // (2 vs 1 rows = −50%) outranks data (amount −3.39%) by |Δ%| within the breach band.
         expect(eu.children!.map((c) => c.label)).toEqual(['voice', 'data']);
-        expect(eu.children![0].values!['pct___records']).toBeCloseTo(-50);
+        expect(eu.children![0].values!['pct_b___records']).toBeCloseTo(-50);
 
         const mea = nodes.find((n) => n.label === 'MEA')!;
-        expect(mea.values!['__structural']).toBe('a');
+        expect(mea.values!['__miss_b']).toBe('a');
         expect(mea.values!['b_amount']).toBeNull();
 
         // drill path ids encode the dimension path in key-column order
@@ -167,8 +217,11 @@ describe('bands + cells + paths', () => {
         expect(cell(p(0.3))).toContain('✓ +0.3%');
         expect(cell(p(-1.6))).toContain('! -1.6%');
         expect(cell(p(3.4))).toContain('✕ +3.4%');
-        expect(cell(p(null, { __structural: 'a' }))).toContain('⊘ only in A');
-        expect(cell(p(null))).toContain('✕ new');
+        expect(cell(p(null, { __miss_b: 'a' }))).toContain('⊘ only in A');
+        expect(cell(p(null, { __miss_b: 'b' }))).toContain('⊘ only in B');
+        expect(cell(p(null, {}))).toContain('✕ new');
+        // the 'c' renderer names side C on a one-sided node
+        expect(bandCell('c')(p(null, { __miss_c: 'c' }))).toContain('⊘ only in C');
     });
 
     it('encodePath/decodePath round-trip values with reserved characters', () => {

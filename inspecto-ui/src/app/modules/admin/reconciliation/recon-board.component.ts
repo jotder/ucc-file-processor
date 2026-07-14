@@ -13,9 +13,9 @@ import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state
 import { InspectoRowAction } from 'app/inspecto/grid';
 import { FlatTreeRow, TreeNode, TreeTableComponent } from 'app/inspecto/tree-table';
 import {
-    bandCell, bandFor, breaksFromSets, buildBoardTree, DEFAULT_BANDS, deltaPct, fmtMeasure,
+    bandCell, bandFor, breaksFromSets, buildBoardTree, comparedSides, DEFAULT_BANDS, deltaPct, fmtMeasure,
     markBreachesExpanded, mergeBreaks, ReconBand, Reconciliation, ReconciliationsService,
-    ReconRunResult, RECON_RECORDS,
+    ReconRunResult, RECON_RECORDS, SideKey,
 } from 'app/inspecto/reconciliation';
 import { ReconExecService } from './recon-exec.service';
 import { ReconciliationFormDialog, ReconciliationFormResult } from './reconciliation-form.dialog';
@@ -82,14 +82,17 @@ export class ReconBoardComponent implements OnInit {
     readonly treeColumns = computed<ColDef[]>(() => {
         const r = this.result();
         if (!r) return [];
+        const sides = comparedSides(r);
         const cols: ColDef[] = [];
         for (const m of r.measures) {
             const label = m === RECON_RECORDS ? 'records' : m;
-            cols.push(
-                { field: `a_${m}`, headerName: `A ${label}`, width: 130, valueFormatter: (p) => fmtMeasure(p.value) },
-                { field: `b_${m}`, headerName: `B ${label}`, width: 130, valueFormatter: (p) => fmtMeasure(p.value) },
-                { field: `pct_${m}`, headerName: `Δ% ${label}`, width: 130, cellRenderer: bandCell(this.bands()) },
-            );
+            cols.push({ field: `a_${m}`, headerName: `A ${label}`, width: 120, valueFormatter: (p) => fmtMeasure(p.value) });
+            for (const s of sides) {
+                cols.push(
+                    { field: `${s}_${m}`, headerName: `${s.toUpperCase()} ${label}`, width: 120, valueFormatter: (p) => fmtMeasure(p.value) },
+                    { field: `pct_${s}_${m}`, headerName: `Δ%${sides.length > 1 ? s.toUpperCase() : ''} ${label}`, width: 120, cellRenderer: bandCell(s, this.bands()) },
+                );
+            }
         }
         return cols;
     });
@@ -97,20 +100,26 @@ export class ReconBoardComponent implements OnInit {
     readonly totalLines = computed<TotalLine[]>(() => {
         const r = this.result();
         if (!r) return [];
-        return r.measures.map((m) => {
+        const sides = comparedSides(r);
+        const lines: TotalLine[] = [];
+        for (const m of r.measures) {
+            const label = m === RECON_RECORDS ? 'records' : m;
             const a = r.totals.a[m];
-            const b = r.totals.b[m];
-            const pct = deltaPct(a, b);
-            const band = pct === null ? 'structural' : bandFor(pct, this.bands());
-            return {
-                label: m === RECON_RECORDS ? 'records' : m,
-                a: fmtMeasure(a),
-                b: fmtMeasure(b),
-                pct: pct === null ? 'n/a' : `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`,
-                tone: BAND_TONES[band],
-                glyph: BAND_GLYPHS[band],
-            };
-        });
+            for (const s of sides) {
+                const v = (s === 'c' ? r.totals.c : r.totals.b)?.[m] ?? null;
+                const pct = deltaPct(a, v);
+                const band = pct === null ? 'structural' : bandFor(pct, this.bands());
+                lines.push({
+                    label: sides.length > 1 ? `${label} A·${s.toUpperCase()}` : label,
+                    a: fmtMeasure(a),
+                    b: fmtMeasure(v),
+                    pct: pct === null ? 'n/a' : `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`,
+                    tone: BAND_TONES[band],
+                    glyph: BAND_GLYPHS[band],
+                });
+            }
+        }
+        return lines;
     });
 
     readonly rowActions: InspectoRowAction<FlatTreeRow>[] = [
@@ -179,6 +188,7 @@ export class ReconBoardComponent implements OnInit {
                     name: result.name,
                     leftDataset: result.leftDataset,
                     rightDataset: result.rightDataset,
+                    thirdDataset: result.thirdDataset,
                     keyColumns: result.keyColumns,
                     compareColumns: result.compareColumns,
                     bands: result.bands,

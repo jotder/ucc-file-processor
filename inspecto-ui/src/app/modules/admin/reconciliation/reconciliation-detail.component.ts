@@ -53,6 +53,13 @@ export class ReconciliationDetailComponent implements OnInit {
     readonly path = signal<Record<string, string> | null>(null);
     readonly pathEntries = computed(() => Object.entries(this.path() ?? {}));
 
+    /** The compared side of the anchor-relative pair — 'b' always, 'c' when the recon is 3-way. */
+    readonly side = signal<'b' | 'c'>('b');
+    readonly threeWay = computed(() => !!this.recon()?.thirdDataset);
+    /** Human label of the compared side's dataset (for the section headers). */
+    readonly sideDataset = computed(() =>
+        this.side() === 'c' ? this.recon()?.thirdDataset ?? 'C' : this.recon()?.rightDataset ?? 'B');
+
     readonly viewMode = signal<'tables' | 'grouped'>('tables');
 
     /** Persisted break status/note by identity. */
@@ -92,7 +99,7 @@ export class ReconciliationDetailComponent implements OnInit {
             { field: 'key', headerName: 'Key', flex: 1 },
             { field: 'column', headerName: 'Column', width: 140 },
             { field: 'leftValue', headerName: r?.leftDataset || 'A', width: 140, valueFormatter: (p) => fmtVal(p.value) },
-            { field: 'rightValue', headerName: r?.rightDataset || 'B', width: 140, valueFormatter: (p) => fmtVal(p.value) },
+            { field: 'rightValue', headerName: this.sideDataset(), width: 140, valueFormatter: (p) => fmtVal(p.value) },
             { field: 'diff', headerName: 'Δ', width: 120, cellRenderer: varianceCell() },
             {
                 field: 'status', headerName: 'Status', width: 130,
@@ -194,13 +201,19 @@ export class ReconciliationDetailComponent implements OnInit {
         });
     }
 
-    /** (Re)compute the live break sets for the current scope. */
+    /** Switch the compared side (3-way) and recompute. */
+    setSide(side: 'b' | 'c'): void {
+        this.side.set(side);
+        void this.compute();
+    }
+
+    /** (Re)compute the live break sets for the current scope + compared side. */
     async compute(): Promise<void> {
         const r = this.recon();
         if (!r || this.computing()) return;
         this.computing.set(true);
         try {
-            this.liveBreaks.set(breaksFromSets(r, await this.exec.breaks(r, this.path())));
+            this.liveBreaks.set(breaksFromSets(r, await this.exec.breaks(r, this.path(), null, this.side())));
         } catch (e) {
             this.liveBreaks.set(null);
             this.toastr.error(apiErrorMessage(e, 'Could not compute the break sets'));

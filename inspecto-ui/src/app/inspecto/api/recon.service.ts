@@ -53,6 +53,7 @@ export class ReconApiService {
         config: ReconServerConfig,
         path?: Record<string, string> | null,
         type?: string | null,
+        side?: string | null,
         limit?: number,
         offset?: number,
     ): Observable<ReconBreakSets> {
@@ -60,6 +61,7 @@ export class ReconApiService {
             config,
             ...(path ? { path } : {}),
             ...(type ? { type } : {}),
+            ...(side ? { side } : {}),
             ...(limit ? { limit } : {}),
             ...(offset ? { offset } : {}),
         });

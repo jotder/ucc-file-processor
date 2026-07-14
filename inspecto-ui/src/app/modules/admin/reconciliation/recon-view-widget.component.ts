@@ -5,7 +5,7 @@ import { InspectoAlertComponent } from 'app/inspecto/components/alert.component'
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { TreeNode, TreeTableComponent } from 'app/inspecto/tree-table';
 import {
-    bandCell, buildBoardTree, DEFAULT_BANDS, Reconciliation, ReconciliationsService,
+    bandCell, buildBoardTree, comparedSides, DEFAULT_BANDS, Reconciliation, ReconciliationsService,
     ReconRunResult, RECON_RECORDS,
 } from 'app/inspecto/reconciliation';
 import { ReconExecService } from './recon-exec.service';
@@ -70,17 +70,22 @@ export class ReconViewWidgetComponent {
         return res ? buildBoardTree(res, this.recon()?.bands ?? DEFAULT_BANDS) : [];
     });
 
-    /** Compact tile columns: the banded Δ% per measure (full values live on the Board pane). */
+    /** Compact tile columns: the banded Δ% per measure per compared side (values live on the Board pane). */
     readonly columns = computed<ColDef[]>(() => {
         const res = this.result();
         if (!res) return [];
         const bands = this.recon()?.bands ?? DEFAULT_BANDS;
-        return res.measures.map((m) => ({
-            field: `pct_${m}`,
-            headerName: `Δ% ${m === RECON_RECORDS ? 'records' : m}`,
-            width: 130,
-            cellRenderer: bandCell(bands),
-        }));
+        const sides = comparedSides(res);
+        const cols: ColDef[] = [];
+        for (const m of res.measures)
+            for (const s of sides)
+                cols.push({
+                    field: `pct_${s}_${m}`,
+                    headerName: `Δ%${sides.length > 1 ? s.toUpperCase() : ''} ${m === RECON_RECORDS ? 'records' : m}`,
+                    width: 130,
+                    cellRenderer: bandCell(s, bands),
+                });
+        return cols;
     });
 
     constructor() {

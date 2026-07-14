@@ -73,7 +73,7 @@ describe('ReconBoardComponent', () => {
         // the tree folds region → product, worst-severity first (MEA is structural: only in A)
         expect(c.treeNodes().map((n) => n.label)).toEqual(['MEA', 'EU']);
         expect(c.treeColumns().map((col) => col.field)).toEqual(
-            ['a_amount', 'b_amount', 'pct_amount', 'a___records', 'b___records', 'pct___records']);
+            ['a_amount', 'b_amount', 'pct_b_amount', 'a___records', 'b___records', 'pct_b___records']);
     });
 
     it('a run refreshes the persisted break lifecycle (C9 merge semantics)', async () => {

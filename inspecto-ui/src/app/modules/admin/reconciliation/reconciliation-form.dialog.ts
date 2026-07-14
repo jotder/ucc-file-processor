@@ -14,6 +14,7 @@ export interface ReconciliationFormResult {
     name: string;
     leftDataset: string;
     rightDataset: string;
+    thirdDataset?: string;
     keyColumns: string[];
     compareColumns: CompareColumn[];
     bands: ReconBands;
@@ -63,6 +64,14 @@ interface CompareRow {
                     </mat-select>
                 </mat-form-field>
             </div>
+
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <mat-label>Third dataset (optional — 3-way vs the anchor)</mat-label>
+                <mat-select [(ngModel)]="thirdDataset">
+                    <mat-option [value]="''">— none (2-way) —</mat-option>
+                    @for (d of datasets(); track d.id) { <mat-option [value]="d.id">{{ d.name }}</mat-option> }
+                </mat-select>
+            </mat-form-field>
 
             <mat-form-field class="w-full" subscriptSizing="dynamic">
                 <mat-label>Key column(s) — selection order is the Board tree</mat-label>
@@ -147,6 +156,7 @@ export class ReconciliationFormDialog {
     name = '';
     leftDataset = '';
     rightDataset = '';
+    thirdDataset = '';
     keyColumns: string[] = [];
     warnPct = DEFAULT_BANDS.warnPct;
     breachPct = DEFAULT_BANDS.breachPct;
@@ -164,6 +174,7 @@ export class ReconciliationFormDialog {
             this.name = this.duplicating ? `${r.name} copy` : r.name;
             this.leftDataset = r.leftDataset;
             this.rightDataset = r.rightDataset;
+            this.thirdDataset = r.thirdDataset ?? '';
             this.keyColumns = [...r.keyColumns];
             this.warnPct = r.bands?.warnPct ?? DEFAULT_BANDS.warnPct;
             this.breachPct = r.bands?.breachPct ?? DEFAULT_BANDS.breachPct;
@@ -202,6 +213,7 @@ export class ReconciliationFormDialog {
             name: this.name.trim(),
             leftDataset: this.leftDataset,
             rightDataset: this.rightDataset,
+            ...(this.thirdDataset ? { thirdDataset: this.thirdDataset } : {}),
             keyColumns: this.keyColumns,
             compareColumns: this.compareRows()
                 .filter((r) => r.column)

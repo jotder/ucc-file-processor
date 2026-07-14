@@ -98,10 +98,14 @@ final class ReconRoutes implements RouteModule {
         int limit = clamp(intOr(body.get("limit"), DEFAULT_BREAKS_LIMIT));
         int offset = Math.max(0, intOr(body.get("offset"), 0));
         String type = ApiContext.str(body, "type");
+        // The compared side of the anchor-relative pair: "b" (default) or, on a 3-way spec, "c".
+        String side = orDefault(ApiContext.str(body, "side"), "b");
+        int other = "b".equals(side) ? 1 : "c".equals(side) ? 2 : -1;
+        if (other < 0) throw new ApiException(422, "side must be b|c, got '" + side + "'");
         Map<String, String> path = pathOf(body.get("path"));
         Map<String, ReconService.BreakSet> sets;
         try {
-            sets = ReconService.breaks(spec, path, type, limit, offset);
+            sets = ReconService.breaks(spec, path, type, other, limit, offset);
         } catch (IllegalArgumentException bad) {
             throw new ApiException(422, bad.getMessage());
         } catch (SQLException e) {
@@ -144,9 +148,8 @@ final class ReconRoutes implements RouteModule {
             if (left != null) datasets.add(left);
             if (right != null) datasets.add(right);
         }
-        if (datasets.size() != 2)
-            throw new ApiException(422, "expected exactly 2 datasets (N-way reconciliation ships later), got "
-                    + datasets.size());
+        if (datasets.size() < 2 || datasets.size() > 3)
+            throw new ApiException(422, "expected 2 or 3 datasets (the first is the anchor), got " + datasets.size());
 
         Map<String, Object> columnMap = mapOf(config.get("columnMap"));
         Map<String, Object> filters = mapOf(config.get("filters"));

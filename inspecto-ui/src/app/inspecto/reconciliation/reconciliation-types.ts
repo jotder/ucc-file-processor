@@ -56,6 +56,8 @@ export interface ReconBreak {
 export interface ReconciliationConfig {
     leftDataset: string;
     rightDataset: string;
+    /** Optional third dataset — turns the recon 3-way (anchor = leftDataset, design §6). */
+    thirdDataset?: string;
     keyColumns: string[];
     compareColumns: CompareColumn[];
     /** Board severity bands (defaults to {@link DEFAULT_BANDS} when absent). */

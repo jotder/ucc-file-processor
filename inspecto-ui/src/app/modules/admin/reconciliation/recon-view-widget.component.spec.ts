@@ -48,7 +48,7 @@ describe('ReconViewWidgetComponent', () => {
     it('renders the compact Board for the bound reconciliation', async () => {
         const { fixture, c } = await create({ viewId: RECON.id });
         expect(c.result()).not.toBeNull();
-        expect(c.columns().map((col) => col.field)).toEqual(['pct_amount', 'pct___records']);
+        expect(c.columns().map((col) => col.field)).toEqual(['pct_b_amount', 'pct_b___records']);
         const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
         expect(text).toContain('1 matched');
         expect(text).toContain('1 missing');

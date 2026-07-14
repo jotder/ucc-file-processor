@@ -84,6 +84,7 @@ export class ReconciliationsComponent implements OnInit {
                 if (!result) return;
                 const r: Reconciliation = {
                     ...buildReconciliation(result.name, result.leftDataset, result.rightDataset, result.keyColumns, result.compareColumns),
+                    thirdDataset: result.thirdDataset,
                     bands: result.bands,
                 };
                 this.api.create(r).subscribe({

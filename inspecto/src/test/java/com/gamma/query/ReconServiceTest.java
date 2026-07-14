@@ -127,11 +127,77 @@ class ReconServiceTest {
         assertEquals(5L, longOf(r.summary().get("groups")), "summary is computed without the grain LIMIT");
     }
 
+    // ── 3-way (anchor model, design §6) ────────────────────────────────────────────
+
+    /** C: EU/voice 195 (2.5% off the anchor's 200 → value break), EU/data + US/voice equal to A,
+     *  MEA missing (pair-c missing_right), LATAM only in C (pair-c missing_left). */
+    private static final String REL_C = "SELECT * FROM (VALUES "
+            + "('EU','voice',195.0),('EU','data',118.0),('US','voice',50.0),('LATAM','voice',5.0)"
+            + ") AS t(region, product, amount)";
+
+    private static ReconService.Spec threeWaySpec() {
+        return ReconService.Spec.of(
+                List.of(side("a_ds", REL_A), side("b_ds", REL_B), side("c_ds", REL_C)),
+                List.of("region", "product"),
+                List.of(new ReconService.Measure("amount", "sum", "percent", 0.5)),
+                true);
+    }
+
+    @Test
+    void threeWayRunComparesEachSideAgainstTheAnchor() throws Exception {
+        ReconService.RunResult r = ReconService.run(threeWaySpec(), 100);
+
+        // union of key groups across ALL sides
+        assertEquals(6L, longOf(r.summary().get("groups")));
+        assertEquals(6, r.rows().size());
+
+        Map<String, Object> euVoice = row(r, "EU", "voice");
+        assertEquals(200.0, num(sideOf(euVoice, "a").get("amount")));
+        assertEquals(195.0, num(sideOf(euVoice, "c").get("amount")));
+        assertEquals(Boolean.TRUE, euVoice.get("inC"));
+
+        Map<String, Object> latam = row(r, "LATAM", "voice");
+        assertEquals(Boolean.FALSE, latam.get("inA"));
+        assertEquals(Boolean.FALSE, latam.get("inB"));
+        assertEquals(Boolean.TRUE, latam.get("inC"));
+
+        assertEquals(368.0, num(sideOf(r.totals(), "c").get("amount")), "195 + 118 + 50 + 5");
+
+        // pair summaries: legacy top-level mirrors pair b; pair c is anchor-relative
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> pairs = (List<Map<String, Object>>) r.summary().get("pairs");
+        assertEquals(2, pairs.size());
+        assertEquals("b", pairs.get(0).get("side"));
+        assertEquals(3L, longOf(pairs.get(0).get("matchedKeys")));
+        Map<?, ?> cTypes = (Map<?, ?>) pairs.get(1).get("byType");
+        assertEquals("c", pairs.get(1).get("side"));
+        assertEquals(3L, longOf(pairs.get(1).get("matchedKeys")));
+        assertEquals(1L, longOf(cTypes.get("missing_right")), "MEA only in A vs C");
+        assertEquals(1L, longOf(cTypes.get("missing_left")), "LATAM only in C");
+        assertEquals(1L, longOf(cTypes.get("value_break")), "EU/voice 200 vs 195 outside 0.5%");
+    }
+
+    @Test
+    void threeWayBreaksScopeToTheChosenPair() throws Exception {
+        Map<String, ReconService.BreakSet> c = ReconService.breaks(threeWaySpec(), null, null, 2, 100, 0);
+        assertEquals("MEA", key(c.get("missing_right").rows().get(0)).get("region"));
+        assertEquals("LATAM", key(c.get("missing_left").rows().get(0)).get("region"));
+        assertEquals(5.0, num(sideOf(c.get("missing_left").rows().get(0), "b").get("amount")),
+                "the compared side rides the 'b' role slot");
+        ReconService.BreakSet vb = c.get("value_break");
+        assertEquals("voice", key(vb.rows().get(0)).get("product"));
+        assertEquals(200.0, num(sideOf(vb.rows().get(0), "a").get("amount")));
+        assertEquals(195.0, num(sideOf(vb.rows().get(0), "b").get("amount")));
+
+        // a compared side the spec doesn't have fails closed
+        assertThrows(IllegalArgumentException.class, () -> ReconService.breaks(spec(), null, null, 2, 100, 0));
+    }
+
     // ── breaks: the three sets + path scoping + type filter ────────────────────────
 
     @Test
     void breaksSetsPathScopingAndTypeFilter() throws Exception {
-        Map<String, ReconService.BreakSet> all = ReconService.breaks(spec(), null, null, 100, 0);
+        Map<String, ReconService.BreakSet> all = ReconService.breaks(spec(), null, null, 1, 100, 0);
         assertEquals(3, all.size());
         assertEquals(1, all.get("missing_right").rowCount());
         assertEquals("MEA", key(all.get("missing_right").rows().get(0)).get("region"));
@@ -145,17 +211,17 @@ class ReconServiceTest {
         assertEquals(114.0, num(sideOf(vb.rows().get(0), "b").get("amount")));
 
         // path scoping: under region=EU there is no missing_right, one value_break
-        Map<String, ReconService.BreakSet> eu = ReconService.breaks(spec(), Map.of("region", "EU"), null, 100, 0);
+        Map<String, ReconService.BreakSet> eu = ReconService.breaks(spec(), Map.of("region", "EU"), null, 1, 100, 0);
         assertEquals(0, eu.get("missing_right").rowCount());
         assertEquals(1, eu.get("value_break").rowCount());
 
         // type filter returns just that set; unknown path column / type fail closed
         assertEquals(List.of("value_break"),
-                List.copyOf(ReconService.breaks(spec(), null, "value_break", 100, 0).keySet()));
+                List.copyOf(ReconService.breaks(spec(), null, "value_break", 1, 100, 0).keySet()));
         assertThrows(IllegalArgumentException.class, () ->
-                ReconService.breaks(spec(), Map.of("amount", "1"), null, 100, 0));
+                ReconService.breaks(spec(), Map.of("amount", "1"), null, 1, 100, 0));
         assertThrows(IllegalArgumentException.class, () ->
-                ReconService.breaks(spec(), null, "bogus", 100, 0));
+                ReconService.breaks(spec(), null, "bogus", 1, 100, 0));
     }
 
     // ── withinTolerance parity (SQL port of the locked UI semantics) ───────────────

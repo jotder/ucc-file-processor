@@ -63,8 +63,8 @@ public final class ReconService {
         /** Validate + normalize; throws {@link IllegalArgumentException} on anything unusable (→ 422). */
         public static Spec of(List<Side> sides, List<String> keyColumns, List<Measure> measures,
                               boolean includeRecordCount) {
-            if (sides == null || sides.size() != 2)
-                throw new IllegalArgumentException("expected exactly 2 datasets (N-way reconciliation ships later), got "
+            if (sides == null || sides.size() < 2 || sides.size() > 3)
+                throw new IllegalArgumentException("expected 2 or 3 datasets (side 0 is the anchor), got "
                         + (sides == null ? 0 : sides.size()));
             if (keyColumns == null || keyColumns.isEmpty())
                 throw new IllegalArgumentException("at least one key column is required");
@@ -122,12 +122,13 @@ public final class ReconService {
 
     // ── execution ───────────────────────────────────────────────────────────────────
 
-    /** Views the two sides register as — index-stable so every builder can reference them. */
-    private static final String[] VIEWS = {"__recon_a", "__recon_b"};
-    private static final String[] WIRE_SIDES = {"a", "b"};
+    /** Views the sides register as — index-stable so every builder can reference them. Side 0 = anchor. */
+    private static final String[] VIEWS = {"__recon_a", "__recon_b", "__recon_c"};
+    private static final String[] WIRE_SIDES = {"a", "b", "c"};
 
     public static RunResult run(Spec spec, int limit) throws SQLException, IOException {
         long t0 = System.nanoTime();
+        int n = spec.sides().size();
         try (SqlSandbox sandbox = SqlSandbox.open(SqlSandboxPolicy.defaultPolicy())) {
             Connection conn = registerSides(sandbox, spec);
 
@@ -139,48 +140,65 @@ public final class ReconService {
             for (Map<String, Object> r : grain) rows.add(shapeRow(spec, r));
 
             Map<String, Object> totals = new LinkedHashMap<>();
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < n; i++)
                 totals.put(WIRE_SIDES[i], measuresOf(spec, select(conn, totalsSql(spec, i)).get(0), null));
 
-            Map<String, Object> s = select(conn, summarySql(spec)).get(0);
-            Map<String, Object> byType = new LinkedHashMap<>();
-            byType.put("missing_left", s.get("missing_left"));
-            byType.put("missing_right", s.get("missing_right"));
-            byType.put("value_break", s.get("value_break"));
+            // Anchor-relative pair summaries (design §6): one per non-anchor side. The legacy top-level
+            // fields mirror the first pair (A↔B) so 2-way consumers are unchanged.
+            List<Map<String, Object>> pairs = new ArrayList<>();
+            for (int other = 1; other < n; other++) {
+                Map<String, Object> s = select(conn, pairSummarySql(spec, other)).get(0);
+                Map<String, Object> byType = new LinkedHashMap<>();
+                byType.put("missing_left", s.get("missing_left"));
+                byType.put("missing_right", s.get("missing_right"));
+                byType.put("value_break", s.get("value_break"));
+                Map<String, Object> pair = new LinkedHashMap<>();
+                pair.put("side", WIRE_SIDES[other]);
+                pair.put("matchedKeys", s.get("matched"));
+                pair.put("byType", byType);
+                pairs.add(pair);
+            }
+            Map<String, Object> groupsRow = select(conn, groupsSql(spec)).get(0);
             Map<String, Object> summary = new LinkedHashMap<>();
-            summary.put("groups", s.get("groups"));
-            summary.put("matchedKeys", s.get("matched"));
-            summary.put("byType", byType);
+            summary.put("groups", groupsRow.get("groups"));
+            summary.put("matchedKeys", pairs.get(0).get("matchedKeys"));
+            summary.put("byType", pairs.get(0).get("byType"));
+            summary.put("pairs", pairs);
 
             return new RunResult(rows, totals, summary, truncated, (System.nanoTime() - t0) / 1_000_000);
         }
     }
 
     /**
-     * The Break sets at the recon grain, optionally scoped to a Board dimension {@code path}
-     * (unified key column → value, compared as VARCHAR). {@code type} filters to one set, or
-     * {@code null} returns all three.
+     * The Break sets at the recon grain for one anchor-relative pair, optionally scoped to a Board
+     * dimension {@code path} (unified key column → value, compared as VARCHAR). {@code type} filters to
+     * one set, or {@code null} returns all three. {@code other} picks the compared side (1 = "b",
+     * 2 = "c" in a 3-way spec); rows always carry the anchor as {@code a} and the compared side as
+     * {@code b} (roles, not identities — the route echoes the side).
      */
     public static Map<String, BreakSet> breaks(Spec spec, Map<String, String> path, String type,
-                                               int limit, int offset) throws SQLException, IOException {
+                                               int other, int limit, int offset) throws SQLException, IOException {
         if (path != null)
             for (String dim : path.keySet())
                 if (!spec.keyColumns().contains(dim))
                     throw new IllegalArgumentException("path column '" + dim + "' is not a key column");
         if (type != null && !type.equals("missing_left") && !type.equals("missing_right") && !type.equals("value_break"))
             throw new IllegalArgumentException("type must be missing_left|missing_right|value_break, got '" + type + "'");
+        if (other < 1 || other >= spec.sides().size())
+            throw new IllegalArgumentException("side '" + (other >= 0 && other < WIRE_SIDES.length ? WIRE_SIDES[other] : other)
+                    + "' is not a compared side of this reconciliation");
 
         try (SqlSandbox sandbox = SqlSandbox.open(SqlSandboxPolicy.defaultPolicy())) {
             Connection conn = registerSides(sandbox, spec);
             Map<String, BreakSet> out = new LinkedHashMap<>();
             if (type == null || type.equals("missing_right"))
-                out.put("missing_right", breakSet(conn, spec, missingSql(spec, 0, path, limit, offset), 0, limit));
+                out.put("missing_right", breakSet(conn, spec, missingSql(spec, other, true, path, limit, offset), 'a', limit));
             if (type == null || type.equals("missing_left"))
-                out.put("missing_left", breakSet(conn, spec, missingSql(spec, 1, path, limit, offset), 1, limit));
+                out.put("missing_left", breakSet(conn, spec, missingSql(spec, other, false, path, limit, offset), 'b', limit));
             if (type == null || type.equals("value_break"))
                 out.put("value_break", spec.measures().isEmpty()
                         ? new BreakSet(List.of(), 0, false)
-                        : breakSet(conn, spec, valueBreaksSql(spec, path, limit, offset), -1, limit));
+                        : breakSet(conn, spec, valueBreaksSql(spec, other, path, limit, offset), 'x', limit));
             return out;
         }
     }
@@ -287,21 +305,45 @@ public final class ReconService {
         return sb.toString();
     }
 
-    /** The Board grain query: FULL OUTER JOIN of the two grouped sides on NULL-safe key equality. */
+    /** The Board grain query: FULL OUTER JOIN chain of the grouped sides on NULL-safe key equality. */
     static String grainSql(Spec spec, int limit) {
+        int n = spec.sides().size();
         StringBuilder sb = new StringBuilder(with(spec)).append("SELECT ");
         for (int i = 0; i < spec.keyColumns().size(); i++)
-            sb.append("COALESCE(__s0.").append(q("k" + i)).append(", __s1.").append(q("k" + i)).append(") AS ")
-              .append(q("k" + i)).append(", ");
-        for (int s = 0; s < 2; s++) {
+            sb.append(coalesceKey(spec, i, n)).append(" AS ").append(q("k" + i)).append(", ");
+        for (int s = 0; s < n; s++) {
             for (int i = 0; i < spec.measures().size(); i++)
                 sb.append("__s").append(s).append('.').append(q("m" + i)).append(" AS ").append(q("s" + s + "_m" + i)).append(", ");
             sb.append("__s").append(s).append('.').append(q("mr")).append(" AS ").append(q("s" + s + "_mr"))
-              .append(s == 0 ? ", " : "");
+              .append(s < n - 1 ? ", " : "");
         }
-        sb.append(" FROM __s0 FULL OUTER JOIN __s1 ON ").append(keyJoin(spec))
+        sb.append(" FROM ").append(joinChain(spec, n))
           .append(" ORDER BY ").append(orderByKeys(spec, "")).append(" LIMIT ").append(Math.max(0, limit) + 1);
         return sb.toString();
+    }
+
+    /** `COALESCE(__s0."ki", …, __s{n-1}."ki")` — the unified key column across all joined sides. */
+    private static String coalesceKey(Spec spec, int keyIdx, int n) {
+        List<String> parts = new ArrayList<>();
+        for (int s = 0; s < n; s++) parts.add("__s" + s + "." + q("k" + keyIdx));
+        return n == 1 ? parts.get(0) : "COALESCE(" + String.join(", ", parts) + ")";
+    }
+
+    /** The n-side FULL OUTER JOIN chain: each further side matches the coalesced keys of the sides before it. */
+    private static String joinChain(Spec spec, int n) {
+        StringBuilder sb = new StringBuilder("__s0");
+        for (int s = 1; s < n; s++) {
+            List<String> terms = new ArrayList<>();
+            for (int i = 0; i < spec.keyColumns().size(); i++)
+                terms.add(coalesceKey(spec, i, s) + " IS NOT DISTINCT FROM __s" + s + "." + q("k" + i));
+            sb.append(" FULL OUTER JOIN __s").append(s).append(" ON ").append(String.join(" AND ", terms));
+        }
+        return sb.toString();
+    }
+
+    /** Exact distinct key-group count across ALL sides (immune to the grain LIMIT). */
+    static String groupsSql(Spec spec) {
+        return with(spec) + "SELECT COUNT(*) AS \"groups\" FROM " + joinChain(spec, spec.sides().size());
     }
 
     /** One side's exact totals (no GROUP BY — immune to grain truncation). */
@@ -319,59 +361,65 @@ public final class ReconService {
         return sb.toString();
     }
 
-    /** One-pass exact Break summary over the joined grain (value_break counts (key × column) entries, UI parity). */
-    static String summarySql(Spec spec) {
+    /** One-pass exact Break summary for the anchor↔{@code other} pair (value_break counts (key × column) entries). */
+    static String pairSummarySql(Spec spec, int other) {
+        String o = "__s" + other;
         StringBuilder sb = new StringBuilder(with(spec))
-                .append("SELECT COUNT(*) AS \"groups\", ")
-                .append("COUNT(*) FILTER (WHERE __s0.\"mr\" IS NOT NULL AND __s1.\"mr\" IS NULL) AS \"missing_right\", ")
-                .append("COUNT(*) FILTER (WHERE __s1.\"mr\" IS NOT NULL AND __s0.\"mr\" IS NULL) AS \"missing_left\", ")
-                .append("COUNT(*) FILTER (WHERE __s0.\"mr\" IS NOT NULL AND __s1.\"mr\" IS NOT NULL) AS \"matched\", ");
+                .append("SELECT ")
+                .append("COUNT(*) FILTER (WHERE __s0.\"mr\" IS NOT NULL AND ").append(o).append(".\"mr\" IS NULL) AS \"missing_right\", ")
+                .append("COUNT(*) FILTER (WHERE ").append(o).append(".\"mr\" IS NOT NULL AND __s0.\"mr\" IS NULL) AS \"missing_left\", ")
+                .append("COUNT(*) FILTER (WHERE __s0.\"mr\" IS NOT NULL AND ").append(o).append(".\"mr\" IS NOT NULL) AS \"matched\", ");
         if (spec.measures().isEmpty()) {
             sb.append("0 AS \"value_break\"");
         } else {
             List<String> terms = new ArrayList<>();
             for (int i = 0; i < spec.measures().size(); i++)
-                terms.add("COALESCE(SUM(CASE WHEN __s0.\"mr\" IS NOT NULL AND __s1.\"mr\" IS NOT NULL AND NOT "
-                        + within("__s0." + q("m" + i), "__s1." + q("m" + i), spec.measures().get(i))
+                terms.add("COALESCE(SUM(CASE WHEN __s0.\"mr\" IS NOT NULL AND " + o + ".\"mr\" IS NOT NULL AND NOT "
+                        + within("__s0." + q("m" + i), o + "." + q("m" + i), spec.measures().get(i))
                         + " THEN 1 ELSE 0 END), 0)");
             sb.append('(').append(String.join(" + ", terms)).append(") AS \"value_break\"");
         }
-        sb.append(" FROM __s0 FULL OUTER JOIN __s1 ON ").append(keyJoin(spec));
+        sb.append(" FROM __s0 FULL OUTER JOIN ").append(o).append(" ON ").append(keyJoin(spec, 0, other));
         return sb.toString();
     }
 
-    /** Keys present on {@code side} and absent on the other ({@code side} 0 → missing_right, 1 → missing_left). */
-    static String missingSql(Spec spec, int side, Map<String, String> path, int limit, int offset) {
-        int other = 1 - side;
-        String p = "__s" + side, o = "__s" + other;
+    /**
+     * Keys on one side of the anchor↔{@code other} pair and absent on the other.
+     * {@code anchorOnly} true → missing_right (anchor has, other doesn't; rows aliased {@code sa_*});
+     * false → missing_left (other has, anchor doesn't; rows aliased {@code sb_*}).
+     */
+    static String missingSql(Spec spec, int other, boolean anchorOnly, Map<String, String> path, int limit, int offset) {
+        String present = anchorOnly ? "__s0" : "__s" + other;
+        String absent = anchorOnly ? "__s" + other : "__s0";
+        String prefix = anchorOnly ? "sa_" : "sb_";
         StringBuilder sb = new StringBuilder(with(spec)).append("SELECT ");
         for (int i = 0; i < spec.keyColumns().size(); i++)
-            sb.append(p).append('.').append(q("k" + i)).append(", ");
+            sb.append(present).append('.').append(q("k" + i)).append(", ");
         for (int i = 0; i < spec.measures().size(); i++)
-            sb.append(p).append('.').append(q("m" + i)).append(" AS ").append(q("s" + side + "_m" + i)).append(", ");
-        sb.append(p).append('.').append(q("mr")).append(" AS ").append(q("s" + side + "_mr"))
-          .append(" FROM ").append(p).append(" LEFT JOIN ").append(o).append(" ON ").append(keyJoin(spec))
-          .append(" WHERE ").append(o).append(".\"mr\" IS NULL").append(pathPredicate(spec, path, p + "."))
-          .append(" ORDER BY ").append(orderByKeys(spec, p + "."))
+            sb.append(present).append('.').append(q("m" + i)).append(" AS ").append(q(prefix + "m" + i)).append(", ");
+        sb.append(present).append('.').append(q("mr")).append(" AS ").append(q(prefix + "mr"))
+          .append(" FROM ").append(present).append(" LEFT JOIN ").append(absent).append(" ON ").append(keyJoin(spec, 0, other))
+          .append(" WHERE ").append(absent).append(".\"mr\" IS NULL").append(pathPredicate(spec, path, present + "."))
+          .append(" ORDER BY ").append(orderByKeys(spec, present + "."))
           .append(" LIMIT ").append(Math.max(0, limit) + 1).append(" OFFSET ").append(Math.max(0, offset));
         return sb.toString();
     }
 
-    /** Matched keys where any compare column falls outside its tolerance. */
-    static String valueBreaksSql(Spec spec, Map<String, String> path, int limit, int offset) {
+    /** Matched keys of the anchor↔{@code other} pair where any compare column is outside its tolerance. */
+    static String valueBreaksSql(Spec spec, int other, Map<String, String> path, int limit, int offset) {
+        String o = "__s" + other;
         StringBuilder sb = new StringBuilder(with(spec)).append("SELECT ");
         for (int i = 0; i < spec.keyColumns().size(); i++)
             sb.append("__s0.").append(q("k" + i)).append(", ");
-        for (int s = 0; s < 2; s++) {
-            for (int i = 0; i < spec.measures().size(); i++)
-                sb.append("__s").append(s).append('.').append(q("m" + i)).append(" AS ").append(q("s" + s + "_m" + i)).append(", ");
-            sb.append("__s").append(s).append('.').append(q("mr")).append(" AS ").append(q("s" + s + "_mr"))
-              .append(s == 0 ? ", " : "");
-        }
+        for (int i = 0; i < spec.measures().size(); i++)
+            sb.append("__s0.").append(q("m" + i)).append(" AS ").append(q("sa_m" + i)).append(", ")
+              .append(o).append('.').append(q("m" + i)).append(" AS ").append(q("sb_m" + i)).append(", ");
+        sb.append("__s0.").append(q("mr")).append(" AS ").append(q("sa_mr")).append(", ")
+          .append(o).append('.').append(q("mr")).append(" AS ").append(q("sb_mr"));
         List<String> broken = new ArrayList<>();
         for (int i = 0; i < spec.measures().size(); i++)
-            broken.add("NOT " + within("__s0." + q("m" + i), "__s1." + q("m" + i), spec.measures().get(i)));
-        sb.append(" FROM __s0 JOIN __s1 ON ").append(keyJoin(spec))
+            broken.add("NOT " + within("__s0." + q("m" + i), o + "." + q("m" + i), spec.measures().get(i)));
+        sb.append(" FROM __s0 JOIN ").append(o).append(" ON ").append(keyJoin(spec, 0, other))
           .append(" WHERE (").append(String.join(" OR ", broken)).append(')')
           .append(pathPredicate(spec, path, "__s0."))
           .append(" ORDER BY ").append(orderByKeys(spec, "__s0."))
@@ -396,14 +444,16 @@ public final class ReconService {
     }
 
     private static String with(Spec spec) {
-        return "WITH __s0 AS (" + sideSql(spec, 0) + "), __s1 AS (" + sideSql(spec, 1) + ") ";
+        List<String> ctes = new ArrayList<>();
+        for (int i = 0; i < spec.sides().size(); i++) ctes.add("__s" + i + " AS (" + sideSql(spec, i) + ")");
+        return "WITH " + String.join(", ", ctes) + " ";
     }
 
-    /** NULL-safe key equality across the two grouped sides (NULL dim values match each other). */
-    private static String keyJoin(Spec spec) {
+    /** NULL-safe key equality between two grouped sides (NULL dim values match each other). */
+    private static String keyJoin(Spec spec, int left, int right) {
         List<String> terms = new ArrayList<>();
         for (int i = 0; i < spec.keyColumns().size(); i++)
-            terms.add("__s0." + q("k" + i) + " IS NOT DISTINCT FROM __s1." + q("k" + i));
+            terms.add("__s" + left + "." + q("k" + i) + " IS NOT DISTINCT FROM __s" + right + "." + q("k" + i));
         return String.join(" AND ", terms);
     }
 
@@ -411,14 +461,15 @@ public final class ReconService {
 
     private static Connection registerSides(SqlSandbox sandbox, Spec spec) throws SQLException {
         Connection conn = sandbox.connection();
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < spec.sides().size(); i++)
             try (Statement st = conn.createStatement()) {
                 st.execute("CREATE VIEW " + VIEWS[i] + " AS " + spec.sides().get(i).relationSql());
             }
         return conn;
     }
 
-    private static BreakSet breakSet(Connection conn, Spec spec, String sql, int onlySide, int limit)
+    /** Shape a pair-scoped break query: {@code roles} 'a' = anchor only, 'b' = compared side only, 'x' = both. */
+    private static BreakSet breakSet(Connection conn, Spec spec, String sql, char roles, int limit)
             throws SQLException {
         List<Map<String, Object>> raw = select(conn, sql);
         boolean truncated = raw.size() > limit;
@@ -427,8 +478,8 @@ public final class ReconService {
         for (Map<String, Object> r : raw) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("key", keysOf(spec, r));
-            if (onlySide != 1) row.put("a", measuresOf(spec, r, "s0_"));
-            if (onlySide != 0) row.put("b", measuresOf(spec, r, "s1_"));
+            if (roles != 'b') row.put("a", measuresOf(spec, r, "sa_"));
+            if (roles != 'a') row.put("b", measuresOf(spec, r, "sb_"));
             rows.add(row);
         }
         return new BreakSet(rows, rows.size(), truncated);
@@ -437,10 +488,11 @@ public final class ReconService {
     private static Map<String, Object> shapeRow(Spec spec, Map<String, Object> r) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("key", keysOf(spec, r));
-        row.put("a", measuresOf(spec, r, "s0_"));
-        row.put("b", measuresOf(spec, r, "s1_"));
+        for (int i = 0; i < spec.sides().size(); i++)
+            row.put(WIRE_SIDES[i], measuresOf(spec, r, "s" + i + "_"));
         row.put("inA", r.get("s0_mr") != null);
         row.put("inB", r.get("s1_mr") != null);
+        if (spec.sides().size() > 2) row.put("inC", r.get("s2_mr") != null);
         return row;
     }
 

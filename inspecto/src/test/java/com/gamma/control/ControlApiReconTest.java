@@ -73,10 +73,13 @@ class ControlApiReconTest {
                 + "('EU','data',118.0),('US','voice',50.0),('MEA','voice',10.0)");
         seedStore(dataDir, "orders_b", "VALUES ('EU','voice',200.0),('EU','data',114.0),"
                 + "('US','voice',50.0),('APAC','sms',7.0)");
+        seedStore(dataDir, "orders_c", "VALUES ('EU','voice',195.0),('EU','data',118.0),"
+                + "('US','voice',50.0),('LATAM','voice',5.0)");
 
         ComponentStore store = new ComponentStore(config.resolve("registry"));
         store.write("dataset", "a_ds", Map.of("physicalRef", "orders_a"));
         store.write("dataset", "b_ds", Map.of("physicalRef", "orders_b"));
+        store.write("dataset", "c_ds", Map.of("physicalRef", "orders_c"));
         store.write("reconciliation", "orders_recon", reconConfig());
     }
 
@@ -221,6 +224,44 @@ class ControlApiReconTest {
             HttpResponse<String> run = postJson(c.port, "/api/v1/spaces/s1/recon/run", "{\"id\":\"via_http\"}");
             assertEquals(200, run.statusCode(), run.body());
             assertEquals(4, data(run).get("statistics").get("rowCount").asInt());
+        }
+    }
+
+    /** P4: 3-way anchor reconciliation — each non-anchor side compared against A; side-scoped breaks. */
+    @Test
+    void threeWayRunAndSideScopedBreaks(@TempDir Path root) throws Exception {
+        try (Ctx c = open(root)) {
+            String config = "{\"config\":{\"datasets\":[\"a_ds\",\"b_ds\",\"c_ds\"],"
+                    + "\"keyColumns\":[\"region\",\"product\"],"
+                    + "\"compareColumns\":[{\"column\":\"amount\",\"toleranceType\":\"percent\",\"tolerance\":0.5}]}";
+
+            HttpResponse<String> run = postJson(c.port, "/api/v1/spaces/s1/recon/run", config + "}");
+            assertEquals(200, run.statusCode(), run.body());
+            JsonNode d = data(run);
+            assertEquals(6, d.get("statistics").get("rowCount").asInt(), "union of key groups across all 3 sides");
+            assertEquals(6, d.get("summary").get("groups").asInt());
+            assertEquals(2, d.get("summary").get("pairs").size());
+            assertEquals("c", d.get("summary").get("pairs").get(1).get("side").asText());
+            assertEquals(1, d.get("summary").get("pairs").get(1).get("byType").get("value_break").asInt(),
+                    "EU/voice 200 vs 195 outside 0.5%");
+            JsonNode latam = null;
+            for (JsonNode row : d.get("rows"))
+                if ("LATAM".equals(row.get("key").get("region").asText())) latam = row;
+            assertNotNull(latam);
+            assertFalse(latam.get("inA").asBoolean());
+            assertTrue(latam.get("inC").asBoolean());
+            assertEquals(368.0, d.get("totals").get("c").get("amount").asDouble());
+
+            // side-scoped breaks: pair A↔C
+            JsonNode breaks = data(postJson(c.port, "/api/v1/spaces/s1/recon/breaks", config + ",\"side\":\"c\"}"));
+            assertEquals("LATAM", breaks.get("missing_left").get("rows").get(0).get("key").get("region").asText());
+            assertEquals(195.0, breaks.get("value_break").get("rows").get(0).get("b").get("amount").asDouble());
+
+            // side c against a 2-way config, or a bogus side → 422
+            assertEquals(422, postJson(c.port, "/api/v1/spaces/s1/recon/breaks",
+                    "{\"id\":\"orders_recon\",\"side\":\"c\"}").statusCode());
+            assertEquals(422, postJson(c.port, "/api/v1/spaces/s1/recon/breaks",
+                    "{\"id\":\"orders_recon\",\"side\":\"z\"}").statusCode());
         }
     }
 

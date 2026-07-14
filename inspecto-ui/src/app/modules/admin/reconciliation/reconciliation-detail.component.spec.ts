@@ -82,7 +82,7 @@ describe('ReconciliationDetailComponent (Breaks page)', () => {
 
     it('scopes to the Board dimension path from ?path=', async () => {
         const { c, breaks } = await create({ path: 'region:EU' });
-        expect(breaks).toHaveBeenCalledWith(expect.anything(), { region: 'EU' });
+        expect(breaks).toHaveBeenCalledWith(expect.anything(), { region: 'EU' }, null, 'b');
         expect(c.missingA()).toHaveLength(0);
         expect(c.valueBreaks()).toHaveLength(1);
     });

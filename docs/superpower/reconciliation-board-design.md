@@ -243,6 +243,10 @@ already exists for the Business ask).
 | Phase | Scope | Verify |
 |---|---|---|
 | **P0 backend spine** — ✅ **shipped 2026-07-14** | kind registration (2 lines) + `ReconRoutes`/`ReconService` (`/recon/columns`, `/recon/run` 2-way, `/recon/breaks`) + SQL-builder unit tests incl. `withinTolerance` parity + real-HTTP `ControlApiReconTest` (all gates) | ✅ reactor 1454/0/0/3 green; `ReconServiceTest` 8 + `ControlApiReconTest` 7 pass |
+| **P1 Board UI** — ✅ **shipped 2026-07-14** (`81f624e`) | config strip + `bandCell()` + tree board (TOTAL, expand-breaches, sort, CSV) + draft mode + save + offline mirror `recon-board.ts` | ✅ lint:tokens + test:ci + build |
+| **P2 Breaks cutover** — ✅ **shipped 2026-07-14** (`f68b9e9`) | three-tables page + `?path=` scoping + lifecycle overlay; exec seam replaces the `datasetRows` mock | ✅ green |
+| **P3 Widget + export** — ✅ **shipped 2026-07-14** (`de343ef`) | view-bound `reconciliation` VizPlugin + tile host; Duplicate-and-rebind; bundle kinds + export run-state sanitize | ✅ green |
+| **P4 3-way** — ✅ **shipped 2026-07-14** | anchor model (`datasets` 2–3) in `ReconService` + `ReconRoutes` (`side` param) + per-pair summaries; UI third-dataset picker, per-side Δ% columns, Breaks side toggle | ✅ green |
 | **P1 Board UI** | config strip + pickers + `bandCell()` + tree board (TOTAL, expand-breaches, sort, CSV) + draft mode + save; route `:id` = Board; seed a demo recon (two near-identical Matrices with injected diffs) in `spaces/demo` | GAUNTLET; SMOKE `/recon/run` against seeded demo; live board screenshot |
 | **P2 Breaks cutover** | three-tables page + `?path=` scoping + lifecycle overlay; `ReconciliationsService.datasetRows()` → `/recon/*` (mock seam removed); existing detail becomes `:id/breaks` | existing recon specs still green; e2e drill Board→Breaks on demo space |
 | **P3 Widget + export** | view-bound `reconciliation` VizPlugin + dashboard tile embed; Duplicate flow; bundle kinds + export sanitize | dashboard renders saved recon; bundle export→import round-trip test |

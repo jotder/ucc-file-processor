@@ -16,19 +16,35 @@ import {
 /** Wire name of the implicit COUNT(*) measure (always compared on the Board). */
 export const RECON_RECORDS = '__records';
 
-/** One Board grain row — the two sides' aggregated measures for one key-column combination. */
+/** Side wire keys in anchor order — 'a' is always the anchor; a 3-way recon adds 'c'. */
+export const SIDE_KEYS = ['a', 'b', 'c'] as const;
+export type SideKey = (typeof SIDE_KEYS)[number];
+
+/** One Board grain row — each side's aggregated measures for one key-column combination. */
 export interface ReconGrainRow {
     key: Record<string, unknown>;
     a: Record<string, number | null>;
     b: Record<string, number | null>;
+    c?: Record<string, number | null>;
     inA: boolean;
     inB: boolean;
+    inC?: boolean;
+}
+
+/** One anchor-relative pair's Break summary (design §6 — pairs[0] = A↔B, pairs[1] = A↔C). */
+export interface ReconPairSummary {
+    side: SideKey;
+    matchedKeys: number;
+    byType: { missing_left: number; missing_right: number; value_break: number };
 }
 
 export interface ReconRunSummary {
     groups: number;
+    /** A↔B (mirrors pairs[0]) — kept flat so 2-way consumers are unchanged. */
     matchedKeys: number;
     byType: { missing_left: number; missing_right: number; value_break: number };
+    /** One entry per non-anchor side (present on 3-way; length 1 on 2-way). */
+    pairs?: ReconPairSummary[];
 }
 
 /** The `/recon/run` payload. */
@@ -36,9 +52,14 @@ export interface ReconRunResult {
     keyColumns: string[];
     measures: string[];
     rows: ReconGrainRow[];
-    totals: { a: Record<string, number | null>; b: Record<string, number | null> };
+    totals: { a: Record<string, number | null>; b: Record<string, number | null>; c?: Record<string, number | null> };
     summary: ReconRunSummary;
     statistics: { rowCount: number; elapsedMs: number; truncated: boolean };
+}
+
+/** The non-anchor side keys present in a result (['b'] for 2-way, ['b','c'] for 3-way). */
+export function comparedSides(result: ReconRunResult): SideKey[] {
+    return result.totals.c ? ['b', 'c'] : ['b'];
 }
 
 /** One row of a `/recon/breaks` set (missing sets carry a single side). */
@@ -141,49 +162,80 @@ export function breaksFromSets(
     return out;
 }
 
-/** The in-browser mirror of `POST /recon/run` over already-resolved side rows. */
+/**
+ * The in-browser mirror of `POST /recon/run` over already-resolved side rows. Pass {@code thirdRows} to
+ * run 3-way: side 0 (left) is the anchor, each further side is reconciled against it (design §6).
+ */
 export function aggregateRecon(
     recon: Pick<Reconciliation, 'keyColumns' | 'compareColumns'>,
     leftRows: Record<string, unknown>[],
     rightRows: Record<string, unknown>[],
+    thirdRows?: Record<string, unknown>[] | null,
 ): ReconRunResult {
     const t0 = Date.now();
     const { keyColumns, compareColumns } = recon;
-    const a = groupSide(leftRows, keyColumns, compareColumns);
-    const b = groupSide(rightRows, keyColumns, compareColumns);
+    const threeWay = !!thirdRows;
+    const grouped = [
+        groupSide(leftRows, keyColumns, compareColumns),
+        groupSide(rightRows, keyColumns, compareColumns),
+        ...(threeWay ? [groupSide(thirdRows!, keyColumns, compareColumns)] : []),
+    ];
     const measures = [...compareColumns.map((c) => c.column), RECON_RECORDS];
 
-    const ids = [...new Set([...a.keys(), ...b.keys()])].sort();
-    const rows: ReconGrainRow[] = [];
-    const summary: ReconRunSummary = {
-        groups: ids.length, matchedKeys: 0,
-        byType: { missing_left: 0, missing_right: 0, value_break: 0 },
-    };
+    const ids = [...new Set(grouped.flatMap((g) => [...g.keys()]))].sort();
     const emptySide = (): Record<string, number | null> => {
         const m: Record<string, number | null> = { [RECON_RECORDS]: null };
         for (const c of compareColumns) m[c.column] = null;
         return m;
     };
+    const rows: ReconGrainRow[] = [];
     for (const id of ids) {
-        const ga = a.get(id);
-        const gb = b.get(id);
-        rows.push({
-            key: (ga ?? gb)!.key,
-            a: ga?.measures ?? emptySide(),
-            b: gb?.measures ?? emptySide(),
-            inA: !!ga,
-            inB: !!gb,
-        });
-        if (ga && !gb) summary.byType.missing_right++;
-        else if (gb && !ga) summary.byType.missing_left++;
-        else if (ga && gb) {
-            summary.matchedKeys++;
-            for (const c of compareColumns)
-                if (!aggWithin(ga.measures[c.column], gb.measures[c.column], c)) summary.byType.value_break++;
+        const g = grouped.map((side) => side.get(id));
+        const row: ReconGrainRow = {
+            key: g.find((x) => x)!.key,
+            a: g[0]?.measures ?? emptySide(),
+            b: g[1]?.measures ?? emptySide(),
+            inA: !!g[0],
+            inB: !!g[1],
+        };
+        if (threeWay) {
+            row.c = g[2]?.measures ?? emptySide();
+            row.inC = !!g[2];
         }
+        rows.push(row);
     }
 
-    const totals = { a: sideTotals(a, compareColumns), b: sideTotals(b, compareColumns) };
+    // Anchor-relative pair summaries: one per non-anchor side.
+    const pairs: ReconPairSummary[] = [];
+    for (let other = 1; other < grouped.length; other++) {
+        const byType = { missing_left: 0, missing_right: 0, value_break: 0 };
+        let matched = 0;
+        for (const id of ids) {
+            const ga = grouped[0].get(id);
+            const go = grouped[other].get(id);
+            if (ga && !go) byType.missing_right++;
+            else if (go && !ga) byType.missing_left++;
+            else if (ga && go) {
+                matched++;
+                for (const c of compareColumns)
+                    if (!aggWithin(ga.measures[c.column], go.measures[c.column], c)) byType.value_break++;
+            }
+        }
+        pairs.push({ side: SIDE_KEYS[other], matchedKeys: matched, byType });
+    }
+
+    const summary: ReconRunSummary = {
+        groups: ids.length,
+        matchedKeys: pairs[0].matchedKeys,
+        byType: pairs[0].byType,
+        pairs,
+    };
+    const totals: ReconRunResult['totals'] = {
+        a: sideTotals(grouped[0], compareColumns),
+        b: sideTotals(grouped[1], compareColumns),
+    };
+    if (threeWay) totals.c = sideTotals(grouped[2], compareColumns);
+
     return {
         keyColumns, measures, rows, totals, summary,
         statistics: { rowCount: rows.length, elapsedMs: Date.now() - t0, truncated: false },
@@ -203,29 +255,37 @@ function sideTotals(groups: Map<string, SideGroup>, compare: CompareColumn[]): R
     return totals;
 }
 
-/** The in-browser mirror of `POST /recon/breaks` (all three sets, optionally path-scoped / type-filtered). */
+/**
+ * The in-browser mirror of `POST /recon/breaks` for one anchor-relative pair (all three sets, optionally
+ * path-scoped / type-filtered). {@code side} picks the compared side ('b' default, or 'c' on a 3-way
+ * recon); output rows always carry the anchor as {@code a} and the compared side as {@code b} (roles).
+ */
 export function reconBreakSets(
-    recon: Pick<Reconciliation, 'keyColumns' | 'compareColumns'>,
+    recon: Pick<Reconciliation, 'keyColumns' | 'compareColumns'> & { thirdDataset?: string },
     leftRows: Record<string, unknown>[],
     rightRows: Record<string, unknown>[],
     path?: Record<string, string> | null,
     type?: 'missing_left' | 'missing_right' | 'value_break' | null,
+    side: SideKey = 'b',
+    thirdRows?: Record<string, unknown>[] | null,
 ): ReconBreakSets {
-    const run = aggregateRecon(recon, leftRows, rightRows);
+    const run = aggregateRecon(recon, leftRows, rightRows, thirdRows);
+    const otherOf = (r: ReconGrainRow) => (side === 'c' ? r.c ?? null : r.b);
+    const inOther = (r: ReconGrainRow) => (side === 'c' ? !!r.inC : r.inB);
     const inPath = (key: Record<string, unknown>): boolean =>
         !path || Object.entries(path).every(([dim, v]) => String(key[dim] ?? '') === v);
     const set = (rows: ReconBreakRow[]): ReconBreakSet => ({ rows, rowCount: rows.length, truncated: false });
 
     const out: ReconBreakSets = {};
     if (!type || type === 'missing_right')
-        out.missing_right = set(run.rows.filter((r) => r.inA && !r.inB && inPath(r.key)).map((r) => ({ key: r.key, a: r.a })));
+        out.missing_right = set(run.rows.filter((r) => r.inA && !inOther(r) && inPath(r.key)).map((r) => ({ key: r.key, a: r.a })));
     if (!type || type === 'missing_left')
-        out.missing_left = set(run.rows.filter((r) => r.inB && !r.inA && inPath(r.key)).map((r) => ({ key: r.key, b: r.b })));
+        out.missing_left = set(run.rows.filter((r) => inOther(r) && !r.inA && inPath(r.key)).map((r) => ({ key: r.key, b: otherOf(r)! })));
     if (!type || type === 'value_break')
         out.value_break = set(run.rows
-            .filter((r) => r.inA && r.inB && inPath(r.key)
-                && recon.compareColumns.some((c) => !aggWithin(r.a[c.column], r.b[c.column], c)))
-            .map((r) => ({ key: r.key, a: r.a, b: r.b })));
+            .filter((r) => r.inA && inOther(r) && inPath(r.key)
+                && recon.compareColumns.some((c) => !aggWithin(r.a[c.column], otherOf(r)![c.column], c)))
+            .map((r) => ({ key: r.key, a: r.a, b: otherOf(r)! })));
     return out;
 }
 
@@ -296,6 +356,7 @@ function buildLevel(
     parentPath: Record<string, unknown>,
 ): TreeNode[] {
     const dim = result.keyColumns[depth];
+    const sides = comparedSides(result);
     const byValue = new Map<string, ReconGrainRow[]>();
     for (const r of rows) {
         const v = String(r.key[dim] ?? '');
@@ -306,18 +367,26 @@ function buildLevel(
         const path = { ...parentPath, [dim]: group[0].key[dim] };
         const id = encodePath(path, result.keyColumns);
         const inA = group.some((r) => r.inA);
-        const inB = group.some((r) => r.inB);
-        const structural: 'a' | 'b' | null = inA && !inB ? 'a' : inB && !inA ? 'b' : null;
-        const values: Record<string, unknown> = { __structural: structural, __path: id };
+        const present: Record<SideKey, boolean> = {
+            a: inA,
+            b: group.some((r) => r.inB),
+            c: group.some((r) => !!r.inC),
+        };
+        const values: Record<string, unknown> = { __path: id, __anchorMissing: !inA };
         let worst = 0;
-        for (const m of result.measures) {
-            const a = rollup(group, 'a', m, inA);
-            const b = rollup(group, 'b', m, inB);
-            const pct = structural ? null : deltaPct(a, b);
-            values[`a_${m}`] = a;
-            values[`b_${m}`] = b;
-            values[`pct_${m}`] = pct;
-            worst = Math.max(worst, severityRank(structural ? 'structural' : bandFor(pct, bands), pct));
+        for (const m of result.measures) values[`a_${m}`] = rollup(group, 'a', m, inA);
+        for (const s of sides) {
+            // Per-side structural: anchor present but this side absent below the node (or vice-versa).
+            const structural = inA !== present[s];
+            values[`__miss_${s}`] = structural ? (inA ? 'a' : s) : null;
+            for (const m of result.measures) {
+                const a = values[`a_${m}`] as number | null;
+                const v = rollup(group, s, m, present[s]);
+                const pct = structural ? null : deltaPct(a, v);
+                values[`${s}_${m}`] = v;
+                values[`pct_${s}_${m}`] = pct;
+                worst = Math.max(worst, severityRank(structural ? 'structural' : bandFor(pct, bands), pct));
+            }
         }
         const leaf = depth === result.keyColumns.length - 1;
         nodes.push({
@@ -335,12 +404,13 @@ function buildLevel(
 }
 
 /** Sum a measure across grain rows for one side; `null` when the side is absent below this node. */
-function rollup(group: ReconGrainRow[], side: 'a' | 'b', measure: string, present: boolean): number | null {
+function rollup(group: ReconGrainRow[], side: SideKey, measure: string, present: boolean): number | null {
     if (!present) return null;
     let sum = 0;
     let any = false;
     for (const r of group) {
-        const v = r[side][measure];
+        const sideMeasures = side === 'a' ? r.a : side === 'b' ? r.b : r.c;
+        const v = sideMeasures?.[measure];
         if (v !== null && v !== undefined) {
             sum += v;
             any = true;
@@ -367,15 +437,16 @@ export function markBreachesExpanded(nodes: TreeNode[], bands: ReconBands = DEFA
     return nodes.map((n) => mark(n).node);
 }
 
-/** A node's worst band across its measures. */
+/** A node's worst band across its measures and sides. */
 export function nodeBand(n: TreeNode, bands: ReconBands = DEFAULT_BANDS): ReconBand {
     const v = n.values ?? {};
-    if (v['__structural']) return 'structural';
+    for (const key of Object.keys(v)) if (key.startsWith('__miss_') && v[key]) return 'structural';
+    if (v['__anchorMissing']) return 'structural';
     let worst: ReconBand = 'ok';
     for (const key of Object.keys(v)) {
         if (!key.startsWith('pct_')) continue;
         const band = bandFor(v[key] as number | null, bands);
-        if (band === 'breach' || band === 'structural') return band === 'structural' ? 'structural' : 'breach';
+        if (band === 'breach') return 'breach';
         if (band === 'warn') worst = 'warn';
     }
     return worst;
@@ -392,16 +463,18 @@ const BAND_TONE: Record<ReconBand, string> = {
 const BAND_GLYPH: Record<ReconBand, string> = { ok: '✓', warn: '!', breach: '✕', structural: '⊘' };
 
 /**
- * String cell-renderer for a Board Δ% column: severity glyph + signed percentage, text-tone only
- * (glyph + text carry the meaning — never color alone). A structural row renders "only in A/B";
- * a zero-anchor "new" value renders the breach glyph with "new".
+ * String cell-renderer for a Board Δ% column of one compared {@code side}: severity glyph + signed
+ * percentage, text-tone only (glyph + text carry the meaning — never color alone). A one-sided node
+ * renders "only in A/<side>"; a zero-anchor "new" value renders the breach glyph with "new".
  */
-export function bandCell(bands: ReconBands = DEFAULT_BANDS): (p: ICellRendererParams) => string {
+export function bandCell(side: SideKey = 'b', bands: ReconBands = DEFAULT_BANDS): (p: ICellRendererParams) => string {
+    const label = side.toUpperCase();
     return (p) => {
-        const structural = (p.data as Record<string, unknown> | undefined)?.['__structural'] as string | null;
-        if (structural) {
-            const side = structural === 'a' ? 'A' : 'B';
-            return `<span class="${BAND_TONE.structural}">${BAND_GLYPH.structural} only in ${side}</span>`;
+        const data = p.data as Record<string, unknown> | undefined;
+        const miss = data?.[`__miss_${side}`] as string | null | undefined;
+        if (miss) {
+            const which = miss === 'a' ? 'A' : label;
+            return `<span class="${BAND_TONE.structural}">${BAND_GLYPH.structural} only in ${which}</span>`;
         }
         const pct = p.value as number | null | undefined;
         if (pct === null || pct === undefined)

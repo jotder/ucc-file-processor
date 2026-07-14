@@ -1,9 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom, forkJoin } from 'rxjs';
+import { firstValueFrom, forkJoin, of } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { ReconApiService, ReconServerConfig } from 'app/inspecto/api';
 import {
-    aggregateRecon, Reconciliation, ReconBreakSets, reconBreakSets, ReconRunResult,
+    aggregateRecon, Reconciliation, ReconBreakSets, reconBreakSets, ReconRunResult, SideKey,
 } from 'app/inspecto/reconciliation';
 import { evaluateRows } from 'app/inspecto/query';
 import { Dataset } from '../studio/datasets/dataset-types';
@@ -25,34 +25,46 @@ export class ReconExecService {
     /** Run the Board aggregate comparison. */
     async run(recon: Reconciliation): Promise<ReconRunResult> {
         if (!environment.mockStudio) return firstValueFrom(this.api.run(serverConfig(recon)));
-        const { left, right } = await this.rows(recon);
-        return aggregateRecon(recon, left, right);
+        const { left, right, third } = await this.rows(recon);
+        return aggregateRecon(recon, left, right, third);
     }
 
-    /** The Break sets at the recon grain, optionally scoped to a Board dimension path. */
+    /**
+     * The Break sets at the recon grain for one anchor-relative pair, optionally scoped to a Board
+     * dimension path. {@code side} picks the compared side ('b' default, or 'c' on a 3-way recon).
+     */
     async breaks(
         recon: Reconciliation,
         path?: Record<string, string> | null,
         type?: 'missing_left' | 'missing_right' | 'value_break' | null,
+        side: SideKey = 'b',
     ): Promise<ReconBreakSets> {
-        if (!environment.mockStudio) return firstValueFrom(this.api.breaks(serverConfig(recon), path, type));
-        const { left, right } = await this.rows(recon);
-        return reconBreakSets(recon, left, right, path, type);
+        if (!environment.mockStudio) return firstValueFrom(this.api.breaks(serverConfig(recon), path, type, side));
+        const { left, right, third } = await this.rows(recon);
+        return reconBreakSets(recon, left, right, path, type, side, third);
     }
 
     /** Offline row resolution — the datasets' sample-source rows through their Query Core when virtual. */
-    private async rows(recon: Reconciliation): Promise<{ left: Record<string, unknown>[]; right: Record<string, unknown>[] }> {
-        const { left, right } = await firstValueFrom(
-            forkJoin({ left: this.datasets.get(recon.leftDataset), right: this.datasets.get(recon.rightDataset) }),
+    private async rows(recon: Reconciliation): Promise<{
+        left: Record<string, unknown>[]; right: Record<string, unknown>[]; third: Record<string, unknown>[] | null;
+    }> {
+        const { left, right, third } = await firstValueFrom(
+            forkJoin({
+                left: this.datasets.get(recon.leftDataset),
+                right: this.datasets.get(recon.rightDataset),
+                third: recon.thirdDataset ? this.datasets.get(recon.thirdDataset) : of(null),
+            }),
         );
-        return { left: datasetRows(left), right: datasetRows(right) };
+        return { left: datasetRows(left), right: datasetRows(right), third: third ? datasetRows(third) : null };
     }
 }
 
 /** Map the UI model to the server config (`/recon/*` accepts the v1 left/right form too — send v2). */
 export function serverConfig(recon: Reconciliation): ReconServerConfig {
     return {
-        datasets: [recon.leftDataset, recon.rightDataset],
+        datasets: recon.thirdDataset
+            ? [recon.leftDataset, recon.rightDataset, recon.thirdDataset]
+            : [recon.leftDataset, recon.rightDataset],
         keyColumns: recon.keyColumns,
         compareColumns: recon.compareColumns.map((c) => ({
             column: c.column,
