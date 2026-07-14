@@ -1,0 +1,92 @@
+<div class="flex min-w-0 flex-auto flex-col p-6 md:p-8">
+    <header class="mb-4">
+        <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Data Browser</h1>
+        <p class="text-secondary mt-1 text-sm">
+            Browse the raw tables and data in this space, and run read-only SQL — like a database client.
+        </p>
+    </header>
+
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
+        <!-- ── left: catalog ── -->
+        <nav class="lg:col-span-1" aria-label="Tables">
+            @if (loadingCatalog()) {
+                <inspecto-skeleton [lines]="6" />
+            } @else if (catalogError()) {
+                <inspecto-alert variant="error" title="Catalog unavailable">{{ catalogError() }}</inspecto-alert>
+            } @else if (groups().length === 0) {
+                <inspecto-empty-state title="No data" message="This space has no browsable stores yet." />
+            } @else {
+                @for (g of groups(); track g.id) {
+                    <div class="mb-4">
+                        <h2 class="text-secondary mb-1 text-xs font-semibold uppercase tracking-wide">{{ g.label }}</h2>
+                        @if (g.tables.length === 0) {
+                            <p class="text-secondary px-2 text-sm italic">
+                                {{ g.kind === 'operational' && !g.live ? 'not enabled' : 'empty' }}
+                            </p>
+                        }
+                        <ul class="flex flex-col gap-0.5">
+                            @for (t of g.tables; track t.name) {
+                                <li>
+                                    <button
+                                        type="button"
+                                        class="bg-card hover:bg-hover flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm"
+                                        [class.bg-hover]="isSelected(g.id, t.name)"
+                                        [class.font-semibold]="isSelected(g.id, t.name)"
+                                        [attr.aria-current]="isSelected(g.id, t.name) ? 'true' : null"
+                                        (click)="select(g, t)">
+                                        <span class="truncate font-mono">{{ t.name }}</span>
+                                        @if (t.format) {
+                                            <span class="bg-gray-200 rounded px-1.5 py-0.5 text-xs uppercase dark:bg-gray-700">{{ t.format }}</span>
+                                        }
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            }
+        </nav>
+
+        <!-- ── right: detail ── -->
+        <section class="lg:col-span-3" aria-label="Table data">
+            @if (!selected()) {
+                <inspecto-empty-state
+                    title="Select a table"
+                    message="Choose a table on the left to view its schema and rows." />
+            } @else {
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div class="min-w-0">
+                        <h2 class="truncate font-mono text-lg font-semibold">{{ selected()!.table.name }}</h2>
+                        @if (selected()!.table.dataset) {
+                            <p class="text-secondary text-xs">dataset: {{ selected()!.table.dataset }}</p>
+                        }
+                    </div>
+                    @if (stats(); as s) {
+                        <p class="text-secondary text-xs" role="status">
+                            {{ s.rowCount }} row(s) · {{ s.elapsedMs }} ms@if (s.truncated) { · first 200 (truncated) }
+                        </p>
+                    }
+                </div>
+
+                @if (rowsError()) {
+                    <inspecto-alert variant="error" title="Query failed" class="mb-2 block">{{ rowsError() }}</inspecto-alert>
+                }
+
+                <!-- Pro data-table: its toolbar toggles the SQL editor (client Run over the loaded page) +
+                     "Run on server" → onServerSql → /db/query over the full dataset. -->
+                <inspecto-data-table
+                    tier="pro"
+                    [serverRun]="true"
+                    [rows]="rows()"
+                    [columns]="columns()"
+                    [loading]="loadingRows()"
+                    [autoHeight]="true"
+                    [sourceName]="selected()!.table.name"
+                    [exportName]="selected()!.table.name"
+                    (runOnServer)="onServerSql($event)"
+                    noRowsTitle="No rows"
+                    noRowsHint="This table has no rows to display." />
+            }
+        </section>
+    </div>
+</div>

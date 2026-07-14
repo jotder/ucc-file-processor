@@ -8,6 +8,7 @@ import { assistHandler } from './handlers/assist.handler';
 import { authHandler } from './handlers/auth.handler';
 import { componentsHandler } from './handlers/components.handler';
 import { connectionsHandler } from './handlers/connections.handler';
+import { dbBrowserHandler } from './handlers/db-browser.handler';
 import { demoHandler } from './handlers/demo.handler';
 import { decisionRulesHandler } from './handlers/decision-rules.handler';
 import { exchangeHandler } from './handlers/exchange.handler';
@@ -53,6 +54,7 @@ const HANDLERS: MockHandler[] = [
     authHandler(flags), // server-global /bootstrap + /auth/* (W6d edition switch) — ahead of everything
     spacesHandler(flags), // server-global /spaces — ahead of the per-space domains
     exchangeHandler(flags), // installation-scope /exchange/* (cross-space sharing) — also un-prefixed
+    dbBrowserHandler(flags), // /db/* raw table browser — ahead of demoHandler (its /catalog$ regex also matches /db/catalog)
     demoHandler(flags),
     connectionsHandler(flags),
     componentsHandler(flags),

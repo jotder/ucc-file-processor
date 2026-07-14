@@ -83,6 +83,7 @@ export const defaultNavigation: GammaNavigationItem[] = [
                 children: [
                     { id: 'catalog',          title: 'Data Catalog', type: 'basic', icon: 'heroicons_outline:share',           link: '/catalog' },
                     { id: 'studio-datasets',  title: 'Datasets',     type: 'basic', icon: 'heroicons_outline:table-cells',     link: '/catalog/datasets' },
+                    { id: 'data-browser',     title: 'Data Browser', type: 'basic', icon: 'heroicons_outline:circle-stack',    link: '/data-browser' },
                 ]
             },
         ]
