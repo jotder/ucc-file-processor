@@ -13,21 +13,12 @@ import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state
 import { InspectoRowAction } from 'app/inspecto/grid';
 import { FlatTreeRow, TreeNode, TreeTableComponent } from 'app/inspecto/tree-table';
 import {
-    bandCell, bandFor, breaksFromSets, buildBoardTree, comparedSides, DEFAULT_BANDS, deltaPct, fmtMeasure,
-    markBreachesExpanded, mergeBreaks, ReconBand, Reconciliation, ReconciliationsService,
-    ReconRunResult, RECON_RECORDS, SideKey,
+    bandFor, bandGlyph, bandTone, boardColumns, breaksFromSets, buildBoardTree, comparedSides,
+    DEFAULT_BANDS, deltaPct, fmtMeasure, markBreachesExpanded, mergeBreaks, Reconciliation,
+    ReconciliationsService, ReconRunResult, RECON_RECORDS,
 } from 'app/inspecto/reconciliation';
 import { ReconExecService } from './recon-exec.service';
 import { ReconciliationFormDialog, ReconciliationFormResult } from './reconciliation-form.dialog';
-
-/** Text-tone classes per band (glyph + text carry the meaning; tones are lint-sanctioned `text-*`). */
-const BAND_TONES: Record<ReconBand, string> = {
-    ok: 'text-green-600 dark:text-green-400',
-    warn: 'text-amber-600 dark:text-amber-400',
-    breach: 'text-red-600 dark:text-red-400 font-semibold',
-    structural: 'text-red-600 dark:text-red-400',
-};
-const BAND_GLYPHS: Record<ReconBand, string> = { ok: '✓', warn: '!', breach: '✕', structural: '⊘' };
 
 /** One measure line of the pinned TOTAL strip. */
 interface TotalLine {
@@ -81,20 +72,7 @@ export class ReconBoardComponent implements OnInit {
 
     readonly treeColumns = computed<ColDef[]>(() => {
         const r = this.result();
-        if (!r) return [];
-        const sides = comparedSides(r);
-        const cols: ColDef[] = [];
-        for (const m of r.measures) {
-            const label = m === RECON_RECORDS ? 'records' : m;
-            cols.push({ field: `a_${m}`, headerName: `A ${label}`, width: 120, valueFormatter: (p) => fmtMeasure(p.value) });
-            for (const s of sides) {
-                cols.push(
-                    { field: `${s}_${m}`, headerName: `${s.toUpperCase()} ${label}`, width: 120, valueFormatter: (p) => fmtMeasure(p.value) },
-                    { field: `pct_${s}_${m}`, headerName: `Δ%${sides.length > 1 ? s.toUpperCase() : ''} ${label}`, width: 120, cellRenderer: bandCell(s, this.bands()) },
-                );
-            }
-        }
-        return cols;
+        return r ? boardColumns(r, this.bands(), { includeValues: true }) : [];
     });
 
     readonly totalLines = computed<TotalLine[]>(() => {
@@ -114,8 +92,8 @@ export class ReconBoardComponent implements OnInit {
                     a: fmtMeasure(a),
                     b: fmtMeasure(v),
                     pct: pct === null ? 'n/a' : `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`,
-                    tone: BAND_TONES[band],
-                    glyph: BAND_GLYPHS[band],
+                    tone: bandTone(band),
+                    glyph: bandGlyph(band),
                 });
             }
         }

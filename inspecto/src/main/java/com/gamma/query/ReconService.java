@@ -290,19 +290,26 @@ public final class ReconService {
         List<String> keys = spec.keyColumns();
         for (int i = 0; i < keys.size(); i++)
             sb.append(q(spec.physical(side, keys.get(i)))).append(" AS ").append(q("k" + i)).append(", ");
-        List<Measure> ms = spec.measures();
-        for (int i = 0; i < ms.size(); i++) {
-            Measure m = ms.get(i);
-            sb.append("count".equals(m.agg()) ? "COUNT(" : "SUM(")
-              .append(q(spec.physical(side, m.name()))).append(") AS ").append(q("m" + i)).append(", ");
-        }
+        for (int i = 0; i < spec.measures().size(); i++)
+            sb.append(aggExpr(spec, side, i)).append(", ");
         sb.append("COUNT(*) AS ").append(q("mr"))
-          .append(" FROM ").append(VIEWS[side]);
-        String filter = spec.sides().get(side).filter();
-        if (filter != null) sb.append(" WHERE (").append(ExpressionGuard.check(filter)).append(')');
-        sb.append(" GROUP BY ");
+          .append(" FROM ").append(VIEWS[side]).append(whereFilter(spec, side))
+          .append(" GROUP BY ");
         for (int i = 0; i < keys.size(); i++) sb.append(i > 0 ? ", " : "").append(i + 1);
         return sb.toString();
+    }
+
+    /** The aggregation term for measure {@code i} on a side: {@code SUM("phys") AS "m<i>"} (or {@code COUNT}). */
+    private static String aggExpr(Spec spec, int side, int i) {
+        Measure m = spec.measures().get(i);
+        return ("count".equals(m.agg()) ? "COUNT(" : "SUM(")
+                + q(spec.physical(side, m.name())) + ") AS " + q("m" + i);
+    }
+
+    /** The optional {@code WHERE (<ExpressionGuard-checked filter>)} clause for a side, or empty. */
+    private static String whereFilter(Spec spec, int side) {
+        String filter = spec.sides().get(side).filter();
+        return filter == null ? "" : " WHERE (" + ExpressionGuard.check(filter) + ")";
     }
 
     /** The Board grain query: FULL OUTER JOIN chain of the grouped sides on NULL-safe key equality. */
@@ -349,15 +356,9 @@ public final class ReconService {
     /** One side's exact totals (no GROUP BY — immune to grain truncation). */
     static String totalsSql(Spec spec, int side) {
         StringBuilder sb = new StringBuilder("SELECT ");
-        List<Measure> ms = spec.measures();
-        for (int i = 0; i < ms.size(); i++) {
-            Measure m = ms.get(i);
-            sb.append("count".equals(m.agg()) ? "COUNT(" : "SUM(")
-              .append(q(spec.physical(side, m.name()))).append(") AS ").append(q("m" + i)).append(", ");
-        }
-        sb.append("COUNT(*) AS ").append(q("mr")).append(" FROM ").append(VIEWS[side]);
-        String filter = spec.sides().get(side).filter();
-        if (filter != null) sb.append(" WHERE (").append(ExpressionGuard.check(filter)).append(')');
+        for (int i = 0; i < spec.measures().size(); i++)
+            sb.append(aggExpr(spec, side, i)).append(", ");
+        sb.append("COUNT(*) AS ").append(q("mr")).append(" FROM ").append(VIEWS[side]).append(whereFilter(spec, side));
         return sb.toString();
     }
 

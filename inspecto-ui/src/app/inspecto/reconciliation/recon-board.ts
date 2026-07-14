@@ -1,4 +1,4 @@
-import { ICellRendererParams } from 'ag-grid-community';
+import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { TreeNode } from 'app/inspecto/tree-table';
 import {
     CompareColumn, DEFAULT_BANDS, ReconBands, Reconciliation, ReconBreak, withinTolerance,
@@ -462,6 +462,16 @@ const BAND_TONE: Record<ReconBand, string> = {
 };
 const BAND_GLYPH: Record<ReconBand, string> = { ok: '✓', warn: '!', breach: '✕', structural: '⊘' };
 
+/** The lint-sanctioned `text-*` tone class for a band (glyph + text carry the meaning, never color alone). */
+export function bandTone(band: ReconBand): string {
+    return BAND_TONE[band];
+}
+
+/** The severity glyph for a band. */
+export function bandGlyph(band: ReconBand): string {
+    return BAND_GLYPH[band];
+}
+
 /**
  * String cell-renderer for a Board Δ% column of one compared {@code side}: severity glyph + signed
  * percentage, text-tone only (glyph + text carry the meaning — never color alone). A one-sided node
@@ -491,4 +501,37 @@ export function fmtMeasure(v: unknown): string {
     const n = Number(v);
     if (Number.isNaN(n)) return String(v);
     return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+const measureCell = (p: { value: unknown }): string => fmtMeasure(p.value);
+
+/**
+ * The Board's aligned value columns for a run result: per measure, the anchor value, then per compared
+ * side its value + a banded Δ% column. Δ% headers name the side only when there is more than one
+ * (3-way). {@code includeValues:false} yields the compact Δ%-only set for the dashboard widget tile.
+ */
+export function boardColumns(
+    result: ReconRunResult,
+    bands: ReconBands = DEFAULT_BANDS,
+    opts: { includeValues?: boolean } = {},
+): ColDef[] {
+    const sides = comparedSides(result);
+    const multi = sides.length > 1;
+    const values = opts.includeValues ?? false;
+    const cols: ColDef[] = [];
+    for (const m of result.measures) {
+        const label = m === RECON_RECORDS ? 'records' : m;
+        if (values) cols.push({ field: `a_${m}`, headerName: `A ${label}`, width: 120, valueFormatter: measureCell });
+        for (const s of sides) {
+            if (values)
+                cols.push({ field: `${s}_${m}`, headerName: `${s.toUpperCase()} ${label}`, width: 120, valueFormatter: measureCell });
+            cols.push({
+                field: `pct_${s}_${m}`,
+                headerName: `Δ%${multi ? s.toUpperCase() : ''} ${label}`,
+                width: values ? 120 : 130,
+                cellRenderer: bandCell(s, bands),
+            });
+        }
+    }
+    return cols;
 }
