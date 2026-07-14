@@ -904,6 +904,23 @@ public final class SourceService implements AutoCloseable {
         return status;
     }
 
+    /**
+     * The live DB-backed operational stores exposing a read-only browse seam ({@code BrowsableStore}) —
+     * the raw table browser's operational catalog. Empty when every capability runs in-memory/file (the
+     * default); a store appears only once its backend is DB-backed. The acquisition ledger lives in its
+     * own per-space registry and is added by the route, not here.
+     */
+    public List<com.gamma.util.BrowsableStore> browsableStores() {
+        List<com.gamma.util.BrowsableStore> out = new ArrayList<>();
+        for (Object s : new Object[]{objectStore, linkStore, noteStore, status})
+            if (s instanceof com.gamma.util.BrowsableStore b) out.add(b);
+        jobService().ifPresent(js -> {
+            js.runStore().ifPresent(out::add);
+            js.provenanceStore().ifPresent(out::add);
+        });
+        return out;
+    }
+
     /** The report aggregator backing the Control API's status / batch-audit report endpoints. */
     public ReportService reports() {
         return reports;

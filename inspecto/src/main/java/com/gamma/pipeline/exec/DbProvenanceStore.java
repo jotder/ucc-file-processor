@@ -27,12 +27,18 @@ import java.util.Map;
  * collector and the {@code /provenance} endpoint 404s — nothing about the live path changes.
  */
 @PublicApi(since = "4.3.0")
-public final class DbProvenanceStore implements AutoCloseable {
+public final class DbProvenanceStore implements AutoCloseable, com.gamma.util.BrowsableStore {
 
     private static final Logger log = LoggerFactory.getLogger(DbProvenanceStore.class);
     private static final String T = "inspecto_flow_provenance";
 
     private final Connection conn;
+
+    // ── raw table browser seam (BrowsableStore) — read-only, synchronized(this) ──
+    @Override public String browseId() { return "provenance"; }
+    @Override public String browseLabel() { return "Flow Provenance"; }
+    @Override public java.util.List<String> browseTables() { return java.util.List.of(T); }
+    @Override public Connection browseConnection() { return conn; }
 
     /** Wrap an already-open JDBC connection; the schema is created if absent. Takes ownership (closed in {@link #close()}). */
     public DbProvenanceStore(Connection conn) {

@@ -31,12 +31,18 @@ import java.util.Map;
  * endpoints 404; nothing about the existing in-memory history / CSV audit changes.
  */
 @PublicApi(since = "4.3.0")
-public final class DbJobRunStore implements AutoCloseable {
+public final class DbJobRunStore implements AutoCloseable, com.gamma.util.BrowsableStore {
 
     private static final Logger log = LoggerFactory.getLogger(DbJobRunStore.class);
     private static final String T_RUNS = "inspecto_job_runs";
 
     private final Connection conn;
+
+    // ── raw table browser seam (BrowsableStore) — read-only, synchronized(this) ──
+    @Override public String browseId() { return "jobs"; }
+    @Override public String browseLabel() { return "Job Runs"; }
+    @Override public java.util.List<String> browseTables() { return java.util.List.of(T_RUNS); }
+    @Override public Connection browseConnection() { return conn; }
     /**
      * True when the connection is PostgreSQL. Percentiles are the one non-portable bit of SQL here:
      * DuckDB spells them {@code quantile_cont(col, p)} while PostgreSQL uses the SQL-standard ordered-set

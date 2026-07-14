@@ -57,7 +57,7 @@ import java.util.Set;
  * and a JDBC {@code Connection} is not thread-safe. {@link #close()} closes it.
  */
 @PublicApi(since = "2.6.0")
-public final class DbStatusStore implements StatusStore, AutoCloseable {
+public final class DbStatusStore implements StatusStore, AutoCloseable, com.gamma.util.BrowsableStore {
 
     private static final Logger log = LoggerFactory.getLogger(DbStatusStore.class);
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -71,6 +71,14 @@ public final class DbStatusStore implements StatusStore, AutoCloseable {
     private static final String T_QUARANTINE = "inspecto_status_quarantine";
 
     private final Connection conn;
+
+    // ── raw table browser seam (BrowsableStore) — read-only, synchronized(this) ──
+    @Override public String browseId() { return "status"; }
+    @Override public String browseLabel() { return "Ingest Status"; }
+    @Override public java.util.List<String> browseTables() {
+        return java.util.List.of(T_COMMITS, T_BATCHES, T_FILES, T_LINEAGE, T_QUARANTINE);
+    }
+    @Override public Connection browseConnection() { return conn; }
 
     /**
      * Wrap an already-open JDBC connection (any engine). The schema is created if absent.

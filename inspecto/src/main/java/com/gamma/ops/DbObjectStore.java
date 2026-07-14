@@ -32,7 +32,7 @@ import java.util.Optional;
  * @since 4.3.0
  */
 @com.gamma.api.PublicApi(since = "4.3.0")
-public final class DbObjectStore implements ObjectStore {
+public final class DbObjectStore implements ObjectStore, com.gamma.util.BrowsableStore {
 
     private static final Logger log = LoggerFactory.getLogger(DbObjectStore.class);
 
@@ -42,6 +42,12 @@ public final class DbObjectStore implements ObjectStore {
             + "\"owner\", assignee, correlation_id, attributes, created_at, updated_at, closed_at";
 
     private final Connection conn;
+
+    // ── raw table browser seam (BrowsableStore) — read-only, synchronized(this) ──
+    @Override public String browseId() { return "objects"; }
+    @Override public String browseLabel() { return "Objects"; }
+    @Override public java.util.List<String> browseTables() { return java.util.List.of(TABLE); }
+    @Override public Connection browseConnection() { return conn; }
 
     /** Wrap an already-open JDBC connection (any engine); the schema is created if absent. */
     public DbObjectStore(Connection conn) {

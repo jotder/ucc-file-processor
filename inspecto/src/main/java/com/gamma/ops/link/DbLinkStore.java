@@ -26,7 +26,7 @@ import java.util.List;
  * @since 4.5.0
  */
 @com.gamma.api.PublicApi(since = "4.5.0")
-public final class DbLinkStore implements LinkStore {
+public final class DbLinkStore implements LinkStore, com.gamma.util.BrowsableStore {
 
     private static final Logger log = LoggerFactory.getLogger(DbLinkStore.class);
 
@@ -34,6 +34,12 @@ public final class DbLinkStore implements LinkStore {
     private static final String COLS = "from_id, from_type, to_id, to_type, relationship, created_at";
 
     private final Connection conn;
+
+    // ── raw table browser seam (BrowsableStore) — read-only, synchronized(this) ──
+    @Override public String browseId() { return "links"; }
+    @Override public String browseLabel() { return "Correlation Links"; }
+    @Override public java.util.List<String> browseTables() { return java.util.List.of(TABLE); }
+    @Override public Connection browseConnection() { return conn; }
 
     /** Wrap an already-open JDBC connection (any engine); the schema is created if absent. */
     public DbLinkStore(Connection conn) {

@@ -24,7 +24,7 @@ import java.util.Map;
  * @since 4.6.0
  */
 @com.gamma.api.PublicApi(since = "4.6.0")
-public final class DbNoteStore implements NoteStore {
+public final class DbNoteStore implements NoteStore, com.gamma.util.BrowsableStore {
 
     private static final Logger log = LoggerFactory.getLogger(DbNoteStore.class);
 
@@ -32,6 +32,12 @@ public final class DbNoteStore implements NoteStore {
     private static final String COLS = "id, object_id, kind, author, body, attributes, created_at";
 
     private final Connection conn;
+
+    // ── raw table browser seam (BrowsableStore) — read-only, synchronized(this) ──
+    @Override public String browseId() { return "notes"; }
+    @Override public String browseLabel() { return "Notes"; }
+    @Override public java.util.List<String> browseTables() { return java.util.List.of(TABLE); }
+    @Override public Connection browseConnection() { return conn; }
 
     /** Wrap an already-open JDBC connection (any engine); the schema is created if absent. */
     public DbNoteStore(Connection conn) {

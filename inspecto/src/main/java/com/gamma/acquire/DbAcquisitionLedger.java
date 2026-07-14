@@ -24,7 +24,7 @@ import java.util.OptionalLong;
  * fingerprint replaces the prior one (DELETE-then-INSERT under the synchronized lock) so a re-uploaded/changed
  * file's latest state is what later cycles compare against.
  */
-public final class DbAcquisitionLedger implements AcquisitionLedger {
+public final class DbAcquisitionLedger implements AcquisitionLedger, com.gamma.util.BrowsableStore {
 
     private static final Logger log = LoggerFactory.getLogger(DbAcquisitionLedger.class);
 
@@ -34,6 +34,12 @@ public final class DbAcquisitionLedger implements AcquisitionLedger {
     private static final String WM_TABLE = "inspecto_acquisition_db_watermark";
 
     private final Connection conn;
+
+    // ── raw table browser seam (BrowsableStore) — read-only, synchronized(this) ──
+    @Override public String browseId() { return "acquire"; }
+    @Override public String browseLabel() { return "Acquisition Ledger"; }
+    @Override public java.util.List<String> browseTables() { return java.util.List.of(TABLE, WM_TABLE); }
+    @Override public Connection browseConnection() { return conn; }
 
     /** Wrap an already-open JDBC connection (any engine); the schema is created if absent. */
     public DbAcquisitionLedger(Connection conn) {
