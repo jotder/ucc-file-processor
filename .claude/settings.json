@@ -98,6 +98,17 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-tool-db-layer-doc.sh"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [
