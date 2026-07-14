@@ -178,19 +178,35 @@ Errors: 404 unknown case · 422 non-CASE, empty/foreign `members`, blank title.
 
 ### Non-goals (now)
 
+Held through implementation — none of these were revisited while C1–C6/I1/I2 shipped, and none are
+scheduled:
+
 - Merging **incidents** (dedup is an alert/correlation concern upstream).
 - Auto-merge suggestions ("similar cases" scoring) — C5's rule engine is the hook for later.
 - Moving comments/attachments between cases on split (history stays where it happened; links
   carry the trail).
 
-## 4. Open decisions (recommendations inline)
+## 4. Decisions (as shipped)
 
-1. Survivor-close vs `MERGED` state — **recommended: CLOSED + `mergedInto` marker** (§3).
-2. Hard vs soft open-member gate on case Resolve/Close — **recommended: soft (warning) first**.
-3. Disposition list (C3): config-driven per deployment vs built-in default set — **recommended:
-   built-in default + TOON override**, like workflows.
-4. Case documents (§2b): true file upload (write-root blob store, size limits, content scanning
-   concerns) vs richer reference-only attachments — **recommended: references now, upload as its
-   own later design** (touches the air-gap/attack-surface posture, not a casual add).
+The roadmap is complete; these are no longer open — each is recorded with what actually shipped
+and, where the recommendation was only partially realized, what remains a follow-up.
+
+1. Survivor-close vs `MERGED` state — **DECIDED: CLOSED + `mergedInto` marker.** Shipped in C1/C2
+   (`20dddf7`); `ObjectService.mergeCases` sets it, per §3. No open thread.
+2. Hard vs soft open-member gate on case Resolve/Close — **DECIDED: soft (warning) only.** Shipped
+   in C1 (`case-contents.component`'s soft close-gate). No hard gate is scheduled; revisit only if
+   the soft warning proves insufficient in practice.
+3. Disposition list (C3): config-driven per deployment vs built-in default set — **DECIDED:
+   built-in default, TOON override not built.** `CASE_DISPOSITIONS` in `mail-model.ts` ships the
+   fixed ladder (`CONFIRMED`/`FALSE_POSITIVE`/`RECOVERED`/`WRITTEN_OFF`/`INCONCLUSIVE`); the
+   deployment-configurable override from the original recommendation remains an unscheduled
+   follow-up, same status as workflows' TOON overrides.
+4. Case documents (§2b): true file upload vs richer reference-only attachments — **DECIDED:
+   references only, for now.** Findings (`attributes.findings`) carries summary/impact/records as
+   references; true document upload (write-root blob store, size limits, content scanning) is
+   deferred to its own future design — it touches the air-gap/attack-surface posture and isn't a
+   casual add.
 5. Incident resolution gate (I1) rollout: UI-only soft-warn → UI hard-gate → backend workflow
-   guard — **recommended: that order**, so operators adapt before the API enforces.
+   guard — **DECIDED and IN PROGRESS: stage 1 shipped, stages 2–3 not started.** The UI soft-warn
+   (panel + bulk) is live; the UI hard-gate and the backend workflow guard remain the documented
+   next hardening steps, in that order, so operators adapt before the API enforces.
