@@ -16,7 +16,7 @@ function create() {
 }
 
 describe('SettingsComponent', () => {
-    it('renders one heading and a drawer per settings option (collapsed, no a11y violations)', async () => {
+    it('renders one heading, a menu item per option, and the common-panel prompt (no a11y violations)', async () => {
         const fixture = create();
         const el: HTMLElement = fixture.nativeElement;
 
@@ -24,11 +24,12 @@ describe('SettingsComponent', () => {
         expect(el.querySelectorAll('h1').length).toBe(1);
         expect(el.querySelector('h1')?.textContent).toContain('Settings');
 
-        // One drawer (expansion panel) per configured option.
-        const panels = Array.from(el.querySelectorAll('mat-expansion-panel'));
-        expect(panels.length).toBe(fixture.componentInstance.drawers.length);
+        // One menu item per configured option.
+        const items = Array.from(el.querySelectorAll('nav[aria-label="Settings options"] button'));
+        expect(items.length).toBe(fixture.componentInstance.drawers.length);
 
-        // Drawers start collapsed → no embedded option component is instantiated yet.
+        // Nothing selected yet → common panel shows the empty-state prompt, no option component instantiated.
+        expect(el.querySelector('inspecto-empty-state')).not.toBeNull();
         expect(el.querySelector('app-config')).toBeNull();
 
         await expectNoA11yViolations(el);

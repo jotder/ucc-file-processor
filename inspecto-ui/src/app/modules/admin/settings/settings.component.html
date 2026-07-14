@@ -3,27 +3,41 @@
     <div>
         <h1 class="text-3xl font-extrabold leading-tight tracking-tight">Settings</h1>
         <div class="text-secondary mt-1">
-            Every platform configuration option, grouped into drawers. Open a drawer to configure it.
+            Every platform configuration option. Pick one from the menu to configure it.
         </div>
     </div>
 
-    <!-- Drawers -->
-    <mat-accordion class="mt-6 block max-w-320" [multi]="true">
-        @for (drawer of drawers; track drawer.id) {
-            <mat-expansion-panel>
-                <mat-expansion-panel-header>
-                    <mat-panel-title class="flex items-center gap-3">
-                        <mat-icon class="icon-size-5 text-hint" [svgIcon]="drawer.icon"></mat-icon>
+    <!-- Master (menu) + detail (common panel) -->
+    <div class="mt-6 flex max-w-320 flex-col gap-6 md:flex-row md:items-start">
+        <!-- Menu -->
+        <nav class="flex shrink-0 flex-col gap-1 md:w-72" aria-label="Settings options">
+            @for (drawer of drawers; track drawer.id) {
+                <button
+                    type="button"
+                    class="flex items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-hover"
+                    [class.bg-hover]="selected()?.id === drawer.id"
+                    [attr.aria-current]="selected()?.id === drawer.id ? 'true' : null"
+                    (click)="select(drawer)">
+                    <mat-icon class="icon-size-5 text-hint mt-0.5" [svgIcon]="drawer.icon"></mat-icon>
+                    <span class="flex min-w-0 flex-col">
                         <span class="font-medium">{{ drawer.title }}</span>
-                    </mat-panel-title>
-                    <mat-panel-description>{{ drawer.description }}</mat-panel-description>
-                </mat-expansion-panel-header>
+                        <span class="text-secondary text-sm">{{ drawer.description }}</span>
+                    </span>
+                </button>
+            }
+        </nav>
 
-                <!-- Lazily instantiate the option's component only when its drawer is first opened -->
-                <ng-template matExpansionPanelContent>
-                    <ng-container [ngComponentOutlet]="drawer.component"></ng-container>
-                </ng-template>
-            </mat-expansion-panel>
-        }
-    </mat-accordion>
+        <!-- Common panel: renders the selected option's content -->
+        <section class="min-w-0 flex-auto rounded-lg border border-gray-200 dark:border-gray-700" aria-live="polite">
+            @if (selected(); as drawer) {
+                <ng-container [ngComponentOutlet]="drawer.component"></ng-container>
+            } @else {
+                <inspecto-empty-state
+                    class="block p-6"
+                    icon="heroicons_outline:cog-6-tooth"
+                    title="Choose a setting"
+                    message="Pick an option from the menu to configure it here." />
+            }
+        </section>
+    </div>
 </div>
