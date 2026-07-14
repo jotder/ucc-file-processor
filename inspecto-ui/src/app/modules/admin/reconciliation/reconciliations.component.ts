@@ -42,6 +42,7 @@ export class ReconciliationsComponent implements OnInit {
 
     readonly rowActions: InspectoRowAction<Reconciliation>[] = [
         { icon: 'heroicons_outline:arrow-right', hint: 'Open', onClick: (r) => this.open(r) },
+        { icon: 'heroicons_outline:document-duplicate', hint: 'Duplicate', onClick: (r) => this.duplicate(r) },
     ];
 
     ngOnInit(): void {
@@ -67,8 +68,17 @@ export class ReconciliationsComponent implements OnInit {
     }
 
     create(): void {
+        this.openForm({});
+    }
+
+    /** The template flow (design §8): prefill from an existing recon, create a fresh one (no run state). */
+    duplicate(source: Reconciliation): void {
+        this.openForm({ recon: source, duplicate: true });
+    }
+
+    private openForm(data: object): void {
         this.dialog
-            .open(ReconciliationFormDialog, { width: '640px', maxHeight: '85vh' })
+            .open(ReconciliationFormDialog, { width: '640px', maxHeight: '85vh', data })
             .afterClosed()
             .subscribe((result?: ReconciliationFormResult) => {
                 if (!result) return;

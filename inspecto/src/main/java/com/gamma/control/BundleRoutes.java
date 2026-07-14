@@ -43,7 +43,8 @@ final class BundleRoutes implements RouteModule {
 
     /** Supported kinds in dependency order (referenced kinds first) — the import apply order. */
     private static final List<String> APPLY_ORDER =
-            List.of("grammar", "schema", "transform", "sink", "dataset", "query", "widget", "dashboard");
+            List.of("grammar", "schema", "transform", "sink", "dataset", "query", "widget", "dashboard",
+                    "reconciliation");
 
     private static boolean supported(String kind) {
         return ComponentStore.WRITABLE_TYPES.contains(kind);
@@ -86,15 +87,16 @@ final class BundleRoutes implements RouteModule {
                 missing.add(refMap(kind, id));
                 continue;
             }
+            Map<String, Object> content = exportContent(kind, c.content());
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("kind", kind);
             item.put("id", id);
-            item.put("content", c.content());
+            item.put("content", content);
             if (req.get("refs") instanceof List<?>) item.put("refs", req.get("refs"));   // echo UI-derived lineage
             Map<String, Object> prov = new LinkedHashMap<>();
             prov.put("sourceSpace", sourceSpace);
             prov.put("exportedAt", exportedAt);
-            prov.put("contentHash", "sha256:" + ContentHash.of(c.content()));
+            prov.put("contentHash", "sha256:" + ContentHash.of(content));
             item.put("provenance", prov);
             items.add(item);
         }
@@ -253,7 +255,7 @@ final class BundleRoutes implements RouteModule {
     // ── helpers ────────────────────────────────────────────────────────────────────
 
     /** The integrity kinds the shared rules cover (see {@link com.gamma.pipeline.ComponentIntegrity}). */
-    private static final List<String> INTEGRITY_KINDS = List.of("dataset", "query", "widget", "dashboard");
+    private static final List<String> INTEGRITY_KINDS = List.of("dataset", "query", "widget", "dashboard", "reconciliation");
 
     /** Broken-reference findings the incoming items would introduce: findings over
      *  (registry ∪ incoming) minus the findings the registry already has on its own. */
@@ -321,6 +323,19 @@ final class BundleRoutes implements RouteModule {
         Object a = actions.get(kind + "/" + id);
         if (a != null) return a.toString();
         return exists ? "skip" : "import";
+    }
+
+    /**
+     * A bundle carries <b>configuration</b>, not operational history: a reconciliation's run state
+     * ({@code breaks}, {@code lastRunAt}) is stripped at export — the target starts a fresh Break
+     * lifecycle. Every other kind exports verbatim.
+     */
+    private static Map<String, Object> exportContent(String kind, Map<String, Object> content) {
+        if (!"reconciliation".equals(kind)) return content;
+        Map<String, Object> sanitized = new LinkedHashMap<>(content);
+        sanitized.remove("breaks");
+        sanitized.remove("lastRunAt");
+        return sanitized;
     }
 
     private static int orderOf(String kind) {

@@ -27,3 +27,12 @@ export const LINK_ANALYSIS_PLUGIN: VizPlugin = {
     transformProps: NO_PROPS,
     render: { kind: 'component', componentKey: 'link-analysis-view' },
 };
+
+/** DAT-7 P3: a dashboard tile renders a saved Reconciliation's Board read-only (compact Δ% tree). */
+export const RECONCILIATION_PLUGIN: VizPlugin = {
+    meta: { type: 'reconciliation', label: 'Reconciliation', icon: 'heroicons_outline:scale', fit: {}, viewKind: 'reconciliation' },
+    controls: [],
+    buildQuery: NO_QUERY,
+    transformProps: NO_PROPS,
+    render: { kind: 'component', componentKey: 'reconciliation' },
+};

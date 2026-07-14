@@ -18,6 +18,11 @@ if (!getVizComponentLoader('link-analysis-view')) {
         import('../link-analysis/link-view-widget.component').then((m) => m.LinkViewWidgetComponent),
     );
 }
+if (!getVizComponentLoader('reconciliation')) {
+    registerVizComponent('reconciliation', () =>
+        import('../../reconciliation/recon-view-widget.component').then((m) => m.ReconViewWidgetComponent),
+    );
+}
 
 /**
  * The `widget` {@link ComponentKind} — the adoption plan's "VizPlugin = first ComponentKind slice" made

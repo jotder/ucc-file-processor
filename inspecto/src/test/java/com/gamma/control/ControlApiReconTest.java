@@ -224,6 +224,36 @@ class ControlApiReconTest {
         }
     }
 
+    /** P3: reconciliations travel in Metadata Bundles — config only, run state stripped at export. */
+    @Test
+    void bundleExportStripsRunStateAndRoundTrips(@TempDir Path root) throws Exception {
+        try (Ctx c = open(root)) {
+            // give the stored recon some run state that must NOT travel
+            HttpResponse<String> run = postJson(c.port, "/api/v1/spaces/s1/recon/run", "{\"id\":\"orders_recon\"}");
+            assertEquals(200, run.statusCode(), run.body());
+
+            HttpResponse<String> exported = postJson(c.port, "/api/v1/spaces/s1/bundle/export",
+                    "{\"items\":[{\"kind\":\"reconciliation\",\"id\":\"orders_recon\"},"
+                            + "{\"kind\":\"dataset\",\"id\":\"a_ds\"},{\"kind\":\"dataset\",\"id\":\"b_ds\"}]}");
+            assertEquals(200, exported.statusCode(), exported.body());
+            JsonNode bundle = data(exported).get("bundle");
+            JsonNode recon = null;
+            for (JsonNode item : bundle.get("items"))
+                if ("reconciliation".equals(item.get("kind").asText())) recon = item;
+            assertNotNull(recon, "reconciliation item exported");
+            assertNull(recon.get("content").get("breaks"), "run state stripped");
+            assertNull(recon.get("content").get("lastRunAt"), "run state stripped");
+            assertEquals("a_ds", recon.get("content").get("datasets").get(0).asText());
+
+            // import the exported bundle back under a new id → lands in the registry and runs
+            String reimport = bundle.toString().replace("orders_recon", "orders_recon_copy");
+            HttpResponse<String> imported = postJson(c.port, "/api/v1/spaces/s1/bundle/import", reimport);
+            assertEquals(200, imported.statusCode(), imported.body());
+            assertEquals(200, postJson(c.port, "/api/v1/spaces/s1/recon/run",
+                    "{\"id\":\"orders_recon_copy\"}").statusCode());
+        }
+    }
+
     @Test
     void failsClosed(@TempDir Path root) throws Exception {
         try (Ctx c = open(root)) {

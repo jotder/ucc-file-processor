@@ -45,6 +45,21 @@ public final class ComponentIntegrity {
                     findings.add("broken reference: dashboard '" + d.name() + "' tile → missing widget '" + widgetId + "'");
             }
         }
+        // A reconciliation compares Datasets — every side (v2 `datasets` list, or v1 left/right) must exist.
+        for (ComponentRegistry.Component r : byType.getOrDefault("reconciliation", List.of())) {
+            List<String> sides = new ArrayList<>();
+            if (r.content().get("datasets") instanceof List<?> ds) {
+                for (Object o : ds) if (o != null) sides.add(o.toString());
+            } else {
+                String left = str(r.content().get("leftDataset"));
+                String right = str(r.content().get("rightDataset"));
+                if (left != null) sides.add(left);
+                if (right != null) sides.add(right);
+            }
+            for (String side : sides)
+                if (!datasets.contains(side))
+                    findings.add("broken reference: reconciliation '" + r.name() + "' → missing dataset '" + side + "'");
+        }
         return findings;
     }
 

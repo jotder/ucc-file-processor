@@ -19,9 +19,11 @@ export interface ReconciliationFormResult {
     bands: ReconBands;
 }
 
-/** Optional dialog data — pass an existing reconciliation to edit it in place. */
+/** Optional dialog data — pass an existing reconciliation to edit it in place, or duplicate-and-rebind. */
 export interface ReconciliationFormData {
     recon?: Reconciliation;
+    /** Prefill from `recon` but create a NEW reconciliation (the template flow — design §8). */
+    duplicate?: boolean;
 }
 
 interface CompareRow {
@@ -40,7 +42,7 @@ interface CompareRow {
     imports: [FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-        <h2 mat-dialog-title>{{ editing ? 'Edit reconciliation' : 'New reconciliation' }}</h2>
+        <h2 mat-dialog-title>{{ editing ? 'Edit reconciliation' : duplicating ? 'Duplicate reconciliation' : 'New reconciliation' }}</h2>
         <mat-dialog-content class="flex flex-col gap-3">
             <mat-form-field class="w-full" subscriptSizing="dynamic">
                 <mat-label>Name</mat-label>
@@ -136,7 +138,8 @@ export class ReconciliationFormDialog {
     private ref = inject(MatDialogRef<ReconciliationFormDialog, ReconciliationFormResult>);
     private data = inject<ReconciliationFormData | null>(MAT_DIALOG_DATA, { optional: true });
 
-    readonly editing = !!this.data?.recon;
+    readonly duplicating = !!this.data?.recon && !!this.data?.duplicate;
+    readonly editing = !!this.data?.recon && !this.data?.duplicate;
     readonly datasets = signal<Dataset[]>([]);
     readonly leftColumns = signal<string[]>([]);
     readonly compareRows = signal<CompareRow[]>([]);
@@ -158,7 +161,7 @@ export class ReconciliationFormDialog {
     constructor() {
         const r = this.data?.recon;
         if (r) {
-            this.name = r.name;
+            this.name = this.duplicating ? `${r.name} copy` : r.name;
             this.leftDataset = r.leftDataset;
             this.rightDataset = r.rightDataset;
             this.keyColumns = [...r.keyColumns];

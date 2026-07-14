@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { registerBuiltinViz } from './index';
-import { GEO_MAP_PLUGIN, LINK_ANALYSIS_PLUGIN } from './view.plugins';
+import { GEO_MAP_PLUGIN, LINK_ANALYSIS_PLUGIN, RECONCILIATION_PLUGIN } from './view.plugins';
 import { recommend } from '../show-me';
 import { VizField } from '../viz-types';
 
@@ -8,8 +8,10 @@ describe('view-bound plugins (geo-map / link-analysis)', () => {
     it('declare their saved-view kind and an inert query pipeline', () => {
         expect(GEO_MAP_PLUGIN.meta.viewKind).toBe('geo-map-view');
         expect(LINK_ANALYSIS_PLUGIN.meta.viewKind).toBe('link-analysis-view');
+        expect(RECONCILIATION_PLUGIN.meta.viewKind).toBe('reconciliation');
         expect(GEO_MAP_PLUGIN.render).toEqual({ kind: 'component', componentKey: 'geo-map-view' });
         expect(LINK_ANALYSIS_PLUGIN.render).toEqual({ kind: 'component', componentKey: 'link-analysis-view' });
+        expect(RECONCILIATION_PLUGIN.render).toEqual({ kind: 'component', componentKey: 'reconciliation' });
         expect(GEO_MAP_PLUGIN.controls).toEqual([]);
         const spec = GEO_MAP_PLUGIN.buildQuery({}, { datasetId: 'x', sourceName: 'y', filters: null });
         expect(spec.groupBy).toEqual([]);
@@ -27,5 +29,6 @@ describe('view-bound plugins (geo-map / link-analysis)', () => {
         expect(types).toContain('bar');
         expect(types).not.toContain('geo-map');
         expect(types).not.toContain('link-analysis');
+        expect(types).not.toContain('reconciliation');
     });
 });
