@@ -228,9 +228,12 @@ class ControlApiTest {
             assertEquals(c.name, one.get("pipeline").asText());
             assertTrue(one.get("totalBatches").asLong() >= 1);
 
-            // unknown pipeline report → 404; no jobs registered → 404
+            // unknown pipeline report → 404
             assertEquals(404, send(c.port, "GET", "/runs/ghost/report", null).statusCode());
-            assertEquals(404, send(c.port, "GET", "/jobs", null).statusCode(), "no jobs registered");
+            // no jobs registered → an empty list (collection convention), not 404
+            HttpResponse<String> noJobs = send(c.port, "GET", "/jobs", null);
+            assertEquals(200, noJobs.statusCode(), "empty job list is a 200, not a 404");
+            assertTrue(json(noJobs).isArray() && json(noJobs).isEmpty(), "no jobs registered → []");
         }
     }
 
