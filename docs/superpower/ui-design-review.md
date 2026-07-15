@@ -13,7 +13,23 @@ registry to avoid cross-feature coupling; `/`-focus-grid and j/k list nav not ye
 (accept / resolve / archive / reopen / case actions / escalate / prioritize / tag) patches the loaded
 rows + open detail panel to the expected post-state immediately, then reconciles each row with the
 authoritative server object; failures reload (forkJoin fails fast — partial success makes a snapshot
-rollback dishonest). Merge/split/create keep request→refetch as designed. **P3–P4 remain open.** · **Method:** three parallel read-only surveys (forms/dialogs · data surfaces/persistence ·
+rollback dishonest). Merge/split/create keep request→refetch as designed. **P4 SHIPPED 2026-07-15** —
+**R9**: reconciliation form ngModel→reactive+mat-error+ngSubmit (breach≥warn cross-field), component form
+transform-JSON blur validation + partitions chips (`MatChipsModule`, first use), two-step name-at-save on
+job/expectation/alert-rule/decision-rule create dialogs (`saveForm` + `step` signal; ids pre-filled
+`<type>_<context>`; config step `[hidden]`-kept so schema-form ViewChilds survive), `cdkFocusInitial` on
+the first field of every dialog (27 dialogs + auto on schema-form's first required field). **R8**: shared
+`ElementDetailDialog` gained `objectRef` + an "Open record / Open case" action; geo-map resolves it from
+point attrs (`caseId`/`incidentId`/`objectId` convention) and link-analysis from projection column names
+(same convention, tagged at `entity-projection` node build); both navigate `/cases|/incidents/:id`.
+**R6a**: backend `GET /runs` + `GET /jobs` gained optional `?limit=&offset=` (`ApiContext.paged`, absent
+limit = unchanged); incidents/audit/events/db-browser now surface an honest "showing N — Load more"
+(widen-limit-and-refetch) instead of silently capping. **R6b**: `<inspecto-data-table>` gained the opt-in
+`[serverPage]`+`[hasMore]`+`(loadMore)` strip (mirrors `[serverRun]`), adopted by object-mail, audit-logs,
+events. Deferred within P4 (documented): R6 true offset-paged fetch per pane (the widen-limit idiom is
+honest but refetches from 0; revisit if a pane outgrows it before the ag-Grid server row model), R8
+pivot-bar (stays design-only per §4), R9 was completed as scoped. **P3 (R5 context preservation + R7
+split primitive) remains open.** · **Method:** three parallel read-only surveys (forms/dialogs · data surfaces/persistence ·
 navigation/keyboard) against the operator's design brief. · **Companions:** `tree-table-design.md`
 (the quality bar) · `.claude/skills/angular-ui/SKILL.md` (the binding architecture rules) ·
 `lens-access-config-design.md` (the newest pane, scored best-in-class here).
