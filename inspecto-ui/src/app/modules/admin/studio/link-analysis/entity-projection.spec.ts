@@ -49,6 +49,15 @@ describe('projectEntities', () => {
         expect(g.nodes).toHaveLength(PROJECTION_NODE_CAP);
         expect(g.truncated).toBe(true);
     });
+
+    it('tags nodes from a caseId/incidentId column with an objectRef; other columns get none (R8)', () => {
+        const g = projectEntities(
+            [{ caseId: 'case-7', msisdn: '555-0101' }],
+            { datasetId: 'd', sourceCol: 'caseId', targetCol: 'msisdn' },
+        ) as ProjectedGraph;
+        expect(g.nodes.find((n) => n.id === 'entity:case-7')!.data.objectRef).toEqual({ id: 'case-7', type: 'CASE' });
+        expect(g.nodes.find((n) => n.id === 'entity:555-0101')!.data.objectRef).toBeUndefined();
+    });
 });
 
 // The four example graphs seeded for user testing (default-space.seed.ts): pin each one's
@@ -154,5 +163,15 @@ describe('projectTriples', () => {
         expect(capped.truncated).toBe(true);
 
         expect(projectTriples([{ source: 'a', target: 'b', kind: null, count: 1 }], true).truncated).toBe(true);
+    });
+
+    it('tags nodes with an objectRef when the projection column names an operational object (R8)', () => {
+        const g = projectTriples(
+            [{ source: 'inc-1', target: 'tower-9', kind: null, count: 1 }],
+            false,
+            { datasetId: 'd', sourceCol: 'incidentId', targetCol: 'tower' },
+        );
+        expect(g.nodes.find((n) => n.id === 'entity:inc-1')!.data.objectRef).toEqual({ id: 'inc-1', type: 'INCIDENT' });
+        expect(g.nodes.find((n) => n.id === 'entity:tower-9')!.data.objectRef).toBeUndefined();
     });
 });

@@ -11,6 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { firstValueFrom } from 'rxjs';
 import { PipelineSummary, PipelinesService, apiErrorMessage } from 'app/inspecto/api';
@@ -100,6 +101,7 @@ export class LinkAnalysisComponent implements OnInit {
     private fb = inject(FormBuilder);
     private toastr = inject(ToastrService);
     private dialog = inject(MatDialog);
+    private router = inject(Router);
     private graphSources = inject(GraphSourcesService);
     private datasetsService = inject(DatasetsService);
     private pipelinesService = inject(PipelinesService);
@@ -560,6 +562,7 @@ export class LinkAnalysisComponent implements OnInit {
         const neighbors = [...new Set([...outgoing.map((e) => e.target), ...incoming.map((e) => e.source)])]
             .map((n) => this.labelOf(n));
         const collapsed = this.collapsedRoots().includes(id);
+        const objectRef = node.data.objectRef;
         this.dialog
             .open(ElementDetailDialog, {
                 width: '28rem',
@@ -572,6 +575,7 @@ export class LinkAnalysisComponent implements OnInit {
                         { label: 'Neighbors', value: neighbors.slice(0, 8).join(', ') + (neighbors.length > 8 ? ` … +${neighbors.length - 8}` : '') },
                     ],
                     branch: collapsed ? 'expand' : descendants(g, id).size ? 'collapse' : undefined,
+                    objectRef,
                 },
             })
             .afterClosed()
@@ -579,6 +583,9 @@ export class LinkAnalysisComponent implements OnInit {
                 if (action === 'focus') this.focusNode(id);
                 else if (action === 'collapse') this.collapseBranch(id);
                 else if (action === 'expand') this.expandBranch(id);
+                else if (action === 'open-record' && objectRef) {
+                    this.router.navigate(['/' + (objectRef.type === 'CASE' ? 'cases' : 'incidents'), objectRef.id]);
+                }
             });
     }
 

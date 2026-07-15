@@ -10,7 +10,16 @@ import { NodeKind } from 'app/inspecto/api';
  */
 export interface G6Node {
     id: string;
-    data: { label: string; kind: NodeKind; iconSrc?: string; color?: string; missing?: boolean };
+    data: {
+        label: string;
+        kind: NodeKind;
+        iconSrc?: string;
+        color?: string;
+        missing?: boolean;
+        /** The Incident/Case this node represents, when the source could resolve one — lights the
+         *  detail dialog's "Open record" pivot (ui-design-review R8). Structurally = `ElementObjectRef`. */
+        objectRef?: { id: string; type: 'INCIDENT' | 'CASE' };
+    };
 }
 
 /** A G6 edge — endpoints as source/target (the API graph uses from/to); `kind` labels the edge. */

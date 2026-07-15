@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
+import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
@@ -8,6 +9,7 @@ import { ToastrService } from 'ngx-toastr';
 import { GeoSettingsService } from 'app/inspecto/api';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { GeoSource } from 'app/inspecto/geo';
+import { ElementDetailData } from 'app/inspecto/investigation';
 import { Dataset } from '../datasets/dataset-types';
 import { DatasetsService } from '../datasets/datasets.service';
 import { GeoMapComponent } from './geo-map.component';
@@ -281,6 +283,29 @@ describe('GeoMapComponent', () => {
         c.setTool('measure');
         c.onPointClick('pt:0');
         expect(c.selectedId()).toBeNull();
+    });
+
+    it('offers no pivot for a plain point, but resolves + navigates to a Case when the row carries a caseId (R8)', async () => {
+        const { fixture } = create();
+        fixture.detectChanges();
+        await runQuery(fixture);
+        const c = fixture.componentInstance;
+        // The component imports MatDialogModule, so ITS MatDialog lives in its standalone environment
+        // injector — resolve through the component's injector, not TestBed's root (different instance).
+        const dialog = fixture.debugElement.injector.get(MatDialog);
+        const router = TestBed.inject(Router);
+        const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+        const openSpy = vi.spyOn(dialog, 'open').mockReturnValue({ afterClosed: () => of(undefined) } as never);
+        const dataOf = (call: number): ElementDetailData => (openSpy.mock.calls[call][1] as { data: ElementDetailData }).data;
+        c.onPointClick('pt:0'); // attrs: { site: 'T1' } — no case/incident reference
+        expect(dataOf(0).objectRef).toBeUndefined();
+
+        c.geo()!.points[0].attrs = { ...c.geo()!.points[0].attrs, caseId: 'case-9' };
+        openSpy.mockReturnValue({ afterClosed: () => of('open-record') } as never);
+        c.onPointClick('pt:0');
+        expect(dataOf(1).objectRef).toEqual({ id: 'case-9', type: 'CASE' });
+        expect(navigate).toHaveBeenCalledWith(['/cases', 'case-9']);
     });
 
     it('captures display mode with a saved view and restores a route view', async () => {

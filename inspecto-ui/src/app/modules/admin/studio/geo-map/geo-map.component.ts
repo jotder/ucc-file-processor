@@ -12,6 +12,7 @@ import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 
@@ -55,6 +56,7 @@ import {
     ElementDetailDialog,
     ElementDetailResult,
     ElementDetailRow,
+    ElementObjectRef,
     uniqueNameValidator,
 } from 'app/inspecto/investigation';
 import { GeoSettingsService, apiErrorMessage } from 'app/inspecto/api';
@@ -70,6 +72,22 @@ import { GeocodeResult } from 'app/inspecto/geo';
 const NOTE_ACCENT = ICON_COLOR_SWATCHES[3];
 import { GeoMapService, GeoMapView } from './geo-map.service';
 import { ColocationGraphDialog } from './colocation-graph.dialog';
+
+/** Investigation pivot (ui-design-review R8): recognize an Incident/Case reference on a point's row,
+ *  by convention — `caseId`/`incidentId`, or `objectId` (+ optional `objectType`). Most geo layers
+ *  carry no such column (their entities aren't operational objects); only then is this undefined. */
+function objectRefFromAttrs(attrs: Record<string, unknown> | undefined): ElementObjectRef | undefined {
+    if (!attrs) return undefined;
+    const caseId = attrs['caseId'];
+    if (caseId != null && String(caseId).trim()) return { id: String(caseId).trim(), type: 'CASE' };
+    const incidentId = attrs['incidentId'];
+    if (incidentId != null && String(incidentId).trim()) return { id: String(incidentId).trim(), type: 'INCIDENT' };
+    const objectId = attrs['objectId'];
+    if (objectId != null && String(objectId).trim()) {
+        return { id: String(objectId).trim(), type: String(attrs['objectType'] ?? '').toUpperCase() === 'CASE' ? 'CASE' : 'INCIDENT' };
+    }
+    return undefined;
+}
 
 /** One row of the bottom Data panel (a point, flattened for the shared table). */
 interface PointRow {
@@ -103,6 +121,7 @@ export class GeoMapComponent implements OnInit, OnDestroy {
     private fb = inject(FormBuilder);
     private toastr = inject(ToastrService);
     private dialog = inject(MatDialog);
+    private router = inject(Router);
     private geoSources = inject(GeoSourcesService);
     private datasetsService = inject(DatasetsService);
     private viewsService = inject(GeoMapService);
@@ -673,14 +692,18 @@ export class GeoMapComponent implements OnInit, OnDestroy {
         for (const near of this.nearest(d.points, p, 3)) {
             rows.push({ label: 'Nearby', value: `${near.point.label ?? near.point.id} · ${formatDistance(near.distanceM)}` });
         }
+        const objectRef = objectRefFromAttrs(p.attrs);
         this.dialog
             .open(ElementDetailDialog, {
-                data: { title: p.label ?? p.id, subtitle: p.kind, rows },
+                data: { title: p.label ?? p.id, subtitle: p.kind, rows, objectRef },
                 width: '26rem',
             })
             .afterClosed()
             .subscribe((result: ElementDetailResult) => {
                 if (result === 'focus') this.mapView?.flyTo(id);
+                else if (result === 'open-record' && objectRef) {
+                    this.router.navigate(['/' + (objectRef.type === 'CASE' ? 'cases' : 'incidents'), objectRef.id]);
+                }
             });
     }
 

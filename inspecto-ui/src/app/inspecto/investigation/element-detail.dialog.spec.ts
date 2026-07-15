@@ -42,4 +42,19 @@ describe('ElementDetailDialog', () => {
         const { fixture } = create();
         await expectNoA11yViolations(fixture.nativeElement);
     });
+
+    it('offers no "Open" action when objectRef is absent', () => {
+        const { fixture } = create();
+        const el = fixture.nativeElement as HTMLElement;
+        expect(Array.from(el.querySelectorAll('button')).some((b) => b.textContent?.includes('Open'))).toBe(false);
+    });
+
+    it('offers "Open case" when objectRef is set, and closes with that choice', () => {
+        const { fixture, ref } = create({ ...DATA, objectRef: { id: 'case-1', type: 'CASE' } });
+        const el = fixture.nativeElement as HTMLElement;
+        const btn = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.includes('Open case'));
+        expect(btn).toBeTruthy();
+        btn?.click();
+        expect(ref.close).toHaveBeenCalledWith('open-record');
+    });
 });

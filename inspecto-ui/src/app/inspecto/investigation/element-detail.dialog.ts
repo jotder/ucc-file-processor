@@ -9,6 +9,15 @@ export interface ElementDetailRow {
     value: string;
 }
 
+/** Reference to the underlying Incident/Case a clicked element represents, when known (ui-design-review
+ *  R8 — investigation pivots). Only set when the host can identify the record (e.g. a geo point whose
+ *  row carries an `objectId`/`objectType` column) — an entity graph's synthetic node ids are NOT a
+ *  record reference and must not set this. */
+export interface ElementObjectRef {
+    id: string;
+    type: 'INCIDENT' | 'CASE';
+}
+
 /** Payload for the node/edge detail popup (canvas click → full details). */
 export interface ElementDetailData {
     title: string;
@@ -17,10 +26,12 @@ export interface ElementDetailData {
     rows: ElementDetailRow[];
     /** Offered branch action for nodes with downstream links; absent = hidden. */
     branch?: 'collapse' | 'expand';
+    /** The Incident/Case this element represents, if the host could resolve one — offers "Open record". */
+    objectRef?: ElementObjectRef;
 }
 
 /** What the caller should do next; closing without a choice does nothing. */
-export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | undefined;
+export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | 'open-record' | undefined;
 
 /**
  * **Element detail popup** (investigation studios — Link Analysis, Geo Map Analysis): full details
@@ -61,6 +72,12 @@ export type ElementDetailResult = 'focus' | 'collapse' | 'expand' | undefined;
                 <mat-icon svgIcon="heroicons_outline:viewfinder-circle"></mat-icon>
                 Focus
             </button>
+            @if (data.objectRef; as ref) {
+                <button mat-button (click)="close('open-record')">
+                    <mat-icon svgIcon="heroicons_outline:arrow-top-right-on-square"></mat-icon>
+                    Open {{ ref.type === 'CASE' ? 'case' : 'record' }}
+                </button>
+            }
             <button mat-flat-button color="primary" (click)="close(undefined)">Close</button>
         </mat-dialog-actions>
     `,

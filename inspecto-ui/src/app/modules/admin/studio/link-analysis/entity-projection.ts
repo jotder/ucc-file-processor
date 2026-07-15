@@ -21,6 +21,18 @@ import { SAMPLE_SOURCES } from 'app/modules/admin/studio/datasets/dataset-source
 /** Above this many entities the projection truncates (and says so) rather than melt the canvas. */
 export const PROJECTION_NODE_CAP = 500;
 
+/**
+ * Investigation pivot (ui-design-review R8): when a projection column is named for an operational
+ * object — `caseId`/`incidentId`/`objectId` (case-insensitive) — the entities it produces ARE record
+ * references, so their nodes carry an `objectRef` and the detail dialog offers "Open record".
+ */
+export function objectRefForColumn(column: string | undefined, value: string): G6Node['data']['objectRef'] {
+    const col = (column ?? '').toLowerCase();
+    if (col === 'caseid') return { id: value, type: 'CASE' };
+    if (col === 'incidentid' || col === 'objectid') return { id: value, type: 'INCIDENT' };
+    return undefined;
+}
+
 /** A projection failure the UI can render inline (bad mapping ≠ a thrown stack). */
 export interface ProjectionError {
     error: string;
@@ -45,14 +57,14 @@ export function projectEntities(rows: Record<string, unknown>[], p: EntityProjec
     const edges = new Map<string, G6Edge & { data: { kind: string; count: number } }>();
     let truncated = false;
 
-    const ensure = (value: string): string | null => {
+    const ensure = (value: string, column: string): string | null => {
         const id = `entity:${value}`;
         if (!nodes.has(id)) {
             if (nodes.size >= PROJECTION_NODE_CAP) {
                 truncated = true;
                 return null;
             }
-            nodes.set(id, { id, data: { label: value, kind: 'entity' } });
+            nodes.set(id, { id, data: { label: value, kind: 'entity', objectRef: objectRefForColumn(column, value) } });
         }
         return id;
     };
@@ -61,8 +73,8 @@ export function projectEntities(rows: Record<string, unknown>[], p: EntityProjec
         const s = String(row[p.sourceCol] ?? '').trim();
         const t = String(row[p.targetCol] ?? '').trim();
         if (!s || !t) continue;
-        const sid = ensure(s);
-        const tid = ensure(t);
+        const sid = ensure(s, p.sourceCol);
+        const tid = ensure(t, p.targetCol);
         if (!sid || !tid) continue;
         const kind = p.linkKindCol ? String(row[p.linkKindCol] ?? 'link') : 'link';
         const key = `${sid}->${tid}:${kind}`;
@@ -82,19 +94,19 @@ export function projectEntities(rows: Record<string, unknown>[], p: EntityProjec
  * {@link projectEntities}: `entity:<value>` node ids, `sid->tid:kind` edge ids, `kind · count`
  * folded-edge labels, and the {@link PROJECTION_NODE_CAP} with a truncation flag.
  */
-export function projectTriples(triples: ProjectionTriple[], serverTruncated: boolean): ProjectedGraph {
+export function projectTriples(triples: ProjectionTriple[], serverTruncated: boolean, p?: EntityProjection): ProjectedGraph {
     const nodes = new Map<string, G6Node>();
     const edges: G6Edge[] = [];
     let truncated = serverTruncated;
 
-    const ensure = (value: string): string | null => {
+    const ensure = (value: string, column?: string): string | null => {
         const id = `entity:${value}`;
         if (!nodes.has(id)) {
             if (nodes.size >= PROJECTION_NODE_CAP) {
                 truncated = true;
                 return null;
             }
-            nodes.set(id, { id, data: { label: value, kind: 'entity' } });
+            nodes.set(id, { id, data: { label: value, kind: 'entity', objectRef: objectRefForColumn(column, value) } });
         }
         return id;
     };
@@ -103,8 +115,8 @@ export function projectTriples(triples: ProjectionTriple[], serverTruncated: boo
         const s = String(t.source ?? '').trim();
         const tv = String(t.target ?? '').trim();
         if (!s || !tv) continue;
-        const sid = ensure(s);
-        const tid = ensure(tv);
+        const sid = ensure(s, p?.sourceCol);
+        const tid = ensure(tv, p?.targetCol);
         if (!sid || !tid) continue;
         const kind = t.kind ?? 'link';
         edges.push({
@@ -147,7 +159,7 @@ export class EntityProjectionGraphSource implements GraphSource {
                 targetCol: p.targetCol,
                 linkKindCol: p.linkKindCol || undefined,
             }));
-            return projectTriples(res.rows, res.truncated);
+            return projectTriples(res.rows, res.truncated, p);
         } catch {
             // Offline / mock (501) or an older backend: the original client-side sample fold.
             const ds = await firstValueFrom(this.datasets.get(p.datasetId));
