@@ -81,6 +81,7 @@
                     [columns]="columns()"
                     [loading]="loadingRows()"
                     [autoHeight]="true"
+                    [stateKey]="'db-' + selected()!.table.name"
                     [sourceName]="selected()!.table.name"
                     [exportName]="selected()!.table.name"
                     (runOnServer)="onServerSql($event)"

@@ -21,7 +21,7 @@ export const DECISION_RULE_ATTRIBUTES: AttributeSpec[] = [
         ],
     },
     {
-        key: 'target', label: 'Target', type: 'string', tier: 'required',
+        key: 'target', label: 'Target', type: 'autocomplete', tier: 'required',
         placeholder: 'e.g. cdr_ingest',
         help: 'The pipeline or job whose records this rule routes.',
     },

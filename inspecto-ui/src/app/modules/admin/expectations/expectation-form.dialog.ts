@@ -6,6 +6,9 @@ import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, Expectation, ExpectationKind, ExpectationsService, ExpectationUpsert } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { datasetOptionLoader, pipelineOrJobOptionLoader } from 'app/inspecto/components/entity-option-loaders';
+import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
 import { EXPECTATION_ATTRIBUTES } from './expectation-attributes';
 
 /** Dialog input: an existing expectation ⇒ edit; absent ⇒ create. */
@@ -42,10 +45,10 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
                     The server is running read-only — the expectation was not saved.
                 </inspecto-alert>
             }
-            <inspecto-schema-form [specs]="attributes" [initial]="initialValue"></inspecto-schema-form>
+            <inspecto-schema-form [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
         </mat-dialog-content>
         <mat-dialog-actions align="end">
-            <button type="button" mat-button mat-dialog-close [disabled]="saving()">Cancel</button>
+            <button type="button" mat-button (click)="requestClose()" [disabled]="saving()">Cancel</button>
             <button type="button" mat-flat-button color="primary" [disabled]="saving()" (click)="save()">
                 {{ isEdit ? 'Save' : 'Create' }}
             </button>
@@ -55,10 +58,17 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
 export class ExpectationFormDialog implements AfterViewInit {
     private api = inject(ExpectationsService);
     private ref = inject(MatDialogRef<ExpectationFormDialog, ExpectationFormResult>);
+    private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     readonly data = inject<ExpectationFormData>(MAT_DIALOG_DATA);
 
     @ViewChild(InspectoSchemaFormComponent) schemaForm!: InspectoSchemaFormComponent;
+
+    /** Guarded close: Esc / backdrop / Cancel confirm before discarding a dirty form. */
+    readonly requestClose = guardDirtyClose(this.ref, () => this.schemaForm?.isDirty() ?? false, this.confirm);
+
+    /** Suggestion sources: `target` follows the Attach-to picker; `refDataset` = dataset components. */
+    readonly optionLoaders = { target: pipelineOrJobOptionLoader(), refDataset: datasetOptionLoader() };
 
     readonly isEdit = !!this.data.expectation;
     readonly saving = signal(false);

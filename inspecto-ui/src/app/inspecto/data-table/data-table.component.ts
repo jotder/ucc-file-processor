@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -10,6 +10,8 @@ import { ColDef, GridApi, RowClickedEvent, RowSelectionOptions } from 'ag-grid-c
 import {
     actionsColumn,
     autoColumns,
+    GridStateService,
+    InspectoGridState,
     INSPECTO_DEFAULT_COL_DEF,
     InspectoGridThemeService,
     InspectoRowAction,
@@ -96,6 +98,17 @@ export class DataTableComponent {
     readonly gridTheme = inject(InspectoGridThemeService);
     private dialog = inject(MatDialog);
     private history = inject(SqlHistoryService);
+    private gridState = inject(GridStateService);
+    private gridApi: GridApi | null = null;
+
+    constructor() {
+        // Persist toolbar state (quick search + chosen columns) whenever it changes; no-op without a key.
+        effect(() => {
+            const key = this.stateKey();
+            if (!key) return;
+            this.gridState.patch(key, { search: this.search(), chosen: this.chosen() });
+        });
+    }
 
     readonly tier = input<DataTableTier>('standard');
     readonly rows = input<unknown[]>([]);
@@ -124,6 +137,10 @@ export class DataTableComponent {
     /** Opt-in: when true, the SQL editor / filter builder show a "Run on server" action that emits
      *  {@link runOnServer} (the host runs it against its backend and feeds results back via `rows`). */
     readonly serverRun = input(false);
+    /** Opt-in layout persistence: a unique per-pane key. Column widths/order/visibility/sort, the
+     *  quick search and the column-chooser selection then survive navigation and reload
+     *  (per-space `localStorage` via {@link GridStateService}). */
+    readonly stateKey = input<string | undefined>(undefined);
 
     readonly rowClick = output<Record<string, unknown>>();
     /** Multi-select: the currently checked rows, re-emitted on every selection change. */
@@ -142,11 +159,16 @@ export class DataTableComponent {
               : undefined,
     );
 
-    // ── toolbar state ────────────────────────────────────────────────────────────
-    readonly search = signal('');
-    readonly searchOpen = signal(false);
+    // ── toolbar state (restored from persisted layout when `stateKey` is set) ─────
+    /** The persisted layout snapshot for this pane (null when `stateKey` unset / nothing saved). */
+    private readonly stored = computed(() => this.gridState.load(this.stateKey()));
+    readonly search = linkedSignal(() => this.stored()?.search ?? '');
+    readonly searchOpen = linkedSignal(() => !!this.stored()?.search);
     /** Chosen columns (null ⇒ all). Drives grid visibility (standard) and SQL projection (pro). */
-    readonly chosen = signal<string[] | null>(null);
+    readonly chosen = linkedSignal<InspectoGridState | null, string[] | null>({
+        source: this.stored,
+        computation: (stored) => stored?.chosen ?? null,
+    });
     /** Pro: whether the SQL-editor panel is expanded (hidden by default; toggled from the toolbar). */
     readonly sqlOpen = signal(false);
     /** Pro: whether the filter-builder panel is expanded. */
@@ -335,5 +357,28 @@ export class DataTableComponent {
         // materialization on the initial render, which otherwise leaves `statusBadgeHtml` badge
         // columns (severity / level / status …) empty until the next data change.
         refreshAllCells(e);
+    }
+
+    // ── layout persistence (`stateKey`) ──────────────────────────────────────────
+    onGridReady(e: { api: GridApi }): void {
+        this.gridApi = e.api;
+        const cols = this.stored()?.columns;
+        if (cols?.length) e.api.applyColumnState({ state: cols, applyOrder: true });
+    }
+
+    /** Persist column layout after user-driven changes (resize/move end, sort, pin, visibility). */
+    onColumnStateChanged(e: { api: GridApi; finished?: boolean }): void {
+        if (e.finished === false) return; // mid-drag resize/move events
+        if (!this.stateKey()) return;
+        this.gridState.patch(this.stateKey(), { columns: e.api.getColumnState() });
+    }
+
+    /** Column-chooser "Reset layout": clear the persisted state and return to defaults. */
+    resetLayout(): void {
+        this.gridState.clear(this.stateKey());
+        this.search.set('');
+        this.searchOpen.set(false);
+        this.chosen.set(null);
+        this.gridApi?.resetColumnState();
     }
 }

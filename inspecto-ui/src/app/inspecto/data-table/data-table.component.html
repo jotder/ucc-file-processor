@@ -20,7 +20,9 @@
                 [columns]="allFields()"
                 [selected]="chosen() ?? allFields()"
                 [label]="canQuery() ? 'Choose columns (SELECT)' : 'Show / hide columns'"
+                [resettable]="!!stateKey()"
                 (selectedChange)="onChosen($event)"
+                (resetRequested)="resetLayout()"
             />
         }
 
@@ -119,4 +121,10 @@
     (selectionChanged)="onSelectionChanged($event)"
     (firstDataRendered)="refresh($event)"
     (rowDataUpdated)="refresh($event)"
+    (gridReady)="onGridReady($event)"
+    (sortChanged)="onColumnStateChanged($event)"
+    (columnResized)="onColumnStateChanged($event)"
+    (columnMoved)="onColumnStateChanged($event)"
+    (columnPinned)="onColumnStateChanged($event)"
+    (columnVisible)="onColumnStateChanged($event)"
 ></ag-grid-angular>

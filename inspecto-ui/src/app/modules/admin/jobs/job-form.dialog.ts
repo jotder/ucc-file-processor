@@ -12,6 +12,9 @@ import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, JobDetail, JobsService, JobType, JobUpsert } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { pipelineOptionLoader } from 'app/inspecto/components/entity-option-loaders';
+import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
 import { AttributeSpec } from 'app/inspecto/component-model';
 import { JOB_ATTRIBUTES } from './job-attributes';
 import { paramDeclsToSpecs } from './job-parameter-specs';
@@ -71,6 +74,7 @@ export class JobFormDialog implements AfterViewInit {
     private fb = inject(FormBuilder);
     private api = inject(JobsService);
     private ref = inject(MatDialogRef<JobFormDialog, JobFormResult>);
+    private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     private destroyRef = inject(DestroyRef);
     readonly data = inject<JobFormData>(MAT_DIALOG_DATA);
@@ -107,6 +111,19 @@ export class JobFormDialog implements AfterViewInit {
     get paramsArray(): FormArray<FormGroup> {
         return this.paramsForm.controls.params;
     }
+
+    /** Guarded close: Esc / backdrop / Cancel confirm before discarding a dirty form. */
+    readonly requestClose = guardDirtyClose(
+        this.ref,
+        () =>
+            (this.schemaForm?.isDirty() ?? false) ||
+            (this.paramForm?.isDirty() ?? false) ||
+            this.paramsForm.dirty,
+        this.confirm,
+    );
+
+    /** Suggestion source for the on-signal trigger's pipeline. */
+    readonly optionLoaders = { onPipeline: pipelineOptionLoader() };
 
     constructor() {
         for (const [key, value] of Object.entries(this.data.job?.params ?? {})) this.addParam(key, String(value));

@@ -1,7 +1,8 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, Input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, Input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, FormGroup, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,7 +10,16 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AttributeSpec, byTier, defaultsFor, isRequired } from '../component-model';
+import { AttributeOption, AttributeSpec, byTier, defaultsFor, isRequired } from '../component-model';
+
+/**
+ * Supplies the suggestion list for a `type: 'autocomplete'` attribute. Receives the current raw form
+ * value so a suggestion set can follow a sibling field (e.g. `target` follows `targetType`). Called on
+ * focus — return the fresh list (sync or async); failures degrade to no suggestions.
+ */
+export type AttributeOptionLoader = (
+    value: Record<string, unknown>,
+) => AttributeOption[] | Promise<AttributeOption[]>;
 
 /**
  * The shared spec-driven form renderer (Wave 0, W2): renders an {@link AttributeSpec} list as a
@@ -25,6 +35,7 @@ import { AttributeSpec, byTier, defaultsFor, isRequired } from '../component-mod
     imports: [
         NgTemplateOutlet,
         ReactiveFormsModule,
+        MatAutocompleteModule,
         MatButtonModule,
         MatFormFieldModule,
         MatIconModule,
@@ -35,7 +46,11 @@ import { AttributeSpec, byTier, defaultsFor, isRequired } from '../component-mod
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-        <form [formGroup]="form" class="flex flex-col gap-1">
+        <form [formGroup]="form" class="flex flex-col gap-1" (ngSubmit)="submitted.emit()">
+            <!-- Invisible submit target so Enter in any field triggers ngSubmit (implicit submission
+                 requires a rendered submit control — display:none is skipped by Chrome, so sr-only,
+                 not "hidden"; hosts keep their visible Save button outside). -->
+            <button type="submit" class="sr-only" aria-hidden="true" tabindex="-1"></button>
             @if (tiers().advanced.length) {
                 <div class="flex justify-end">
                     <button
@@ -97,6 +112,25 @@ import { AttributeSpec, byTier, defaultsFor, isRequired } from '../component-mod
                                 <mat-error>{{ spec.label }} is required</mat-error>
                             </mat-form-field>
                         }
+                        @case ('autocomplete') {
+                            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                                <mat-label>{{ spec.label }}</mat-label>
+                                <input
+                                    matInput
+                                    [formControlName]="spec.key"
+                                    [placeholder]="spec.placeholder ?? ''"
+                                    [matAutocomplete]="ac"
+                                    (focus)="loadOptionsFor(spec)"
+                                />
+                                <mat-autocomplete #ac="matAutocomplete">
+                                    @for (opt of filteredOptions(spec); track opt.value) {
+                                        <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                                    }
+                                </mat-autocomplete>
+                                @if (spec.help) { <mat-hint>{{ spec.help }}</mat-hint> }
+                                <mat-error>{{ errorFor(spec) }}</mat-error>
+                            </mat-form-field>
+                        }
                         @case ('multiline') {
                             <mat-form-field class="w-full" subscriptSizing="dynamic">
                                 <mat-label>{{ spec.label }}</mat-label>
@@ -129,6 +163,9 @@ export class InspectoSchemaFormComponent {
     private destroyRef = inject(DestroyRef);
 
     readonly form: FormGroup = this.fb.group({});
+    /** Fires on Enter in any field (native form submission). Hosts bind their save action here so
+     *  keyboard submit and the visible Save button share one path. */
+    readonly submitted = output<void>();
     readonly showOptional = signal(false);
     readonly showAdvanced = signal(false);
     readonly tiers = signal<ReturnType<typeof byTier>>({ required: [], optional: [], advanced: [] });
@@ -154,6 +191,33 @@ export class InspectoSchemaFormComponent {
         this.syncVisibility(this.form.getRawValue());
     }
 
+    /** Suggestion sources for `type: 'autocomplete'` attributes, keyed by attribute key. */
+    @Input() optionLoaders: Record<string, AttributeOptionLoader> | undefined;
+
+    /** Loaded suggestions per attribute key (refreshed on field focus). */
+    private readonly loadedOptions = signal<Record<string, AttributeOption[]>>({});
+
+    /** Refresh an autocomplete field's suggestions — called on focus so sets that depend on sibling
+     *  fields (e.g. `target` on `targetType`) stay current. Best-effort: a failed load = no list. */
+    loadOptionsFor(spec: AttributeSpec): void {
+        const loader = this.optionLoaders?.[spec.key];
+        if (!loader) return;
+        Promise.resolve(loader(this.form.getRawValue())).then(
+            (opts) => this.loadedOptions.update((m) => ({ ...m, [spec.key]: opts })),
+            () => undefined,
+        );
+    }
+
+    /** Suggestions narrowed by the field's current text (matches value or label, case-insensitive). */
+    filteredOptions(spec: AttributeSpec): AttributeOption[] {
+        const all = this.loadedOptions()[spec.key] ?? spec.options ?? [];
+        const q = String(this.formValue()[spec.key] ?? '').trim().toLowerCase();
+        if (!q) return all;
+        return all.filter(
+            (o) => o.value.toLowerCase().includes(q) || o.label.toLowerCase().includes(q),
+        );
+    }
+
     constructor() {
         this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
             this.syncVisibility(this.form.getRawValue());
@@ -164,6 +228,11 @@ export class InspectoSchemaFormComponent {
     isVisible(spec: AttributeSpec): boolean {
         const v = this.formValue();
         return !spec.dependsOn || v[spec.dependsOn.key] === spec.dependsOn.equals;
+    }
+
+    /** Whether the user changed anything — drives the shared discard-on-close guard. */
+    isDirty(): boolean {
+        return this.form.dirty;
     }
 
     /** Mark everything touched (house rule on invalid submit) and report validity. */

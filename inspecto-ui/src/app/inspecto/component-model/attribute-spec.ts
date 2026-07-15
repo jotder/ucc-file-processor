@@ -20,6 +20,8 @@ export type AttributeType =
     | 'number'
     | 'boolean'
     | 'select'
+    | 'autocomplete' // free text + suggestions (suggestions assist, they never constrain the value);
+    //                  the renderer host supplies the suggestion source via its `optionLoaders` input
     | 'multiline';
 
 export interface AttributeOption {

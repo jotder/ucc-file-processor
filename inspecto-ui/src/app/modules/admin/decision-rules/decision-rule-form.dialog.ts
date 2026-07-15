@@ -22,6 +22,9 @@ import {
 } from 'app/inspecto/decision';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { pipelineOrJobOptionLoader } from 'app/inspecto/components/entity-option-loaders';
+import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
 import { QueryConditionGroupComponent } from 'app/inspecto/query/query-condition-group.component';
 import { ColumnMeta, ConditionGroup, emptyGroup } from 'app/inspecto/query/query-types';
 import { DECISION_RULE_ATTRIBUTES } from './decision-rule-attributes';
@@ -92,7 +95,7 @@ const ACTIONS: { value: ConsequenceType; label: string }[] = [...ROUTING_ACTIONS
                     The server is running read-only — the rule was not saved.
                 </inspecto-alert>
             }
-            <inspecto-schema-form [specs]="attributes" [initial]="initialValue"></inspecto-schema-form>
+            <inspecto-schema-form [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
 
             <div class="mt-4 font-semibold">When records match</div>
             <inspecto-query-condition-group class="mt-2 block" [group]="when" [columns]="columns" [root]="true" />
@@ -141,7 +144,7 @@ const ACTIONS: { value: ConsequenceType; label: string }[] = [...ROUTING_ACTIONS
             </div>
         </mat-dialog-content>
         <mat-dialog-actions align="end">
-            <button type="button" mat-button mat-dialog-close [disabled]="saving()">Cancel</button>
+            <button type="button" mat-button (click)="requestClose()" [disabled]="saving()">Cancel</button>
             <button type="button" mat-flat-button color="primary" [disabled]="saving()" (click)="save()">
                 {{ isEdit ? 'Save' : 'Create' }}
             </button>
@@ -152,10 +155,22 @@ export class DecisionRuleFormDialog implements AfterViewInit {
     private fb = inject(FormBuilder);
     private api = inject(DecisionRulesService);
     private ref = inject(MatDialogRef<DecisionRuleFormDialog, DecisionRuleFormResult>);
+    private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     readonly data = inject<DecisionRuleFormData>(MAT_DIALOG_DATA);
 
     @ViewChild(InspectoSchemaFormComponent) schemaForm!: InspectoSchemaFormComponent;
+
+    /** Guarded close: Esc / backdrop / Cancel confirm before discarding dirty scalars/consequences
+     *  (the in-place `when` tree has no dirty tracking — edits there usually accompany the others). */
+    readonly requestClose = guardDirtyClose(
+        this.ref,
+        () => (this.schemaForm?.isDirty() ?? false) || this.consequencesForm.dirty,
+        this.confirm,
+    );
+
+    /** Suggestion source: `target` follows the target-type picker. */
+    readonly optionLoaders = { target: pipelineOrJobOptionLoader() };
 
     readonly isEdit = !!this.data.rule;
     readonly saving = signal(false);

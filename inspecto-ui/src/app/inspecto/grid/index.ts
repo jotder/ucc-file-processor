@@ -76,6 +76,9 @@ export function noRowsOverlay(title = 'No data to display', hint?: string): stri
  *  many `from 'app/inspecto/grid'` importers (grids' `valueFormatter`s) stay unchanged. */
 export { fmtDateTime } from 'app/inspecto/format';
 
+/** Opt-in per-pane grid layout persistence (`[stateKey]` on the shared tables). */
+export { GridStateService, InspectoGridState } from './grid-state.service';
+
 /** ag-Grid theme that follows the gamma scheme (light/dark/auto) — bind `[theme]="themeSvc.theme()"`. */
 @Injectable({ providedIn: 'root' })
 export class InspectoGridThemeService {

@@ -21,7 +21,7 @@ export const EXPECTATION_ATTRIBUTES: AttributeSpec[] = [
         ],
     },
     {
-        key: 'target', label: 'Target', type: 'string', tier: 'required',
+        key: 'target', label: 'Target', type: 'autocomplete', tier: 'required',
         placeholder: 'e.g. cdr_ingest',
         help: 'The pipeline or job whose records this check validates.',
     },
@@ -54,7 +54,7 @@ export const EXPECTATION_ATTRIBUTES: AttributeSpec[] = [
         help: 'Values must fully match this regular expression.',
     },
     {
-        key: 'refDataset', label: 'Reference dataset', type: 'string', tier: 'required',
+        key: 'refDataset', label: 'Reference dataset', type: 'autocomplete', tier: 'required',
         dependsOn: { key: 'kind', equals: 'referential' },
         placeholder: 'e.g. tariff_ref',
     },

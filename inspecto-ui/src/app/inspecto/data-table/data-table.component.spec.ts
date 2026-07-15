@@ -157,4 +157,64 @@ describe('DataTableComponent', () => {
         const f = await create('standard');
         await expectNoA11yViolations(f.nativeElement);
     });
+
+    it('persists toolbar state under stateKey and restores it in a fresh instance', async () => {
+        const storage = 'inspecto.grid.default.spec-table';
+        localStorage.removeItem(storage);
+        try {
+            const f = await create('standard');
+            f.componentRef.setInput('stateKey', 'spec-table');
+            f.detectChanges();
+            const c = f.componentInstance;
+            c.search.set('alp');
+            c.onChosen(['name']);
+            f.detectChanges(); // flush the persist effect
+            expect(JSON.parse(localStorage.getItem(storage)!)).toMatchObject({
+                search: 'alp',
+                chosen: ['name'],
+            });
+
+            // A fresh instance with the same key restores search (box open) + chosen projection.
+            const f2 = TestBed.createComponent(DataTableComponent);
+            f2.componentRef.setInput('stateKey', 'spec-table');
+            f2.detectChanges();
+            expect(f2.componentInstance.search()).toBe('alp');
+            expect(f2.componentInstance.searchOpen()).toBe(true);
+            expect(f2.componentInstance.chosen()).toEqual(['name']);
+        } finally {
+            localStorage.removeItem(storage);
+        }
+    });
+
+    it('resetLayout returns to defaults and drops the persisted column layout', async () => {
+        const storage = 'inspecto.grid.default.spec-reset';
+        localStorage.setItem(
+            storage,
+            JSON.stringify({ search: 'x', chosen: ['id'], columns: [{ colId: 'id', width: 300 }] }),
+        );
+        try {
+            const f = await create('standard');
+            f.componentRef.setInput('stateKey', 'spec-reset');
+            f.detectChanges();
+            const c = f.componentInstance;
+            expect(c.search()).toBe('x'); // restored
+            c.resetLayout();
+            f.detectChanges();
+            expect(c.search()).toBe('');
+            expect(c.searchOpen()).toBe(false);
+            expect(c.chosen()).toBeNull();
+            const after = JSON.parse(localStorage.getItem(storage) ?? '{}');
+            expect(after.columns).toBeUndefined(); // layout gone; only default toolbar state re-saved
+        } finally {
+            localStorage.removeItem(storage);
+        }
+    });
+
+    it('without a stateKey nothing is written to localStorage', async () => {
+        const before = Object.keys(localStorage).filter((k) => k.startsWith('inspecto.grid.'));
+        const c = (await create('standard')).componentInstance;
+        c.search.set('zzz');
+        const after = Object.keys(localStorage).filter((k) => k.startsWith('inspecto.grid.'));
+        expect(after).toEqual(before);
+    });
 });

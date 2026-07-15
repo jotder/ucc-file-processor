@@ -80,6 +80,8 @@ export interface ImportPreview {
 }
 
 const STORAGE_KEY = 'inspecto.currentSpace';
+/** Where the active space id persists — shared with DI-light consumers (e.g. `GridStateService`). */
+export const SPACE_STORAGE_KEY = STORAGE_KEY;
 
 /**
  * Holds the global multi-space state (active space + the hosted list) as signals, and wraps the

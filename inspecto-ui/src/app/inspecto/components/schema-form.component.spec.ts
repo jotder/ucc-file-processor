@@ -78,6 +78,43 @@ describe('InspectoSchemaFormComponent', () => {
         expect(v['threads']).toBe(4);
     });
 
+    it('autocomplete loads suggestions via optionLoaders and narrows them by the typed text', async () => {
+        const specs: AttributeSpec[] = [
+            { key: 'kind', label: 'Kind', type: 'select', tier: 'required', default: 'a', options: [{ value: 'a', label: 'A' }] },
+            { key: 'target', label: 'Target', type: 'autocomplete', tier: 'required' },
+        ];
+        const fixture = create(specs);
+        const c = fixture.componentInstance;
+        c.optionLoaders = {
+            // The loader sees the sibling values (here: kind) and returns the suggestion list.
+            target: (v) => (v['kind'] === 'a' ? [{ value: 'cdr_ingest', label: 'cdr_ingest' }, { value: 'events_daily', label: 'events_daily' }] : []),
+        };
+
+        c.loadOptionsFor(specs[1]);
+        await Promise.resolve(); // loader resolution
+        expect(c.filteredOptions(specs[1]).map((o) => o.value)).toEqual(['cdr_ingest', 'events_daily']);
+
+        c.form.get('target')?.setValue('cdr'); // typing narrows, value stays free text
+        expect(c.filteredOptions(specs[1]).map((o) => o.value)).toEqual(['cdr_ingest']);
+        c.form.get('target')?.setValue('anything_else');
+        expect(c.validate()).toBe(true); // suggestions assist — they never constrain
+    });
+
+    it('emits submitted on native form submission (Enter in a field) and reports dirtiness', () => {
+        const fixture = create();
+        let submits = 0;
+        fixture.componentInstance.submitted.subscribe(() => submits++);
+
+        expect(fixture.componentInstance.isDirty()).toBe(false);
+        fixture.componentInstance.form.get('name')?.setValue('daily_kpi');
+        fixture.componentInstance.form.get('name')?.markAsDirty();
+        expect(fixture.componentInstance.isDirty()).toBe(true);
+
+        const form = (fixture.nativeElement as HTMLElement).querySelector('form')!;
+        form.dispatchEvent(new Event('submit'));
+        expect(submits).toBe(1);
+    });
+
     it('has no axe violations with all tiers expanded', async () => {
         const fixture = create();
         fixture.componentInstance.showOptional.set(true);

@@ -24,6 +24,11 @@ import { MatTooltipModule } from '@angular/material/tooltip';
                 <div class="mb-1 flex items-center gap-1 border-b pb-1" style="border-color: var(--gamma-border)">
                     <button mat-button type="button" (click)="selectedChange.emit(columns())">All</button>
                     <button mat-button type="button" (click)="selectedChange.emit([])">None</button>
+                    @if (resettable()) {
+                        <span class="flex-1"></span>
+                        <button mat-button type="button" matTooltip="Restore default column layout, sort and search"
+                                (click)="resetRequested.emit()">Reset layout</button>
+                    }
                 </div>
                 @for (c of columns(); track c) {
                     <mat-checkbox class="block" [checked]="chosen().has(c)" (change)="toggle(c, $event.checked)">
@@ -38,7 +43,10 @@ export class ColumnChooserComponent {
     readonly columns = input<string[]>([]);
     readonly selected = input<string[]>([]);
     readonly label = input('Choose columns');
+    /** Show a "Reset layout" action (hosts with persisted layout state). */
+    readonly resettable = input(false);
     readonly selectedChange = output<string[]>();
+    readonly resetRequested = output<void>();
 
     protected readonly chosen = computed(() => new Set(this.selected()));
 

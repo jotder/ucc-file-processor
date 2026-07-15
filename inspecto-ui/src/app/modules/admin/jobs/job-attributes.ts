@@ -41,7 +41,7 @@ export const JOB_ATTRIBUTES: AttributeSpec[] = [
         help: '5 or 6 fields (sec min hour day month weekday)',
     },
     {
-        key: 'onPipeline', label: 'On pipeline', type: 'string', tier: 'required',
+        key: 'onPipeline', label: 'On pipeline', type: 'autocomplete', tier: 'required',
         dependsOn: { key: 'scheduleMode', equals: 'event' },
         placeholder: 'e.g. cdr_ingest',
         help: 'Runs when this pipeline commits a batch.',

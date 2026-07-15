@@ -8,6 +8,7 @@ import { ColDef, GridApi, RowSelectionOptions } from 'ag-grid-community';
 import { toCsv, downloadCsv } from 'app/inspecto/data-table/core/csv';
 import {
     actionsColumn,
+    GridStateService,
     InspectoGridThemeService,
     INSPECTO_DEFAULT_COL_DEF,
     InspectoRowAction,
@@ -33,6 +34,7 @@ import { allParentIds, flattenTree, FlatTreeRow, seedExpanded, TreeNode } from '
 })
 export class TreeTableComponent {
     readonly gridTheme = inject(InspectoGridThemeService);
+    private gridState = inject(GridStateService);
 
     readonly nodes = input<TreeNode[]>([]);
     /** Right-hand value columns (ordinary ColDefs; use cellRenderer for badges / variance / icons). */
@@ -51,6 +53,9 @@ export class TreeTableComponent {
     readonly exportName = input('tree-export');
     readonly noRowsTitle = input('No data to display');
     readonly noRowsHint = input<string | undefined>(undefined);
+    /** Opt-in layout persistence: a unique per-pane key. The expanded set and value-column widths
+     *  then survive navigation and reload (per-space `localStorage` via {@link GridStateService}). */
+    readonly stateKey = input<string | undefined>(undefined);
 
     readonly nodeClick = output<FlatTreeRow>();
     readonly selectionChange = output<FlatTreeRow[]>();
@@ -60,8 +65,19 @@ export class TreeTableComponent {
         const d = this.groupDefaultExpanded();
         return d < 0 ? Number.MAX_SAFE_INTEGER : d;
     });
-    /** Expanded node ids — reseeds when `nodes` change, but user toggles persist between changes. */
-    private readonly expanded = linkedSignal(() => seedExpanded(this.nodes(), this.expandDepth()));
+    /** Expanded node ids — restored from the persisted layout (when `stateKey` is set and a snapshot
+     *  exists), else seeded from `groupDefaultExpanded` on first data; then user toggles persist
+     *  across `nodes` refreshes (hosts rebuild the forest on cell edits — the Access matrix —
+     *  or after row actions — reconciliation Resolve; reseeding on every refresh would throw the
+     *  user's expand/collapse state away). Ids that vanish from the data are inert in the set. */
+    private readonly expanded = linkedSignal<TreeNode[], Set<string>>({
+        source: this.nodes,
+        computation: (nodes, previous) => {
+            if (previous) return new Set(previous.value);
+            const saved = this.gridState.load(this.stateKey())?.expanded;
+            return saved ? new Set(saved) : seedExpanded(nodes, this.expandDepth());
+        },
+    });
 
     readonly flatRows = computed<FlatTreeRow[]>(() => flattenTree(this.nodes(), this.expanded()));
 
@@ -111,15 +127,20 @@ export class TreeTableComponent {
             else next.add(id);
             return next;
         });
-        this.expandedChange.emit([...this.expanded()]);
+        this.expandedChanged();
     }
     expandAll(): void {
         this.expanded.set(allParentIds(this.nodes()));
-        this.expandedChange.emit([...this.expanded()]);
+        this.expandedChanged();
     }
     collapseAll(): void {
         this.expanded.set(new Set());
-        this.expandedChange.emit([]);
+        this.expandedChanged();
+    }
+    private expandedChanged(): void {
+        const ids = [...this.expanded()];
+        this.expandedChange.emit(ids);
+        this.gridState.patch(this.stateKey(), { expanded: ids });
     }
 
     // ── grid events ──────────────────────────────────────────────────────────────
@@ -131,6 +152,19 @@ export class TreeTableComponent {
     }
     refresh(e: { api: GridApi }): void {
         refreshAllCells(e);
+    }
+
+    // ── layout persistence (`stateKey`) ──────────────────────────────────────────
+    onGridReady(e: { api: GridApi }): void {
+        const cols = this.gridState.load(this.stateKey())?.columns;
+        if (cols?.length) e.api.applyColumnState({ state: cols, applyOrder: true });
+    }
+
+    /** Persist value-column widths after a user resize finishes. */
+    onColumnStateChanged(e: { api: GridApi; finished?: boolean }): void {
+        if (e.finished === false) return;
+        if (!this.stateKey()) return;
+        this.gridState.patch(this.stateKey(), { columns: e.api.getColumnState() });
     }
 
     exportCsv(): void {

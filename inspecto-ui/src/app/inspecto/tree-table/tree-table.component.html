@@ -32,4 +32,6 @@
     (selectionChanged)="onSelectionChanged($event)"
     (firstDataRendered)="refresh($event)"
     (rowDataUpdated)="refresh($event)"
+    (gridReady)="onGridReady($event)"
+    (columnResized)="onColumnStateChanged($event)"
 ></ag-grid-angular>

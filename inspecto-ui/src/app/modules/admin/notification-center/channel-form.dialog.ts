@@ -5,6 +5,8 @@ import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/materia
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, NotificationChannel, NotificationsService } from 'app/inspecto/api';
 import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
 import { CHANNEL_ATTRIBUTES } from './channel-attributes';
 
 /** Dialog input: an existing channel ⇒ edit; absent ⇒ create. */
@@ -35,10 +37,10 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
     template: `
         <h2 mat-dialog-title>{{ isEdit ? 'Edit channel' : 'New channel' }}</h2>
         <mat-dialog-content class="pt-2" style="min-width: 30rem">
-            <inspecto-schema-form [specs]="attributes" [initial]="initialValue" />
+            <inspecto-schema-form [specs]="attributes" [initial]="initialValue" (submitted)="save()" />
         </mat-dialog-content>
         <mat-dialog-actions align="end">
-            <button mat-button [mat-dialog-close]="null">Cancel</button>
+            <button mat-button type="button" (click)="requestClose()">Cancel</button>
             <button mat-flat-button color="primary" [disabled]="saving()" (click)="save()">
                 {{ isEdit ? 'Save' : 'Create' }}
             </button>
@@ -48,10 +50,14 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
 export class ChannelFormDialog implements AfterViewInit {
     private api = inject(NotificationsService);
     private ref = inject(MatDialogRef<ChannelFormDialog, ChannelFormResult>);
+    private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     readonly data = inject<ChannelFormData>(MAT_DIALOG_DATA);
 
     @ViewChild(InspectoSchemaFormComponent) schemaForm!: InspectoSchemaFormComponent;
+
+    /** Guarded close: Esc / backdrop / Cancel confirm before discarding a dirty form. */
+    readonly requestClose = guardDirtyClose(this.ref, () => this.schemaForm?.isDirty() ?? false, this.confirm);
 
     readonly isEdit = !!this.data.channel;
     readonly saving = signal(false);

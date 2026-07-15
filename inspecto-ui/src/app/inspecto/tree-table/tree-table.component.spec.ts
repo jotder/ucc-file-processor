@@ -77,6 +77,17 @@ describe('TreeTableComponent', () => {
         expect(c.flatRows().map((r) => r.__id)).toEqual(['north', 'south']);
     });
 
+    it('keeps user expand/collapse state when the nodes are refreshed (value edits, row actions)', async () => {
+        const f = await create(1);
+        const c = f.componentInstance;
+        c.toggle('north'); // user collapses
+        expect(c.flatRows().map((r) => r.__id)).toEqual(['north', 'south']);
+        // Host rebuilds the forest (e.g. a matrix cell edit or a Resolve refresh) → no reseed.
+        f.componentRef.setInput('nodes', FOREST.map((n) => ({ ...n })));
+        f.detectChanges();
+        expect(c.flatRows().map((r) => r.__id)).toEqual(['north', 'south']);
+    });
+
     it('synthesizes a tree column ahead of the value columns', async () => {
         const c = (await create(0)).componentInstance;
         const ids = c.gridColumns().map((col) => col.colId ?? col.field);
@@ -88,5 +99,36 @@ describe('TreeTableComponent', () => {
     it('has no a11y violations', async () => {
         const f = await create(1);
         await expectNoA11yViolations(f.nativeElement);
+    });
+
+    it('restores the expanded set from a persisted layout and persists toggles under stateKey', async () => {
+        const storage = 'inspecto.grid.default.spec-tree';
+        localStorage.setItem(storage, JSON.stringify({ expanded: [] })); // user had collapsed everything
+        try {
+            // stateKey is a static host attribute — it must be set before the first render (as real
+            // hosts do), because once seeded the expanded set deliberately survives input changes.
+            TestBed.configureTestingModule({
+                imports: [TreeTableComponent],
+                providers: [
+                    provideNoopAnimations(),
+                    { provide: InspectoGridThemeService, useValue: { theme: () => INSPECTO_GRID_DARK } },
+                ],
+            });
+            await TestBed.compileComponents();
+            const f = TestBed.createComponent(TreeTableComponent);
+            f.componentRef.setInput('nodes', FOREST);
+            f.componentRef.setInput('groupDefaultExpanded', 1); // depth seed would expand 'north' …
+            f.componentRef.setInput('columns', [{ field: 'e1' }]);
+            f.componentRef.setInput('stateKey', 'spec-tree');
+            f.detectChanges();
+            const c = f.componentInstance;
+            // … but the persisted (empty) set wins over the depth seed.
+            expect(c.flatRows().map((r) => r.__id)).toEqual(['north', 'south']);
+
+            c.toggle('north'); // expand → persisted
+            expect(JSON.parse(localStorage.getItem(storage)!).expanded).toEqual(['north']);
+        } finally {
+            localStorage.removeItem(storage);
+        }
     });
 });

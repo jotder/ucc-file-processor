@@ -1,3 +1,4 @@
+import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -12,6 +13,7 @@ function create(data: ExpectationFormData) {
         imports: [ExpectationFormDialog],
         providers: [
             provideNoopAnimations(),
+            provideHttpClient(), // the autocomplete option loaders inject root HTTP services
             { provide: MatDialogRef, useValue: { close: () => {} } },
             { provide: MAT_DIALOG_DATA, useValue: data },
             { provide: ExpectationsService, useValue: {} },

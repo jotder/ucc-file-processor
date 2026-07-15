@@ -54,6 +54,7 @@ interface AuditRow {
                 [loading]="loading()"
                 sourceName="audit"
                 exportName="audit-log"
+                stateKey="audit-logs"
                 noRowsTitle="No audit events yet"
                 noRowsHint="Actions like creating, triggering, or deleting resources will appear here."
             />

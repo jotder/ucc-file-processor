@@ -6,6 +6,10 @@ import { ToastrService } from 'ngx-toastr';
 import { AlertRule, AlertRuleUpsert, AlertsService, apiErrorMessage } from 'app/inspecto/api';
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { pipelineOptionLoader } from 'app/inspecto/components/entity-option-loaders';
+import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
+import { firstValueFrom } from 'rxjs';
 import { ALERT_RULE_ATTRIBUTES } from './alert-rule-attributes';
 
 /** Dialog input: an existing rule ⇒ edit; absent ⇒ create. */
@@ -45,11 +49,11 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
                     armed by saving a <code>*_alert.toon</code> next to the pipeline configs.
                 </inspecto-alert>
             }
-            <inspecto-schema-form #sf [specs]="attributes" [initial]="initialValue"></inspecto-schema-form>
+            <inspecto-schema-form #sf [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
         </mat-dialog-content>
 
         <mat-dialog-actions align="end">
-            <button mat-button mat-dialog-close>Cancel</button>
+            <button mat-button type="button" (click)="requestClose()">Cancel</button>
             <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
                 {{ isEdit ? 'Save changes' : 'Create rule' }}
             </button>
@@ -59,10 +63,28 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
 export class AlertRuleFormDialog implements AfterViewInit {
     private api = inject(AlertsService);
     private ref = inject(MatDialogRef<AlertRuleFormDialog, AlertRuleFormResult>);
+    private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     readonly data = inject<AlertRuleFormData>(MAT_DIALOG_DATA);
 
     @ViewChild(InspectoSchemaFormComponent) schemaForm!: InspectoSchemaFormComponent;
+
+    /** Guarded close: Esc / backdrop / Cancel confirm before discarding a dirty form. */
+    readonly requestClose = guardDirtyClose(this.ref, () => this.schemaForm?.isDirty() ?? false, this.confirm);
+
+    /** Suggestion sources: metrics seen on armed rules + the engine's documented trio; pipeline scope. */
+    readonly optionLoaders = {
+        metric: async (): Promise<{ value: string; label: string }[]> => {
+            const known = new Set(['error_rate', 'rejected_files', 'duration_ms']);
+            try {
+                for (const r of await firstValueFrom(this.api.rules())) if (r.metric) known.add(r.metric);
+            } catch {
+                // suggestions are best-effort — the documented trio still shows
+            }
+            return [...known].sort().map((m) => ({ value: m, label: m }));
+        },
+        onPipeline: pipelineOptionLoader(),
+    };
 
     readonly isEdit = !!this.data.rule;
     readonly saving = signal(false);

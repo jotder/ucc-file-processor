@@ -13,7 +13,7 @@ export const ALERT_RULE_ATTRIBUTES: AttributeSpec[] = [
         help: 'Letters, digits, dot, dash, underscore; the identity of the rule.',
     },
     {
-        key: 'metric', label: 'Metric', type: 'string', tier: 'required',
+        key: 'metric', label: 'Metric', type: 'autocomplete', tier: 'required',
         placeholder: 'e.g. error_rate, rejected_files, duration_ms',
         help: 'The observability metric to watch (as emitted by the engine).',
     },
@@ -47,7 +47,7 @@ export const ALERT_RULE_ATTRIBUTES: AttributeSpec[] = [
         ],
     },
     {
-        key: 'onPipeline', label: 'Pipeline scope', type: 'string', tier: 'optional',
+        key: 'onPipeline', label: 'Pipeline scope', type: 'autocomplete', tier: 'optional',
         placeholder: 'e.g. cdr_ingest',
         help: 'Limit the rule to one Pipeline; leave blank to watch every Pipeline.',
     },

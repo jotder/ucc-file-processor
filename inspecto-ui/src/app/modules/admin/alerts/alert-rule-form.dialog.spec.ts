@@ -1,3 +1,4 @@
+import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
@@ -24,6 +25,7 @@ function create(data: AlertRuleFormData, save = vi.fn(() => of(RULE))) {
         imports: [AlertRuleFormDialog],
         providers: [
             provideNoopAnimations(),
+            provideHttpClient(), // the autocomplete option loaders inject root HTTP services
             { provide: MAT_DIALOG_DATA, useValue: data },
             { provide: MatDialogRef, useValue: ref },
             { provide: AlertsService, useValue: { createRule: save, updateRule: save } },

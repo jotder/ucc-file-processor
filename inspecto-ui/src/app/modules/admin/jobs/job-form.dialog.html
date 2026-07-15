@@ -8,7 +8,7 @@
     }
 
     <!-- Scalar attributes: spec-driven (JOB_ATTRIBUTES) — required up front, catch-up behind the gear. -->
-    <inspecto-schema-form #sf [specs]="attributes" [initial]="initialValue"></inspecto-schema-form>
+    <inspecto-schema-form #sf [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
 
     <!-- Cron preset quick-pick (bespoke): visible while the trigger is a cron schedule. -->
     @if (sf.form.get('cron')?.enabled) {
@@ -23,7 +23,7 @@
     <!-- Descriptor-driven parameters (P3c): the selected Job Type's declared params as typed fields. -->
     @if (paramSpecs().length) {
         <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Type parameters</div>
-        <inspecto-schema-form #pf [specs]="paramSpecs()" [initial]="paramInitial()"></inspecto-schema-form>
+        <inspecto-schema-form #pf [specs]="paramSpecs()" [initial]="paramInitial()" (submitted)="save()"></inspecto-schema-form>
     }
 
     <!-- Additional params (bespoke key/value array) — anything not declared by the type. -->
@@ -54,7 +54,7 @@
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-button type="button" (click)="requestClose()">Cancel</button>
     <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
         {{ isEdit ? 'Save changes' : 'Create job' }}
     </button>

@@ -1,3 +1,4 @@
+import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
@@ -16,6 +17,7 @@ function create(data: JobFormData, save = vi.fn(() => of({ name: 'x' })), descri
         imports: [JobFormDialog],
         providers: [
             provideNoopAnimations(),
+            provideHttpClient(), // the autocomplete option loaders inject root HTTP services
             { provide: MAT_DIALOG_DATA, useValue: data },
             { provide: MatDialogRef, useValue: ref },
             { provide: JobsService, useValue: { create: save, update: save, describeType, types: () => of([]) } },
