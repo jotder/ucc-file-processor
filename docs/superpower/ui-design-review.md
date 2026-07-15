@@ -28,8 +28,25 @@ limit = unchanged); incidents/audit/events/db-browser now surface an honest "sho
 `[serverPage]`+`[hasMore]`+`(loadMore)` strip (mirrors `[serverRun]`), adopted by object-mail, audit-logs,
 events. Deferred within P4 (documented): R6 true offset-paged fetch per pane (the widen-limit idiom is
 honest but refetches from 0; revisit if a pane outgrows it before the ag-Grid server row model), R8
-pivot-bar (stays design-only per §4), R9 was completed as scoped. **P3 (R5 context preservation + R7
-split primitive) remains open.** · **Method:** three parallel read-only surveys (forms/dialogs · data surfaces/persistence ·
+pivot-bar (stays design-only per §4), R9 was completed as scoped. **P3 SHIPPED 2026-07-15** — **R7**:
+`InspectoSplitDirective` (`inspecto/components/split.directive.ts`, `[inspectoSplit]="<stateKey>"`,
+exportAs `inspectoSplit`, min/max/defaultWidth/pane inputs, `width()` signal, persists at
+`inspecto.split.<key>`) extracted from object-mail's bespoke handle; adopted by the mail folder nav,
+the mail detail pane (was fixed 30rem, now 320–720px), data-browser master/detail (was a fixed 1:3
+grid; still stacks below lg), and the new runs/jobs detail panels. Deviation: recon turned out to be
+single-column (no side panes exist to split) — nothing to apply there. **R5**: runs & jobs detail are
+now side panels over the LIVE list — one matcher-based route config serves `/runs` and `/runs/:name`
+(same config ⇒ component reuse ⇒ list scroll/filter state survives; preview-proven), the detail
+components gained `[name]`/`[embedded]` inputs + `(closed)`; deep links still work; the standalone
+run-detail/job-detail routes are gone. Settings selection is bound to a `:section` param (same
+matcher trick; Back works, refresh keeps the section); the shadowing standalone
+`/settings/models|icons|map|transfer|access|notifications` routes were removed — those URLs now open
+the same components inside the pane (`/settings/menus` stays standalone). New shared
+`<inspecto-breadcrumb>` (`inspecto/components/breadcrumb.component.ts`) replaces the hand-rolled
+list→id trails (adopted in object-detail; run/job breadcrumbs died with their full pages).
+**The roadmap is COMPLETE — every phase P1–P4 shipped 2026-07-15.** Remaining documented deferrals:
+R2 expectation column suggestions + object-create chips, R3 command registry + j/k list nav, R6
+per-pane offset paging, R8 pivot bar. · **Method:** three parallel read-only surveys (forms/dialogs · data surfaces/persistence ·
 navigation/keyboard) against the operator's design brief. · **Companions:** `tree-table-design.md`
 (the quality bar) · `.claude/skills/angular-ui/SKILL.md` (the binding architecture rules) ·
 `lens-access-config-design.md` (the newest pane, scored best-in-class here).

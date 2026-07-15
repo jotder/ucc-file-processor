@@ -169,7 +169,19 @@ src/app/
   same two-step pattern (a `step` signal + a `saveForm` asked only at save time, id pre-filled from the
   config via `suggestedName()`; the config step is `[hidden]`-wrapped — never `@if`'d — so schema-form
   ViewChilds survive the step switch). New create dialogs must not ask the immutable id up front.
-- Detail pages carry a breadcrumb (list → id). Reference everything live at `/design`.
+- **Resizable panes → `[inspectoSplit]`** (`inspecto/components/split.directive.ts`, R7): put it on the
+  separator div between two panes (`inspectoSplit="<stateKey>"`, `#h="inspectoSplit"`, min/max/
+  defaultWidth, `pane="right"` when the controlled pane sits right of the handle) and bind the pane's
+  `[style.width.px]="h.width()"`. Persists per device at `inspecto.split.<key>`; `role="separator"` +
+  arrow-key a11y built in; hosts add `aria-label` + responsive classes. Never re-roll pointer resize.
+- **Detail-over-list panes (R5):** when a routed detail should NOT destroy its list (runs, jobs), use ONE
+  matcher-based route config covering both `''` and `':name'` (same config ⇒ router reuses the list
+  component ⇒ scroll/filters survive), read `paramMap` into a `detailName` signal, and mount the detail
+  as an `[embedded]` side panel behind an `inspectoSplit` handle; close = navigate back to the list URL.
+  Reference: `runs/runs.routes.ts` + `runs.component`. Settings uses the same matcher for `:section`.
+- Detail pages carry a breadcrumb (list → id) — use the shared `<inspecto-breadcrumb [listLink] [listLabel]
+  [current]>` (`inspecto/components/breadcrumb.component.ts`), never hand-roll the trail. Reference
+  everything live at `/design`.
 
 ## 5. Styling
 
