@@ -1,5 +1,6 @@
-import { Component, OnDestroy, OnInit, ViewEncapsulation, effect, inject } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, ViewChild, ViewEncapsulation, effect, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { ActivatedRoute, Router, RouterOutlet } from '@angular/router';
 import { GammaLoadingBarComponent } from '@gamma/components/loading-bar';
@@ -17,11 +18,12 @@ import { Navigation } from 'app/core/navigation/navigation.types';
 // import { ShortcutsComponent } from 'app/layout/common/shortcuts/shortcuts.component';
 import { LensSwitcherComponent } from 'app/layout/common/lens-switcher/lens-switcher.component';
 import { NotificationBellComponent } from 'app/layout/common/notifications/notifications.component';
-import { SearchComponent } from 'app/layout/common/search/search.component';
+import { SearchCommand, SearchComponent } from 'app/layout/common/search/search.component';
 import { SpaceSwitcherComponent } from 'app/layout/common/space-switcher/space-switcher.component';
 import { UserComponent } from 'app/layout/common/user/user.component';
 import { AccessStateService } from 'app/inspecto/access/access-state.service';
-import { BrandingService } from 'app/inspecto/api';
+import { BrandingService, LensService } from 'app/inspecto/api';
+import { ShortcutsHelpDialog } from 'app/inspecto/shortcuts-help.dialog';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -57,6 +59,20 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
     protected readonly branding = inject(BrandingService);
     /** Lens Access Profiles — filters the sidebar per lens (identity when none saved). */
     private readonly _accessState = inject(AccessStateService);
+    private readonly _lens = inject(LensService);
+    private readonly _dialog = inject(MatDialog);
+
+    /** The header command palette — focused app-wide by Ctrl/Cmd+K. */
+    @ViewChild(SearchComponent) private _search?: SearchComponent;
+
+    /** Action commands offered in the palette. Shell-owned only (no cross-feature coupling): switch
+     *  the persona lens. Feature-contextual commands await a command registry (review R3 follow-up). */
+    protected readonly paletteCommands: SearchCommand[] = LensService.LENSES.map((l) => ({
+        title: `Switch to ${l.label} lens`,
+        icon: l.icon,
+        group: 'Lens',
+        run: () => this._lens.selectLens(l.id),
+    }));
 
 
     /**
@@ -117,6 +133,37 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
         // Unsubscribe from all subscriptions
         this._unsubscribeAll.next(null);
         this._unsubscribeAll.complete();
+    }
+
+    // -----------------------------------------------------------------------------------------------------
+    // @ Keyboard shortcuts (review R3)
+    // -----------------------------------------------------------------------------------------------------
+
+    /**
+     * App-wide keyboard entry points: **Ctrl/Cmd+K** opens the command palette; **?** shows the
+     * shortcuts help. Both are ignored while the user is typing in a field so they never eat input.
+     */
+    @HostListener('document:keydown', ['$event'])
+    onGlobalKeydown(event: KeyboardEvent): void {
+        const key = event.key.toLowerCase();
+        if ((event.ctrlKey || event.metaKey) && key === 'k') {
+            event.preventDefault();
+            this._search?.open();
+            return;
+        }
+        // `?` = Shift+/. Only a bare press (no modifier), and never while editing text.
+        if (event.key === '?' && !event.ctrlKey && !event.metaKey && !event.altKey && !this._isEditingTarget(event.target)) {
+            event.preventDefault();
+            this._dialog.open(ShortcutsHelpDialog, { width: '460px', autoFocus: false });
+        }
+    }
+
+    /** True when the event originates in a text-editing control (so shortcuts stay out of the way). */
+    private _isEditingTarget(target: EventTarget | null): boolean {
+        const el = target as HTMLElement | null;
+        if (!el) return false;
+        const tag = el.tagName;
+        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
     }
 
     // -----------------------------------------------------------------------------------------------------

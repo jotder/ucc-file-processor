@@ -272,7 +272,13 @@ src/app/
   `mock-api/common/navigation/data.ts` (4 collapsable groups: Pipelines / Acquisition / Operations /
   Settings, + Dashboard/Assistant basics). Detail routes carry breadcrumbs.
 - Global search (`layout/common/search`) is a client-side jump-to-page palette over the nav — not a backend
-  search.
+  search. **Opened app-wide by Ctrl/Cmd+K** (a `document:keydown` HostListener in the classic layout calls
+  `SearchComponent.open()`); with an empty query it shows recents (`inspecto.search.recents`) + shell
+  **action commands** (`[commands]` input, `SearchCommand[]`). Register a new global action by adding to
+  `paletteCommands` in the classic layout — **shell-owned actions only** (lens/space/theme); feature-scoped
+  create/run commands await a command registry (ui-design-review R3 follow-up), so don't import a feature
+  into the layout for one. **`?`** (outside a text field) opens the shared `ShortcutsHelpDialog`
+  (`inspecto/shortcuts-help.dialog.ts`) — add new global bindings to its `SHORTCUTS` list.
 
 ## 12. Definition of Done (run before claiming completion)
 

@@ -6,7 +6,11 @@ the shared dialog dirty-guard (`inspecto/dialog-dirty-guard.ts`, wired into the 
 and the `autocomplete` attribute type + `entity-option-loaders` (expectation target/refDataset, alert
 metric/onPipeline, job onPipeline, decision-rule target). Deliberately deferred within R2: expectation
 `column`/`refColumn` suggestions (need a per-target schema source) and object-create assignee/tags chips
-(not schema-form-based). P2–P4 remain open. · **Method:** three parallel read-only surveys (forms/dialogs · data surfaces/persistence ·
+(not schema-form-based). **P2 R3 SHIPPED 2026-07-15** — Ctrl/Cmd+K opens the palette app-wide, empty-query recents +
+shell action commands (lens switch), `?` shortcut-help overlay (`inspecto/shortcuts-help.dialog.ts`).
+Deferred within R3 (documented): feature-scoped commands (New incident / Trigger job) need a command
+registry to avoid cross-feature coupling; `/`-focus-grid and j/k list nav not yet built. **P2 R4
+(optimistic triage) + P3–P4 remain open.** · **Method:** three parallel read-only surveys (forms/dialogs · data surfaces/persistence ·
 navigation/keyboard) against the operator's design brief. · **Companions:** `tree-table-design.md`
 (the quality bar) · `.claude/skills/angular-ui/SKILL.md` (the binding architecture rules) ·
 `lens-access-config-design.md` (the newest pane, scored best-in-class here).

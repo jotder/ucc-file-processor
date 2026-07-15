@@ -32,7 +32,7 @@ import { defaultNavigation } from 'app/mock-api/common/navigation/data';
 import { Subject, debounceTime, takeUntil } from 'rxjs';
 
 /** A navigable destination derived from the app navigation. */
-interface SearchDestination {
+export interface SearchDestination {
     title: string;
     link: string;
     icon?: string;
@@ -40,10 +40,30 @@ interface SearchDestination {
     group?: string;
 }
 
+/** An action command surfaced in the palette (supplied by the shell — e.g. switch lens). */
+export interface SearchCommand {
+    title: string;
+    icon?: string;
+    group?: string;
+    /** Executed when the row is chosen. */
+    run: () => void;
+}
+
+/** A palette row is either a jump-to-page destination or an action command. */
+export type PaletteItem = SearchDestination | SearchCommand;
+
+const isCommand = (item: PaletteItem): item is SearchCommand => 'run' in item;
+const RECENTS_KEY = 'inspecto.search.recents';
+const RECENTS_MAX = 5;
+
 /**
  * Header search — a client-side "jump to" palette over the inspecto navigation. Typing filters the
  * known panes (Dashboard, Pipelines, Events, …) and selecting one routes to it; there is no backend
  * search call (the former Fuse demo searched contacts/tasks, which don't exist here).
+ *
+ * Opened by click or, app-wide, by **Ctrl/Cmd+K** (the shell focuses it). With an empty query it
+ * shows recent pages + the shell-supplied action {@link commands}; typing filters both
+ * (`docs/superpower/ui-design-review.md` R3).
  */
 @Component({
     selector: 'search',
@@ -76,12 +96,15 @@ export class SearchComponent implements OnChanges, OnInit, OnDestroy {
     @Input() appearance: 'basic' | 'bar' = 'basic';
     @Input() debounce: number = 200;
     @Input() minLength: number = 1;
+    /** Action commands surfaced in the palette (supplied by the shell — e.g. lens switching). */
+    @Input() commands: SearchCommand[] = [];
 
     private router = inject(Router);
 
     opened: boolean = false;
-    /** Filtered matches; `null` = no query yet (panel stays closed). */
-    results: SearchDestination[] | null = null;
+    /** Rows shown in the panel; `null` = nothing to show (panel closed). With an empty query this
+     *  holds recents + commands, so an opened palette is useful before the user types. */
+    results: PaletteItem[] | null = null;
     searchControl: UntypedFormControl = new UntypedFormControl();
 
     private readonly destinations: SearchDestination[] = this.buildDestinations();
@@ -125,13 +148,46 @@ export class SearchComponent implements OnChanges, OnInit, OnDestroy {
             .subscribe((value) => {
                 const q = (typeof value === 'string' ? value : '').trim().toLowerCase();
                 if (!q || q.length < this.minLength) {
-                    this.results = null;
+                    // Empty query while open ⇒ show recents + commands, not a bare panel.
+                    this.results = this.opened ? this.suggestions() : null;
                     return;
                 }
-                this.results = this.destinations
-                    .filter((d) => d.title.toLowerCase().includes(q) || !!d.group?.toLowerCase().includes(q))
-                    .slice(0, 10);
+                const matches = (title: string, group?: string) =>
+                    title.toLowerCase().includes(q) || !!group?.toLowerCase().includes(q);
+                this.results = [
+                    ...this.destinations.filter((d) => matches(d.title, d.group)),
+                    ...this.commands.filter((c) => matches(c.title, c.group)),
+                ].slice(0, 10);
             });
+    }
+
+    /** Recents (most-recent-first) followed by the shell's action commands — shown on an empty query. */
+    private suggestions(): PaletteItem[] {
+        return [...this.recentDestinations(), ...this.commands];
+    }
+
+    /** Resolve the persisted recent links back to live destinations (stale links dropped). */
+    private recentDestinations(): SearchDestination[] {
+        let links: string[] = [];
+        try {
+            links = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]');
+        } catch {
+            links = [];
+        }
+        return links
+            .map((l) => this.destinations.find((d) => d.link === l))
+            .filter((d): d is SearchDestination => !!d);
+    }
+
+    /** Record a chosen destination as a recent (dedup, most-recent-first, capped). */
+    private recordRecent(link: string): void {
+        try {
+            const links: string[] = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? '[]');
+            const next = [link, ...links.filter((l) => l !== link)].slice(0, RECENTS_MAX);
+            localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+        } catch {
+            // recents are a convenience — storage failures are non-fatal
+        }
     }
 
     ngOnDestroy(): void {
@@ -139,10 +195,17 @@ export class SearchComponent implements OnChanges, OnInit, OnDestroy {
         this._unsubscribeAll.complete();
     }
 
-    /** Navigate to the chosen destination and reset the search. */
-    goTo(dest: SearchDestination): void {
-        if (dest?.link) {
-            this.router.navigateByUrl(dest.link);
+    /** Run the chosen command, or navigate to the chosen destination, then reset the search. */
+    goTo(item: PaletteItem): void {
+        if (!item) return;
+        if (isCommand(item)) {
+            item.run();
+            this.close();
+            return;
+        }
+        if (item.link) {
+            this.recordRecent(item.link);
+            this.router.navigateByUrl(item.link);
             this.close();
         }
     }
@@ -155,9 +218,10 @@ export class SearchComponent implements OnChanges, OnInit, OnDestroy {
         }
     }
 
-    /** Open the bar search. */
+    /** Open the bar search and seed the panel with recents + commands. */
     open(): void {
         this.opened = true;
+        this.results = this.suggestions();
     }
 
     /** Clear + close the search. */
@@ -167,8 +231,8 @@ export class SearchComponent implements OnChanges, OnInit, OnDestroy {
         this.opened = false;
     }
 
-    trackByFn(index: number, item: SearchDestination): string | number {
-        return item?.link || index;
+    trackByFn(index: number, item: PaletteItem): string | number {
+        return (isCommand(item) ? item.title : item.link) || index;
     }
 
     /** Flatten the app navigation (groups → leaves) into jump destinations. */
