@@ -22,7 +22,7 @@ import { currentOperator } from './mail-model';
         <mat-dialog-content class="flex flex-col gap-3 pt-2">
             <mat-form-field subscriptSizing="dynamic">
                 <mat-label>New case title</mat-label>
-                <input matInput [formControl]="form.controls.title" placeholder="what the carved-out part is about" required />
+                <input matInput [formControl]="form.controls.title" placeholder="what the carved-out part is about" required cdkFocusInitial />
                 @if (form.controls.title.hasError('required') && form.controls.title.touched) {
                     <mat-error>A title is required.</mat-error>
                 }

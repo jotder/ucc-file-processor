@@ -47,7 +47,7 @@ export interface ImportBundleData {
             @if (!isImport) {
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>New space id</mat-label>
-                    <input matInput [formControl]="newId" required autocomplete="off" />
+                    <input matInput [formControl]="newId" required autocomplete="off" cdkFocusInitial />
                     @if (newId.hasError('required') && newId.touched) {
                         <mat-error>Id is required.</mat-error>
                     } @else if (newId.hasError('pattern')) {

@@ -26,10 +26,10 @@ function create(data: ExpectationFormData) {
 }
 
 describe('ExpectationFormDialog', () => {
-    it('create mode blocks a duplicate id inline and has no a11y violations', async () => {
+    it('create mode blocks a duplicate id inline (asked at the save step) and has no a11y violations', async () => {
         const fixture = create({ existingNames: ['cdr_msisdn_not_null'] });
         const c = fixture.componentInstance;
-        const name = c.schemaForm.form.get('name')!;
+        const name = c.saveForm.get('name')!;
         name.setValue('cdr_msisdn_not_null');
         expect(name.hasError('duplicate')).toBe(true);
         name.setValue('fresh_check');
@@ -51,7 +51,31 @@ describe('ExpectationFormDialog', () => {
         expect(c.schemaForm.form.get('min')!.disabled).toBe(true);
     });
 
-    it('edit mode locks the id', () => {
+    it('create flow advances to the save step once the config is valid, then creates', () => {
+        const created: unknown[] = [];
+        TestBed.configureTestingModule({
+            imports: [ExpectationFormDialog],
+            providers: [
+                provideNoopAnimations(),
+                provideHttpClient(),
+                { provide: MatDialogRef, useValue: { close: () => {} } },
+                { provide: MAT_DIALOG_DATA, useValue: {} },
+                { provide: ExpectationsService, useValue: { create: (b: unknown) => { created.push(b); return { subscribe: () => {} }; } } },
+                { provide: ToastrService, useValue: {} },
+            ],
+        });
+        const fixture = TestBed.createComponent(ExpectationFormDialog);
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.schemaForm.form.patchValue({ target: 'cdr_ingest', column: 'msisdn', kind: 'non_null' });
+        c.save();
+        expect(c.step()).toBe('save');
+        c.saveForm.patchValue({ name: 'cdr_msisdn_not_null' });
+        c.save();
+        expect(created[0]).toMatchObject({ name: 'cdr_msisdn_not_null', target: 'cdr_ingest', column: 'msisdn' });
+    });
+
+    it('edit mode stays on the config step and shows the (immutable) name in the title', () => {
         const fixture = create({
             expectation: {
                 name: 'cdr_duration_range', targetType: 'pipeline', target: 'cdr_ingest', column: 'duration_s',
@@ -59,6 +83,9 @@ describe('ExpectationFormDialog', () => {
                 severity: 'MAJOR', enabled: true, lastResult: null, createdAt: 1, updatedAt: 1,
             },
         });
-        expect(fixture.componentInstance.schemaForm.form.get('name')!.disabled).toBe(true);
+        const c = fixture.componentInstance;
+        expect(c.isEdit).toBe(true);
+        expect(c.step()).toBe('config');
+        expect(fixture.nativeElement.textContent).toContain('cdr_duration_range');
     });
 });

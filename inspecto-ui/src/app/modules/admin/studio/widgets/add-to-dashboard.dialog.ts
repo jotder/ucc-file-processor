@@ -46,7 +46,7 @@ const NEW_DASHBOARD = '__new__';
             <form [formGroup]="form" (ngSubmit)="add()" class="flex flex-col gap-3">
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Dashboard</mat-label>
-                    <mat-select formControlName="target">
+                    <mat-select formControlName="target" cdkFocusInitial>
                         <mat-option [value]="NEW">New dashboard…</mat-option>
                         @for (d of data.dashboards; track d.id) {
                             <mat-option [value]="d.id">{{ d.name }} <span class="text-secondary">({{ d.tiles.length }} tiles)</span></mat-option>

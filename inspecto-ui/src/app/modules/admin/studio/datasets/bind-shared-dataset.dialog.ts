@@ -58,7 +58,7 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
                 <form [formGroup]="form" class="flex flex-col gap-2">
                     <mat-form-field subscriptSizing="dynamic">
                         <mat-label>Shared dataset</mat-label>
-                        <mat-select formControlName="grantId">
+                        <mat-select formControlName="grantId" cdkFocusInitial>
                             @for (g of grants(); track g.id) {
                                 <mat-option [value]="g.id">{{ g.owner }} / {{ g.item }}</mat-option>
                             }

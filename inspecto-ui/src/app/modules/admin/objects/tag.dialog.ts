@@ -62,6 +62,7 @@ type TagState = 'all' | 'some' | 'none';
                         (keyup.enter)="createTag()"
                         placeholder="e.g. billing"
                         aria-label="New tag name"
+                        cdkFocusInitial
                     />
                 </mat-form-field>
                 <button

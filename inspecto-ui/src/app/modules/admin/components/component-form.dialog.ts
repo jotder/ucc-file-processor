@@ -1,12 +1,14 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormArray, FormBuilder, FormGroup, FormsModule, ReactiveFormsModule, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatChipInputEvent, MatChipsModule } from '@angular/material/chips';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import { Observable } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import {
@@ -32,6 +34,18 @@ export interface ComponentFormResult {
     writesDisabled?: boolean;
 }
 
+/** Config textarea: blank is fine (untouched default), anything else must parse as JSON. */
+const jsonValidator: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
+    const v = control.value;
+    if (!v || !String(v).trim()) return null;
+    try {
+        JSON.parse(v);
+        return null;
+    } catch {
+        return { invalidJson: true };
+    }
+};
+
 const TRANSFORM_SUBTYPES = [
     'transform.map', 'transform.select', 'transform.derive', 'transform.filter', 'transform.validate',
     'transform.dedup.marker', 'transform.dedup.fingerprint', 'transform.route', 'transform.split', 'transform.merge',
@@ -50,7 +64,7 @@ const SINK_FORMATS = ['parquet', 'csv', 'json', 'avro'];
     selector: 'app-component-form-dialog',
     standalone: true,
     imports: [
-        ReactiveFormsModule, FormsModule, MatDialogModule, MatButtonModule, MatFormFieldModule,
+        ReactiveFormsModule, FormsModule, MatDialogModule, MatButtonModule, MatChipsModule, MatFormFieldModule,
         MatIconModule, MatInputModule, MatSelectModule, MatSlideToggleModule, StatusBadgeComponent,
     ],
     templateUrl: './component-form.dialog.html',
@@ -81,6 +95,7 @@ export class ComponentFormDialog {
     sampleRows = '[{ "id": "1", "amt": "150" }, { "id": "x", "amt": "abc" }]';
 
     readonly title = computed(() => `${this.isEdit ? 'Edit' : 'New'} ${this.kind}`);
+    readonly partitionSeparatorKeys = [ENTER, COMMA];
 
     form: FormGroup = this.fb.group({
         id: [
@@ -98,12 +113,12 @@ export class ComponentFormDialog {
         fields: this.fb.array([] as FormGroup[]),
         // transform
         subtype: [TRANSFORM_SUBTYPES[0]],
-        config: ['{\n  "where": "CAST(amt AS INT) >= 100"\n}'],
+        config: ['{\n  "where": "CAST(amt AS INT) >= 100"\n}', [jsonValidator]],
         // sink
         sinkKind: [SINK_KINDS[0]],
         store: [''],
         format: ['parquet'],
-        partitions: [''],
+        partitions: [[] as string[]],
     });
 
     constructor() {
@@ -139,7 +154,7 @@ export class ComponentFormDialog {
                 sinkKind: str(c['type'], SINK_KINDS[0]),
                 store: str(c['store'], ''),
                 format: str(c['format'], 'parquet'),
-                partitions: partitionsOf(c).join(', '),
+                partitions: partitionsOf(c),
             });
         }
     }
@@ -154,6 +169,20 @@ export class ComponentFormDialog {
 
     removeField(i: number): void {
         this.fields.removeAt(i);
+    }
+
+    addPartition(event: MatChipInputEvent): void {
+        const value = event.value.trim();
+        if (value) {
+            const ctrl = this.form.controls['partitions'];
+            ctrl.setValue([...(ctrl.value as string[]), value]);
+        }
+        event.chipInput?.clear();
+    }
+
+    removePartition(value: string): void {
+        const ctrl = this.form.controls['partitions'];
+        ctrl.setValue((ctrl.value as string[]).filter((p) => p !== value));
     }
 
     /** Assemble the kind-specific content map (without the routing `id`, which create() adds). */
@@ -179,22 +208,15 @@ export class ComponentFormDialog {
                 return { fields };
             }
             case 'transform': {
-                let config: Record<string, unknown> = {};
-                if (v.config?.trim()) {
-                    try {
-                        config = JSON.parse(v.config);
-                    } catch {
-                        this.toastr.error('Config is not valid JSON.');
-                        return null;
-                    }
-                }
+                // form.invalid already blocks submit() when config isn't valid JSON (jsonValidator).
+                const config: Record<string, unknown> = v.config?.trim() ? JSON.parse(v.config) : {};
                 return { type: v.subtype, ...config };
             }
             case 'sink': {
                 const out: Record<string, unknown> = { type: v.sinkKind };
                 if (v.store?.trim()) out['store'] = v.store.trim();
                 if (v.format) out['format'] = v.format;
-                const parts = (v.partitions as string).split(',').map((p) => p.trim()).filter(Boolean);
+                const parts = (v.partitions as string[]).map((p) => p.trim()).filter(Boolean);
                 if (parts.length) out['partitions'] = parts;
                 return out;
             }

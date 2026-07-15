@@ -40,7 +40,7 @@ export interface WidgetSaveResult {
             <form [formGroup]="form" (ngSubmit)="save()" class="flex flex-col gap-3">
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Widget id</mat-label>
-                    <input matInput formControlName="name" [readonly]="data.lockId" placeholder="e.g. duration_by_tariff" />
+                    <input matInput formControlName="name" [readonly]="data.lockId" placeholder="e.g. duration_by_tariff" cdkFocusInitial />
                     @if (form.controls.name.hasError('pattern')) {
                         <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
                     }

@@ -32,7 +32,7 @@ import { INCIDENT_PRIORITIES } from './mail-model';
             <form [formGroup]="form" class="flex flex-col gap-3">
                 <mat-form-field subscriptSizing="dynamic">
                     <mat-label>Title</mat-label>
-                    <input matInput formControlName="title" placeholder="short summary" required />
+                    <input matInput formControlName="title" placeholder="short summary" required cdkFocusInitial />
                     @if (form.controls.title.hasError('required') && form.controls.title.touched) {
                         <mat-error>Title is required.</mat-error>
                     }

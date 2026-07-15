@@ -18,7 +18,7 @@ import { apiErrorMessage, ObjectsService, OperationalObject } from 'app/inspecto
             <form [formGroup]="form" class="flex flex-col gap-3">
                 <mat-form-field subscriptSizing="dynamic">
                     <mat-label>Relationship</mat-label>
-                    <mat-select formControlName="relationship">
+                    <mat-select formControlName="relationship" cdkFocusInitial>
                         <mat-option value="CONTAINS">CONTAINS</mat-option>
                         <mat-option value="ESCALATED_FROM">ESCALATED_FROM</mat-option>
                         <mat-option value="CAUSED_BY">CAUSED_BY</mat-option>

@@ -33,17 +33,13 @@ function create() {
 describe('ReconciliationFormDialog', () => {
     it('is invalid until name + both datasets + a key column are chosen, then emits the config', () => {
         const { c, ref } = create();
-        expect(c.valid()).toBe(false);
-        c.name = 'switch vs billing';
-        c.leftDataset = 'switch_cdr';
+        expect(c.form.valid).toBe(false);
+        c.form.patchValue({ name: 'switch vs billing', leftDataset: 'switch_cdr', rightDataset: 'billing_cdr' });
         c.onLeftChange('switch_cdr'); // populates the column pickers
-        c.rightDataset = 'billing_cdr';
-        c.keyColumns = ['id'];
+        c.form.patchValue({ keyColumns: ['id'] });
         c.addCompare();
-        c.compareRows()[0].column = 'cost_usd';
-        c.compareRows()[0].toleranceType = 'absolute';
-        c.compareRows()[0].tolerance = 0.02;
-        expect(c.valid()).toBe(true);
+        c.compareRowsArray.at(0).patchValue({ column: 'cost_usd', toleranceType: 'absolute', tolerance: 0.02 });
+        expect(c.form.valid).toBe(true);
         c.submit();
         const result = ref.close.mock.calls[0][0] as ReconciliationFormResult;
         expect(result).toEqual({
@@ -52,6 +48,14 @@ describe('ReconciliationFormDialog', () => {
             compareColumns: [{ column: 'cost_usd', agg: 'sum', toleranceType: 'absolute', tolerance: 0.02 }],
             bands: { warnPct: 1, breachPct: 2 },
         });
+    });
+
+    it('flags the breach threshold when it drops below the warn threshold', () => {
+        const { c } = create();
+        c.form.patchValue({ warnPct: 5, breachPct: 2 });
+        expect(c.form.controls['breachPct'].hasError('belowWarn')).toBe(true);
+        c.form.patchValue({ breachPct: 10 });
+        expect(c.form.controls['breachPct'].hasError('belowWarn')).toBe(false);
     });
 
     it('prefills from an existing reconciliation in edit mode and keeps its bands', () => {
@@ -79,12 +83,12 @@ describe('ReconciliationFormDialog', () => {
         fixture.detectChanges();
         const c = fixture.componentInstance;
         expect(c.editing).toBe(true);
-        expect(c.name).toBe('edit me');
-        expect(c.keyColumns).toEqual(['id']);
-        expect(c.compareRows()[0].agg).toBe('count');
-        expect(c.warnPct).toBe(0.5);
-        expect(c.breachPct).toBe(3);
-        expect(c.valid()).toBe(true);
+        expect(c.form.controls['name'].value).toBe('edit me');
+        expect(c.form.controls['keyColumns'].value).toEqual(['id']);
+        expect(c.compareRowsArray.at(0).get('agg')?.value).toBe('count');
+        expect(c.form.controls['warnPct'].value).toBe(0.5);
+        expect(c.form.controls['breachPct'].value).toBe(3);
+        expect(c.form.valid).toBe(true);
     });
 
     it('offers the left dataset columns as key/compare options after selection', () => {

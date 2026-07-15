@@ -38,19 +38,26 @@ function create(data: AlertRuleFormData, save = vi.fn(() => of(RULE))) {
 }
 
 describe('AlertRuleFormDialog', () => {
-    it('seeds the form from an existing rule (edit) with the id locked', () => {
+    it('seeds the form from an existing rule (edit) and stays on the config step (id is immutable)', () => {
         const { c } = create({ rule: RULE });
         expect(c.isEdit).toBe(true);
-        expect(c.schemaForm.form.get('name')?.disabled).toBe(true);
+        expect(c.step()).toBe('config');
         expect(c.schemaForm.form.get('metric')?.value).toBe('error_rate');
         expect(c.schemaForm.form.get('window')?.value).toBe('15m');
     });
 
-    it('blocks save while required fields are blank, then creates a valid rule', () => {
+    it('blocks save while required fields are blank, advances to the save step once valid, then creates', () => {
         const { c, ref, save } = create({});
         c.save();
+        expect(c.step()).toBe('config');
         expect(save).not.toHaveBeenCalled();
-        c.schemaForm.form.patchValue({ name: 'slow_batch', metric: 'duration_ms', threshold: 30000 });
+
+        c.schemaForm.form.patchValue({ metric: 'duration_ms', threshold: 30000 });
+        c.save(); // config valid ⇒ advances to the save step, doesn't call the API yet
+        expect(c.step()).toBe('save');
+        expect(save).not.toHaveBeenCalled();
+
+        c.saveForm.patchValue({ name: 'slow_batch' });
         c.save();
         expect(save).toHaveBeenCalledWith(
             expect.objectContaining({ name: 'slow_batch', metric: 'duration_ms', threshold: 30000, window: '15m' }),
@@ -58,30 +65,42 @@ describe('AlertRuleFormDialog', () => {
         expect(ref.close).toHaveBeenCalledWith({ saved: RULE });
     });
 
-    it('blocks save on a duplicate id (case-insensitive), then creates once unique', () => {
+    it('blocks save on a duplicate id (case-insensitive) at the save step, then creates once unique', () => {
         const { c, save } = create({ existingNames: ['high_error_rate'] });
-        c.schemaForm.form.patchValue({ name: 'HIGH_Error_Rate', metric: 'error_rate' });
+        c.schemaForm.form.patchValue({ metric: 'error_rate' });
+        c.save();
+        expect(c.step()).toBe('save');
+
+        c.saveForm.patchValue({ name: 'HIGH_Error_Rate' });
         c.save();
         expect(save).not.toHaveBeenCalled();
-        expect(c.schemaForm.form.get('name')?.hasError('duplicate')).toBe(true);
-        c.schemaForm.form.patchValue({ name: 'high_error_rate_2' });
+        expect(c.saveForm.get('name')?.hasError('duplicate')).toBe(true);
+
+        c.saveForm.patchValue({ name: 'high_error_rate_2' });
         c.save();
         expect(save).toHaveBeenCalledWith(expect.objectContaining({ name: 'high_error_rate_2' }));
     });
 
     it('omits an empty pipeline scope and keeps a set one', () => {
         const { c, save } = create({});
-        c.schemaForm.form.patchValue({ name: 'r1', metric: 'error_rate', onPipeline: '' });
+        c.schemaForm.form.patchValue({ metric: 'error_rate', onPipeline: '' });
+        c.save();
+        c.saveForm.patchValue({ name: 'r1' });
         c.save();
         expect(save).toHaveBeenCalledWith(expect.not.objectContaining({ onPipeline: expect.anything() }));
+
+        c.backToConfig();
         c.schemaForm.form.patchValue({ onPipeline: 'cdr_ingest' });
+        c.save();
         c.save();
         expect(save).toHaveBeenCalledWith(expect.objectContaining({ onPipeline: 'cdr_ingest' }));
     });
 
     it('a 503 surfaces the writes-disabled banner instead of a toast', () => {
         const { c, fixture } = create({}, vi.fn(() => throwError(() => ({ status: 503 }))));
-        c.schemaForm.form.patchValue({ name: 'r1', metric: 'error_rate' });
+        c.schemaForm.form.patchValue({ metric: 'error_rate' });
+        c.save();
+        c.saveForm.patchValue({ name: 'r1' });
         c.save();
         fixture.detectChanges();
         expect(c.writesDisabled()).toBe(true);

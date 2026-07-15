@@ -71,7 +71,7 @@ import { CASE_STATUSES, INCIDENT_PRIORITIES, INCIDENT_STATUSES } from './mail-mo
                     <div class="flex gap-3">
                         <mat-form-field class="flex-1" subscriptSizing="dynamic">
                             <mat-label>Rule name</mat-label>
-                            <input matInput formControlName="name" placeholder="e.g. critical-is-urgent" required />
+                            <input matInput formControlName="name" placeholder="e.g. critical-is-urgent" required cdkFocusInitial />
                             @if (form.controls.name.hasError('required') && form.controls.name.touched) {
                                 <mat-error>Required.</mat-error>
                             }

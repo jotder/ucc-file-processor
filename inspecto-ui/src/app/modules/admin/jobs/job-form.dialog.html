@@ -1,4 +1,6 @@
-<h2 mat-dialog-title>{{ isEdit ? 'Edit job — ' + data.job?.name : 'New scheduled job' }}</h2>
+<h2 mat-dialog-title>
+    {{ isEdit ? 'Edit job — ' + data.job?.name : step() === 'save' ? 'Save job' : 'New scheduled job' }}
+</h2>
 
 <mat-dialog-content class="!pt-2">
     @if (writesDisabled()) {
@@ -7,55 +9,82 @@
         </inspecto-alert>
     }
 
-    <!-- Scalar attributes: spec-driven (JOB_ATTRIBUTES) — required up front, catch-up behind the gear. -->
-    <inspecto-schema-form #sf [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
+    <!-- Config step content stays mounted (not @if'd) so the #sf/#pf schema-form ViewChilds survive the
+         step transition — only visually hidden via [hidden], never destroyed. -->
+    <div [hidden]="step() === 'save'">
+        <!-- Scalar attributes: spec-driven (JOB_ATTRIBUTES) — required up front, catch-up behind the gear. -->
+        <inspecto-schema-form #sf [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
 
-    <!-- Cron preset quick-pick (bespoke): visible while the trigger is a cron schedule. -->
-    @if (sf.form.get('cron')?.enabled) {
-        <mat-form-field class="w-48" subscriptSizing="dynamic">
-            <mat-label>Preset</mat-label>
-            <mat-select (selectionChange)="applyPreset($event.value)">
-                @for (p of cronPresets; track p.cron) { <mat-option [value]="p.cron">{{ p.label }}</mat-option> }
-            </mat-select>
-        </mat-form-field>
+        <!-- Cron preset quick-pick (bespoke): visible while the trigger is a cron schedule. -->
+        @if (sf.form.get('cron')?.enabled) {
+            <mat-form-field class="w-48" subscriptSizing="dynamic">
+                <mat-label>Preset</mat-label>
+                <mat-select (selectionChange)="applyPreset($event.value)">
+                    @for (p of cronPresets; track p.cron) { <mat-option [value]="p.cron">{{ p.label }}</mat-option> }
+                </mat-select>
+            </mat-form-field>
+        }
+
+        <!-- Descriptor-driven parameters (P3c): the selected Job Type's declared params as typed fields. -->
+        @if (paramSpecs().length) {
+            <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Type parameters</div>
+            <inspecto-schema-form #pf [specs]="paramSpecs()" [initial]="paramInitial()" (submitted)="save()"></inspecto-schema-form>
+        }
+
+        <!-- Additional params (bespoke key/value array) — anything not declared by the type. -->
+        <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Additional parameters</div>
+        <form [formGroup]="paramsForm">
+            <div formArrayName="params" class="flex flex-col gap-2">
+                @for (p of paramsArray.controls; track $index; let i = $index) {
+                    <div [formGroupName]="i" class="flex items-center gap-2">
+                        <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                            <mat-label>Key</mat-label>
+                            <input matInput formControlName="key" />
+                        </mat-form-field>
+                        <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                            <mat-label>Value</mat-label>
+                            <input matInput formControlName="value" />
+                        </mat-form-field>
+                        <button mat-icon-button type="button" (click)="removeParam(i)" matTooltip="Remove" aria-label="Remove parameter">
+                            <mat-icon class="icon-size-5" svgIcon="heroicons_outline:x-mark"></mat-icon>
+                        </button>
+                    </div>
+                }
+                <button mat-stroked-button type="button" class="self-start" (click)="addParam()">
+                    <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                    <span class="ml-1">Add parameter</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    @if (!isEdit && step() === 'save') {
+        <!-- Save step (create only): the job id, asked only now. -->
+        <form [formGroup]="saveForm" aria-label="Name this job" class="space-y-1">
+            <div class="text-secondary text-sm">Job configured — give it a unique id to save it.</div>
+            <mat-form-field class="w-full" subscriptSizing="dynamic">
+                <mat-label>Job id</mat-label>
+                <input matInput formControlName="name" required cdkFocusInitial />
+                @if (saveForm.controls.name; as c) {
+                    @if (c.hasError('required')) {
+                        <mat-error>A job id is required.</mat-error>
+                    } @else if (c.hasError('pattern')) {
+                        <mat-error>Start with a letter or digit; then letters, digits, <code>. _ -</code> only.</mat-error>
+                    } @else if (c.hasError('duplicate')) {
+                        <mat-error>A job with this id already exists.</mat-error>
+                    }
+                }
+            </mat-form-field>
+        </form>
     }
-
-    <!-- Descriptor-driven parameters (P3c): the selected Job Type's declared params as typed fields. -->
-    @if (paramSpecs().length) {
-        <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Type parameters</div>
-        <inspecto-schema-form #pf [specs]="paramSpecs()" [initial]="paramInitial()" (submitted)="save()"></inspecto-schema-form>
-    }
-
-    <!-- Additional params (bespoke key/value array) — anything not declared by the type. -->
-    <div class="mt-4 text-secondary text-xs font-semibold uppercase tracking-wider">Additional parameters</div>
-    <form [formGroup]="paramsForm">
-        <div formArrayName="params" class="flex flex-col gap-2">
-            @for (p of paramsArray.controls; track $index; let i = $index) {
-                <div [formGroupName]="i" class="flex items-center gap-2">
-                    <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                        <mat-label>Key</mat-label>
-                        <input matInput formControlName="key" />
-                    </mat-form-field>
-                    <mat-form-field class="flex-1" subscriptSizing="dynamic">
-                        <mat-label>Value</mat-label>
-                        <input matInput formControlName="value" />
-                    </mat-form-field>
-                    <button mat-icon-button type="button" (click)="removeParam(i)" matTooltip="Remove" aria-label="Remove parameter">
-                        <mat-icon class="icon-size-5" svgIcon="heroicons_outline:x-mark"></mat-icon>
-                    </button>
-                </div>
-            }
-            <button mat-stroked-button type="button" class="self-start" (click)="addParam()">
-                <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-                <span class="ml-1">Add parameter</span>
-            </button>
-        </div>
-    </form>
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
+    @if (!isEdit && step() === 'save') {
+        <button mat-button type="button" (click)="backToConfig()">Back</button>
+    }
     <button mat-button type="button" (click)="requestClose()">Cancel</button>
     <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">
-        {{ isEdit ? 'Save changes' : 'Create job' }}
+        {{ isEdit ? 'Save changes' : step() === 'save' ? 'Create job' : 'Continue' }}
     </button>
 </mat-dialog-actions>

@@ -48,6 +48,7 @@ export interface OfferShareResult {
                         formControlName="description"
                         rows="3"
                         placeholder="What this {{ data.kind }} contains — shown to spaces browsing the catalog"
+                        cdkFocusInitial
                     ></textarea>
                 </mat-form-field>
             </form>

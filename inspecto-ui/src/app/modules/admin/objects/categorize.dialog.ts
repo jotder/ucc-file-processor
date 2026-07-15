@@ -24,7 +24,7 @@ import { INCIDENT_TAXONOMY, joinCategory, splitCategory } from './incident-taxon
             <form [formGroup]="form" class="flex flex-col gap-3">
                 <mat-form-field subscriptSizing="dynamic">
                     <mat-label>Category</mat-label>
-                    <mat-select formControlName="l1" required (selectionChange)="onL1()">
+                    <mat-select formControlName="l1" required (selectionChange)="onL1()" cdkFocusInitial>
                         @for (l1 of l1Options; track l1) {
                             <mat-option [value]="l1">{{ l1 }}</mat-option>
                         }

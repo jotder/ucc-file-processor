@@ -89,7 +89,7 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
                     </p>
                     <mat-form-field class="w-full" subscriptSizing="dynamic">
                         <mat-label>Id</mat-label>
-                        <input matInput formControlName="id" required autocomplete="off" />
+                        <input matInput formControlName="id" required autocomplete="off" cdkFocusInitial />
                         <mat-hint>lowercase letters, digits and hyphens — becomes the space folder</mat-hint>
                         @if (form.get('id'); as c) {
                             @if (c.hasError('required')) {

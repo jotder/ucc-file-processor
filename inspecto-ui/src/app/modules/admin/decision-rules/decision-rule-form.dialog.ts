@@ -88,65 +88,97 @@ const ACTIONS: { value: ConsequenceType; label: string }[] = [...ROUTING_ACTIONS
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-        <h2 mat-dialog-title>{{ isEdit ? 'Edit decision rule "' + data.rule!.name + '"' : 'New decision rule' }}</h2>
+        <h2 mat-dialog-title>
+            {{ isEdit ? 'Edit decision rule "' + data.rule!.name + '"' : step() === 'save' ? 'Save decision rule' : 'New decision rule' }}
+        </h2>
         <mat-dialog-content>
             @if (writesDisabled()) {
                 <inspecto-alert variant="warning" title="Writes are disabled">
                     The server is running read-only — the rule was not saved.
                 </inspecto-alert>
             }
-            <inspecto-schema-form [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
+            <!-- Config step content stays mounted (not @if'd) so the schema-form ViewChild survives the
+                 step transition — only visually hidden via [hidden], never destroyed. -->
+            <div [hidden]="step() === 'save'">
+                <inspecto-schema-form [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
 
-            <div class="mt-4 font-semibold">When records match</div>
-            <inspecto-query-condition-group class="mt-2 block" [group]="when" [columns]="columns" [root]="true" />
-            @if (whenEmpty()) {
-                <div class="text-secondary mt-1 text-sm">No conditions yet — the rule would match every record.</div>
-            }
+                <div class="mt-4 font-semibold">When records match</div>
+                <inspecto-query-condition-group class="mt-2 block" [group]="when" [columns]="columns" [root]="true" />
+                @if (whenEmpty()) {
+                    <div class="text-secondary mt-1 text-sm">No conditions yet — the rule would match every record.</div>
+                }
 
-            <div class="mt-4 font-semibold">Then</div>
-            <div class="mt-2 flex flex-col gap-2" [formGroup]="consequencesForm">
-                <div formArrayName="consequences" class="flex flex-col gap-2">
-                    @for (g of consequencesArray.controls; track g; let i = $index) {
-                        <div [formGroupName]="i" class="flex items-center gap-3">
-                            <mat-form-field class="gamma-mat-dense w-48" subscriptSizing="dynamic">
-                                <mat-label>Action</mat-label>
-                                <mat-select formControlName="action">
-                                    @for (a of actions; track a.value) {
-                                        <mat-option [value]="a.value">{{ a.label }}</mat-option>
-                                    }
-                                </mat-select>
-                            </mat-form-field>
-                            @if (inputSpec(i); as d) {
-                                @if (d.show) {
-                                    <mat-form-field class="gamma-mat-dense flex-auto" subscriptSizing="dynamic">
-                                        <mat-label>{{ d.label }}</mat-label>
-                                        <input matInput formControlName="detail" />
-                                        @if (g.get('detail')?.hasError('required')) {
-                                            <mat-error>Required for this action.</mat-error>
+                <div class="mt-4 font-semibold">Then</div>
+                <div class="mt-2 flex flex-col gap-2" [formGroup]="consequencesForm">
+                    <div formArrayName="consequences" class="flex flex-col gap-2">
+                        @for (g of consequencesArray.controls; track g; let i = $index) {
+                            <div [formGroupName]="i" class="flex items-center gap-3">
+                                <mat-form-field class="gamma-mat-dense w-48" subscriptSizing="dynamic">
+                                    <mat-label>Action</mat-label>
+                                    <mat-select formControlName="action">
+                                        @for (a of actions; track a.value) {
+                                            <mat-option [value]="a.value">{{ a.label }}</mat-option>
                                         }
-                                    </mat-form-field>
+                                    </mat-select>
+                                </mat-form-field>
+                                @if (inputSpec(i); as d) {
+                                    @if (d.show) {
+                                        <mat-form-field class="gamma-mat-dense flex-auto" subscriptSizing="dynamic">
+                                            <mat-label>{{ d.label }}</mat-label>
+                                            <input matInput formControlName="detail" />
+                                            @if (g.get('detail')?.hasError('required')) {
+                                                <mat-error>Required for this action.</mat-error>
+                                            }
+                                        </mat-form-field>
+                                    }
                                 }
-                            }
-                            <button type="button" mat-icon-button (click)="removeConsequence(i)"
-                                    [disabled]="consequencesArray.length === 1"
-                                    matTooltip="Remove consequence" aria-label="Remove consequence">
-                                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
-                            </button>
-                        </div>
-                    }
-                </div>
-                <div>
-                    <button type="button" mat-stroked-button (click)="addConsequence()">
-                        <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
-                        <span class="ml-1">Add consequence</span>
-                    </button>
+                                <button type="button" mat-icon-button (click)="removeConsequence(i)"
+                                        [disabled]="consequencesArray.length === 1"
+                                        matTooltip="Remove consequence" aria-label="Remove consequence">
+                                    <mat-icon class="icon-size-5" svgIcon="heroicons_outline:trash"></mat-icon>
+                                </button>
+                            </div>
+                        }
+                    </div>
+                    <div>
+                        <button type="button" mat-stroked-button (click)="addConsequence()">
+                            <mat-icon svgIcon="heroicons_outline:plus"></mat-icon>
+                            <span class="ml-1">Add consequence</span>
+                        </button>
+                    </div>
                 </div>
             </div>
+            @if (!isEdit && step() === 'save') {
+                <!-- Save step (create only): id + description, asked only now. -->
+                <form [formGroup]="saveForm" aria-label="Name this decision rule" class="space-y-1">
+                    <div class="text-secondary text-sm">Rule configured — give it a unique id to save it.</div>
+                    <mat-form-field class="w-full" subscriptSizing="dynamic">
+                        <mat-label>Rule id</mat-label>
+                        <input matInput formControlName="name" required cdkFocusInitial />
+                        @if (saveForm.controls.name; as c) {
+                            @if (c.hasError('required')) {
+                                <mat-error>An id is required.</mat-error>
+                            } @else if (c.hasError('pattern')) {
+                                <mat-error>Start with a letter or digit; then letters, digits, <code>. _ -</code> only.</mat-error>
+                            } @else if (c.hasError('duplicate')) {
+                                <mat-error>A decision rule with this id already exists.</mat-error>
+                            }
+                        }
+                    </mat-form-field>
+                    <mat-form-field class="w-full" subscriptSizing="dynamic">
+                        <mat-label>Description</mat-label>
+                        <textarea matInput formControlName="description" rows="2"></textarea>
+                    </mat-form-field>
+                </form>
+            }
         </mat-dialog-content>
         <mat-dialog-actions align="end">
+            @if (!isEdit && step() === 'save') {
+                <button type="button" mat-button (click)="backToConfig()">Back</button>
+            }
             <button type="button" mat-button (click)="requestClose()" [disabled]="saving()">Cancel</button>
             <button type="button" mat-flat-button color="primary" [disabled]="saving()" (click)="save()">
-                {{ isEdit ? 'Save' : 'Create' }}
+                {{ isEdit ? 'Save' : step() === 'save' ? 'Create' : 'Continue' }}
             </button>
         </mat-dialog-actions>
     `,
@@ -165,9 +197,25 @@ export class DecisionRuleFormDialog implements AfterViewInit {
      *  (the in-place `when` tree has no dirty tracking — edits there usually accompany the others). */
     readonly requestClose = guardDirtyClose(
         this.ref,
-        () => (this.schemaForm?.isDirty() ?? false) || this.consequencesForm.dirty,
+        () => (this.schemaForm?.isDirty() ?? false) || this.consequencesForm.dirty || this.saveForm.dirty,
         this.confirm,
     );
+
+    /** Create flow: `config` (target/when/then) → `save` (id + description, asked last). Edit stays on `config`. */
+    readonly step = signal<'config' | 'save'>('config');
+
+    /** Save-step fields (create only): the decision-rule id IS the unique storage key; description optional. */
+    readonly saveForm = this.fb.group({
+        name: [
+            '',
+            [
+                Validators.required,
+                Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+                ...(this.data.existingNames?.length ? [uniqueNameValidator(this.data.existingNames)] : []),
+            ],
+        ],
+        description: [''],
+    });
 
     /** Suggestion source: `target` follows the target-type picker. */
     readonly optionLoaders = { target: pipelineOrJobOptionLoader() };
@@ -192,8 +240,6 @@ export class DecisionRuleFormDialog implements AfterViewInit {
         const src = this.data.rule ?? this.data.prefill;
         if (!src) return undefined;
         return {
-            name: this.data.rule?.name ?? '',
-            description: src.description ?? '',
             targetType: src.targetType ?? 'pipeline',
             target: src.target ?? '',
             priority: src.priority ?? 100,
@@ -214,15 +260,21 @@ export class DecisionRuleFormDialog implements AfterViewInit {
     }
 
     ngAfterViewInit(): void {
-        const nameCtrl = this.schemaForm.form.get('name');
         if (this.isEdit) {
-            // The id is immutable once created (it is the storage key).
-            nameCtrl?.disable({ emitEvent: false });
-        } else if (this.data.existingNames?.length) {
-            // Block a duplicate id inline rather than relying on the server 409 (product-wide form rule).
-            nameCtrl?.addValidators(uniqueNameValidator(this.data.existingNames));
-            nameCtrl?.updateValueAndValidity({ emitEvent: false });
+            this.saveForm.patchValue({ name: this.data.rule!.name, description: this.data.rule!.description ?? '' });
         }
+    }
+
+    /** The suggested rule id: `<targetType>_<target>`. */
+    suggestedName(): string {
+        const v = this.schemaForm.value() as { targetType?: string; target?: string };
+        const base = v.target ? `${v.targetType}_${v.target}` : 'decision_rule';
+        return base.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^[^A-Za-z0-9]+/, '');
+    }
+
+    /** Create flow only: leave the save step back to the config step (id/description are kept). */
+    backToConfig(): void {
+        this.step.set('config');
     }
 
     whenEmpty(): boolean {
@@ -260,9 +312,17 @@ export class DecisionRuleFormDialog implements AfterViewInit {
             this.consequencesForm.markAllAsTouched();
             return;
         }
+        // Create asks the id + description only now, at save time — config valid ⇒ advance.
+        if (!this.isEdit && this.step() === 'config') {
+            if (this.saveForm.controls.name.pristine) this.saveForm.patchValue({ name: this.suggestedName() });
+            this.step.set('save');
+            return;
+        }
+        if (!this.isEdit && this.saveForm.invalid) {
+            this.saveForm.markAllAsTouched();
+            return;
+        }
         const v = this.schemaForm.value() as {
-            name?: string;
-            description?: string;
             targetType: 'pipeline' | 'job';
             target: string;
             priority?: number;
@@ -272,8 +332,8 @@ export class DecisionRuleFormDialog implements AfterViewInit {
             buildConsequence(g.get('action')!.value as ConsequenceType, String(g.get('detail')!.value ?? '')),
         );
         const body: DecisionRuleUpsert = {
-            name: this.isEdit ? this.data.rule!.name : String(v.name ?? '').trim(),
-            description: String(v.description ?? '').trim(),
+            name: this.isEdit ? this.data.rule!.name : String(this.saveForm.getRawValue().name ?? '').trim(),
+            description: String(this.saveForm.getRawValue().description ?? '').trim(),
             targetType: v.targetType,
             target: String(v.target ?? '').trim(),
             when: this.when,

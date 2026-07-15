@@ -44,9 +44,14 @@ function create(data: DecisionRuleFormData) {
 }
 
 describe('DecisionRuleFormDialog', () => {
-    it('create mode blocks a duplicate id inline and has no a11y violations', async () => {
+    it('create mode blocks a duplicate id inline (asked at the save step) and has no a11y violations', async () => {
         const fixture = create({ existingNames: ['route_emea_traffic'] });
-        const name = fixture.componentInstance.schemaForm.form.get('name')!;
+        const c = fixture.componentInstance;
+        c.schemaForm.form.patchValue({ target: 'cdr_ingest' });
+        c.consequencesArray.at(0).patchValue({ detail: 'emea' }); // 'route' requires a branch
+        c.save();
+        expect(c.step()).toBe('save');
+        const name = c.saveForm.get('name')!;
         name.setValue('route_emea_traffic');
         expect(name.hasError('duplicate')).toBe(true);
         name.setValue('fresh_rule');
@@ -69,10 +74,12 @@ describe('DecisionRuleFormDialog', () => {
         expect(g.get('detail')!.hasError('required')).toBe(false); // drop has no destination
     });
 
-    it('edit mode locks the id, clones the when-tree, and loads the consequences', () => {
+    it('edit mode stays on the config step, clones the when-tree, and loads the consequences', () => {
         const fixture = create({ rule: RULE });
         const c = fixture.componentInstance;
-        expect(c.schemaForm.form.get('name')!.disabled).toBe(true);
+        expect(c.isEdit).toBe(true);
+        expect(c.step()).toBe('config');
+        expect(c.saveForm.get('name')!.value).toBe('route_emea_traffic');
         expect(c.consequencesArray.length).toBe(1);
         expect(c.consequencesArray.at(0).get('detail')!.value).toBe('emea');
         // the condition editor mutates in place — editing must not touch the original rule object

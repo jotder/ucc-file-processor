@@ -33,7 +33,7 @@ const KINDS: { value: RequirementKind; label: string }[] = [
             <form [formGroup]="form" class="flex flex-col gap-3">
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Title</mat-label>
-                    <input matInput formControlName="title" placeholder="e.g. daily churn KPI by region" />
+                    <input matInput formControlName="title" placeholder="e.g. daily churn KPI by region" cdkFocusInitial />
                     @if (form.controls.title.hasError('required') && form.controls.title.touched) {
                         <mat-error>Title is required</mat-error>
                     }

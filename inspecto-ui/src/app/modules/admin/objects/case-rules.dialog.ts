@@ -61,7 +61,7 @@ import { INCIDENT_PRIORITIES, INCIDENT_STATUSES } from './mail-model';
                     <div class="flex gap-3">
                         <mat-form-field class="flex-1" subscriptSizing="dynamic">
                             <mat-label>Rule name</mat-label>
-                            <input matInput formControlName="name" placeholder="e.g. critical-cluster" required />
+                            <input matInput formControlName="name" placeholder="e.g. critical-cluster" required cdkFocusInitial />
                             @if (form.controls.name.hasError('required') && form.controls.name.touched) {
                                 <mat-error>Required.</mat-error>
                             }

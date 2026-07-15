@@ -21,7 +21,7 @@ import { currentOperator, displayStatus } from './mail-model';
         <mat-dialog-content class="pt-2">
             <mat-form-field class="w-full" subscriptSizing="dynamic">
                 <mat-label>Incident</mat-label>
-                <mat-select [formControl]="pick" required>
+                <mat-select [formControl]="pick" required cdkFocusInitial>
                     @for (i of candidates(); track i.id) {
                         <mat-option [value]="i.id">[{{ displayStatus(i) }}] {{ i.title }} ({{ i.id }})</mat-option>
                     }

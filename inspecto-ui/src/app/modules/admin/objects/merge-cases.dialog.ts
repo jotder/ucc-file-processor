@@ -23,7 +23,7 @@ import { currentOperator, objectTags } from './mail-model';
                 tags and watchers move over; the absorbed cases close with a merge trace).
             </p>
             <mat-radio-group class="flex flex-col gap-1" [value]="survivorId()" (change)="survivorId.set($event.value)"
-                             aria-label="Surviving case">
+                             aria-label="Surviving case" cdkFocusInitial>
                 @for (c of data.cases; track c.id) {
                     <mat-radio-button [value]="c.id">
                         {{ c.title }}

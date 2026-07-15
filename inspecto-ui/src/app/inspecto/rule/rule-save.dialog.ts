@@ -46,7 +46,7 @@ export interface RuleSaveData {
             <form [formGroup]="form" (ngSubmit)="save()">
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Rule id</mat-label>
-                    <input matInput formControlName="name" placeholder="e.g. high_error_rate" />
+                    <input matInput formControlName="name" placeholder="e.g. high_error_rate" cdkFocusInitial />
                     @if (form.controls.name.hasError('pattern')) {
                         <mat-error>Letters, digits, dot, dash, underscore; start alphanumeric.</mat-error>
                     }

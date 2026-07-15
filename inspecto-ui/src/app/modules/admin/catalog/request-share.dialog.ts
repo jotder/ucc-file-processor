@@ -49,6 +49,7 @@ export interface RequestShareResult {
                         formControlName="purpose"
                         rows="3"
                         placeholder="Why your space needs this data — shown to the owner"
+                        cdkFocusInitial
                     ></textarea>
                 </mat-form-field>
                 <mat-form-field subscriptSizing="dynamic">

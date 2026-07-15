@@ -5,14 +5,9 @@ import { AttributeSpec } from 'app/inspecto/component-model';
  * {@link ExpectationFormDialog}. Identity + target + check kind are required; the kind-specific
  * parameters appear via `dependsOn`; severity/arming are optional (collapsed).
  */
+// 'name' (the expectation id) and 'description' are asked at save time (ui-design-review R9 —
+// name-at-save), not declared here; see ExpectationFormDialog's `saveForm`.
 export const EXPECTATION_ATTRIBUTES: AttributeSpec[] = [
-    {
-        key: 'name', label: 'Expectation id', type: 'string', tier: 'required',
-        pattern: '[A-Za-z0-9][A-Za-z0-9._-]*',
-        placeholder: 'e.g. cdr_msisdn_not_null',
-        help: 'Letters, digits, dot, dash, underscore; start alphanumeric.',
-    },
-    { key: 'description', label: 'Description', type: 'string', tier: 'required', required: false },
     {
         key: 'targetType', label: 'Attach to', type: 'select', tier: 'required', default: 'pipeline',
         options: [

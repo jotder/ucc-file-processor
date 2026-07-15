@@ -59,7 +59,7 @@ export interface SpaceFormData {
             <mat-dialog-content class="space-y-3">
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Display name</mat-label>
-                    <input matInput formControlName="display_name" required autocomplete="off" />
+                    <input matInput formControlName="display_name" required autocomplete="off" cdkFocusInitial />
                     @if (form.get('display_name')?.hasError('required')) {
                         <mat-error>A name is required.</mat-error>
                     }

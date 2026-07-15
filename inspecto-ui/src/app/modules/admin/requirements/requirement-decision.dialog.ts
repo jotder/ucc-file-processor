@@ -39,7 +39,7 @@ export type RequirementDecisionResult =
             @if (lens.canTriageRequirements() && data.status === 'submitted') {
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Note (optional)</mat-label>
-                    <textarea matInput rows="2" [(ngModel)]="noteValue"></textarea>
+                    <textarea matInput rows="2" [(ngModel)]="noteValue" cdkFocusInitial></textarea>
                 </mat-form-field>
                 <div class="flex gap-2">
                     <button mat-flat-button color="primary" (click)="decide(true)">Accept</button>
@@ -49,7 +49,7 @@ export type RequirementDecisionResult =
             @if (lens.canTriageRequirements() && data.status === 'accepted') {
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Delivered via (optional)</mat-label>
-                    <input matInput [(ngModel)]="noteValue" placeholder="e.g. dashboard/churn_kpi" />
+                    <input matInput [(ngModel)]="noteValue" placeholder="e.g. dashboard/churn_kpi" cdkFocusInitial />
                 </mat-form-field>
                 <button mat-flat-button color="primary" (click)="deliver()">Mark delivered</button>
             }

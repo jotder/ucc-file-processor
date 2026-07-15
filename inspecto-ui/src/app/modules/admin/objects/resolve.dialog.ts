@@ -26,6 +26,7 @@ import { MatInputModule } from '@angular/material/input';
                         formControlName="comment"
                         placeholder="what was done, and why the problem is considered fixed"
                         required
+                        cdkFocusInitial
                     ></textarea>
                     @if (form.controls.comment.hasError('required') && form.controls.comment.touched) {
                         <mat-error>A resolution comment is required.</mat-error>

@@ -3,7 +3,7 @@
     <mat-dialog-content class="space-y-3">
         <mat-form-field class="w-full" subscriptSizing="dynamic">
             <mat-label>Id</mat-label>
-            <input matInput formControlName="id" required />
+            <input matInput formControlName="id" required cdkFocusInitial />
             @if (form.get('id'); as c) {
                 @if (c.hasError('required')) {
                     <mat-error>Id is required.</mat-error>
@@ -91,7 +91,13 @@
             <mat-form-field class="w-full" subscriptSizing="dynamic">
                 <mat-label>Config (JSON)</mat-label>
                 <textarea matInput formControlName="config" rows="6" spellcheck="false"></textarea>
-                <mat-hint>e.g. <code>{{ '{ "where": "CAST(amt AS INT) >= 100" }' }}</code></mat-hint>
+                @if (form.get('config'); as c) {
+                    @if (c.hasError('invalidJson')) {
+                        <mat-error>Config must be valid JSON.</mat-error>
+                    } @else {
+                        <mat-hint>e.g. <code>{{ '{ "where": "CAST(amt AS INT) >= 100" }' }}</code></mat-hint>
+                    }
+                }
             </mat-form-field>
         }
 
@@ -119,8 +125,24 @@
                     </mat-select>
                 </mat-form-field>
                 <mat-form-field subscriptSizing="dynamic">
-                    <mat-label>Partitions (comma-separated)</mat-label>
-                    <input matInput formControlName="partitions" placeholder="year, month, day" />
+                    <mat-label>Partitions</mat-label>
+                    <mat-chip-grid #partitionGrid aria-label="Partition columns">
+                        @for (p of form.controls.partitions.value; track p) {
+                            <mat-chip-row (removed)="removePartition(p)">
+                                {{ p }}
+                                <button matChipRemove [attr.aria-label]="'Remove ' + p">
+                                    <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                </button>
+                            </mat-chip-row>
+                        }
+                        <input
+                            placeholder="year, month, day"
+                            [matChipInputFor]="partitionGrid"
+                            [matChipInputSeparatorKeyCodes]="partitionSeparatorKeys"
+                            [matChipInputAddOnBlur]="true"
+                            (matChipInputTokenEnd)="addPartition($event)"
+                        />
+                    </mat-chip-grid>
                 </mat-form-field>
             </div>
         }

@@ -1,6 +1,6 @@
 import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, inject, signal, ViewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, ValidatorFn } from '@angular/forms';
+import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -88,6 +88,21 @@ export class JobFormDialog implements AfterViewInit {
     readonly cronPresets = CRON_PRESETS;
     readonly attributes = JOB_ATTRIBUTES;
 
+    /** Create flow: `config` (type + trigger + params) → `save` (the job id, asked last). Edit stays on `config`. */
+    readonly step = signal<'config' | 'save'>('config');
+
+    /** Save-step field (create only): the job id — pre-filled from the config, asked only at save time. */
+    readonly saveForm = this.fb.group({
+        name: [
+            '',
+            [
+                Validators.required,
+                Validators.pattern(/^[A-Za-z0-9][A-Za-z0-9._-]*$/),
+                ...(this.data.existingNames?.length ? [uniqueNameValidator(this.data.existingNames)] : []),
+            ],
+        ],
+    });
+
     /** The selected Job Type's declared parameters (R3), rendered as a typed form (P3c). */
     readonly paramSpecs = signal<AttributeSpec[]>([]);
     /** Existing values for the declared parameters (edit) — patched over the schema-form defaults. */
@@ -118,7 +133,8 @@ export class JobFormDialog implements AfterViewInit {
         () =>
             (this.schemaForm?.isDirty() ?? false) ||
             (this.paramForm?.isDirty() ?? false) ||
-            this.paramsForm.dirty,
+            this.paramsForm.dirty ||
+            this.saveForm.dirty,
         this.confirm,
     );
 
@@ -130,15 +146,6 @@ export class JobFormDialog implements AfterViewInit {
     }
 
     ngAfterViewInit(): void {
-        const nameCtrl = this.schemaForm.form.get('name');
-        if (this.isEdit) {
-            // The id is immutable once created (it is the storage key), like the old hand-built form.
-            nameCtrl?.disable({ emitEvent: false });
-        } else if (this.data.existingNames?.length) {
-            // Block a duplicate id inline rather than relying on the server 409 (product-wide form rule).
-            nameCtrl?.addValidators(uniqueNameValidator(this.data.existingNames));
-            nameCtrl?.updateValueAndValidity({ emitEvent: false });
-        }
         // Descriptor-driven parameters (P3c): render the selected Job Type's declared params, and follow
         // the type picker so the form re-shapes when the author switches type. Deferred a microtask so the
         // schema-form's async paramSpecs input doesn't mutate during this change-detection pass.
@@ -190,11 +197,32 @@ export class JobFormDialog implements AfterViewInit {
         this.schemaForm.form.get('cron')?.setValue(cron);
     }
 
+    /** The suggested job id: `<type>_<pipeline>` for an on-signal trigger, else just `<type>`. */
+    suggestedName(): string {
+        const v = this.schemaForm.value() as { type?: string; scheduleMode?: ScheduleMode; onPipeline?: string };
+        const base = v.scheduleMode === 'event' && v.onPipeline ? `${v.type}_${v.onPipeline}` : String(v.type ?? 'job');
+        return base.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^[^A-Za-z0-9]+/, '');
+    }
+
+    /** Create flow only: leave the save step back to the config step (the id is kept). */
+    backToConfig(): void {
+        this.step.set('config');
+    }
+
     save(): void {
         if (!this.schemaForm.validate()) return;
         if (this.paramForm && !this.paramForm.validate()) return;
+        // Create asks the job id only now, at save time — config valid ⇒ advance to the save step.
+        if (!this.isEdit && this.step() === 'config') {
+            if (this.saveForm.controls.name.pristine) this.saveForm.patchValue({ name: this.suggestedName() });
+            this.step.set('save');
+            return;
+        }
+        if (!this.isEdit && this.saveForm.invalid) {
+            this.saveForm.markAllAsTouched();
+            return;
+        }
         const v = this.schemaForm.value() as {
-            name?: string;
             type: JobType;
             scheduleMode: ScheduleMode;
             cron?: string;
@@ -215,7 +243,7 @@ export class JobFormDialog implements AfterViewInit {
             if (k && !(k in params)) params[k] = g.value.value;
         }
         const body: JobUpsert = {
-            name: this.isEdit ? this.data.job!.name : String(v.name ?? '').trim(),
+            name: this.isEdit ? this.data.job!.name : String(this.saveForm.getRawValue().name ?? '').trim(),
             type: v.type,
             cron: v.scheduleMode === 'cron' ? String(v.cron ?? '').trim() : null,
             onPipeline: v.scheduleMode === 'event' ? String(v.onPipeline ?? '').trim() : null,

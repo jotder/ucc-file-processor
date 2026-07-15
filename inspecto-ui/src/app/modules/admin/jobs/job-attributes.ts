@@ -5,13 +5,9 @@ import { AttributeSpec } from 'app/inspecto/component-model';
  * {@link JobFormDialog}. Tier assignments per the attribute audit: identity + trigger are required,
  * arming is optional, `catchUp` is advanced (it was silently missing from the old hand-built form).
  */
+// 'name' (the job id) is asked at save time (ui-design-review R9 — name-at-save), not declared here;
+// see JobFormDialog's `saveForm`.
 export const JOB_ATTRIBUTES: AttributeSpec[] = [
-    {
-        key: 'name', label: 'Job id', type: 'string', tier: 'required',
-        pattern: '[A-Za-z0-9][A-Za-z0-9._-]*',
-        placeholder: 'e.g. cdr_ingest_daily',
-        help: 'Letters, digits, dot, dash, underscore; start alphanumeric.',
-    },
     {
         key: 'type', label: 'Type', type: 'select', tier: 'required', default: 'enrich',
         help: 'The kind of work; its declared parameters drive the form below.',

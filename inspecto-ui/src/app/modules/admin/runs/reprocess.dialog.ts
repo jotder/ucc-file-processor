@@ -16,7 +16,7 @@ import { MatInputModule } from '@angular/material/input';
             <p class="mb-3">Reprocess a committed batch of <b>{{ data.pipeline }}</b>.</p>
             <mat-form-field class="w-full">
                 <mat-label>Batch id</mat-label>
-                <input matInput [formControl]="batchId" placeholder="batch id" required (keyup.enter)="submit()" />
+                <input matInput [formControl]="batchId" placeholder="batch id" required (keyup.enter)="submit()" cdkFocusInitial />
                 @if (batchId.hasError('required') && batchId.touched) {
                     <mat-error>Batch id is required.</mat-error>
                 }

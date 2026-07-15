@@ -36,7 +36,7 @@ export interface ApplyTemplateResult {
             <form [formGroup]="form" (ngSubmit)="apply()" class="flex flex-col gap-3">
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Target dataset</mat-label>
-                    <mat-select formControlName="dataset">
+                    <mat-select formControlName="dataset" cdkFocusInitial>
                         @for (id of data.datasetIds; track id) {
                             <mat-option [value]="id">{{ id }}</mat-option>
                         }

@@ -53,4 +53,58 @@ describe('ComponentFormDialog', () => {
         const { fixture } = create();
         await expectNoA11yViolations(fixture.nativeElement);
     });
+
+    it('blocks a transform submit when the config textarea is not valid JSON', () => {
+        const ref = { close: vi.fn() };
+        const api = { create: vi.fn(() => of(SAVED)), update: vi.fn(() => of(SAVED)) };
+        TestBed.configureTestingModule({
+            imports: [ComponentFormDialog],
+            providers: [
+                provideNoopAnimations(),
+                { provide: MAT_DIALOG_DATA, useValue: { kind: 'transform' } },
+                { provide: MatDialogRef, useValue: ref },
+                { provide: ComponentsService, useValue: api },
+                { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined } },
+            ],
+        });
+        const fixture = TestBed.createComponent(ComponentFormDialog);
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.form.patchValue({ id: 'my-transform', config: '{ not json' });
+        expect(c.form.controls['config'].hasError('invalidJson')).toBe(true);
+        c.submit();
+        expect(api.create).not.toHaveBeenCalled();
+
+        c.form.patchValue({ config: '{ "where": "1=1" }' });
+        expect(c.form.controls['config'].hasError('invalidJson')).toBe(false);
+        c.submit();
+        expect(api.create).toHaveBeenCalledWith('transform', expect.objectContaining({ where: '1=1' }));
+    });
+
+    it('adds/removes partition chips for a sink', () => {
+        const ref = { close: vi.fn() };
+        const api = { create: vi.fn(() => of(SAVED)), update: vi.fn(() => of(SAVED)) };
+        TestBed.configureTestingModule({
+            imports: [ComponentFormDialog],
+            providers: [
+                provideNoopAnimations(),
+                { provide: MAT_DIALOG_DATA, useValue: { kind: 'sink' } },
+                { provide: MatDialogRef, useValue: ref },
+                { provide: ComponentsService, useValue: api },
+                { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined } },
+            ],
+        });
+        const fixture = TestBed.createComponent(ComponentFormDialog);
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        c.addPartition({ value: 'year', chipInput: { clear: vi.fn() } } as never);
+        c.addPartition({ value: 'month', chipInput: { clear: vi.fn() } } as never);
+        expect(c.form.controls['partitions'].value).toEqual(['year', 'month']);
+        c.removePartition('year');
+        expect(c.form.controls['partitions'].value).toEqual(['month']);
+
+        c.form.patchValue({ id: 'my-sink' });
+        c.submit();
+        expect(api.create).toHaveBeenCalledWith('sink', expect.objectContaining({ partitions: ['month'] }));
+    });
 });

@@ -41,12 +41,12 @@ export type GrantGovernanceResult = string | number | null;
                 @if (isPin) {
                     <mat-form-field class="w-full" subscriptSizing="dynamic">
                         <mat-label>Version</mat-label>
-                        <input matInput formControlName="pin" placeholder="e.g. v3" />
+                        <input matInput formControlName="pin" placeholder="e.g. v3" cdkFocusInitial />
                     </mat-form-field>
                 } @else {
                     <mat-form-field class="w-full" subscriptSizing="dynamic">
                         <mat-label>Expires at</mat-label>
-                        <input matInput type="datetime-local" formControlName="expiry" />
+                        <input matInput type="datetime-local" formControlName="expiry" cdkFocusInitial />
                     </mat-form-field>
                 }
             </form>

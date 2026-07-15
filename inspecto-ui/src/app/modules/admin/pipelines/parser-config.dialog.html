@@ -25,7 +25,7 @@
     <div class="mb-3 flex flex-wrap items-end gap-3">
         <mat-form-field subscriptSizing="dynamic" class="w-56">
             <mat-label>Grammar</mat-label>
-            <mat-select [value]="boundGrammarId() ?? ''" (selectionChange)="onGrammarChange($event.value)">
+            <mat-select [value]="boundGrammarId() ?? ''" (selectionChange)="onGrammarChange($event.value)" cdkFocusInitial>
                 <mat-option value="">＋ New grammar</mat-option>
                 @for (g of grammars(); track g.name) {
                     <mat-option [value]="g.name">{{ g.name }}</mat-option>
@@ -244,7 +244,7 @@
         </div>
         <mat-form-field class="w-full" subscriptSizing="dynamic">
             <mat-label>Name</mat-label>
-            <input matInput formControlName="name" required />
+            <input matInput formControlName="name" required cdkFocusInitial />
             @if (saveForm.controls.name; as c) {
                 @if (c.hasError('required')) {
                     <mat-error>Name is required.</mat-error>

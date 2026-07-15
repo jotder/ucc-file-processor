@@ -6,12 +6,9 @@ import { AttributeSpec } from 'app/inspecto/component-model';
  * against a threshold over a window (GLOSSARY §4/§8) — every field is a scalar, so the whole
  * form is spec-driven; nothing bespoke.
  */
+// 'name' (the rule id) is asked at save time (ui-design-review R9 — name-at-save), not declared
+// here; see AlertRuleFormDialog's `saveForm`.
 export const ALERT_RULE_ATTRIBUTES: AttributeSpec[] = [
-    {
-        key: 'name', label: 'Rule id', type: 'identifier', tier: 'required',
-        placeholder: 'e.g. high_error_rate',
-        help: 'Letters, digits, dot, dash, underscore; the identity of the rule.',
-    },
     {
         key: 'metric', label: 'Metric', type: 'autocomplete', tier: 'required',
         placeholder: 'e.g. error_rate, rejected_files, duration_ms',

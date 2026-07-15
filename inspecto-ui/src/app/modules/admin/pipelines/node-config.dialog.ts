@@ -73,7 +73,7 @@ export interface NodeConfigResult {
 
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Name</mat-label>
-                    <input matInput formControlName="name" [placeholder]="data.node.id" />
+                    <input matInput formControlName="name" [placeholder]="data.node.id" cdkFocusInitial />
                 </mat-form-field>
                 <mat-form-field class="w-full" subscriptSizing="dynamic">
                     <mat-label>Description</mat-label>

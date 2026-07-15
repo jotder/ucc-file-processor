@@ -66,8 +66,8 @@ export type AttributeOptionLoader = (
                 </div>
             }
 
-            @for (spec of tiers().required; track spec.key) {
-                <ng-container *ngTemplateOutlet="field; context: { spec }"></ng-container>
+            @for (spec of tiers().required; track spec.key; let i = $index) {
+                <ng-container *ngTemplateOutlet="field; context: { spec, first: i === 0 }"></ng-container>
             }
 
             @if (tiers().optional.length) {
@@ -94,16 +94,16 @@ export type AttributeOptionLoader = (
                 }
             }
 
-            <ng-template #field let-spec="spec">
+            <ng-template #field let-spec="spec" let-first="first">
                 @if (isVisible(spec)) {
                     @switch (spec.type) {
                         @case ('boolean') {
-                            <mat-slide-toggle class="py-2" [formControlName]="spec.key">{{ spec.label }}</mat-slide-toggle>
+                            <mat-slide-toggle class="py-2" [formControlName]="spec.key" [attr.cdkFocusInitial]="first ? '' : null">{{ spec.label }}</mat-slide-toggle>
                         }
                         @case ('select') {
                             <mat-form-field class="w-full" subscriptSizing="dynamic">
                                 <mat-label>{{ spec.label }}</mat-label>
-                                <mat-select [formControlName]="spec.key">
+                                <mat-select [formControlName]="spec.key" [attr.cdkFocusInitial]="first ? '' : null">
                                     @for (opt of spec.options ?? []; track opt.value) {
                                         <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
                                     }
@@ -120,6 +120,7 @@ export type AttributeOptionLoader = (
                                     [formControlName]="spec.key"
                                     [placeholder]="spec.placeholder ?? ''"
                                     [matAutocomplete]="ac"
+                                    [attr.cdkFocusInitial]="first ? '' : null"
                                     (focus)="loadOptionsFor(spec)"
                                 />
                                 <mat-autocomplete #ac="matAutocomplete">
@@ -134,7 +135,7 @@ export type AttributeOptionLoader = (
                         @case ('multiline') {
                             <mat-form-field class="w-full" subscriptSizing="dynamic">
                                 <mat-label>{{ spec.label }}</mat-label>
-                                <textarea matInput rows="4" [formControlName]="spec.key" [placeholder]="spec.placeholder ?? ''"></textarea>
+                                <textarea matInput rows="4" [formControlName]="spec.key" [placeholder]="spec.placeholder ?? ''" [attr.cdkFocusInitial]="first ? '' : null"></textarea>
                                 @if (spec.help) { <mat-hint>{{ spec.help }}</mat-hint> }
                                 <mat-error>{{ errorFor(spec) }}</mat-error>
                             </mat-form-field>
@@ -147,6 +148,7 @@ export type AttributeOptionLoader = (
                                     [type]="spec.type === 'number' ? 'number' : 'text'"
                                     [formControlName]="spec.key"
                                     [placeholder]="spec.placeholder ?? ''"
+                                    [attr.cdkFocusInitial]="first ? '' : null"
                                 />
                                 @if (spec.help) { <mat-hint>{{ spec.help }}</mat-hint> }
                                 <mat-error>{{ errorFor(spec) }}</mat-error>
