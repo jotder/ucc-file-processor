@@ -211,6 +211,8 @@
                 tier="standard"
                 [multiSelect]="true"
                 [autoHeight]="true"
+                [serverPage]="true"
+                [hasMore]="hasMore()"
                 [stateKey]="'mail-' + type.toLowerCase()"
                 [sourceName]="type.toLowerCase()"
                 [exportName]="type.toLowerCase()"
@@ -221,6 +223,7 @@
                 noRowsHint="Items land here as their lifecycle moves — or create a new {{ createLabel }}."
                 (rowClick)="onRowClicked($any($event))"
                 (selectionChange)="onSelection($event)"
+                (loadMore)="loadMore()"
             />
         </div>
     </section>

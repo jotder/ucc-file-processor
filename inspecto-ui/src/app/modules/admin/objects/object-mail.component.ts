@@ -279,10 +279,16 @@ export class ObjectMailComponent implements OnInit {
         this.api.tagRules().subscribe({ next: (r) => this.tagRulesList.set(r), error: () => undefined });
     }
 
+    /** Page size (ui-design-review R6a — the previous hardcoded `limit: 500` truncated silently). */
+    private static readonly PAGE = 500;
+    readonly limit = signal(ObjectMailComponent.PAGE);
+    /** True once a load returned a full page — there may be more the operator hasn't seen. */
+    readonly hasMore = computed(() => this.objects().length >= this.limit());
+
     reload(): void {
         this.loadTags();
         this.loading.set(true);
-        this.api.list({ type: this.type, limit: 500 }).subscribe({
+        this.api.list({ type: this.type, limit: this.limit() }).subscribe({
             next: (o) => {
                 this.objects.set(o);
                 this.loading.set(false);
@@ -295,6 +301,12 @@ export class ObjectMailComponent implements OnInit {
                 this.loading.set(false);
             },
         });
+    }
+
+    /** Widen the page and refetch — the honest alternative to silently capping at PAGE (R6a). */
+    loadMore(): void {
+        this.limit.update((n) => n + ObjectMailComponent.PAGE);
+        this.reload();
     }
 
     // ── nav interactions ──────────────────────────────────────────────────────────

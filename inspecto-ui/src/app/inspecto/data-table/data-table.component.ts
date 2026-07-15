@@ -137,6 +137,12 @@ export class DataTableComponent {
     /** Opt-in: when true, the SQL editor / filter builder show a "Run on server" action that emits
      *  {@link runOnServer} (the host runs it against its backend and feeds results back via `rows`). */
     readonly serverRun = input(false);
+    /** Opt-in server paging (ui-design-review R6b, mirrors the {@link serverRun} seam): when true and
+     *  the host reports {@link hasMore}, an honest "Showing N — Load more" strip renders above the grid;
+     *  the click emits {@link loadMore} and the host refetches at a wider limit, feeding `rows` back. */
+    readonly serverPage = input(false);
+    /** Server paging: the host's "a full page came back — there may be more" flag. */
+    readonly hasMore = input(false);
     /** Opt-in layout persistence: a unique per-pane key. Column widths/order/visibility/sort, the
      *  quick search and the column-chooser selection then survive navigation and reload
      *  (per-space `localStorage` via {@link GridStateService}). */
@@ -149,6 +155,8 @@ export class DataTableComponent {
     readonly ruleSaved = output<RuleTemplate>();
     /** Emitted when "Run on server" is pressed — the SQL to execute against the host's backend. */
     readonly runOnServer = output<string>();
+    /** Server paging: emitted when "Load more" is pressed — the host refetches at a wider limit. */
+    readonly loadMore = output<void>();
 
     /** ag-Grid selection config: checkbox multi-row wins over legacy single-select. */
     readonly rowSelectionValue = computed<RowSelectionOptions | 'single' | undefined>(() =>

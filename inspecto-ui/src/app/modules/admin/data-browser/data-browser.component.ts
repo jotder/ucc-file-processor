@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
 import { ColDef } from 'ag-grid-community';
 
 import {
@@ -30,6 +31,7 @@ import { DataTableComponent } from 'app/inspecto/data-table';
         InspectoAlertComponent,
         InspectoEmptyStateComponent,
         InspectoSkeletonComponent,
+        MatButtonModule,
     ],
     templateUrl: './data-browser.component.html',
 })
@@ -38,6 +40,10 @@ export class DataBrowserComponent {
     private destroyRef = inject(DestroyRef);
 
     private static readonly PAGE = 200;
+    /** Widened by Load more (R6a); reset to PAGE whenever a different table is selected. */
+    readonly limit = signal(DataBrowserComponent.PAGE);
+    /** The last "Run on server" SQL, so Load more re-runs the right query at the wider limit. */
+    private lastSql: string | null = null;
 
     readonly groups = signal<DbGroup[]>([]);
     readonly loadingCatalog = signal(true);
@@ -77,6 +83,8 @@ export class DataBrowserComponent {
     select(group: DbGroup, table: DbTable): void {
         this.selected.set({ group: group.id, table });
         this.rowsError.set(null);
+        this.limit.set(DataBrowserComponent.PAGE);
+        this.lastSql = null;
         this.loadRows();
     }
 
@@ -85,7 +93,7 @@ export class DataBrowserComponent {
         if (!s) return;
         this.loadingRows.set(true);
         this.rowsError.set(null);
-        this.api.table({ group: s.group, name: s.table.name, limit: DataBrowserComponent.PAGE })
+        this.api.table({ group: s.group, name: s.table.name, limit: this.limit() })
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: (r) => this.applyResult(r),
@@ -97,14 +105,23 @@ export class DataBrowserComponent {
     onServerSql(sql: string): void {
         const s = this.selected();
         if (!s || !sql.trim()) return;
+        this.lastSql = sql;
         this.loadingRows.set(true);
         this.rowsError.set(null);
-        this.api.query({ group: s.group, table: s.table.name, sql, limit: DataBrowserComponent.PAGE })
+        this.api.query({ group: s.group, table: s.table.name, sql, limit: this.limit() })
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: (r) => this.applyResult(r),
                 error: (err) => this.onRowsError(err),
             });
+    }
+
+    /** Widen the page and re-run the last read (table browse or server SQL) — the honest alternative
+     *  to the previous static "(truncated)" text with no way to see more (R6a). */
+    loadMore(): void {
+        this.limit.update((n) => n + DataBrowserComponent.PAGE);
+        if (this.lastSql) this.onServerSql(this.lastSql);
+        else this.loadRows();
     }
 
     private applyResult(r: DbResult): void {

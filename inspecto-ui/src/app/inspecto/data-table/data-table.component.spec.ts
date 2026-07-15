@@ -74,6 +74,24 @@ describe('DataTableComponent', () => {
         expect(c.showSave()).toBe(true);
     });
 
+    it('serverPage: the honest "Load more" strip renders only while hasMore, and emits loadMore (R6b)', async () => {
+        const f = await create('standard');
+        f.componentRef.setInput('serverPage', true);
+        f.componentRef.setInput('hasMore', true);
+        f.detectChanges();
+        const el = f.nativeElement as HTMLElement;
+        expect(el.textContent).toContain('there may be more on the server');
+
+        let emitted = false;
+        f.componentInstance.loadMore.subscribe(() => (emitted = true));
+        Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.includes('Load more'))?.click();
+        expect(emitted).toBe(true);
+
+        f.componentRef.setInput('hasMore', false);
+        f.detectChanges();
+        expect(el.textContent).not.toContain('there may be more on the server');
+    });
+
     it('the column chooser drives the SQL projection', async () => {
         const c = (await create('pro')).componentInstance;
         expect(c.generatedSql()).toContain('SELECT *');

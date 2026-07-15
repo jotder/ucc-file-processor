@@ -62,8 +62,11 @@
                         }
                     </div>
                     @if (stats(); as s) {
-                        <p class="text-secondary text-xs" role="status">
-                            {{ s.rowCount }} row(s) · {{ s.elapsedMs }} ms@if (s.truncated) { · first 200 (truncated) }
+                        <p class="text-secondary flex items-center gap-2 text-xs" role="status">
+                            <span>{{ s.rowCount }} row(s) · {{ s.elapsedMs }} ms@if (s.truncated) { · showing first {{ limit() }} }</span>
+                            @if (s.truncated) {
+                                <button type="button" mat-button (click)="loadMore()">Load more</button>
+                            }
                         </p>
                     }
                 </div>

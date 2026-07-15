@@ -131,6 +131,14 @@ export class EventsComponent implements OnInit, OnDestroy {
         };
     }
 
+    /** Widen the fetch limit and refetch — the honest alternative to silently capping (R6a/R6b).
+     *  The widened value joins the limit dropdown so the select stays truthful. */
+    loadMore(): void {
+        this.fLimit += 1000;
+        if (!this.limitOptions.includes(this.fLimit)) this.limitOptions.push(this.fLimit);
+        this.load();
+    }
+
     /** Run the current query. `silent` (live-tail tick) keeps the grid visible instead of flashing the loader. */
     load(silent = false): void {
         if (!silent) this.loading = true;

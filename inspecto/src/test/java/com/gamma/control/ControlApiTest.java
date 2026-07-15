@@ -134,6 +134,23 @@ class ControlApiTest {
     }
 
     @Test
+    void pipelineListHonorsOptionalLimitAndOffset(@TempDir Path dir) throws Exception {
+        try (Ctx c = open(dir)) {
+            // ?limit slices; an offset past the end is an empty list, never an error (R6a paging).
+            JsonNode limited = json(send(c.port, "GET", "/runs?limit=1", null));
+            assertTrue(limited.isArray() && limited.size() == 1);
+            assertEquals(c.name, limited.get(0).get("name").asText());
+
+            JsonNode pastEnd = json(send(c.port, "GET", "/runs?limit=1&offset=5", null));
+            assertTrue(pastEnd.isArray() && pastEnd.isEmpty());
+
+            // absent limit stays byte-identical to the unpaged list
+            JsonNode all = json(send(c.port, "GET", "/runs?offset=0", null));
+            assertEquals(1, all.size());
+        }
+    }
+
+    @Test
     void triggerRunsPipelineThenAuditQueriesReturnData(@TempDir Path dir) throws Exception {
         try (Ctx c = open(dir)) {
             HttpResponse<String> run = send(c.port, "POST", "/runs/" + c.name + "/trigger", null);

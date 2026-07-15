@@ -31,7 +31,8 @@ final class JobRoutes implements RouteModule {
         // The job *list* is a collection read: a space with no registered jobs returns an empty list
         // (the codebase-wide empty-collection convention), NOT the 404 that jobs(api) raises for the
         // item routes below. Read-only — never lazily creates a JobService (that's the write path's job).
-        api.get("/jobs", (e, m) -> api.service().jobService().map(s -> (Object) s.jobs()).orElseGet(java.util.List::of));
+        // Optional ?limit=&offset= (ui-design-review R6a) — absent limit returns every job, unchanged.
+        api.get("/jobs", (e, m) -> api.service().jobService().<Object>map(s -> ApiContext.paged(s.jobs(), e)).orElseGet(java.util.List::of));
         // Job CRUD (Scheduler write actions). Requires canAuthorWorkbench (W6; a no-op on Personal).
         // Persisted as <write-root>/jobs/<name>_job.toon; the write also hot-registers the job on the
         // live JobService (JobService.upsertJob/removeJob) so it takes effect without a restart.

@@ -78,4 +78,21 @@ describe('AuditLogsComponent', () => {
         },
         15_000,
     );
+
+    it('offers Load more once a fetch returns a full page, and widens the limit on click (R6a)', () => {
+        const fullPage = Array.from({ length: 1000 }, (_, i) => ({ ...AUDIT_EVENT, eventId: `e${i}` }));
+        const fixture = TestBed.createComponent(AuditLogsComponent);
+        const c = fixture.componentInstance;
+        fixture.detectChanges();
+        flush(fullPage);
+        fixture.detectChanges();
+        expect(c.hasMore()).toBe(true);
+
+        c.loadMore();
+        const http = TestBed.inject(HttpTestingController);
+        const reqs = http.match((r) => r.url.includes('/events/search') && r.params.get('type') === 'AUDIT');
+        expect(reqs[0].request.params.get('limit')).toBe('2000');
+        reqs.forEach((r) => r.flush([]));
+        http.match((r) => r.url.includes('/events/search')).forEach((r) => r.flush([]));
+    });
 });

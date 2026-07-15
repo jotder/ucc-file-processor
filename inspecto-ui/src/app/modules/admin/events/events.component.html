@@ -142,6 +142,9 @@
                 [searchable]="false"
                 [exportable]="false"
                 [pageSize]="50"
+                [serverPage]="true"
+                [hasMore]="events.length >= fLimit"
+                (loadMore)="loadMore()"
             />
         }
     </div>

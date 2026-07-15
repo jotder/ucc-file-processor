@@ -49,6 +49,8 @@ interface AuditRow {
 
             <inspecto-data-table
                 [tier]="'pro'"
+                [serverPage]="true"
+                [hasMore]="hasMore()"
                 [rows]="rows()"
                 [columns]="columnDefs"
                 [loading]="loading()"
@@ -57,6 +59,7 @@ interface AuditRow {
                 stateKey="audit-logs"
                 noRowsTitle="No audit events yet"
                 noRowsHint="Actions like creating, triggering, or deleting resources will appear here."
+                (loadMore)="loadMore()"
             />
         </div>
     `,
@@ -66,9 +69,12 @@ export class AuditLogsComponent implements OnInit {
 
     readonly rows = signal<AuditRow[]>([]);
     readonly loading = signal(false);
+    /** True once either audit type's fetch returned a full page — there may be more (R6a). */
+    readonly hasMore = signal(false);
 
-    /** Newest 1000 events per audit type; the pro table pages/filters client-side. */
+    /** Newest N events per audit type (widened by Load more); the pro table pages/filters client-side. */
     private static readonly LIMIT = 1000;
+    readonly limit = signal(AuditLogsComponent.LIMIT);
 
     readonly columnDefs: ColDef<AuditRow>[] = [
         { headerName: 'Time', width: 180, valueGetter: (p) => p.data?.ts, valueFormatter: (p) => fmtDateTime(p.value) },
@@ -87,11 +93,13 @@ export class AuditLogsComponent implements OnInit {
 
     load(): void {
         this.loading.set(true);
+        const lim = this.limit();
         forkJoin([
-            this.api.search({ type: 'AUDIT', limit: AuditLogsComponent.LIMIT }),
-            this.api.search({ type: 'ACCESS_DENIED', limit: AuditLogsComponent.LIMIT }),
+            this.api.search({ type: 'AUDIT', limit: lim }),
+            this.api.search({ type: 'ACCESS_DENIED', limit: lim }),
         ]).subscribe({
             next: ([audit, denied]) => {
+                this.hasMore.set(audit.length >= lim || denied.length >= lim);
                 this.rows.set(
                     [...audit, ...denied]
                         .sort((a, b) => b.ts - a.ts)
@@ -104,6 +112,12 @@ export class AuditLogsComponent implements OnInit {
                 this.loading.set(false);
             },
         });
+    }
+
+    /** Widen the per-type page and refetch — the honest alternative to silently capping (R6a). */
+    loadMore(): void {
+        this.limit.update((n) => n + AuditLogsComponent.LIMIT);
+        this.load();
     }
 
     private static toRow(e: EventRow): AuditRow {

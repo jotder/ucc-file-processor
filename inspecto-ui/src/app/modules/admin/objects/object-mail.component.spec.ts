@@ -167,4 +167,33 @@ describe('ObjectMailComponent', () => {
         fixture.detectChanges();
         await expectNoA11yViolations(fixture.nativeElement);
     });
+
+    it('offers Load more once a fetch returns a full page, and widens the limit on click (R6a)', async () => {
+        const fullPage = Array.from({ length: 500 }, (_, i) => incident(`p${i}`, 'IDENTIFIED'));
+        const api = {
+            list: vi.fn(() => of(fullPage)),
+            tags: vi.fn(() => of([])),
+            tagRules: vi.fn(() => of([])),
+        } as unknown as ObjectsService;
+        TestBed.configureTestingModule({
+            imports: [ObjectMailComponent],
+            providers: [
+                provideNoopAnimations(),
+                { provide: ObjectsService, useValue: api },
+                { provide: MatDialog, useValue: {} },
+                { provide: InspectoConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+                { provide: ToastrService, useValue: { success: vi.fn(), error: vi.fn() } },
+                { provide: ActivatedRoute, useValue: { snapshot: { data: { type: 'INCIDENT', title: 'Incidents', subtitle: '' } } } },
+                { provide: InspectoGridThemeService, useValue: { theme: () => ({}) } },
+                { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
+            ],
+        });
+        await TestBed.compileComponents();
+        const fixture = TestBed.createComponent(ObjectMailComponent);
+        fixture.detectChanges();
+        const c = fixture.componentInstance;
+        expect(c.hasMore()).toBe(true);
+        c.loadMore();
+        expect((api.list as unknown as Mock).mock.calls[1][0]).toMatchObject({ limit: 1000 });
+    });
 });

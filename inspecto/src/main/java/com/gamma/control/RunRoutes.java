@@ -32,7 +32,8 @@ final class RunRoutes implements RouteModule {
 
     @Override
     public void register(ApiContext api) {
-        api.get("/runs", (e, m) -> api.service().pipelines());
+        // Optional ?limit=&offset= (ui-design-review R6a) — absent limit returns every pipeline, unchanged.
+        api.get("/runs", (e, m) -> ApiContext.paged(api.service().pipelines(), e));
         // Register a new pipeline from a config on disk under the write root (control scope).
         // Registration is a workbench-authoring action (W6: canAuthorWorkbench); trigger/pause/resume/
         // reprocess below are operational (canOperateRuns) — both a no-op on Personal (rbac-groundwork.md §2).

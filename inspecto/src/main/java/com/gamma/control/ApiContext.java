@@ -189,6 +189,21 @@ interface ApiContext {
         }
     }
 
+    /**
+     * Optional {@code ?limit=&offset=} slice over an already-in-memory list (ui-design-review R6a —
+     * the pipeline/job registries are unbounded today). An absent/blank {@code limit} returns
+     * {@code all} unchanged — byte-identical to the pre-existing behavior for every caller that
+     * doesn't pass it. A negative {@code offset} clamps to 0; an offset past the end yields an empty list.
+     */
+    static <T> List<T> paged(List<T> all, HttpExchange ex) {
+        String limitParam = query(ex, "limit");
+        if (limitParam == null || limitParam.isBlank()) return all;
+        int limit = Math.max(0, parseIntOr(limitParam, all.size()));
+        int offset = Math.max(0, parseIntOr(query(ex, "offset"), 0));
+        if (offset >= all.size()) return List.of();
+        return all.subList(offset, Math.min(all.size(), offset + limit));
+    }
+
     /** Write {@code body} as JSON with an explicit status (e.g. a 422 with a findings payload); returns
      *  {@link #HANDLED}. A {@code /api/v1} request gets the {@link Envelope} shaping (legacy bodies are
      *  byte-for-byte unchanged); bodies ≥ {@link #GZIP_MIN_BYTES} are gzipped when the client accepts it. */
