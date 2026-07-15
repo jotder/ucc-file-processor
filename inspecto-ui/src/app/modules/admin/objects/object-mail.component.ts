@@ -18,6 +18,7 @@ import {
     statusBadgeClasses,
     statusBadgeHtml,
 } from 'app/inspecto/components/status-badge.component';
+import { InspectoSplitDirective } from 'app/inspecto/components/split.directive';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import {
@@ -44,10 +45,7 @@ import { ResolveDialog } from './resolve.dialog';
 import { TagChange, TagDialog } from './tag.dialog';
 import { TagRulesDialog } from './tag-rules.dialog';
 
-const NAV_WIDTH_KEY = 'inspecto.mail.navWidth';
 const NAV_COLLAPSED_KEY = 'inspecto.mail.navCollapsed';
-const NAV_MIN = 170;
-const NAV_MAX = 420;
 
 /** Escape user-entered text before it enters an innerHTML cell renderer. */
 function esc(s: string): string {
@@ -88,6 +86,7 @@ function mailDate(ms: number | undefined): string {
         MatMenuModule,
         MatTooltipModule,
         DataTableComponent,
+        InspectoSplitDirective,
         PostmortemPanelComponent,
     ],
     templateUrl: './object-mail.component.html',
@@ -124,10 +123,8 @@ export class ObjectMailComponent implements OnInit {
     readonly selected = signal<OperationalObject[]>([]);
     readonly detail = signal<OperationalObject | null>(null);
 
+    // Pane widths live on the shared inspectoSplit handles (R7); only collapse stays host-owned.
     readonly navCollapsed = signal(localStorage.getItem(NAV_COLLAPSED_KEY) === 'true');
-    readonly navWidth = signal(
-        Math.min(NAV_MAX, Math.max(NAV_MIN, Number(localStorage.getItem(NAV_WIDTH_KEY)) || 240)),
-    );
 
     // Tag registry + Tag Rules (user-created; loaded independently, degrade gracefully offline).
     readonly tagRegistry = signal<Tag[]>([]);
@@ -340,30 +337,6 @@ export class ObjectMailComponent implements OnInit {
     toggleNav(): void {
         this.navCollapsed.update((v) => !v);
         localStorage.setItem(NAV_COLLAPSED_KEY, String(this.navCollapsed()));
-    }
-
-    startResize(e: PointerEvent): void {
-        e.preventDefault();
-        const startX = e.clientX;
-        const startW = this.navWidth();
-        const move = (ev: PointerEvent): void => this.setNavWidth(startW + (ev.clientX - startX));
-        const up = (): void => {
-            window.removeEventListener('pointermove', move);
-            window.removeEventListener('pointerup', up);
-        };
-        window.addEventListener('pointermove', move);
-        window.addEventListener('pointerup', up);
-    }
-
-    onHandleKeydown(e: KeyboardEvent): void {
-        if (e.key === 'ArrowLeft') this.setNavWidth(this.navWidth() - 16);
-        if (e.key === 'ArrowRight') this.setNavWidth(this.navWidth() + 16);
-    }
-
-    private setNavWidth(px: number): void {
-        const w = Math.min(NAV_MAX, Math.max(NAV_MIN, Math.round(px)));
-        this.navWidth.set(w);
-        localStorage.setItem(NAV_WIDTH_KEY, String(w));
     }
 
     // ── list interactions ─────────────────────────────────────────────────────────

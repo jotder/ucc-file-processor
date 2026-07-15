@@ -6,9 +6,10 @@
         </p>
     </header>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
+    <!-- Master/detail split: resizable at lg via the shared inspectoSplit handle (R7); stacks below lg. -->
+    <div class="flex flex-col gap-4 lg:flex-row" [style.--db-nav]="navSplit.width() + 'px'">
         <!-- ── left: catalog ── -->
-        <nav class="lg:col-span-1" aria-label="Tables">
+        <nav class="w-full shrink-0 lg:w-[var(--db-nav)]" aria-label="Tables">
             @if (loadingCatalog()) {
                 <inspecto-skeleton [lines]="6" />
             } @else if (catalogError()) {
@@ -47,8 +48,18 @@
             }
         </nav>
 
+        <div
+            inspectoSplit="db.nav"
+            #navSplit="inspectoSplit"
+            [min]="200"
+            [max]="480"
+            [defaultWidth]="300"
+            aria-label="Resize the table list (arrow keys or drag)"
+            class="hidden lg:block"
+        ></div>
+
         <!-- ── right: detail ── -->
-        <section class="lg:col-span-3" aria-label="Table data">
+        <section class="min-w-0 flex-1" aria-label="Table data">
             @if (!selected()) {
                 <inspecto-empty-state
                     title="Select a table"

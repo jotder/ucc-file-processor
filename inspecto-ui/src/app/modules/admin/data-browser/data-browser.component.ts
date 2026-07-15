@@ -13,6 +13,7 @@ import {
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
+import { InspectoSplitDirective } from 'app/inspecto/components/split.directive';
 import { DataTableComponent } from 'app/inspecto/data-table';
 
 /**
@@ -31,6 +32,7 @@ import { DataTableComponent } from 'app/inspecto/data-table';
         InspectoAlertComponent,
         InspectoEmptyStateComponent,
         InspectoSkeletonComponent,
+        InspectoSplitDirective,
         MatButtonModule,
     ],
     templateUrl: './data-browser.component.html',
