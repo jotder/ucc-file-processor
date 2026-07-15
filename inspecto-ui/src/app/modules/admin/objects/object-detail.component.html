@@ -6,11 +6,7 @@
                 <mat-icon svgIcon="heroicons_outline:arrow-left"></mat-icon>
             </button>
             <div class="min-w-0">
-                <nav class="text-secondary mb-1 flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-                    <a class="hover:underline" [routerLink]="['/' + listBase]">{{ listLabel }}</a>
-                    <span>/</span>
-                    <span class="truncate font-mono">{{ id }}</span>
-                </nav>
+                <inspecto-breadcrumb [listLink]="['/' + listBase]" [listLabel]="listLabel" [current]="id" />
                 <h1 class="truncate text-2xl font-extrabold leading-none tracking-tight">{{ obj?.title || id }}</h1>
                 <div class="text-secondary mt-1.5">
                     {{ obj?.objectType }} · {{ obj?.status }}@if (obj?.severity) { · {{ obj?.severity }}}

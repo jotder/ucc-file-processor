@@ -1,4 +1,23 @@
 <div class="flex min-w-0 flex-auto flex-col">
+    @if (embedded()) {
+        <!-- Compact panel header (side-panel mode, R5) -->
+        <div class="flex items-center gap-2 border-b p-4" style="border-color: var(--gamma-border)">
+            <div class="min-w-0 flex-auto">
+                <div class="flex items-center gap-2">
+                    <h2 class="truncate font-mono text-lg font-bold" [matTooltip]="name">{{ name }}</h2>
+                    @if (job(); as j) {
+                        <inspecto-status-badge [value]="j.enabled ? 'enabled' : 'disabled'" />
+                    }
+                </div>
+                @if (job()) {
+                    <div class="text-secondary text-xs">{{ whatScheduled() }} · {{ scheduleSummary() }}</div>
+                }
+            </div>
+            <button mat-icon-button (click)="closed.emit()" matTooltip="Close panel" aria-label="Close panel">
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:x-mark"></mat-icon>
+            </button>
+        </div>
+    }
     @if (loading() && !job()) {
         <div class="flex items-center gap-3 p-8"><mat-spinner diameter="24" /><span class="text-secondary">Loading…</span></div>
     } @else if (!job()) {
@@ -9,7 +28,8 @@
             message="This scheduled job no longer exists."
         />
     } @else {
-        <!-- Header -->
+        <!-- Header (full-page mode only — the embedded panel has its compact header above) -->
+        @if (!embedded()) {
         <div class="bg-card flex flex-col gap-4 border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
             <div class="flex items-start justify-between gap-4">
                 <div class="min-w-0">
@@ -44,9 +64,10 @@
                 </div>
             </div>
         </div>
+        }
 
         <!-- Tabs -->
-        <div class="flex flex-auto flex-col p-6 sm:p-10">
+        <div class="flex flex-auto flex-col" [class]="embedded() ? 'p-4' : 'p-6 sm:p-10'">
             <mat-tab-group [(selectedIndex)]="selectedIndex" animationDuration="0ms">
                 <!-- Schedule -->
                 <mat-tab label="Schedule">

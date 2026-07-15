@@ -1,4 +1,5 @@
-import { Component, inject, OnDestroy, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, DestroyRef, inject, OnDestroy, OnInit, signal, ViewEncapsulation } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -12,7 +13,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import { ChartData } from 'chart.js';
 import { Subscription, forkJoin } from 'rxjs';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import {
     apiErrorMessage,
@@ -27,12 +28,14 @@ import {
 } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { InspectoChartComponent } from 'app/inspecto/components/chart.component';
+import { InspectoSplitDirective } from 'app/inspecto/components/split.directive';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { statusBadgeHtml } from 'app/inspecto/components/status-badge.component';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { fmtDateTime, InspectoRowAction } from 'app/inspecto/grid';
 import { CHART_SERIES } from 'app/inspecto/theme/chart-tokens';
 import { fmtDuration, scheduleSummary, whatScheduled } from './job-display';
+import { JobDetailComponent } from './job-detail/job-detail.component';
 import { JobFormDialog } from './job-form.dialog';
 import { JobRunDetailDialog } from './job-run-detail.dialog';
 
@@ -72,6 +75,8 @@ export { fmtDuration };
         DataTableComponent,
         InspectoChartComponent,
         InspectoEmptyStateComponent,
+        InspectoSplitDirective,
+        JobDetailComponent,
     ],
     templateUrl: './jobs.component.html',
     encapsulation: ViewEncapsulation.None,
@@ -82,10 +87,15 @@ export class JobsComponent implements OnInit, OnDestroy {
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     private router = inject(Router);
+    private route = inject(ActivatedRoute);
+    private destroyRef = inject(DestroyRef);
     /** Business lens = read-only across the Workbench (Wave-1 interview decision) — hides authoring. */
     protected lens = inject(LensService);
 
     mode: JobsViewMode = 'schedules';
+
+    /** Job open in the side panel — driven by the `/jobs/:name` route param (R5). */
+    readonly detailName = signal<string | null>(null);
 
     // ── schedules view ───────────────────────────────────────────────────────────
     jobs: JobView[] = [];
@@ -184,6 +194,11 @@ export class JobsComponent implements OnInit, OnDestroy {
     ];
 
     ngOnInit(): void {
+        // Both `/jobs` and `/jobs/<name>` resolve to this component (see jobs.routes.ts) — the
+        // param opens/closes the side panel while the list state survives.
+        this.route.paramMap
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((pm) => this.detailName.set(pm.get('name')));
         this.load();
     }
 
@@ -227,10 +242,14 @@ export class JobsComponent implements OnInit, OnDestroy {
         });
     }
 
-    /** Row-click target → the job detail page. */
+    /** Row-click target → the job detail side panel (the `/jobs/:name` URL stays shareable). */
     openDetail(row: Record<string, unknown>): void {
         const name = row?.['name'] as string | undefined;
         if (name) this.router.navigate(['/jobs', name]);
+    }
+
+    closeDetail(): void {
+        this.router.navigate(['/jobs']);
     }
 
     toggleEnabled(job: JobView): void {

@@ -83,8 +83,7 @@ export const appRoutes: Route[] = [
             { path: 'alerts', loadChildren: () => import('app/modules/admin/alerts/alerts.routes') },
             { path: 'cases', loadChildren: () => import('app/modules/admin/objects/cases.routes') },
             { path: 'incidents', loadChildren: () => import('app/modules/admin/objects/incidents.routes') },
-            { path: 'runs', loadChildren: () => import('app/modules/admin/runs/runs.routes') },
-            { path: 'runs/:name', loadChildren: () => import('app/modules/admin/run-detail/run-detail.routes') },
+            { path: 'runs', loadChildren: () => import('app/modules/admin/runs/runs.routes') }, // also matches runs/:name (side-panel detail, R5)
             { path: 'pipelines', loadChildren: () => import('app/modules/admin/pipelines/pipelines.routes') },
             { path: 'components', loadChildren: () => import('app/modules/admin/components/components.routes') },
             { path: 'collectors', loadChildren: () => import('app/modules/admin/collectors/collectors.routes') },
@@ -95,8 +94,7 @@ export const appRoutes: Route[] = [
             { path: 'expectations', loadChildren: () => import('app/modules/admin/expectations/expectations.routes') },
             { path: 'decision-rules', loadChildren: () => import('app/modules/admin/decision-rules/decision-rules.routes') },
             { path: 'maintenance', loadChildren: () => import('app/modules/admin/maintenance/maintenance.routes') },
-            { path: 'jobs', loadChildren: () => import('app/modules/admin/jobs/jobs.routes') },
-            { path: 'jobs/:name', loadChildren: () => import('app/modules/admin/jobs/job-detail/job-detail.routes') },
+            { path: 'jobs', loadChildren: () => import('app/modules/admin/jobs/jobs.routes') }, // also matches jobs/:name (side-panel detail, R5)
             { path: 'enrichment', loadChildren: () => import('app/modules/admin/enrichment/enrichment.routes') },
             { path: 'catalog', loadChildren: () => import('app/modules/admin/catalog/catalog.routes') },
             { path: 'data-browser', loadChildren: () => import('app/modules/admin/data-browser/data-browser.routes') },
@@ -108,19 +106,14 @@ export const appRoutes: Route[] = [
             { path: 'spaces', loadChildren: () => import('app/modules/admin/spaces/spaces.routes') },
             { path: 'design', loadChildren: () => import('app/modules/admin/design-system/design-system.routes') },
             { path: 'assist', loadChildren: () => import('app/modules/admin/assist/assist.routes') },
-            { path: 'settings/models', loadChildren: () => import('app/modules/admin/model-settings/model-settings.routes') },
-            { path: 'settings/icons', loadChildren: () => import('app/modules/admin/icon-settings/icon-settings.routes') },
-            { path: 'settings/map', loadChildren: () => import('app/modules/admin/map-settings/map-settings.routes') },
-            { path: 'settings/transfer', loadChildren: () => import('app/modules/admin/transfer/transfer.routes') },
-            { path: 'settings/access', loadChildren: () => import('app/modules/admin/access/access.routes') },
             { path: 'notification-center', loadChildren: () => import('app/modules/admin/notification-center/notification-center.routes') },
             // Menu Builder: the authoring pane + the dynamic host every custom menu leaf links to (`/w/<nodeId>`).
+            // Registered BEFORE the settings matcher so /settings/menus stays a standalone page.
             { path: 'settings/menus', loadComponent: () => import('app/modules/admin/menu/menu-builder.component').then((m) => m.MenuBuilderComponent) },
             { path: 'w/:nodeId', loadComponent: () => import('app/modules/admin/menu/menu-item-host.component').then((m) => m.MenuItemHostComponent) },
-            // The old standalone prefs pane moved into the center as a tab (C4).
-            { path: 'settings/notifications', redirectTo: 'notification-center' },
-            // Settings landing: every config option as expandable drawers (registered AFTER the
-            // specific settings/* routes so those match first).
+            // Settings master-detail (R5): /settings/<section> deep-links into the pane — the old
+            // standalone /settings/models|icons|map|transfer|access|notifications routes are gone;
+            // those URLs now open the same components inside the Settings pane.
             { path: 'settings', loadChildren: () => import('app/modules/admin/settings/settings.routes') },
         ]
     }

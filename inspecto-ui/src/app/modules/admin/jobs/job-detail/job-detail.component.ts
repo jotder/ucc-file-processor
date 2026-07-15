@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -33,6 +33,10 @@ const LIVE_TAIL_MS = 5000;
  * delete) over three tabs: **Schedule** (config overview), **Execution history** (the run table), and
  * **Logs & events** (the selected run's logs, live-tailed while it is RUNNING). Composes the shared
  * data-table + design-system pieces; all writes are mock-served (see the plan).
+ *
+ * Hosted two ways (ui-design-review R5): standalone full page (route-snapshot `name`, breadcrumb
+ * header) or embedded as the Scheduler side panel (`[name]` + `[embedded]` inputs, compact header
+ * with an X that emits `(closed)`).
  */
 @Component({
     selector: 'app-job-detail',
@@ -58,6 +62,12 @@ export class JobDetailComponent implements OnInit, OnDestroy {
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
+
+    /** Job name when embedded as a side panel; the route-snapshot param is the full-page fallback. */
+    readonly nameInput = input<string | undefined>(undefined, { alias: 'name' });
+    /** Embedded (side-panel) mode — compact header with a close button instead of breadcrumb chrome. */
+    readonly embedded = input(false);
+    readonly closed = output<void>();
 
     name = '';
     readonly job = signal<JobDetail | null>(null);
@@ -93,8 +103,21 @@ export class JobDetailComponent implements OnInit, OnDestroy {
 
     private liveSub?: Subscription;
 
+    /** The panel stays mounted while the user clicks through jobs — reload when the bound name changes. */
+    private readonly reloadOnName = effect(() => {
+        const n = this.nameInput();
+        if (n === undefined || n === this.name) return;
+        this.name = n;
+        this.liveSub?.unsubscribe();
+        this.liveSub = undefined;
+        this.selectedRunId.set(null);
+        this.logs.set(null);
+        this.selectedIndex = 0;
+        this.load();
+    });
+
     ngOnInit(): void {
-        this.name = this.route.snapshot.paramMap.get('name') ?? '';
+        this.name = this.nameInput() ?? this.route.snapshot.paramMap.get('name') ?? '';
         this.load();
     }
 

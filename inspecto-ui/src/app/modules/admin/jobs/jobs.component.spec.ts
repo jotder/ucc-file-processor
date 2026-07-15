@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, ParamMap, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
-import { Observable, of, throwError } from 'rxjs';
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { JobFailureDay, JobMetrics, JobRunRow, JobView, JobsService, LensService } from 'app/inspecto/api';
@@ -17,19 +17,29 @@ const RUNS: JobRunRow[] = [
 const FAILS: JobFailureDay[] = [{ day: '2026-06-17', total: 4, failed: 1 }];
 
 /** Build the component over a stub service. `reporting` decides whether the T27 endpoints resolve or 404. */
-function create(reporting: 'ok' | '404', listResult: Observable<JobView[]> = of([])) {
+function create(
+    reporting: 'ok' | '404',
+    listResult: Observable<JobView[]> = of([]),
+    paramMap: Observable<ParamMap> = of(convertToParamMap({})),
+) {
     const report404 = () => throwError(() => ({ status: 404 }));
     const stub = {
         list: () => listResult,
         metrics: () => (reporting === 'ok' ? of(METRICS) : report404()),
         recentRuns: () => (reporting === 'ok' ? of(RUNS) : report404()),
         failures: () => (reporting === 'ok' ? of(FAILS) : report404()),
+        // Consumed by the embedded job-detail side panel.
+        get: () => of({ name: 'rollup', type: 'enrich', cron: '0 0 6 * * *', onPipeline: null, enabled: true, params: {} }),
+        runs: () => of([]),
+        runLogs: () => of({ logs: [], events: [] }),
     } as unknown as JobsService;
     TestBed.configureTestingModule({
         imports: [JobsComponent],
         providers: [
             provideNoopAnimations(),
             provideRouter([]),
+            // The `/jobs(/:name)` param drives the detail side panel (R5).
+            { provide: ActivatedRoute, useValue: { paramMap, snapshot: { paramMap: convertToParamMap({}) } } },
             { provide: JobsService, useValue: stub },
             { provide: ToastrService, useValue: {} },
             { provide: MatDialog, useValue: {} },
@@ -86,5 +96,24 @@ describe('JobsComponent', () => {
         TestBed.inject(LensService).selectLens('business');
         const hints = c.scheduleActions.map((a) => (typeof a.hint === 'function' ? a.hint({ enabled: true } as JobView) : a.hint));
         expect(hints).toEqual(['Run now', 'Disable']);
+    });
+
+    it('opens the detail side panel on a name route param and closes it when the param clears (R5)', () => {
+        const params = new BehaviorSubject<ParamMap>(convertToParamMap({}));
+        const fixture = create('ok', of([]), params);
+        const c = fixture.componentInstance;
+        const el = fixture.nativeElement as HTMLElement;
+        expect(c.detailName()).toBeNull();
+        expect(el.querySelector('app-job-detail')).toBeNull();
+
+        params.next(convertToParamMap({ name: 'rollup' }));   // deep link /jobs/rollup
+        fixture.detectChanges();
+        expect(c.detailName()).toBe('rollup');
+        expect(el.querySelector('app-job-detail')).toBeTruthy();
+
+        params.next(convertToParamMap({}));                   // back to /jobs
+        fixture.detectChanges();
+        expect(c.detailName()).toBeNull();
+        expect(el.querySelector('app-job-detail')).toBeNull();
     });
 });

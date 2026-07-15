@@ -12,7 +12,8 @@ import { RunDetailComponent } from './run-detail.component';
 
 const BATCH: AuditRow = { batch_id: 'b1', status: 'SUCCESS' };
 
-function create() {
+/** `inputs` exercises the embedded side-panel mode (R5); without it the route snapshot drives the name. */
+function create(inputs?: { name: string; embedded: boolean }) {
     TestBed.configureTestingModule({
         imports: [RunDetailComponent],
         providers: [
@@ -39,6 +40,10 @@ function create() {
         ],
     });
     const fixture = TestBed.createComponent(RunDetailComponent);
+    if (inputs) {
+        fixture.componentRef.setInput('name', inputs.name);
+        fixture.componentRef.setInput('embedded', inputs.embedded);
+    }
     fixture.detectChanges(); // runs ngOnInit (batches tab loads)
     return fixture;
 }
@@ -69,6 +74,29 @@ describe('RunDetailComponent', () => {
         const spy = vi.spyOn(TestBed.inject(RunsService), 'reprocess');
         c.reprocessRow(BATCH);
         expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('embedded mode hides the page chrome, shows the compact header, and emits closed on X (R5)', async () => {
+        const fixture = create({ name: 'other_run', embedded: true });
+        const c = fixture.componentInstance;
+        const el = fixture.nativeElement as HTMLElement;
+        expect(c.name).toBe('other_run');          // the input wins over the route snapshot
+        expect(el.querySelector('h1')).toBeNull(); // full-page breadcrumb/back chrome hidden
+        expect(el.querySelector('h2')?.textContent).toContain('other_run');
+        const closed = vi.fn();
+        c.closed.subscribe(closed);
+        (el.querySelector('button[aria-label="Close panel"]') as HTMLButtonElement).click();
+        expect(closed).toHaveBeenCalled();
+        await expectNoA11yViolations(el);
+    });
+
+    it('reloads when the bound name changes while the panel stays mounted', () => {
+        const fixture = create({ name: 'run_a', embedded: true });
+        const spy = vi.spyOn(TestBed.inject(RunsService), 'batches');
+        fixture.componentRef.setInput('name', 'run_b');
+        fixture.detectChanges(); // flushes the reload effect
+        expect(fixture.componentInstance.name).toBe('run_b');
+        expect(spy).toHaveBeenCalledWith('run_b');
     });
 
     it('renders with no a11y violations', async () => {

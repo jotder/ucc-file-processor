@@ -1,38 +1,63 @@
-<div class="flex min-w-0 flex-auto flex-col">
-    <!-- Header -->
-    <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
-        <div>
-            <h1 class="text-3xl font-extrabold leading-none tracking-tight">Runs</h1>
-            <div class="text-secondary mt-1.5">Ingest runs and lifecycle actions</div>
-        </div>
-        <div class="mt-4 flex items-center gap-3 sm:mt-0">
-            <mat-slide-toggle [(ngModel)]="autoRefresh">Auto</mat-slide-toggle>
-            <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
-                <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
-            </button>
-            @if (lens.canOperateRuns()) {
-                <button mat-flat-button color="primary" [disabled]="loading" (click)="runAll()">
-                    <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
-                    <span class="ml-2">Run all</span>
+<div class="flex h-full min-h-0 min-w-0 flex-auto overflow-hidden">
+    <!-- Left: the runs list (survives opening a detail — R5) -->
+    <div class="flex h-full min-w-0 flex-auto flex-col overflow-y-auto">
+        <!-- Header -->
+        <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
+            <div>
+                <h1 class="text-3xl font-extrabold leading-none tracking-tight">Runs</h1>
+                <div class="text-secondary mt-1.5">Ingest runs and lifecycle actions</div>
+            </div>
+            <div class="mt-4 flex items-center gap-3 sm:mt-0">
+                <mat-slide-toggle [(ngModel)]="autoRefresh">Auto</mat-slide-toggle>
+                <button mat-icon-button (click)="load()" matTooltip="Refresh" aria-label="Refresh">
+                    <mat-icon svgIcon="heroicons_outline:arrow-path"></mat-icon>
                 </button>
-            }
+                @if (lens.canOperateRuns()) {
+                    <button mat-flat-button color="primary" [disabled]="loading" (click)="runAll()">
+                        <mat-icon svgIcon="heroicons_outline:play"></mat-icon>
+                        <span class="ml-2">Run all</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <!-- Main -->
+        <div class="flex flex-auto flex-col p-6 sm:p-10">
+            <inspecto-data-table
+                tier="standard"
+                sourceName="pipelines"
+                exportName="pipelines"
+                stateKey="runs"
+                [rows]="runs"
+                [columns]="columnDefs"
+                [rowActions]="rowActions"
+                [loading]="loading"
+                [autoHeight]="true"
+                noRowsTitle="No ingest runs configured"
+                noRowsHint="Runs are defined by *_pipeline.toon configs on the server."
+            />
         </div>
     </div>
 
-    <!-- Main -->
-    <div class="flex flex-auto flex-col p-6 sm:p-10">
-        <inspecto-data-table
-            tier="standard"
-            sourceName="pipelines"
-            exportName="pipelines"
-            stateKey="runs"
-            [rows]="runs"
-            [columns]="columnDefs"
-            [rowActions]="rowActions"
-            [loading]="loading"
-            [autoHeight]="true"
-            noRowsTitle="No ingest runs configured"
-            noRowsHint="Runs are defined by *_pipeline.toon configs on the server."
+    <!-- Right: run detail as a resizable side panel (R5, the object-mail pattern) -->
+    @if (detailName(); as name) {
+        <div
+            inspectoSplit="runs.detail"
+            #detailSplit="inspectoSplit"
+            pane="right"
+            [min]="380"
+            [max]="900"
+            [defaultWidth]="560"
+            aria-label="Resize detail panel (arrow keys or drag)"
+            class="h-full"
+        ></div>
+        <app-run-detail
+            class="block h-full shrink-0 overflow-y-auto border-l"
+            style="border-color: var(--gamma-border)"
+            [style.width.px]="detailSplit.width()"
+            [name]="name"
+            [embedded]="true"
+            (closed)="closeDetail()"
         />
-    </div>
+    }
 </div>

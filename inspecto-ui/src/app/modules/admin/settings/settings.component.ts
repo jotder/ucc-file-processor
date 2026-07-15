@@ -1,6 +1,8 @@
 import { NgComponentOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, signal, Type, ViewEncapsulation } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal, Type, ViewEncapsulation } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 
@@ -50,10 +52,23 @@ export class SettingsComponent {
         { id: 'design',        title: 'Design System',   icon: 'heroicons_outline:swatch',                 description: 'The in-app component gallery and design tokens.',     component: DesignSystemComponent },
     ];
 
-    /** The option whose content is shown in the common panel; `null` until one is picked. */
+    private route = inject(ActivatedRoute);
+    private router = inject(Router);
+    private destroyRef = inject(DestroyRef);
+
+    /** The option whose content is shown in the common panel; `null` until one is picked.
+     *  Driven by the `:section` route param (R5) — deep-linkable, Back works, refresh keeps it. */
     readonly selected = signal<SettingsDrawer | null>(null);
 
+    constructor() {
+        this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((p) => {
+            const id = p.get('section');
+            this.selected.set(this.drawers.find((d) => d.id === id) ?? null);
+        });
+    }
+
+    /** Selecting a section navigates — the paramMap subscription above applies it. */
     select(drawer: SettingsDrawer): void {
-        this.selected.set(drawer);
+        this.router.navigate(['/settings', drawer.id]);
     }
 }

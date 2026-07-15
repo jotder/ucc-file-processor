@@ -1,22 +1,35 @@
 <div class="flex min-w-0 flex-auto flex-col">
-    <!-- Header -->
-    <div class="bg-card flex items-center gap-3 border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
-        <button mat-icon-button aria-label="Back" (click)="back()" matTooltip="Back to runs">
-            <mat-icon svgIcon="heroicons_outline:arrow-left"></mat-icon>
-        </button>
-        <div class="min-w-0">
-            <nav class="text-secondary mb-1 flex items-center gap-1 text-xs" aria-label="Breadcrumb">
-                <a class="hover:underline" [routerLink]="['/runs']">Runs</a>
-                <span>/</span>
-                <span class="truncate font-mono">{{ name }}</span>
-            </nav>
-            <h1 class="text-3xl font-extrabold leading-none tracking-tight">{{ name }}</h1>
-            <div class="text-secondary mt-1.5">Audit: batches, files, lineage, quarantine, commits, report</div>
+    @if (embedded()) {
+        <!-- Compact panel header (side-panel mode, R5) -->
+        <div class="flex items-center gap-2 border-b p-4" style="border-color: var(--gamma-border)">
+            <div class="min-w-0 flex-auto">
+                <h2 class="truncate font-mono text-lg font-bold" [matTooltip]="name">{{ name }}</h2>
+                <div class="text-secondary text-xs">Audit: batches, files, lineage, quarantine, commits, report</div>
+            </div>
+            <button mat-icon-button (click)="closed.emit()" matTooltip="Close panel" aria-label="Close panel">
+                <mat-icon class="icon-size-5" svgIcon="heroicons_outline:x-mark"></mat-icon>
+            </button>
         </div>
-    </div>
+    } @else {
+        <!-- Header -->
+        <div class="bg-card flex items-center gap-3 border-b p-6 sm:px-10 sm:py-8 dark:bg-transparent">
+            <button mat-icon-button aria-label="Back" (click)="back()" matTooltip="Back to runs">
+                <mat-icon svgIcon="heroicons_outline:arrow-left"></mat-icon>
+            </button>
+            <div class="min-w-0">
+                <nav class="text-secondary mb-1 flex items-center gap-1 text-xs" aria-label="Breadcrumb">
+                    <a class="hover:underline" [routerLink]="['/runs']">Runs</a>
+                    <span>/</span>
+                    <span class="truncate font-mono">{{ name }}</span>
+                </nav>
+                <h1 class="text-3xl font-extrabold leading-none tracking-tight">{{ name }}</h1>
+                <div class="text-secondary mt-1.5">Audit: batches, files, lineage, quarantine, commits, report</div>
+            </div>
+        </div>
+    }
 
     <!-- Main -->
-    <div class="flex flex-auto flex-col p-6 sm:p-10">
+    <div class="flex flex-auto flex-col" [class]="embedded() ? 'p-4' : 'p-6 sm:p-10'">
         <mat-tab-group [(selectedIndex)]="selectedIndex" (selectedIndexChange)="onTabChange()">
             @for (t of tabs; track t.id) {
                 <mat-tab [label]="t.label"></mat-tab>

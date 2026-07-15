@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter } from '@angular/router';
-import { describe, expect, it } from 'vitest';
+import { ActivatedRoute, convertToParamMap, provideRouter, Router } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
 import { expectNoA11yViolations } from 'app/inspecto/testing/a11y';
 import { SettingsComponent } from './settings.component';
 
@@ -33,6 +34,31 @@ describe('SettingsComponent', () => {
         expect(el.querySelector('app-config')).toBeNull();
 
         await expectNoA11yViolations(el);
+        fixture.destroy();
+    });
+
+    it('binds the selection to the :section route param and navigates on select (R5)', () => {
+        const params = new BehaviorSubject(convertToParamMap({ section: 'spaces' }));
+        TestBed.configureTestingModule({
+            imports: [SettingsComponent],
+            providers: [
+                provideNoopAnimations(),
+                provideRouter([]),
+                { provide: ActivatedRoute, useValue: { paramMap: params } },
+            ],
+        });
+        // No detectChanges — asserting the routing contract only (rendering a section would
+        // instantiate that section's real component, which needs its own providers).
+        const fixture = TestBed.createComponent(SettingsComponent);
+        const c = fixture.componentInstance;
+        expect(c.selected()?.id).toBe('spaces');
+
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+        c.select(c.drawers[0]);
+        expect(navigate).toHaveBeenCalledWith(['/settings', 'config']);
+
+        params.next(convertToParamMap({}));
+        expect(c.selected()).toBeNull();
         fixture.destroy();
     });
 });

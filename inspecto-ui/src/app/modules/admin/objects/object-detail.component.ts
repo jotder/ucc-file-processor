@@ -7,9 +7,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, EventRow, EventsService, NodeKind, ObjectGraph, ObjectNote, ObjectsService, OperationalObject } from 'app/inspecto/api';
+import { InspectoBreadcrumbComponent } from 'app/inspecto/components/breadcrumb.component';
 import { InspectoEmptyStateComponent } from 'app/inspecto/components/empty-state.component';
 import { InspectoSkeletonComponent } from 'app/inspecto/components/skeleton.component';
 import { StatusBadgeComponent } from 'app/inspecto/components/status-badge.component';
@@ -37,8 +38,8 @@ type TabKey = 'overview' | 'graph' | 'events' | 'comments' | 'attachments';
         MatTabsModule,
         MatTooltipModule,
         ReactiveFormsModule,
-        RouterLink,
         GraphViewComponent,
+        InspectoBreadcrumbComponent,
         InspectoEmptyStateComponent,
         InspectoSkeletonComponent,
         StatusBadgeComponent,

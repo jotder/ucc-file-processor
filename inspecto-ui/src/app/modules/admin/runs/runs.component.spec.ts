@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, ParamMap, provideRouter } from '@angular/router';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material/dialog';
-import { of } from 'rxjs';
+import { BehaviorSubject, Observable, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastrService } from 'ngx-toastr';
 import { LensService, RunResult, RunsService, RunView } from 'app/inspecto/api';
@@ -14,12 +14,14 @@ import { RunsComponent } from './runs.component';
 const RUN: RunView = { name: 'cdr_ingest', configPath: 'cdr_ingest.toon', paused: false, committedBatches: 5 };
 const RESULT: RunResult = { total: 3, failed: 0 };
 
-function create(runs: RunView[] = [RUN]) {
+function create(runs: RunView[] = [RUN], paramMap: Observable<ParamMap> = of(convertToParamMap({}))) {
     TestBed.configureTestingModule({
         imports: [RunsComponent],
         providers: [
             provideNoopAnimations(),
             provideRouter([]),
+            // The `/runs(/:name)` param drives the detail side panel (R5).
+            { provide: ActivatedRoute, useValue: { paramMap, snapshot: { paramMap: convertToParamMap({}) } } },
             {
                 provide: RunsService,
                 useValue: {
@@ -28,6 +30,10 @@ function create(runs: RunView[] = [RUN]) {
                     runAll: () => of({ cdr_ingest: RESULT }),
                     pause: () => of({ pipeline: 'cdr_ingest', paused: true }),
                     resume: () => of({ pipeline: 'cdr_ingest', paused: false }),
+                    // Consumed by the embedded run-detail side panel (initial Batches tab).
+                    batches: () => of([]),
+                    files: () => of([]),
+                    pending: () => of(null),
                 },
             },
             { provide: MatDialog, useValue: {} },
@@ -78,6 +84,26 @@ describe('RunsComponent', () => {
         await c.togglePause(RUN);
         expect(RUN.paused).toBe(false);
         c.openReprocess('cdr_ingest');
+    });
+
+    it('opens the detail side panel on a name route param and closes it when the param clears (R5)', () => {
+        const params = new BehaviorSubject<ParamMap>(convertToParamMap({}));
+        const fixture = create([RUN], params);
+        const c = fixture.componentInstance;
+        const el = fixture.nativeElement as HTMLElement;
+        expect(c.detailName()).toBeNull();
+        expect(el.querySelector('app-run-detail')).toBeNull();
+
+        params.next(convertToParamMap({ name: 'cdr_ingest' }));   // deep link /runs/cdr_ingest
+        fixture.detectChanges();
+        expect(c.detailName()).toBe('cdr_ingest');
+        expect(el.querySelector('app-run-detail')).toBeTruthy();
+        expect(c.runs).toEqual([RUN]); // the list survives the detail opening
+
+        params.next(convertToParamMap({}));                       // back to /runs
+        fixture.detectChanges();
+        expect(c.detailName()).toBeNull();
+        expect(el.querySelector('app-run-detail')).toBeNull();
     });
 
     it('renders with no a11y violations', async () => {

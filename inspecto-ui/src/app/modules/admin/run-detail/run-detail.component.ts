@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, effect, inject, input, OnInit, output, ViewEncapsulation } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -27,6 +27,10 @@ type FileFilter = 'ALL' | 'SUCCESS' | 'REJECTED' | 'ERRORED';
  * inspector-ui onto the gamma shell): batches / files / lineage (filterable by batchId) /
  * quarantine / commits, plus a Report tab with a date-range producing percentile + throughput
  * stats. Audit rows are loose string maps, so grid columns are derived from the row keys.
+ *
+ * Hosted two ways (ui-design-review R5): standalone full page (route-snapshot `name`, breadcrumb
+ * header) or embedded as the Runs side panel (`[name]` + `[embedded]` inputs, compact header with
+ * an X that emits `(closed)`).
  */
 @Component({
     selector: 'app-run-detail',
@@ -58,8 +62,27 @@ export class RunDetailComponent implements OnInit {
     /** Business lens = read-only observe on Runs (plan §1) — hides the reprocess row action. */
     protected lens = inject(LensService);
 
+    /** Run name when embedded as a side panel; the route-snapshot param is the full-page fallback. */
+    readonly nameInput = input<string | undefined>(undefined, { alias: 'name' });
+    /** Embedded (side-panel) mode — compact header with a close button instead of breadcrumb chrome. */
+    readonly embedded = input(false);
+    readonly closed = output<void>();
+
     name = '';
     loading = false;
+
+    /** The panel stays mounted while the user clicks through runs — reload when the bound name changes. */
+    private readonly reloadOnName = effect(() => {
+        const n = this.nameInput();
+        if (n === undefined || n === this.name) return;
+        this.name = n;
+        this.rows = [];
+        this.allFiles = [];
+        this.inbox = null;
+        this.report = null;
+        this.lineageBatchId = '';
+        this.loadTab();
+    });
 
     readonly tabs: { id: TabKey; label: string }[] = [
         { id: 'batches', label: 'Batches' },
@@ -89,7 +112,7 @@ export class RunDetailComponent implements OnInit {
     report: BatchAuditReport | null = null;
 
     ngOnInit(): void {
-        this.name = this.route.snapshot.paramMap.get('name') || '';
+        this.name = this.nameInput() ?? this.route.snapshot.paramMap.get('name') ?? '';
         this.loadTab();
     }
 

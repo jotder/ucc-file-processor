@@ -1,4 +1,6 @@
-<div class="flex min-w-0 flex-auto flex-col">
+<div class="flex h-full min-h-0 min-w-0 flex-auto overflow-hidden">
+<!-- Left: the scheduler list (survives opening a detail — R5) -->
+<div class="flex h-full min-w-0 flex-auto flex-col overflow-y-auto">
     <!-- Header -->
     <div class="bg-card flex flex-col border-b p-6 sm:flex-row sm:items-center sm:justify-between sm:px-10 sm:py-8 dark:bg-transparent">
         <div>
@@ -145,4 +147,27 @@
             }
         }
     </div>
+</div>
+
+<!-- Right: job detail as a resizable side panel (R5, the object-mail pattern) -->
+@if (detailName(); as name) {
+    <div
+        inspectoSplit="jobs.detail"
+        #detailSplit="inspectoSplit"
+        pane="right"
+        [min]="380"
+        [max]="900"
+        [defaultWidth]="560"
+        aria-label="Resize detail panel (arrow keys or drag)"
+        class="h-full"
+    ></div>
+    <app-job-detail
+        class="block h-full shrink-0 overflow-y-auto border-l"
+        style="border-color: var(--gamma-border)"
+        [style.width.px]="detailSplit.width()"
+        [name]="name"
+        [embedded]="true"
+        (closed)="closeDetail()"
+    />
+}
 </div>

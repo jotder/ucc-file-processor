@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, signal, ViewEncapsulation } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,18 +6,22 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ColDef } from 'ag-grid-community';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, DEFAULT_REFRESH_MS, LensService, optimisticMutate, RunsService, RunView, visibleInterval } from 'app/inspecto/api';
+import { InspectoSplitDirective } from 'app/inspecto/components/split.directive';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { DataTableComponent } from 'app/inspecto/data-table';
 import { InspectoRowAction } from 'app/inspecto/grid';
+import { RunDetailComponent } from 'app/modules/admin/run-detail/run-detail.component';
 import { ReprocessDialog } from './reprocess.dialog';
 
 /**
  * Runs — every configured ingest run with lifecycle actions (trigger / pause / resume /
  * reprocess) and a "Run all" toolbar (ported from inspector-ui onto the gamma shell).
+ * Opening a run renders the detail as a resizable side panel over the surviving list
+ * (ui-design-review R5, object-mail pattern) — the routed `/runs/:name` URL stays shareable.
  */
 @Component({
     selector: 'app-runs',
@@ -29,6 +33,8 @@ import { ReprocessDialog } from './reprocess.dialog';
         MatSlideToggleModule,
         MatTooltipModule,
         DataTableComponent,
+        InspectoSplitDirective,
+        RunDetailComponent,
     ],
     templateUrl: './runs.component.html',
     encapsulation: ViewEncapsulation.None,
@@ -36,6 +42,7 @@ import { ReprocessDialog } from './reprocess.dialog';
 export class RunsComponent implements OnInit {
     private api = inject(RunsService);
     private router = inject(Router);
+    private route = inject(ActivatedRoute);
     private dialog = inject(MatDialog);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
@@ -47,6 +54,9 @@ export class RunsComponent implements OnInit {
     loading = false;
     autoRefresh = true;
     private dialogOpen = false;
+
+    /** Run open in the side panel — driven by the `/runs/:name` route param (R5). */
+    readonly detailName = signal<string | null>(null);
 
     readonly columnDefs: ColDef<RunView>[] = [
         { field: 'name', headerName: 'Run', flex: 1 },
@@ -86,6 +96,11 @@ export class RunsComponent implements OnInit {
     }
 
     ngOnInit(): void {
+        // Both `/runs` and `/runs/<name>` resolve to this component (see runs.routes.ts) — the
+        // param opens/closes the side panel while the list state survives.
+        this.route.paramMap
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((pm) => this.detailName.set(pm.get('name')));
         this.load();
         visibleInterval(DEFAULT_REFRESH_MS)
             .pipe(takeUntilDestroyed(this.destroyRef))
@@ -186,5 +201,9 @@ export class RunsComponent implements OnInit {
 
     openDetail(name: string): void {
         this.router.navigate(['/runs', name]);
+    }
+
+    closeDetail(): void {
+        this.router.navigate(['/runs']);
     }
 }
