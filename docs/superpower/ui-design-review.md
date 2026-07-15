@@ -9,8 +9,11 @@ metric/onPipeline, job onPipeline, decision-rule target). Deliberately deferred 
 (not schema-form-based). **P2 R3 SHIPPED 2026-07-15** — Ctrl/Cmd+K opens the palette app-wide, empty-query recents +
 shell action commands (lens switch), `?` shortcut-help overlay (`inspecto/shortcuts-help.dialog.ts`).
 Deferred within R3 (documented): feature-scoped commands (New incident / Trigger job) need a command
-registry to avoid cross-feature coupling; `/`-focus-grid and j/k list nav not yet built. **P2 R4
-(optimistic triage) + P3–P4 remain open.** · **Method:** three parallel read-only surveys (forms/dialogs · data surfaces/persistence ·
+registry to avoid cross-feature coupling; `/`-focus-grid and j/k list nav not yet built. **P2 R4 SHIPPED 2026-07-15** — the object-mail `bulk()` seam is now optimistic: every triage verb
+(accept / resolve / archive / reopen / case actions / escalate / prioritize / tag) patches the loaded
+rows + open detail panel to the expected post-state immediately, then reconciles each row with the
+authoritative server object; failures reload (forkJoin fails fast — partial success makes a snapshot
+rollback dishonest). Merge/split/create keep request→refetch as designed. **P3–P4 remain open.** · **Method:** three parallel read-only surveys (forms/dialogs · data surfaces/persistence ·
 navigation/keyboard) against the operator's design brief. · **Companions:** `tree-table-design.md`
 (the quality bar) · `.claude/skills/angular-ui/SKILL.md` (the binding architecture rules) ·
 `lens-access-config-design.md` (the newest pane, scored best-in-class here).

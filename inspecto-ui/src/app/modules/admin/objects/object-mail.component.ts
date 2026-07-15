@@ -12,7 +12,7 @@ import { ColDef, ICellRendererParams, ValueGetterParams } from 'ag-grid-communit
 import { forkJoin, Observable, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, ObjectsService, OperationalObject, Tag, TagRule, UpdateObject, WorkflowDef } from 'app/inspecto/api';
+import { apiErrorMessage, ObjectsService, OperationalObject, optimisticMutate, Tag, TagRule, UpdateObject, WorkflowDef } from 'app/inspecto/api';
 import {
     STATUS_BADGE_BASE,
     statusBadgeClasses,
@@ -416,6 +416,7 @@ export class ObjectMailComponent implements OnInit {
                     );
                 },
                 `Accepted ${targets.length} — now Diagnosing`,
+                (o) => this.expectTransition('accept')({ ...o, assignee: o.assignee ?? this.me }),
             );
         if (missing.length) {
             this.dialog
@@ -435,7 +436,12 @@ export class ObjectMailComponent implements OnInit {
     }
 
     prioritize(priority: string, targets = this.selected()): void {
-        this.bulk(targets, (o) => this.api.update(o.id, { priority }), `Priority set to ${priority}`);
+        this.bulk(
+            targets,
+            (o) => this.api.update(o.id, { priority }),
+            `Priority set to ${priority}`,
+            (o) => ({ ...o, priority }),
+        );
     }
 
     /** Manual tagging: the tri-state tag dialog decides what to add/remove on every target. */
@@ -450,15 +456,18 @@ export class ObjectMailComponent implements OnInit {
                     this.loadTags();
                     return;
                 }
+                // One tag computation feeds both the server patch and the optimistic row.
+                const nextTags = (o: OperationalObject): string => {
+                    const tags = new Set(objectTags(o));
+                    change.add.forEach((t) => tags.add(t));
+                    change.remove.forEach((t) => tags.delete(t));
+                    return [...tags].join(',');
+                };
                 this.bulk(
                     targets,
-                    (o) => {
-                        const tags = new Set(objectTags(o));
-                        change.add.forEach((t) => tags.add(t));
-                        change.remove.forEach((t) => tags.delete(t));
-                        return this.api.update(o.id, { attributes: { tags: [...tags].join(',') } });
-                    },
+                    (o) => this.api.update(o.id, { attributes: { tags: nextTags(o) } }),
                     'Tags updated',
+                    (o) => ({ ...o, attributes: { ...o.attributes, tags: nextTags(o) } }),
                 );
             });
     }
@@ -521,6 +530,7 @@ export class ObjectMailComponent implements OnInit {
             targets,
             (o) => this.api.update(o.id, { attributes: { escalated: clear ? 'false' : 'true' } }),
             clear ? 'De-escalated' : 'Escalated',
+            (o) => ({ ...o, attributes: { ...o.attributes, escalated: clear ? 'false' : 'true' } }),
         );
     }
 
@@ -562,6 +572,7 @@ export class ObjectMailComponent implements OnInit {
                             .addComment(o.id, comment, this.me)
                             .pipe(switchMap(() => this.api.transition(o.id, 'resolve', this.me))),
                     `Resolved ${list.length}`,
+                    this.expectTransition('resolve'),
                 );
             });
     }
@@ -582,36 +593,85 @@ export class ObjectMailComponent implements OnInit {
             );
             if (!ok) return;
         }
-        this.bulk(list, (o) => this.api.transition(o.id, action, this.me), `${stateLabel(action)}: ${list.length}`);
+        this.bulk(
+            list,
+            (o) => this.api.transition(o.id, action, this.me),
+            `${stateLabel(action)}: ${list.length}`,
+            this.expectTransition(action),
+        );
     }
 
     async archive(targets?: OperationalObject[]): Promise<void> {
         const list = (targets ?? this.selected()).filter((o) => displayStatus(o) !== 'ARCHIVED');
         if (!list.length) return;
         if (!(await this.confirm.confirm(`Archive ${list.length} incident${list.length === 1 ? '' : 's'}?`, 'Archive'))) return;
-        this.bulk(list, (o) => this.api.transition(o.id, 'archive', this.me), `Archived ${list.length}`);
+        this.bulk(
+            list,
+            (o) => this.api.transition(o.id, 'archive', this.me),
+            `Archived ${list.length}`,
+            this.expectTransition('archive'),
+        );
     }
 
     reopen(targets?: OperationalObject[]): void {
         const list = (targets ?? this.selected()).filter((o) => ['RESOLVED', 'ARCHIVED'].includes(displayStatus(o)));
-        this.bulk(list, (o) => this.api.transition(o.id, 'reopen', this.me), 'Reopened — back to Diagnosing');
+        this.bulk(
+            list,
+            (o) => this.api.transition(o.id, 'reopen', this.me),
+            'Reopened — back to Diagnosing',
+            this.expectTransition('reopen'),
+        );
     }
 
+    /**
+     * Optimistic bulk mutation (ui-design-review R4): the loaded rows are patched to the expected
+     * post-state and the toast fires *immediately* — the triage loop never waits on a full-list
+     * refetch. The per-target calls then run; on success each row is reconciled with the
+     * authoritative server object (`update`/`transition` return it — closedAt, rule stamps, …).
+     * On error we reload instead of restoring a snapshot: `forkJoin` fails fast, so some targets
+     * may have committed server-side and only a refetch tells the truth. Merge / split / create
+     * keep the plain request→refetch flow (server-computed results), per the optimistic-UI rule.
+     */
     private bulk(
         targets: OperationalObject[],
         op: (o: OperationalObject) => Observable<unknown>,
         done: string,
+        expect: (o: OperationalObject) => OperationalObject,
     ): void {
         if (!targets.length) return;
-        forkJoin(targets.map(op)).subscribe({
-            next: () => {
+        const patchRows = (byId: Map<string, OperationalObject>): void => {
+            this.objects.update((rows) => rows.map((o) => byId.get(o.id) ?? o));
+            const open = this.detail();
+            if (open && byId.has(open.id)) this.detail.set(byId.get(open.id)!);
+        };
+        optimisticMutate({
+            apply: () => {
+                patchRows(new Map(targets.map((t) => [t.id, expect(t)])));
+                this.selected.set([]); // the old reload() cleared the selection — keep that contract
                 this.toastr.success(done);
-                this.reload();
             },
-            error: (e) => {
-                this.toastr.error(apiErrorMessage(e, 'Action failed'));
-                this.reload();
+            commit: forkJoin(targets.map(op)),
+            reconcile: (results) => {
+                const fresh = new Map(
+                    (results as unknown[])
+                        .filter((r): r is OperationalObject => !!r && typeof r === 'object' && 'id' in r)
+                        .map((r) => [r.id, r]),
+                );
+                if (fresh.size) patchRows(fresh);
             },
+            rollback: () => this.reload(), // partial success possible — only the server knows the truth
+            onError: (e) => this.toastr.error(apiErrorMessage(e, 'Action failed — reloaded from the server')),
         });
+    }
+
+    /** Expected row after a workflow action: status moves along the matching transition (the server
+     *  reconciles the rest — closedAt, audit stamps). No legal transition ⇒ the row is left as-is. */
+    private expectTransition(action: string): (o: OperationalObject) => OperationalObject {
+        return (o) => {
+            const t = this.workflowDef().transitions.find(
+                (x) => x.action === action && x.from === displayStatus(o),
+            );
+            return t ? { ...o, status: t.to } : o;
+        };
     }
 }

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { environment } from '../../../../environments/environment';
 
 type KpiMode = 'mini' | 'standard' | 'max';
 
@@ -34,7 +35,7 @@ type KpiMode = 'mini' | 'standard' | 'max';
                 {{ display() }}
             </div>
             @if (mode() !== 'mini') {
-                <div class="text-secondary mt-1 text-xs">offline aggregate</div>
+                <div class="text-secondary mt-1 text-xs">{{ caption }}</div>
             }
         </div>
     `,
@@ -43,6 +44,9 @@ export class KpiComponent {
     readonly value = input<number>(0);
     readonly label = input<string>('Value');
     readonly mode = signal<KpiMode>('standard');
+
+    /** Where the value was computed — mirrors `DatasetResultService.run()`'s branch on the same flag. */
+    readonly caption = environment.mockStudio ? 'offline aggregate' : 'live aggregate';
 
     readonly display = computed(() => new Intl.NumberFormat().format(this.value()));
 

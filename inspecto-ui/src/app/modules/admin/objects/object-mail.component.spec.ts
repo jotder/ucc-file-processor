@@ -2,8 +2,8 @@ import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute } from '@angular/router';
-import { of } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { of, throwError } from 'rxjs';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
 import { ObjectsService, OperationalObject } from 'app/inspecto/api';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
@@ -137,6 +137,29 @@ describe('ObjectMailComponent', () => {
         expect(c.escalateLabel()).toBe('De-escalate');
         c.escalate();
         expect(api.update).toHaveBeenCalledWith('i2', { attributes: { escalated: 'false' } });
+    });
+
+    it('triage verbs are optimistic: rows reconcile in place, no list refetch, selection clears', async () => {
+        const { c, api } = await create();
+        // The server echoes the updated object — reconcile must adopt it (updatedAt stamp).
+        (api.update as unknown as Mock).mockImplementation((id: string, patch: { priority?: string }) =>
+            of({ ...OBJECTS.find((o) => o.id === id)!, priority: patch.priority, updatedAt: 99 }),
+        );
+        c.onSelection([OBJECTS[0]] as unknown as Record<string, unknown>[]);
+        c.prioritize('MAJOR');
+        const row = c.objects().find((o) => o.id === 'i1')!;
+        expect(row.priority).toBe('MAJOR');
+        expect(row.updatedAt).toBe(99); // server truth, not just the optimistic patch
+        expect(api.list).toHaveBeenCalledTimes(1); // R4: success never triggers a full refetch
+        expect(c.selected()).toEqual([]); // old reload() contract preserved
+    });
+
+    it('a failed triage verb reloads from the server (partial success ⇒ only a refetch is honest)', async () => {
+        const { c, api } = await create();
+        (api.update as unknown as Mock).mockReturnValue(throwError(() => new Error('boom')));
+        c.onSelection([OBJECTS[0]] as unknown as Record<string, unknown>[]);
+        c.prioritize('MAJOR');
+        expect(api.list).toHaveBeenCalledTimes(2); // initial load + error-path reload
     });
 
     it('renders the 3-pane shell with no a11y violations', async () => {
