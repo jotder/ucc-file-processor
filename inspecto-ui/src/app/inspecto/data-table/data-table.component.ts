@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, HostListener, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AgGridAngular } from 'ag-grid-angular';
-import { ColDef, GridApi, RowClickedEvent, RowSelectionOptions } from 'ag-grid-community';
+import { ColDef, GridApi, IRowNode, RowClickedEvent, RowSelectionOptions } from 'ag-grid-community';
 import {
     actionsColumn,
     autoColumns,
@@ -63,6 +63,19 @@ function capsFor(tier: DataTableTier): Caps {
     }
 }
 
+/** Every mounted data-table — the document-level shortcuts pick one instance to act (R3). */
+const TABLES = new Set<DataTableComponent>();
+
+/** True when the event originates in a text-editing control or an open overlay (dialog/menu),
+ *  so list shortcuts never eat typed input or act on a list behind a dialog. */
+function isShortcutExempt(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null;
+    if (!el?.tagName) return false;
+    const tag = el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) return true;
+    return !!el.closest?.('.cdk-overlay-container');
+}
+
 /**
  * **Data table** — one tiered component that consolidates every ag-Grid surface in the app:
  *
@@ -99,6 +112,7 @@ export class DataTableComponent {
     private dialog = inject(MatDialog);
     private history = inject(SqlHistoryService);
     private gridState = inject(GridStateService);
+    private host = inject<ElementRef<HTMLElement>>(ElementRef);
     private gridApi: GridApi | null = null;
 
     constructor() {
@@ -108,6 +122,8 @@ export class DataTableComponent {
             if (!key) return;
             this.gridState.patch(key, { search: this.search(), chosen: this.chosen() });
         });
+        TABLES.add(this);
+        inject(DestroyRef).onDestroy(() => TABLES.delete(this));
     }
 
     readonly tier = input<DataTableTier>('standard');
@@ -147,6 +163,11 @@ export class DataTableComponent {
      *  quick search and the column-chooser selection then survive navigation and reload
      *  (per-space `localStorage` via {@link GridStateService}). */
     readonly stateKey = input<string | undefined>(undefined);
+    /** Opt-in list keyboard nav (R3, piloted on the incidents mail list): **j / k** move a focused
+     *  row, **Enter** emits {@link rowClick} for it (opens the host's detail), **x** toggles its
+     *  selection. Document-level so triage needs no click into the grid first; typed input and open
+     *  dialogs are exempt. Arrow keys stay ag-Grid-native (they work once the grid has focus). */
+    readonly keyNav = input(false);
 
     readonly rowClick = output<Record<string, unknown>>();
     /** Multi-select: the currently checked rows, re-emitted on every selection change. */
@@ -388,5 +409,87 @@ export class DataTableComponent {
         this.searchOpen.set(false);
         this.chosen.set(null);
         this.gridApi?.resetColumnState();
+    }
+
+    // ── document-level keyboard layer (review R3): `/` → quick filter · j/k/Enter/x list nav ─────
+    /** True while this table can act on a page-level shortcut (mounted and laid out). */
+    private isShortcutVisible(): boolean {
+        const el = this.host.nativeElement;
+        return el.isConnected && el.offsetParent !== null;
+    }
+
+    /** The one instance a page-level shortcut acts on: the first visible candidate in DOM order. */
+    private static primary(pred: (t: DataTableComponent) => boolean): DataTableComponent | undefined {
+        const candidates = [...TABLES].filter((t) => pred(t) && t.isShortcutVisible());
+        if (candidates.length <= 1) return candidates[0];
+        return candidates.sort((a, b) =>
+            a.host.nativeElement.compareDocumentPosition(b.host.nativeElement) & Node.DOCUMENT_POSITION_FOLLOWING
+                ? -1
+                : 1,
+        )[0];
+    }
+
+    @HostListener('document:keydown', ['$event'])
+    onDocumentKey(event: KeyboardEvent): void {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        if (isShortcutExempt(event.target)) return;
+        if (event.key === '/') {
+            if (DataTableComponent.primary((t) => t.showSearch()) !== this) return;
+            event.preventDefault();
+            this.searchOpen.set(true);
+            // The input renders on the next CD pass — focus it then.
+            setTimeout(() =>
+                this.host.nativeElement.querySelector<HTMLInputElement>('input[aria-label="Search rows"]')?.focus(),
+            );
+            return;
+        }
+        if (!this.keyNav() || DataTableComponent.primary((t) => t.keyNav()) !== this) return;
+        switch (event.key) {
+            case 'j':
+                event.preventDefault();
+                this.moveNavFocus(1);
+                break;
+            case 'k':
+                event.preventDefault();
+                this.moveNavFocus(-1);
+                break;
+            case 'Enter': {
+                // Never steal Enter from an actionable control (toolbar buttons, links).
+                if ((event.target as HTMLElement | null)?.closest?.('button, a')) return;
+                const row = this.navFocusedNode()?.data as Record<string, unknown> | undefined;
+                if (row) {
+                    event.preventDefault();
+                    this.rowClick.emit(row);
+                }
+                break;
+            }
+            case 'x': {
+                const node = this.navFocusedNode();
+                if (node) {
+                    event.preventDefault();
+                    node.setSelected(!node.isSelected());
+                }
+                break;
+            }
+        }
+    }
+
+    /** Move the grid's focused cell up/down one displayed row (first press lands on the first row). */
+    private moveNavFocus(delta: number): void {
+        const api = this.gridApi;
+        if (!api) return;
+        const count = api.getDisplayedRowCount();
+        const col = api.getAllDisplayedColumns()[0];
+        if (!count || !col) return;
+        const current = api.getFocusedCell()?.rowIndex ?? -1;
+        const next = Math.min(count - 1, Math.max(0, current + delta));
+        api.ensureIndexVisible(next);
+        api.setFocusedCell(next, col);
+    }
+
+    private navFocusedNode(): IRowNode | null {
+        const api = this.gridApi;
+        const cell = api?.getFocusedCell();
+        return cell ? (api!.getDisplayedRowAtIndex(cell.rowIndex) ?? null) : null;
     }
 }

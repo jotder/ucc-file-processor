@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal, ViewEncapsulation } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal, ViewEncapsulation } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -7,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ColDef, ICellRendererParams, ValueGetterParams } from 'ag-grid-community';
 import { forkJoin, Observable, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
@@ -98,6 +99,8 @@ export class ObjectMailComponent implements OnInit {
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     private route = inject(ActivatedRoute);
+    private router = inject(Router);
+    private destroyRef = inject(DestroyRef);
 
     readonly type = (this.route.snapshot.data['type'] as string) ?? 'INCIDENT';
     readonly title = (this.route.snapshot.data['title'] as string) ?? 'Incidents';
@@ -256,6 +259,21 @@ export class ObjectMailComponent implements OnInit {
     ];
 
     ngOnInit(): void {
+        // The command palette's "New incident / New case" handshake: `?create=1` opens the create
+        // dialog and is stripped so Back / cancel-and-refresh doesn't retrigger it. The dialog must
+        // open only after the strip navigation settles — MatDialog closes open dialogs on navigation.
+        this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((q) => {
+            if (q.get('create') != null) {
+                void this.router
+                    .navigate([], {
+                        relativeTo: this.route,
+                        queryParams: { create: null },
+                        queryParamsHandling: 'merge',
+                        replaceUrl: true,
+                    })
+                    .then(() => this.openCreate());
+            }
+        });
         if (!this.isIncident) {
             // C6: fetch the effective (possibly TOON-overridden) lifecycle; the built-in stays the fallback.
             this.api.workflow('CASE').subscribe({
@@ -349,9 +367,11 @@ export class ObjectMailComponent implements OnInit {
     }
 
     openCreate(): void {
+        // Assignee suggestions = whoever already holds work in this mailbox (free text stays valid).
+        const assignees = [...new Set(this.objects().map((o) => o.assignee).filter((a): a is string => !!a))];
         this.dialog
             .open(ObjectCreateDialog, {
-                data: { type: this.type, label: this.createLabel },
+                data: { type: this.type, label: this.createLabel, assignees },
                 width: '560px',
                 maxHeight: '85vh',
             })

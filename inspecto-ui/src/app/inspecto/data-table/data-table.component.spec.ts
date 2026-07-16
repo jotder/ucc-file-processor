@@ -235,4 +235,112 @@ describe('DataTableComponent', () => {
         const after = Object.keys(localStorage).filter((k) => k.startsWith('inspecto.grid.'));
         expect(after).toEqual(before);
     });
+
+    // ── document-level keyboard layer (review R3) ─────────────────────────────────
+    /** Stateful GridApi double for the nav focus/selection calls the keyboard layer makes. */
+    function navApi(rows: Record<string, unknown>[]) {
+        let focused: number | null = null;
+        const selected = new Set<number>();
+        return {
+            api: {
+                getDisplayedRowCount: () => rows.length,
+                getAllDisplayedColumns: () => [{ getColId: () => 'id' }],
+                getFocusedCell: () => (focused == null ? null : { rowIndex: focused }),
+                ensureIndexVisible: () => undefined,
+                setFocusedCell: (i: number) => (focused = i),
+                getDisplayedRowAtIndex: (i: number) => ({
+                    data: rows[i],
+                    isSelected: () => selected.has(i),
+                    setSelected: (v: boolean) => void (v ? selected.add(i) : selected.delete(i)),
+                }),
+            } as never,
+            focusedIndex: () => focused,
+            selectedIndexes: () => [...selected],
+        };
+    }
+
+    /** jsdom has no layout, so the shortcut visibility check needs a stubbed offsetParent. */
+    function makeVisible(el: HTMLElement): void {
+        Object.defineProperty(el, 'offsetParent', { get: () => document.body });
+    }
+
+    function pressKey(key: string, target: EventTarget = document): void {
+        target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    }
+
+    it('keyNav: j/k move the focused row (clamped), Enter opens it, x toggles its selection', async () => {
+        const rows = [
+            { id: 1, name: 'alpha' },
+            { id: 2, name: 'beta' },
+        ];
+        const f = await create('standard');
+        f.componentRef.setInput('keyNav', true);
+        f.detectChanges();
+        makeVisible(f.nativeElement as HTMLElement);
+        const c = f.componentInstance;
+        const grid = navApi(rows);
+        c.onGridReady(grid);
+
+        pressKey('j');
+        expect(grid.focusedIndex()).toBe(0); // first press lands on the first row
+        pressKey('j');
+        expect(grid.focusedIndex()).toBe(1);
+        pressKey('j');
+        expect(grid.focusedIndex()).toBe(1); // clamped at the last row
+        pressKey('k');
+        expect(grid.focusedIndex()).toBe(0);
+
+        let opened: Record<string, unknown> | undefined;
+        c.rowClick.subscribe((r: Record<string, unknown>) => (opened = r));
+        pressKey('Enter');
+        expect(opened).toEqual(rows[0]);
+
+        pressKey('x');
+        expect(grid.selectedIndexes()).toEqual([0]);
+        pressKey('x');
+        expect(grid.selectedIndexes()).toEqual([]);
+    });
+
+    it('keyNav stays inert while typing, while a dialog is open, and when not opted in', async () => {
+        const f = await create('standard');
+        makeVisible(f.nativeElement as HTMLElement);
+        const c = f.componentInstance;
+        const grid = navApi([{ id: 1 }]);
+        c.onGridReady(grid);
+
+        pressKey('j'); // keyNav not opted in
+        expect(grid.focusedIndex()).toBeNull();
+
+        f.componentRef.setInput('keyNav', true);
+        f.detectChanges();
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        try {
+            pressKey('j', input); // typing in a field — exempt
+            expect(grid.focusedIndex()).toBeNull();
+        } finally {
+            input.remove();
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'cdk-overlay-container';
+        const button = document.createElement('button');
+        overlay.appendChild(button);
+        document.body.appendChild(overlay);
+        try {
+            pressKey('j', button); // focus inside an open dialog — exempt
+            expect(grid.focusedIndex()).toBeNull();
+        } finally {
+            overlay.remove();
+        }
+    });
+
+    it("'/' opens and targets the quick filter of the visible searchable table", async () => {
+        const f = await create('standard');
+        makeVisible(f.nativeElement as HTMLElement);
+        const c = f.componentInstance;
+        expect(c.searchOpen()).toBe(false);
+        pressKey('/');
+        expect(c.searchOpen()).toBe(true);
+    });
 });

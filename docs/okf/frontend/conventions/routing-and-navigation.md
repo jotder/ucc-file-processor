@@ -25,6 +25,12 @@ timestamp: 2026-06-28T00:00:00Z
 * **Global search** (`layout/common/search`) is a client-side jump-to-page palette over the nav — **not**
   a backend search. **Ctrl/Cmd+K** opens it app-wide (empty-query recents + shell action commands such
   as lens switch); **`?`** opens the shortcuts-help overlay (`inspecto/shortcuts-help.dialog.ts`).
+* **Feature commands ride the command registry** (`inspecto/commands/command-registry.ts`): a command
+  is declarative (title + router link + query params, no closures), registered via side-effect import
+  (`app-commands.ts` — New incident / New case / New job), and merged into the palette by the classic
+  layout — the shell never imports a feature. The target pane owns the **`?create=1` handshake**: on
+  that param it strips it (`replaceUrl`) and opens its create dialog **after the strip navigation
+  settles** (MatDialog closes open dialogs on navigation).
 
 ## Pane reuse across routes
 

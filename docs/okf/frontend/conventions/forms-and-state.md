@@ -23,6 +23,12 @@ timestamp: 2026-06-28T00:00:00Z
   accidental Esc/backdrop click can't drop edits.
 * **Autocomplete attribute type**: entity-reference fields use the schema-form `autocomplete` type +
   `entity-option-loaders` (e.g. expectation target/refDataset, alert onPipeline) instead of free text.
+  Column-of-a-target fields use `columnOptionLoader('<siblingKey>')` — a 1-row `/db/table` probe of the
+  store the sibling field names, labels carrying the column type (expectation `column`/`refColumn`;
+  the decision-rule when-clause fetches the same columns per target — no hardcoded record shape).
+  Suggestions assist, they never constrain: a missing/unreadable store degrades to free text.
+* **Tag chips**: the object-create dialog's tags are `MatChipGrid` chips suggested from the tag
+  registry (`GET /tags`), assignee autocompletes over me + the mailbox's known assignees.
 * **Name-at-save**: create dialogs ask config first and name/id last (two-step `saveForm` + `step`
   signal; ids pre-filled `<type>_<context>`; keep the config step `[hidden]` — not destroyed — so
   schema-form ViewChilds survive).

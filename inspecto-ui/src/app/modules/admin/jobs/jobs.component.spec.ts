@@ -39,7 +39,10 @@ function create(
             provideNoopAnimations(),
             provideRouter([]),
             // The `/jobs(/:name)` param drives the detail side panel (R5).
-            { provide: ActivatedRoute, useValue: { paramMap, snapshot: { paramMap: convertToParamMap({}) } } },
+            {
+                provide: ActivatedRoute,
+                useValue: { paramMap, queryParamMap: of(convertToParamMap({})), snapshot: { paramMap: convertToParamMap({}) } },
+            },
             { provide: JobsService, useValue: stub },
             { provide: ToastrService, useValue: {} },
             { provide: MatDialog, useValue: {} },

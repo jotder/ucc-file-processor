@@ -1,28 +1,39 @@
-import { Component, inject } from '@angular/core';
+import { Component, ElementRef, inject, signal, ViewChild } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
+import { MatChipInputEvent, MatChipsModule } from '@angular/material/chips';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { COMMA, ENTER } from '@angular/cdk/keycodes';
 import { ToastrService } from 'ngx-toastr';
 import { apiErrorMessage, CreateObject, ObjectsService } from 'app/inspecto/api';
+import { InspectoConfirmService } from 'app/inspecto/confirm.service';
+import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
 import { INCIDENT_TAXONOMY, joinCategory } from './incident-taxonomy';
-import { INCIDENT_PRIORITIES } from './mail-model';
+import { currentOperator, INCIDENT_PRIORITIES } from './mail-model';
 
 /**
  * Create dialog for an operator-created object (an INCIDENT or a CASE) — POST /objects.
  * An incident is created with its 3-layer categorization (GLOSSARY §9) and the
- * Critical/Major/Minor/Low priority ladder; tags are optional (CSV in `attributes.tags`).
+ * Critical/Major/Minor/Low priority ladder; tags are chips suggested from the tag registry
+ * (stored as CSV in `attributes.tags`), the assignee suggests me + the mailbox's known
+ * assignees (ui-design-review R2 follow-up) — free text stays valid for both.
  */
 @Component({
     selector: 'app-object-create-dialog',
     standalone: true,
     imports: [
         ReactiveFormsModule,
+        MatAutocompleteModule,
         MatButtonModule,
+        MatChipsModule,
         MatDialogModule,
         MatFormFieldModule,
+        MatIconModule,
         MatInputModule,
         MatSelectModule,
     ],
@@ -101,11 +112,39 @@ import { INCIDENT_PRIORITIES } from './mail-model';
                 <div class="flex gap-3">
                     <mat-form-field class="flex-1" subscriptSizing="dynamic">
                         <mat-label>Assignee</mat-label>
-                        <input matInput formControlName="assignee" />
+                        <input matInput formControlName="assignee" [matAutocomplete]="assigneeAc" />
+                        <mat-autocomplete #assigneeAc="matAutocomplete">
+                            @for (a of assigneeOptions(); track a) {
+                                <mat-option [value]="a">{{ a }}</mat-option>
+                            }
+                        </mat-autocomplete>
                     </mat-form-field>
                     <mat-form-field class="flex-1" subscriptSizing="dynamic">
                         <mat-label>Tags</mat-label>
-                        <input matInput formControlName="tags" placeholder="comma-separated, e.g. network,urgent" />
+                        <mat-chip-grid #tagGrid aria-label="Tags">
+                            @for (t of tags(); track t) {
+                                <mat-chip-row (removed)="removeTag(t)">
+                                    {{ t }}
+                                    <button matChipRemove [attr.aria-label]="'Remove ' + t">
+                                        <mat-icon svgIcon="heroicons_outline:x-mark"></mat-icon>
+                                    </button>
+                                </mat-chip-row>
+                            }
+                            <input
+                                #tagInput
+                                placeholder="e.g. network, urgent"
+                                [matChipInputFor]="tagGrid"
+                                [matChipInputSeparatorKeyCodes]="tagSeparatorKeys"
+                                [matAutocomplete]="tagAc"
+                                (matChipInputTokenEnd)="addTag($event)"
+                                (input)="tagQuery.set($any($event.target).value)"
+                            />
+                        </mat-chip-grid>
+                        <mat-autocomplete #tagAc="matAutocomplete" (optionSelected)="pickTag($event)">
+                            @for (t of tagSuggestions(); track t) {
+                                <mat-option [value]="t">{{ t }}</mat-option>
+                            }
+                        </mat-autocomplete>
                     </mat-form-field>
                 </div>
                 <mat-form-field subscriptSizing="dynamic">
@@ -115,7 +154,7 @@ import { INCIDENT_PRIORITIES } from './mail-model';
             </form>
         </mat-dialog-content>
         <mat-dialog-actions align="end">
-            <button mat-button [mat-dialog-close]="null">Cancel</button>
+            <button mat-button (click)="requestClose()">Cancel</button>
             <button mat-flat-button color="primary" [disabled]="saving" (click)="save()">Create</button>
         </mat-dialog-actions>
     `,
@@ -123,13 +162,18 @@ import { INCIDENT_PRIORITIES } from './mail-model';
 export class ObjectCreateDialog {
     private api = inject(ObjectsService);
     private ref = inject(MatDialogRef<ObjectCreateDialog>);
+    private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
     private fb = inject(FormBuilder);
-    readonly data = inject<{ type: string; label: string }>(MAT_DIALOG_DATA);
+    readonly data = inject<{ type: string; label: string; assignees?: string[] }>(MAT_DIALOG_DATA);
 
     readonly isIncident = this.data.type === 'INCIDENT';
     readonly priorities = INCIDENT_PRIORITIES;
     readonly l1Options = Object.keys(INCIDENT_TAXONOMY);
+    readonly tagSeparatorKeys = [ENTER, COMMA] as const;
+
+    /** Guarded close: Esc / backdrop / Cancel confirm before discarding entered data. */
+    readonly requestClose = guardDirtyClose(this.ref, () => this.form.dirty || this.tags().length > 0, this.confirm);
 
     saving = false;
     readonly form = this.fb.group({
@@ -142,9 +186,59 @@ export class ObjectCreateDialog {
         severity: [''],
         priority: [''],
         assignee: [''],
-        tags: [''],
         dueInMinutes: [null as number | null],
     });
+
+    /** The chosen tags (chips) and the registry the input suggests from. */
+    readonly tags = signal<string[]>([]);
+    readonly tagQuery = signal('');
+    private readonly registry = signal<string[]>([]);
+
+    /** Suggestions: registry tags not yet chosen, narrowed by the input's text. */
+    readonly tagSuggestions = (): string[] => {
+        const q = this.tagQuery().trim().toLowerCase();
+        const chosen = new Set(this.tags());
+        return this.registry().filter((t) => !chosen.has(t) && (!q || t.toLowerCase().includes(q)));
+    };
+
+    /** Assignee suggestions: me + the mailbox's known assignees, narrowed by the typed text. */
+    readonly assigneeOptions = (): string[] => {
+        const q = String(this.form.controls.assignee.value ?? '').trim().toLowerCase();
+        const all = [...new Set([currentOperator(), ...(this.data.assignees ?? [])])].sort();
+        return q ? all.filter((a) => a.toLowerCase().includes(q)) : all;
+    };
+
+    constructor() {
+        this.api.tags().subscribe({ next: (t) => this.registry.set(t.map((x) => x.name)), error: () => undefined });
+    }
+
+    addTag(event: MatChipInputEvent): void {
+        const value = event.value.trim();
+        if (value && !this.tags().includes(value)) {
+            this.tags.update((t) => [...t, value]);
+            this.form.markAsDirty();
+        }
+        event.chipInput?.clear();
+        this.tagQuery.set('');
+    }
+
+    @ViewChild('tagInput') private tagInput?: ElementRef<HTMLInputElement>;
+
+    pickTag(event: MatAutocompleteSelectedEvent): void {
+        const value = String(event.option.value ?? '').trim();
+        if (value && !this.tags().includes(value)) {
+            this.tags.update((t) => [...t, value]);
+            this.form.markAsDirty();
+        }
+        event.option.deselect();
+        if (this.tagInput) this.tagInput.nativeElement.value = '';
+        this.tagQuery.set('');
+    }
+
+    removeTag(value: string): void {
+        this.tags.update((t) => t.filter((x) => x !== value));
+        this.form.markAsDirty();
+    }
 
     l2Options(): string[] {
         const l1 = this.form.controls.l1.value ?? '';
@@ -172,11 +266,7 @@ export class ObjectCreateDialog {
         if (v.dueInMinutes) body.dueInMinutes = v.dueInMinutes;
         const attributes: Record<string, string> = {};
         if (this.isIncident) attributes['category'] = joinCategory(v.l1!, v.l2!, v.l3!);
-        const tags = (v.tags ?? '')
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean)
-            .join(',');
+        const tags = this.tags().join(',');
         if (tags) attributes['tags'] = tags;
         if (Object.keys(attributes).length) body.attributes = attributes;
         this.api.create(body).subscribe({

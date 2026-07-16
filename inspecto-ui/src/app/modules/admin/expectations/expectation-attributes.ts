@@ -21,7 +21,7 @@ export const EXPECTATION_ATTRIBUTES: AttributeSpec[] = [
         help: 'The pipeline or job whose records this check validates.',
     },
     {
-        key: 'column', label: 'Column', type: 'string', tier: 'required',
+        key: 'column', label: 'Column', type: 'autocomplete', tier: 'required',
         placeholder: 'e.g. msisdn',
         help: 'The record field the check inspects.',
     },
@@ -54,7 +54,7 @@ export const EXPECTATION_ATTRIBUTES: AttributeSpec[] = [
         placeholder: 'e.g. tariff_ref',
     },
     {
-        key: 'refColumn', label: 'Reference column', type: 'string', tier: 'required',
+        key: 'refColumn', label: 'Reference column', type: 'autocomplete', tier: 'required',
         dependsOn: { key: 'kind', equals: 'referential' },
         placeholder: 'e.g. code',
     },

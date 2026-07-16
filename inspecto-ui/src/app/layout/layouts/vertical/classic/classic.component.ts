@@ -23,6 +23,8 @@ import { SpaceSwitcherComponent } from 'app/layout/common/space-switcher/space-s
 import { UserComponent } from 'app/layout/common/user/user.component';
 import { AccessStateService } from 'app/inspecto/access/access-state.service';
 import { BrandingService, LensService } from 'app/inspecto/api';
+import { allCommands } from 'app/inspecto/commands/command-registry';
+import 'app/inspecto/commands/app-commands';
 import { ShortcutsHelpDialog } from 'app/inspecto/shortcuts-help.dialog';
 import { Subject, takeUntil } from 'rxjs';
 
@@ -65,14 +67,23 @@ export class ClassicLayoutComponent implements OnInit, OnDestroy {
     /** The header command palette — focused app-wide by Ctrl/Cmd+K. */
     @ViewChild(SearchComponent) private _search?: SearchComponent;
 
-    /** Action commands offered in the palette. Shell-owned only (no cross-feature coupling): switch
-     *  the persona lens. Feature-contextual commands await a command registry (review R3 follow-up). */
-    protected readonly paletteCommands: SearchCommand[] = LensService.LENSES.map((l) => ({
-        title: `Switch to ${l.label} lens`,
-        icon: l.icon,
-        group: 'Lens',
-        run: () => this._lens.selectLens(l.id),
-    }));
+    /** Action commands offered in the palette: the shell-owned lens switch, plus every feature
+     *  command in the command registry (declarative navigation — the shell never imports a
+     *  feature; the target pane owns the `?create=1` handshake). */
+    protected readonly paletteCommands: SearchCommand[] = [
+        ...LensService.LENSES.map((l) => ({
+            title: `Switch to ${l.label} lens`,
+            icon: l.icon,
+            group: 'Lens',
+            run: () => this._lens.selectLens(l.id),
+        })),
+        ...allCommands().map((c) => ({
+            title: c.title,
+            icon: c.icon,
+            group: c.group,
+            run: () => void this._router.navigate([c.link], { queryParams: c.queryParams }),
+        })),
+    ];
 
 
     /**

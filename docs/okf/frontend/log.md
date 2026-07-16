@@ -1,5 +1,17 @@
 # Log
 
+## 2026-07-17
+* **ui-design-review residuals shipped** (R2/R3 leftovers): per-target **column suggestions**
+  (`columnOptionLoader` — expectation `column`/`refColumn`; decision-rule when-clause columns now
+  probed per target, hardcoded CDR shape deleted), object-create **tag chips** (registry-suggested) +
+  assignee suggestions + dirty-guard, the **command registry**
+  (`inspecto/commands/` — New incident / New case / New job via the `?create=1` handshake), and the
+  data-table **keyboard layer** (`/` quick-filter focus; opt-in `[keyNav]` j/k/Enter/x, piloted on
+  the mail list). Updated: [forms-and-state](./conventions/forms-and-state.md),
+  [routing-and-navigation](./conventions/routing-and-navigation.md),
+  [data-table](./design-system/data-table.md). Still deliberately deferred: R6 true offset paging,
+  R8 pivot-bar (see BACKLOG §4).
+
 ## 2026-07-16
 * **Plan consolidation sweep**: 19 shipped frontend plans/designs distilled here and archived to
   `docs/archived-documents/plans-archive/` (incidents-mail + case-management, lens-access, menu-builder,

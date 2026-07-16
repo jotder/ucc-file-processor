@@ -199,6 +199,21 @@ export class JobsComponent implements OnInit, OnDestroy {
         this.route.paramMap
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((pm) => this.detailName.set(pm.get('name')));
+        // The command palette's "New job" handshake: `?create=1` opens the create dialog and is
+        // stripped so Back / cancel-and-refresh doesn't retrigger it. The dialog must open only
+        // after the strip navigation settles — MatDialog closes open dialogs on navigation.
+        this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((q) => {
+            if (q.get('create') != null) {
+                void this.router
+                    .navigate([], {
+                        relativeTo: this.route,
+                        queryParams: { create: null },
+                        queryParamsHandling: 'merge',
+                        replaceUrl: true,
+                    })
+                    .then(() => this.newJob());
+            }
+        });
         this.load();
     }
 

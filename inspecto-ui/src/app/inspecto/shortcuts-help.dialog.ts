@@ -14,6 +14,10 @@ const SHORTCUTS: Shortcut[] = [
     { keys: ['Esc'], description: 'Close the palette, a dialog, or this help' },
     { keys: ['↑', '↓'], description: 'Move between palette results' },
     { keys: ['Enter'], description: 'Open the selected result, or submit the focused form' },
+    { keys: ['/'], description: "Search the page's table (opens and focuses its quick filter)" },
+    { keys: ['J', 'K'], description: 'Move down / up a list that supports keyboard nav (e.g. incidents)' },
+    { keys: ['Enter'], description: 'Open the focused list row' },
+    { keys: ['X'], description: 'Select / deselect the focused list row' },
 ];
 
 /**

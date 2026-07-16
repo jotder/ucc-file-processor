@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import { GammaConfigService } from '@gamma/services/config';
@@ -52,9 +52,13 @@ async function create() {
             { provide: MatDialog, useValue: {} },
             { provide: InspectoConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
             { provide: ToastrService, useValue: { success: vi.fn(), error: vi.fn() } },
+            provideRouter([]),
             {
                 provide: ActivatedRoute,
-                useValue: { snapshot: { data: { type: 'INCIDENT', title: 'Incidents', subtitle: '' } } },
+                useValue: {
+                    snapshot: { data: { type: 'INCIDENT', title: 'Incidents', subtitle: '' } },
+                    queryParamMap: of(convertToParamMap({})),
+                },
             },
             { provide: InspectoGridThemeService, useValue: { theme: () => ({}) } },
             { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
@@ -183,7 +187,14 @@ describe('ObjectMailComponent', () => {
                 { provide: MatDialog, useValue: {} },
                 { provide: InspectoConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
                 { provide: ToastrService, useValue: { success: vi.fn(), error: vi.fn() } },
-                { provide: ActivatedRoute, useValue: { snapshot: { data: { type: 'INCIDENT', title: 'Incidents', subtitle: '' } } } },
+                provideRouter([]),
+                {
+                    provide: ActivatedRoute,
+                    useValue: {
+                        snapshot: { data: { type: 'INCIDENT', title: 'Incidents', subtitle: '' } },
+                        queryParamMap: of(convertToParamMap({})),
+                    },
+                },
                 { provide: InspectoGridThemeService, useValue: { theme: () => ({}) } },
                 { provide: GammaConfigService, useValue: { config$: of({ scheme: 'dark' }) } },
             ],

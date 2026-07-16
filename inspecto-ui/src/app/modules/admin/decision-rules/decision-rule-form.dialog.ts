@@ -1,5 +1,7 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, inject, signal, ViewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, DestroyRef, inject, signal, ViewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormArray, FormBuilder, FormGroup, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
+import { debounceTime, distinctUntilChanged } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -8,7 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, DecisionRule, DecisionRulesService, DecisionRuleUpsert } from 'app/inspecto/api';
+import { apiErrorMessage, DbBrowserService, DecisionRule, DecisionRulesService, DecisionRuleUpsert } from 'app/inspecto/api';
 import {
     type Consequence,
     type ConsequenceInputSpec,
@@ -26,7 +28,8 @@ import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { pipelineOrJobOptionLoader } from 'app/inspecto/components/entity-option-loaders';
 import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
 import { QueryConditionGroupComponent } from 'app/inspecto/query/query-condition-group.component';
-import { ColumnMeta, ConditionGroup, emptyGroup } from 'app/inspecto/query/query-types';
+import { dbColumnType } from 'app/inspecto/query/query-columns';
+import { Condition, ColumnMeta, ConditionGroup, emptyGroup } from 'app/inspecto/query/query-types';
 import { DECISION_RULE_ATTRIBUTES } from './decision-rule-attributes';
 
 /** Dialog input: an existing rule ⇒ edit; absent ⇒ create (optionally pre-filled from an AI proposal). */
@@ -47,16 +50,16 @@ function uniqueNameValidator(taken: string[]): ValidatorFn {
     return (c: AbstractControl) => (set.has(String(c.value ?? '').trim().toLowerCase()) ? { duplicate: true } : null);
 }
 
-/** The record fields offered by the when-clause field select (the seeded CDR shape; free typing is a follow-up). */
-const RECORD_COLUMNS: ColumnMeta[] = [
-    { name: 'id', type: 'number' },
-    { name: 'msisdn', type: 'string' },
-    { name: 'duration_s', type: 'number' },
-    { name: 'bytes_used', type: 'number' },
-    { name: 'cost_usd', type: 'number' },
-    { name: 'tariff', type: 'string' },
-    { name: 'event_time', type: 'date' },
-];
+/** The distinct fields an existing when-clause already references (typed string until probed). */
+function referencedFields(group: ConditionGroup): string[] {
+    const out: string[] = [];
+    const walk = (item: Condition | ConditionGroup): void => {
+        if (item.kind === 'group') item.items.forEach(walk);
+        else if (item.field) out.push(item.field);
+    };
+    walk(group);
+    return [...new Set(out)];
+}
 
 /** The action select: the routing actions first, then the R5 platform actions. */
 const ACTIONS: { value: ConsequenceType; label: string }[] = [...ROUTING_ACTIONS, ...PLATFORM_ACTIONS].map((a) => ({
@@ -103,8 +106,10 @@ const ACTIONS: { value: ConsequenceType; label: string }[] = [...ROUTING_ACTIONS
                 <inspecto-schema-form [specs]="attributes" [initial]="initialValue" [optionLoaders]="optionLoaders" (submitted)="save()"></inspecto-schema-form>
 
                 <div class="mt-4 font-semibold">When records match</div>
-                <inspecto-query-condition-group class="mt-2 block" [group]="when" [columns]="columns" [root]="true" />
-                @if (whenEmpty()) {
+                <inspecto-query-condition-group class="mt-2 block" [group]="when" [columns]="columns()" [root]="true" />
+                @if (!columns().length) {
+                    <div class="text-secondary mt-1 text-sm">Field choices load from the target's records — set Target above first.</div>
+                } @else if (whenEmpty()) {
                     <div class="text-secondary mt-1 text-sm">No conditions yet — the rule would match every record.</div>
                 }
 
@@ -186,6 +191,8 @@ const ACTIONS: { value: ConsequenceType; label: string }[] = [...ROUTING_ACTIONS
 export class DecisionRuleFormDialog implements AfterViewInit {
     private fb = inject(FormBuilder);
     private api = inject(DecisionRulesService);
+    private db = inject(DbBrowserService);
+    private destroyRef = inject(DestroyRef);
     private ref = inject(MatDialogRef<DecisionRuleFormDialog, DecisionRuleFormResult>);
     private confirm = inject(InspectoConfirmService);
     private toastr = inject(ToastrService);
@@ -224,7 +231,6 @@ export class DecisionRuleFormDialog implements AfterViewInit {
     readonly saving = signal(false);
     readonly writesDisabled = signal(false);
     readonly attributes = DECISION_RULE_ATTRIBUTES;
-    readonly columns = RECORD_COLUMNS;
     readonly actions = ACTIONS;
 
     /** Deep-cloned on edit — the condition editor mutates the bound group in place. */
@@ -233,6 +239,32 @@ export class DecisionRuleFormDialog implements AfterViewInit {
         : this.data.prefill?.when
           ? structuredClone(this.data.prefill.when)
           : emptyGroup('AND');
+
+    /** The when-clause field choices — probed from the chosen target's records (R2/R3 follow-up:
+     *  the hardcoded CDR shape is gone). Seeded with the fields an existing rule already references
+     *  so its conditions render before (or without) a successful probe. */
+    readonly columns = signal<ColumnMeta[]>(this.seedColumns());
+
+    private seedColumns(): ColumnMeta[] {
+        return referencedFields(this.when).map((name) => ({ name, type: 'string' as const }));
+    }
+
+    /** Probe the target's store for its real columns (1 row); keep still-referenced unknown fields. */
+    private loadColumns(target: string): void {
+        const name = target.trim();
+        if (!name) {
+            this.columns.set(this.seedColumns());
+            return;
+        }
+        this.db.table({ name, limit: 1 }).subscribe({
+            next: (res) => {
+                const fetched: ColumnMeta[] = res.columns.map((c) => ({ name: c.name, type: dbColumnType(c.type) }));
+                const known = new Set(fetched.map((c) => c.name));
+                this.columns.set([...fetched, ...this.seedColumns().filter((c) => !known.has(c.name))]);
+            },
+            error: () => this.columns.set(this.seedColumns()),
+        });
+    }
 
     readonly initialValue: Record<string, unknown> | undefined = this.buildInitial();
 
@@ -263,6 +295,12 @@ export class DecisionRuleFormDialog implements AfterViewInit {
         if (this.isEdit) {
             this.saveForm.patchValue({ name: this.data.rule!.name, description: this.data.rule!.description ?? '' });
         }
+        // The when-clause field choices follow the target the schema form holds.
+        const target = this.schemaForm.form.get('target');
+        target?.valueChanges
+            .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+            .subscribe((t) => this.loadColumns(String(t ?? '')));
+        this.loadColumns(String(target?.value ?? ''));
     }
 
     /** The suggested rule id: `<targetType>_<target>`. */

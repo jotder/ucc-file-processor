@@ -50,6 +50,16 @@ export function columnType(columns: ColumnMeta[], field: string): ColumnType {
     return columns.find((c) => c.name === field)?.type ?? 'string';
 }
 
+/** Map a column type as the `/db` routes report it (already-normalized `number`/`string`, or raw
+ *  DuckDB/Postgres spellings like `BIGINT`/`TIMESTAMP`) to a {@link ColumnType}. */
+export function dbColumnType(dbType: string | undefined): ColumnType {
+    const t = (dbType ?? '').toUpperCase();
+    if (/NUMBER|INT|DOUBLE|FLOAT|DECIMAL|NUMERIC|REAL/.test(t)) return 'number';
+    if (/DATE|TIME/.test(t)) return 'date';
+    if (/BOOL/.test(t)) return 'boolean';
+    return 'string';
+}
+
 /** Guess column metadata from the keys + sample values of loose-map rows. */
 export function inferColumns(rows: Record<string, unknown>[]): ColumnMeta[] {
     if (!rows.length) return [];

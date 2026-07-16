@@ -87,6 +87,18 @@ describe('DecisionRuleFormDialog', () => {
         expect(RULE.when.items.length).toBe(1);
     });
 
+    it('seeds the when-clause field choices from the fields the rule already references', () => {
+        // The hardcoded CDR column list is gone (review R2/R3 residual): before (or without) a
+        // successful /db/table probe of the target, an edited rule still offers its own fields.
+        const fixture = create({ rule: RULE });
+        expect(fixture.componentInstance.columns().map((c) => c.name)).toEqual(['tariff']);
+    });
+
+    it('offers no field choices before a target is set (the template hints to set Target first)', () => {
+        const fixture = create({});
+        expect(fixture.componentInstance.columns()).toEqual([]);
+    });
+
     it('the last consequence row cannot be removed', () => {
         const fixture = create({});
         const c = fixture.componentInstance;

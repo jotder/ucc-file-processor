@@ -47,6 +47,11 @@ seed), and per-capability overrides `searchable`/`exportable`/`queryable`/`savab
   "showing N — Load more" strip (mirrors `[serverRun]`); the backing fetch widens `?limit=` and
   refetches. Adopted by object-mail, audit-logs, events — never silently cap a list. (True offset
   paging per pane is deliberately deferred until a pane outgrows widen-and-refetch.)
+* **Keyboard layer** (document-level, review R3): **`/`** opens + focuses the first visible searchable
+  table's quick filter; opt-in **`[keyNav]`** gives **j/k** row focus, **Enter** = `(rowClick)` (opens
+  the host's detail), **x** = toggle selection — piloted on the incidents/cases mail list. Typed input
+  and open overlays are exempt; arrow keys stay ag-Grid-native. Bindings are listed in the `?`
+  shortcuts overlay.
 
 ## Tier assignments across hosts
 

@@ -12,12 +12,12 @@ const CREATED = { id: 'OBJ-1', objectType: 'INCIDENT', title: 'Late feed' } as O
 
 function create() {
     const ref = { close: vi.fn() };
-    const api = { create: vi.fn(() => of(CREATED)) };
+    const api = { create: vi.fn(() => of(CREATED)), tags: vi.fn(() => of([{ name: 'network' }, { name: 'urgent' }])) };
     TestBed.configureTestingModule({
         imports: [ObjectCreateDialog],
         providers: [
             provideNoopAnimations(),
-            { provide: MAT_DIALOG_DATA, useValue: { type: 'INCIDENT', label: 'Incident' } },
+            { provide: MAT_DIALOG_DATA, useValue: { type: 'INCIDENT', label: 'Incident', assignees: ['dana'] } },
             { provide: MatDialogRef, useValue: ref },
             { provide: ObjectsService, useValue: api },
             { provide: ToastrService, useValue: { success: () => undefined, error: () => undefined } },
@@ -39,7 +39,8 @@ describe('ObjectCreateDialog', () => {
         c.save();
         expect(api.create).not.toHaveBeenCalled();
 
-        c.form.patchValue({ l1: 'Data Quality', l2: 'Timeliness', l3: 'Late arrival', tags: 'urgent, feed' });
+        c.form.patchValue({ l1: 'Data Quality', l2: 'Timeliness', l3: 'Late arrival' });
+        c.tags.set(['urgent', 'feed']);
         c.save();
         expect(api.create).toHaveBeenCalledWith({
             type: 'INCIDENT',
@@ -48,6 +49,17 @@ describe('ObjectCreateDialog', () => {
             attributes: { category: 'Data Quality / Timeliness / Late arrival', tags: 'urgent,feed' },
         });
         expect(ref.close).toHaveBeenCalledWith(CREATED);
+    });
+
+    it('suggests registry tags not yet chosen, narrowed by the typed text', () => {
+        const { c } = create();
+        expect(c.tagSuggestions()).toEqual(['network', 'urgent']);
+        c.tags.set(['urgent']);
+        expect(c.tagSuggestions()).toEqual(['network']);
+        c.tagQuery.set('net');
+        expect(c.tagSuggestions()).toEqual(['network']);
+        c.tagQuery.set('zzz');
+        expect(c.tagSuggestions()).toEqual([]);
     });
 
     it('renders with no a11y violations', async () => {

@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ComponentsService, ConnectionsService, JobsService, RunsService } from 'app/inspecto/api';
+import { ComponentsService, ConnectionsService, DbBrowserService, JobsService, RunsService } from 'app/inspecto/api';
 import { AttributeOption } from 'app/inspecto/component-model';
 import { AttributeOptionLoader } from './schema-form.component';
 
@@ -32,6 +32,21 @@ export function pipelineOrJobOptionLoader(targetTypeKey = 'targetType'): Attribu
 export function datasetOptionLoader(): AttributeOptionLoader {
     const components = inject(ComponentsService);
     return async () => toOptions((await firstValueFrom(components.list('dataset'))).map((d) => d.name));
+}
+
+/**
+ * Columns of the store a sibling field names (expectation `column` follows `target`, `refColumn`
+ * follows `refDataset`) — a 1-row `/db/table` probe of that store's records, labelled with the
+ * column type. No sibling value yet, or an unreadable store, degrades to no suggestions.
+ */
+export function columnOptionLoader(sourceKey: string): AttributeOptionLoader {
+    const db = inject(DbBrowserService);
+    return async (v) => {
+        const name = String(v[sourceKey] ?? '').trim();
+        if (!name) return [];
+        const res = await firstValueFrom(db.table({ name, limit: 1 }));
+        return res.columns.map((c) => ({ value: c.name, label: c.type ? `${c.name} (${c.type.toLowerCase()})` : c.name }));
+    };
 }
 
 /** Saved Connection profiles (by id) — the collector's `connection:` reference. */

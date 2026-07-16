@@ -9,7 +9,7 @@ import { apiErrorMessage, Expectation, ExpectationKind, ExpectationsService, Exp
 import { InspectoAlertComponent } from 'app/inspecto/components/alert.component';
 import { InspectoSchemaFormComponent } from 'app/inspecto/components/schema-form.component';
 import { InspectoConfirmService } from 'app/inspecto/confirm.service';
-import { datasetOptionLoader, pipelineOrJobOptionLoader } from 'app/inspecto/components/entity-option-loaders';
+import { columnOptionLoader, datasetOptionLoader, pipelineOrJobOptionLoader } from 'app/inspecto/components/entity-option-loaders';
 import { guardDirtyClose } from 'app/inspecto/dialog-dirty-guard';
 import { EXPECTATION_ATTRIBUTES } from './expectation-attributes';
 
@@ -115,8 +115,14 @@ export class ExpectationFormDialog implements AfterViewInit {
         this.confirm,
     );
 
-    /** Suggestion sources: `target` follows the Attach-to picker; `refDataset` = dataset components. */
-    readonly optionLoaders = { target: pipelineOrJobOptionLoader(), refDataset: datasetOptionLoader() };
+    /** Suggestion sources: `target` follows the Attach-to picker; `refDataset` = dataset components;
+     *  `column`/`refColumn` probe the sibling target's / reference dataset's records (R2 follow-up). */
+    readonly optionLoaders = {
+        target: pipelineOrJobOptionLoader(),
+        refDataset: datasetOptionLoader(),
+        column: columnOptionLoader('target'),
+        refColumn: columnOptionLoader('refDataset'),
+    };
 
     readonly isEdit = !!this.data.expectation;
     readonly saving = signal(false);

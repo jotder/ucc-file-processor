@@ -57,7 +57,7 @@ Incremental evolution without breaking existing features.
 | **Language** | TypeScript (strict); prefer explicit return types; `inject()` over constructor params in new code |
 | **State** | **Angular signals** (local + service-held shared state) + **RxJS** for async/streams. **No NgRx / global store.** |
 | **UI** | Angular **Material (M2)** + **Tailwind** on the gamma/Fuse shell; **ag-Grid 35** tables; **Chart.js** charts; **AntV G6** graphs |
-| **Forms** | **Reactive** (`FormBuilder`/`FormGroup`/`Validators`) + inline `<mat-error>`. Template-driven `ngModel` is legacy — do not add it. **Config-attribute forms are schema-driven**: declare `AttributeSpec[]` (tier: required \| optional \| advanced) in `inspecto/component-model` and render with `<inspecto-schema-form>` (pilot: jobs `job-form.dialog`; demo: `/design`). Hand-build only genuinely bespoke sections (canvases, key/value arrays). **`tier` = visibility bucket; validation is separate** — set `required: false` on a `tier:'required'` spec for an always-visible-but-optional field (option sheets where every knob shows, none mandatory; e.g. `widget-option-attributes.ts`). For an inline duplicate-id guard, attach a `uniqueNameValidator` to the schema-form's name control (`errorFor()` renders the generic `duplicate` message) — see `job-form.dialog`/`dataset-editor`. **Three mandatory form behaviors (ui-design-review R2):** (1) bind `(submitted)="save()"` on every `<inspecto-schema-form>` so Enter submits; (2) every dialog holding a form wires `readonly requestClose = guardDirtyClose(this.ref, () => …isDirty(), this.confirm)` (`inspecto/dialog-dirty-guard`) and points Cancel at it — never `mat-dialog-close` on a form dialog (Esc/backdrop/Cancel then confirm before discarding); (3) an attribute referencing an existing entity (pipeline/job/dataset/…) is `type: 'autocomplete'` + a loader from `inspecto/components/entity-option-loaders` passed via `[optionLoaders]` — never a bare free-text `string` (suggestions assist, they don't constrain) |
+| **Forms** | **Reactive** (`FormBuilder`/`FormGroup`/`Validators`) + inline `<mat-error>`. Template-driven `ngModel` is legacy — do not add it. **Config-attribute forms are schema-driven**: declare `AttributeSpec[]` (tier: required \| optional \| advanced) in `inspecto/component-model` and render with `<inspecto-schema-form>` (pilot: jobs `job-form.dialog`; demo: `/design`). Hand-build only genuinely bespoke sections (canvases, key/value arrays). **`tier` = visibility bucket; validation is separate** — set `required: false` on a `tier:'required'` spec for an always-visible-but-optional field (option sheets where every knob shows, none mandatory; e.g. `widget-option-attributes.ts`). For an inline duplicate-id guard, attach a `uniqueNameValidator` to the schema-form's name control (`errorFor()` renders the generic `duplicate` message) — see `job-form.dialog`/`dataset-editor`. **Three mandatory form behaviors (ui-design-review R2):** (1) bind `(submitted)="save()"` on every `<inspecto-schema-form>` so Enter submits; (2) every dialog holding a form wires `readonly requestClose = guardDirtyClose(this.ref, () => …isDirty(), this.confirm)` (`inspecto/dialog-dirty-guard`) and points Cancel at it — never `mat-dialog-close` on a form dialog (Esc/backdrop/Cancel then confirm before discarding); (3) an attribute referencing an existing entity (pipeline/job/dataset/…) is `type: 'autocomplete'` + a loader from `inspecto/components/entity-option-loaders` passed via `[optionLoaders]` — never a bare free-text `string` (suggestions assist, they don't constrain); a column-of-a-target field uses `columnOptionLoader('<siblingKey>')` (1-row `/db/table` probe of the store the sibling names, type-annotated labels; missing store ⇒ no list). The when-clause `ColumnMeta[]` idiom: probe the target per change (`dbColumnType` in `inspecto/query/query-columns` maps `/db` types), seed from fields the clause already references — never hardcode a record shape (see `decision-rule-form.dialog`) |
 | **Testing** | **vitest** via `@angular/build:unit-test` (jsdom) + `TestBed`; **axe-core** a11y via `expectNoA11yViolations`. Two recurring compile/run traps: (a) **one `TestBed.configureTestingModule` per test** — a helper that configures TestBed must be called **once** per `it()`; to assert several states, build one fixture and mutate its `@Input`s/`detectChanges()` between assertions (don't call the helper twice). (b) **no spread over `NodeListOf`** — use `Array.from(el.querySelectorAll(...))`, not `[...el.querySelectorAll(...)]` (TS2488 under the test tsconfig). Three more recurring traps: (c) mocking `MatDialog` on a component that renders `<inspecto-data-table>` needs `TestBed.overrideProvider(MatDialog, …)` (the table injects the real one); (d) specs touching `LensService` must clear `inspecto.currentLens` from localStorage in `beforeEach` (state leaks across specs); (e) the condition-group editor **mutates the bound `ConditionGroup` in place** — hosts must deep-clone before binding. |
 | **Package mgr** | **npm** (`npm ci` in CI — keep `package-lock.json` in sync when adding deps) |
 
@@ -116,7 +116,12 @@ src/app/
   the tree-table's expanded set) survive navigation/reload per space (`GridStateService`,
   `inspecto.grid.<space>.<key>` in localStorage; "Reset layout" lives in the column chooser). Give every
   *routed pane's main* table a stateKey (unique per pane; dynamic when one component serves several
-  datasets — e.g. `'mail-' + type`, `'db-' + table`); skip it for embedded mini-grids in dialogs. · **proMax** (+ "save
+  datasets — e.g. `'mail-' + type`, `'db-' + table`); skip it for embedded mini-grids in dialogs.
+  **Keyboard layer (document-level, review R3):** `/` opens + focuses the first visible searchable
+  table's quick filter (built in, no opt-in); `[keyNav]="true"` adds j/k row focus, Enter = `(rowClick)`,
+  x = toggle selection — give it to detail-feeding triage lists (pilot: object-mail). Typed input and
+  open overlays are exempt; arrows stay ag-Grid-native. Add new global bindings to the `?` shortcuts
+  dialog's `SHORTCUTS` list. · **proMax** (+ "save
   as rule" → a parameterized `:fieldValue` template via the rule store). Reusable logic is framework-free in
   `core/` (csv · quick-filter · column-resolve) and `sql/` (`runSql` lazy-loads AlaSQL; `SqlHistoryService` =
   per-source history/favorites in `localStorage`; `codemirror-setup.ts` themes CM6 entirely with `--gamma-*`
@@ -296,11 +301,15 @@ src/app/
 - Global search (`layout/common/search`) is a client-side jump-to-page palette over the nav — not a backend
   search. **Opened app-wide by Ctrl/Cmd+K** (a `document:keydown` HostListener in the classic layout calls
   `SearchComponent.open()`); with an empty query it shows recents (`inspecto.search.recents`) + shell
-  **action commands** (`[commands]` input, `SearchCommand[]`). Register a new global action by adding to
-  `paletteCommands` in the classic layout — **shell-owned actions only** (lens/space/theme); feature-scoped
-  create/run commands await a command registry (ui-design-review R3 follow-up), so don't import a feature
-  into the layout for one. **`?`** (outside a text field) opens the shared `ShortcutsHelpDialog`
-  (`inspecto/shortcuts-help.dialog.ts`) — add new global bindings to its `SHORTCUTS` list.
+  **action commands** (`[commands]` input, `SearchCommand[]`). Shell-owned actions (lens/space/theme) stay
+  in the classic layout's `paletteCommands`; **feature-scoped commands go through the command registry**
+  (`inspecto/commands/command-registry.ts`): declarative `{title, icon?, group?, link, queryParams?}`,
+  registered in `app-commands.ts` (side-effect import — never import a feature into the layout). The
+  target pane implements the `?create=1` handshake: strip the param (`replaceUrl`) and open the create
+  dialog **in the navigation promise's `.then()`** — MatDialog closes open dialogs on navigation
+  (reference: object-mail / jobs `ngOnInit`). **`?`** (outside a text field) opens the shared
+  `ShortcutsHelpDialog` (`inspecto/shortcuts-help.dialog.ts`) — add new global bindings to its
+  `SHORTCUTS` list.
 
 ## 12. Definition of Done (run before claiming completion)
 

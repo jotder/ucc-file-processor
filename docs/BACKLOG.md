@@ -68,8 +68,7 @@ that closes/opens an item)
 | Item | Source |
 |---|---|
 | Config pane schema-form port — the last `ngModel` pane (`FieldSpec`→`AttributeSpec` onto `<inspecto-schema-form>`) | review sweep 2026-07-16 |
-| Per-target column suggestions: expectation `column`/`refColumn` + decision-rule when-clause field select need a Catalog-schema source (explicit R2/R3 deferral) | same |
-| ui-design-review residuals: R2 object-create assignee/tags chips · R3 feature-scoped command registry, `/`-focus-grid, j/k nav · R6 true offset paging per pane · R8 pivot-bar (design-only) | `archived-documents/plans-archive/ui-design-review.md` |
+| ui-design-review residuals — R2 column suggestions, R2 object-create chips, R3 command registry + `/`-focus + j/k nav all SHIPPED 2026-07-17; remaining: R6 true offset paging per pane (revisit if a pane outgrows widen-and-refetch) · R8 pivot-bar (design-only until demanded twice) | `archived-documents/plans-archive/ui-design-review.md` · `okf/frontend/log.md` |
 | Requirements "Delivered via" is free text — should be a real Component link (cross-kind picker + Registry reuse edge) | review sweep |
 | Space switcher lands hard-coded on `/overview` — should route through `LENS_HOME` | same |
 | Business home renders fetch-failure as the "No dashboards yet" empty state — needs an error variant | same |
