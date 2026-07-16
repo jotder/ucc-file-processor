@@ -1,6 +1,7 @@
 # Architecture & Design
+> *Moved from `docs/architecture.md` (docs consolidation, 2026-07-16).*
 
-> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](INDEX.md).
+> Part of the [Inspecto](../../../../inspecto/README.md) documentation. See the [docs index](../../../INDEX.md).
 
 ## Design Philosophy & Scope
 
@@ -14,9 +15,9 @@
 > (`spaces/<id>/…`); the **Component metamodel** + derived registry; **editions** as build flavors
 > (Personal/Standard/Enterprise; `inspecto-security` for Standard); and the optional **assist agent**
 > (vendored kernel + eoiagent model transport). The whole-platform map lives in the
-> [OKF knowledge bundle](okf/index.md); the package-level **layer map** (dependency layering, SPI
-> surface, event/config/storage/threading models) in [`architecture-layers.md`](architecture-layers.md);
-> the authored-Pipeline design in [`flow-graph-design.md`](flow-graph-design.md). The non-goals below are **still correct for
+> [OKF knowledge bundle](../../index.md); the package-level **layer map** (dependency layering, SPI
+> surface, event/config/storage/threading models) in [`architecture-layers.md`](../architecture-layers.md);
+> the authored-Pipeline design in [`pipeline-graph-design.md`](../pipeline-graph/pipeline-graph-design.md). The non-goals below are **still correct for
 > Stage-1** — they are what keep each batch embarrassingly parallel and crash-isolated.
 
 This is a deliberately small ETL engine built around one idea: an **M..N
@@ -76,11 +77,11 @@ does these; see the scope note above):
 These constraints are what make the engine fast, parallel, and crash-isolated.
 Because no batch needs shared reference state, every batch is an embarrassingly
 parallel, single-pass unit with its own DuckDB connection (see
-[Batch Processing](operations.md#batch-processing)). Adding joins or lookups would force
+[Batch Processing](../build-run/operations-reference.md#batch-processing)). Adding joins or lookups would force
 shared state, serialize the batch model, and break the clean M..N routing. If
 you need heavy joins or enrichment, do it **downstream** — query the
 Hive-partitioned Parquet output through the
-[warehouse query layer](integrations.md#warehouse-query-layer--dbeaver-via-pg_duckdb) or a
+[warehouse query layer](../integrations.md#warehouse-query-layer--dbeaver-via-pg_duckdb) or a
 DuckLake catalog, where a real SQL engine can join across the whole dataset. The
 multiplexer's job ends at partition-and-write.
 
@@ -89,7 +90,7 @@ Since the 2.x line, that downstream answer is **first-class and in-platform**: t
 views and runs exactly these joins/aggregations as its own `transform` SQL, idempotently and
 incrementally (event- or schedule-driven), under the same service/control plane. So "do it
 downstream" no longer means "leave the platform" — Stage-1 stays a clean multiplexer, and
-Stage-2 owns the cross-record work. See [v3-architecture.md](archived-documents/v3-architecture.md) for the
+Stage-2 owns the cross-record work. See [v3-architecture.md](../../../archived-documents/v3-architecture.md) for the
 two-stage map.
 
 ### Format-specific configuration
@@ -98,7 +99,7 @@ Because different source formats need different handling, configuration is
 organized **per format** rather than forced into one shape — and that
 divergence is intended. Delimited text uses `csv_settings`; binary/proprietary
 formats use a plugin `ingester` plus `ingester_config`. See
-[Configuration by source format](configuration.md#configuration-by-source-format) for the map.
+[Configuration by source format](../config/configuration.md#configuration-by-source-format) for the map.
 
 ---
 
@@ -225,7 +226,7 @@ com.gamma
 - **`OutputFormat`** — enum-as-strategy owning each format's extension, COPY token, and compression rule, used by `PartitionWriter`.
 - **`StatusStore`** (`FileStatusStore` / `DbStatusStore`) and the **`BatchEventBus`** (`Consumer<BatchEvent>` observers) — pluggable audit backend and commit-event fan-out.
 
-These keep the data path lean while making formats, ingest paths, transforms, and audit sinks independently extensible and testable. See [design-notes → D7](archived-documents/design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390).
+These keep the data path lean while making formats, ingest paths, transforms, and audit sinks independently extensible and testable. See [design-notes → D7](../../../archived-documents/design-notes.md#d7--engine-modularity-pass-behavior-injection-seams--done-v390).
 
 ---
 
@@ -273,7 +274,7 @@ Contract rules enforced by the check: canonical subdirs (`data/ audit/ duckdb/`)
 embedded-DB file (`*.duckdb`/`*.db`/`*.wal`) may sit outside `duckdb/`; no unrecognised top-level entry
 may appear at the Space root. `_shared/` under `-Dspaces.root` is **not** a Space (discovery admits only
 dirs with a `config/` subtree, so it is skipped) — see
-[storage-layout-and-sharing-plan](superpower/storage-layout-and-sharing-plan.md) §2.
+[storage-layout-and-sharing-plan](../../../superpower/storage-layout-and-sharing-plan.md) §2.
 
 ⚠️ **All `dirs.*` paths in pipeline configs resolve against the JVM working directory, not the Space
 root** — write them bundle-root-relative (`spaces/<id>/config/…`, `spaces/<id>/data/…`). Only the

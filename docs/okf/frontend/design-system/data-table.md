@@ -41,6 +41,13 @@ Inputs: `tier`, `rows`, `columns?` (explicit `ColDef[]`), `rowActions?`, `loadin
 seed), and per-capability overrides `searchable`/`exportable`/`queryable`/`savable`. Outputs: `(rowClick)`,
 `(ruleSaved)`.
 
+* **`stateKey`** (also on [tree-table](tree-table.md)) opts a host into grid-state persistence — column
+  order/width/visibility + sort survive reloads per key (~8 hosts opted in).
+* **Honest high-volume loading**: opt-in `[serverPage]` + `[hasMore]` + `(loadMore)` renders a
+  "showing N — Load more" strip (mirrors `[serverRun]`); the backing fetch widens `?limit=` and
+  refetches. Adopted by object-mail, audit-logs, events — never silently cap a list. (True offset
+  paging per pane is deliberately deferred until a pane outgrows widen-and-refetch.)
+
 ## Tier assignments across hosts
 
 * **pro**: [events](../features/events.md), [alerts](../features/alerts.md), [objects](../features/objects.md), [enrichment](../features/enrichment.md) detail.
@@ -62,4 +69,6 @@ seed), and per-capability overrides `searchable`/`exportable`/`queryable`/`savab
 
 New deps (lazy, justified): `alasql` (+ `allowedCommonJsDependencies`), `codemirror` + `@codemirror/*` + `@lezer/highlight`.
 
-The rule-builder north-star design is tracked in the repo at `docs/rule-builder-design.md`.
+The rule-builder north-star design is archived at
+[`rule-builder-design.md`](../../../archived-documents/plans-archive/rule-builder-design.md) (Query Core shipped; the
+aggregation builder and backend rule save remain unbuilt).

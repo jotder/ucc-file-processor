@@ -1,5 +1,19 @@
 # Log
 
+## 2026-07-16
+* **Plan consolidation sweep**: 19 shipped frontend plans/designs distilled here and archived to
+  `docs/archived-documents/plans-archive/` (incidents-mail + case-management, lens-access, menu-builder,
+  branding, db-browser, tree-table, reconciliation-board, ui-design-review, w7 `/api/v1` migration,
+  studio/report-builder/widget-library plans, link-analysis + geo-map plans, frontend-review plan).
+  New concept files: [tree-table](./design-system/tree-table.md),
+  [reconciliation](./features/reconciliation.md) (⚠ not yet in the section indexes). Updated:
+  [objects](./features/objects.md) (mail UI rewrite — retires the banned "Issues"),
+  [spaces](./features/spaces.md) (branding), [catalog](./features/catalog.md) (Data Browser),
+  [routing-and-navigation](./conventions/routing-and-navigation.md) (Lens Access matrix, custom Menus,
+  command palette, detail-over-list + split), [forms-and-state](./conventions/forms-and-state.md)
+  (dialog conventions, optimistic bulk), [data-table](./design-system/data-table.md) (`stateKey`,
+  Load more), [studio](./features/studio.md) (widget library + shared result layer).
+
 ## 2026-07-07
 * **Consolidated**: bundle moved `inspecto-ui/docs/okf/` → `docs/okf/frontend/` under the new
   [consolidated bundle](../index.md); features renamed to the canonical vocabulary

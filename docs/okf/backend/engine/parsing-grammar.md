@@ -27,7 +27,14 @@ from the pipeline `.toon`. One grammar serves one data-file type; many event-typ
 Backward-compatible with inline `processing.csv_settings:`. Implemented in `PipelineConfig.resolveGrammar`,
 `CsvSettings`, `DuckDbCsvIngester.readOptions`/`filterWhere`, and `BoundaryScanner`.
 
+A grammar can also carry **row-level filters** injected post-parse as WHERE predicates —
+`include_prefixes` (anchored prefix allow-list), `include_regex` (allow), `exclude_regex` (deny). ⚠ Author
+scalar lists in TOON with the tabular form `key[N]: v1, v2` — JToon reads a YAML-style `["a","b"]` as one
+literal string; omit the key entirely for an empty list.
+
 **Plugin ingesters** are declared in the pipeline `.toon` (`processing.ingester:` + `processing.segments:`);
 the class must be on the fat-JAR classpath with a public no-arg constructor, and segment keys must match the
 schema. Grammars/schemas are also editable as reusable [components](../components/component-registry.md).
-Authoritative docs: `docs/parsing-options-reference.md`, `docs/delimited-grammar-design.md`, `docs/plugins.md`.
+Authoritative docs: [`parsing-options-reference.md`](../config/parsing-options-reference.md),
+[`plugins.md`](plugins.md); the delimited-grammar design of record (shipped 4.1) is archived at
+[`delimited-grammar-design.md`](../../../archived-documents/plans-archive/delimited-grammar-design.md).

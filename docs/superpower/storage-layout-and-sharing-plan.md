@@ -17,8 +17,8 @@
 > space but is never editable; its underlying Dataset grant travels with it — §3.5). Operating model: **departments / e-governance ministries** — each Space
 > is a department with its own users, pipelines and Datasets; a Dataset can be *requested for shared
 > use* by another department **without reprocessing or re-creating pipelines** on either side.
-> Companion designs: [`../job-framework-design.md`](../job-framework-design.md) (the refresh Job,
-> Run Artifacts), [`metadata-bundle.md`](metadata-bundle.md) / [`transportability-plan.md`](transportability-plan.md)
+> Companion designs: [`../archived-documents/plans-archive/job-framework-design.md`](../archived-documents/plans-archive/job-framework-design.md) (the refresh Job,
+> Run Artifacts), [`metadata-bundle.md`](../archived-documents/plans-archive/metadata-bundle.md) / [`transportability-plan.md`](../archived-documents/plans-archive/transportability-plan.md) (current: [`okf/backend/control-plane/metadata-bundle.md`](../okf/backend/control-plane/metadata-bundle.md))
 > (Bundle v2 contentHash — reused here for drift detection).
 
 ## 1. Current state (as-built — the layout largely exists)

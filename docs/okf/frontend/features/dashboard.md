@@ -9,7 +9,10 @@ timestamp: 2026-07-07T00:00:00Z
 
 # Dashboard
 
-Route `/dashboard` (the default route). The landing page: operational KPI tiles and trend
+Route `/overview` (renamed from `/dashboard` 2026-07-07 to stop colliding with Studio's BI Dashboards;
+`/dashboard` redirects). No longer any lens's default landing: the root `''` route redirects per lens via
+`LENS_HOME` (business → `kpi-reports`, builder → `pipelines`, ops → `events`; function-form
+`redirectTo` in `app.routes.ts`). The operational snapshot page: health tiles and trend
 [charts](../design-system/chart.md), backed by `AcquisitionMetricsService` / `ReportsService`. Independent
 fetches degrade gracefully (one failing call doesn't blank the page).
 

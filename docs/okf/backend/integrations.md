@@ -1,6 +1,7 @@
 # Integrations: Remote Sources, DuckLake & Warehouse Query Layer
+> *Moved from `docs/integrations.md` (docs consolidation, 2026-07-16).*
 
-> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
+> Part of the [Inspecto](../../../inspecto/README.md) documentation. See the [docs index](../../../inspecto/README.md#documentation).
 
 ## Remote source connectors (SFTP / FTP / FTPS)
 
@@ -54,7 +55,7 @@ source:
 ```
 
 The full set of `source:` knobs (stability, dedup, integrity, retry, circuit breaker, post-actions, parallel
-fetch, rate limit) is documented in [configuration.md](configuration.md#data-acquisition--the-source-block).
+fetch, rate limit) is documented in [configuration.md](config/configuration.md#data-acquisition--the-source-block).
 Remote files are fetched into the local staging tree and then flow through the *exact same* batch/dedup/backup
 engine as local files — nothing downstream special-cases them.
 

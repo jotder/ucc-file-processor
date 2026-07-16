@@ -16,6 +16,7 @@ Start with the [Overview](overview.md) and [Architecture](architecture.md), then
 
 * [Overview](overview.md) - what the backend is, the tech stack, the module map.
 * [Architecture](architecture.md) - the framework-free design (JDK HttpServer, manual DI, ServiceLoader SPI, virtual threads).
+* [Architecture layers](architecture-layers.md) - the platform layer map, storage-per-concern table (moved from `docs/architecture-layers.md`).
 * [Modules](modules/) - the five Maven modules (engine, connectors, agent, agent-hosted, security).
 
 ## Layers
@@ -37,3 +38,4 @@ Start with the [Overview](overview.md) and [Architecture](architecture.md), then
   transport) and hosted model providers.
 * [Build & run](build-run/) - the verify loop, the DuckDB native-access flag, packaging, launch flags.
 * [Gotchas](gotchas/) - the expensive-to-rediscover cross-cutting pitfalls.
+* [Integrations](integrations.md) - acquisition connectors + DuckLake/warehouse touchpoints (moved from `docs/integrations.md`).

@@ -11,9 +11,8 @@ timestamp: 2026-07-07T00:00:00Z
 
 An authored Pipeline is **job-style**: it reads data at rest (`source_store`), runs `transform.*` nodes, and
 writes to a sink store. It is hosted as a [`JobType.PIPELINE`](../control-plane/jobs.md) job on the existing
-`JobService` scheduler (cron / `on_pipeline` / manual). Authoritative doc:
-[`docs/flow-live-execution-plan.md`](../../../flow-live-execution-plan.md) (filename predates the Pipeline
-rename).
+`JobService` scheduler (cron / `on_pipeline` / manual). Design of record (T32 plan, shipped 2026-06-18/19):
+[`flow-live-execution-plan.md`](../../../archived-documents/plans-archive/flow-live-execution-plan.md).
 
 ## `PipelineJobRunner.run()`
 

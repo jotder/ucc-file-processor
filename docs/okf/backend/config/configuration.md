@@ -1,6 +1,7 @@
 # Configuration Reference
+> *Moved from `docs/configuration.md` (docs consolidation, 2026-07-16).*
 
-> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
+> Part of the [Inspecto](../../../../inspecto/README.md) documentation. See the [docs index](../../../../inspecto/README.md#documentation).
 
 ## Configuration Reference
 
@@ -56,7 +57,7 @@ moved by hand.
 
 Configuration is organized **per source format** — each format has its own
 block and its own knobs, by design (see
-[Design Philosophy](architecture.md#design-philosophy--scope)). Pick the row that matches your
+[Design Philosophy](../engine/stage1-architecture.md#design-philosophy--scope)). Pick the row that matches your
 input; the rest of this section details each block.
 
 | Source format | Ingest path | Key config block(s) | Notable knobs |
@@ -64,7 +65,7 @@ input; the rest of this section details each block.
 | **Delimited text** (CSV, CSV.GZ, TSV, pipe-delimited) | built-in | `processing.csv_settings` + a `schema_file` (or `schemas[]` for multi-schema) | `delimiter`, `engine` (`auto`/`duckdb`/`java`), `skip_header_lines`, `skip_junk_lines`, `skip_tail_lines`, `skip_tail_columns`, `has_header`, `date_formats`, `timestamp_formats` |
 | **Messy text dumps** (SQL\*Plus exports with banners/footers, ragged columns) | built-in (Java engine) | same as above, with the messy-file knobs set | `skip_junk_lines`, `skip_tail_lines`, `skip_tail_columns` → forces `engine: java` under `auto` |
 | **Fixed-width text** (column-positional records, one record per line) | built-in (native `read_csv`+`substring`) | `frontend: fixedwidth` + a `fixedwidth:` block (inline or in a `*.grammar.toon`) + a `schema_file` | `record: line`, `trim`, `min_record_length`, `fields[]{name,start,length}` |
-| **Binary / proprietary / multi-event-type** (CDR blobs, fixed-length binary, anything one parser splits into several record types) | [plugin](plugins.md#plugin-ingester) | `processing.ingester` + `processing.segments` + optional `processing.ingester_config` | `ingester` (FQCN), per-segment schema files, free-form `ingester_config` map for format-specific settings (`record_length`, `byte_order`, …) |
+| **Binary / proprietary / multi-event-type** (CDR blobs, fixed-length binary, anything one parser splits into several record types) | [plugin](../engine/plugins.md#plugin-ingester) | `processing.ingester` + `processing.segments` + optional `processing.ingester_config` | `ingester` (FQCN), per-segment schema files, free-form `ingester_config` map for format-specific settings (`record_length`, `byte_order`, …) |
 
 Common to **all** formats: `dirs.*`, `output.format` (`CSV`/`PARQUET`),
 `processing.batch.*`, `processing.threads`, the `partitions[]` declaration in
@@ -97,7 +98,7 @@ row of one table** — cast a type, rename, pick a column, compose a date. It *c
 up, or aggregate, because Stage-1 is stateless per record — which is exactly what makes every
 batch parallel and safely re-runnable. Joins, lookups, and aggregation live in **Stage-2
 enrichment**: a separate `*_enrich.toon` with hand-written SQL over the committed output. See
-[Architecture → Design Philosophy & Scope](architecture.md#design-philosophy--scope).
+[Architecture → Design Philosophy & Scope](../engine/stage1-architecture.md#design-philosophy--scope).
 
 ### 1. Generation Config (`<source>_gen.toon`)
 
@@ -127,7 +128,7 @@ performance lever — output is identical for clean files (proven by parity test
 | Value | Behaviour |
 |---|---|
 | `auto` | Native DuckDB `read_csv` when `skip_junk_lines`, `skip_tail_lines`, and `skip_tail_columns` are all `0`; the Java parser otherwise. Safe default — no existing source's parse semantics change. |
-| `duckdb` | Always use DuckDB's vectorized, multi-threaded `read_csv`. **4–5× faster ingest** (more on wide schemas — see `docs/performance.md`). Force this on messy-but-validated sources after confirming output parity. |
+| `duckdb` | Always use DuckDB's vectorized, multi-threaded `read_csv`. **4–5× faster ingest** (more on wide schemas — see [`performance.md`](../build-run/performance.md)). Force this on messy-but-validated sources after confirming output parity. |
 | `java` | Always use the original line-by-line Java parser. |
 
 > The native reader rejects rows with *more* columns than the schema declares,
@@ -246,7 +247,7 @@ config SPI), reached only when config genuinely can't express the need:
 |---|---|---|
 | **1 — Mapping rule** *(config, no code)* | rename/select, cast a type, compose a timestamp (`CONCAT_DT`), derive a date from the filename (`FILENAME_DATE`), **or any per-row DuckDB scalar expression (`EXPR`)** | a row in `mapping.rules[]` |
 | **2 — New named `transformType`** *(engine code)* | you want a **reusable, named** verb across many schemas (e.g. a domain checksum) rather than repeating the same `EXPR` everywhere | add a `ColumnRule` to the `DATA_RULES` registry in `etl/TransformCompiler` — a one-line addition returning a DuckDB **scalar** expression (one row in → one row out) |
-| **3 — Plugin ingester** *(engine code)* | the **input format** isn't delimited text — binary, fixed-width, ASN.1 — or one file splits into several event-type tables | implement [`StreamingFileIngester`](plugins.md#plugin-ingester): you parse and `emit` records; the framework still applies the same `mapping.rules[]` / `partitions[]` to them |
+| **3 — Plugin ingester** *(engine code)* | the **input format** isn't delimited text — binary, fixed-width, ASN.1 — or one file splits into several event-type tables | implement [`StreamingFileIngester`](../engine/plugins.md#plugin-ingester): you parse and `emit` records; the framework still applies the same `mapping.rules[]` / `partitions[]` to them |
 
 Anything that needs **more than one row** — a join to a reference table, a `GROUP BY`, a running
 total — is not a transform and does not belong in any of these levels. It is **Stage-2
@@ -553,7 +554,7 @@ fixedwidth:
   of `engine`. A field's `selector` must index a declared slice or the config fails to load.
 - **`record: bytes`** (binary) is handled by the shipped `com.gamma.ingester.FixedWidthRecordIngester`
   plugin — wire it via `processing.ingester` + `processing.segments` + `ingester_config` (see
-  [Plugin Ingester](plugins.md#fixed-length-binary-records-fixedwidthrecordingester)), not the
+  [Plugin Ingester](../engine/plugins.md#fixed-length-binary-records-fixedwidthrecordingester)), not the
   `fixedwidth:` block above.
 - Worked example: `spaces/default/config/subscriber/` (`subscriber.grammar.toon` + `subscriber_schema.toon`
   + `subscriber_pipeline.toon`).
@@ -643,7 +644,7 @@ processing:
   single file processes with bounded heap and scratch; it writes per-generation output files
   (`<stem>_gNNNNN_out.*`).
 
-Both are optional and have working defaults; see [plugins.md](plugins.md) for the full SPI guide.
+Both are optional and have working defaults; see [plugins.md](../engine/plugins.md) for the full SPI guide.
 
 ---
 

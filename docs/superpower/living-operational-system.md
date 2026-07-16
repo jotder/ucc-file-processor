@@ -109,7 +109,7 @@ same registry with a config shape + `deriveRefs` + (where composite) wiring — 
   pipeline is a follow-on; the SQL surface is a textarea (CodeMirror upgrade deferred). Seed: one shared
   `recent_high_cost` query bound by two widgets.
 - **R4 — Signal envelope — ✅ SHIPPED 2026-07-06** (full store unification, plan
-  `docs/superpower/signal-network-plan.md`): one `Signal { signalId, type, at, source: Ref, correlationId,
+  `docs/archived-documents/plans-archive/signal-network-plan.md`): one `Signal { signalId, type, at, source: Ref, correlationId,
   severity?, payload }` (`inspecto/signal/signal.ts`) written to a single ledger (`SIGNALS_COLL`) via the one
   `emitSignal()` seam (`inspecto/mock/signals.ts`) — the `event` and `fired-alert` stores are **removed**;
   `/events` and `/alerts` are now thin **projections** over the ledger, and the Events page is the **Signal
@@ -117,7 +117,7 @@ same registry with a config shape + `deriveRefs` + (where composite) wiring — 
   object transitions — and R5 decision consequences. Notifications fan out as *consumers* of notify-worthy
   signals. `source` joins the R1 metadata graph via the new `emits` RefRel. Severity ladder
   (`trace..critical`) unifies `EVENT_LEVELS` + `FiredAlert` severities.
-- **R5 — Decision network — ✅ SHIPPED 2026-07-06** (plan `docs/superpower/decision-network-plan.md`): the typed
+- **R5 — Decision network — ✅ SHIPPED 2026-07-06** (plan `docs/archived-documents/plans-archive/decision-network-plan.md`): the typed
   **`Consequence`** (`inspecto/decision/consequence.ts`) unifies the rule kinds' actions (routing +
   `emit-signal · create-alert · start-job · trigger-pipeline · render-widget · generate-report · invoke-api`).
   **`decision-rule`** is a first-class ComponentKind — `deriveRefs` `binds` its target + `invokes` its

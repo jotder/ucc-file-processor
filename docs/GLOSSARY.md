@@ -2,8 +2,8 @@
 
 > **This is the single source of truth for what every concept is called in Inspecto.** UI labels, model/field
 > names, API paths, docs, and conversation must all use the **canonical term** below. The rename rolls out
-> **UI → model → backend** (see §6). Companion docs: relationships in [`COMPONENT_GRAPH.md`](COMPONENT_GRAPH.md),
-> rationale in [`VOCABULARY_RECOMMENDATIONS.md`](VOCABULARY_RECOMMENDATIONS.md).
+> **UI → model → backend** (see §6). Companion docs: relationships in [`archived-documents/plans-archive/COMPONENT_GRAPH.md`](archived-documents/plans-archive/COMPONENT_GRAPH.md),
+> rationale in [`archived-documents/plans-archive/VOCABULARY_RECOMMENDATIONS.md`](archived-documents/plans-archive/VOCABULARY_RECOMMENDATIONS.md).
 >
 > Decisions locked 2026-06-29 with the product owner.
 
@@ -111,7 +111,7 @@ The labels name surfaces only — the artifacts stay **Widget** / **Dashboard** 
 with lifecycle `submitted → accepted | rejected → delivered` (Business submits; Builder triages the intake
 queue and decides; delivery is recorded against the requirement), linkable to the Component(s) that satisfy
 it. *(Lifecycle simplified from the Wave-0 draft per the product-owner decision 2026-07-03, shipped as C1 —
-`superpower/reviews/requirements-intake.md`.)*
+`archived-documents/superpower-reviews/requirements-intake.md`.)*
 
 ---
 
@@ -317,7 +317,7 @@ produces **Breaks**. The core Revenue-Assurance / Financial-Audit workload. *(Ad
 missing-right | value-break**. Lifecycle `open → resolved | auto-closed`: a Break **auto-closes** when its
 key re-matches within tolerance on a later run; manual resolutions (with a note) are preserved across runs.
 Breaks can raise **Incidents** (future). *(Lifecycle locked with the product owner 2026-07-03, shipped as
-C9 — `superpower/reviews/reconciliation.md`.)*
+C9 — `archived-documents/superpower-reviews/reconciliation.md`.)*
 
 ---
 
@@ -405,7 +405,7 @@ a suggested fix.
 ## 10. Component Metamodel (cross-cutting)
 
 > Every authored artifact above is a **Component**. The metamodel is the spine; see
-> [`COMPONENT_GRAPH.md`](COMPONENT_GRAPH.md) and [`superpower/component-model.md`](superpower/component-model.md).
+> [`archived-documents/plans-archive/COMPONENT_GRAPH.md`](archived-documents/plans-archive/COMPONENT_GRAPH.md) and [`superpower/component-model.md`](superpower/component-model.md).
 
 **Component** — A configured, named, persisted **instance**: `{ kind, name, config, parts?, wiring? }`. Atomic =
 no parts/wiring; composite = parts + a wiring strategy.
@@ -426,7 +426,7 @@ strategy, and config schema. (A *Visualization Type* is a Component Type whose i
 
 > Relationships are becoming load-bearing (a future **Link Analysis Studio**). The words *graph · node · edge ·
 > link · relationship · lineage* are the most overloaded in the system — this section keeps them distinct.
-> Relationship analysis: [`COMPONENT_GRAPH.md`](COMPONENT_GRAPH.md).
+> Relationship analysis: [`archived-documents/plans-archive/COMPONENT_GRAPH.md`](archived-documents/plans-archive/COMPONENT_GRAPH.md).
 
 **Graph** — A queryable relationship object: **Nodes** + typed **Edges** that can be traversed, analyzed (paths,
 centrality, communities), and rendered. The subject of Link Analysis.

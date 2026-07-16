@@ -1,11 +1,12 @@
 # Data Acquisition & File Collection Requirements
+> *Moved from `docs/data_acquisition_framework.md` (docs consolidation, 2026-07-16).*
 
 > **Status (2026-06-15): the framework is built — Phases A–F shipped on `4.x`.** This document is the original
 > *requirement*; the as-built design + phase log live in
-> [`docs/archived-documents/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md`](archived-documents/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md),
+> [`docs/archived-documents/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md`](../../../archived-documents/superpowers/specs/2026-06-14-data-acquisition-framework-roadmap.md),
 > and the operator-facing config/runbook are in
-> [`configuration.md`](configuration.md#data-acquisition--the-source-block) and
-> [`integrations.md`](integrations.md#remote-source-connectors-sftp--ftp).
+> [`configuration.md`](../config/configuration.md#data-acquisition--the-source-block) and
+> [`integrations.md`](../integrations.md#remote-source-connectors-sftp--ftp).
 > **Delivered:** the `SourceConnector` SPI (`com.gamma.acquire`) + local parity (A); readiness/stability gate (B);
 > fingerprint ledger + content dedup (C); collection-guarantee knob + sequence-gap→alert (D); **SFTP + FTP**
 > connectors in the optional `inspecto-connectors` module + connection profiles + integrity + `.bz2`/`.zip` (E);

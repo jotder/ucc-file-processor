@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PostToolUse (Edit|Write) guard: when a DB-layer source file changes, remind the model to keep
-# docs/DB_LAYER.md in sync. Advisory only — emits additionalContext, never blocks. The doc's exact
+# docs/okf/backend/engine/db-layer.md in sync. Advisory only — emits additionalContext, never blocks. The doc's exact
 # DDL / store inventory / file topology / Postgres notes are derived from these files, so a change
 # here that isn't mirrored in the doc silently rots it.
 #
@@ -23,7 +23,7 @@ base="${path##*/}"
 case "$base" in
   Db*Store.java|ParquetEventStore.java|ServiceStores.java|SpaceRoot.java|JdbcDrivers.java|DuckDbUtil.java)
     cat <<'JSON'
-{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"DB-layer source changed. If this added/removed/altered a table's DDL or columns, a store's backend wiring, the per-space DuckDB file layout, a -D*.backend toggle, or Postgres behavior, update docs/DB_LAYER.md to match (§2 store inventory, §3 exact schemas, §4 file topology, §5 Postgres) and docs/superpower/db-browser-design.md if browsable tables/stores/backends changed. Keep the DDL blocks byte-accurate to initSchema()."}}
+{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"DB-layer source changed. If this added/removed/altered a table's DDL or columns, a store's backend wiring, the per-space DuckDB file layout, a -D*.backend toggle, or Postgres behavior, update docs/okf/backend/engine/db-layer.md to match (§2 store inventory, §3 exact schemas, §4 file topology, §5 Postgres). Keep the DDL blocks byte-accurate to initSchema()."}}
 JSON
     ;;
 esac

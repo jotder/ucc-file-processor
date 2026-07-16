@@ -12,11 +12,31 @@ timestamp: 2026-06-28T00:00:00Z
 * **Lazy-load every feature route**: `{ path, loadChildren: () => import('app/modules/admin/<f>/<f>.routes') }` in `app.routes.ts` (no auth guard — the core is auth-free). Each `<f>.routes.ts` is `export default [...] as Routes`. Default route → `dashboard`.
 * **Adding a page = two edits**: the lazy route in `app.routes.ts` **and** the nav item in `mock-api/common/navigation/data.ts`.
 * **Nav groups**: **Operations** · **Platform** (Workbench / Studio / Catalog) · **Settings**, plus Dashboard + Assistant — filtered by the active **Lens**. See the [features index](../features) for the screen-to-group mapping.
-* **Detail pages carry a breadcrumb** (list → id), e.g. [run-detail](../features/run-detail.md).
-* **Global search** (`layout/common/search`) is a client-side jump-to-page palette over the nav — **not** a backend search.
+* **Lens Access matrix** (Settings ▸ Access): a per-Space **Access Profile** over the **Access Catalog**
+  (menu groups → panes → functionalities, derived from the live nav config) grants Inherit/Hidden/Shown
+  per Lens, persisted via `/access/*`. It filters the sidebar and re-derives `LensService` capabilities
+  (`setActionGrants`) — deliberately **not** authorization (GLOSSARY §1-A); real RBAC swaps subjects to
+  Roles on the same catalog/profile/matrix, server-enforced.
+* **Custom Menus**: a user-curated per-Space **Menu** tree (Settings ▸ Menus) renders as extra sidebar
+  groups; each leaf opens one dynamic parameterized host route that renders the bound artifact
+  (Dashboard / Widget / saved Link or Geo view). Mock-first persistence over the navigation API.
+* **Detail pages carry a breadcrumb** — the shared `<inspecto-breadcrumb>`
+  (`inspecto/components/breadcrumb.component.ts`), e.g. [run-detail](../features/run-detail.md).
+* **Global search** (`layout/common/search`) is a client-side jump-to-page palette over the nav — **not**
+  a backend search. **Ctrl/Cmd+K** opens it app-wide (empty-query recents + shell action commands such
+  as lens switch); **`?`** opens the shortcuts-help overlay (`inspecto/shortcuts-help.dialog.ts`).
 
 ## Pane reuse across routes
 
 A single component can serve multiple routes via `ActivatedRoute.snapshot.data`. Example:
-[Cases and Issues](../features/objects.md) are one `ObjectsComponent` parameterized by route data
-(`cases.routes.ts` / `issues.routes.ts`).
+[Incidents and Cases](../features/objects.md) are one `ObjectMailComponent` parameterized by route data
+(`incidents.routes.ts` / `cases.routes.ts`).
+
+## Context preservation (detail-over-list)
+
+Prefer **detail as a side panel over the live list** to a routed detail page: one matcher-based route
+config serves both `/runs` and `/runs/:name`, so the same component instance keeps list scroll/filter
+state while the detail panel opens (deep links still work). Settings binds its selection to a
+`:section` param the same way. Detail side panes are user-resizable via the shared
+`InspectoSplitDirective` (`inspecto/components/split.directive.ts`,
+`[inspectoSplit]="<stateKey>"` — width persists per key).

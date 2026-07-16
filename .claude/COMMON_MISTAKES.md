@@ -2,7 +2,7 @@
 
 **⚠️ CRITICAL - Read at session start**
 
-Fuller treatment in [docs/troubleshooting.md](../docs/troubleshooting.md).
+Fuller treatment in [docs/troubleshooting.md](../docs/okf/backend/build-run/troubleshooting.md).
 
 ---
 

@@ -1,9 +1,10 @@
 # API Stability Policy
+> *Moved from `docs/api-stability.md` (docs consolidation, 2026-07-16).*
 
-> Part of the [Inspecto](../inspecto/README.md) documentation.
+> Part of the [Inspecto](../../../../inspecto/README.md) documentation.
 
 The framework distinguishes its **stable public API** from internal implementation.
-Types, methods, and constructors marked [`@com.gamma.api.PublicApi`](../inspecto/src/main/java/com/gamma/api/PublicApi.java)
+Types, methods, and constructors marked [`@com.gamma.api.PublicApi`](../../../../inspecto/src/main/java/com/gamma/api/PublicApi.java)
 are the surface external code may depend on; everything else is internal and may
 change in any release.
 
@@ -32,7 +33,7 @@ Two audiences depend on the framework from outside:
 | `com.gamma.etl.IngestResult` | 1.0.0 | Row counts (CSV path); plugin counts flow through `RecordSink` |
 | `com.gamma.etl.PipelineConfig` (+ nested records `Identity`, `Dirs`, `Processing`, `CsvSettings`, `Output`, `Schemas`, `DuckDbSettings`, `Chunking`) | 1.0.0 / records 2.0.0 (`DuckDbSettings`/`Chunking` 3.10.0) | Passed to `ingest(...)`; read for paths, settings, `ingesterConfig`; `Processing` adds `largeFileBytes`/`flushRecords` streaming controls (3.11.0) |
 
-> **Removed in 3.11.0 (breaking):** the whole-file `com.gamma.etl.FileIngester` and its nested `Segment` (both since 1.3.0). The plugin SPI is unified on `StreamingFileIngester`; the framework now runs the same ingester in *union mode* (many small files → one transform/write) or *generation mode* (huge single files → bounded scratch), chosen per batch by `processing.streaming.large_file_bytes`. Port `FileIngester` plugins to `StreamingFileIngester` (see [plugins.md](plugins.md)). This is a **deliberate exception** to the within-major-version stability promise above, made to consolidate the plugin SPI before it had wide external adoption.
+> **Removed in 3.11.0 (breaking):** the whole-file `com.gamma.etl.FileIngester` and its nested `Segment` (both since 1.3.0). The plugin SPI is unified on `StreamingFileIngester`; the framework now runs the same ingester in *union mode* (many small files → one transform/write) or *generation mode* (huge single files → bounded scratch), chosen per batch by `processing.streaming.large_file_bytes`. Port `FileIngester` plugins to `StreamingFileIngester` (see [plugins.md](../engine/plugins.md)). This is a **deliberate exception** to the within-major-version stability promise above, made to consolidate the plugin SPI before it had wide external adoption.
 
 > **Major bump 4.0.0 (the agent-module reshape):** the **core ETL `@PublicApi` surface above is unchanged** — Stage-1/Stage-2/control/embedder types and signatures carry over from 3.x untouched. The major bump was driven by two things: (1) a **runtime-floor bump for the agent modules**, and (2) the optional `file-processor-agent` module was reshaped onto shared orchestrator primitives (`SyncOrchestrator` / `Capability` / confidence-escalation / `AuditSink`), and `com.gamma.assist.AssistResult.confidence` became a numeric `double` (was a `String`). Only code driving the assist module's result type was affected.
 >
@@ -78,7 +79,7 @@ that contract is documented on `StreamingFileIngester`/`RecordSink`, not on `Dat
 ## What is *not* covered by code-level stability — but is still stable
 
 - **Pipeline `.toon` config format** — treated as a stable user-facing contract;
-  changes are additive and documented in [configuration.md](configuration.md).
+  changes are additive and documented in [configuration.md](../config/configuration.md).
 - **On-disk output** (Hive-partitioned Parquet/CSV layout, audit CSVs, commit log
   format) — forward-compatible; a format change would be called out as breaking.
 

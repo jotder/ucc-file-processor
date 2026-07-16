@@ -1,6 +1,6 @@
 # Inspecto — Forward Roadmap
 
-**Status:** current as of 2026-06-19 · **Companion:** [STAKEHOLDER_OVERVIEW.md](STAKEHOLDER_OVERVIEW.md) · **Engineering detail:** [../flow-graph-design.md](../flow-graph-design.md)
+**Status:** current as of 2026-06-19 · **Companion:** [STAKEHOLDER_OVERVIEW.md](STAKEHOLDER_OVERVIEW.md) · **Engineering detail:** [../okf/backend/pipeline-graph/pipeline-graph-design.md](../okf/backend/pipeline-graph/pipeline-graph-design.md)
 
 > **Timeline convention.** This roadmap sequences work into **Now / Next / Later** horizons and gives **relative effort** sizing (S/M/L). It deliberately does **not** assign calendar dates — the cadence is one minor release per milestone on the active line, and dates are set per planning cycle, not here. Where an item gates revenue or another item, that dependency is called out explicitly.
 
@@ -142,4 +142,4 @@ N4 Edition realignment      [most-requested ingestion gap]        L4 Push discov
 
 ---
 
-*For the business framing of these items see [STAKEHOLDER_OVERVIEW.md](STAKEHOLDER_OVERVIEW.md) §10. For engineering-level task detail see [../flow-graph-design.md](../flow-graph-design.md) §14.*
+*For the business framing of these items see [STAKEHOLDER_OVERVIEW.md](STAKEHOLDER_OVERVIEW.md) §10. For engineering-level task detail see [../okf/backend/pipeline-graph/pipeline-graph-design.md](../okf/backend/pipeline-graph/pipeline-graph-design.md) §14.*

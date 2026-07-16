@@ -6,7 +6,7 @@
 >
 > This document supersedes the archived requirements snapshot
 > (`archived-documents/consolidated-2026-06-13/02-Product-Requirements.md`) and **reconciles** the planning-time
-> MoSCoW in [`superpower/feature-matrix-editions.md`](superpower/feature-matrix-editions.md) (2026-07-02)
+> MoSCoW in [`archived-documents/plans-archive/feature-matrix-editions.md`](archived-documents/plans-archive/feature-matrix-editions.md) (2026-07-02)
 > with what has actually shipped since — several of that matrix's MUST items (security module, Studio
 > persistence, live query path, pipeline-authoring wiring) are now delivered and appear here as baseline.
 > Vocabulary is binding per [`GLOSSARY.md`](GLOSSARY.md).
@@ -112,7 +112,7 @@ AI-driven autonomy without redesign.
 | DAT-2 | **Query** as a first-class Component (`sql \| structured`) + Query Library + `$`-**Parameters** + **Result Set** descriptor | Must | SHIPPED (R3+W4) | All |
 | DAT-3 | Live query execution `POST /queries/{id}/run` on DuckDB with server-side parameter resolution | Must | SHIPPED (2026-07-08: the missing server-side *structured* evaluator is BI-7's `POST /bi/query` — spec-based measures/dimensions/filters compiled and executed server-side; `query` components stay `type: sql` and the 422 on `type: structured` remains the honest boundary (no client authors them). Minor caveat: pagination stays offset-based) | All |
 | DAT-4 | **Matrix** materialization: persisted summary Derived Tables as managed assets | Should | SHIPPED (2026-07-08: `task: materialize` on the maintenance runner — BI-7 spec-compiled SELECT (or raw snapshot) over the source Dataset's trusted relation, `COPY TO` Parquet with PIP-7's hide-old/reveal-new atomic swap (crash leaves only glob-invisible leftovers, self-cleaning), and the target registered/refreshed as a normal `dataset` component — so a Matrix is queryable everywhere a Dataset is, zero net-new read paths) | All |
-| DAT-5 | Row-level calculated columns on Datasets | Should | SHIPPED (2026-07-08: `dataset.calculated: [{name, expr}]` — `DatasetRelation` wraps the base relation `SELECT *, (expr) AS name`; every expr passes the new **`ExpressionGuard`** (fragment-level safety: closed token alphabet + keyword deny-set killing subquery smuggling + function-call whitelist killing `read_parquet`/UDFs + comment-sequence rejection; design: `superpower/calculated-columns-design.md`); fail-closed 422, inherited by every consumer incl. DAT-4 materialization. Deliberate v1 cuts: no window/aggregate functions, no quoted identifiers) | All |
+| DAT-5 | Row-level calculated columns on Datasets | Should | SHIPPED (2026-07-08: `dataset.calculated: [{name, expr}]` — `DatasetRelation` wraps the base relation `SELECT *, (expr) AS name`; every expr passes the new **`ExpressionGuard`** (fragment-level safety: closed token alphabet + keyword deny-set killing subquery smuggling + function-call whitelist killing `read_parquet`/UDFs + comment-sequence rejection; design: `archived-documents/plans-archive/calculated-columns-design.md`); fail-closed 422, inherited by every consumer incl. DAT-4 materialization. Deliberate v1 cuts: no window/aggregate functions, no quoted identifiers) | All |
 | DAT-6 | Optional Postgres state store (swap embedded state) | Should | SHIPPED (2026-07-07: all 6 JDBC state stores — jobs/provenance/objects/links/notes/status — verified against real Postgres via embedded-PG test; DuckDB-only `quantile_cont` made dialect-aware; `postgres` backend alias; PG driver on classpath = `inspecto-connectors`) | S/E |
 
 ### 3.5 BI Studio & presentation (BI) — UI + backend
@@ -200,7 +200,7 @@ AI-driven autonomy without redesign.
 | SEC-4 | HTTPS via pure-JDK `HttpsServer` + keystore | Must (S) | SHIPPED | S/E |
 | SEC-5 | BFF session: refresh token never reaches the browser (httpOnly cookie, SameSite=Strict + Origin CSRF) | Must (S) | SHIPPED (W6d) | S/E |
 | SEC-6 | UI OIDC login driven by `bootstrap.features.authMode`; offline/Personal = no-op | Must (S) | SHIPPED (W6d/W7) | S/E |
-| SEC-7 | RBAC/ABAC hardening: reject X-Actor on Standard, **per-resource** `permissions[]`, `canTriageRequirements` backend route, data-scoped grants | **Must (S)** | SHIPPED (2026-07-07/08: **X-Actor rejected outright when an `Authenticator` is active** (Standard) — actor authoritative from the Subject; Personal unchanged. **`canTriageRequirements` route** shipped — `RequirementRoutes` `/decision`+`/deliver` gated server-side on the capability while submission stays open (with UI-6). **Per-resource `permissions[]`** shipped — the v1 envelope emits `grants ∩ resource state` when a route declares the applicable set (`ApiContext.resourcePermissions`; components/expectations/requirements opted in; design: `superpower/resource-permissions-design.md`). **Data-scoped grants** shipped 2026-07-08 (SEC-7d, closes `rbac-groundwork.md` §4 Q2, model signed by product in-session: **attribute scopes**) — `Subject.dataScopes` (null = unscoped, every plain role unchanged); an object's `caseType` attribute is the scoping dimension; `ObjectRoutes` row-filters lists, 404s any direct route to an out-of-scope object (read AND mutate, existence-hiding), and prunes the correlation graph; `RoleMapper` resolves scopes from a `data_scopes` claim ∪ `case:<scope>` role names. Personal edition byte-identical (no Subject ever attaches)) | S/E |
+| SEC-7 | RBAC/ABAC hardening: reject X-Actor on Standard, **per-resource** `permissions[]`, `canTriageRequirements` backend route, data-scoped grants | **Must (S)** | SHIPPED (2026-07-07/08: **X-Actor rejected outright when an `Authenticator` is active** (Standard) — actor authoritative from the Subject; Personal unchanged. **`canTriageRequirements` route** shipped — `RequirementRoutes` `/decision`+`/deliver` gated server-side on the capability while submission stays open (with UI-6). **Per-resource `permissions[]`** shipped — the v1 envelope emits `grants ∩ resource state` when a route declares the applicable set (`ApiContext.resourcePermissions`; components/expectations/requirements opted in; design: `archived-documents/plans-archive/resource-permissions-design.md`). **Data-scoped grants** shipped 2026-07-08 (SEC-7d, closes `archived-documents/plans-archive/rbac-groundwork.md` §4 Q2, model signed by product in-session: **attribute scopes**) — `Subject.dataScopes` (null = unscoped, every plain role unchanged); an object's `caseType` attribute is the scoping dimension; `ObjectRoutes` row-filters lists, 404s any direct route to an out-of-scope object (read AND mutate, existence-hiding), and prunes the correlation graph; `RoleMapper` resolves scopes from a `data_scopes` claim ∪ `case:<scope>` role names. Personal edition byte-identical (no Subject ever attaches)) | S/E |
 | SEC-8 | Secrets: env/file/keystore; Vault option future | Should | PARTIAL (2026-07-07: `SecretResolver` now does `${ENV}`/`${SYS}`/`${FILE}`/`${KEYSTORE:alias}` (JCEKS, pure-JDK); Vault scope deferred — client not in the lean core) | S/E |
 | SEC-9 | Write-root gate (`-Dassist.write.root` → 503 fail-closed) — separate from auth, always on | Must | SHIPPED | All |
 
@@ -382,7 +382,7 @@ template gallery + apply).*
 | R5 | Provenance conservation checks unproven on live data | OPS-5 live verification alongside R1's seeded run |
 | R6 | Structured (non-SQL) Queries still client-compiled | DAT-3 follow-on; server 422 today is explicit, not silent |
 | R7 | Prompt injection / data egress once intelligence deepens | AGT-5 design: context-as-data, privacy classes P0–P3, approval gates, kill switch |
-| R8 | Open product questions: case-type data-scoped grants, `canOnboardConnections` split, sunset timing | Product owner; tracked in `superpower/api-contract-design.md` §10 + `rbac-groundwork.md` |
+| R8 | Open product questions: case-type data-scoped grants, `canOnboardConnections` split, sunset timing | Product owner; tracked in `archived-documents/plans-archive/api-contract-design.md` §10 + `archived-documents/plans-archive/rbac-groundwork.md` |
 | R9 | Feature matrix (2026-07-02) drifting from reality | This document is the reconciled view; update **both** on the next planning pass |
 
 ---
@@ -391,10 +391,10 @@ template gallery + apply).*
 
 | Source | What it grounds |
 |---|---|
-| [`superpower/feature-matrix-editions.md`](superpower/feature-matrix-editions.md) | Original H/M/S/N ratings + edition tiers (2026-07-02 planning view) |
-| [`superpower/api-contract-design.md`](superpower/api-contract-design.md) | 33 product-owner API guidelines; W1–W7 delivery worklog |
+| [`archived-documents/plans-archive/feature-matrix-editions.md`](archived-documents/plans-archive/feature-matrix-editions.md) | Original H/M/S/N ratings + edition tiers (2026-07-02 planning view) |
+| [`archived-documents/plans-archive/api-contract-design.md`](archived-documents/plans-archive/api-contract-design.md) | 33 product-owner API guidelines; W1–W7 delivery worklog |
 | [`superpower/living-operational-system.md`](superpower/living-operational-system.md) | Seven-network north star; R1–R6 rework (shipped) |
-| [`superpower/backend-backlog.md`](superpower/backend-backlog.md) | Component-store seam history; Matrix/job-template sequencing |
+| [`archived-documents/plans-archive/backend-backlog.md`](archived-documents/plans-archive/backend-backlog.md) | Component-store seam history; Matrix/job-template sequencing |
 | [`superpower/embedded-intelligence-plan.md`](superpower/embedded-intelligence-plan.md) | AGT-5 phases P0–P5, autonomy ladder |
 | [`roadmap/ROADMAP.md`](roadmap/ROADMAP.md) · [`roadmap/STAKEHOLDER_OVERVIEW.md`](roadmap/STAKEHOLDER_OVERVIEW.md) | Horizons; value proposition; maturity |
 | [`EDITIONS.md`](EDITIONS.md) | Edition capability tiers |

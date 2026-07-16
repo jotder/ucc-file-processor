@@ -8,7 +8,7 @@
 ## Run it
 
 - **Serve** — one JVM: fat JAR + bundled JDK runtime; `serve.sh`/`serve.bat` in the deploy bundle
-  hosts API + UI on `:8080` (SPA served by the engine). [`../operations.md`](../operations.md).
+  hosts API + UI on `:8080` (SPA served by the engine). [`../okf/backend/build-run/operations-reference.md`](../okf/backend/build-run/operations-reference.md).
 - **Mandatory JVM flag** — DuckDB needs the native-access flag; the bundle scripts set it. Details:
   [build & run](../okf/backend/build-run/operations.md).
 - **Editions** — Personal boots open (no login); Standard needs the IAM/OIDC settings and HTTPS
@@ -34,7 +34,7 @@
 - **Recover** — every batch is idempotent and crash-isolated: reprocess a batch, resume a paused
   pipeline, or replay from quarantine; markers make re-ingest safe.
   Playbooks: [`../ADVANCED_GUIDE.md`](../ADVANCED_GUIDE.md) §troubleshooting ·
-  [`../troubleshooting.md`](../troubleshooting.md) (DuckDB/pg_duckdb quirks).
+  [`../okf/backend/build-run/troubleshooting.md`](../okf/backend/build-run/troubleshooting.md) (DuckDB/pg_duckdb quirks).
 - **Config changes** — validated drafts only (`POST /validate` → `/config/write` under the fail-closed
   write root); the safety validator blocks dangerous specs (`422`).
 - **Backup / move** — whole-Space zip export/import (dry-run preview), or artifact-level **Metadata

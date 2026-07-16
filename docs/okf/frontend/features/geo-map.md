@@ -30,6 +30,6 @@ Geocoder — never "marker/pin" in model names).
 * **Status** — UI shipped, metadata-first (mock-backed data); the DuckDB-spatial backend + geo Widget
   via the `VizPlugin` seam are Phase 4.
 
-Plan + gotchas (rAF hidden-page stall, absolute style URLs, seed-once localStorage):
-[`geo-map-analysis-plan.md`](../../../superpower/geo-map-analysis-plan.md) · case-study pack:
-[`geo-map-case-studies.md`](../../../superpower/geo-map-case-studies.md).
+Plan + gotchas (rAF hidden-page stall, absolute style URLs, seed-once localStorage) — archived:
+[`geo-map-analysis-plan.md`](../../../archived-documents/plans-archive/geo-map-analysis-plan.md) ·
+case-study pack: [`geo-map-case-studies.md`](../../../superpower/geo-map-case-studies.md).

@@ -5,7 +5,7 @@ business Sources, operational and situational context; it explains Incidents, pe
 analysis, authors and executes rules and queries, builds Pipelines, KPIs, reports and dashboards,
 assists analysis, and acts as an operator/support agent — with autonomy that is earned, gated, and
 auditable. Successor track to the assist agent (7 reflex skills) and the agent-kernel replacement
-(`agent-kernel-replacement-plan.md`); this is the "full eoiagent-native port" phase, expanded into a
+(archived: `docs/archived-documents/plans-archive/agent-kernel-replacement-plan.md`); this is the "full eoiagent-native port" phase, expanded into a
 product capability.*
 
 ---
@@ -310,6 +310,6 @@ dashboards; embedding retrieval upgrade if warranted.
 - **Token/context bloat** → ContextBudget everywhere; graph-scoped focus instead of dumps; OKF docs
   are chunk-friendly by design.
 
-*Related: `agent-kernel-replacement-plan.md` (substrate), `agent-brainstorm-assessment.md`
+*Related: `agent-kernel-replacement-plan.md` (substrate), `agent-brainstorm-assessment.md` (both archived under `docs/archived-documents/plans-archive/`)
 (platform evaluation), `component-model.md` (Component metamodel), `api-contract-design.md`
 (governed control plane W1–W6), `assist-agent-improvement-plan.md` (reflex layer history).*

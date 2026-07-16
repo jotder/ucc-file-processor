@@ -19,3 +19,4 @@ in-app [`/design` route](../features/design-system-gallery.md).
 * [Data table](data-table.md) - the tiered `<inspecto-data-table [tier]>` family (mini/standard/pro/proMax) that consolidates every grid host.
 * [Query](query.md) - the framework-free query AST: compile-to-SQL, in-browser eval, the filter-builder component.
 * [Rule](rule.md) - Pro Max rule templates (parameterized `:fieldValue` binds) + the save dialog.
+* [Tree table](tree-table.md) - the expandable tree-grid primitive (hosts: Access matrix, catalog lineage; keeps expand state across refreshes).

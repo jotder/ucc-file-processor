@@ -1,4 +1,5 @@
 # Parsing Options Reference
+> *Moved from `docs/parsing-options-reference.md` (docs consolidation, 2026-07-16).*
 
 > Companion to `docs/Parsing Options Reference.pdf`. The PDF is an excellent **generic DuckDB
 > `read_csv` cheat-sheet**; this document (1) **validates and corrects** that material against
@@ -37,7 +38,7 @@ Every format you listed converges on the **same** typing/transform/partition bac
   "regular-enough-to-regex" text (fixed-width, LDIF, key/value, flat XML).
 - **The plugin frontend** (`StreamingFileIngester`) decodes in Java and `emit()`s records. The
   *only* path for genuinely binary/grammar-driven formats — ASN.1/BER-TLV, proprietary CDRs,
-  deeply nested XML. See [plugins.md](plugins.md).
+  deeply nested XML. See [plugins.md](../engine/plugins.md).
 
 **Key consequence:** "use DuckDB as a parser extensively" is the right instinct — push as many
 formats as possible onto `read_csv`/`read_json`/`read_text` and reserve the Java plugin for true
@@ -292,7 +293,7 @@ No native DuckDB fixed-width reader, so the engine carves slices itself. Two rou
   `com.gamma.ingester.FixedWidthRecordIngester` (a `StreamingFileIngester`), wired via
   `processing.ingester` + `processing.segments` + an `ingester_config` carrying `record_length`,
   `encoding`, `trim`, and `fields[]{name,start,length}`. It reads N-byte records and `emit()`s byte
-  slices; see [plugins.md](plugins.md#fixed-length-binary-records-fixedwidthrecordingester).
+  slices; see [plugins.md](../engine/plugins.md#fixed-length-binary-records-fixedwidthrecordingester).
 
 ### 6.4 JSON / NDJSON `[LIVE]`
 ```yaml

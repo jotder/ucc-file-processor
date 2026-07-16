@@ -72,11 +72,30 @@ confusing or ambiguous. In all UI text, model/field names, API routes, config ke
 
 - Use the **canonical term**; never a banned synonym. The hard bans: ⛔ *Flow* → **Pipeline** · ⛔ *Data Store*
   (relation) → **Dataset** · ⛔ *Issue* → **Incident** · ⛔ bare *Rule* → **Expectation / Alert Rule / Decision
-  Rule** · ⛔ *Metric* (BI) → **Measure** · ⛔ *Collector* (noun) → **Source**.
+  Rule** · ⛔ *Metric* (BI) → **Measure** · ⛔ *Source* (acquisition entity) → **Collector** · ⛔ *Data
+  Source* → **Stream / Reference** (Catalog data origins). *(Source→Collector flipped 2026-07-14, §2/§3.)*
 - **One concept → one word; one word → one concept.** Always distinguish **Type** (template) from **Instance**
   (e.g. *Visualization Type* → *Widget*).
 - The rename rolls out **UI → model → backend** (map in `docs/GLOSSARY.md` §13). When you touch any of these
   layers, conform to the canonical term and update the touchpoint table.
+
+## Documentation lifecycle (three tiers — keep it this way)
+
+Docs live in exactly three tiers; **`docs/INDEX.md` is the map** and must be updated in the same
+change that adds or retires a doc:
+
+1. **Current knowledge → `docs/okf/`** (one concept per file, cross-linked, graphify-indexed) plus
+   the small root canon (GLOSSARY, INDEX, REQUIREMENTS, BACKLOG, USER_GUIDE, PROJECT_NOTES,
+   BRANCHING, EDITIONS, FEATURE_INVENTORY, ADVANCED_GUIDE, stakeholders/).
+2. **Active plans → `docs/superpower/`** — a plan lives here ONLY while its work is in flight.
+   **When the work ships: distill the durable as-built facts (decisions, seams, gotchas, deliberate
+   deferrals) into the matching OKF concept, move still-open items to `docs/BACKLOG.md`, then
+   `git mv` the plan to `docs/archived-documents/plans-archive/`.** The `handoff` skill checks this.
+3. **History → `docs/archived-documents/`** — kept for provenance, never maintained, never linked
+   as current.
+
+Never create a new root-level `docs/*.md` topic file — new knowledge goes into an OKF concept
+(or an existing canon file). After doc moves, run `graphify update .`.
 
 ## Working artifacts stay in the repo
 

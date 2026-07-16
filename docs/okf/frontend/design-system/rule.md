@@ -20,3 +20,7 @@ parameterized **rule template**.
 
 A condition `tariff = 'premium'` saves as `WHERE "tariff" = :tariffValue` with a `:tariffValue` param
 defaulting to `premium`.
+
+The north-star design (phasing, locked decisions, the unbuilt aggregation builder — measures/dimensions —
+and backend rule save/templates) is archived at
+[`rule-builder-design.md`](../../../archived-documents/plans-archive/rule-builder-design.md).

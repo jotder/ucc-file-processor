@@ -3,10 +3,10 @@
 > **Audience:** engineers and operators investigating production behaviour. This is the deep, "nitty-gritty"
 > reference: how each component actually works, what it emits (events + metrics), what state it writes to disk,
 > which `-D` flags govern it, and how to diagnose issues. For *config authoring* see
-> [`configuration.md`](configuration.md); for the *design rationale* of the flow engine see
-> [`flow-graph-design.md`](flow-graph-design.md); for *acquisition feature depth* see
-> [`data_acquisition_framework.md`](data_acquisition_framework.md); for the *edition/build model* see
-> [`EDITIONS.md`](EDITIONS.md). Short, focused fixes live in [`troubleshooting.md`](troubleshooting.md).
+> [`configuration.md`](okf/backend/config/configuration.md); for the *design rationale* of the Pipeline engine see
+> [`pipeline-graph-design.md`](okf/backend/pipeline-graph/pipeline-graph-design.md); for *acquisition feature depth* see
+> [`data-acquisition-framework.md`](okf/backend/acquisition/data-acquisition-framework.md); for the *edition/build model* see
+> [`EDITIONS.md`](EDITIONS.md). Short, focused fixes live in [`troubleshooting.md`](okf/backend/build-run/troubleshooting.md).
 
 ---
 
@@ -179,7 +179,7 @@ Each sub-section: **Responsibility · Process · Events · Metrics · State · C
 - **Failure modes:** field/schema mismatch → quarantine (`field_mismatch`); unreadable → `unreadable`;
   readable but **zero ingestable rows** (empty / header-only) → quarantine (`empty`) so it is consumed
   once instead of being rediscovered and reprocessed every poll cycle (an EMPTY batch never backs up/marks);
-  `year=NULL` partitions (see [`troubleshooting.md`](troubleshooting.md)); a `BATCH_FAILED` with `offendingFile`.
+  `year=NULL` partitions (see [`troubleshooting.md`](okf/backend/build-run/troubleshooting.md)); a `BATCH_FAILED` with `offendingFile`.
 
 ### 5.3 Flow engine (`com.gamma.pipeline`, `com.gamma.pipeline.exec`)
 - **Responsibility:** NiFi-style pipeline-as-graph. Two faces: (a) **read-only projection** of lifted pipelines
@@ -507,7 +507,7 @@ remove the marker/ledger entry. Remember markers/ledger are written **LAST** in 
 marker and *will* re-pick the file.
 
 **Output lands in `year=NULL/month=NULL/day=NULL`.** Partition columns weren't derived. See
-[`troubleshooting.md`](troubleshooting.md) (partition extraction) — usually a schema/derive mis-config.
+[`troubleshooting.md`](okf/backend/build-run/troubleshooting.md) (partition extraction) — usually a schema/derive mis-config.
 
 **A batch failed.** `GET /pipelines/{n}/batches` (status FAILED) or `events/search?type=BATCH_FAILED` → attrs
 `error`, `offendingFile`, `errorRows`. Per-file: `GET /pipelines/{n}/files` + the `errors/` CSV. Quarantined
@@ -577,12 +577,12 @@ are computed at scrape time by `MetricsService`'s collector. Confirm the service
 ---
 
 ## 13. Cross-references
-- Config authoring & all TOON keys → [`configuration.md`](configuration.md)
-- Acquisition feature depth (connectors, watermark, retry/circuit/post-actions, bastion) → [`data_acquisition_framework.md`](data_acquisition_framework.md)
-- Flow engine design (IR, lift, validator, executor, T32 live-exec) → [`flow-graph-design.md`](flow-graph-design.md), [`flow-live-execution-plan.md`](flow-live-execution-plan.md)
+- Config authoring & all TOON keys → [`configuration.md`](okf/backend/config/configuration.md)
+- Acquisition feature depth (connectors, watermark, retry/circuit/post-actions, bastion) → [`data-acquisition-framework.md`](okf/backend/acquisition/data-acquisition-framework.md)
+- Pipeline engine design (IR, lift, validator, executor, T32 live-exec) → [`pipeline-graph-design.md`](okf/backend/pipeline-graph/pipeline-graph-design.md), [`live-execution.md`](okf/backend/pipeline-graph/live-execution.md)
 - Editions / build flavors → [`EDITIONS.md`](EDITIONS.md) · Branch & release policy → [`BRANCHING.md`](BRANCHING.md)
-- Architecture overview → [`architecture.md`](architecture.md) · Operator console → [`operator-console.md`](operator-console.md)
-- Short fixes (DuckDB/PG view quirks, partition extraction) → [`troubleshooting.md`](troubleshooting.md)
+- Architecture overview → [`stage1-architecture.md`](okf/backend/engine/stage1-architecture.md) · Operator console → [`operator-console.md`](archived-documents/operator-console.md)
+- Short fixes (DuckDB/PG view quirks, partition extraction) → [`troubleshooting.md`](okf/backend/build-run/troubleshooting.md)
 
 ---
 

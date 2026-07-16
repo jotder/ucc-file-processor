@@ -43,14 +43,14 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
 | Topic | Doc |
 |---|---|
 | Production investigation (process/events/metrics/state/`-D` flags/Control API/troubleshooting) | [`ADVANCED_GUIDE.md`](ADVANCED_GUIDE.md) — **living doc** |
-| Flow-graph design (IR, lift, validator, executor, registry, T-checklist §14) | [`flow-graph-design.md`](flow-graph-design.md) |
-| Live execution of authored flows (`JobType.PIPELINE`, T32) | [`flow-live-execution-plan.md`](flow-live-execution-plan.md) |
-| Data acquisition framework (Phases A–F, connectors, dedup, watermarks) | [`data_acquisition_framework.md`](data_acquisition_framework.md) |
-| All TOON config keys | [`configuration.md`](configuration.md) |
+| Pipeline-graph design (IR, lift, validator, executor, registry, T-checklist §14) | [`pipeline-graph-design.md`](okf/backend/pipeline-graph/pipeline-graph-design.md) |
+| Live execution of authored Pipelines (`JobType.PIPELINE`, T32) | [`live-execution.md`](okf/backend/pipeline-graph/live-execution.md) |
+| Data acquisition framework (Phases A–F, connectors, dedup, watermarks) | [`data-acquisition-framework.md`](okf/backend/acquisition/data-acquisition-framework.md) |
+| All TOON config keys | [`configuration.md`](okf/backend/config/configuration.md) |
 | Editions (Personal/Standard/Enterprise = build flavors) | [`EDITIONS.md`](EDITIONS.md) |
 | Branch & release policy (versions=branches; merge-forward; SemVer+CC) | [`BRANCHING.md`](BRANCHING.md) |
-| Parsing/grammar | [`parsing-options-reference.md`](parsing-options-reference.md), [`delimited-grammar-design.md`](delimited-grammar-design.md) |
-| Perf benchmarks & tuning | [`performance.md`](performance.md) |
+| Parsing/grammar | [`parsing-options-reference.md`](okf/backend/config/parsing-options-reference.md), [`delimited-grammar-design.md`](archived-documents/plans-archive/delimited-grammar-design.md) |
+| Perf benchmarks & tuning | [`performance.md`](okf/backend/build-run/performance.md) |
 | Strategy / roadmap / stakeholder decks | [`roadmap/`](roadmap/) |
 | Curated index of all current docs | [`INDEX.md`](INDEX.md) |
 | Engineering knowledge bundle (OKF, consolidated 2026-07-07; graphify-indexed) | [`okf/`](okf/index.md) — sections [`frontend/`](okf/frontend/index.md) · [`backend/`](okf/backend/index.md) · [`agentic/`](okf/agentic/index.md) |
@@ -84,7 +84,7 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
   seam: `/spaces/{id}/…` (`ControlApi.dispatch` strips + MDC-binds; un-prefixed → current/default). Space CRUD
   (no restart): `GET/POST /spaces`, `DELETE /spaces/{id}?purge=` (purge = opt-in file removal). **No flat
   fallback** — migrate once via `com.gamma.service.SpaceMigrator`. Editions/auth stay future SPI (no
-  `if(edition==)`). → [`configuration.md` §Spaces](configuration.md).
+  `if(edition==)`). → [`configuration.md` §Spaces](okf/backend/config/configuration.md#spaces-multi-project-layout).
   **UI (Stage 7):** `SpacesService` (signals) + a global `spaceInterceptor` rewrite `/api/<p>` →
   `/api/spaces/<id>/<p>` so every feature service stays space-agnostic (no-op single-tenant = byte-identical);
   header space-switcher + `modules/admin/spaces` admin (CRUD + per-space/per-data-source zip export + import
@@ -163,7 +163,7 @@ local `.m2` from `C:/sandbox/agent-brainstorm`) — see `docs/superpower/agent-k
   `SinkFlushException` → fail the batch.
 - **`com.gamma.util` CLI cluster** (~11 `main()` tools: `MainApp`, `TarExtractor`, …) sits at low coverage and is
   **kept by decision** (self-contained; `MainApp` is wired into `package.ps1`/ops). Tested engine+control-plane
-  is ~86%. Long-term: extract the CLI cluster to its own module. → [`performance.md`](performance.md).
+  is ~86%. Long-term: extract the CLI cluster to its own module. → [`performance.md`](okf/backend/build-run/performance.md).
 
 ---
 

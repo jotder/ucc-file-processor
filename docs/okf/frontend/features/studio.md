@@ -24,8 +24,15 @@ configured instance bound to a Dataset's Result Set; a **Dashboard** is a layout
   (`/components` + ETag/If-Match; [backend registry](../../backend/components/component-registry.md));
   query execution runs on DuckDB via [`POST /queries/{id}/run`](../../backend/control-plane/queries.md).
   Offline, the same surface runs against the mock store ([mock backends](../conventions/mock-backends.md)).
+* **Widgets are library citizens** — identity + tags, the browsable Viz Library gallery, a standalone
+  `WidgetHost` render path, and one shared `DatasetResultService` result layer: live it runs
+  `POST /bi/query` (DuckDB), offline the same specs run byte-identically on AlaSQL; unmappable specs
+  (named-Measure SQL, OR filters) fail honestly. Sharing/RBAC stays gated on the security module.
 * **Forms** follow ask-the-minimum + `uniqueNameValidator` on create
   ([forms & state](../conventions/forms-and-state.md)).
 
-Design of record: [`report-builder-design.md`](../../../superpower/report-builder-design.md) ·
-[`widget-library-spec.md`](../../../superpower/widget-library-spec.md).
+Design of record (archived):
+[`report-builder-design.md`](../../../archived-documents/plans-archive/report-builder-design.md) ·
+[`widget-library-spec.md`](../../../archived-documents/plans-archive/widget-library-spec.md) ·
+[`studio-implementation-plan.md`](../../../archived-documents/plans-archive/studio-implementation-plan.md) ·
+[`studio-bi-improvements-plan.md`](../../../archived-documents/plans-archive/studio-bi-improvements-plan.md).

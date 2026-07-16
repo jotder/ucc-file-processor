@@ -1,13 +1,14 @@
 # Architecture Layers — Platform-Wide Design Map
+> *Moved from `docs/architecture-layers.md` (docs consolidation, 2026-07-16).*
 
-> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](INDEX.md).
+> Part of the [Inspecto](../../../inspecto/README.md) documentation. See the [docs index](../../INDEX.md).
 >
-> **Scope.** [`architecture.md`](architecture.md) describes **Stage-1** (the M..N multiplexer ingest
+> **Scope.** [`stage1-architecture.md`](engine/stage1-architecture.md) describes **Stage-1** (the M..N multiplexer ingest
 > engine) in depth. This page is the **whole-platform layer map**: every `com.gamma` package, the
 > dependency layering between them, the extension (SPI) surface, the event/config/storage/threading
 > models, and the design patterns in use. Derived from a full import-level dependency sweep on
 > 2026-07-08 (commit base `f2f9506` + working tree). Companion improvement plan:
-> [`superpower/modularization-optimization-plan.md`](superpower/modularization-optimization-plan.md).
+> [`superpower/modularization-optimization-plan.md`](../../superpower/modularization-optimization-plan.md).
 
 ---
 
@@ -200,4 +201,4 @@ core at all.
 
 *Maintainers: update this page when a package's layer, an SPI, or a cycle changes. The MoSCoW
 implementation plan for fixing the flagged gaps lives in*
-[`superpower/modularization-optimization-plan.md`](superpower/modularization-optimization-plan.md).
+[`superpower/modularization-optimization-plan.md`](../../superpower/modularization-optimization-plan.md).

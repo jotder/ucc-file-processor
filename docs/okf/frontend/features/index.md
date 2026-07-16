@@ -17,6 +17,7 @@ documented as concepts.
 * [Enrichment](enrichment.md) - stage-2 enrichment jobs, lineage, and rollup reports.
 * [Jobs](jobs.md) - scheduled jobs + run history (async run-now, 202 + runId).
 * [Diagnoses](diagnoses.md) - diagnostic records.
+* [Reconciliation](reconciliation.md) - N-way anchor reconciliation boards (DAT-7): breaks, tolerance, drill-through.
 * Processing status · Notification center · Audit logs *(not yet documented)*.
 
 # Platform — Workbench

@@ -3,8 +3,9 @@
 **Date:** 2026-07-08 (rev 2 — backend deep-dive incorporated) · **Status:** PROPOSED (analysis-only; no code touched)
 **Scope:** Whole repo — Maven reactor (6 Java modules), Angular SPA (`inspecto-ui/`), build/packaging, repo hygiene.
 **Related plans (not duplicated here):** `component-model-adoption-plan.md` (component metamodel),
-`transportability-plan.md` (bundle portability), `agent-kernel-replacement-plan.md` (eoiagent),
-`embedded-intelligence-plan.md` (inspecto-intelligence charter), `rbac-groundwork.md` (security split).
+`transportability-plan.md` (bundle portability), `rbac-groundwork.md` (security split) — these three now in
+`../archived-documents/plans-archive/` (shipped; durable content in `../okf/backend/`) —
+`agent-kernel-replacement-plan.md` (eoiagent), `embedded-intelligence-plan.md` (inspecto-intelligence charter).
 This plan covers the *structural* dimension none of those own: reactor boundaries, coupling chokepoints,
 reuse debt, and dead weight.
 

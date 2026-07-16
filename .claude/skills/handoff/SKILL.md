@@ -26,6 +26,10 @@ zero questions.
    - Absolute dates only (no "today"/"yesterday"). Never commit this file (gitignored).
 2. **Refresh affected living docs** — `docs/PROJECT_NOTES.md`, the active plan under
    `docs/superpower/`. Refactor/dedup in place; don't append changelogs.
+   **Doc lifecycle check (root `CLAUDE.md`):** if this shift SHIPPED a plan's work, distill its
+   durable as-built facts into the matching `docs/okf/` concept, move still-open items to
+   `docs/BACKLOG.md`, `git mv` the plan to `docs/archived-documents/plans-archive/`, and update
+   `docs/INDEX.md`. `docs/superpower/` holds in-flight plans only.
 3. **Update the memory index breadcrumb** only if a milestone shipped (repo stays the source of
    truth; memory is a thin pointer).
 4. **Report to the operator**: one paragraph of what was handed off, then recommend ending this

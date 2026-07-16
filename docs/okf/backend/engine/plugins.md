@@ -1,6 +1,7 @@
 # Plugin Ingester
+> *Moved from `docs/plugins.md` (docs consolidation, 2026-07-16).*
 
-> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
+> Part of the [Inspecto](../../../../inspecto/README.md) documentation. See the [docs index](../../../../inspecto/README.md#documentation).
 
 ## Plugin Ingester
 
@@ -57,7 +58,7 @@ public class MyCdrIngester implements StreamingFileIngester {
 
 ### Execution modes — the framework picks by file size
 
-The same ingester serves both ingestion shapes; the [`StreamingPluginBatchStrategy`](../inspecto/src/main/java/com/gamma/inspector/StreamingPluginBatchStrategy.java) chooses one **per batch** with zero extra I/O (member sizes are already known):
+The same ingester serves both ingestion shapes; the [`StreamingPluginBatchStrategy`](../../../../inspecto/src/main/java/com/gamma/inspector/StreamingPluginBatchStrategy.java) chooses one **per batch** with zero extra I/O (member sizes are already known):
 
 | Mode | When | What it does | Output |
 |---|---|---|---|
@@ -240,7 +241,7 @@ See `TypedRecordIngester.java` for the full source — it's deliberately compact
 For **binary** fixed-length records (no delimiter, no newlines — each record is exactly *N* bytes), the
 repo ships `com.gamma.ingester.FixedWidthRecordIngester`. (Fixed-width **text**, one record per line, is
 handled natively by the engine — set `frontend: fixedwidth`; see
-[configuration.md](configuration.md#fixed-width-frontend-frontend-fixedwidth). Reach for this plugin only
+[configuration.md](../config/configuration.md#fixed-width-frontend-frontend-fixedwidth). Reach for this plugin only
 when records are not newline-delimited.)
 
 It reads `record_length` bytes per record and carves each field by byte `(start,length)`, decoding with

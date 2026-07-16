@@ -2,7 +2,7 @@
 
 > Audience: solution architects, integrators, senior engineers · Status date: **2026-07-07**
 > Deep dives: the [OKF knowledge bundle](../okf/index.md) (one concept per file) ·
-> engine details [`../architecture.md`](../architecture.md) · ops internals
+> engine details [`../okf/backend/engine/stage1-architecture.md`](../okf/backend/engine/stage1-architecture.md) · ops internals
 > [`../ADVANCED_GUIDE.md`](../ADVANCED_GUIDE.md).
 
 ## Shape of the system
@@ -81,7 +81,7 @@ read-only/draft-only today; the embedded-intelligence design adds a governed aut
 2. **Identity (Standard)**: point OIDC at your IAM; roles map via `RoleMapper`; gateway (WSO2-style)
    can front the API unchanged.
 3. **Data**: land files via Connections/Sources (SFTP/FTP/FTPS/DB today; object storage on the MUST
-   list); query the lakehouse via the warehouse layer (pg_duckdb) — [`../integrations.md`](../integrations.md).
+   list); query the lakehouse via the warehouse layer (pg_duckdb) — [`../okf/backend/integrations.md`](../okf/backend/integrations.md).
 4. **Observability**: scrape Prometheus metrics; consume the Signal ledger; ship the audit trail.
 5. **Packaging**: `package.ps1 -Edition <personal|standard|…>` → fat JAR + jlink bundle; air-gap
    flavors omit hosted-AI SDKs. [build & run](../okf/backend/build-run/index.md).

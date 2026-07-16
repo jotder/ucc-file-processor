@@ -35,5 +35,16 @@ live under `<write-root>/registry/<type>/` as TOON files, addressed by `<type>/<
   store superimposition (`PipelineStores.superimpose`) joins consumer `source_store` names to producer `store`
   names — no `on_pipeline` name-coupling — and a `DeletionFence` guards store deletion.
 
+## The Component metamodel
+
+Every reusable artifact is a **Component** `{ kind, id, config, parts?, wiring? }` — atomic kinds have no
+parts/wiring; composites (Pipeline, Dashboard, Job) add parts plus a wiring strategy (a Pipeline's graph *is*
+its wiring). The relationship graph is **derived, never stored**: composition (`part-of`) ∪ reference (`uses`)
+edges, with a single `deriveRefs` lineage derivation (R1) feeding the reuse-graph, delete protection, and
+[bundle](../control-plane/metadata-bundle.md) closure alike. Persistence stays federated per kind —
+`WRITABLE_TYPES` is widened only when a kind needs real storage; it is deliberately **not** a single generic
+wiring editor nor a storage unification. Adoption (D0→P4) completed 2026-06-28; design of record:
+`docs/archived-documents/plans-archive/component-model.md` (+ its adoption plan).
+
 The UI counterparts are the [components](../../frontend/features/components.md) and
 [Pipelines](../../frontend/features/pipelines.md) features in the frontend bundle.

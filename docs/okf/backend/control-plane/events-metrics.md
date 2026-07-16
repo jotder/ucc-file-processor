@@ -1,10 +1,10 @@
 ---
 type: Concept
 title: Events & Metrics
-description: EventLog (synchronous bus + the ingestLock deadlock seam), MetricRegistry, and the StabilityGate.
+description: EventLog (synchronous bus + the ingestLock deadlock seam), MetricRegistry, the StabilityGate, notifications + audit trail, and alert-rule authoring.
 resource: inspecto/src/main/java/com/gamma/event/EventLog.java
 tags: [control-plane, events, metrics, observability, deadlock]
-timestamp: 2026-07-07T00:00:00Z
+timestamp: 2026-07-16T00:00:00Z
 ---
 
 # Events & Metrics
@@ -25,6 +25,33 @@ timestamp: 2026-07-07T00:00:00Z
   [`/api/v1`](control-api.md); it is the sunset signal for retiring the legacy surface.
 * **`StabilityGate`** (`inspecto/src/main/java/com/gamma/acquire/StabilityGate.java`) — the acquisition
   file-readiness gate (not a health gate); one shared instance per space (see [acquisition](../acquisition/framework.md)).
+
+## Notifications & audit trail (shipped 2026-06-29, `ddfa288`)
+
+* **`NotificationService`** — an `EventLog` subscriber that **hands off to a virtual-thread
+  executor** (never runs inline — the sync-bus/`ingestLock` deadlock seam above). Feed routes under
+  `/notifications/*` (list / unread-count / read / read-all / delete), real-time via **SSE**
+  `GET /notifications/stream` (blocking handler on a virtual thread, heartbeat, close-hook registry),
+  and `NotificationRateLimiter` (rolling per-hour cap on identical notifications — the anti-loop
+  safeguard). `NotificationTemplate` uses `{{var}}` interpolation; delivery is gated by
+  `NotificationPreferences` (category × channel; critical categories locked on).
+* **`NotificationChannel`** is a ServiceLoader SPI — in-app is intrinsic; **email is an edition
+  seam**, deliberately not in core. A message broker is deliberately not used: in-process
+  virtual-thread executor + append-only `EventStore` is the idiom.
+* **`AuditTrail`** — a central interceptor in `ControlApi.dispatch` records every successful
+  state-changing request plus non-GET forbidden-route attempts (actor/action/target, secret
+  scrubbing, immutable store). One seam covers all routes; 405 immutability is inherent to dispatch.
+* Deferred to editions/follow-ons: email channel impl + delivery webhooks, digest batching,
+  time-based retention sweep, GeoIP, auth-gated security-event triggers / per-user prefs.
+
+## Alert-rule authoring (shipped 2026-07-09)
+
+* `AlertRoutes` — `POST/PUT/DELETE /alerts/rules[/{name}]` per the `endpoint` skill's fail-closed
+  gate order; writes/deletes `<name>_alert.toon` via `ConfigCodec` + `AtomicFiles` under the write
+  root, gated on the `canAuthorAlertRules` capability. The engine does **not** hot-load
+  `*_alert.toon`: the write routes arm rules in the running `AlertService` **in-process** (always
+  present, empty until armed); a restart re-arms from the persisted files.
+  Gate coverage: `ControlApiAlertRuleWriteTest`.
 
 The matching UI surfaces are the [events](../../frontend/features/events.md) and
 [dashboard](../../frontend/features/dashboard.md) screens in the frontend bundle.

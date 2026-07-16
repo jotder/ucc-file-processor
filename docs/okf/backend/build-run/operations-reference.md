@@ -1,6 +1,7 @@
 # Operations: Utilities, Batching, Output & Deployment
+> *Moved from `docs/operations.md` (docs consolidation, 2026-07-16).*
 
-> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
+> Part of the [Inspecto](../../../../inspecto/README.md) documentation. See the [docs index](../../../../inspecto/README.md#documentation).
 
 ## Pre-ETL Utility Suite
 
@@ -312,15 +313,15 @@ java -cp file-processor.jar com.gamma.control.ControlApi \
 edition every route is open — no token, guard, or login (the old `CONTROL`/`assist.*` token scopes were
 removed). The **Standard** edition re-adds authentication out-of-band via the `Authenticator` / `Subject` /
 `TokenRelay` SPIs (`com.gamma.control`), implemented by the `inspecto-security` module (OIDC resource
-server, HTTPS, BFF `/auth/*` routes) — see [`EDITIONS.md`](EDITIONS.md). Separate from auth and always on:
+server, HTTPS, BFF `/auth/*` routes) — see [`EDITIONS.md`](../../../EDITIONS.md). Separate from auth and always on:
 **write routes are fail-closed** behind the `-Dassist.write.root` gate (`503` when unset).
 
 **Versioned contract.** Every route below is also served under the versioned **`/api/v1`** prefix with a
 response envelope, an error-code catalog, ETag/`If-Match` concurrency on components, `GET /bootstrap`,
 `POST /queries/{id}/run`, and **async** job/pipeline triggers (`202` + `runId` + poll, `Idempotency-Key`
 replay). The legacy unversioned routes remain byte-for-byte compatible until a soak-gated sunset. The
-authoritative surface is [`ADVANCED_GUIDE.md`](ADVANCED_GUIDE.md) §Control API and the OpenAPI contract
-[`api/openapi-v1.json`](api/openapi-v1.json). With multi-space enabled, routes may be prefixed
+authoritative surface is [`ADVANCED_GUIDE.md`](../../../ADVANCED_GUIDE.md) §Control API and the OpenAPI contract
+[`api/openapi-v1.json`](../../../api/openapi-v1.json). With multi-space enabled, routes may be prefixed
 `/spaces/{id}/…`.
 
 | Method & path | Purpose |
@@ -380,7 +381,7 @@ Angular SPA as static files, so one process hosts both the API and the UI (v4.1)
 Both flags are **off by default**: unset, the control plane behaves exactly as a headless API. The
 deploy bundle's `serve.sh` / `serve.bat` wire these up automatically (`-Dui.dir=./ui` when a `ui/`
 folder is present; `CORS_ORIGIN` env → `-Dcontrol.cors`). See the
-[User Guide](USER_GUIDE.md) for the full UI walkthrough.
+[User Guide](../../../USER_GUIDE.md) for the full UI walkthrough.
 
 ```bash
 # bundle root — serve API + UI on :8080

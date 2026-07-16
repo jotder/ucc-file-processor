@@ -21,3 +21,10 @@ Parquet · TXT · XLSX · XML) with a typed property sheet and ag-Grid/tree test
 mirrors the backend `CsvSettings`. Parsers persist as reusable `grammar`
 [components](components.md). Backed by `PipelinesService` / `ComponentsService`; offline via the
 `mockFlows`-gated handler of the unified [mock backend](../conventions/mock-backends.md).
+
+The generic **node-config dialog** (non-parser nodes) is schema-form-driven from the per-type tiered
+`node-attributes.ts` — tiers/keys are declared best-guess pending a firm backend node-config spec (shapes
+live in test strings, `FEATURE_INVENTORY.md` §G). Types without a schema (e.g. `transform.record`,
+plugins) fall back to the free-form key/value editor ("Additional config", collapsed when a schema exists)
+— the conversion is non-lossy by design. Declared defaults **persist on save** even when untouched
+(product-confirmed 2026-07-02: configs stay explicit/self-documenting).

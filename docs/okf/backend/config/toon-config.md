@@ -9,7 +9,7 @@ timestamp: 2026-06-28T00:00:00Z
 
 # TOON Configuration
 
-All configuration is **TOON** (`.toon`), parsed via JToon. Authoritative key reference: `docs/configuration.md`.
+All configuration is **TOON** (`.toon`), parsed via JToon. Authoritative key reference: [`configuration.md`](configuration.md).
 
 * **`ConfigCodec`** (`inspecto/src/main/java/com/gamma/config/io/ConfigCodec.java`) — thin JToon wrapper:
   `toMap` (lenient, tolerates `#` comments), `toMapStrict` (canonical assertion), `toToon` (canonical encode).

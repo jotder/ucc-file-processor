@@ -17,3 +17,8 @@ Pipelines: a **standard** [data-table](../design-system/data-table.md) (`autoHei
 **Run now** follows the v1 async contract (W5b): the trigger returns `202` + `{runId, …}` and the pane shows
 a `Run "<name>" started.` toast — the refreshed list (auto-refresh via `visibleInterval`) shows the outcome
 rather than blocking on it.
+
+**Business lens is read-only observe here** (product decision 2026-07-03): trigger/pause/resume/reprocess
+are hidden *and* method-guarded on `lens.readOnly()` (defense-in-depth) — a deliberate pane-specific
+exception to the Jobs precedent, where run-now/enable stay operational in every lens. New panes default to
+the Jobs heuristic unless the plan says "read-only observe" this explicitly.

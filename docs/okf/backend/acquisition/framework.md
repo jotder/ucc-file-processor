@@ -11,7 +11,7 @@ timestamp: 2026-06-28T00:00:00Z
 
 A full acquisition engine (not a directory poller): **Discover → Determine readiness → Guarantee collection
 semantics → Retrieve/validate → Finalize**. Driven by [`SourceProcessor.run()`](../engine/ingestion.md) (one
-call = one poll cycle). Authoritative doc: `docs/data_acquisition_framework.md`.
+call = one poll cycle). Authoritative doc: [`data-acquisition-framework.md`](data-acquisition-framework.md).
 
 ## Phases
 

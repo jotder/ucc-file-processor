@@ -1,18 +1,19 @@
 # Flow Graph — Pipeline-as-Graph Design
+> *Moved from `docs/flow-graph-design.md` and renamed (Flow is a banned synonym for Pipeline) — docs consolidation, 2026-07-16.*
 
 > **Status: IMPLEMENTED (design authored 2026-06-16; shipped 2026-06-18/19+).** The graph IR, lift, validator,
-> executor, and component registry described below are live — see [`flow-live-execution-plan.md`](flow-live-execution-plan.md)
-> for the runtime and the [`okf/backend/pipeline-graph/`](okf/backend/pipeline-graph/index.md) bundle for the as-built reference.
+> executor, and component registry described below are live — see [`live-execution.md`](live-execution.md)
+> for the runtime and the [`okf/backend/pipeline-graph/`](index.md) bundle for the as-built reference.
 > This document is the agreed design for re-modelling
 > the Inspecto "pipeline" as an explicit, NiFi-style **graph of typed processor nodes** wired by data and control
 > edges, authored from reusable, referenced components and visualised/edited from the UI. It supersedes the
-> implicit `source → parse → transform → sink` monolith of [`PipelineConfig`](../inspecto/src/main/java/com/gamma/etl/PipelineConfig.java)
+> implicit `source → parse → transform → sink` monolith of [`PipelineConfig`](../../../../inspecto/src/main/java/com/gamma/etl/PipelineConfig.java)
 > as the *authoring + topology + visualisation* layer, **without rewriting the batch execution engine**.
 >
 > **Decisions locked (2026-06-16):**
 > 1. **Runtime = topology over the existing batch engine.** The graph is an authoring + routing + visualisation
->    layer; the poll-cycle/batch runtime ([`MultiSourceProcessor`](../inspecto/src/main/java/com/gamma/inspector/MultiSourceProcessor.java),
->    [`SourceProcessor`](../inspecto/src/main/java/com/gamma/inspector/SourceProcessor.java)) is reused, not replaced.
+>    layer; the poll-cycle/batch runtime ([`MultiSourceProcessor`](../../../../inspecto/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java),
+>    [`SourceProcessor`](../../../../inspecto/src/main/java/com/gamma/inspector/CollectorProcessor.java)) is reused, not replaced.
 >    No inter-node queues, no streaming runtime in v1. A "FlowFile" = a batch / record-set.
 > 2. **Source of truth = TOON files + a referenced component registry** (`use:` references). Git-friendly,
 >    human-editable, program-editable. The API is designed so a DB-backed store *could* back it later without
@@ -48,7 +49,7 @@ Inspecto already has **one** graph and is gaining a **second**:
 
 | | Lineage graph (exists) | Flow graph (this design) |
 |---|---|---|
-| Owner | [`MetadataGraphService`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java) | new `com.gamma.pipeline` |
+| Owner | [`MetadataGraphService`](../../../../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java) | new `com.gamma.pipeline` |
 | Nature | **derived** projection of configs | **authored** topology |
 | Answers | "where did this column come from" | "what runs, in what order, where do failures/events go" |
 | Node kinds | `SOURCE`, `RAW_SCHEMA`, `EVENT_TABLE`, `TRANSFORMED_TABLE`, `COLUMN`, `KPI`, `REPORT` | `acquisition`, `adapter`, `parser`, `transform.*`, `merge`, `enrichment`, `sink`, `alert`/`gap`/`event` |
@@ -75,9 +76,9 @@ current engine, not new engine code:
 | `acquisition` | `SOURCE` | source processor (**file collector**) | `source:` block, `SourceConnector` SPI (`com.gamma.acquire`), connection profiles, stability / dedup / watermark / fetch / retry / circuit-breaker / post-action |
 | `adapter` | `SOURCE` | streaming/push source → micro-batch (**stream collector**) | **new** — extends `SourceConnector` SPI; **windows a stream into intermediate files by time/count/size** and **lands them** (§3.6). The single bridge for non-file/event sources |
 | `parser` | `PARSE` | record reader | `csv_settings` / external grammar, `SchemaSelector`, fixed-width frontend, plugin ingesters (segments) |
-| `transform.*` | `TRANSFORM` | update / route / split processors — **a chainable family, see §3.4** | [`DataTransformer`](../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) + [`TransformCompiler`](../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) (SQL-expr registry), `CsvSettings` row-filters |
+| `transform.*` | `TRANSFORM` | update / route / split processors — **a chainable family, see §3.4** | [`DataTransformer`](../../../../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) + [`TransformCompiler`](../../../../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) (SQL-expr registry), `CsvSettings` row-filters |
 | `transform.merge` | `TRANSFORM` | join/union (fan-in) processor | **new** — SQL over predecessor outputs as relations (§3.4); generalises `EnrichmentConfig` join-against-reference |
-| `enrichment` | `TRANSFORM` | join/lookup processor | [`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java) (references, triggers, stage-2 join) |
+| `enrichment` | `TRANSFORM` | join/lookup processor | [`EnrichmentConfig`](../../../../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java) (references, triggers, stage-2 join) |
 | `sink.persistent` | `SINK` | put processor — **data rests** | `Output` (CSV / Parquet / DuckLake), DB export, future push targets |
 | `sink.materialized` | `SINK` | put processor — **incremental rollup** | **new (node-level)** — a managed/temp table **upserted per batch** (batch-level incremental summary); a node-local implementation, nothing to do with the pipeline topology |
 | `sink.view` | `SINK` | put processor — **non-persistent** | **new (node-level)** — a **conceptual** store with no file/table attached; a job / KPI / report / alert API consumes it. Definition is **required but abstract** to the user (see below) |
@@ -92,7 +93,7 @@ New node types are added by registering a `PipelineNodeType` provider (ServiceLo
 **node-level** concern (orthogonal to the pipeline, which stays pure topology): `sink.persistent` rests
 the batch as a Parquet file / DuckDB table; `sink.materialized` keeps a managed/temp table it upserts
 each batch (a running rollup/summary); `sink.view` persists nothing — it is a logical store a downstream
-consumer binds to. All three are category `SINK`, so [`PipelineStores`](../inspecto/src/main/java/com/gamma/pipeline/PipelineStores.java)
+consumer binds to. All three are category `SINK`, so [`PipelineStores`](../../../../inspecto/src/main/java/com/gamma/pipeline/PipelineStores.java)
 superimposes them over a shared store **uniformly by store name**, regardless of whether bytes rest
 (`producedStores(...).restsOnDisk()` is the persistence flag the deletion fence and the visualiser read).
 A legacy `*_pipeline.toon` only ever writes a resting store, so the lift always emits `sink.persistent`;
@@ -108,7 +109,7 @@ graph's `KPI`/`REPORT`/`EVENT_TABLE` nodes (§2).
 
 **Node `category`, `name` and `description`.** Every `PipelineNodeType` declares a `category`
 (`SOURCE`/`PARSE`/`TRANSFORM`/`SINK`/`CONTROL`) plus a UI `label`/`description` — the **built-in
-processor definitions are not deferred**: [`PipelineNodeTypes.catalog()`](../inspecto/src/main/java/com/gamma/pipeline/PipelineNodeTypes.java)
+processor definitions are not deferred**: [`PipelineNodeTypes.catalog()`](../../../../inspecto/src/main/java/com/gamma/pipeline/PipelineNodeTypes.java)
 feeds the editor palette so the UI can visualise a flow now (§6). Every `PipelineNode` additionally carries a
 **user-given `name` and `description`** (authored flows set them; they may name a business object or
 concept — e.g. the `sink.view` above). Lifted legacy nodes get derived defaults (a lifted sink is named
@@ -144,7 +145,7 @@ explicitly defaulted).
 - A node with **no inbound `data` edge** is a **trigger** (typically `acquisition`); a poll cycle starts there.
 - Per cycle, the executor performs a **topological walk** of `data` edges, handing each node its upstream
   batch(es), and routes outcomes along control edges. **This is new scheduling code.** Today's
-  [`MultiSourceProcessor.runConfigs`](../inspecto/src/main/java/com/gamma/inspector/MultiSourceProcessor.java)
+  [`MultiSourceProcessor.runConfigs`](../../../../inspecto/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java)
   fan-out is **per source/config** — one virtual thread per `PipelineConfig`, each fully isolated — so it
   parallelises *sources*, not *branches*; there is no intra-pipeline branch concept to reuse. The intra-flow
   topological walk (and any branch-level parallelism) is built fresh; only the virtual-thread-pool + permit
@@ -162,9 +163,9 @@ independently authored and testable. Every operator works over the batch's **rec
 **compiles to a DuckDB SQL fragment**.
 
 > **Scope honesty (review 2026-06-16).** The existing
-> [`TransformCompiler`](../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) registry is **column-scalar
+> [`TransformCompiler`](../../../../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) registry is **column-scalar
 > only** (`DIRECT`/`EXPR`/`CONCAT_DT`/`FILENAME_DATE`), and
-> [`DataTransformer`](../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) assembles exactly one fixed
+> [`DataTransformer`](../../../../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) assembles exactly one fixed
 > shape — `CREATE TABLE dest AS SELECT <cols> FROM <one source>`. So only **`transform.derive` and
 > `transform.select`** are true "registry additions." The **row-shaping operators** (`filter`=`WHERE`,
 > `route`=multi-output, `validate`=two-output, `dedup`=`QUALIFY`, `split`=`UNNEST`, `merge`=multi-input join) need
@@ -290,7 +291,7 @@ Trigger types — each already present in the engine in some form, unified here:
 - **`schedule`** — `every: 60s` (interval, via `Scheduler.everySeconds` — today's poll) **or** `cron: "0 */5 * * * *"`
   (via the existing `CronExpression` / `Scheduler.cron`). **Absent trigger ⇒ the service poll interval**, so a
   lifted legacy pipeline behaves exactly as today.
-- **`event`** — generalises what [`JobConfig`](../inspecto/src/main/java/com/gamma/job/JobConfig.java) (cron/event/
+- **`event`** — generalises what [`JobConfig`](../../../../inspecto/src/main/java/com/gamma/job/JobConfig.java) (cron/event/
   manual) and `EnrichmentConfig.triggers.onPipeline` already do over the `BatchEventBus` / `EventLog`:
   - internal: `on: commit, from: flows/<id>` (an upstream flow committed — an `on_commit` edge is the graph form
     of this) or `on: <EVENT_TYPE>` (a domain event, e.g. `SEQUENCE_GAP`).
@@ -330,9 +331,9 @@ the pull/admission back-pressure model instead of bypassing it. A flow never ove
 ### 3.7 Commit units & clone failure (decided)
 
 The committable unit is **`(batch, branch)`**. **This is a new dimension, not a key extension (review 2026-06-16):**
-today nothing carries a branch/sink id — [`CommitLog`](../inspecto/src/main/java/com/gamma/etl/CommitLog.java) is
+today nothing carries a branch/sink id — [`CommitLog`](../../../../inspecto/src/main/java/com/gamma/etl/CommitLog.java) is
 keyed on `batch_id` alone, the acquisition ledger on `(sourceId, relPath)` per file, and
-[`BatchProcessor.commit`](../inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java) writes **one** output
+[`BatchProcessor.commit`](../../../../inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java) writes **one** output
 set then finalises the file through a single crash-ordered sequence (register → manifest → backup → markers →
 ledger → watermark, "markers LAST"). Supporting `(batch, branch)` therefore means (a) adding a branch dimension to
 the commit log, the ledger `PROCESSED` state, markers and the manifest; (b) introducing a **partial-commit** state
@@ -364,14 +365,14 @@ and are run by **different schedulers**. Conflating them is the confusion this s
 |---|---|---|
 | Is | the **ETL itself** — the flow graph: acquire → parse → **enrich / filter / route** → sync → store | a **downstream hop over the output** — often **ad-hoc / bespoke plugin** logic consuming pipeline-produced data (`enrich` / `report` / derive) |
 | Operates on | source / sync feeds — data **in motion** (lands it in the store) | the store the pipeline already landed — data **at rest** |
-| Driven by | the **poll loop only** ([`SourceService.runAllOnce`](../inspecto/src/main/java/com/gamma/service/SourceService.java), `Scheduler.everySeconds`), gated by `active:` — NiFi-style, its own schedule | the **job scheduler only** (cron / event / manual via [`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java)) |
+| Driven by | the **poll loop only** ([`SourceService.runAllOnce`](../../../../inspecto/src/main/java/com/gamma/service/CollectorService.java), `Scheduler.everySeconds`), gated by `active:` — NiFi-style, its own schedule | the **job scheduler only** (cron / event / manual via [`JobService`](../../../../inspecto/src/main/java/com/gamma/job/JobService.java)) |
 | Schedule grain | all `active` pipelines share the one global poll interval | per-job `cron`, or fires on an upstream `on_commit` |
 | Role | **producer** | **consumer** — *"a job works on the data the pipeline provides"* |
 
 **Clean rules (decided 2026-06-17):**
 1. **A pipeline is the ETL and is poll-driven, period.** The whole acquire → parse → enrich/filter/route → sync →
    store chain (the flow graph itself) runs on the loop schedule when `active: true`; it is **not** driven by the job
-   scheduler. (This is why `active:` gates only the poll path, [SourceService.java:487](../inspecto/src/main/java/com/gamma/service/SourceService.java#L487).)
+   scheduler. (This is why `active:` gates only the poll path, [SourceService.java:487](../../../../inspecto/src/main/java/com/gamma/service/CollectorService.java#L487).)
 2. **A job is job-driven, period**, and operates on **stored data at rest, not the inbox** — a downstream consumer of
    pipeline output, and the natural home for **ad-hoc / bespoke plugin** logic (`enrich`/`report`/derive via the
    plugin SPI, §12 B6), never a re-acquisition.
@@ -392,10 +393,10 @@ and are run by **different schedulers**. Conflating them is the confusion this s
      still only applies to the resting kinds.
 
 **Two schedulers, one responsibility each (decided 2026-06-17):**
-- **The loop scheduler** — fixed-delay or no-delay ([`Scheduler.everySeconds`](../inspecto/src/main/java/com/gamma/service/Scheduler.java),
+- **The loop scheduler** — fixed-delay or no-delay ([`Scheduler.everySeconds`](../../../../inspecto/src/main/java/com/gamma/service/Scheduler.java),
   the poll-all cycle) — drives **pipeline nodes only**, over every `active` flow. **Ingest / acquisition lives here
   exclusively.**
-- **The custom-function scheduler** — cron / event / manual ([`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java)) —
+- **The custom-function scheduler** — cron / event / manual ([`JobService`](../../../../inspecto/src/main/java/com/gamma/job/JobService.java)) —
   drives **jobs only** = bespoke plugin functions over stored data. **It never ingests.**
 
 This **removes the `ingest` job type**: a job can no longer re-run a pipeline. **Ingestion is the pipeline's sole
@@ -403,13 +404,13 @@ responsibility** (loop scheduler); jobs are strictly downstream custom functions
 is the resolution of [§13 R6](#13-open-risks--corrections-2026-06-16-review) / [T23](#14-things-to-do-implementation-checklist) —
 **done 2026-06-17: `JobType.INGEST` + `IngestJob` deleted** (an `ingest` job is now a config error). In the flow-graph
 model (§3.6) the two schedulers are simply which trigger an entry node carries: `schedule:{every|cron}` → loop
-scheduler (the pipeline's own cadence, gated in `SourceService.runAllOnce` by [`PipelineTrigger`](../inspecto/src/main/java/com/gamma/pipeline/PipelineTrigger.java));
+scheduler (the pipeline's own cadence, gated in `SourceService.runAllOnce` by [`PipelineTrigger`](../../../../inspecto/src/main/java/com/gamma/pipeline/PipelineTrigger.java));
 `event` → upstream-commit-driven (coalesced); `manual` → the trigger endpoint.
 
 **Scheduler implementation = the existing `Scheduler` + `JobService`, not Quartz (decided 2026-06-17).** Both
-schedulers are the home-grown [`Scheduler`](../inspecto/src/main/java/com/gamma/service/Scheduler.java) (fixed-delay
-`everySeconds` + a drift-free self-re-arming `cron` over [`CronExpression`](../inspecto/src/main/java/com/gamma/service/CronExpression.java)),
-with [`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java) adding event/manual triggers, per-job
+schedulers are the home-grown [`Scheduler`](../../../../inspecto/src/main/java/com/gamma/service/Scheduler.java) (fixed-delay
+`everySeconds` + a drift-free self-re-arming `cron` over [`CronExpression`](../../../../inspecto/src/main/java/com/gamma/service/CronExpression.java)),
+with [`JobService`](../../../../inspecto/src/main/java/com/gamma/job/JobService.java) adding event/manual triggers, per-job
 non-overlap (`LockingRunner` → `SKIPPED`), and **job-execution reporting that already exists**: a durable
 `jobs_runs.csv` (`CsvLedger<JobRun>`) + per-job in-memory history + `inspecto_jobs_total` /
 `inspecto_job_duration_seconds` metrics + the Control API `jobs()` / `runsFor()` surface. **Quartz is rejected** —
@@ -425,7 +426,7 @@ flow graph compiles down into `PRODUCES`/`FEEDS`), so the combined view renders 
 node → job-flow(s)**, with the `on_commit` edge drawn as the producer→consumer trigger. This is the realisation of
 "it should be combined and visualised." **The join is derived, not hand-wired (decided 2026-06-17, T4):** each
 `sink` declares the store it produces and each job/enrichment declares the store it consumes, and
-[`com.gamma.pipeline.PipelineStores`](../inspecto/src/main/java/com/gamma/pipeline/PipelineStores.java)`.superimpose(...)` matches
+[`com.gamma.pipeline.PipelineStores`](../../../../inspecto/src/main/java/com/gamma/pipeline/PipelineStores.java)`.superimpose(...)` matches
 them by name — so analysing the configs/metadata alone reconstructs how a job is superimposed over a pipeline's
 output, with no `on_pipeline` name-coupling.
 
@@ -459,8 +460,8 @@ registry/
   version pinning** — editing a shared component takes effect for every flow that references it on the next reload
   (that *is* the dedup feature; to "pin", copy as a new name). `@version` pinning is a documented future (§12, B5).
 - Components are validated independently (each type owns its validator; build on
-  [`ConfigValidator`](../inspecto/src/main/java/com/gamma/etl/ConfigValidator.java) and the
-  [`config/spec`](../inspecto/src/main/java/com/gamma/config/spec) cross-field rules).
+  [`ConfigValidator`](../../../../inspecto/src/main/java/com/gamma/etl/ConfigValidator.java) and the
+  [`config/spec`](../../../../inspecto/src/main/java/com/gamma/config/spec) cross-field rules).
 - "What references this?" is answerable by scanning flows for `use:` — drives safe-delete (mirrors the existing
   `connectionInUse` 409 guard).
 
@@ -524,12 +525,12 @@ A large installed base of `*_pipeline.toon` (and ~80 test fixtures) must keep ru
   existing flags imply (post-action → **success-side finalizer on `acquisition`** with `on_unsupported` → `failure`
   (§15 G8), gap-detection → `gap` edge, enrichment trigger → `on_commit` edge). **No file rewrite** — the lift is internal. **The lift is not always 4-node-linear (review 2026-06-16):**
   a single pipeline already fans into **N schemas** via `segments`/`selector`
-  ([`MetadataGraphService.rebuildStructural`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java)
+  ([`MetadataGraphService.rebuildStructural`](../../../../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java)
   handles segments/selector/single today), and a plugin ingester emits multiple segment tables — so many shipped
   configs lift to a **fan-out** (one `acquisition` → N `parser`/`transform`/`sink` paths), not a line. The 4-node
   shape is only the single-schema case.
 - **Enrichment crosses the file boundary.** Stage-2 enrichment is a **separate** config type
-  ([`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java)), discovered and triggered
+  ([`EnrichmentConfig`](../../../../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java)), discovered and triggered
   independently (`on_commit`/schedule/event). So an authored flow that contains an `enrichment` node + `on_commit`
   edge spans **two of today's files**; lifting a `*_pipeline.toon` alone will **not** pull its enrichment in. The
   lift must either (a) join pipeline + enrichment configs that reference each other into one `PipelineGraph`, or (b)
@@ -537,7 +538,7 @@ A large installed base of `*_pipeline.toon` (and ~80 test fixtures) must keep ru
 - **Compile-back** — the executor compiles a `PipelineGraph` (lifted or authored) back to the *exact* primitives
   `SourceProcessor` runs today, so old configs are byte-for-byte equivalent in behaviour. Parity is proven by
   running the existing suite against the lifted path.
-- **Coexistence** — [`ConfigRegistry`](../inspecto/src/main/java/com/gamma/service/ConfigRegistry.java) (now
+- **Coexistence** — [`ConfigRegistry`](../../../../inspecto/src/main/java/com/gamma/service/ConfigRegistry.java) (now
   mtime-cached) indexes both `*_pipeline.toon` and `*_flow.toon`; `MetadataGraphService` projects both.
 
 Net: the graph model is a **new layer over the existing engine**, never a rewrite of the engine.
@@ -549,7 +550,7 @@ object-detail). **Decided 2026-06-17: visualisation is pulled forward** — the 
 the pipeline topology must be visualisable *now*, not deferred to a late phase, so the read-only projection lands
 right after the Phase-1 IR (the authoring/CRUD + dry-run in §7 stay later). Two inputs make it possible:
 
-- **The node-type catalog** — [`PipelineNodeTypes.catalog()`](../inspecto/src/main/java/com/gamma/pipeline/PipelineNodeTypes.java)
+- **The node-type catalog** — [`PipelineNodeTypes.catalog()`](../../../../inspecto/src/main/java/com/gamma/pipeline/PipelineNodeTypes.java)
   exposes every type's `category` / `label` / `description` / ports (`accepts`+`emits`+named routes) → the **editor
   palette** (grouped by `NodeCategory`). This is the "in-built processor definition" the UI needs.
 - **The flow projection** — `GET /pipelines/{id}/graph` → `{ nodes: [{id,type,category,name,description,status}], edges:
@@ -669,7 +670,7 @@ exactly what the edge-weighted Sankey paints.
 
 ### 11.2 What already exists (≈ half-built)
 
-- [`LineageRow`](../inspecto/src/main/java/com/gamma/etl/LineageRow.java)`(batchId, srcId, inputFile, outputFile,
+- [`LineageRow`](../../../../inspecto/src/main/java/com/gamma/etl/LineageRow.java)`(batchId, srcId, inputFile, outputFile,
   partition, rowCount)` — the many-to-many **count matrix** "N rows from this input file landed in that output
   partition," collected by `LineageCollector` at the transform→write boundary (`BatchIngestStrategy.writeAndTrace`)
   and persisted to the lineage CSV.
@@ -735,10 +736,10 @@ above.
 
 | # | Sev | Claim as written | Reality in the code today | Correction / action |
 |---|-----|------------------|---------------------------|---------------------|
-| R1 | High | A new `transform.*` operator is "a registry addition, not engine surgery" (§3.4). | [`TransformCompiler`](../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) is **column-scalar only** (`DIRECT`/`EXPR`/`CONCAT_DT`/`FILENAME_DATE`); [`DataTransformer`](../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) emits one fixed `SELECT … FROM <one source>` and returns **one** table. No `WHERE`/`CASE`-route/`QUALIFY`/`UNNEST`/multi-input exist. | Only `derive`/`select` are registry additions. `filter`/`route`/`validate`/`dedup`/`split`/`merge` need new SQL-assembly + a **multi-named-relation node-output contract** + chain-fusion. Re-scoped in §3.4 + §8 Phase 3. |
-| R2 | High | `(batch, branch)` commit is "today's commit-log / ledger key extended" (§3.7). | [`CommitLog`](../inspecto/src/main/java/com/gamma/etl/CommitLog.java) keyed on `batch_id` only; ledger on `(sourceId, relPath)`; [`BatchProcessor.commit`](../inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java) writes one output set and finalises the file in one crash-ordered sequence ("markers LAST"). No branch dimension, no partial-commit state. | New branch dimension across commit-log/ledger/markers/manifest **+** a partial-commit state **+** a `commit()` split (per-branch vs source-finalisation) preserving the ordering invariant. Re-scoped in §3.7 + §8 Phase 3. |
-| R3 | Med | The topological walk "reuses `MultiSourceProcessor`'s virtual-thread fan-out for independent branches" (§3.3). | [`runConfigs`](../inspecto/src/main/java/com/gamma/inspector/MultiSourceProcessor.java) fans out **per `PipelineConfig`** (one isolated vthread per source). No intra-pipeline branch concept. | Branch scheduling is new; only the pool/permit pattern is reused. Corrected in §3.3. |
-| R4 | Med-High | A `*_pipeline.toon` "auto-lifts into a 4-node linear `PipelineGraph`" (§5). | A pipeline already fans into N schemas via `segments`/`selector` ([`rebuildStructural`](../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java)); plugin ingesters emit multiple segment tables; **enrichment is a separate config file** ([`EnrichmentConfig`](../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java)). | Lift is a fan-out for multi-schema configs; decide pipeline↔enrichment join vs two-flows-linked-by-`on_commit`. Corrected in §5; gates Phase 1 (§8). |
+| R1 | High | A new `transform.*` operator is "a registry addition, not engine surgery" (§3.4). | [`TransformCompiler`](../../../../inspecto/src/main/java/com/gamma/etl/TransformCompiler.java) is **column-scalar only** (`DIRECT`/`EXPR`/`CONCAT_DT`/`FILENAME_DATE`); [`DataTransformer`](../../../../inspecto/src/main/java/com/gamma/etl/DataTransformer.java) emits one fixed `SELECT … FROM <one source>` and returns **one** table. No `WHERE`/`CASE`-route/`QUALIFY`/`UNNEST`/multi-input exist. | Only `derive`/`select` are registry additions. `filter`/`route`/`validate`/`dedup`/`split`/`merge` need new SQL-assembly + a **multi-named-relation node-output contract** + chain-fusion. Re-scoped in §3.4 + §8 Phase 3. |
+| R2 | High | `(batch, branch)` commit is "today's commit-log / ledger key extended" (§3.7). | [`CommitLog`](../../../../inspecto/src/main/java/com/gamma/etl/CommitLog.java) keyed on `batch_id` only; ledger on `(sourceId, relPath)`; [`BatchProcessor.commit`](../../../../inspecto/src/main/java/com/gamma/inspector/BatchProcessor.java) writes one output set and finalises the file in one crash-ordered sequence ("markers LAST"). No branch dimension, no partial-commit state. | New branch dimension across commit-log/ledger/markers/manifest **+** a partial-commit state **+** a `commit()` split (per-branch vs source-finalisation) preserving the ordering invariant. Re-scoped in §3.7 + §8 Phase 3. |
+| R3 | Med | The topological walk "reuses `MultiSourceProcessor`'s virtual-thread fan-out for independent branches" (§3.3). | [`runConfigs`](../../../../inspecto/src/main/java/com/gamma/inspector/MultiCollectorProcessor.java) fans out **per `PipelineConfig`** (one isolated vthread per source). No intra-pipeline branch concept. | Branch scheduling is new; only the pool/permit pattern is reused. Corrected in §3.3. |
+| R4 | Med-High | A `*_pipeline.toon` "auto-lifts into a 4-node linear `PipelineGraph`" (§5). | A pipeline already fans into N schemas via `segments`/`selector` ([`rebuildStructural`](../../../../inspecto/src/main/java/com/gamma/catalog/MetadataGraphService.java)); plugin ingesters emit multiple segment tables; **enrichment is a separate config file** ([`EnrichmentConfig`](../../../../inspecto/src/main/java/com/gamma/enrich/EnrichmentConfig.java)). | Lift is a fan-out for multi-schema configs; decide pipeline↔enrichment join vs two-flows-linked-by-`on_commit`. Corrected in §5; gates Phase 1 (§8). |
 | R5 | Low | "DAG over `data` edges; control edges excluded from the cycle walk" (D10) vs. `on_commit` feeding a downstream flow (§3.6). | An `on_commit` edge re-entering the same graph is a cycle the data-edge-only check won't catch. | `on_commit` is **cross-flow only**; validator rejects same-graph targets. Clarified in §3.2. |
 | R6 | Med | The `ingest` job type is "what runs when" over a pipeline (§3.6) — implying a job can drive a pipeline. | `IngestJob.run` (since deleted) called `MultiSourceProcessor.runAll(List.of(config),…)` — a **full pipeline re-run incl. acquisition**, over the *same inbox* the poll loop works, on a separate scheduler with no shared lock. This violates the §3.8 clean model (the pipeline *is* the ETL and owns ingest, poll-driven only). | **Decided 2026-06-17: remove the `ingest` job type.** Ingest/acquisition is pipeline-exclusive (loop scheduler); jobs are custom functions over stored data (custom-function scheduler), never a re-acquisition. Delete `IngestJob` + `JobType.INGEST`; migrate any `ingest` job to an `active:true` pipeline. See T23. |
 
@@ -961,7 +962,9 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   — `GET /views`, `GET /views/{name}`, `GET /views/{name}/data?limit=N` run a view's `derived_sql` via `ViewQuery`
   (resource-capped un-sealed `SqlSandbox`) for bounded rows (409 when a view has no single-statement `derived_sql`).
   **Still deferred:** a dedicated `POST /pipelines/authored/{id}/run` endpoint (today: a `type: pipeline` `*_job.toon` +
-  `POST /jobs/{name}/trigger`); a UI consumer for views. Full design: [`flow-live-execution-plan.md`](flow-live-execution-plan.md).
+  `POST /jobs/{name}/trigger`); a UI consumer for views. Full design:
+  [`flow-live-execution-plan.md`](../../../archived-documents/plans-archive/flow-live-execution-plan.md)
+  (archived; as-built summary in [`live-execution.md`](live-execution.md)).
 
 ### Phase 4.5 / 6 — Data plane (provenance overlay; not required for 1–3)
 - [x] **T20 (done 2026-06-19).** Per-(node, relationship) record counters in `PipelineExecutor` via a
@@ -985,7 +988,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
   `ConfigSpecs` (so an `ingest` job is now a config error directing the operator to an `active:true` pipeline). The
   **two-scheduler split** (§3.8) is realised by the entry-node trigger (T13 live wiring): the **loop scheduler**
   (`SourceService` poll cycle) drives pipeline flows — `DEFAULT_POLL`/`SCHEDULE_*` — and **owns ingest exclusively**;
-  the **custom-function scheduler** ([`JobService`](../inspecto/src/main/java/com/gamma/job/JobService.java)) drives
+  the **custom-function scheduler** ([`JobService`](../../../../inspecto/src/main/java/com/gamma/job/JobService.java)) drives
   `enrich`/`report`/`maintenance` jobs over data at rest, never re-acquiring. No shipped `*_job.toon` used `ingest`;
   3 test fixtures migrated to `enrich`.
 - [x] **T24 (done 2026-06-18).** **Combined pipeline+job visualisation** (§3.8):
@@ -1019,7 +1022,7 @@ Actionable, phase-aligned, derived from §8 + the §13 corrections. `[ ]` = not 
 
 ## 15. Phase-1 capability inventory — gate result (T1, 2026-06-17)
 
-The T1 capability sweep (full read of [`PipelineConfig`](../inspecto/src/main/java/com/gamma/etl/PipelineConfig.java)
+The T1 capability sweep (full read of [`PipelineConfig`](../../../../inspecto/src/main/java/com/gamma/etl/PipelineConfig.java)
 + `SchemaSelector`/`PartitionDef`/`TransformCompiler`/`ConfigValidator`/`config/spec` + the 5 shipped configs and
 their referenced schema/grammar files) **passes the gate**: the `PipelineGraph`/`PipelineNode`/`PipelineEdge` IR **can represent
 every capability** a `*_pipeline.toon` expresses — **provided** the encodings below are adopted. It is **not** a

@@ -9,8 +9,8 @@ timestamp: 2026-07-07T00:00:00Z
 
 # Pipeline Graph Design
 
-Authoritative doc: [`docs/flow-graph-design.md`](../../../flow-graph-design.md) (incl. the T-checklist;
-the filename predates the Pipeline rename).
+Authoritative doc: [`pipeline-graph-design.md`](pipeline-graph-design.md) (incl. the T-checklist;
+moved from `docs/flow-graph-design.md`, 2026-07-16).
 
 * **IR** — `PipelineGraph` (`inspecto/src/main/java/com/gamma/pipeline/PipelineGraph.java`) is an immutable
   `record(name, active, nodes, edges)` consumed by the executor, validator, and visualiser. `PipelineEdge` carries

@@ -434,7 +434,7 @@ Pipelines & config authoring · Jobs & schedules (+ run reporting) · Sources & 
 
 ### 12.4 Source documents
 
-This overview synthesizes: the consolidated reference set (`docs/consolidated/`), the editions model (`docs/EDITIONS.md`), the branching/release policy (`docs/BRANCHING.md`), the flow-graph design (`docs/flow-graph-design.md`), the data-acquisition framework notes, and the operations source-of-truth (`docs/ADVANCED_GUIDE.md`).
+This overview synthesizes: the consolidated reference set (`docs/consolidated/`), the editions model (`docs/EDITIONS.md`), the branching/release policy (`docs/BRANCHING.md`), the flow-graph design (`docs/okf/backend/pipeline-graph/pipeline-graph-design.md`), the data-acquisition framework notes, and the operations source-of-truth (`docs/ADVANCED_GUIDE.md`).
 
 ---
 

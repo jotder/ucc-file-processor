@@ -26,6 +26,8 @@ distinct ([`GLOSSARY.md`](../../../GLOSSARY.md) §11): this studio works on **P3
 * **Status** — UI shipped mock-first; the backend Entity Projection over real Datasets is open
   (REQUIREMENTS INV-1).
 
-Design: [`link-analysis-and-graphsource.md`](../../../superpower/link-analysis-and-graphsource.md) ·
-plans: [`link-analysis-studio-plan.md`](../../../superpower/link-analysis-studio-plan.md),
-[`link-analysis-toolboxes-plan.md`](../../../superpower/link-analysis-toolboxes-plan.md).
+Design (archived):
+[`link-analysis-and-graphsource.md`](../../../archived-documents/plans-archive/link-analysis-and-graphsource.md) ·
+plans: [`link-analysis-studio-plan.md`](../../../archived-documents/plans-archive/link-analysis-studio-plan.md)
+(§6–7 carry the open V1/V2 backlog),
+[`link-analysis-toolboxes-plan.md`](../../../archived-documents/plans-archive/link-analysis-toolboxes-plan.md).

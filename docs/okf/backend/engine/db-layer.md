@@ -1,14 +1,15 @@
 # Database / Persistence Layer
+> *Moved from `docs/DB_LAYER.md` (docs consolidation, 2026-07-16).*
 
 > **Scope:** how Inspecto stores state on disk — the three data classes, the operational
 > (relational) table schemas, the per-space file topology, and how to run operational data on
-> Postgres. Vocabulary follows [`GLOSSARY.md`](GLOSSARY.md) (**Store** = physical backend,
+> Postgres. Vocabulary follows [`GLOSSARY.md`](../../../GLOSSARY.md) (**Store** = physical backend,
 > **Dataset** = queryable relation).
 
 > **⚠️ Keep this current.** This doc is derived from the source files listed below — when any of
 > them changes (a table's DDL/columns, a store's backend wiring, the per-space file layout, a
 > `-D*.backend` toggle, or Postgres behavior), update the matching section here (and
-> [`superpower/db-browser-design.md`](superpower/db-browser-design.md) if browsable tables/stores
+> [`superpower/db-browser-design.md`](../../../archived-documents/plans-archive/db-browser-design.md) if browsable tables/stores
 > change). A `PostToolUse` hook (`.claude/hooks/post-tool-db-layer-doc.sh`) reminds you on edits to
 > these files. Source of truth for the DDL is each store's `initSchema()` — keep the SQL blocks in §3
 > byte-accurate.
@@ -32,18 +33,18 @@ are three physically distinct kinds of state:
 
 Only the **operational** layer is a database in the SQL sense. This document covers it in full;
 business data (the file lake) and config (TOON) are documented in
-[`flow-graph-design.md`](flow-graph-design.md) and [`configuration`](configuration.md) respectively.
+[`pipeline-graph-design.md`](../pipeline-graph/pipeline-graph-design.md) and [`configuration`](../config/configuration.md) respectively.
 
 ### Key seams (source of truth)
 
 | Concern | File |
 |---|---|
-| Connection factory (driver-by-URL-scheme) | [`util/JdbcDrivers.java`](../inspecto/src/main/java/com/gamma/util/JdbcDrivers.java) |
-| DuckDB engine helpers (ETL path) | [`util/DuckDbUtil.java`](../inspecto/src/main/java/com/gamma/util/DuckDbUtil.java) |
-| Composition root (reads `-D` toggles, opens stores) | [`service/ServiceStores.java`](../inspecto/src/main/java/com/gamma/service/ServiceStores.java) |
-| Per-space file locations | [`service/SpaceRoot.java`](../inspecto/src/main/java/com/gamma/service/SpaceRoot.java) |
-| Business-data read-relation builder | [`sql/SqlViews.java`](../inspecto/src/main/java/com/gamma/sql/SqlViews.java) |
-| Dataset → physical store resolution | [`query/DatasetRelation.java`](../inspecto/src/main/java/com/gamma/query/DatasetRelation.java) |
+| Connection factory (driver-by-URL-scheme) | [`util/JdbcDrivers.java`](../../../../inspecto/src/main/java/com/gamma/util/JdbcDrivers.java) |
+| DuckDB engine helpers (ETL path) | [`util/DuckDbUtil.java`](../../../../inspecto/src/main/java/com/gamma/util/DuckDbUtil.java) |
+| Composition root (reads `-D` toggles, opens stores) | [`service/ServiceStores.java`](../../../../inspecto/src/main/java/com/gamma/service/ServiceStores.java) |
+| Per-space file locations | [`service/SpaceRoot.java`](../../../../inspecto/src/main/java/com/gamma/service/SpaceRoot.java) |
+| Business-data read-relation builder | [`sql/SqlViews.java`](../../../../inspecto/src/main/java/com/gamma/sql/SqlViews.java) |
+| Dataset → physical store resolution | [`query/DatasetRelation.java`](../../../../inspecto/src/main/java/com/gamma/query/DatasetRelation.java) |
 
 ---
 
@@ -55,20 +56,20 @@ implementations are **plain JDBC over a single shared `Connection`**, with hand-
 
 | Domain | Interface | DB impl | Backend toggle (`-D…`) | Default |
 |---|---|---|---|---|
-| Operational objects (ALERT / INCIDENT / CASE / TASK) | `ops/ObjectStore` | [`DbObjectStore`](../inspecto/src/main/java/com/gamma/ops/DbObjectStore.java) | `objects.backend=memory\|db` | `memory` |
-| Correlation links | `ops/link/LinkStore` | [`DbLinkStore`](../inspecto/src/main/java/com/gamma/ops/link/DbLinkStore.java) | `objects.backend` (shared) | `memory` |
-| Notes / evidence | `ops/note/NoteStore` | [`DbNoteStore`](../inspecto/src/main/java/com/gamma/ops/note/DbNoteStore.java) | `objects.backend` (shared) | `memory` |
-| Events (append-only facts) | `event/EventStore` | [`ParquetEventStore`](../inspecto/src/main/java/com/gamma/event/ParquetEventStore.java) *(Parquet, not JDBC)* | `events.backend=memory\|parquet` | `memory` |
-| Ingest status / audit projection | `service/StatusStore` | [`DbStatusStore`](../inspecto/src/main/java/com/gamma/service/DbStatusStore.java) | `status.backend=file\|db` | `file` |
-| Job-run reporting | *(class is the API)* | [`DbJobRunStore`](../inspecto/src/main/java/com/gamma/job/DbJobRunStore.java) | `jobs.backend=none\|duckdb\|postgres` | `none` |
-| Flow-run provenance (per-edge counts) | *(class is the API)* | [`DbProvenanceStore`](../inspecto/src/main/java/com/gamma/pipeline/exec/DbProvenanceStore.java) | `provenance.backend=none\|duckdb\|postgres` | `none` |
-| Acquisition / dedup ledger + export watermark | `acquire/AcquisitionLedger` | [`DbAcquisitionLedger`](../inspecto/src/main/java/com/gamma/acquire/DbAcquisitionLedger.java) | `acquire.ledger.backend=memory\|db` *(via `AcquisitionLedgers`, not `ServiceStores`)* | `memory` |
+| Operational objects (ALERT / INCIDENT / CASE / TASK) | `ops/ObjectStore` | [`DbObjectStore`](../../../../inspecto/src/main/java/com/gamma/ops/DbObjectStore.java) | `objects.backend=memory\|db` | `memory` |
+| Correlation links | `ops/link/LinkStore` | [`DbLinkStore`](../../../../inspecto/src/main/java/com/gamma/ops/link/DbLinkStore.java) | `objects.backend` (shared) | `memory` |
+| Notes / evidence | `ops/note/NoteStore` | [`DbNoteStore`](../../../../inspecto/src/main/java/com/gamma/ops/note/DbNoteStore.java) | `objects.backend` (shared) | `memory` |
+| Events (append-only facts) | `event/EventStore` | [`ParquetEventStore`](../../../../inspecto/src/main/java/com/gamma/event/ParquetEventStore.java) *(Parquet, not JDBC)* | `events.backend=memory\|parquet` | `memory` |
+| Ingest status / audit projection | `service/StatusStore` | [`DbStatusStore`](../../../../inspecto/src/main/java/com/gamma/service/DbStatusStore.java) | `status.backend=file\|db` | `file` |
+| Job-run reporting | *(class is the API)* | [`DbJobRunStore`](../../../../inspecto/src/main/java/com/gamma/job/DbJobRunStore.java) | `jobs.backend=none\|duckdb\|postgres` | `none` |
+| Flow-run provenance (per-edge counts) | *(class is the API)* | [`DbProvenanceStore`](../../../../inspecto/src/main/java/com/gamma/pipeline/exec/DbProvenanceStore.java) | `provenance.backend=none\|duckdb\|postgres` | `none` |
+| Acquisition / dedup ledger + export watermark | `acquire/AcquisitionLedger` | [`DbAcquisitionLedger`](../../../../inspecto/src/main/java/com/gamma/acquire/DbAcquisitionLedger.java) | `acquire.ledger.backend=memory\|db` *(via `AcquisitionLedgers`, not `ServiceStores`)* | `memory` |
 | Ops escalation queues | `ops/queue/QueueStore` | **none** — in-memory only | — | — |
 | Pipeline execution watermarks | `pipeline/exec/PipelineWatermarkStore` | **none** — in-memory/file only | — | — |
 
 > **`ALERT`s are not their own table.** Alerts, incidents, cases and tasks are all rows in
 > `inspecto_ops_objects`, discriminated by the `object_type` column
-> ([`ObjectType`](../inspecto/src/main/java/com/gamma/ops/ObjectType.java): `ALERT, INCIDENT, CASE, TASK`).
+> ([`ObjectType`](../../../../inspecto/src/main/java/com/gamma/ops/ObjectType.java): `ALERT, INCIDENT, CASE, TASK`).
 
 Every backend **degrades gracefully**: a failed DB open falls back to in-memory/file and logs a
 warning rather than blocking startup.
@@ -215,7 +216,7 @@ event_id, ts_ms (BIGINT), type, source, pipeline, correlation_id,
 message, attributes (JSON), level        -- + partition cols year, month, day (VARCHAR)
 ```
 
-`level` ∈ [`EventLevel`](../inspecto/src/main/java/com/gamma/event/EventLevel.java). There is **no
+`level` ∈ [`EventLevel`](../../../../inspecto/src/main/java/com/gamma/event/EventLevel.java). There is **no
 JDBC/Postgres event table** — events are Parquet-only.
 
 ---
@@ -224,7 +225,7 @@ JDBC/Postgres event table** — events are Parquet-only.
 
 **One DuckDB file per capability** — not one shared DB, and not one file per space. Each file is
 single-writer-locked (documented in `ServiceStores`). Locations come from
-[`SpaceRoot`](../inspecto/src/main/java/com/gamma/service/SpaceRoot.java):
+[`SpaceRoot`](../../../../inspecto/src/main/java/com/gamma/service/SpaceRoot.java):
 
 | Layout | Capability file locations |
 |---|---|
@@ -247,7 +248,7 @@ dirs, so without the mkdir every DB-backed store silently degraded to in-memory 
 The layer was **designed** for this: stores are JDBC-pluggable by URL scheme, the DDL is deliberately
 portable (`VARCHAR`/`BIGINT`, composite PKs, no auto-increment, no upserts — explicit DELETE-then-INSERT),
 and there is a **real embedded-Postgres round-trip test**
-([`PostgresStateStoreTest`](../inspecto/src/test/java/com/gamma/service/PostgresStateStoreTest.java))
+([`PostgresStateStoreTest`](../../../../inspecto/src/test/java/com/gamma/service/PostgresStateStoreTest.java))
 covering 6 of the 7 DB-backed stores.
 
 ### 5.1 Flags (all read in `ServiceStores` unless noted)
@@ -258,7 +259,7 @@ covering 6 of the 7 DB-backed stores.
 | Status | `-Dstatus.backend=db` | `-Dstatus.db.url` | `-Dstatus.db.user` / `.password` |
 | Jobs | `-Djobs.backend=postgres` | `-Djobs.db.url` | (in URL) |
 | Provenance | `-Dprovenance.backend=postgres` | `-Dprovenance.db.url` | (in URL) |
-| Acquisition ledger | `-Dacquire.ledger.backend=db` | (property in [`AcquisitionLedgers`](../inspecto/src/main/java/com/gamma/acquire/AcquisitionLedgers.java)) | — |
+| Acquisition ledger | `-Dacquire.ledger.backend=db` | (property in [`AcquisitionLedgers`](../../../../inspecto/src/main/java/com/gamma/acquire/AcquisitionLedgers.java)) | — |
 | Events | `-Devents.backend=parquet` | — | **No Postgres path** |
 
 Point each URL at `jdbc:postgresql://…`; the three ops URLs may share one database/schema (table names
@@ -297,12 +298,12 @@ Postgres instance — not a code change.
 ## 6. Browsing the raw tables
 
 The **Data Browser** pane (a per-space DB client) browses these stores live. Backend: `/db/catalog`,
-`/db/table`, `/db/query` in [`control/DbBrowserRoutes.java`](../inspecto/src/main/java/com/gamma/control/DbBrowserRoutes.java)
+`/db/table`, `/db/query` in [`control/DbBrowserRoutes.java`](../../../../inspecto/src/main/java/com/gamma/control/DbBrowserRoutes.java)
 (read-only, `SqlGuard`-checked). UI: `inspecto-ui` → **Catalog › Data Browser**. Design + phasing in
-[`superpower/db-browser-design.md`](superpower/db-browser-design.md).
+[`superpower/db-browser-design.md`](../../../archived-documents/plans-archive/db-browser-design.md).
 
 - **Business-data stores** (§1) read via an ephemeral DuckDB sandbox (`read_parquet`/`read_csv`).
 - **Operational tables** (§3) browse through each store's *live* connection via
-  [`util/BrowsableStore.java`](../inspecto/src/main/java/com/gamma/util/BrowsableStore.java) —
+  [`util/BrowsableStore.java`](../../../../inspecto/src/main/java/com/gamma/util/BrowsableStore.java) —
   reads are `synchronized` on the store (single-writer lock) and appear only when that capability runs on
   a `db`/`postgres` backend. Every `Db*Store` in §2/§3 implements this seam.

@@ -9,7 +9,7 @@
 > **Point-in-time snapshot** (compiled 2026-06-20). Status tags — `[LIVE]` shipped, `[NATIVE]`/
 > `[PROPOSED]` not yet wired — and `file:line` references reflect the tree at that date; **verify
 > against current code** before relying on a specific line. The authoritative living docs are
-> [`configuration.md`](configuration.md) (all TOON keys), [`parsing-options-reference.md`](parsing-options-reference.md)
+> [`configuration.md`](okf/backend/config/configuration.md) (all TOON keys), [`parsing-options-reference.md`](okf/backend/config/parsing-options-reference.md)
 > (frontend status), and [`ADVANCED_GUIDE.md`](ADVANCED_GUIDE.md) (runtime flags, events, metrics, Control API).
 >
 > **Shipped after this snapshot (2026-07-07 addendum)** — not yet folded into the tables below: the
@@ -49,7 +49,7 @@
 | `.csv.gz` / `.bz2` / `.zip` compression | `file_pattern: "glob:**/*.{csv,csv.gz,csv.bz2}"` | `[LIVE]` `Compression` |
 | External grammar file (reusable `*.grammar.toon`) | `processing:` / `  grammar: config/x/x.grammar.toon` | `[LIVE]` |
 | Fixed-width text (`frontend: fixedwidth`, `record: line`) | `frontend: fixedwidth` / `fixedwidth:` / `  fields[N]{name,start,length}:` | `[LIVE]` `configuration.md` |
-| Fixed-length binary (`record: bytes`) | `processing:` / `  ingester: …FixedWidthRecordIngester` / `  ingester_config: { record_length: 256 }` | `[LIVE]` `parsing-options-reference.md` |
+| Fixed-length binary (`record: bytes`) | `processing:` / `  ingester: …FixedWidthRecordIngester` / `  ingester_config: { record_length: 256 }` | `[LIVE]` `okf/backend/config/parsing-options-reference.md` |
 | Plugin/segments (multi-event-type, e.g. CALL/SMS) | `processing:` / `  ingester: com.acme.MyIngester` / `  segments: { CALL: …, SMS: … }` | `[LIVE]` `StreamingPluginBatchStrategy` |
 | Multi-schema dispatch (column-count + filename glob) | `processing:` / `  schemas[N]{column_count,file_pattern,schema_file,table}:` | `[LIVE]` `configuration.md` · voucher pipeline |
 | `FILENAME_DATE` transform (date in filename) | `rules[1]{…}: EVENT_DATE,FILENAME\|prefix_,FILENAME_DATE` | `[LIVE]` `TransformCompiler` |
@@ -119,15 +119,15 @@ authored-flow TOON shape lives only in test Java strings: `ControlApiFlowCrudTes
 
 | Node | Fragment | Doc |
 |---|---|---|
-| `transform.filter` | `- { id: keep, type: transform.filter, where: "amount > 0" }` | `flow-graph-design.md` |
-| `transform.route` (case / clone) | `mode: case` (exclusive) or `mode: clone` (fan-out); `routes: [{rel,where},{rel,default:true}]` | `flow-graph-design.md` |
-| `transform.derive` | `fields: [{name,type:EXPR,expr}]` | `flow-graph-design.md` |
-| `transform.select` | `columns: [a,b,c]` | `flow-graph-design.md` |
-| `transform.validate` | `check: "amount > 0"` → `valid` + `invalid` edges | `flow-graph-design.md` |
-| `transform.dedup` | `key: [call_id]` | `flow-graph-design.md` |
-| `transform.split` | UNNEST | `flow-graph-design.md` |
-| `transform.merge` (fan-in) | `inputs: [a,b]` / `sql: "SELECT … JOIN … USING(id)"` | `flow-graph-design.md` |
-| `sink.persistent` | `store: events` | `flow-graph-design.md` |
+| `transform.filter` | `- { id: keep, type: transform.filter, where: "amount > 0" }` | `okf/backend/pipeline-graph/pipeline-graph-design.md` |
+| `transform.route` (case / clone) | `mode: case` (exclusive) or `mode: clone` (fan-out); `routes: [{rel,where},{rel,default:true}]` | `okf/backend/pipeline-graph/pipeline-graph-design.md` |
+| `transform.derive` | `fields: [{name,type:EXPR,expr}]` | `okf/backend/pipeline-graph/pipeline-graph-design.md` |
+| `transform.select` | `columns: [a,b,c]` | `okf/backend/pipeline-graph/pipeline-graph-design.md` |
+| `transform.validate` | `check: "amount > 0"` → `valid` + `invalid` edges | `okf/backend/pipeline-graph/pipeline-graph-design.md` |
+| `transform.dedup` | `key: [call_id]` | `okf/backend/pipeline-graph/pipeline-graph-design.md` |
+| `transform.split` | UNNEST | `okf/backend/pipeline-graph/pipeline-graph-design.md` |
+| `transform.merge` (fan-in) | `inputs: [a,b]` / `sql: "SELECT … JOIN … USING(id)"` | `okf/backend/pipeline-graph/pipeline-graph-design.md` |
+| `sink.persistent` | `store: events` | `okf/backend/pipeline-graph/pipeline-graph-design.md` |
 | `sink.view` (no bytes; `derived_sql` registered) | `store: active_subs` / `source_store: subscriber` | `ADVANCED_GUIDE §5.3` |
 | `incremental_column` (flow job watermark) | in the `*_job.toon`: `flow: f` / `incremental_column: event_dt` | `ADVANCED_GUIDE §5.3` |
 
@@ -136,10 +136,10 @@ authored-flow TOON shape lives only in test Java strings: `ControlApiFlowCrudTes
 | Feature | TOON skeleton | Doc |
 |---|---|---|
 | SFTP (key auth + bastion tunnel) | `connection: { id, connector: sftp, host, username, password: "${ENV:…}", tunnel: { host, username } }` | connections/cdr_sftp |
-| FTPS (TLS) | `options: { tls: explicit }` | `data_acquisition_framework.md` |
-| SSH host-key pinning | `options: { host_key: "ssh-rsa AAAA…" }` or `{ known_hosts: … }` | `data_acquisition_framework.md` |
-| FTP passive port range (NAT) | `options: { passive_ports: "10000-10100" }` | `data_acquisition_framework.md` |
-| DB-export source (JDBC + watermark) | `connection: { connector: db, options: { watermark_column: updated_at } }` | `data_acquisition_framework.md` |
+| FTPS (TLS) | `options: { tls: explicit }` | `okf/backend/acquisition/data-acquisition-framework.md` |
+| SSH host-key pinning | `options: { host_key: "ssh-rsa AAAA…" }` or `{ known_hosts: … }` | `okf/backend/acquisition/data-acquisition-framework.md` |
+| FTP passive port range (NAT) | `options: { passive_ports: "10000-10100" }` | `okf/backend/acquisition/data-acquisition-framework.md` |
+| DB-export source (JDBC + watermark) | `connection: { connector: db, options: { watermark_column: updated_at } }` | `okf/backend/acquisition/data-acquisition-framework.md` |
 | Secret via env / sys property | `password: "${ENV:MY_SECRET}"` / `"${SYS:my.prop}"` | `configuration.md` · `SecretResolver` |
 
 ### I — Acquisition (`source:` block)

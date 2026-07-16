@@ -1,6 +1,7 @@
 # Troubleshooting
+> *Moved from `docs/troubleshooting.md` (docs consolidation, 2026-07-16).*
 
-> Part of the [Inspecto](../inspecto/README.md) documentation. See the [docs index](../inspecto/README.md#documentation).
+> Part of the [Inspecto](../../../../inspecto/README.md) documentation. See the [docs index](../../../../inspecto/README.md#documentation).
 
 ## Troubleshooting
 
@@ -71,7 +72,7 @@ For a genuinely huge single file:
 3. **Bound scratch regardless of file size:** enable `processing.chunking` —
    `max_file_bytes: 5000000000` streams the file in ~5GB chunks, so peak scratch is ~one chunk.
 
-See [Configuration → Large files](configuration.md#large-files-scratch-location--auto-chunking). Note
+See [Configuration → Large files](../config/configuration.md#large-files-scratch-location--auto-chunking). Note
 the single-pass streaming ingest still materialises the `transformed` table before `COPY TO`, so the
 DuckDB-AVX2 crash workaround above remains in effect.
 
@@ -82,7 +83,7 @@ framework runs in **generation mode** for a genuinely huge single file (member �
 scratch stay bounded regardless of file size — or **union mode** for many small files. If a huge custom
 file still exhausts memory, confirm it is actually being routed to generation mode (lower
 `large_file_bytes`, or check the member size). See
-[plugins.md → execution modes](plugins.md#execution-modes--the-framework-picks-by-file-size).
+[plugins.md → execution modes](../engine/plugins.md#execution-modes--the-framework-picks-by-file-size).
 
 ### DuckLake registration fails silently
 
