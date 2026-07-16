@@ -50,6 +50,22 @@ const RAW_PREVIEW_LINES = 8;
                     }
                 </div>
 
+                @if (state.parsePreview(); as p) {
+                    <div class="text-sm">
+                        <div class="font-semibold">After schema</div>
+                        @if (state.schemaError()) {
+                            <div class="text-secondary">Does not cast — see the Schema &amp; Mapping stage.</div>
+                        } @else if (state.schemaPreview(); as sp) {
+                            <div class="text-secondary">
+                                {{ sp.okCount }} ok
+                                @if (sp.rejectedCount > 0) { · {{ sp.rejectedCount }} rejected }
+                            </div>
+                        } @else {
+                            <div class="text-secondary">Not tested yet — run Validate types in the Schema &amp; Mapping stage.</div>
+                        }
+                    </div>
+                }
+
                 <div class="flex flex-wrap gap-2">
                     <button mat-stroked-button type="button" (click)="fileInput.click()">Replace</button>
                     <button mat-stroked-button type="button" (click)="clear()">Clear</button>

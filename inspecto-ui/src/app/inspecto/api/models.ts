@@ -318,6 +318,14 @@ export interface ParsingPreview {
   rejectedRows: number;
 }
 
+/** Result of POST /config/preview/schema — TRY_CAST already-parsed rows against typed fields. */
+export interface SchemaPreview {
+  columns: string[];
+  okCount: number;
+  rejectedCount: number;
+  rejectedRows: Record<string, unknown>[];
+}
+
 // ── diagnoses + assist ───────────────────────────────────────────────────────
 export interface Citation {
   source: string;

@@ -10,6 +10,7 @@ import {
   ConfigWriteResult,
   ParsingPreview,
   PipelineRegisterResult,
+  SchemaPreview,
   ValidateResult,
 } from './models';
 
@@ -70,5 +71,9 @@ export class ConfigService {
       config,
       sample_text: sampleText,
     });
+  }
+  /** TRY_CAST already-parsed sample rows against a draft schema's typed fields — stateless, scratch-only. */
+  previewSchema(config: Record<string, unknown>, sampleRows: Record<string, unknown>[]): Observable<SchemaPreview> {
+    return this.http.post<SchemaPreview>(apiUrl('/config/preview/schema'), { config, sampleRows });
   }
 }

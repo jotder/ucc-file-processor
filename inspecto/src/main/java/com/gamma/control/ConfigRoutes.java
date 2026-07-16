@@ -50,6 +50,9 @@ final class ConfigRoutes implements RouteModule {
         // Parse a raw sample with a draft's parsing: settings — stateless, scratch-only (stream
         // onboarding's sample-as-thread; the raw→parsed hop).
         api.post("/config/preview/parsing", (e, m) -> previewParsing(api.body(e)));
+        // TRY_CAST a draft schema's typed fields against already-parsed sample rows — stateless,
+        // scratch-only (stream onboarding's Schema & Mapping stage; the parsed→typed hop).
+        api.post("/config/preview/schema", (e, m) -> previewSchema(api.body(e)));
         // Requires canAuthorWorkbench (W6; a no-op on Personal — no Subject is ever attached there).
         api.post("/config/write", ApiContext.withCapability("canAuthorWorkbench", (e, m) -> writeConfig(api, e, api.body(e))));
         // Draft discard (stream onboarding): delete a config file under the write root — never an
@@ -132,7 +135,8 @@ final class ConfigRoutes implements RouteModule {
         String rawName = dottedString(draft, idField);
         if (rawName == null || rawName.isBlank())
             throw new ApiException(422, "config is missing its identity field '" + idField + "'");
-        String fileName = WriteGates.safeName(rawName, "config name");
+        String safeIdentity = WriteGates.safeName(rawName, "config name");
+        String fileName = fileBase(type, safeIdentity);
 
         // Resolve under the write root; an optional subdir must stay inside it (path jail).
         Path dir = writeRoot;
@@ -160,7 +164,7 @@ final class ConfigRoutes implements RouteModule {
         r.put("type", type);
         r.put("written", true);
         r.put("path", rel);
-        r.put("name", fileName);
+        r.put("name", safeIdentity);
         r.put("bytes", bytes.length);
         r.put("overwritten", exists);
         r.put("findings", findings);   // warnings only at this point (errors would have 422'd)
@@ -185,7 +189,7 @@ final class ConfigRoutes implements RouteModule {
             if (sub.isAbsolute()) throw new ApiException(400, "subdir must be relative");
             dir = WriteGates.jail(writeRoot, writeRoot.resolve(sub), "subdir");
         }
-        Path target = WriteGates.jail(writeRoot, dir.resolve(fileName + ".toon"), "resolved path");
+        Path target = resolveConfigFile(writeRoot, dir, type, fileName);
         String rel = writeRoot.relativize(target).toString().replace('\\', '/');
         if (!Files.isRegularFile(target)) throw new ApiException(404, "no such config: " + rel);
 
@@ -224,7 +228,7 @@ final class ConfigRoutes implements RouteModule {
             if (sub.isAbsolute()) throw new ApiException(400, "subdir must be relative");
             dir = WriteGates.jail(writeRoot, writeRoot.resolve(sub), "subdir");
         }
-        Path target = WriteGates.jail(writeRoot, dir.resolve(fileName + ".toon"), "resolved path");
+        Path target = resolveConfigFile(writeRoot, dir, type, fileName);
         String rel = writeRoot.relativize(target).toString().replace('\\', '/');
         if (!Files.isRegularFile(target)) throw new ApiException(404, "no such config: " + rel);
 
@@ -281,6 +285,46 @@ final class ConfigRoutes implements RouteModule {
         }
     }
 
+    /**
+     * {@code POST /config/preview/schema} — {@code TRY_CAST} already-parsed {@code sampleRows}
+     * against a draft schema's typed fields, splitting ok/rejected (stream onboarding, v5.2.0).
+     * Body {@code {config:{raw:{fields:[{name,type}]}}, sampleRows:[{...}]}}. Reuses
+     * {@link ComponentPreview#schema} — the same scratch-only cast check the Studio schema
+     * component's own preview runs — so the Schema & Mapping stage's "Validate types" sees exactly
+     * what that engine path would do. Config/cast problems are the caller's (422), never a server
+     * error.
+     */
+    private Object previewSchema(Map<String, Object> body) {
+        Object cfgObj = body.get("config");
+        List<Map<String, Object>> sampleRows = ApiContext.sampleRows(body);
+        if (!(cfgObj instanceof Map<?, ?>) || sampleRows.isEmpty())
+            throw new ApiException(400, "body must include 'config' (a schema draft map) and non-empty 'sampleRows'");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> content = (Map<String, Object>) cfgObj;
+        try {
+            ComponentPreview.Result r = ComponentPreview.schema(content, sampleRows);
+            int okCount = 0, rejectedCount = 0;
+            List<Map<String, Object>> rejectedRows = List.of();
+            for (ComponentPreview.RelationPreview rel : r.relations()) {
+                if ("data".equals(rel.rel())) okCount = rel.rowCount();
+                else if ("rejected".equals(rel.rel())) {
+                    rejectedCount = rel.rowCount();
+                    rejectedRows = rel.rows();
+                }
+            }
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("columns", r.inputColumns());
+            out.put("okCount", okCount);
+            out.put("rejectedCount", rejectedCount);
+            out.put("rejectedRows", rejectedRows);
+            return out;
+        } catch (IllegalArgumentException badSchema) {
+            throw new ApiException(422, badSchema.getMessage());
+        } catch (Exception castFail) {
+            throw new ApiException(422, "schema preview failed: " + castFail.getMessage());
+        }
+    }
+
     /** The parsing frontend a config resolves to (the same precedence the ingester applies). */
     private static String frontendOf(PipelineConfig cfg) {
         if (cfg.fixedWidth() != null) return "fixedwidth";
@@ -324,6 +368,25 @@ final class ConfigRoutes implements RouteModule {
         return "schema file does not resolve on the server: '" + schemaPath
                 + "' (relative paths resolve against the server's working directory: "
                 + Path.of("").toAbsolutePath() + ")";
+    }
+
+    /**
+     * The on-disk base name for a config. The service bootstrap scan indexes pipelines by the
+     * {@code *_pipeline.toon} suffix ({@code MultiCollectorProcessor.resolveConfigs}), so a
+     * guided write MUST follow it — otherwise a draft silently drops out of the registry on the
+     * next service restart (found by the P2 live walk). Other types keep the bare name (their
+     * identity fields, e.g. {@code raw.name}, already carry the scan suffix by convention).
+     */
+    private static String fileBase(String type, String safeName) {
+        if ("pipeline".equals(type) && !safeName.endsWith("_pipeline")) return safeName + "_pipeline";
+        return safeName;
+    }
+
+    /** Resolve a config's file: the suffixed convention first, then the bare name (back-compat). */
+    private static Path resolveConfigFile(Path writeRoot, Path dir, String type, String safeName) {
+        Path suffixed = WriteGates.jail(writeRoot, dir.resolve(fileBase(type, safeName) + ".toon"), "resolved path");
+        if (Files.isRegularFile(suffixed)) return suffixed;
+        return WriteGates.jail(writeRoot, dir.resolve(safeName + ".toon"), "resolved path");
     }
 
     /** Dotted path into the config map that holds a config's stable identity (its filename source). */

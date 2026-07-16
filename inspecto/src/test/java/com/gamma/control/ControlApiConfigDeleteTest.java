@@ -128,14 +128,16 @@ class ControlApiConfigDeleteTest {
                        "dirs":{"poll":"in","database":"out"},
                        "processing":{"threads":1}}}""";
             assertEquals(200, post(c.port, "/config/write", draft).statusCode(), "draft written");
-            assertTrue(Files.exists(root.resolve("draft_stream.toon")));
+            // Written under the bootstrap-scan convention (*_pipeline.toon) so a registered
+            // draft survives a service restart; read/delete resolve the same convention.
+            assertTrue(Files.exists(root.resolve("draft_stream_pipeline.toon")));
 
             HttpResponse<String> r = delete(c.port, "/config/pipeline/draft_stream");
             assertEquals(200, r.statusCode(), r.body());
             JsonNode out = JSON.readTree(r.body());
             assertTrue(out.get("deleted").asBoolean());
-            assertEquals("draft_stream.toon", out.get("path").asText());
-            assertFalse(Files.exists(root.resolve("draft_stream.toon")), "file removed");
+            assertEquals("draft_stream_pipeline.toon", out.get("path").asText());
+            assertFalse(Files.exists(root.resolve("draft_stream_pipeline.toon")), "file removed");
 
             assertEquals(404, delete(c.port, "/config/pipeline/draft_stream").statusCode(),
                     "second delete finds nothing");

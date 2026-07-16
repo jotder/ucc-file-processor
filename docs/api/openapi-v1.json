@@ -168,6 +168,33 @@
         }
       }
     },
+    "/config/preview/schema": {
+      "post": {
+        "tags": ["Metadata & Catalog"],
+        "summary": "TRY_CAST already-parsed sample rows against a draft schema's typed fields",
+        "description": "Stateless, scratch-only preview (v5.2.0, stream onboarding's Schema & Mapping stage — the parsed→typed hop). Reuses the Studio schema component's own preview (ComponentPreview#schema): each declared field's value is TRY_CAST to its type, splitting rows into ok / rejected. Config or cast problems return 422 with the reason.",
+        "operationId": "previewSchema",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object",
+          "required": ["config", "sampleRows"],
+          "properties": {
+            "config": { "type": "object", "description": "A schema draft map, e.g. {raw:{fields:[{name,type}]}} (the same shape POST /config/write type=schema accepts)." },
+            "sampleRows": { "type": "array", "items": { "type": "object" }, "description": "Already-parsed sample rows (e.g. a ParsingPreviewResult's rows) to cast-check." }
+          }
+        } } } },
+        "responses": {
+          "200": {
+            "description": "The cast outcome.",
+            "content": { "application/json": { "schema": { "allOf": [
+              { "$ref": "#/components/schemas/Envelope" },
+              { "properties": { "data": { "$ref": "#/components/schemas/SchemaPreviewResult" } } }
+            ] } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
     "/config/{type}/{name}": {
       "get": {
         "tags": ["Metadata & Catalog"],
@@ -723,6 +750,16 @@
           "rowCount": { "type": "integer" },
           "rows": { "type": "array", "items": { "type": "object" }, "description": "Parsed rows (bounded)." },
           "rejectedRows": { "type": "integer" }
+        }
+      },
+      "SchemaPreviewResult": {
+        "type": "object",
+        "required": ["columns", "okCount", "rejectedCount", "rejectedRows"],
+        "properties": {
+          "columns": { "type": "array", "items": { "type": "string" }, "description": "The sample rows' own columns (echoed)." },
+          "okCount": { "type": "integer" },
+          "rejectedCount": { "type": "integer" },
+          "rejectedRows": { "type": "array", "items": { "type": "object" }, "description": "Rows where some non-blank field failed its cast (bounded)." }
         }
       },
       "ConnectionProfile": {

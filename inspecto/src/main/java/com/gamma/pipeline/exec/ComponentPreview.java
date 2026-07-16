@@ -230,11 +230,14 @@ public final class ComponentPreview {
     private static String delimitedSelect(PipelineConfig cfg, String path) {
         String delim = (cfg.csv().delimiter() == null || cfg.csv().delimiter().isEmpty())
                 ? "," : cfg.csv().delimiter();
+        // all_varchar mirrors production raw ingest (100% VARCHAR columns) AND keeps the preview
+        // rows JSON-serializable — auto-detect would otherwise type a date column as a DuckDB
+        // DATE, which the parsed→typed hop is precisely meant to make explicit, not implicit.
         return "SELECT * FROM read_csv(" + ScratchTables.sqlStr(path)
                 + ", delim=" + ScratchTables.sqlStr(delim)
                 + ", header=" + cfg.csv().hasHeader()
                 + ", skip=" + cfg.csv().skipHeaderLines()
-                + ", auto_detect=true, ignore_errors=true, store_rejects=true)";
+                + ", auto_detect=true, all_varchar=true, ignore_errors=true, store_rejects=true)";
     }
 
     /** The engine's single-column line reader: each physical line intact as VARCHAR {@code line}. */

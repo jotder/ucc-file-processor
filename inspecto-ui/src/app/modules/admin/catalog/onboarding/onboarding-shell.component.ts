@@ -17,7 +17,9 @@ import { InspectoConfirmService } from 'app/inspecto/confirm.service';
 import { OnboardingCollectionPaneComponent } from './collection-pane.component';
 import { OnboardingParsingPaneComponent } from './parsing-pane.component';
 import { OnboardingPlaceholderPaneComponent } from './placeholder-pane.component';
+import { OnboardingPublishPaneComponent } from './publish-pane.component';
 import { OnboardingSamplePanelComponent } from './sample-panel.component';
+import { OnboardingSchemaMappingPaneComponent } from './schema-mapping-pane.component';
 import { OnboardingStage, OnboardingStageId, OnboardingStateService } from './onboarding-state.service';
 
 /**
@@ -73,6 +75,10 @@ export class OnboardingShellComponent {
                 return OnboardingCollectionPaneComponent;
             case 'parsing':
                 return OnboardingParsingPaneComponent;
+            case 'schema':
+                return OnboardingSchemaMappingPaneComponent;
+            case 'publish':
+                return OnboardingPublishPaneComponent;
             default:
                 return OnboardingPlaceholderPaneComponent;
         }

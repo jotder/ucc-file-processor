@@ -157,6 +157,9 @@ export class OnboardingParsingPaneComponent implements OnDestroy {
             next: (p) => {
                 this.testing.set(false);
                 this.state.parsePreview.set(p);
+                // Re-parsing invalidates any schema cast-check computed against the old rows.
+                this.state.schemaPreview.set(null);
+                this.state.schemaError.set(null);
             },
             error: (e) => {
                 this.testing.set(false);

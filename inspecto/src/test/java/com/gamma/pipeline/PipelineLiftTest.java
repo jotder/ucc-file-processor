@@ -7,7 +7,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static com.gamma.etl.TestConfigs.csv;
@@ -117,6 +119,30 @@ class PipelineLiftTest {
 
         // each branch declares its produced store; the quarantine sink has none
         assertEquals(Set.of("alpha", "beta"), PipelineStores.produced(g));
+    }
+
+    @Test
+    void liftsASchemaLessDraftWithoutThrowing() throws Exception {
+        // v5.1.0 allows an inactive draft with no schema_file/schemas/segments at all (stream
+        // onboarding's D3 draft lifecycle — Schema & Mapping may not be authored yet). "View as
+        // graph" (P1 §7 flagged gap) must tolerate that all-null Schemas, not NPE.
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", "draft_etl");
+        m.put("active", false);
+        m.put("dirs", Map.of("poll", "in", "database", "out"));
+        m.put("processing", Map.of("threads", 1));
+        PipelineConfig cfg = PipelineConfig.fromMap(m);
+
+        PipelineGraph g = PipelineLift.lift(cfg);
+
+        assertFalse(g.active());
+        assertType(g, "acq", "acquisition");
+        assertType(g, "parse", "parser");
+        assertType(g, "map", "transform.map");
+        assertType(g, "sink", "sink.persistent");
+        assertNull(g.node("parse").orElseThrow().cfg("schema"));
+        // no schema ⇒ the sink falls back to the pipeline's own identity as its store name
+        assertEquals(cfg.identity().pipelineName(), g.node("sink").orElseThrow().cfg("store"));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

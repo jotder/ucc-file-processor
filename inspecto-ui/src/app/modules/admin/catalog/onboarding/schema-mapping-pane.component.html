@@ -1,0 +1,110 @@
+<div class="flex max-w-3xl flex-col gap-4">
+    @if (foreignManaged()) {
+        <inspecto-alert variant="info" icon="heroicons_outline:puzzle-piece" title="Schema managed elsewhere">
+            This pipeline's schema file ({{ existingSchemaFile }}) doesn't match the guided editor's
+            naming convention — author it in the pipeline TOON directly. The guided editor does not
+            modify it.
+        </inspecto-alert>
+    } @else if (loading()) {
+        <div class="flex items-center gap-3 p-6">
+            <mat-progress-spinner diameter="24" mode="indeterminate" />
+            <span class="text-secondary">Loading the saved schema…</span>
+        </div>
+    } @else if (!hasSource()) {
+        <inspecto-empty-state
+            icon="heroicons_outline:table-cells"
+            message="Run Test parse in the Parsing stage first, so the schema can be built from your sample's columns."
+        />
+        <button mat-stroked-button type="button" class="self-start" (click)="jumpToParsing()">
+            Go to Parsing
+        </button>
+    } @else {
+        <p class="text-secondary m-0">
+            Name, type and keep the columns that reach the output. Only the types listed here are
+            actually cast by the engine — anything else is stored as text.
+        </p>
+
+        <form [formGroup]="fieldsForm">
+            <div formArrayName="fields" class="flex flex-col gap-2">
+                <div class="text-secondary flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wider">
+                    <span class="w-9"></span>
+                    <span class="flex-1">Name</span>
+                    <span class="w-20">From</span>
+                    <span class="w-32">Type</span>
+                </div>
+                @for (g of fieldRows.controls; track $index; let i = $index) {
+                    <div [formGroupName]="i" class="flex items-center gap-2">
+                        <mat-checkbox formControlName="include" [aria-label]="'Include ' + (g.get('name')?.value || 'field ' + (i + 1))"></mat-checkbox>
+                        <mat-form-field class="flex-1" subscriptSizing="dynamic">
+                            <input matInput formControlName="name" aria-label="Field name" />
+                            @if (g.get('name')?.hasError('pattern') && g.get('name')?.touched) {
+                                <mat-error>Letters, digits, _ — start with a letter or _.</mat-error>
+                            }
+                        </mat-form-field>
+                        <span
+                            class="text-secondary w-20 truncate text-xs"
+                            [matTooltip]="'Parsed source: ' + g.get('selector')?.value"
+                        >{{ g.get('selector')?.value }}</span>
+                        <mat-form-field class="w-32" subscriptSizing="dynamic">
+                            <mat-select formControlName="type" aria-label="Field type">
+                                @for (t of types; track t) {
+                                    <mat-option [value]="t">{{ t }}</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                    </div>
+                }
+            </div>
+        </form>
+
+        <mat-form-field class="w-64" subscriptSizing="dynamic">
+            <mat-label>Partition key (optional)</mat-label>
+            <mat-select [formControl]="partitionKeyControl">
+                <mat-option value="">None</mat-option>
+                @for (n of includedNames(); track n) {
+                    <mat-option [value]="n">{{ n }}</mat-option>
+                }
+            </mat-select>
+            <mat-hint>Drives Hive-style output partitioning — a DATE/TIMESTAMP field is typical.</mat-hint>
+        </mat-form-field>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <button
+                mat-stroked-button
+                type="button"
+                [disabled]="testing()"
+                (click)="testTypes()"
+                matTooltip="TRY_CAST the parsed sample against these types"
+            >
+                @if (testing()) {
+                    <mat-progress-spinner diameter="16" mode="indeterminate" class="mr-2" />
+                }
+                Validate types
+            </button>
+            <button
+                mat-flat-button
+                color="primary"
+                [disabled]="saving() || !lens.canAuthorWorkbench()"
+                (click)="save()"
+            >
+                Save schema
+            </button>
+        </div>
+
+        @if (state.schemaError(); as err) {
+            <inspecto-alert variant="error" title="Sample does not cast">{{ err }}</inspecto-alert>
+        }
+        @if (state.schemaPreview(); as sp) {
+            <div class="flex items-center gap-3 text-sm">
+                <span class="font-semibold">Cast check</span>
+                <span class="text-secondary">{{ sp.okCount }} ok</span>
+                @if (sp.rejectedCount > 0) {
+                    <span class="text-secondary">· {{ sp.rejectedCount }} rejected</span>
+                }
+            </div>
+            @if (sp.rejectedCount > 0) {
+                <inspecto-query-panel [source]="rejectedSource()" />
+            }
+        }
+    }
+</div>

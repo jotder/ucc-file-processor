@@ -122,7 +122,9 @@ public final class ConfigSpecs {
                         FieldType.LONG, 5_000_000L,
                         "Rows per generation flush in generation mode; bounds scratch per generation."),
                 FieldSpec.enumField("output.format", "Output format",
-                        List.of("CSV", "PARQUET"), "CSV", "Stage-1 output file format.")
+                        List.of("CSV", "PARQUET"), "CSV", "Stage-1 output file format."),
+                FieldSpec.of("output.compression", "Output compression", FieldType.STRING,
+                        "Codec for the output (e.g. snappy); blank = format default.")
         );
 
         int cores = Runtime.getRuntime().availableProcessors();

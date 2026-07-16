@@ -58,6 +58,43 @@ class DataTransformerTransformTypesTest {
         }
     }
 
+    /**
+     * A DIRECT-mapped DATE column with NO {@code date_formats} declared must still cast via
+     * DuckDB's native ISO parse — not emit a zero-arg {@code COALESCE()::DATE} (invalid SQL that
+     * failed the whole transform, surfacing as a QUARANTINED_UNREADABLE batch; found by the stream
+     * onboarding P2 live walk, where the guided Schema stage types a column DATE but never captures
+     * a format). See {@link com.gamma.util.SqlBuilder#appendCoalesce}.
+     */
+    @Test
+    void directDateColumnWithoutFormatsCastsIsoNatively(@TempDir Path dir) throws Exception {
+        // A minimal draft-shaped config with NO date_formats — exactly what stream onboarding writes.
+        PipelineConfig cfg = PipelineConfig.fromMap(Map.of(
+                "name", "no_fmt",
+                "dirs", Map.of("poll", "in", "database", "out"),
+                "processing", Map.of("threads", 1)));
+        assertTrue(cfg.csv().dateFormats().isEmpty(), "no date_formats declared");
+        Map<String, Object> schema = Map.of(
+                "raw", Map.of("fields", List.of(
+                        Map.of("name", "ORDER_DATE", "selector", "0", "type", "DATE"))),
+                "mapping", Map.of("rules", List.of(
+                        Map.of("targetColumn", "ORDER_DATE", "sourceExpression", "ORDER_DATE"))));
+
+        File db = DuckDbUtil.tempDbFile("dt_");
+        try (Connection conn = DuckDbUtil.openConnection(db); Statement st = conn.createStatement()) {
+            st.execute("CREATE TABLE src AS SELECT * FROM (VALUES " +
+                    "('2026-07-16',0), ('not-a-date',0)) t(ORDER_DATE,__src_id)");
+            DataTransformer.materialize(conn, schema, cfg, "src", "dst");   // must not throw
+            try (ResultSet rs = st.executeQuery("SELECT ORDER_DATE FROM dst ORDER BY ORDER_DATE NULLS LAST")) {
+                assertTrue(rs.next());
+                assertEquals("2026-07-16", rs.getString(1), "ISO date parsed natively");
+                assertTrue(rs.next());
+                assertNull(rs.getString(1), "unparseable value → NULL (TRY_CAST), not a crash");
+            }
+        } finally {
+            DuckDbUtil.deleteTempDb(db);
+        }
+    }
+
     /** EXPR emits the sourceExpression verbatim — runs DuckDB scalar functions end-to-end. */
     @Test
     void exprRunsArbitraryDuckDbExpression(@TempDir Path dir) throws Exception {

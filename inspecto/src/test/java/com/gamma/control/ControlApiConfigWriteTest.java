@@ -83,10 +83,12 @@ class ControlApiConfigWriteTest {
             JsonNode out = JSON.readTree(r.body());
             assertTrue(out.get("written").asBoolean());
             assertEquals("orders_daily", out.get("name").asText());
-            assertEquals("orders_daily.toon", out.get("path").asText());
+            // Pipeline files are named for the bootstrap-scan convention (*_pipeline.toon) so a
+            // written config is picked up on the next service restart; name stays the identity.
+            assertEquals("orders_daily_pipeline.toon", out.get("path").asText());
             assertFalse(out.get("overwritten").asBoolean());
 
-            Path written = root.resolve("orders_daily.toon");
+            Path written = root.resolve("orders_daily_pipeline.toon");
             assertTrue(Files.exists(written), "file persisted under the write root");
             // The encoded TOON decodes back to the same config (round-trip correctness).
             Map<String, Object> decoded = ConfigLoader.filesystem().decode(written.toString());
@@ -168,8 +170,8 @@ class ControlApiConfigWriteTest {
                        "name":"nested","dirs":{"poll":"in","database":"out"},
                        "processing":{"threads":1}}}""";
             JsonNode out = JSON.readTree(post(c.port, "/config/write", inSub).body());
-            assertEquals("team/etl/nested.toon", out.get("path").asText());
-            assertTrue(Files.exists(root.resolve("team").resolve("etl").resolve("nested.toon")));
+            assertEquals("team/etl/nested_pipeline.toon", out.get("path").asText());
+            assertTrue(Files.exists(root.resolve("team").resolve("etl").resolve("nested_pipeline.toon")));
         }
     }
 }

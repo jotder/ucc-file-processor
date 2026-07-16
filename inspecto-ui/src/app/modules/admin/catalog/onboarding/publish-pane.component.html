@@ -1,0 +1,86 @@
+<div class="flex max-w-3xl flex-col gap-6">
+    <div class="flex flex-col gap-4">
+        <p class="text-secondary m-0">How the Stage-1 output is written.</p>
+        <inspecto-schema-form #sf [specs]="attributes" [initial]="initial" (submitted)="save()" />
+        <div class="flex items-center gap-3">
+            <button
+                mat-flat-button
+                color="primary"
+                [disabled]="saving() || !lens.canAuthorWorkbench()"
+                (click)="save()"
+            >
+                Save output
+            </button>
+        </div>
+    </div>
+
+    <hr class="border-t" />
+
+    <div class="flex flex-col gap-3">
+        <h2 class="m-0 text-lg font-semibold">Go live</h2>
+
+        @if (state.active()) {
+            <inspecto-alert variant="success" icon="heroicons_outline:signal">
+                This {{ state.kind() }} is live — it collects on every poll cycle.
+            </inspecto-alert>
+        } @else if (state.lifecycle() === 'Ready') {
+            <p class="text-secondary m-0">
+                Every required stage is configured. Going live flips this draft to active — it starts
+                collecting from its inbox on the next poll cycle.
+            </p>
+            <button
+                mat-flat-button
+                color="primary"
+                class="self-start"
+                [disabled]="activating() || !lens.canAuthorWorkbench()"
+                (click)="activate()"
+            >
+                @if (activating()) {
+                    <mat-progress-spinner diameter="16" mode="indeterminate" class="mr-2" />
+                }
+                Go live
+            </button>
+        } @else if (blockedOn().length > 0) {
+            <inspecto-alert variant="warning" icon="heroicons_outline:exclamation-triangle">
+                Complete these stages before going live: {{ blockedOn().join(', ') }}.
+            </inspecto-alert>
+        } @else {
+            <inspecto-alert variant="warning" icon="heroicons_outline:exclamation-triangle">
+                Save the output settings above to continue.
+            </inspecto-alert>
+        }
+
+        @if (state.active()) {
+            <div class="flex flex-col gap-2 rounded border p-3">
+                <div class="flex items-center gap-2">
+                    <span class="text-secondary text-xs font-semibold uppercase tracking-wider">Activity</span>
+                    <span class="flex-1"></span>
+                    <button
+                        mat-icon-button
+                        type="button"
+                        [disabled]="refreshing()"
+                        (click)="refreshActivity()"
+                        matTooltip="Refresh"
+                        aria-label="Refresh activity"
+                    >
+                        <mat-icon svgIcon="heroicons_outline:arrow-path" class="icon-size-4"></mat-icon>
+                    </button>
+                </div>
+                @if (activityError(); as err) {
+                    <span class="text-secondary text-sm">{{ err }}</span>
+                } @else if (activity(); as a) {
+                    <div class="text-sm">
+                        <span class="font-medium">{{ a.pending }}</span>
+                        <span class="text-secondary"> file(s) pending in {{ a.inbox }}</span>
+                        @if (a.running) {
+                            <span class="ml-2 font-medium">processing now</span>
+                        }
+                    </div>
+                } @else {
+                    <span class="text-secondary text-sm">Loading…</span>
+                }
+                <a [routerLink]="['/runs', state.name()]" class="text-sm font-medium">View full run history →</a>
+            </div>
+        }
+    </div>
+</div>

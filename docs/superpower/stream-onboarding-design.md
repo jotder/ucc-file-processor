@@ -156,6 +156,29 @@ stage chains the existing scratch-test endpoints so the builder always sees *the
   (as D4 anticipated); (d) a schema-less inactive draft passes the `/runs` register gates (the
   schema-file findings only fire on a present-but-unresolvable path) — proven by
   `ControlApiOnboardingLifecycleTest`.
+- **B6 — Schema sample preview (added in P2; the parsed→typed hop):** `POST /config/preview/schema`
+  `{config:{raw:{fields:[{name,type}]}}, sampleRows}` → the existing `ComponentPreview.schema`
+  (the Studio schema component's own TRY_CAST split) → `{columns, okCount, rejectedCount,
+  rejectedRows}`. Stateless/ungated like the parsing preview; 400 on missing parts, 422 on a
+  fieldless schema. Documented in openapi-v1 (`SchemaPreviewResult`). Also in P2:
+  `ConfigSpecs.pipeline()` gained the missing `output.compression` FieldSpec (the validator is
+  permissive on undeclared keys — this is spec-completeness, not a behavior change), and the P0
+  ⚠️ was closed: `PipelineLift.lift()` of a schema-less draft is null-tolerant (test:
+  `liftsASchemaLessDraftWithoutThrowing` — the single-schema branch handles `s.single()==null`
+  and the sink falls back to the pipeline name as its store).
+- **P2 recon corrections (bind future work):** (a) **`raw.fields[].selector` semantics differ by
+  frontend** — delimited/fixedwidth address the parsed column by 0-based POSITION (stringified
+  index), json/text_regex by the VERBATIM key/group name; the Schema pane derives selectors
+  accordingly from `ParsingPreview.columns`. (b) **`mapping.rules[]` is required, non-empty, no
+  identity default** — `DataTransformer.materialize` NPEs without `mapping` and emits zero data
+  columns on empty rules; the guided save always writes one straight-through rule per included
+  field (`SchemaExtractor`'s shape; omitted `transformType` = DIRECT). (c) **Only
+  DOUBLE/DATE/TIMESTAMP are actually cast** by `TransformCompiler.direct()` — everything else
+  (including INTEGER!) is a raw passthrough; the pane offers exactly VARCHAR/DOUBLE/DATE/TIMESTAMP
+  (honesty guard). (d) **Activation is just `active: true`** — `CollectorService` re-reads the
+  flag every poll cycle (`!cfg.active()` gate in the run-set builder); there is no `/activate`
+  route and none was added. (e) Duplicate `raw.fields[].name` is NOT rejected at load — it fails
+  at first ingest as a DuckDB error; the pane blocks duplicates client-side.
 - **Phase 2 (explicitly deferred, tracked in `BACKLOG.md` when v1 ships):** end-to-end bounded
   sample-run endpoint for a new ingestion pipeline; Reference cache/upsert/SCD versioning + refresh
   scheduling; row/event-level dedup; Stream grouping (GLOSSARY "one sub-system = one Stream" over many
@@ -260,6 +283,75 @@ stage chains the existing scratch-test endpoints so the builder always sees *the
     P2.
 - **P2 — Schema & Mapping + Dataset & Go-live**: U4 + gate. *Verify (live):* onboard a demo CSV Stream in
   `spaces/demo` end-to-end from the UI, activate, drop a file, confirm rows land + Catalog shows **Live**.
+
+  **P2 as-built (2026-07-16).** Backend: B6 schema preview + `output.compression` spec +
+  PipelineLift null-tolerance test (§5). UI (under `modules/admin/catalog/onboarding/`):
+  - **Schema & Mapping pane** (`schema-mapping-pane`): gated on a parsed sample — fields are
+    DERIVED from `ParsingPreview.columns` (frontend-aware selectors, sanitized-identifier names,
+    include checkboxes), never hand-typed; honest 4-type select (VARCHAR/DOUBLE/DATE/TIMESTAMP —
+    exactly what `TransformCompiler.direct()` casts); partition-key select over included fields;
+    **Validate types** TRY_CASTs the SAME parsed rows (B6) with rejected rows in a grid; **Save**
+    writes the `schema` config under the convention name `<pipeline>_schema` + links
+    `processing.schema_file` in one flow. Resume reads the schema file back (pristine); a
+    `schema_file` outside the convention shows a managed-elsewhere banner (never modified). The
+    sample thread gained an "After schema" hop (ok/rejected counts); a re-parse or new sample
+    invalidates it.
+  - **Dataset & Go-live pane** (`publish-pane`): `output:` block via `PUBLISH_ATTRIBUTES`
+    (format PARQUET/CSV + compression); **Go live** appears only at `lifecycle()==='Ready'`
+    (otherwise the blocked state NAMES the missing stages, or points at the unsaved output
+    block), confirms, then flips `active: true` through the same `saveBlock` path — no dedicated
+    route, matching the engine (poll-cycle re-read). Once live: an inbox activity glance
+    (`GET /runs/{name}/pending`, manual Refresh, no timers) + a link to the full Runs page.
+  - **Mocks**: schema-type config write/read/delete + `POST /config/preview/schema` (JS
+    TRY_CAST-alike: DOUBLE/DATE/TIMESTAMP reject, VARCHAR never). **Specs**: 2 new files, 15
+    cases incl. axe.
+  - **Walk-found fix (real bug):** `read_csv auto_detect` typed a date column as a DuckDB DATE →
+    `java.time.LocalDate` in the preview rows → Jackson 500. Fixed with `all_varchar=true` in
+    `delimitedSelect` — which is also the honest semantics (production raw ingest is 100%
+    VARCHAR; typing is exactly what the Schema stage makes explicit). Regression test
+    `delimitedKeepsEveryColumnVarcharLikeProductionIngest`. ⚠️ Related edge left open: the
+    `json format:array|auto` path (`read_json`) could still infer a timestamp column and hit the
+    same serialization wall — NDJSON (the default) is immune (`json_extract_string`).
+  - **Walk-found fix 2 (real bug, restart durability):** a guided draft was written as
+    `<name>.toon`, but the service bootstrap scan only indexes `*_pipeline.toon`
+    (`MultiCollectorProcessor.resolveConfigs`) — so a registered draft SILENTLY dropped out of
+    the registry on the next service restart (caught when the walk restarted the dev backend
+    mid-lifecycle; P1's walk never restarted). Fix: `/config/write` now names pipeline files
+    `<name>_pipeline.toon` (no double-suffix), and read/delete resolve the suffixed convention
+    first with a bare-name fallback (back-compat; also proves out for hand-authored files like
+    `livepipe.toon`). The write response `name` stays the identity; `path` carries the real
+    file. Tests updated in both lifecycle + delete classes; the UI mock mirrors the path shape.
+  - **Walk-found fix 3 (real latent engine bug):** a DATE/TIMESTAMP column with NO declared
+    `date_formats`/`timestamp_formats` made `SqlBuilder.appendCoalesce` emit a zero-arg
+    `COALESCE()::DATE` — invalid SQL that failed the combined read+transform statement, so the
+    batch was classified **QUARANTINED_UNREADABLE** and no rows landed (the onboarding Schema
+    stage types a column DATE but never captures a parse format). Fix: empty formats now fall
+    back to `TRY_CAST(col AS <type>)` — DuckDB's native ISO-8601 parse (the honest default; an
+    ISO date/timestamp casts, a bad value → NULL, no crash). This is a latent bug for ANY
+    hand-authored config too, not just onboarding. Regression test
+    `DataTransformerTransformTypesTest.directDateColumnWithoutFormatsCastsIsoNatively`.
+    ⚠️ Non-ISO date formats still need `date_formats` in the TOON — a documented onboarding
+    limitation (the guided Schema stage captures type but not custom format; future enhancement).
+  - **P2 verification (2026-07-16):** reactor `mvn -o clean test` **1510/0/0/3** (6/6 modules;
+    +5 over the P1 1505 baseline) · `test:ci` **1353/0** (+5 skipped) · `lint:tokens` PASS ·
+    production build PASS. One UI a11y bug caught by the new spec (mat-checkbox needs its own
+    `aria-label` input, not `attr.aria-label`) — fixed. (A later full `test:ci` re-run flaked on
+    `studio/widgets/widget.kind.spec.ts` — a pre-existing cross-file ComponentKind
+    registration-order issue, unrelated to onboarding; passes 5/5 in isolation.) **Live walk vs the real dev backend (demo space):** Onboard
+    Stream → `p2_walk_feed` created → Save collection (● Configured) → paste 3-row sample with a
+    deliberate bad `QUANTITY` → Test parse (7 columns · 3 rows) → Save parsing (✓ Validated) →
+    Schema stage auto-derived 7 fields (index selectors) → typed ORDER_DATE=DATE,
+    QUANTITY/UNIT_PRICE=DOUBLE, partition key ORDER_DATE → **Validate types: 2 ok · 1 rejected**
+    (the bad row, real DuckDB TRY_CAST) → Save schema (on-disk TOONs byte-equivalent to the
+    hand-authored orders convention) → Publish: Save output (PARQUET) unlocked Go live → confirm
+    → toast + Live banner → dropped a 3-row CSV into the inbox → batch committed on the next
+    poll cycle (see below). Activity glance right after activation says "no pipeline named" until
+    the service's next poll re-reads `active` — same ≤60s eventual-consistency as the discard
+    ghost row; the Refresh button covers it.
+  - **Deferred within P2 scope:** per-stage `/validate` findings (`blocked` chip state) and the
+    "View as graph" link (lift is now proven null-tolerant; just UI wiring) → P3/P4; discard
+    unregistering the live registry entry (ghost row ≤60s) still open; `read_json array|auto`
+    timestamp serialization edge (above).
 - **P3 — Reference flow + Enrichment stage**: U5 rows/CTAs + U6. *Verify (live):* onboard `region_dim`
   as a Reference via the guided flow; bind it by name in an enrichment; enriched output verified.
 - **P4 — Polish + docs**: readiness columns everywhere, empty-state CTAs, optional templates entry

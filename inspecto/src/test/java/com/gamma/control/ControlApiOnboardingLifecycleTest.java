@@ -23,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code POST /config/write} (create) → {@code POST /runs} (register) → the draft shows in
  * {@code GET /catalog/streams} with {@code active:false} → {@code GET /config/{type}/{name}}
  * (resume read-back) → overwrite (stage save) → {@code DELETE} (discard). Plus the read route's
- * fail-closed gates and the stateless {@code POST /config/preview/parsing} sample preview.
+ * fail-closed gates and the stateless {@code POST /config/preview/parsing} / {@code .../schema}
+ * sample previews.
  */
 class ControlApiOnboardingLifecycleTest {
 
@@ -77,6 +78,10 @@ class ControlApiOnboardingLifecycleTest {
             HttpResponse<String> w = post(c.port, "/config/write", draft);
             assertEquals(200, w.statusCode(), w.body());
             String path = JSON.readTree(w.body()).get("path").asText();
+            // The bootstrap scan only indexes *_pipeline.toon — a guided draft MUST follow the
+            // convention or it silently drops out of the registry on the next service restart.
+            assertTrue(path.endsWith("orders_feed_pipeline.toon"), "scan-convention filename: " + path);
+            assertEquals("orders_feed", JSON.readTree(w.body()).get("name").asText());
 
             // 2. Register so the running service indexes it (write alone is not enough).
             HttpResponse<String> reg = post(c.port, "/runs", "{\"configPath\":\"" + path + "\"}");
@@ -169,6 +174,38 @@ class ControlApiOnboardingLifecycleTest {
             HttpResponse<String> bad = post(c.port, "/config/preview/parsing",
                     "{\"config\":{\"name\":\"p\"},\"sample_text\":\"x\"}");
             assertEquals(422, bad.statusCode(), "draft without dirs/processing does not parse: " + bad.body());
+        }
+    }
+
+    @Test
+    void schemaPreviewCastsSampleRowsAgainstTypedFields(@TempDir Path cfg) throws Exception {
+        // No write root: the schema-preview is stateless compute, not a config mutation — same as
+        // the parsing preview above.
+        try (Ctx c = open(cfg, null)) {
+            String body = """
+                    {"config":{"raw":{"fields":[
+                       {"name":"ORDER_ID","type":"VARCHAR"},
+                       {"name":"QUANTITY","type":"DOUBLE"}]}},
+                     "sampleRows":[
+                       {"ORDER_ID":"1001","QUANTITY":"3"},
+                       {"ORDER_ID":"1002","QUANTITY":"abc"}]}""";
+            HttpResponse<String> r = post(c.port, "/config/preview/schema", body);
+            assertEquals(200, r.statusCode(), r.body());
+            JsonNode out = JSON.readTree(r.body());
+            assertEquals(1, out.get("okCount").asInt());
+            assertEquals(1, out.get("rejectedCount").asInt());
+            assertEquals("1002", out.get("rejectedRows").get(0).get("ORDER_ID").asText());
+        }
+    }
+
+    @Test
+    void schemaPreviewGates400And422(@TempDir Path cfg) throws Exception {
+        try (Ctx c = open(cfg, null)) {
+            assertEquals(400, post(c.port, "/config/preview/schema",
+                    "{\"config\":{\"raw\":{\"fields\":[]}}}").statusCode(), "missing sampleRows");
+            HttpResponse<String> noFields = post(c.port, "/config/preview/schema",
+                    "{\"config\":{},\"sampleRows\":[{\"a\":\"1\"}]}");
+            assertEquals(422, noFields.statusCode(), "schema with no typed fields: " + noFields.body());
         }
     }
 }

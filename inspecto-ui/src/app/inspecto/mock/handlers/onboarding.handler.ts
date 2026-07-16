@@ -4,14 +4,16 @@ import { MockStore } from '../mock-store';
 
 /**
  * Stream-onboarding mock domain — the offline mirror of the server-side draft lifecycle
- * (`ConfigRoutes` + pipeline registration, v5.1.0): write → register → read back → overwrite →
- * delete, plus the stateless `POST /config/preview/parsing` sample preview (tiny JS parsers that
- * mimic the DuckDB frontends' behaviour: header skip, min-record-length drop, named regex
- * groups, NDJSON validity filter). Pipeline configs only; `/config/spec` + `/validate` stay with
- * the demo handler (registered ahead of this one).
+ * (`ConfigRoutes` + pipeline registration, v5.1.0/v5.2.0): write → register → read back →
+ * overwrite → delete, plus the stateless `POST /config/preview/parsing` / `.../schema` sample
+ * previews (tiny JS parsers that mimic the DuckDB frontends' behaviour: header skip,
+ * min-record-length drop, named regex groups, NDJSON validity filter, TRY_CAST-alike type
+ * checks). Pipeline + schema configs only; `/config/spec` + `/validate` stay with the demo
+ * handler (registered ahead of this one).
  */
 
 export const PIPELINE_CONFIGS_COLL = 'pipeline-config';
+export const SCHEMA_CONFIGS_COLL = 'schema-config';
 
 /** One stored draft/config file: the decoded map + its write-root-relative path. */
 export interface StoredPipelineConfig {
@@ -21,9 +23,17 @@ export interface StoredPipelineConfig {
     registered: boolean;
 }
 
+/** One stored schema file — no registration/active concept (never a pipeline itself). */
+export interface StoredSchemaConfig {
+    id: string;
+    path: string;
+    config: Record<string, unknown>;
+}
+
 const WRITE = /\/config\/write$/;
-const PREVIEW = /\/config\/preview\/parsing$/;
-const CONFIG_FILE = /\/config\/pipeline\/([^/?]+)$/;
+const PREVIEW_PARSING = /\/config\/preview\/parsing$/;
+const PREVIEW_SCHEMA = /\/config\/preview\/schema$/;
+const CONFIG_FILE = /\/config\/(pipeline|schema)\/([^/?]+)$/;
 const RUNS = /\/runs$/;
 
 export function onboardingHandler(flags: MockFlags): MockHandler {
@@ -34,24 +44,42 @@ export function onboardingHandler(flags: MockFlags): MockHandler {
 
         if (method === 'POST' && WRITE.test(url)) {
             const body = (req.body ?? {}) as { type?: string; config?: Record<string, unknown>; overwrite?: boolean };
-            if (body.type !== 'pipeline' || !body.config) return undefined; // other types: not mocked here
-            const name = String(body.config['name'] ?? '').trim();
-            if (!name) return error(422, "config is missing its identity field 'name'");
-            const existing = store.get<StoredPipelineConfig>(space, PIPELINE_CONFIGS_COLL, name);
-            if (existing && !body.overwrite) return error(409, `file exists: ${name}.toon (pass overwrite:true to replace)`);
-            store.put(space, PIPELINE_CONFIGS_COLL, name, {
-                id: name,
-                path: `${name}.toon`,
-                config: body.config,
-                registered: existing?.registered ?? false,
-            } satisfies StoredPipelineConfig);
-            return json({
-                type: 'pipeline', written: true, path: `${name}.toon`, name,
-                bytes: JSON.stringify(body.config).length, overwritten: !!existing, findings: [],
-            });
+            if (!body.config) return undefined;
+            if (body.type === 'pipeline') {
+                const name = String(body.config['name'] ?? '').trim();
+                if (!name) return error(422, "config is missing its identity field 'name'");
+                const existing = store.get<StoredPipelineConfig>(space, PIPELINE_CONFIGS_COLL, name);
+                if (existing && !body.overwrite) return error(409, `file exists: ${name}.toon (pass overwrite:true to replace)`);
+                // The real route writes `<name>_pipeline.toon` — the bootstrap-scan convention.
+                const path = name.endsWith('_pipeline') ? `${name}.toon` : `${name}_pipeline.toon`;
+                store.put(space, PIPELINE_CONFIGS_COLL, name, {
+                    id: name,
+                    path,
+                    config: body.config,
+                    registered: existing?.registered ?? false,
+                } satisfies StoredPipelineConfig);
+                return json({
+                    type: 'pipeline', written: true, path, name,
+                    bytes: JSON.stringify(body.config).length, overwritten: !!existing, findings: [],
+                });
+            }
+            if (body.type === 'schema') {
+                const raw = (body.config['raw'] ?? {}) as Record<string, unknown>;
+                const name = String(raw['name'] ?? '').trim();
+                if (!name) return error(422, "config is missing its identity field 'raw.name'");
+                const existing = store.get<StoredSchemaConfig>(space, SCHEMA_CONFIGS_COLL, name);
+                store.put(space, SCHEMA_CONFIGS_COLL, name, {
+                    id: name, path: `${name}.toon`, config: body.config,
+                } satisfies StoredSchemaConfig);
+                return json({
+                    type: 'schema', written: true, path: `${name}.toon`, name,
+                    bytes: JSON.stringify(body.config).length, overwritten: !!existing, findings: [],
+                });
+            }
+            return undefined; // other types: not mocked here
         }
 
-        if (method === 'POST' && PREVIEW.test(url)) {
+        if (method === 'POST' && PREVIEW_PARSING.test(url)) {
             const body = (req.body ?? {}) as { config?: Record<string, unknown>; sample_text?: string };
             if (!body.config || !String(body.sample_text ?? '').trim()) {
                 return error(400, "body must include 'config' (a pipeline draft map) and 'sample_text'");
@@ -63,20 +91,36 @@ export function onboardingHandler(flags: MockFlags): MockHandler {
             }
         }
 
+        if (method === 'POST' && PREVIEW_SCHEMA.test(url)) {
+            const body = (req.body ?? {}) as { config?: Record<string, unknown>; sampleRows?: Record<string, unknown>[] };
+            if (!body.config || !body.sampleRows?.length) {
+                return error(400, "body must include 'config' (a schema draft map) and non-empty 'sampleRows'");
+            }
+            try {
+                return json(previewSchema(body.config, body.sampleRows));
+            } catch (e) {
+                return error(422, e instanceof Error ? e.message : 'schema preview failed');
+            }
+        }
+
         if (method === 'GET' && (m = match(url, CONFIG_FILE))) {
-            const rec = store.get<StoredPipelineConfig>(space, PIPELINE_CONFIGS_COLL, m[1]);
-            if (!rec) return error(404, `no such config: ${m[1]}.toon`);
-            return json({ type: 'pipeline', name: rec.id, path: rec.path, config: rec.config });
+            const [, type, name] = m;
+            const coll = type === 'schema' ? SCHEMA_CONFIGS_COLL : PIPELINE_CONFIGS_COLL;
+            const rec = store.get<StoredPipelineConfig | StoredSchemaConfig>(space, coll, name);
+            if (!rec) return error(404, `no such config: ${name}.toon`);
+            return json({ type, name: rec.id, path: rec.path, config: rec.config });
         }
 
         if (method === 'DELETE' && (m = match(url, CONFIG_FILE))) {
-            const rec = store.get<StoredPipelineConfig>(space, PIPELINE_CONFIGS_COLL, m[1]);
-            if (!rec) return error(404, `no such config: ${m[1]}.toon`);
-            if (rec.config['active'] === true) {
+            const [, type, name] = m;
+            const coll = type === 'schema' ? SCHEMA_CONFIGS_COLL : PIPELINE_CONFIGS_COLL;
+            const rec = store.get<StoredPipelineConfig | StoredSchemaConfig>(space, coll, name);
+            if (!rec) return error(404, `no such config: ${name}.toon`);
+            if (type === 'pipeline' && (rec as StoredPipelineConfig).config['active'] === true) {
                 return error(409, `pipeline '${rec.id}' is active; deactivate (active: false) before deleting`);
             }
-            store.delete(space, PIPELINE_CONFIGS_COLL, rec.id);
-            return json({ type: 'pipeline', name: rec.id, deleted: true, path: rec.path });
+            store.delete(space, coll, rec.id);
+            return json({ type, name: rec.id, deleted: true, path: rec.path });
         }
 
         if (method === 'POST' && RUNS.test(url)) {
@@ -138,6 +182,42 @@ interface Preview {
     rowCount: number;
     rows: Record<string, unknown>[];
     rejectedRows: number;
+}
+
+interface SchemaPreviewMock {
+    columns: string[];
+    okCount: number;
+    rejectedCount: number;
+    rejectedRows: Record<string, unknown>[];
+}
+
+/** Mirrors `ComponentPreview.schema()`'s cast set: only DOUBLE/DATE/TIMESTAMP actually reject a
+ *  non-blank value that fails; VARCHAR (and anything else) always passes. */
+function previewSchema(config: Record<string, unknown>, sampleRows: Record<string, unknown>[]): SchemaPreviewMock {
+    const raw = (config['raw'] ?? {}) as Record<string, unknown>;
+    const fields = (Array.isArray(raw['fields']) ? raw['fields'] : []) as { name?: string; type?: string }[];
+    const columns = [...new Set(sampleRows.flatMap((r) => Object.keys(r)))];
+    if (!columns.length) throw new Error('sample rows have no columns');
+    if (!fields.length) throw new Error("schema has no typed fields (expected 'raw.fields' / 'fields' / 'columns')");
+
+    const castOk = (value: unknown, type?: string): boolean => {
+        const v = value === undefined || value === null ? '' : String(value);
+        if (v === '') return true; // blank/null: never rejects
+        switch ((type ?? '').trim().toUpperCase()) {
+            case 'DOUBLE': return Number.isFinite(Number(v));
+            case 'DATE':
+            case 'TIMESTAMP': return !Number.isNaN(Date.parse(v));
+            default: return true; // VARCHAR / unknown: never rejects
+        }
+    };
+
+    const ok: Record<string, unknown>[] = [];
+    const rejected: Record<string, unknown>[] = [];
+    for (const row of sampleRows) {
+        const allCast = fields.every((f) => !f.name || !(f.name in row) || castOk(row[f.name], f.type));
+        (allCast ? ok : rejected).push(row);
+    }
+    return { columns, okCount: ok.length, rejectedCount: rejected.length, rejectedRows: rejected.slice(0, 200) };
 }
 
 function previewParsing(config: Record<string, unknown>, sampleText: string): Preview {

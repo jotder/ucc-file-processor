@@ -21,13 +21,23 @@ public final class SqlBuilder {
      * first successful parse.  The result is cast to {@code castType} (e.g.
      * {@code "DATE"} or {@code "TIMESTAMP"}).
      *
+     * <p>When {@code formats} is empty, there are no format strings to try, so this falls back to
+     * {@code TRY_CAST(col AS castType)} — DuckDB's native ISO-8601 parse. (A zero-arg
+     * {@code COALESCE()} would be a SQL syntax error, so this is also what keeps a DATE/TIMESTAMP
+     * column with no declared {@code date_formats}/{@code timestamp_formats} from crashing the
+     * transform.)
+     *
      * @param sb       builder to append to
      * @param col      the SQL column reference, e.g. {@code raw_input."TRADE_DATE"}
-     * @param formats  ordered list of strptime format strings
+     * @param formats  ordered list of strptime format strings ({@code empty} ⇒ native TRY_CAST)
      * @param castType DuckDB type name for the final {@code ::} cast
      */
     public static void appendCoalesce(StringBuilder sb, String col,
                                       List<String> formats, String castType) {
+        if (formats.isEmpty()) {
+            sb.append("TRY_CAST(").append(col).append(" AS ").append(castType).append(')');
+            return;
+        }
         sb.append("COALESCE(");
         for (int j = 0; j < formats.size(); j++) {
             sb.append("TRY_STRPTIME(").append(col).append(", '").append(formats.get(j)).append("')");

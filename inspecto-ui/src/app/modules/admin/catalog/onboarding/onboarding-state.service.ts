@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, tap } from 'rxjs';
 import { ToastrService } from 'ngx-toastr';
-import { apiErrorMessage, ConfigDeleteResult, ConfigService, ConfigWriteResult, ParsingPreview } from 'app/inspecto/api';
+import { apiErrorMessage, ConfigDeleteResult, ConfigService, ConfigWriteResult, ParsingPreview, SchemaPreview } from 'app/inspecto/api';
 import { mergeBlock } from './onboarding-config-utils';
 
 /** Stage ids across both kinds — a Stream uses schema/enrichment, a Reference keys. */
@@ -59,6 +59,8 @@ export class OnboardingStateService {
     readonly sample = signal<{ name: string; text: string } | null>(null);
     readonly parsePreview = signal<ParsingPreview | null>(null);
     readonly parseError = signal<string | null>(null);
+    readonly schemaPreview = signal<SchemaPreview | null>(null);
+    readonly schemaError = signal<string | null>(null);
 
     /** The active pane's unsaved-changes probe (registered on init, cleared on destroy). */
     private dirtyCheck: (() => boolean) | null = null;
@@ -85,7 +87,9 @@ export class OnboardingStateService {
             parsing: parsingConfigured
                 ? this.parsePreview() && !this.parseError() ? 'validated' : 'configured'
                 : 'empty',
-            schema: hasSchema ? 'configured' : 'empty',
+            schema: hasSchema
+                ? this.schemaPreview() && !this.schemaError() ? 'validated' : 'configured'
+                : 'empty',
             enrichment: 'empty', // companion EnrichmentConfig — P3
             keys: 'empty', // Reference load policy — P3 (full-replace is today's only semantics)
             publish: 'output' in cfg || this.active() ? 'configured' : 'empty',
@@ -160,15 +164,19 @@ export class OnboardingStateService {
 
     captureSample(name: string, text: string): void {
         this.sample.set({ name, text });
-        // A new sample invalidates the previous parse result — the thread restarts at raw.
+        // A new sample invalidates every downstream test result — the thread restarts at raw.
         this.parsePreview.set(null);
         this.parseError.set(null);
+        this.schemaPreview.set(null);
+        this.schemaError.set(null);
     }
 
     clearSample(): void {
         this.sample.set(null);
         this.parsePreview.set(null);
         this.parseError.set(null);
+        this.schemaPreview.set(null);
+        this.schemaError.set(null);
     }
 
     registerDirtyCheck(fn: () => boolean): void {

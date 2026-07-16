@@ -40,6 +40,16 @@ class ComponentPreviewParsingTest {
     }
 
     @Test
+    void delimitedKeepsEveryColumnVarcharLikeProductionIngest() throws Exception {
+        // Raw ingest is 100% VARCHAR; auto-detect must not type a date column into a DuckDB DATE
+        // (which is also not JSON-serializable on the wire — found by the P2 live walk).
+        ComponentPreview.GrammarResult r = ComponentPreview.parsing(
+                cfg(null), "id,when\n1,2026-07-15\n");
+        assertEquals("2026-07-15", r.rows().get(0).get("when"));
+        assertInstanceOf(String.class, r.rows().get(0).get("when"));
+    }
+
+    @Test
     void delimitedDefaultsToCommaAndAHeaderLine() throws Exception {
         // Engine default dialect: comma-delimited, has_header true — the first line names columns.
         ComponentPreview.GrammarResult r =
